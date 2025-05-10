@@ -32,6 +32,15 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 # SECURITY WARNING: don't run with debug turned on in production!
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 CORS_ORIGIN_WHITELIST = tuple(os.environ.get("CORS_ORIGIN_WHITELIST", "http://localhost:5173,http://127.0.0.1:5173").split(","))
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
 # Security settings for HTTPS
 if not DEBUG:
@@ -63,6 +72,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware must be at the top
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -163,12 +173,13 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'api_app/static'),
 ]
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_FULL_URL = SITE_URL.rstrip("/") + "/" + MEDIA_URL.rstrip("/") + "/"
+
+LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR, 'Lightnovels')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -189,3 +200,70 @@ CORS_URLS_REGEX = r"^/.*$"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'auth_app.CustomUser'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'django_formatter': {
+            'format': '[DJANGO] {levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'apibot_formatter': {
+            'format': '[APIBOT] {levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'lncrawler_api_formatter': {
+            'format': '[LNCrawlerAPI] {levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'django_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'django_formatter',
+            'level': 'DEBUG',
+        },
+        'lncrawler_api_console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'lncrawler_api_formatter',
+            'level': 'DEBUG',
+        },
+        'django_file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
+            'formatter': 'django_formatter',
+        },
+        'apibot_file': { 
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'apibot.log'),
+            'formatter': 'apibot_formatter',
+        },
+        'lncrawler_api_file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'lncrawler_api.log'),
+            'formatter': 'lncrawler_api_formatter',
+        },
+    },
+    'loggers': {
+        'django': {  # Django's built-in logger
+            'handlers': ['django_console', 'django_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'lncrawler_api': { 
+            'handlers': ['lncrawler_api_console', 'lncrawler_api_file'],
+
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'apibot': {  # Separate logger for PythonApiBot - file only, no console
+            'handlers': ['apibot_file'], 
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
+
+# Create logs directory if it doesn't exist
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
