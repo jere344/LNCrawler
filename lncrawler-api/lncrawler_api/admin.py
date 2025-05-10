@@ -4,18 +4,18 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django import forms
+from django.utils.html import format_html
 
 # Register your models here.
 
 from django.contrib import admin
-from .models import Job
-from .models.novels import Novel, NovelFromSource, Volume, Chapter, Author, Editor, Translator, Tag, Genre
+from .models import Job, Novel, NovelFromSource, Volume, Chapter, Author, Editor, Translator, Tag, Genre
 
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
     list_display = ('id', 'status', 'query', 'created_at', 'updated_at', 'progress', 'total_items')
     list_filter = ('status', 'created_at', 'updated_at')
-    search_fields = ('query', 'output_path', 'error_message')
+    search_fields = ('query', 'output_path', 'error_message', 'import_message')
     readonly_fields = ('id', 'created_at', 'updated_at', 'job_pid')
     
     fieldsets = (
@@ -26,7 +26,7 @@ class JobAdmin(admin.ModelAdmin):
             'fields': ('progress', 'total_items')
         }),
         ('Results', {
-            'fields': ('search_results', 'selected_novel', 'output_path', 'output_files')
+            'fields': ('search_results', 'selected_novel', 'output_path', 'output_files', 'import_message')
         }),
         ('Error Information', {
             'fields': ('error_message',)
@@ -67,12 +67,45 @@ class MetaJsonImportForm(forms.Form):
         help_text='Enter the full path to a meta.json file (e.g., C:\\Users\\Jeremy\\novels\\novel_name\\meta.json)'
     )
 
+# Inline for showing sources in Novel admin
+class NovelFromSourceInline(admin.TabularInline):
+    model = NovelFromSource
+    extra = 0
+    fields = ('link_to_source', 'source_name', 'status', 'chapters_count', 'last_chapter_update')
+    readonly_fields = ('link_to_source', 'chapters_count', 'last_chapter_update')
+    show_change_link = True
+    can_delete = False
+    
+    def link_to_source(self, obj):
+        url = reverse('admin:lncrawler_api_novelfromsource_change', args=[obj.id])
+        return format_html('<a href="{}">{}</a>', url, obj.title)
+    
+    link_to_source.short_description = 'Title'
+    
+# Inline for showing chapters in NovelFromSource admin
+class ChapterInline(admin.TabularInline):
+    model = Chapter
+    extra = 0
+    fields = ('chapter_id', 'link_to_chapter', 'success', 'has_content')
+    readonly_fields = ('chapter_id', 'link_to_chapter', 'success', 'has_content')
+    show_change_link = True
+    can_delete = False
+    ordering = ('chapter_id',)
+    max_num = 5000  # Limit displayed chapters to avoid page load performance issues
+    
+    def link_to_chapter(self, obj):
+        url = reverse('admin:lncrawler_api_chapter_change', args=[obj.id])
+        return format_html('<a href="{}">{}</a>', url, obj.title)
+    
+    link_to_chapter.short_description = 'Title'
+
 @admin.register(Novel)
 class NovelAdmin(admin.ModelAdmin):
     list_display = ('title', 'slug', 'sources_count', 'total_chapters', 'created_at', 'updated_at')
     search_fields = ('title', 'slug')
     prepopulated_fields = {'slug': ('title',)}
-    readonly_fields = ('id', 'created_at', 'updated_at')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'sources_count', 'total_chapters')
+    inlines = [NovelFromSourceInline]
     
     # Add import button to the changelist page
     def get_urls(self):
@@ -132,11 +165,18 @@ class NovelAdmin(admin.ModelAdmin):
 
 @admin.register(NovelFromSource)
 class NovelFromSourceAdmin(admin.ModelAdmin):
-    list_display = ('title', 'source_name', 'novel', 'status', 'chapters_count', 'last_chapter_update')
+    list_display = ('title', 'source_name', 'link_to_novel', 'status', 'chapters_count', 'last_chapter_update')
     list_filter = ('source_name', 'status', 'language')
     search_fields = ('title', 'novel__title', 'source_name')
-    readonly_fields = ('id', 'created_at', 'updated_at')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'chapters_count', 'link_to_novel')
     raw_id_fields = ('novel',)
+    inlines = [ChapterInline]
+    
+    def link_to_novel(self, obj):
+        url = reverse('admin:lncrawler_api_novel_change', args=[obj.novel.id])
+        return format_html('<a href="{}">{}</a>', url, obj.novel.title)
+    
+    link_to_novel.short_description = 'Novel'
 
 @admin.register(Volume)
 class VolumeAdmin(admin.ModelAdmin):
@@ -147,7 +187,13 @@ class VolumeAdmin(admin.ModelAdmin):
 
 @admin.register(Chapter)
 class ChapterAdmin(admin.ModelAdmin):
-    list_display = ('title', 'novel_from_source', 'chapter_id', 'volume', 'success', 'has_content')
+    list_display = ('title', 'link_to_novel_source', 'chapter_id', 'volume', 'success', 'has_content')
     list_filter = ('novel_from_source__source_name', 'success', 'volume')
     search_fields = ('title', 'novel_from_source__title')
     raw_id_fields = ('novel_from_source',)
+    
+    def link_to_novel_source(self, obj):
+        url = reverse('admin:lncrawler_api_novelfromsource_change', args=[obj.novel_from_source.id])
+        return format_html('<a href="{}">{}</a>', url, obj.novel_from_source.title)
+    
+    link_to_novel_source.short_description = 'Novel From Source'

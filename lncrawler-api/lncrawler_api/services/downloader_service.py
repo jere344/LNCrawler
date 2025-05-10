@@ -211,6 +211,34 @@ class DownloaderService:
                 pass
     
     @staticmethod
+    def _import_novel_to_database(output_path):
+        """
+        Import the downloaded novel into the database using the meta.json file
+        """
+        try:
+            # Find meta.json file in the output directory
+            meta_json_path = os.path.join(output_path, 'meta.json')
+            if not os.path.exists(meta_json_path):
+                logger.error(f"meta.json file not found at {meta_json_path}")
+                return False, "meta.json file not found in the output directory"
+            
+            # Import the model
+            from ..models.novels import NovelFromSource
+            
+            # Use the NovelFromSource's method to import from meta.json
+            novel = NovelFromSource.from_meta_json(meta_json_path)
+            
+            if novel:
+                logger.info(f"Successfully imported novel: {novel.title} from {novel.source_name}")
+                return True, f"Successfully imported novel: {novel.title} from {novel.source_name}"
+            else:
+                return False, "Failed to import novel from meta.json"
+        
+        except Exception as e:
+            logger.exception(f"Error importing novel to database: {str(e)}")
+            return False, f"Error importing novel to database: {str(e)}"
+    
+    @staticmethod
     def _run_download_process(job_id, novel_url):
         """
         Run novel download in a separate process
@@ -365,11 +393,29 @@ class DownloaderService:
                     return
                 
                 # Update job with download results
+                output_path = results.get("output_path", "")
+                output_files = results.get("archived_outputs", [])
+                
                 job.update_download_results(
-                    output_path=results.get("output_path", ""),
-                    output_files=results.get("archived_outputs", [])
+                    output_path=output_path,
+                    output_files=output_files
                 )
-                job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
+                
+                # Auto-import the novel to the database
+                logger.debug(f"Attempting to import novel from {output_path}")
+                success, message = DownloaderService._import_novel_to_database(output_path)
+                
+                if success:
+                    job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
+                    # Add the import success message to the job
+                    job.import_message = message
+                    job.save(update_fields=['import_message'])
+                else:
+                    # Still mark the download as complete but include error about import
+                    job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
+                    job.import_message = f"Download completed but import failed: {message}"
+                    job.save(update_fields=['import_message'])
+                
                 logger.debug(f"Download process completed successfully for job {job_id}")
                 
             finally:
@@ -601,12 +647,18 @@ class DownloaderService:
                     'current_status': job.get_status_display(),
                 }
             
-            return {
+            result = {
                 'status': 'success',
                 'output_path': job.output_path,
                 'output_files': job.output_files,
                 'selected_novel': job.selected_novel,
             }
+            
+            # Include import message if available
+            if hasattr(job, 'import_message') and job.import_message:
+                result['import_message'] = job.import_message
+                
+            return result
             
         except Job.DoesNotExist:
             return {

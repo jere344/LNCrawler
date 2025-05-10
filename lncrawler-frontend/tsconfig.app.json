@@ -31,6 +31,7 @@
       "@services/*": ["src/services/*"],
       "@theme/*": ["src/theme/*"],
       "@config/*": ["src/config/*"],
+      "@utils/*": ["src/utils/*"],
     }
   },
   "include": ["src"]

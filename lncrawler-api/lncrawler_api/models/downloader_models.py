@@ -50,6 +50,9 @@ class Job(models.Model):
     output_path = models.CharField(max_length=512, blank=True, null=True)
     output_files = models.JSONField(default=list, blank=True, null=True)
     
+    # Import information
+    import_message = models.TextField(blank=True, null=True)
+    
     # Error information
     error_message = models.TextField(blank=True, null=True)
     
@@ -92,7 +95,7 @@ class Job(models.Model):
     
     def to_dict(self):
         """Convert job to dictionary with formatted fields"""
-        return {
+        result = {
             'id': str(self.id),
             'status': self.status,
             'status_display': self.get_status_display(),
@@ -108,3 +111,9 @@ class Job(models.Model):
             'output_files': self.output_files,
             'error_message': self.error_message,
         }
+        
+        # Include import_message if it exists
+        if self.import_message:
+            result['import_message'] = self.import_message
+            
+        return result

@@ -95,6 +95,7 @@ class NovelFromSource(models.Model):
     title = models.CharField(max_length=255)
     source_url = models.URLField(max_length=500)
     source_name = models.CharField(max_length=100)
+    source_slug = models.SlugField(max_length=100, blank=True)
     cover_url = models.URLField(max_length=500, null=True, blank=True)
     
     # People relationships (many-to-many)
@@ -135,7 +136,7 @@ class NovelFromSource(models.Model):
     
     def __str__(self):
         return f"{self.title} ({self.source_name})"
-    
+
     @property
     def chapters_count(self):
         return self.chapters.count()
@@ -167,7 +168,8 @@ class NovelFromSource(models.Model):
         
         # Create or update the NovelFromSource
         source_url = novel_data.get('url', '')
-        source_name = os.path.basename(os.path.dirname(os.path.dirname(meta_json_path)))
+        source_name = os.path.basename(os.path.dirname(meta_json_path))
+        source_slug = slugify(source_name)
         
         novel_from_source, created = cls.objects.update_or_create(
             novel=novel,

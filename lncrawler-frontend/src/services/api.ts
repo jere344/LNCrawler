@@ -75,4 +75,36 @@ export const jobService = {
   },
 };
 
+// Novel service functions updated for the new URL structure
+export const novelService = {
+  listNovels: async (page = 1, pageSize = 24) => {
+    const response = await api.get(`/novels/?page=${page}&page_size=${pageSize}`);
+    return response.data;
+  },
+  
+  // Get novel details by slug
+  getNovelDetail: async (novelSlug: string) => {
+    const response = await api.get(`/novels/${novelSlug}/`);
+    return response.data;
+  },
+  
+  // Get source details by slug
+  getSourceDetail: async (novelSlug: string, sourceSlug: string) => {
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/`);
+    return response.data;
+  },
+  
+  // Get chapters by novel and source slugs
+  getNovelChapters: async (novelSlug: string, sourceSlug: string) => {
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`);
+    return response.data;
+  },
+  
+  // Get chapter content by number
+  getChapterContent: async (novelSlug: string, sourceSlug: string, chapterNumber: number) => {
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/`);
+    return response.data;
+  }
+};
+
 export default api;
