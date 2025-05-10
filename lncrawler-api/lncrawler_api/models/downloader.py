@@ -1,14 +1,12 @@
 from django.db import models
-
-# Create your models here.
-
-from django.db import models
 from django.utils import timezone
 import json
 import uuid
 import logging
 
+
 logger = logging.getLogger("lncrawler_api")
+
 
 class Job(models.Model):
     """Model to store the state of a downloader job"""
