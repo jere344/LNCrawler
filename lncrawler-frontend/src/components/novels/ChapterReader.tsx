@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -24,6 +24,11 @@ import CommentIcon from '@mui/icons-material/Comment';
 import CommentSection from '../comments/CommentSection';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 
+// Interface for our chapter cache
+interface ChapterCache {
+  [key: string]: IChapterContent;
+}
+
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
     novelSlug: string; 
@@ -37,19 +42,61 @@ const ChapterReader = () => {
   const [error, setError] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number>(18);
   const [activeTab, setActiveTab] = useState(0);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+  
+  // Create a ref to store our chapter cache that persists through renders
+  const chapterCacheRef = useRef<ChapterCache>({});
+
+  // Helper function to generate a cache key
+  const getCacheKey = (novel: string, source: string, chapter: number): string => {
+    return `${novel}|${source}|${chapter}`;
+  };
+
+  // Function to fetch chapter content
+  const fetchChapterContent = async (novel: string, source: string, chapterNum: number): Promise<IChapterContent> => {
+    const cacheKey = getCacheKey(novel, source, chapterNum);
+    
+    // Check if chapter exists in cache
+    if (chapterCacheRef.current[cacheKey]) {
+      return chapterCacheRef.current[cacheKey];
+    }
+    
+    // If not in cache, fetch from API
+    const response = await novelService.getChapterContent(novel, source, chapterNum);
+    
+    // Store in cache
+    chapterCacheRef.current[cacheKey] = response;
+    return response;
+  };
+
+  // Function to preload next chapter
+  const preloadNextChapter = async (nextChapterNum: number) => {
+    if (!novelSlug || !sourceSlug || !nextChapterNum) return;
+    
+    try {
+      await fetchChapterContent(novelSlug, sourceSlug, nextChapterNum);
+    } catch (err) {
+      console.error(`Error preloading chapter ${nextChapterNum}:`, err);
+    }
+  };
 
   useEffect(() => {
-    const fetchChapterContent = async () => {
+    const loadCurrentChapter = async () => {
       if (!novelSlug || !sourceSlug || !chapterNumber) return;
       
       setLoading(true);
       try {
-        const response = await novelService.getChapterContent(
+        const chapterData = await fetchChapterContent(
           novelSlug, 
           sourceSlug, 
           parseInt(chapterNumber)
         );
-        setChapter(response);
+        setChapter(chapterData);
+        
+        // Preload next chapter if it exists
+        if (chapterData.next_chapter) {
+          preloadNextChapter(chapterData.next_chapter);
+        }
       } catch (err) {
         console.error('Error fetching chapter content:', err);
         setError('Failed to load chapter content. Please try again later.');
@@ -58,11 +105,16 @@ const ChapterReader = () => {
       }
     };
 
-    fetchChapterContent();
+    loadCurrentChapter();
   }, [novelSlug, sourceSlug, chapterNumber]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+    
+    // Load comments only when switching to the comments tab for the first time
+    if (newValue === 1 && !commentsLoaded) {
+      setCommentsLoaded(true);
+    }
   };
 
   const handleBackToChapters = () => {
@@ -201,7 +253,7 @@ const ChapterReader = () => {
           
           {/* Comments Tab */}
           <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
-            {novelSlug && sourceSlug && chapterNumber && (
+            {novelSlug && sourceSlug && chapterNumber && activeTab === 1 && (
               <CommentSection 
                 chapterData={{
                   novelSlug,

@@ -90,8 +90,8 @@ export interface ChapterContent {
   source_name: string;
   source_slug: string;
   body: string;
-  prev_chapter?: { chapter_id: number } | null;
-  next_chapter?: { chapter_id: number } | null;
+  prev_chapter?: number | null;
+  next_chapter?: number | null;
 }
 
 export interface Chapter {
