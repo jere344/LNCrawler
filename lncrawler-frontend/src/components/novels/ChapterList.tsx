@@ -18,32 +18,13 @@ import {
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
-
-interface Chapter {
-  id: string;
-  chapter_id: number;
-  title: string;
-  url: string;
-  volume: number;
-  volume_title: string | null;
-  has_content: boolean;
-}
-
-interface ChapterListResponse {
-  novel_id: string;
-  novel_title: string;
-  novel_slug: string;
-  source_id: string;
-  source_name: string;
-  source_slug: string;
-  chapters: Chapter[];
-}
+import { Chapter, ChapterListResponse as IChapterListResponse } from '@models/novels_types';
 
 const ChapterList = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const navigate = useNavigate();
   
-  const [chapterData, setChapterData] = useState<ChapterListResponse | null>(null);
+  const [chapterData, setChapterData] = useState<IChapterListResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');

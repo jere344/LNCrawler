@@ -22,21 +22,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import ListIcon from '@mui/icons-material/List';
 import CommentIcon from '@mui/icons-material/Comment';
 import CommentSection from '../comments/CommentSection';
-
-interface ChapterContent {
-  id: string;
-  chapter_id: number;
-  title: string;
-  novel_title: string;
-  novel_id: string;
-  novel_slug: string;
-  source_id: string;
-  source_name: string;
-  source_slug: string;
-  body: string;
-  prev_chapter?: { chapter_id: number } | null;
-  next_chapter?: { chapter_id: number } | null;
-}
+import { ChapterContent as IChapterContent } from '@models/novels_types';
 
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
@@ -46,7 +32,7 @@ const ChapterReader = () => {
   }>();
   const navigate = useNavigate();
   
-  const [chapter, setChapter] = useState<ChapterContent | null>(null);
+  const [chapter, setChapter] = useState<IChapterContent | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number>(18);
@@ -75,7 +61,7 @@ const ChapterReader = () => {
     fetchChapterContent();
   }, [novelSlug, sourceSlug, chapterNumber]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 

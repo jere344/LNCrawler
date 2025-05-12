@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Typography,
@@ -6,7 +6,6 @@ import {
   Chip,
   Button,
   IconButton,
-  Divider,
   Tooltip,
 } from '@mui/material';
 import ReplyIcon from '@mui/icons-material/Reply';
@@ -20,28 +19,10 @@ import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt'; // For filled s
 
 import CommentForm from './CommentForm';
 import { commentService } from '../../services/api'; // Import commentService
-
-interface Comment {
-  id: string;
-  author_name: string;
-  message: string;
-  contains_spoiler: boolean;
-  created_at: string;
-  from_other_source?: boolean;
-  source_name?: string;
-  type?: 'novel' | 'chapter';
-  chapter_title?: string;
-  chapter_id?: number;
-  source_slug?: string;
-  replies?: Comment[];
-  has_replies?: boolean;
-  upvotes: number; // Added
-  downvotes: number; // Added
-  vote_score: number; // Added
-}
+import { Comment as IComment } from '@models/comments_types';
 
 interface CommentItemProps {
-  comment: Comment;
+  comment: IComment;
   depth?: number;
   showCommentType?: boolean;
   onAddReply?: (parentId: string, commentData: any) => Promise<void>;

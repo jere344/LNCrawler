@@ -17,24 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { novelService } from '../../services/api';
 import defaultCover from '@assets/default-cover.jpg';
 import StarIcon from '@mui/icons-material/Star';
-
-interface Novel {
-  id: string;
-  title: string;
-  slug: string;
-  cover_url: string | null;
-  sources_count: number;
-  total_chapters: number;
-  avg_rating: number | null;
-  rating_count: number;
-}
-
-interface NovelListResponse {
-  count: number;
-  total_pages: number;
-  current_page: number;
-  results: Novel[];
-}
+import { Novel, NovelListResponse } from '@models/novels_types';
 
 const NovelList = () => {
   const [novels, setNovels] = useState<Novel[]>([]);

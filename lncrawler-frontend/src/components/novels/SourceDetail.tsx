@@ -29,36 +29,12 @@ import StarBorderIcon from '@mui/icons-material/StarBorder';
 import CommentIcon from '@mui/icons-material/Comment';
 import defaultCover from '@assets/default-cover.jpg';
 import CommentSection from '../comments/CommentSection';
-
-interface SourceDetail {
-  id: string;
-  title: string;
-  source_url: string;
-  source_name: string;
-  source_slug: string;
-  cover_url: string | null;
-  authors: string[];
-  genres: string[];
-  tags: string[];
-  language: string;
-  status: string;
-  synopsis: string;
-  chapters_count: number;
-  volumes_count: number;
-  last_updated: string;
-  novel_id: string;
-  novel_slug: string;
-  novel_title: string;
-  upvotes: number;
-  downvotes: number;
-  vote_score: number;
-  user_vote: 'up' | 'down' | null;
-}
+import { SourceDetail as ISourceDetail } from '@models/novels_types';
 
 const SourceDetail = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const navigate = useNavigate();
-  const [source, setSource] = useState<SourceDetail | null>(null);
+  const [source, setSource] = useState<ISourceDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);

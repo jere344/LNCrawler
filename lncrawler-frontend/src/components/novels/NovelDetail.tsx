@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -19,7 +19,6 @@ import {
   ListItemText,
   IconButton,
   Tooltip,
-  Badge,
   Rating,
 } from '@mui/material';
 import { novelService } from '../../services/api';
@@ -30,45 +29,12 @@ import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import defaultCover from '@assets/default-cover.jpg';
-
-interface NovelSource {
-  id: string;
-  title: string;
-  source_url: string;
-  source_name: string;
-  source_slug: string; 
-  cover_url: string | null;
-  authors: string[];
-  genres: string[];
-  tags: string[];
-  language: string;
-  status: string;
-  synopsis: string;
-  chapters_count: number;
-  volumes_count: number;
-  last_updated: string;
-  upvotes: number;
-  downvotes: number;
-  vote_score: number;
-  user_vote: 'up' | 'down' | null;
-}
-
-interface NovelDetail {
-  id: string;
-  title: string;
-  slug: string;
-  sources: NovelSource[];
-  created_at: string;
-  updated_at: string;
-  avg_rating: number | null;
-  rating_count: number;
-  user_rating: number | null;
-}
+import { NovelDetail as INovelDetail } from '@models/novels_types';
 
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
   const navigate = useNavigate();
-  const [novel, setNovel] = useState<NovelDetail | null>(null);
+  const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<{[key: string]: boolean}>({});
@@ -139,7 +105,7 @@ const NovelDetail = () => {
     }
   };
 
-  const handleRatingChange = async (event: React.SyntheticEvent, value: number | null) => {
+  const handleRatingChange = async (_event: React.SyntheticEvent, value: number | null) => {
     if (!value || !novelSlug || !novel || ratingInProgress) return;
     
     setRatingInProgress(true);

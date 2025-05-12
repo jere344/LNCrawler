@@ -9,7 +9,7 @@ import {
   Alert
 } from '@mui/material';
 import { downloadService } from '@services/api';
-import { DownloadParams } from '@models/types';
+import { DownloadParams } from '@models/downloader_types';
 
 const DownloadForm = () => {
   const { jobId, sourceIndex = '0', novelIndex = '0' } = useParams<{

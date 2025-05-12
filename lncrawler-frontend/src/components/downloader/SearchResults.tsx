@@ -17,7 +17,7 @@ import {
   LinearProgress
 } from '@mui/material';
 import { searchService } from '@services/api';
-import { SearchStatus, SearchResults as SearchResultsType } from '@models/types';
+import { SearchStatus, SearchResults as SearchResultsType } from '@models/downloader_types';
 
 const POLLING_INTERVAL = 2000; // 2 seconds
 

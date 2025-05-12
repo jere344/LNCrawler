@@ -13,7 +13,7 @@ import {
   ListItemText
 } from '@mui/material';
 import { downloadService } from '@services/api';
-import { DownloadStatus as DownloadStatusType, DownloadResults } from '@models/types';
+import { DownloadStatus as DownloadStatusType, DownloadResults } from '@models/downloader_types';
 
 const POLLING_INTERVAL = 2000; // 2 seconds
 
