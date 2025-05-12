@@ -28,6 +28,8 @@ import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import defaultCover from '@assets/default-cover.jpg';
 import { NovelDetail as INovelDetail } from '@models/novels_types';
 
@@ -195,6 +197,22 @@ const NovelDetail = () => {
                   {novel?.avg_rating ? `${novel.avg_rating} / 5` : 'No ratings yet'}
                   {novel?.rating_count ? ` (${novel.rating_count} ${novel.rating_count === 1 ? 'rating' : 'ratings'})` : ''}
                 </Typography>
+              </Box>
+              
+              {/* View count information */}
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <VisibilityIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                  <Typography variant="body2">
+                    {novel?.total_views?.toLocaleString() || 0} total views
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <TrendingUpIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                  <Typography variant="body2">
+                    {novel?.weekly_views?.toLocaleString() || 0} views this week
+                  </Typography>
+                </Box>
               </Box>
               
               {primarySource.authors.length > 0 && (

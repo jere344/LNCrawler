@@ -457,3 +457,59 @@ class NovelRating(models.Model):
         
     def __str__(self):
         return f"Rating {self.rating} for {self.novel.title} by {self.ip_address}"
+
+
+class NovelViewCount(models.Model):
+    """
+    Tracks the total view count for a novel across all sources
+    """
+    novel = models.OneToOneField(Novel, on_delete=models.CASCADE, related_name='view_count')
+    views = models.BigIntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.novel.title}: {self.views} views"
+
+    def increment(self):
+        """Increment the view count by 1"""
+        self.views += 1
+        self.save(update_fields=['views', 'last_updated'])
+
+
+class WeeklyNovelView(models.Model):
+    """
+    Tracks weekly view counts for novels
+    The year_week field stores the ISO year and week number (YYYYWW format)
+    """
+    novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='weekly_views')
+    year_week = models.CharField(max_length=6)  # Format: YYYYWW
+    views = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        unique_together = ('novel', 'year_week')
+    
+    def __str__(self):
+        return f"{self.novel.title}: {self.views} views in week {self.year_week}"
+
+    @classmethod
+    def increment_for_novel(cls, novel):
+        """
+        Increment the weekly view count for a novel
+        """
+        from datetime import datetime
+        # Get current ISO year and week number
+        current_date = datetime.now()
+        year_week = f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
+        
+        # Get or create the weekly record
+        weekly_view, created = cls.objects.get_or_create(
+            novel=novel,
+            year_week=year_week,
+            defaults={'views': 0}
+        )
+        
+        # Increment and save
+        weekly_view.views += 1
+        weekly_view.save(update_fields=['views'])
+        
+        return weekly_view

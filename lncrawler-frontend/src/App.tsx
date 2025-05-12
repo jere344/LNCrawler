@@ -13,6 +13,7 @@ import NovelDetail from '@components/novels/NovelDetail';
 import SourceDetail from '@components/novels/SourceDetail';
 import ChapterList from '@components/novels/ChapterList';
 import ChapterReader from '@components/novels/ChapterReader';
+import SearchPage from '@components/search/SearchPage';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -45,6 +46,7 @@ function AppWithTheme() {
                     
                     {/* Novel reading routes with new URL structure */}
                     <Route path="/novels" element={<NovelList />} />
+                    <Route path="/novels/search" element={<SearchPage />} />
                     <Route path="/novels/:novelSlug" element={<NovelDetail />} />
                     <Route path="/novels/:novelSlug/:sourceSlug" element={<SourceDetail />} />
                     <Route path="/novels/:novelSlug/:sourceSlug/chapterlist" element={<ChapterList />} />

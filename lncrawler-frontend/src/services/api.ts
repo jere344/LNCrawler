@@ -187,6 +187,58 @@ export const novelService = {
     );
     return response.data;
   },
+
+  searchNovels: async (params: {
+    query?: string;
+    page?: number;
+    page_size?: number;
+    genre?: string[];
+    tag?: string[];
+    author?: string[];
+    status?: string;
+    min_rating?: number;
+    sort_by?: 'title' | 'rating' | 'date_added' | 'popularity';
+    sort_order?: 'asc' | 'desc';
+  }) => {
+    // Build query string
+    const queryParams = new URLSearchParams();
+    
+    if (params.query) queryParams.append('query', params.query);
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.page_size) queryParams.append('page_size', params.page_size.toString());
+    if (params.status) queryParams.append('status', params.status);
+    if (params.min_rating) queryParams.append('min_rating', params.min_rating.toString());
+    if (params.sort_by) queryParams.append('sort_by', params.sort_by);
+    if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+    
+    // Handle array parameters
+    if (params.genre && params.genre.length) {
+      params.genre.forEach(genre => queryParams.append('genre', genre));
+    }
+    
+    if (params.tag && params.tag.length) {
+      params.tag.forEach(tag => queryParams.append('tag', tag));
+    }
+    
+    if (params.author && params.author.length) {
+      params.author.forEach(author => queryParams.append('author', author));
+    }
+    
+    const response = await api.get(`/novels/search/?${queryParams}`);
+    return response.data;
+  },
+
+  // Add this function to your novelService object
+  getAutocompleteSuggestions: async (type: 'genre' | 'tag' | 'author', query: string): Promise<{ name: string; count: number }[]> => {
+    const response = await api.get(`/novels/autocomplete/`, {
+      params: {
+        type,
+        query,
+        limit: 10
+      }
+    });
+    return response.data;
+  },
 };
 
 export const commentService = {

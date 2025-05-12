@@ -1,0 +1,779 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { 
+  Box, Container, Typography, TextField, Grid, Paper, 
+  FormControl, InputLabel, Select, MenuItem, Checkbox,
+  ListItemText, OutlinedInput, Chip, Button, FormGroup,
+  FormControlLabel, Rating, IconButton, InputAdornment,
+  CircularProgress, Pagination, Stack, Autocomplete
+} from '@mui/material';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import SearchIcon from '@mui/icons-material/Search';
+import TuneIcon from '@mui/icons-material/Tune';
+import SortIcon from '@mui/icons-material/Sort';
+import CloseIcon from '@mui/icons-material/Close';
+import { novelService } from '../../services/api';
+import NovelCard from '../novels/novelcardtypes/NovelCard';
+import { debounce } from 'lodash';
+
+interface Novel {
+  id: string;
+  title: string;
+  slug: string;
+  cover_url: string | null;
+  sources_count: number;
+  total_chapters: number;
+  avg_rating: number | null;
+  rating_count: number;
+}
+
+interface FilterOptions {
+  genres: string[];
+  tags: string[];
+  authors: string[];
+  statuses: string[];
+}
+
+// Add these interfaces for the suggestion types
+interface Suggestion {
+  name: string;
+  count: number;
+}
+
+const ITEMS_PER_PAGE = 24;
+const DEBOUNCE_TIME = 300; // milliseconds
+
+const SearchPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // State for search results
+  const [novels, setNovels] = useState<Novel[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // State for filter options
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    genres: [],
+    tags: [],
+    authors: [],
+    statuses: []
+  });
+  
+  // State for current filters
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(searchParams.getAll('genre'));
+  const [selectedTags, setSelectedTags] = useState<string[]>(searchParams.getAll('tag'));
+  const [selectedAuthors, setSelectedAuthors] = useState<string[]>(searchParams.getAll('author'));
+  const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
+  const [minRating, setMinRating] = useState<number | null>(
+    searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
+  );
+  const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'title');
+  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'asc');
+  
+  // State for autocomplete options
+  const [genreSuggestions, setGenreSuggestions] = useState<Suggestion[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<Suggestion[]>([]);
+  const [authorSuggestions, setAuthorSuggestions] = useState<Suggestion[]>([]);
+  
+  // State for autocomplete input values
+  const [genreInput, setGenreInput] = useState('');
+  const [tagInput, setTagInput] = useState('');
+  const [authorInput, setAuthorInput] = useState('');
+  
+  // State for loading suggestions
+  const [loadingGenres, setLoadingGenres] = useState(false);
+  const [loadingTags, setLoadingTags] = useState(false);
+  const [loadingAuthors, setLoadingAuthors] = useState(false);
+  
+  // UI state
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Create debounced functions for fetching suggestions
+  const fetchGenreSuggestions = useCallback(
+    debounce(async (query: string) => {
+      if (query.length < 3) {
+        setGenreSuggestions([]);
+        setLoadingGenres(false);
+        return;
+      }
+      
+      setLoadingGenres(true);
+      try {
+        const response = await novelService.getAutocompleteSuggestions('genre', query);
+        setGenreSuggestions(response);
+      } catch (error) {
+        console.error('Error fetching genre suggestions:', error);
+        setGenreSuggestions([]);
+      } finally {
+        setLoadingGenres(false);
+      }
+    }, DEBOUNCE_TIME),
+    []
+  );
+  
+  const fetchTagSuggestions = useCallback(
+    debounce(async (query: string) => {
+      if (query.length < 3) {
+        setTagSuggestions([]);
+        setLoadingTags(false);
+        return;
+      }
+      
+      setLoadingTags(true);
+      try {
+        const response = await novelService.getAutocompleteSuggestions('tag', query);
+        setTagSuggestions(response);
+      } catch (error) {
+        console.error('Error fetching tag suggestions:', error);
+        setTagSuggestions([]);
+      } finally {
+        setLoadingTags(false);
+      }
+    }, DEBOUNCE_TIME),
+    []
+  );
+  
+  const fetchAuthorSuggestions = useCallback(
+    debounce(async (query: string) => {
+      if (query.length < 3) {
+        setAuthorSuggestions([]);
+        setLoadingAuthors(false);
+        return;
+      }
+      
+      setLoadingAuthors(true);
+      try {
+        const response = await novelService.getAutocompleteSuggestions('author', query);
+        setAuthorSuggestions(response);
+      } catch (error) {
+        console.error('Error fetching author suggestions:', error);
+        setAuthorSuggestions([]);
+      } finally {
+        setLoadingAuthors(false);
+      }
+    }, DEBOUNCE_TIME),
+    []
+  );
+  
+  // Load search results based on current parameters
+  useEffect(() => {
+    const fetchNovels = async () => {
+      setLoading(true);
+      try {
+        const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
+        
+        const response = await novelService.searchNovels({
+          query: searchParams.get('query') || undefined,
+          page,
+          page_size: ITEMS_PER_PAGE,
+          genre: searchParams.getAll('genre'),
+          tag: searchParams.getAll('tag'),
+          author: searchParams.getAll('author'),
+          status: searchParams.get('status') || undefined,
+          min_rating: searchParams.get('min_rating') ? 
+            Number(searchParams.get('min_rating')) : undefined,
+          sort_by: (searchParams.get('sort_by') as any) || 'title',
+          sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc',
+        });
+        
+        setNovels(response.results);
+        setTotalCount(response.count);
+        setTotalPages(response.total_pages);
+        setCurrentPage(response.current_page);
+        
+        // Store filter options (mainly for status options)
+        setFilterOptions(response.filters);
+        
+      } catch (error) {
+        console.error('Error fetching search results:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchNovels();
+  }, [searchParams]);
+  
+  // Update search params when filters change
+  const updateSearchParams = (newParams: Record<string, string | string[] | number | null>) => {
+    const params = new URLSearchParams(searchParams);
+    
+    // Reset to page 1 when filters change
+    params.set('page', '1');
+    
+    Object.entries(newParams).forEach(([key, value]) => {
+      // Remove existing values for this key
+      params.delete(key);
+      
+      if (value === null) {
+        // Skip if value is null
+      } else if (Array.isArray(value)) {
+        // Add all values from array
+        value.forEach(v => params.append(key, v));
+      } else if (value !== '') {
+        // Add single value
+        params.set(key, value.toString());
+      }
+    });
+    
+    setSearchParams(params);
+  };
+  
+  // Handle search form submission
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateSearchParams({ query: searchQuery });
+  };
+  
+  // Handle page change
+  const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', page.toString());
+    setSearchParams(params);
+  };
+  
+  // Handle clicking on a novel
+  const handleNovelClick = (novelSlug: string) => {
+    navigate(`/novels/${novelSlug}`);
+  };
+  
+  // Handle clear filters
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedGenres([]);
+    setSelectedTags([]);
+    setSelectedAuthors([]);
+    setSelectedStatus('');
+    setMinRating(null);
+    setSortBy('title');
+    setSortOrder('asc');
+    
+    // Reset URL params to default
+    setSearchParams(new URLSearchParams({ page: '1' }));
+  };
+  
+  // Apply filters
+  const applyFilters = () => {
+    updateSearchParams({
+      query: searchQuery,
+      genre: selectedGenres,
+      tag: selectedTags,
+      author: selectedAuthors,
+      status: selectedStatus,
+      min_rating: minRating,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    });
+    setShowFilters(false);
+  };
+  
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Search Novels
+      </Typography>
+      
+      {/* Search Box */}
+      <Paper 
+        component="form" 
+        sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center' }}
+        onSubmit={handleSearchSubmit}
+      >
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Search by title, author, or keywords..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery && (
+              <InputAdornment position="end">
+                <IconButton 
+                  size="small"
+                  onClick={() => {
+                    setSearchQuery('');
+                    updateSearchParams({ query: null });
+                  }}
+                >
+                  <CloseIcon />
+                </IconButton>
+              </InputAdornment>
+            )
+          }}
+        />
+        <Button 
+          variant="contained" 
+          color="primary" 
+          type="submit"
+          sx={{ ml: 2 }}
+        >
+          Search
+        </Button>
+        <Button
+          variant="outlined"
+          color="secondary"
+          onClick={() => setShowFilters(!showFilters)}
+          startIcon={<TuneIcon />}
+          sx={{ ml: 2 }}
+        >
+          Filters
+        </Button>
+      </Paper>
+      
+      {/* Filters */}
+      {showFilters && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6">Filters & Sort</Typography>
+            <Button 
+              variant="text" 
+              color="secondary" 
+              onClick={handleClearFilters}
+            >
+              Clear All
+            </Button>
+          </Box>
+          
+          <Grid container spacing={3}>
+            {/* Genres - Autocomplete */}
+            <Grid item xs={12} md={6}>
+              <Autocomplete
+                multiple
+                options={genreSuggestions}
+                value={selectedGenres}
+                inputValue={genreInput}
+                onInputChange={(_, newInputValue) => {
+                  setGenreInput(newInputValue);
+                  fetchGenreSuggestions(newInputValue);
+                }}
+                onChange={(_, newValue) => {
+                  setSelectedGenres(newValue.map(item => typeof item === 'string' ? item : item.name));
+                }}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') {
+                    return option;
+                  }
+                  return `${option.name} (${option.count})`;
+                }}
+                isOptionEqualToValue={(option, value) => {
+                  const optionName = typeof option === 'string' ? option : option.name;
+                  const valueName = typeof value === 'string' ? value : value.name;
+                  return optionName === valueName;
+                }}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const tagName = typeof option === 'string' ? option : option.name;
+                    return (
+                      <Chip
+                        label={tagName}
+                        {...getTagProps({ index })}
+                      />
+                    );
+                  })
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Genres"
+                    placeholder="Type to search genres..."
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <React.Fragment>
+                          {loadingGenres ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </React.Fragment>
+                      ),
+                    }}
+                    helperText="Type at least 3 characters to search"
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    {typeof option === 'string' ? 
+                      option : 
+                      `${option.name} (${option.count})`
+                    }
+                  </li>
+                )}
+                filterOptions={(x) => x} // Don't filter options client-side
+                noOptionsText="No genres found"
+                loading={loadingGenres}
+                loadingText="Loading..."
+              />
+            </Grid>
+            
+            {/* Tags - Autocomplete */}
+            <Grid item xs={12} md={6}>
+              <Autocomplete
+                multiple
+                options={tagSuggestions}
+                value={selectedTags}
+                inputValue={tagInput}
+                onInputChange={(_, newInputValue) => {
+                  setTagInput(newInputValue);
+                  fetchTagSuggestions(newInputValue);
+                }}
+                onChange={(_, newValue) => {
+                  setSelectedTags(newValue.map(item => typeof item === 'string' ? item : item.name));
+                }}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') {
+                    return option;
+                  }
+                  return `${option.name} (${option.count})`;
+                }}
+                isOptionEqualToValue={(option, value) => {
+                  const optionName = typeof option === 'string' ? option : option.name;
+                  const valueName = typeof value === 'string' ? value : value.name;
+                  return optionName === valueName;
+                }}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const tagName = typeof option === 'string' ? option : option.name;
+                    return (
+                      <Chip
+                        label={tagName}
+                        {...getTagProps({ index })}
+                      />
+                    );
+                  })
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Tags"
+                    placeholder="Type to search tags..."
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <React.Fragment>
+                          {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </React.Fragment>
+                      ),
+                    }}
+                    helperText="Type at least 3 characters to search"
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    {typeof option === 'string' ? 
+                      option : 
+                      `${option.name} (${option.count})`
+                    }
+                  </li>
+                )}
+                filterOptions={(x) => x} // Don't filter options client-side
+                noOptionsText="No tags found"
+                loading={loadingTags}
+                loadingText="Loading..."
+              />
+            </Grid>
+            
+            {/* Authors - Autocomplete */}
+            <Grid item xs={12} md={6}>
+              <Autocomplete
+                multiple
+                options={authorSuggestions}
+                value={selectedAuthors}
+                inputValue={authorInput}
+                onInputChange={(_, newInputValue) => {
+                  setAuthorInput(newInputValue);
+                  fetchAuthorSuggestions(newInputValue);
+                }}
+                onChange={(_, newValue) => {
+                  setSelectedAuthors(newValue.map(item => typeof item === 'string' ? item : item.name));
+                }}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') {
+                    return option;
+                  }
+                  return `${option.name} (${option.count})`;
+                }}
+                isOptionEqualToValue={(option, value) => {
+                  const optionName = typeof option === 'string' ? option : option.name;
+                  const valueName = typeof value === 'string' ? value : value.name;
+                  return optionName === valueName;
+                }}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const tagName = typeof option === 'string' ? option : option.name;
+                    return (
+                      <Chip
+                        label={tagName}
+                        {...getTagProps({ index })}
+                      />
+                    );
+                  })
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Authors"
+                    placeholder="Type to search authors..."
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <React.Fragment>
+                          {loadingAuthors ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </React.Fragment>
+                      ),
+                    }}
+                    helperText="Type at least 3 characters to search"
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    {typeof option === 'string' ? 
+                      option : 
+                      `${option.name} (${option.count})`
+                    }
+                  </li>
+                )}
+                filterOptions={(x) => x} // Don't filter options client-side
+                noOptionsText="No authors found"
+                loading={loadingAuthors}
+                loadingText="Loading..."
+              />
+            </Grid>
+            
+            {/* Status */}
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  label="Status"
+                >
+                  <MenuItem value="">
+                    <em>Any</em>
+                  </MenuItem>
+                  {filterOptions.statuses.map((status) => (
+                    <MenuItem key={status} value={status}>{status}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {/* Minimum Rating */}
+            <Grid item xs={12} md={6}>
+              <Typography component="legend">Minimum Rating</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Rating
+                  value={minRating || 0}
+                  onChange={(_, newValue) => setMinRating(newValue)}
+                  precision={0.5}
+                />
+                {minRating !== null && (
+                  <Button 
+                    size="small" 
+                    onClick={() => setMinRating(null)}
+                    startIcon={<CloseIcon />}
+                    sx={{ ml: 1 }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+            
+            {/* Sort Options */}
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  label="Sort By"
+                  startAdornment={
+                    <InputAdornment position="start">
+                      <SortIcon />
+                    </InputAdornment>
+                  }
+                >
+                  <MenuItem value="title">Title</MenuItem>
+                  <MenuItem value="rating">Rating</MenuItem>
+                  <MenuItem value="date_added">Date Added</MenuItem>
+                  <MenuItem value="popularity">Popularity</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            {/* Sort Order */}
+            <Grid item xs={12} md={6}>
+              <FormGroup row>
+                <FormControlLabel
+                  control={
+                    <Checkbox 
+                      checked={sortOrder === 'desc'}
+                      onChange={(e) => setSortOrder(e.target.checked ? 'desc' : 'asc')}
+                    />
+                  }
+                  label="Sort Descending"
+                />
+              </FormGroup>
+            </Grid>
+            
+            {/* Apply Filters Button */}
+            <Grid item xs={12}>
+              <Button 
+                variant="contained" 
+                color="primary"
+                onClick={applyFilters}
+                fullWidth
+              >
+                Apply Filters
+              </Button>
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
+      
+      {/* Active Filters Display */}
+      {(selectedGenres.length > 0 || selectedTags.length > 0 || 
+       selectedAuthors.length > 0 || selectedStatus || minRating || 
+       sortBy !== 'title' || sortOrder !== 'asc') && (
+        <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {selectedGenres.map(genre => (
+            <Chip 
+              key={`genre-${genre}`} 
+              label={`Genre: ${genre}`}
+              onDelete={() => {
+                setSelectedGenres(selectedGenres.filter(g => g !== genre));
+                updateSearchParams({ 
+                  genre: selectedGenres.filter(g => g !== genre)
+                });
+              }}
+            />
+          ))}
+          
+          {selectedTags.map(tag => (
+            <Chip 
+              key={`tag-${tag}`} 
+              label={`Tag: ${tag}`}
+              onDelete={() => {
+                setSelectedTags(selectedTags.filter(t => t !== tag));
+                updateSearchParams({ 
+                  tag: selectedTags.filter(t => t !== tag)
+                });
+              }}
+            />
+          ))}
+          
+          {selectedAuthors.map(author => (
+            <Chip 
+              key={`author-${author}`} 
+              label={`Author: ${author}`}
+              onDelete={() => {
+                setSelectedAuthors(selectedAuthors.filter(a => a !== author));
+                updateSearchParams({ 
+                  author: selectedAuthors.filter(a => a !== author)
+                });
+              }}
+            />
+          ))}
+          
+          {selectedStatus && (
+            <Chip 
+              label={`Status: ${selectedStatus}`}
+              onDelete={() => {
+                setSelectedStatus('');
+                updateSearchParams({ status: null });
+              }}
+            />
+          )}
+          
+          {minRating !== null && (
+            <Chip 
+              label={`Min Rating: ${minRating}`}
+              onDelete={() => {
+                setMinRating(null);
+                updateSearchParams({ min_rating: null });
+              }}
+            />
+          )}
+          
+          {(sortBy !== 'title' || sortOrder !== 'asc') && (
+            <Chip 
+              label={`Sort: ${sortBy} (${sortOrder})`}
+              onDelete={() => {
+                setSortBy('title');
+                setSortOrder('asc');
+                updateSearchParams({ 
+                  sort_by: 'title',
+                  sort_order: 'asc'
+                });
+              }}
+            />
+          )}
+        </Box>
+      )}
+      
+      {/* Results Count */}
+      <Typography variant="subtitle1" sx={{ mb: 2 }}>
+        {loading ? 'Searching...' : (
+          totalCount > 0 ? 
+            `Found ${totalCount} novel${totalCount !== 1 ? 's' : ''}` : 
+            'No novels found'
+        )}
+      </Typography>
+      
+      {/* Loading indicator */}
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
+      
+      {/* Novel Grid */}
+      {!loading && novels.length > 0 && (
+        <Grid container spacing={3}>
+          {novels.map((novel) => (
+            <Grid item key={novel.id} xs={6} sm={4} md={3} lg={2}>
+              <NovelCard 
+                novel={novel} 
+                onClick={() => handleNovelClick(novel.slug)}
+              />
+            </Grid>
+          ))}
+        </Grid>
+      )}
+      
+      {/* No Results */}
+      {!loading && novels.length === 0 && (
+        <Box sx={{ textAlign: 'center', my: 5 }}>
+          <Typography variant="h6">No novels found matching your criteria</Typography>
+          <Typography color="textSecondary">
+            Try adjusting your filters or search terms
+          </Typography>
+        </Box>
+      )}
+      
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Stack spacing={2} sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
+          <Pagination 
+            count={totalPages} 
+            page={currentPage}
+            onChange={handlePageChange}
+            color="primary"
+            size="large"
+          />
+        </Stack>
+      )}
+    </Container>
+  );
+};
+
+export default SearchPage;

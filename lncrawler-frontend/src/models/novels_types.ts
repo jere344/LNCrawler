@@ -32,6 +32,8 @@ export interface Novel {
   total_chapters: number;
   avg_rating: number | null;
   rating_count: number;
+  total_views?: number;
+  weekly_views?: number;
 }
 
 export interface NovelListResponse {
@@ -73,6 +75,8 @@ export interface NovelDetail {
   avg_rating: number | null;
   rating_count: number;
   user_rating: number | null;
+  total_views: number;
+  weekly_views: number;
 }
 
 export interface ChapterContent {

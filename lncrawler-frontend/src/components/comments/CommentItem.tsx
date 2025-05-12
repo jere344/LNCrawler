@@ -86,9 +86,6 @@ const CommentItem = ({
     }
   };
 
-  // For debugging
-  console.log(`Rendering comment ${comment.id}, onAddReply available: ${!!onAddReply}`);
-
   return (
     <Box sx={{ mb: 2 }}>
       <Paper 

@@ -79,13 +79,13 @@ const ChapterReader = () => {
 
   const handleNextChapter = () => {
     if (chapter?.next_chapter) {
-      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter.chapter_id}`);
+      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}`);
     }
   };
 
   const handlePrevChapter = () => {
     if (chapter?.prev_chapter) {
-      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter.chapter_id}`);
+      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}`);
     }
   };
 

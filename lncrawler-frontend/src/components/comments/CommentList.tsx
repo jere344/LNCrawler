@@ -26,8 +26,6 @@ const CommentList = ({
   showOtherSourceWarning = false,
   onAddReply,
 }: CommentListProps) => {
-  // Add debugging
-  console.log(`CommentList rendering with ${comments.length} comments, onAddReply available: ${!!onAddReply}`);
 
   if (comments.length === 0) {
     return (
