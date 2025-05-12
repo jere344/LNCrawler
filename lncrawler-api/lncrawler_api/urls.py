@@ -18,6 +18,7 @@ urlpatterns = [
     # Novel-related endpoints with new URL structure
     path('novels/', novels_views.list_novels, name='list_novels'),
     path('novels/<slug:novel_slug>/', novels_views.novel_detail_by_slug, name='novel_detail_by_slug'),
+    path('novels/<slug:novel_slug>/rate/', novels_views.rate_novel, name='rate_novel'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/', novels_views.source_detail, name='source_detail'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/vote/', novels_views.vote_source, name='vote_source'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapters/', novels_views.novel_chapters_by_source, name='novel_chapters_by_source'),

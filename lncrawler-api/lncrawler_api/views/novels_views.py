@@ -5,8 +5,8 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from django.db.models import F
-from ..models.novels_models import Novel, NovelFromSource, Chapter, SourceVote
+from django.db.models import F, Avg
+from ..models.novels_models import Novel, NovelFromSource, Chapter, SourceVote, NovelRating
 from django.utils.text import slugify
 
 @api_view(['GET'])
@@ -26,6 +26,10 @@ def list_novels(request):
         # Get the most upvoted source for cover and basic info
         first_source = novel.sources.order_by('-upvotes', 'downvotes', 'title').first()
         
+        # Get average rating
+        avg_rating = novel.ratings.aggregate(avg_rating=Avg('rating'))['avg_rating']
+        rating_count = novel.ratings.count()
+        
         novels_data.append({
             'id': str(novel.id),
             'title': novel.title,
@@ -33,6 +37,8 @@ def list_novels(request):
             'cover_url': (settings.LNCRAWL_URL + first_source.cover_path) if first_source and first_source.cover_path else None,
             'sources_count': novel.sources_count,
             'total_chapters': novel.total_chapters,
+            'avg_rating': round(avg_rating, 1) if avg_rating else None,
+            'rating_count': rating_count
         })
     
     return Response({
@@ -49,6 +55,21 @@ def novel_detail_by_slug(request, novel_slug):
     Get details for a specific novel using its slug
     """
     novel = get_object_or_404(Novel, slug=novel_slug)
+    
+    # Get average rating
+    avg_rating = novel.ratings.aggregate(avg_rating=Avg('rating'))['avg_rating']
+    rating_count = novel.ratings.count()
+    
+    # Get the user's rating if it exists
+    client_ip = get_client_ip(request)
+    user_rating = None
+    if client_ip:
+        try:
+            rating = novel.ratings.filter(ip_address=client_ip).first()
+            if rating:
+                user_rating = rating.rating
+        except:
+            pass
     
     sources = []
     # Order sources by vote score (upvotes - downvotes)
@@ -97,6 +118,9 @@ def novel_detail_by_slug(request, novel_slug):
         'sources': sources,
         'created_at': novel.created_at,
         'updated_at': novel.updated_at,
+        'avg_rating': round(avg_rating, 1) if avg_rating else None,
+        'rating_count': rating_count,
+        'user_rating': user_rating
     })
 
 @api_view(['GET'])
@@ -245,6 +269,9 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
         )
     
     body = chapter.body
+
+    previous_chapter = source.chapters.filter(chapter_id__lt=chapter_number).order_by('-chapter_id').first()
+    next_chapter = source.chapters.filter(chapter_id__gt=chapter_number).order_by('chapter_id').first()
     
     return Response({
         'id': str(chapter.id),
@@ -257,6 +284,48 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
         'source_name': source.source_name,
         'source_slug': source.source_slug,
         'body': body,
-        'prev_chapter': source.chapters.filter(chapter_id__lt=chapter_number).order_by('-chapter_id').values('chapter_id').first(),
-        'next_chapter': source.chapters.filter(chapter_id__gt=chapter_number).order_by('chapter_id').values('chapter_id').first()
+        'prev_chapter': previous_chapter.chapter_id if previous_chapter and previous_chapter.has_content else None,
+        'next_chapter': next_chapter.chapter_id if next_chapter and next_chapter.has_content else None,
+    })
+
+@api_view(['POST'])
+def rate_novel(request, novel_slug):
+    """
+    Rate a novel from 1-5 stars
+    """
+    rating_value = request.data.get('rating')
+    try:
+        rating_value = int(rating_value)
+        if rating_value < 1 or rating_value > 5:
+            raise ValueError("Rating must be between 1 and 5")
+    except (ValueError, TypeError):
+        return Response(
+            {'error': 'Invalid rating. Must be an integer between 1 and 5.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    novel = get_object_or_404(Novel, slug=novel_slug)
+    client_ip = get_client_ip(request)
+    
+    if not client_ip:
+        return Response(
+            {'error': 'Could not determine your IP address.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Create or update the rating
+    rating, created = NovelRating.objects.update_or_create(
+        novel=novel,
+        ip_address=client_ip,
+        defaults={'rating': rating_value}
+    )
+    
+    # Get updated average rating
+    avg_rating = novel.ratings.aggregate(avg_rating=Avg('rating'))['avg_rating']
+    rating_count = novel.ratings.count()
+    
+    return Response({
+        'avg_rating': round(avg_rating, 1) if avg_rating else None,
+        'rating_count': rating_count,
+        'user_rating': rating_value
     })

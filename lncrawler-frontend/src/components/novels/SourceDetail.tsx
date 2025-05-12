@@ -14,6 +14,7 @@ import {
   CardMedia,
   IconButton,
   Tooltip,
+  Rating,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -21,6 +22,8 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import LanguageIcon from '@mui/icons-material/Language';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import defaultCover from '@assets/default-cover.jpg';
 
 interface SourceDetail {
@@ -55,6 +58,12 @@ const SourceDetail = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
+  const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>({
+    avg_rating: null, 
+    rating_count: 0, 
+    user_rating: null
+  });
+  const [ratingInProgress, setRatingInProgress] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
@@ -64,6 +73,14 @@ const SourceDetail = () => {
       try {
         const data = await novelService.getSourceDetail(novelSlug, sourceSlug);
         setSource(data);
+        
+        // Get novel details to fetch rating
+        const novelDetails = await novelService.getNovelDetail(novelSlug);
+        setNovelRating({
+          avg_rating: novelDetails.avg_rating,
+          rating_count: novelDetails.rating_count,
+          user_rating: novelDetails.user_rating
+        });
       } catch (err) {
         console.error('Error fetching source details:', err);
         setError('Failed to load source details. Please try again later.');
@@ -104,6 +121,24 @@ const SourceDetail = () => {
       console.error('Error voting for source:', err);
     } finally {
       setVotingInProgress(false);
+    }
+  };
+
+  const handleRatingChange = async (event: React.SyntheticEvent, value: number | null) => {
+    if (!value || !novelSlug || ratingInProgress) return;
+    
+    setRatingInProgress(true);
+    try {
+      const ratingResponse = await novelService.rateNovel(novelSlug, value);
+      setNovelRating({
+        avg_rating: ratingResponse.avg_rating,
+        rating_count: ratingResponse.rating_count,
+        user_rating: ratingResponse.user_rating
+      });
+    } catch (err) {
+      console.error('Error rating novel:', err);
+    } finally {
+      setRatingInProgress(false);
     }
   };
 
@@ -167,6 +202,24 @@ const SourceDetail = () => {
             <Typography variant="h4" gutterBottom>
               {source.title}
             </Typography>
+            
+            {/* Novel rating component */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Rating
+                name="novel-rating"
+                value={novelRating.user_rating || 0}
+                onChange={handleRatingChange}
+                precision={1}
+                icon={<StarIcon fontSize="inherit" />}
+                emptyIcon={<StarBorderIcon fontSize="inherit" />}
+                disabled={ratingInProgress}
+              />
+              
+              <Typography variant="body2" sx={{ ml: 1 }}>
+                {novelRating.avg_rating ? `${novelRating.avg_rating} / 5` : 'No ratings yet'}
+                {novelRating.rating_count ? ` (${novelRating.rating_count} ${novelRating.rating_count === 1 ? 'rating' : 'ratings'})` : ''}
+              </Typography>
+            </Box>
             
             <Typography variant="subtitle1" color="text.secondary" gutterBottom>
               From: {source.source_name}

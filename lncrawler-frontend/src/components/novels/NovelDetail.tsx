@@ -20,12 +20,15 @@ import {
   IconButton,
   Tooltip,
   Badge,
+  Rating,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import defaultCover from '@assets/default-cover.jpg';
 
 interface NovelSource {
@@ -57,6 +60,9 @@ interface NovelDetail {
   sources: NovelSource[];
   created_at: string;
   updated_at: string;
+  avg_rating: number | null;
+  rating_count: number;
+  user_rating: number | null;
 }
 
 const NovelDetail = () => {
@@ -66,6 +72,7 @@ const NovelDetail = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<{[key: string]: boolean}>({});
+  const [ratingInProgress, setRatingInProgress] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchNovelDetail = async () => {
@@ -132,6 +139,25 @@ const NovelDetail = () => {
     }
   };
 
+  const handleRatingChange = async (event: React.SyntheticEvent, value: number | null) => {
+    if (!value || !novelSlug || !novel || ratingInProgress) return;
+    
+    setRatingInProgress(true);
+    try {
+      const ratingResponse = await novelService.rateNovel(novelSlug, value);
+      setNovel({
+        ...novel,
+        avg_rating: ratingResponse.avg_rating,
+        rating_count: ratingResponse.rating_count,
+        user_rating: ratingResponse.user_rating
+      });
+    } catch (err) {
+      console.error('Error rating novel:', err);
+    } finally {
+      setRatingInProgress(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -156,7 +182,7 @@ const NovelDetail = () => {
   }
 
   // Use the first source in the sorted list (by votes) as the primary source
-  const primarySource = novel.sources[0] || null;
+  const primarySource = novel?.sources[0] || null;
 
   return (
     <Container maxWidth="lg">
@@ -172,7 +198,7 @@ const NovelDetail = () => {
                 <CardMedia
                   component="img"
                   image={primarySource.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + primarySource.cover_url) : defaultCover}
-                  alt={novel.title}
+                  alt={novel?.title}
                   sx={{ height: 400, objectFit: 'contain' }}
                   onError={(e: any) => {
                     e.target.onerror = null;
@@ -184,8 +210,26 @@ const NovelDetail = () => {
             
             <Grid item xs={12} md={8}>
               <Typography variant="h4" gutterBottom>
-                {novel.title}
+                {novel?.title}
               </Typography>
+              
+              {/* Rating component */}
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Rating
+                  name="novel-rating"
+                  value={novel?.user_rating || 0}
+                  onChange={handleRatingChange}
+                  precision={1}
+                  icon={<StarIcon fontSize="inherit" />}
+                  emptyIcon={<StarBorderIcon fontSize="inherit" />}
+                  disabled={ratingInProgress}
+                />
+                
+                <Typography variant="body2" sx={{ ml: 1 }}>
+                  {novel?.avg_rating ? `${novel.avg_rating} / 5` : 'No ratings yet'}
+                  {novel?.rating_count ? ` (${novel.rating_count} ${novel.rating_count === 1 ? 'rating' : 'ratings'})` : ''}
+                </Typography>
+              </Box>
               
               {primarySource.authors.length > 0 && (
                 <Box sx={{ mb: 2 }}>

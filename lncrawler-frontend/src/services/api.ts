@@ -134,6 +134,12 @@ export const novelService = {
     );
     return response.data;
   },
+
+  // Rate a novel (1-5 stars)
+  rateNovel: async (novelSlug: string, rating: number) => {
+    const response = await api.post(`/novels/${novelSlug}/rate/`, { rating });
+    return response.data;
+  },
 };
 
 export default api;

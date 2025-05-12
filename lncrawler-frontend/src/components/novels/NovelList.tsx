@@ -10,11 +10,13 @@ import {
   Paper, 
   Pagination, 
   CircularProgress,
-  CardActionArea
+  CardActionArea,
+  Rating,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { novelService } from '../../services/api';
 import defaultCover from '@assets/default-cover.jpg';
+import StarIcon from '@mui/icons-material/Star';
 
 interface Novel {
   id: string;
@@ -23,6 +25,8 @@ interface Novel {
   cover_url: string | null;
   sources_count: number;
   total_chapters: number;
+  avg_rating: number | null;
+  rating_count: number;
 }
 
 interface NovelListResponse {
@@ -118,6 +122,26 @@ const NovelList = () => {
                       <Typography gutterBottom variant="h6" component="div" noWrap>
                         {novel.title}
                       </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        {novel.avg_rating ? (
+                          <>
+                            <Rating 
+                              value={novel.avg_rating} 
+                              precision={0.1} 
+                              readOnly 
+                              size="small"
+                              emptyIcon={<StarIcon style={{ opacity: 0.55 }} fontSize="inherit" />}
+                            />
+                            <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                              {novel.avg_rating.toFixed(1)}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            No ratings
+                          </Typography>
+                        )}
+                      </Box>
                       <Typography variant="body2" color="text.secondary">
                         {novel.sources_count} {novel.sources_count === 1 ? 'source' : 'sources'} • {novel.total_chapters} chapters
                       </Typography>

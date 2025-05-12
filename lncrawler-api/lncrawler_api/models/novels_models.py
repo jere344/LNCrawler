@@ -432,3 +432,28 @@ class SourceVote(models.Model):
                 source.upvotes -= 1
         
         source.save(update_fields=['upvotes', 'downvotes'])
+
+
+class NovelRating(models.Model):
+    """
+    Tracks user ratings for novels (1-5 stars)
+    """
+    RATING_CHOICES = [
+        (1, '1 Star'),
+        (2, '2 Stars'),
+        (3, '3 Stars'),
+        (4, '4 Stars'),
+        (5, '5 Stars'),
+    ]
+    
+    novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='ratings')
+    ip_address = models.GenericIPAddressField()
+    rating = models.IntegerField(choices=RATING_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('novel', 'ip_address')
+        
+    def __str__(self):
+        return f"Rating {self.rating} for {self.novel.title} by {self.ip_address}"
