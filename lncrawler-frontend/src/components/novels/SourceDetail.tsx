@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -12,15 +12,16 @@ import {
   Divider,
   Card,
   CardMedia,
-  List,
-  ListItem,
-  ListItemText,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import LanguageIcon from '@mui/icons-material/Language';
-import { utils } from '@utils/textUtils';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import defaultCover from '@assets/default-cover.jpg';
 
 interface SourceDetail {
   id: string;
@@ -41,6 +42,10 @@ interface SourceDetail {
   novel_id: string;
   novel_slug: string;
   novel_title: string;
+  upvotes: number;
+  downvotes: number;
+  vote_score: number;
+  user_vote: 'up' | 'down' | null;
 }
 
 const SourceDetail = () => {
@@ -49,6 +54,7 @@ const SourceDetail = () => {
   const [source, setSource] = useState<SourceDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
@@ -81,6 +87,26 @@ const SourceDetail = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
   };
 
+  const handleVote = async (voteType: 'up' | 'down') => {
+    if (!novelSlug || !sourceSlug || votingInProgress || !source) return;
+    
+    setVotingInProgress(true);
+    try {
+      const voteResponse = await novelService.voteSource(novelSlug, sourceSlug, voteType);
+      setSource({
+        ...source,
+        upvotes: voteResponse.upvotes,
+        downvotes: voteResponse.downvotes,
+        vote_score: voteResponse.vote_score,
+        user_vote: voteResponse.user_vote
+      });
+    } catch (err) {
+      console.error('Error voting for source:', err);
+    } finally {
+      setVotingInProgress(false);
+    }
+  };
+
   // Format date to readable format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -90,8 +116,6 @@ const SourceDetail = () => {
       day: 'numeric' 
     }).format(date);
   };
-
-  const defaultCover = '/default-cover.jpg';
 
   if (loading) {
     return (
@@ -128,7 +152,7 @@ const SourceDetail = () => {
             <Card sx={{ height: '100%' }}>
               <CardMedia
                 component="img"
-                image={source.cover_url || defaultCover}
+                image={source.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + source.cover_url) : defaultCover}
                 alt={source.title}
                 sx={{ height: 400, objectFit: 'contain' }}
                 onError={(e: any) => {
@@ -195,6 +219,41 @@ const SourceDetail = () => {
               </Typography>
               <Typography component="span" sx={{ ml: 1 }}>
                 {source.chapters_count}
+              </Typography>
+            </Box>
+            
+            {/* Vote section */}
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+              <Typography variant="subtitle1" sx={{ mr: 2 }}>
+                Source Rating:
+              </Typography>
+              
+              <Tooltip title="Upvote this source">
+                <IconButton 
+                  color={source.user_vote === 'up' ? 'primary' : 'default'}
+                  onClick={() => handleVote('up')}
+                  disabled={votingInProgress}
+                >
+                  <ThumbUpIcon />
+                </IconButton>
+              </Tooltip>
+              
+              <Typography variant="body1" sx={{ mx: 1 }}>
+                {source.vote_score}
+              </Typography>
+              
+              <Tooltip title="Downvote this source">
+                <IconButton 
+                  color={source.user_vote === 'down' ? 'error' : 'default'}
+                  onClick={() => handleVote('down')}
+                  disabled={votingInProgress}
+                >
+                  <ThumbDownIcon />
+                </IconButton>
+              </Tooltip>
+              
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
+                ({source.upvotes} up / {source.downvotes} down)
               </Typography>
             </Box>
             

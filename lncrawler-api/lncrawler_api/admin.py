@@ -5,6 +5,11 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django import forms
 from django.utils.html import format_html
+import os
+import glob
+import shutil
+from django.conf import settings
+import logging
 
 # Register your models here.
 
@@ -67,6 +72,27 @@ class MetaJsonImportForm(forms.Form):
         help_text='Enter the full path to a meta.json file (e.g., C:\\Users\\Jeremy\\novels\\novel_name\\meta.json)'
     )
 
+# Custom form for mass import directory path
+class MassImportForm(forms.Form):
+    IMPORT_ACTIONS = [
+        ('import_only', 'Import Only (No File Operations)'),
+        ('copy', 'Copy to Library Path and Import'),
+        ('move', 'Move to Library Path and Import')
+    ]
+    
+    root_directory = forms.CharField(
+        label='Root Directory Path',
+        max_length=500,
+        help_text='Enter the full path to a directory to recursively search for meta.json files (e.g., C:\\Users\\Jeremy\\novels)'
+    )
+    
+    import_action = forms.ChoiceField(
+        label='Import Action',
+        choices=IMPORT_ACTIONS,
+        initial='import_only',
+        help_text='Select whether to just import, or copy/move files to library path before importing'
+    )
+
 # Inline for showing sources in Novel admin
 class NovelFromSourceInline(admin.TabularInline):
     model = NovelFromSource
@@ -112,6 +138,7 @@ class NovelAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path('import-meta-json/', self.admin_site.admin_view(self.import_meta_json), name='novel-import-meta'),
+            path('mass-import/', self.admin_site.admin_view(self.mass_import), name='novel-mass-import'),
         ]
         return custom_urls + urls
     
@@ -154,12 +181,139 @@ class NovelAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/import_meta_json.html', context)
 
+    def mass_import(self, request):
+        """View for mass importing meta.json files from a directory recursively"""
+        import_results = {
+            'successful': [],
+            'failed': [],
+            'file_operations': []
+        }
+        
+        logger = logging.getLogger('lncrawler_api')
+        
+        if request.method == 'POST':
+            form = MassImportForm(request.POST)
+            if form.is_valid():
+                root_directory = form.cleaned_data['root_directory']
+                import_action = form.cleaned_data['import_action']
+                
+                try:
+                    # Check if directory exists
+                    if not os.path.isdir(root_directory):
+                        raise ValueError(f"Directory not found: {root_directory}")
+                    
+                    # Recursively find all meta.json files
+                    meta_files = glob.glob(os.path.join(root_directory, '**/meta.json'), recursive=True)
+                    
+                    # Process each meta.json file
+                    for meta_file_path in meta_files:
+                        try:
+                            # Get source_folder and novel_folder from meta_file_path
+                            source_folder = os.path.dirname(meta_file_path)
+                            source_folder_name = os.path.basename(source_folder)
+                            
+                            # Try to determine novel_folder_name from parent directory 
+                            # (assuming directory structure is novel_folder/source_folder/meta.json)
+                            novel_folder_name = os.path.basename(os.path.dirname(source_folder))
+                            
+                            # If import action is copy or move
+                            if import_action in ('copy', 'move'):
+                                # Ensure the target directory exists in the library path
+                                library_novel_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, novel_folder_name)
+                                os.makedirs(library_novel_path, exist_ok=True)
+                                
+                                # Target path for the source folder
+                                target_source_path = os.path.join(library_novel_path, source_folder_name)
+                                
+                                # Check if the target directory already exists
+                                if os.path.exists(target_source_path):
+                                    logger.warning(f"Target directory already exists: {target_source_path}")
+                                    import_results['file_operations'].append({
+                                        'source': source_folder,
+                                        'target': target_source_path,
+                                        'action': import_action,
+                                        'status': 'skipped',
+                                        'reason': 'Target already exists'
+                                    })
+                                else:
+                                    # Copy or move the directory
+                                    if import_action == 'copy':
+                                        shutil.copytree(source_folder, target_source_path)
+                                        logger.info(f"Copied {source_folder} to {target_source_path}")
+                                    else:  # move
+                                        shutil.move(source_folder, target_source_path)
+                                        logger.info(f"Moved {source_folder} to {target_source_path}")
+                                    
+                                    import_results['file_operations'].append({
+                                        'source': source_folder,
+                                        'target': target_source_path,
+                                        'action': import_action,
+                                        'status': 'success'
+                                    })
+                                    
+                                    # Update the meta_file_path to point to the new location
+                                    meta_file_path = os.path.join(target_source_path, 'meta.json')
+                            
+                            # Now import the meta.json file
+                            novel_from_source = NovelFromSource.from_meta_json(meta_file_path)
+                            
+                            import_results['successful'].append({
+                                'path': meta_file_path,
+                                'title': novel_from_source.title,
+                                'source': novel_from_source.source_name
+                            })
+                        except Exception as e:
+                            logger.error(f"Error importing {meta_file_path}: {str(e)}")
+                            import_results['failed'].append({
+                                'path': meta_file_path,
+                                'error': str(e)
+                            })
+                    
+                    # Return results to the template
+                    self.message_user(
+                        request,
+                        f"Import completed: {len(import_results['successful'])} successful, {len(import_results['failed'])} failed"
+                    )
+                    
+                    context = {
+                        'form': form,
+                        'opts': self.model._meta,
+                        'title': 'Mass Import Results',
+                        'results': import_results,
+                        'total_found': len(meta_files),
+                        'import_action': import_action
+                    }
+                    return render(request, 'admin/mass_import_results.html', context)
+                    
+                except Exception as e:
+                    logger.exception(f"Error during mass import: {str(e)}")
+                    self.message_user(
+                        request,
+                        f"Error during mass import: {str(e)}",
+                        level='ERROR'
+                    )
+                    return HttpResponseRedirect(reverse('admin:lncrawler_api_novel_changelist'))
+        else:
+            form = MassImportForm()
+        
+        context = {
+            'form': form,
+            'opts': self.model._meta,
+            'title': 'Mass Import Novels from Directory',
+            'library_path': settings.LNCRAWL_OUTPUT_PATH
+        }
+        return render(request, 'admin/mass_import_form.html', context)
+
     # Add an import button to the changelist page
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
         extra_context['import_button'] = {
             'url': reverse('admin:novel-import-meta'),
             'label': 'Import from meta.json'
+        }
+        extra_context['mass_import_button'] = {
+            'url': reverse('admin:novel-mass-import'),
+            'label': 'Mass Import'
         }
         return super().changelist_view(request, extra_context=extra_context)
 

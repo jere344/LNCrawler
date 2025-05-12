@@ -16,18 +16,24 @@ import {
   CardActionArea,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  IconButton,
+  Tooltip,
+  Badge,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { utils } from '@utils/textUtils';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
+import defaultCover from '@assets/default-cover.jpg';
 
 interface NovelSource {
   id: string;
   title: string;
   source_url: string;
   source_name: string;
-  source_slug: string;  // Add source_slug to the interface
+  source_slug: string; 
   cover_url: string | null;
   authors: string[];
   genres: string[];
@@ -38,6 +44,10 @@ interface NovelSource {
   chapters_count: number;
   volumes_count: number;
   last_updated: string;
+  upvotes: number;
+  downvotes: number;
+  vote_score: number;
+  user_vote: 'up' | 'down' | null;
 }
 
 interface NovelDetail {
@@ -55,6 +65,7 @@ const NovelDetail = () => {
   const [novel, setNovel] = useState<NovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [votingInProgress, setVotingInProgress] = useState<{[key: string]: boolean}>({});
 
   useEffect(() => {
     const fetchNovelDetail = async () => {
@@ -84,7 +95,42 @@ const NovelDetail = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
   };
 
-  const defaultCover = '/default-cover.jpg';
+  const handleVote = async (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!novelSlug || votingInProgress[sourceSlug]) return;
+    
+    setVotingInProgress(prev => ({ ...prev, [sourceSlug]: true }));
+    try {
+      const voteResponse = await novelService.voteSource(novelSlug, sourceSlug, voteType);
+      
+      if (novel) {
+        const updatedSources = novel.sources.map(source => {
+          if (source.source_slug === sourceSlug) {
+            return {
+              ...source,
+              upvotes: voteResponse.upvotes,
+              downvotes: voteResponse.downvotes,
+              vote_score: voteResponse.vote_score,
+              user_vote: voteResponse.user_vote
+            };
+          }
+          return source;
+        });
+        
+        // Sort sources by vote score
+        updatedSources.sort((a, b) => b.vote_score - a.vote_score);
+        
+        setNovel({
+          ...novel,
+          sources: updatedSources
+        });
+      }
+    } catch (err) {
+      console.error('Error voting for source:', err);
+    } finally {
+      setVotingInProgress(prev => ({ ...prev, [sourceSlug]: false }));
+    }
+  };
 
   if (loading) {
     return (
@@ -109,7 +155,7 @@ const NovelDetail = () => {
     );
   }
 
-  // Take the primary source (first in list)
+  // Use the first source in the sorted list (by votes) as the primary source
   const primarySource = novel.sources[0] || null;
 
   return (
@@ -125,7 +171,7 @@ const NovelDetail = () => {
               <Card sx={{ height: '100%' }}>
                 <CardMedia
                   component="img"
-                  image={primarySource.cover_url || defaultCover}
+                  image={primarySource.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + primarySource.cover_url) : defaultCover}
                   alt={novel.title}
                   sx={{ height: 400, objectFit: 'contain' }}
                   onError={(e: any) => {
@@ -201,40 +247,92 @@ const NovelDetail = () => {
                   height: '100%', 
                   display: 'flex', 
                   flexDirection: 'column',
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'scale(1.03)'
-                  }
+                  position: 'relative',
                 }}
               >
-                <CardActionArea onClick={() => handleSourceClick(source.source_slug)}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      {source.source_name}
-                    </Typography>
+                {index === 0 && (
+                  <Tooltip title="Primary Source (highest rated)">
+                    <Chip
+                      icon={<PriorityHighIcon />}
+                      label="Primary"
+                      color="primary"
+                      size="small"
+                      sx={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        zIndex: 1
+                      }}
+                    />
+                  </Tooltip>
+                )}
+                
+                {/* Card content area (clickable) */}
+                <Box sx={{ flexGrow: 1 }}>
+                  <CardActionArea 
+                    onClick={() => handleSourceClick(source.source_slug)}
+                    sx={{ height: '100%' }}
+                  >
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        {source.source_name}
+                      </Typography>
+                      
+                      <List dense disablePadding>
+                        <ListItem disablePadding>
+                          <ListItemText 
+                            primary="Status" 
+                            secondary={source.status} 
+                          />
+                        </ListItem>
+                        <ListItem disablePadding>
+                          <ListItemText 
+                            primary="Chapters" 
+                            secondary={source.chapters_count} 
+                          />
+                        </ListItem>
+                        <ListItem disablePadding>
+                          <ListItemText 
+                            primary="Language" 
+                            secondary={source.language} 
+                          />
+                        </ListItem>
+                      </List>
+                    </CardContent>
+                  </CardActionArea>
+                </Box>
+                
+                {/* Voting area (separate from clickable area) */}
+                <Divider />
+                <Box sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Rating: <strong>{source.vote_score}</strong>
+                  </Typography>
+                  
+                  <Box>
+                    <Tooltip title="Upvote">
+                      <IconButton 
+                        size="small" 
+                        color={source.user_vote === 'up' ? 'primary' : 'default'}
+                        onClick={(e) => handleVote(source.source_slug, 'up', e)}
+                        disabled={votingInProgress[source.source_slug]}
+                      >
+                        <ThumbUpIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     
-                    <List dense disablePadding>
-                      <ListItem disablePadding>
-                        <ListItemText 
-                          primary="Status" 
-                          secondary={source.status} 
-                        />
-                      </ListItem>
-                      <ListItem disablePadding>
-                        <ListItemText 
-                          primary="Chapters" 
-                          secondary={source.chapters_count} 
-                        />
-                      </ListItem>
-                      <ListItem disablePadding>
-                        <ListItemText 
-                          primary="Language" 
-                          secondary={source.language} 
-                        />
-                      </ListItem>
-                    </List>
-                  </CardContent>
-                </CardActionArea>
+                    <Tooltip title="Downvote">
+                      <IconButton 
+                        size="small" 
+                        color={source.user_vote === 'down' ? 'error' : 'default'}
+                        onClick={(e) => handleVote(source.source_slug, 'down', e)}
+                        disabled={votingInProgress[source.source_slug]}
+                      >
+                        <ThumbDownIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
               </Card>
             </Grid>
           ))}

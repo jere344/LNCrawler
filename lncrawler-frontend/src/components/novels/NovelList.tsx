@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { novelService } from '../../services/api';
+import defaultCover from '@assets/default-cover.jpg';
 
 interface Novel {
   id: string;
@@ -66,8 +67,6 @@ const NovelList = () => {
     navigate(`/novels/${novelSlug}`);
   };
 
-  const defaultCover = '/default-cover.jpg'; // Fallback cover image
-
   return (
     <Container maxWidth="lg">
       <Box sx={{ my: 4, textAlign: 'center' }}>
@@ -107,7 +106,7 @@ const NovelList = () => {
                     <CardMedia
                       component="img"
                       height="250"
-                      image={novel.cover_url || defaultCover}
+                      image={novel.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + novel.cover_url) : defaultCover}
                       alt={novel.title}
                       sx={{ objectFit: 'cover' }}
                       onError={(e: any) => {

@@ -69,8 +69,8 @@ def get_novel_output_path(source, novel) -> str:
         os.makedirs(BASE_DIR)
     
     # Normalize the source and novel names
-    source = sanitize(source)
-    novel = sanitize(novel)
+    source = sanitize(source).lower()
+    novel = sanitize(novel).lower()
     
     # Default names if empty after sanitization
     if not source:

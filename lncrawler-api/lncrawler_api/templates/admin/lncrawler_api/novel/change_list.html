@@ -3,11 +3,14 @@
 
 {% block object-tools-items %}
   {% if import_button %}
-  <li>
-    <a href="{{ import_button.url }}" class="addlink">
-      {{ import_button.label }}
-    </a>
-  </li>
+    <li>
+      <a href="{{ import_button.url }}" class="addlink">{{ import_button.label }}</a>
+    </li>
+  {% endif %}
+  {% if mass_import_button %}
+    <li>
+      <a href="{{ mass_import_button.url }}" class="addlink">{{ mass_import_button.label }}</a>
+    </li>
   {% endif %}
   {{ block.super }}
 {% endblock %}

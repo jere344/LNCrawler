@@ -42,6 +42,8 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
 # Security settings for HTTPS
 if not DEBUG:
     SECURE_SSL_REDIRECT = True  # Redirect HTTP to HTTPS
@@ -180,6 +182,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_FULL_URL = SITE_URL.rstrip("/") + "/" + MEDIA_URL.rstrip("/") + "/"
 
 LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR, 'Lightnovels')
+LNCRAWL_URL = "lightnovels/"
+LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

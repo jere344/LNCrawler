@@ -4,6 +4,7 @@ import uuid
 import os
 import json
 from datetime import datetime
+from django.conf import settings
 
 
 class Novel(models.Model):
@@ -13,16 +14,12 @@ class Novel(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
+    novel_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
         return self.title
-    
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.title)
-        super().save(*args, **kwargs)
     
     @property
     def sources_count(self):
@@ -98,6 +95,10 @@ class NovelFromSource(models.Model):
     source_slug = models.SlugField(max_length=100, blank=True)
     cover_url = models.URLField(max_length=500, null=True, blank=True)
     
+    # Path information relative to settings.LNCRAWL_OUTPUT_PATH
+    source_path = models.CharField(max_length=500, null=True, blank=True)
+    cover_path = models.CharField(max_length=500, null=True, blank=True)
+    
     # People relationships (many-to-many)
     authors = models.ManyToManyField(Author, related_name='novels', blank=True)
     editors = models.ManyToManyField(Editor, related_name='novels', blank=True)
@@ -131,6 +132,10 @@ class NovelFromSource(models.Model):
     # File paths
     meta_file_path = models.CharField(max_length=500, null=True, blank=True)
     
+    # Voting fields
+    upvotes = models.IntegerField(default=0)
+    downvotes = models.IntegerField(default=0)
+    
     class Meta:
         unique_together = ('novel', 'source_url')
     
@@ -144,6 +149,10 @@ class NovelFromSource(models.Model):
     @property
     def volumes_count(self):
         return self.volumes.count()
+    
+    @property
+    def vote_score(self):
+        return self.upvotes - self.downvotes
     
     @classmethod
     def from_meta_json(cls, meta_json_path):
@@ -159,16 +168,33 @@ class NovelFromSource(models.Model):
         title = novel_data.get('title', '')
         if not title:
             raise ValueError("The meta.json file does not contain a novel title")
+        
+        # Determine paths relative to settings.LNCRAWL_OUTPUT_PATH
+        source_dir = os.path.dirname(meta_json_path)  # Directory containing meta.json
+        novel_dir = os.path.dirname(source_dir)       # Parent directory of source_dir
+        
+        # Make paths relative to settings.LNCRAWL_OUTPUT_PATH
+        output_path = settings.LNCRAWL_OUTPUT_PATH
+        if not output_path.endswith(os.path.sep):
+            output_path += os.path.sep
             
-        # Create or get novel based on the title from meta.json
+        novel_path = os.path.relpath(novel_dir, output_path)
+        source_path = os.path.relpath(source_dir, output_path)
+        cover_path = os.path.join(source_path, 'cover.jpg')
+        
+        # Create or get novel based on the novel_path
+        novel_slug = slugify(os.path.basename(novel_path))
         novel, created = Novel.objects.get_or_create(
-            title=title,
-            defaults={'slug': slugify(title)}
+            slug=novel_slug,
+            defaults={
+                'title': title,
+                'novel_path': novel_path
+            }
         )
         
         # Create or update the NovelFromSource
         source_url = novel_data.get('url', '')
-        source_name = os.path.basename(os.path.dirname(meta_json_path))
+        source_name = os.path.basename(source_dir)
         source_slug = slugify(source_name)
         
         novel_from_source, created = cls.objects.update_or_create(
@@ -177,6 +203,9 @@ class NovelFromSource(models.Model):
             defaults={
                 'title': title,
                 'source_name': source_name,
+                'source_slug': source_slug,
+                'source_path': source_path,
+                'cover_path': cover_path if os.path.exists(os.path.join(output_path, cover_path)) else None,
                 'cover_url': novel_data.get('cover_url'),
                 'language': novel_data.get('language', 'en'),
                 'status': novel_data.get('status', 'Unknown'),
@@ -252,19 +281,16 @@ class NovelFromSource(models.Model):
         # Process chapters
         if 'chapters' in novel_data:
             # Get the base directory for chapter JSON files
-            base_dir = os.path.dirname(meta_json_path)
-            json_dir = os.path.join(base_dir, 'json')
+            relative_json_dir = os.path.join(source_path, 'json')
             
             for chapter_data in novel_data['chapters']:
                 chapter_id = chapter_data.get('id')
                 
                 # Format chapter_id with leading zeros for proper sorting
-                chapter_filename = f"{chapter_id:05d}.json"
-                chapter_file_path = os.path.join(json_dir, chapter_filename)
-                print(f"Chapter file path: {chapter_file_path}")
+                relative_chapter_path = os.path.join(relative_json_dir, f"{chapter_id:05d}.json")
                 
                 # Check if the file exists
-                file_exists = os.path.exists(chapter_file_path)
+                file_exists = os.path.exists(os.path.join(output_path, relative_chapter_path))
                 
                 Chapter.objects.update_or_create(
                     novel_from_source=novel_from_source,
@@ -274,7 +300,7 @@ class NovelFromSource(models.Model):
                         'title': chapter_data.get('title', f'Chapter {chapter_id}'),
                         'volume': chapter_data.get('volume', 0),
                         'volume_title': chapter_data.get('volume_title', ''),
-                        'file_path': chapter_file_path if file_exists else None,
+                        'chapter_path': relative_chapter_path if file_exists else None,
                         'images': chapter_data.get('images', {}),
                         'success': chapter_data.get('success', False) if file_exists else False,
                     }
@@ -311,7 +337,7 @@ class Chapter(models.Model):
     title = models.CharField(max_length=255)
     volume = models.IntegerField(default=0)
     volume_title = models.CharField(max_length=255, blank=True, null=True)
-    file_path = models.CharField(max_length=500, null=True, blank=True)  # Path to the JSON file containing the chapter
+    chapter_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
     images = models.JSONField(default=dict)  # Keep as JSONField due to complex structure
     success = models.BooleanField(default=False)
     
@@ -325,27 +351,84 @@ class Chapter(models.Model):
     @property
     def body(self):
         """Read the chapter body from the file"""
-        if not self.file_path or not os.path.exists(self.file_path):
-            return None
+        if self.chapter_path:
+            try:
+                full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.chapter_path)
+                if os.path.exists(full_path):
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        chapter_data = json.load(f)
+                        return chapter_data.get('body')
+            except Exception as e:
+                print(f"Error reading chapter file {full_path}: {e}")
         
-        try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
-                chapter_data = json.load(f)
-                return chapter_data.get('body')
-        except Exception as e:
-            print(f"Error reading chapter file {self.file_path}: {e}")
-            return None
+        return None
     
     @property
     def has_content(self):
         """Check if the chapter file exists and has content"""
-        if not self.file_path or not os.path.exists(self.file_path):
-            return False
-            
-        try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
-                chapter_data = json.load(f)
-                body = chapter_data.get('body')
-                return body is not None and len(body) > 0
-        except Exception:
-            return False
+        if self.chapter_path:
+            try:
+                full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.chapter_path)
+                if os.path.exists(full_path):
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        chapter_data = json.load(f)
+                        body = chapter_data.get('body')
+                        return body is not None and len(body) > 0
+            except Exception:
+                pass
+        
+        return False
+
+
+class SourceVote(models.Model):
+    """
+    Tracks upvotes and downvotes for novel sources
+    """
+    VOTE_CHOICES = [
+        ('up', 'Upvote'),
+        ('down', 'Downvote'),
+    ]
+    
+    source = models.ForeignKey(NovelFromSource, on_delete=models.CASCADE, related_name='votes')
+    ip_address = models.GenericIPAddressField()
+    vote_type = models.CharField(max_length=4, choices=VOTE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('source', 'ip_address')
+        
+    def __str__(self):
+        return f"{self.get_vote_type_display()} for {self.source.title} by {self.ip_address}"
+    
+    def save(self, *args, **kwargs):
+        # Check if this is an update to an existing vote
+        is_update = self.pk is not None
+        old_vote_type = None
+        
+        if is_update:
+            old_vote = SourceVote.objects.get(pk=self.pk)
+            old_vote_type = old_vote.vote_type
+        
+        # Save the vote
+        super().save(*args, **kwargs)
+        
+        # Update the vote counts on the source
+        source = self.source
+        
+        # If this is a new vote
+        if not is_update:
+            if self.vote_type == 'up':
+                source.upvotes += 1
+            else:
+                source.downvotes += 1
+        # If this is updating an existing vote
+        elif old_vote_type != self.vote_type:
+            if self.vote_type == 'up':
+                source.upvotes += 1
+                source.downvotes -= 1
+            else:
+                source.downvotes += 1
+                source.upvotes -= 1
+        
+        source.save(update_fields=['upvotes', 'downvotes'])

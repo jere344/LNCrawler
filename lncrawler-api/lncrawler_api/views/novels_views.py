@@ -1,9 +1,12 @@
-from rest_framework.decorators import api_view
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from ..models.novels_models import Novel, NovelFromSource, Chapter
+from django.db.models import F
+from ..models.novels_models import Novel, NovelFromSource, Chapter, SourceVote
 from django.utils.text import slugify
 
 @api_view(['GET'])
@@ -20,14 +23,14 @@ def list_novels(request):
     
     novels_data = []
     for novel in page_obj:
-        # Get the first source for cover and basic info
-        first_source = novel.sources.first()
+        # Get the most upvoted source for cover and basic info
+        first_source = novel.sources.order_by('-upvotes', 'downvotes', 'title').first()
         
         novels_data.append({
             'id': str(novel.id),
             'title': novel.title,
             'slug': novel.slug,
-            'cover_url': first_source.cover_url if first_source else None,
+            'cover_url': (settings.LNCRAWL_URL + first_source.cover_path) if first_source and first_source.cover_path else None,
             'sources_count': novel.sources_count,
             'total_chapters': novel.total_chapters,
         })
@@ -48,10 +51,22 @@ def novel_detail_by_slug(request, novel_slug):
     novel = get_object_or_404(Novel, slug=novel_slug)
     
     sources = []
-    for source in novel.sources.all():
+    # Order sources by vote score (upvotes - downvotes)
+    for source in novel.sources.all().order_by(F('upvotes') - F('downvotes')).reverse():
         authors = [author.name for author in source.authors.all()]
         genres = [genre.name for genre in source.genres.all()]
         tags = [tag.name for tag in source.tags.all()]
+        
+        # Get the user's vote if it exists
+        client_ip = get_client_ip(request)
+        user_vote = None
+        if client_ip:
+            try:
+                vote = source.votes.filter(ip_address=client_ip).first()
+                if vote:
+                    user_vote = vote.vote_type
+            except:
+                pass
         
         sources.append({
             'id': str(source.id),
@@ -59,7 +74,7 @@ def novel_detail_by_slug(request, novel_slug):
             'source_url': source.source_url,
             'source_name': source.source_name,
             'source_slug': source.source_slug,
-            'cover_url': source.cover_url,
+            'cover_url': (settings.LNCRAWL_URL + source.cover_path) if source.cover_path else None,
             'authors': authors,
             'genres': genres,
             'tags': tags,
@@ -69,6 +84,10 @@ def novel_detail_by_slug(request, novel_slug):
             'chapters_count': source.chapters_count,
             'volumes_count': source.volumes_count,
             'last_updated': source.updated_at,
+            'upvotes': source.upvotes,
+            'downvotes': source.downvotes,
+            'vote_score': source.vote_score,
+            'user_vote': user_vote,
         })
     
     return Response({
@@ -92,13 +111,24 @@ def source_detail(request, novel_slug, source_slug):
     genres = [genre.name for genre in source.genres.all()]
     tags = [tag.name for tag in source.tags.all()]
     
+    # Get the user's vote if it exists
+    client_ip = get_client_ip(request)
+    user_vote = None
+    if client_ip:
+        try:
+            vote = source.votes.filter(ip_address=client_ip).first()
+            if vote:
+                user_vote = vote.vote_type
+        except:
+            pass
+    
     source_data = {
         'id': str(source.id),
         'title': source.title,
         'source_url': source.source_url,
         'source_name': source.source_name,
         'source_slug': source.source_slug,
-        'cover_url': source.cover_url,
+        'cover_url': (settings.LNCRAWL_URL + source.cover_path) if source.cover_path else None,
         'authors': authors,
         'genres': genres,
         'tags': tags,
@@ -110,10 +140,62 @@ def source_detail(request, novel_slug, source_slug):
         'last_updated': source.updated_at,
         'novel_id': str(novel.id),
         'novel_slug': novel.slug,
-        'novel_title': novel.title
+        'novel_title': novel.title,
+        'upvotes': source.upvotes,
+        'downvotes': source.downvotes,
+        'vote_score': source.vote_score,
+        'user_vote': user_vote
     }
     
     return Response(source_data)
+
+def get_client_ip(request):
+    """
+    Get client IP address from request
+    """
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+@api_view(['POST'])
+def vote_source(request, novel_slug, source_slug):
+    """
+    Upvote or downvote a specific novel source
+    """
+    vote_type = request.data.get('vote_type')
+    if vote_type not in ['up', 'down']:
+        return Response(
+            {'error': 'Invalid vote type. Use "up" or "down".'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    novel = get_object_or_404(Novel, slug=novel_slug)
+    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    client_ip = get_client_ip(request)
+    
+    if not client_ip:
+        return Response(
+            {'error': 'Could not determine your IP address.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Create or update the vote
+    vote, created = SourceVote.objects.update_or_create(
+        source=source,
+        ip_address=client_ip,
+        defaults={'vote_type': vote_type}
+    )
+    
+    # Return updated vote counts
+    return Response({
+        'upvotes': source.upvotes,
+        'downvotes': source.downvotes,
+        'vote_score': source.vote_score,
+        'user_vote': vote_type
+    })
 
 @api_view(['GET'])
 def novel_chapters_by_source(request, novel_slug, source_slug):

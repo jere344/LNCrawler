@@ -2,12 +2,33 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
+// Function to get CSRF token from cookies
+const getCsrfToken = (): string | null => {
+  const cookieValue = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('csrftoken='))
+    ?.split('=')[1];
+  return cookieValue || null;
+};
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   withCredentials: true,
+});
+
+// Add request interceptor to include CSRF token for mutating requests
+api.interceptors.request.use(config => {
+  // Only add CSRF token for non-GET requests
+  if (config.method !== 'get') {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+  }
+  return config;
 });
 
 // Search service functions
@@ -104,7 +125,15 @@ export const novelService = {
   getChapterContent: async (novelSlug: string, sourceSlug: string, chapterNumber: number) => {
     const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/`);
     return response.data;
-  }
+  },
+
+  voteSource : async (novelSlug: string, sourceSlug: string, voteType: 'up' | 'down') => {
+    const response = await api.post(
+      `/novels/${novelSlug}/${sourceSlug}/vote/`, 
+      { vote_type: voteType }
+    );
+    return response.data;
+  },
 };
 
 export default api;
