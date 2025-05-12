@@ -25,6 +25,9 @@ urlpatterns = [
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/comments/add/', 
          comments_views.add_comment, name='add_chapter_comment'),
 
+    # Comment voting
+    path('comments/<uuid:comment_id>/vote/', comments_views.vote_comment, name='vote_comment'),
+
     # Novel-related endpoints with new URL structure
     path('novels/', novels_views.list_novels, name='list_novels'),
     path('novels/<slug:novel_slug>/', novels_views.novel_detail_by_slug, name='novel_detail_by_slug'),

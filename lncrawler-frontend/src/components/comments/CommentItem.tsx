@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -7,12 +7,19 @@ import {
   Button,
   IconButton,
   Divider,
+  Tooltip,
 } from '@mui/material';
 import ReplyIcon from '@mui/icons-material/Reply';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ThumbUpAltOutlinedIcon from '@mui/icons-material/ThumbUpAltOutlined';
+import ThumbDownAltOutlinedIcon from '@mui/icons-material/ThumbDownAltOutlined';
+import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt'; // For filled state
+import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt'; // For filled state
+
 import CommentForm from './CommentForm';
+import { commentService } from '../../services/api'; // Import commentService
 
 interface Comment {
   id: string;
@@ -28,6 +35,9 @@ interface Comment {
   source_slug?: string;
   replies?: Comment[];
   has_replies?: boolean;
+  upvotes: number; // Added
+  downvotes: number; // Added
+  vote_score: number; // Added
 }
 
 interface CommentItemProps {
@@ -46,6 +56,9 @@ const CommentItem = ({
   const [isSpoilerRevealed, setSpoilerRevealed] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
+  const [votes, setVotes] = useState({ upvotes: comment.upvotes, downvotes: comment.downvotes });
+  const [currentVote, setCurrentVote] = useState<'up' | 'down' | null>(null); // Track user's vote on this comment
+  const [isVoting, setIsVoting] = useState(false);
   
   const hasReplies = comment.replies && comment.replies.length > 0;
 
@@ -68,6 +81,27 @@ const CommentItem = ({
         parent_id: comment.id
       });
       setIsReplying(false);
+    }
+  };
+
+  const handleVote = async (voteType: 'up' | 'down') => {
+    if (isVoting) return;
+    setIsVoting(true);
+    try {
+      // If current vote is the same as new vote, treat as unvoting (not standard, but can be implemented)
+      // For now, API handles changing vote or new vote.
+      // To prevent double voting or allow changing vote, the backend logic with update_or_create is key.
+      const updatedCommentData = await commentService.voteComment(comment.id, voteType);
+      setVotes({
+        upvotes: updatedCommentData.upvotes,
+        downvotes: updatedCommentData.downvotes,
+      });
+      setCurrentVote(voteType); 
+    } catch (error) {
+      console.error('Failed to vote on comment:', error);
+      // Optionally, show an error message to the user
+    } finally {
+      setIsVoting(false);
     }
   };
 
@@ -165,7 +199,33 @@ const CommentItem = ({
           </Typography>
         )}
         
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title="Upvote">
+              <IconButton 
+                size="small" 
+                onClick={() => handleVote('up')} 
+                disabled={isVoting}
+                color={currentVote === 'up' ? "primary" : "default"}
+              >
+                {currentVote === 'up' ? <ThumbUpAltIcon /> : <ThumbUpAltOutlinedIcon />}
+              </IconButton>
+            </Tooltip>
+            <Typography variant="body2">{votes.upvotes}</Typography>
+            
+            <Tooltip title="Downvote">
+              <IconButton 
+                size="small" 
+                onClick={() => handleVote('down')} 
+                disabled={isVoting}
+                color={currentVote === 'down' ? "secondary" : "default"}
+              >
+                {currentVote === 'down' ? <ThumbDownAltIcon /> : <ThumbDownAltOutlinedIcon />}
+              </IconButton>
+            </Tooltip>
+            <Typography variant="body2">{votes.downvotes}</Typography>
+          </Box>
++
           {onAddReply ? (
             <Button 
               variant="outlined"

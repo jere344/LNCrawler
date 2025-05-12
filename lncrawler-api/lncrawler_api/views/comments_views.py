@@ -2,7 +2,9 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from ..models.novels_models import Novel,  Chapter, Comment
+from ..models.novels_models import Novel, Chapter # NovelFromSource is not directly used here but Chapter needs it
+from ..models.comments_models import Comment, CommentVote # Updated import
+from ..utils import get_client_ip # Import get_client_ip
 
 
 def get_comment_with_replies(comment, from_other_source=False, source_name=None, type=None, chapter_title=None, chapter_id=None, source_slug=None):
@@ -17,6 +19,9 @@ def get_comment_with_replies(comment, from_other_source=False, source_name=None,
         'created_at': comment.created_at,
         'from_other_source': from_other_source,
         'has_replies': comment.replies.exists(),
+        'upvotes': comment.upvotes, # Add upvotes
+        'downvotes': comment.downvotes, # Add downvotes
+        'vote_score': comment.vote_score, # Add vote_score
         'replies': []
     }
     
@@ -204,3 +209,34 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     all_comments.sort(key=lambda x: x['created_at'], reverse=True)
     
     return Response(all_comments)
+
+@api_view(['POST'])
+def vote_comment(request, comment_id):
+    """
+    Vote on a comment (upvote or downvote).
+    """
+    comment = get_object_or_404(Comment, id=comment_id)
+    vote_type = request.data.get('vote_type')
+    client_ip = get_client_ip(request)
+
+    if vote_type not in ['up', 'down']:
+        return Response(
+            {'error': 'Invalid vote_type. Must be "up" or "down".'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    vote, created = CommentVote.objects.update_or_create(
+        comment=comment,
+        ip_address=client_ip,
+        defaults={'vote_type': vote_type}
+    )
+    
+    # Re-fetch comment to get updated vote counts
+    comment.refresh_from_db()
+    
+    return Response({
+        'id': str(comment.id),
+        'upvotes': comment.upvotes,
+        'downvotes': comment.downvotes,
+        'vote_score': comment.vote_score
+    }, status=status.HTTP_200_OK)
