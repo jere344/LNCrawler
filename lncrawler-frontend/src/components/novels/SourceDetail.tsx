@@ -15,6 +15,8 @@ import {
   IconButton,
   Tooltip,
   Rating,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -24,7 +26,9 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
+import CommentIcon from '@mui/icons-material/Comment';
 import defaultCover from '@assets/default-cover.jpg';
+import CommentSection from '../comments/CommentSection';
 
 interface SourceDetail {
   id: string;
@@ -64,6 +68,7 @@ const SourceDetail = () => {
     user_rating: null
   });
   const [ratingInProgress, setRatingInProgress] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
@@ -91,6 +96,10 @@ const SourceDetail = () => {
 
     fetchSourceDetail();
   }, [novelSlug, sourceSlug]);
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
 
   const handleBackClick = () => {
     if (source) {
@@ -337,48 +346,78 @@ const SourceDetail = () => {
           </Grid>
         </Grid>
         
-        {(source.genres.length > 0 || source.tags.length > 0) && (
-          <Box sx={{ mt: 4 }}>
-            <Divider sx={{ mb: 2 }} />
-            
-            <Grid container spacing={3}>
-              {source.genres.length > 0 && (
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>
-                    Genres
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {source.genres.map((genre, index) => (
-                      <Chip key={index} label={genre} size="medium" />
-                    ))}
-                  </Box>
-                </Grid>
-              )}
-              
-              {source.tags.length > 0 && (
-                <Grid item xs={12} md={6}>
-                  <Typography variant="h6" gutterBottom>
-                    Tags
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {source.tags.map((tag, index) => (
-                      <Chip key={index} label={tag} size="medium" variant="outlined" />
-                    ))}
-                  </Box>
-                </Grid>
-              )}
-            </Grid>
-          </Box>
-        )}
-        
+        {/* Add a tab system for details and comments */}
         <Box sx={{ mt: 4 }}>
           <Divider sx={{ mb: 2 }} />
-          <Typography variant="h6" gutterBottom>
-            Synopsis
-          </Typography>
-          <Typography variant="body1" paragraph>
-            {source.synopsis || 'No synopsis available'}
-          </Typography>
+          
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={activeTab} onChange={handleTabChange} aria-label="novel content tabs">
+              <Tab label="Details" id="tab-0" />
+              <Tab 
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    Comments
+                    <CommentIcon sx={{ ml: 1 }} />
+                  </Box>
+                } 
+                id="tab-1" 
+              />
+            </Tabs>
+          </Box>
+          
+          {/* Details Tab */}
+          <Box role="tabpanel" hidden={activeTab !== 0} sx={{ py: 3 }}>
+            {(source.genres.length > 0 || source.tags.length > 0) && (
+              <Box sx={{ mb: 4 }}>
+                <Grid container spacing={3}>
+                  {source.genres.length > 0 && (
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="h6" gutterBottom>
+                        Genres
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {source.genres.map((genre, index) => (
+                          <Chip key={index} label={genre} size="medium" />
+                        ))}
+                      </Box>
+                    </Grid>
+                  )}
+                  
+                  {source.tags.length > 0 && (
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="h6" gutterBottom>
+                        Tags
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {source.tags.map((tag, index) => (
+                          <Chip key={index} label={tag} size="medium" variant="outlined" />
+                        ))}
+                      </Box>
+                    </Grid>
+                  )}
+                </Grid>
+              </Box>
+            )}
+            
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Synopsis
+              </Typography>
+              <Typography variant="body1" paragraph>
+                {source.synopsis || 'No synopsis available'}
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Comments Tab */}
+          <Box role="tabpanel" hidden={activeTab !== 1} sx={{ py: 3 }}>
+            {novelSlug && (
+              <CommentSection 
+                novelSlug={novelSlug}
+                title="Novel Comments" 
+              />
+            )}
+          </Box>
         </Box>
       </Paper>
     </Container>

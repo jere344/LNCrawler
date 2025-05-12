@@ -1,13 +1,13 @@
 from django.conf import settings
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from django.db.models import F, Avg
-from ..models.novels_models import Novel, NovelFromSource, Chapter, SourceVote, NovelRating
-from django.utils.text import slugify
+from ..models.novels_models import Novel, SourceVote, NovelRating
+from ..utils import get_client_ip
+
 
 @api_view(['GET'])
 def list_novels(request):
@@ -47,7 +47,6 @@ def list_novels(request):
         'current_page': int(page_number),
         'results': novels_data
     })
-
 
 @api_view(['GET'])
 def novel_detail_by_slug(request, novel_slug):
@@ -172,17 +171,6 @@ def source_detail(request, novel_slug, source_slug):
     }
     
     return Response(source_data)
-
-def get_client_ip(request):
-    """
-    Get client IP address from request
-    """
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
 
 @api_view(['POST'])
 def vote_source(request, novel_slug, source_slug):

@@ -10,7 +10,9 @@ import {
   Divider,
   IconButton,
   Toolbar,
-  AppBar
+  AppBar,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -18,6 +20,8 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import FormatSizeIcon from '@mui/icons-material/FormatSize';
 import HomeIcon from '@mui/icons-material/Home';
 import ListIcon from '@mui/icons-material/List';
+import CommentIcon from '@mui/icons-material/Comment';
+import CommentSection from '../comments/CommentSection';
 
 interface ChapterContent {
   id: string;
@@ -46,7 +50,8 @@ const ChapterReader = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number>(18);
-  
+  const [activeTab, setActiveTab] = useState(0);
+
   useEffect(() => {
     const fetchChapterContent = async () => {
       if (!novelSlug || !sourceSlug || !chapterNumber) return;
@@ -69,6 +74,10 @@ const ChapterReader = () => {
 
     fetchChapterContent();
   }, [novelSlug, sourceSlug, chapterNumber]);
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
 
   const handleBackToChapters = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
@@ -167,6 +176,7 @@ const ChapterReader = () => {
 
       <Container maxWidth="md">
         <Paper elevation={3} sx={{ p: { xs: 2, md: 4 }, mt: 2, mb: 8 }}>
+          {/* Chapter title and content */}
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" gutterBottom align="center">
               {chapter.title}
@@ -176,9 +186,23 @@ const ChapterReader = () => {
             </Typography>
           </Box>
           
-          <Divider sx={{ mb: 4 }} />
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+            <Tabs value={activeTab} onChange={handleTabChange} aria-label="chapter tabs">
+              <Tab label="Chapter" id="tab-0" />
+              <Tab 
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    Comments
+                    <CommentIcon sx={{ ml: 1 }} />
+                  </Box>
+                } 
+                id="tab-1" 
+              />
+            </Tabs>
+          </Box>
           
-          <Box sx={{ mb: 4 }}>
+          {/* Chapter content Tab */}
+          <Box role="tabpanel" hidden={activeTab !== 0} sx={{ mb: 4 }}>
             <Typography 
               sx={{ 
                 fontSize: `${fontSize}px`, 
@@ -189,8 +213,23 @@ const ChapterReader = () => {
             />
           </Box>
           
+          {/* Comments Tab */}
+          <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
+            {novelSlug && sourceSlug && chapterNumber && (
+              <CommentSection 
+                chapterData={{
+                  novelSlug,
+                  sourceSlug,
+                  chapterNumber: parseInt(chapterNumber)
+                }}
+                title="Chapter Comments"
+              />
+            )}
+          </Box>
+          
           <Divider sx={{ mt: 4, mb: 2 }} />
           
+          {/* Navigation buttons */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
             {chapter.prev_chapter ? (
               <Button 

@@ -1,8 +1,8 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from django.contrib.sitemaps.views import sitemap
 from . import views
 from .views import novels_views
+from .views import comments_views
 
 # Configure the REST Framework router
 router = DefaultRouter()
@@ -14,6 +14,16 @@ sitemaps = {
 urlpatterns = [
     # API base routes
     path('', include(router.urls)),
+
+    # Novel comments
+    path('novels/<slug:novel_slug>/comments/', comments_views.novel_comments, name='novel_comments'),
+    path('novels/<slug:novel_slug>/comments/add/', comments_views.add_comment, name='add_novel_comment'),
+    
+    # Chapter comments
+    path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/comments/', 
+         comments_views.chapter_comments, name='chapter_comments'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/comments/add/', 
+         comments_views.add_comment, name='add_chapter_comment'),
 
     # Novel-related endpoints with new URL structure
     path('novels/', novels_views.list_novels, name='list_novels'),
@@ -36,4 +46,5 @@ urlpatterns = [
     path('downloader/jobs/cancel/<str:job_id>/', views.cancel_job, name='cancel_job'),
     path('downloader/jobs/', views.list_jobs, name='list_jobs'),
     path('downloader/jobs/<str:job_id>/', views.job_details, name='job_details'),
+
 ]
