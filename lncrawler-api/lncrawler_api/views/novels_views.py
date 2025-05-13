@@ -103,13 +103,21 @@ def vote_source(request, novel_slug, source_slug):
 @api_view(['GET'])
 def novel_chapters_by_source(request, novel_slug, source_slug):
     """
-    Get all chapters for a specific novel source using slugs
+    Get all chapters for a specific novel source using slugs with pagination
     """
     novel = get_object_or_404(Novel, slug=novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
     
     chapters = source.chapters.all().order_by('chapter_id')
-    serializer = ChapterSerializer(chapters, many=True)
+    
+    # Pagination parameters
+    page_number = request.GET.get('page', 1)
+    page_size = request.GET.get('page_size', 100)  # Higher default for chapters
+    
+    paginator = Paginator(chapters, page_size)
+    page_obj = paginator.get_page(page_number)
+    
+    serializer = ChapterSerializer(page_obj, many=True)
     
     return Response({
         'novel_id': str(novel.id),
@@ -118,6 +126,9 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
         'source_id': str(source.id),
         'source_name': source.source_name,
         'source_slug': source.source_slug,
+        'count': paginator.count,
+        'total_pages': paginator.num_pages,
+        'current_page': int(page_number),
         'chapters': serializer.data
     })
 

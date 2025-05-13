@@ -13,21 +13,36 @@ import {
   CircularProgress,
   Divider,
   TextField,
-  InputAdornment
+  InputAdornment,
+  Pagination,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+  Stack
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import { Chapter, ChapterListResponse as IChapterListResponse } from '@models/novels_types';
 
+interface IExtendedChapterListResponse extends IChapterListResponse {
+  count: number;
+  total_pages: number;
+  current_page: number;
+}
+
 const ChapterList = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const navigate = useNavigate();
   
-  const [chapterData, setChapterData] = useState<IChapterListResponse | null>(null);
+  const [chapterData, setChapterData] = useState<IExtendedChapterListResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(100);
   
   // Organize chapters by volume
   const [volumeChapters, setVolumeChapters] = useState<{ [key: number]: Chapter[] }>({});
@@ -39,8 +54,8 @@ const ChapterList = () => {
       
       setLoading(true);
       try {
-        const response = await novelService.getNovelChapters(novelSlug, sourceSlug);
-        setChapterData(response);
+        const response = await novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize);
+        setChapterData(response as IExtendedChapterListResponse);
         
         // Organize chapters by volume
         const chaptersByVolume: { [key: number]: Chapter[] } = {};
@@ -68,7 +83,7 @@ const ChapterList = () => {
     };
 
     fetchChapters();
-  }, [novelSlug, sourceSlug]);
+  }, [novelSlug, sourceSlug, page, pageSize]);
 
   const handleBackClick = () => {
     if (chapterData) {
@@ -80,6 +95,15 @@ const ChapterList = () => {
 
   const handleChapterClick = (chapterNumber: number) => {
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}`);
+  };
+
+  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
+    setPage(value);
+  };
+
+  const handlePageSizeChange = (event: React.ChangeEvent<{ value: unknown }>) => {
+    setPageSize(event.target.value as number);
+    setPage(1); // Reset to first page when changing page size
   };
 
   const filteredVolumes = Object.entries(volumeChapters).reduce((acc: { [key: number]: Chapter[] }, [volume, chapters]) => {
@@ -149,10 +173,50 @@ const ChapterList = () => {
             }}
           />
         </Box>
-        
-        <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>
-          {chapterData.chapters.length} Chapters
-        </Typography>
+
+        <Box sx={{ mt: 3, mb: 3 }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item>
+              <Typography variant="subtitle1">
+                {chapterData.count} Total Chapters
+              </Typography>
+            </Grid>
+            <Grid item xs>
+              <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
+                <Typography variant="body2">
+                  Page {chapterData.current_page} of {chapterData.total_pages}
+                </Typography>
+                <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel id="page-size-label">Per Page</InputLabel>
+                  <Select
+                    labelId="page-size-label"
+                    value={pageSize}
+                    onChange={handlePageSizeChange}
+                    label="Per Page"
+                  >
+                    <MenuItem value={50}>50</MenuItem>
+                    <MenuItem value={100}>100</MenuItem>
+                    <MenuItem value={200}>200</MenuItem>
+                    <MenuItem value={500}>500</MenuItem>
+                  </Select>
+                </FormControl>
+              </Stack>
+            </Grid>
+          </Grid>
+        </Box>
+
+        {chapterData.total_pages > 1 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+            <Pagination 
+              count={chapterData.total_pages} 
+              page={chapterData.current_page}
+              onChange={handlePageChange} 
+              color="primary" 
+              showFirstButton 
+              showLastButton
+            />
+          </Box>
+        )}
         
         {volumes.length > 0 ? (
           volumes.map(volume => {
@@ -195,6 +259,19 @@ const ChapterList = () => {
           <Typography variant="body1" sx={{ textAlign: 'center', py: 4 }}>
             No chapters available.
           </Typography>
+        )}
+        
+        {chapterData.total_pages > 1 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Pagination 
+              count={chapterData.total_pages} 
+              page={chapterData.current_page}
+              onChange={handlePageChange} 
+              color="primary" 
+              showFirstButton 
+              showLastButton
+            />
+          </Box>
         )}
       </Paper>
     </Container>

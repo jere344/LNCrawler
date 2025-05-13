@@ -121,9 +121,11 @@ export const novelService = {
     return response.data;
   },
   
-  // Get chapters by novel and source slugs
-  getNovelChapters: async (novelSlug: string, sourceSlug: string) => {
-    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`);
+  // Get chapters by novel and source slugs with pagination
+  getNovelChapters: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 100) => {
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`, {
+      params: { page, page_size: pageSize }
+    });
     return response.data;
   },
   
