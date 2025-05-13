@@ -175,18 +175,36 @@ const SourceDetail = () => {
       <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
         <Grid container spacing={3}>
           <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%' }}>
-              <CardMedia
-                component="img"
-                image={source.cover_url || defaultCover}
-                alt={source.title}
-                sx={{ height: 400, objectFit: 'contain' }}
-                onError={(e: any) => {
-                  e.target.onerror = null;
-                  e.target.src = defaultCover;
-                }}
-              />
-            </Card>
+            <Box sx={{ 
+                position: 'relative', 
+                width: '100%',
+                paddingTop: '150%', // 2:3 aspect ratio (standard book cover ratio)
+                overflow: 'hidden'
+              }}>
+                <Card sx={{ 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex'
+                }}>
+                  <CardMedia
+                    component="img"
+                    image={source.cover_url || defaultCover}
+                    alt={source.title}
+                    sx={{ 
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                    onError={(e: any) => {
+                      e.target.onerror = null;
+                      e.target.src = defaultCover;
+                    }}
+                  />
+                </Card>
+              </Box>
           </Grid>
           
           <Grid item xs={12} md={8}>

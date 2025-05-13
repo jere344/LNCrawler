@@ -37,7 +37,18 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         display: 'flex', 
         flexDirection: 'column'
       }}>
-        <Skeleton variant="rectangular" height={220} />
+        <Box sx={{ paddingTop: '150%', position: 'relative' }}>
+          <Skeleton 
+            variant="rectangular" 
+            sx={{ 
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%'
+            }} 
+          />
+        </Box>
         <CardContent>
           <Skeleton variant="text" height={40} />
           <Skeleton variant="text" width="60%" />
@@ -67,14 +78,22 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
         onClick={onClick}
       >
-        <CardMedia
-          component="img"
-          height="220"
-          image={preferredSource?.cover_url || defaultCover}
-          alt={novel.title}
-          sx={{ objectFit: 'cover' }}
-        />
-        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ position: 'relative', paddingTop: '150%' /* 2:3 aspect ratio */ }}>
+          <CardMedia
+            component="img"
+            image={preferredSource?.cover_url || defaultCover}
+            alt={novel.title}
+            sx={{ 
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+          />
+        </Box>
+        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5 }}>
           <Typography 
             gutterBottom 
             variant="subtitle1" 

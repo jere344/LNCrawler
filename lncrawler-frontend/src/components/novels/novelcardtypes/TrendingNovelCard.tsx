@@ -94,21 +94,25 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               right: 16,
               border: '2px solid',
               borderColor: 'background.paper',
-            }
+            },
+            display: 'block',
+            width: '100%'
           }}
         >
           <CardMedia
             component="img"
-            height="240"
             image={preferredSource?.cover_url || defaultCover}
             alt={novel.title}
             sx={{ 
+              width: '100%',
+              aspectRatio: '2/3',
               objectFit: 'cover',
+              display: 'block',
             }}
           />
         </Badge>
         
-        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5 }}>
           <Typography 
             gutterBottom 
             variant="h6" 

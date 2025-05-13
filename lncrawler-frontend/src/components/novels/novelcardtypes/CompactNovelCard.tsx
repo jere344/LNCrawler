@@ -30,12 +30,18 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({ novel, onClick }) =
         sx={{ display: 'flex', height: '100%', alignItems: 'stretch', justifyContent: 'flex-start' }}
         onClick={onClick}
       >
-        <CardMedia
-          component="img"
-          sx={{ width: 80, objectFit: 'cover' }}
-          image={preferredSource?.cover_url || defaultCover}
-          alt={novel.title}
-        />
+        <Box sx={{ width: 60, position: 'relative' }}>
+          <CardMedia
+            component="img"
+            sx={{ 
+              width: 60, 
+              height: '90px', // 2:3 aspect ratio
+              objectFit: 'cover' 
+            }}
+            image={preferredSource?.cover_url || defaultCover}
+            alt={novel.title}
+          />
+        </Box>
         <CardContent sx={{ flex: '1', paddingY: 1 }}>
           <Typography 
             variant="subtitle2" 

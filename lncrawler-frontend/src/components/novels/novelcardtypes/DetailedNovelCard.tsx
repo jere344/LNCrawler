@@ -29,17 +29,24 @@ const DetailedNovelCard: React.FC<DetailedNovelCardProps> = ({ novel, onClick })
         transition: 'box-shadow 0.3s ease',
         '&:hover': {
           boxShadow: '0px 8px 15px -5px rgba(0,0,0,0.2)',
-        }
+        },
+        height: 180,
       }}
     >
       <CardActionArea onClick={onClick}>
         <Box sx={{ display: 'flex', height: '100%' }}>
-          <CardMedia
-            component="img"
-            sx={{ width: 150, objectFit: 'cover' }}
-            image={preferredSource?.cover_url || defaultCover}
-            alt={novel.title}
-          />
+          <Box sx={{ width: 120, position: 'relative' }}>
+            <CardMedia
+              component="img"
+              sx={{ 
+                width: 120, 
+                height: '180px', // 2:3 aspect ratio
+                objectFit: 'cover' 
+              }}
+              image={preferredSource?.cover_url || defaultCover}
+              alt={novel.title}
+            />
+          </Box>
           <CardContent sx={{ flex: '1' }}>
             <Typography 
               variant="h6" 
@@ -88,9 +95,7 @@ const DetailedNovelCard: React.FC<DetailedNovelCardProps> = ({ novel, onClick })
                 )}
               </Box>
             )}
-            
-            <Divider sx={{ my: 1 }} />
-            
+
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
               {preferredSource?.status && (
                 <Chip 
