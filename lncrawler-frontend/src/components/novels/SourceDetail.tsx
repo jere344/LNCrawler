@@ -87,7 +87,7 @@ const SourceDetail = () => {
     if (source) {
       navigate(`/novels/${source.novel_slug}`);
     } else {
-      navigate('/novels');
+      navigate('/');
     }
   };
 

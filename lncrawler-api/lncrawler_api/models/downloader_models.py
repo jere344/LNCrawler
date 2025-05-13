@@ -49,6 +49,7 @@ class Job(models.Model):
     selected_novel = models.JSONField(default=dict, blank=True, null=True)
     output_path = models.CharField(max_length=512, blank=True, null=True)
     output_files = models.JSONField(default=list, blank=True, null=True)
+    output_slug = models.CharField(max_length=512, blank=True, null=True)
     
     # Import information
     import_message = models.TextField(blank=True, null=True)

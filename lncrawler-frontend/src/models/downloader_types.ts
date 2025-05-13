@@ -71,6 +71,7 @@ export interface DownloadResults {
     chapters: number;
     url: string;
   };
+  output_slug: string;
 }
 
 // Job-related types

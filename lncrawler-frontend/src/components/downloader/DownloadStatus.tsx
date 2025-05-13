@@ -114,32 +114,21 @@ const DownloadStatus = () => {
           </Typography>
         </Box>
         
-        <Divider sx={{ mb: 2 }} />
-        
-        <Typography variant="h6" gutterBottom>
-          Output Files
-        </Typography>
-        
-        <List>
-          {results.output_files && results.output_files.length > 0 ? (
-            results.output_files.map((file, index) => (
-              <ListItem key={index} disablePadding>
-                <ListItemText primary={file.split('/').pop()} />
-              </ListItem>
-            ))
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              No output files generated
-            </Typography>
-          )}
-        </List>
-        
+        <Divider sx={{ mb: 2 }} /> 
         <Box sx={{ mt: 3 }}>
           <Button 
             variant="contained" 
             onClick={() => navigate('/')}
           >
             New Search
+          </Button>
+        </Box>
+        <Box sx={{ mt: 3 }}>
+          <Button 
+            variant="contained" 
+            onClick={() => navigate(`/novels/${results.output_slug}`)}
+          >
+            View Downloaded Novel
           </Button>
         </Box>
       </Paper>

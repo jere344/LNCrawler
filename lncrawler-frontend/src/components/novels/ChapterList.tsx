@@ -74,7 +74,7 @@ const ChapterList = () => {
     if (chapterData) {
       navigate(`/novels/${novelSlug}/${sourceSlug}`);
     } else {
-      navigate('/novels');
+      navigate('/');
     }
   };
 
@@ -108,7 +108,7 @@ const ChapterList = () => {
   if (error || !chapterData) {
     return (
       <Container>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/novels')} sx={{ mt: 2 }}>
+        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ mt: 2 }}>
           Back to Novels
         </Button>
         <Paper elevation={3} sx={{ p: 3, textAlign: 'center', mt: 3 }}>

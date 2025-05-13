@@ -5,6 +5,7 @@ import os
 import json
 from datetime import datetime
 from django.conf import settings
+from django.db.models import F
 
 
 class Novel(models.Model):
@@ -471,9 +472,15 @@ class NovelViewCount(models.Model):
         return f"{self.novel.title}: {self.views} views"
 
     def increment(self):
-        """Increment the view count by 1"""
-        self.views += 1
-        self.save(update_fields=['views', 'last_updated'])
+        """
+        Increment the all-time view count for the novel
+        """
+        NovelViewCount.objects.filter(pk=self.pk).update(
+            views=F('views') + 1
+        )
+        
+        # Refresh from database to get the latest values
+        self.refresh_from_db()
 
 
 class WeeklyNovelView(models.Model):
@@ -508,8 +515,9 @@ class WeeklyNovelView(models.Model):
             defaults={'views': 0}
         )
         
-        # Increment and save
-        weekly_view.views += 1
-        weekly_view.save(update_fields=['views'])
+        cls.objects.filter(pk=weekly_view.pk).update(views=F('views') + 1)
+        
+        # Refresh from database to get the latest values
+        weekly_view.refresh_from_db()
         
         return weekly_view

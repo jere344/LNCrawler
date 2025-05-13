@@ -163,7 +163,7 @@ class DownloaderService:
             monitor_thread.daemon = True
             monitor_thread.start()
             
-            # Start search - now non-blocking
+            # Start search
             response = bot.start_search(query)
             if response["status"] != "success":
                 job.update_status(Job.STATUS_FAILED, f"Search failed: {response.get('message', 'Unknown error')}")
@@ -211,7 +211,7 @@ class DownloaderService:
                 pass
     
     @staticmethod
-    def _import_novel_to_database(output_path):
+    def _import_novel_to_database(output_path, job):
         """
         Import the downloaded novel into the database using the meta.json file
         """
@@ -223,12 +223,15 @@ class DownloaderService:
                 return False, "meta.json file not found in the output directory"
             
             # Import the model
-            from ..models.novels import NovelFromSource
+            from ..models import NovelFromSource
             
             # Use the NovelFromSource's method to import from meta.json
             novel = NovelFromSource.from_meta_json(meta_json_path)
             
             if novel:
+                job.output_slug = novel.novel.slug + "/" + novel.source_slug
+                job.save(update_fields=['output_slug', 'updated_at'])
+                
                 logger.info(f"Successfully imported novel: {novel.title} from {novel.source_name}")
                 return True, f"Successfully imported novel: {novel.title} from {novel.source_name}"
             else:
@@ -319,7 +322,7 @@ class DownloaderService:
             
             # Select all chapters
             logger.debug("Selecting all chapters")
-            response = bot.select_chapters("first", 10) #toremove : use all
+            response = bot.select_chapters("first", 20) #toremove : use all
                 
             if response["status"] != "success":
                 job.update_status(Job.STATUS_FAILED, f"Failed to select chapters: {response.get('message', 'Unknown error')}")
@@ -403,7 +406,7 @@ class DownloaderService:
                 
                 # Auto-import the novel to the database
                 logger.debug(f"Attempting to import novel from {output_path}")
-                success, message = DownloaderService._import_novel_to_database(output_path)
+                success, message = DownloaderService._import_novel_to_database(output_path, job)
                 
                 if success:
                     job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
@@ -652,6 +655,7 @@ class DownloaderService:
                 'output_path': job.output_path,
                 'output_files': job.output_files,
                 'selected_novel': job.selected_novel,
+                'output_slug': job.output_slug
             }
             
             # Include import message if available

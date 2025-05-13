@@ -23,7 +23,7 @@ const SearchForm = () => {
     try {
       const response = await searchService.startSearch(query);
       if (response.status === 'success') {
-        navigate(`/search/${response.job_id}`);
+        navigate(`/download/search/${response.job_id}`);
       } else {
         setError(response.message || 'Failed to start search');
       }

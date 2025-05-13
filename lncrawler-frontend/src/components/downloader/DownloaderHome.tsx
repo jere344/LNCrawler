@@ -22,7 +22,7 @@ const DownloaderHome = () => {
             <Box sx={{ textAlign: 'center', my: 3 }}>
                 <Button 
                     component={Link} 
-                    to="/novels" 
+                    to="/" 
                     variant="outlined" 
                     color="primary" 
                     startIcon={<LibraryBooksIcon />}

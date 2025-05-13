@@ -62,7 +62,7 @@ const NovelDetail = () => {
   }, [novelSlug]);
 
   const handleBackClick = () => {
-    navigate('/novels');
+    navigate('/');
   };
 
   const handleSourceClick = (sourceSlug: string) => {
