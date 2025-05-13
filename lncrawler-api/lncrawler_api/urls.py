@@ -45,6 +45,7 @@ urlpatterns = [
     path('downloader/search/results/<str:job_id>/', views.get_search_results, name='get_search_results'),
     
     path('downloader/download/start/<str:job_id>/', views.start_download, name='start_download'),
+    path('downloader/download/start-direct/', views.start_direct_download, name='start_direct_download'),
     path('downloader/download/status/<str:job_id>/', views.get_download_status, name='get_download_status'),
     path('downloader/download/results/<str:job_id>/', views.get_download_results, name='get_download_results'),
     

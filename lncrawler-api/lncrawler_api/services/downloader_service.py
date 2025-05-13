@@ -34,14 +34,7 @@ class DownloaderService:
     @staticmethod
     def _configure_apibot_logger():
         """Configure a separate logger for the PythonApiBot"""
-        apibot_logger = logging.getLogger('apibot')
-        
-        # Remove any existing handlers to avoid duplicate logs
-        if apibot_logger.handlers:
-            for handler in apibot_logger.handlers:
-                apibot_logger.removeHandler(handler)
-        
-        return apibot_logger
+        return logging.getLogger('apibot')
     
     @staticmethod
     def _import_python_api_bot():
@@ -322,8 +315,8 @@ class DownloaderService:
             
             # Select all chapters
             logger.debug("Selecting all chapters")
-            response = bot.select_chapters("first", 20) #toremove : use all
-                
+            response = bot.select_chapters("all")
+
             if response["status"] != "success":
                 job.update_status(Job.STATUS_FAILED, f"Failed to select chapters: {response.get('message', 'Unknown error')}")
                 return
@@ -525,6 +518,42 @@ class DownloaderService:
             }
     
     @classmethod
+    def start_direct_download(cls, novel_url, job=None):
+        if not novel_url:
+            return {
+                'status': 'error',
+                'message': 'Could not determine novel URL',
+            }
+        
+        if not job:
+            from ..models import Job
+            job = Job.objects.create(
+                status=Job.STATUS_SEARCH_COMPLETED,
+                query="Direct Download"
+            )
+        print(f"job : {type(job)}")
+
+        # Start download process with the direct URL
+        process = multiprocessing.Process(
+            target=cls._run_download_process,
+            args=(job.id, novel_url)
+        )
+        process.daemon = True
+        logger.debug(f"Using novel URL: {novel_url}")
+        process.start()
+        logger.debug(f"Started download process with PID: {process.pid}")
+        
+        # Store the process ID
+        job.job_pid = process.pid
+        job.save(update_fields=['job_pid'])
+        
+        return {
+            'status': 'success',
+            'message': 'Download started',
+            'job_id': str(job.id)
+        }
+
+    @classmethod
     def start_download(cls, job_id, novel_index=0, source_index=0):
         """
         Start downloading a novel
@@ -537,8 +566,7 @@ class DownloaderService:
         Returns:
             Updated job object
         """
-        from ..models import Job
-            
+        from ..models import Job  
         try:
             job = Job.objects.get(id=job_id)
             
@@ -549,48 +577,23 @@ class DownloaderService:
                     'current_status': job.get_status_display(),
                 }
             
-            # Get the novel URL from search results
-            search_results = job.search_results
+            # if no direct url passed, get the selected novel URL
             novel_url = ""
-            
-            # Check if this is a direct novel URL
-            if "direct_novel" in search_results and search_results["direct_novel"]:
-                novel_url = search_results["novel_url"]
-            else:
-                # Extract URL from search results using indices
-                try:
-                    novel_url = search_results["results"][novel_index]["sources"][source_index]["url"]
-                except (KeyError, IndexError):
-                    return {
-                        'status': 'error',
-                        'message': 'Invalid novel or source index',
-                    }
+            try:
+                novel_url = job.search_results["results"][novel_index]["sources"][source_index]["url"]
+            except (KeyError, IndexError):
+                return {
+                    'status': 'error',
+                    'message': 'Invalid novel or source index',
+                }
             
             if not novel_url:
                 return {
                     'status': 'error',
                     'message': 'Could not determine novel URL',
                 }
-            
-            # Start download process with the direct URL
-            process = multiprocessing.Process(
-                target=cls._run_download_process,
-                args=(job.id, novel_url)
-            )
-            process.daemon = True
-            logger.debug(f"Using novel URL: {novel_url}")
-            process.start()
-            logger.debug(f"Started download process with PID: {process.pid}")
-            
-            # Store the process ID
-            job.job_pid = process.pid
-            job.save(update_fields=['job_pid'])
-            
-            return {
-                'status': 'success',
-                'message': 'Download started',
-                'job_id': str(job.id)
-            }
+            print(f"Novel URL: {novel_url}")
+            return cls.start_direct_download(novel_url, job)
             
         except Job.DoesNotExist:
             return {

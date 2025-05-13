@@ -253,9 +253,7 @@ const NovelDetail = () => {
               <Typography variant="h6" gutterBottom>
                 Synopsis
               </Typography>
-              <Typography variant="body1" paragraph>
-                {primarySource.synopsis}
-              </Typography>
+              <Typography variant="body1" paragraph dangerouslySetInnerHTML={{ __html: primarySource.synopsis }} />
             </Box>
           )}
         </Paper>

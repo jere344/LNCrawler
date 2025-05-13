@@ -142,3 +142,32 @@ def job_details(request, job_id):
         )
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def start_direct_download(request):
+    """Start downloading a novel directly from URL"""
+    try:
+        data = json.loads(request.body)
+        novel_url = data.get("novel_url")
+
+        if not novel_url or not novel_url.startswith('http'):
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "message": "Valid URL is required (must start with http)",
+                },
+                status=400,
+            )
+        
+        # Use the existing direct download method from the service
+        result = DownloaderService.start_direct_download(novel_url)
+        return JsonResponse(result)
+    
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"status": "error", "message": "Invalid JSON in request body"}, status=400
+        )
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)

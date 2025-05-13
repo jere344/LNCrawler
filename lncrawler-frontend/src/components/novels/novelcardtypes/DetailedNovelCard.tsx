@@ -84,9 +84,7 @@ const DetailedNovelCard: React.FC<DetailedNovelCardProps> = ({ novel, onClick })
                       WebkitLineClamp: 2,
                       WebkitBoxOrient: 'vertical'
                     }}
-                  >
-                    {preferredSource.synopsis}
-                  </Typography>
+                    dangerouslySetInnerHTML={{ __html: preferredSource.synopsis || 'No synopsis available' }} />
                 )}
               </Box>
             )}

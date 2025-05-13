@@ -385,9 +385,7 @@ const SourceDetail = () => {
               <Typography variant="h6" gutterBottom>
                 Synopsis
               </Typography>
-              <Typography variant="body1" paragraph>
-                {source.synopsis || 'No synopsis available'}
-              </Typography>
+              <Typography variant="body1" paragraph dangerouslySetInnerHTML={{ __html: source.synopsis || 'No synopsis available' }} />
             </Box>
           </Box>
           
