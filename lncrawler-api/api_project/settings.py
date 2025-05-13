@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:5173")
+SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

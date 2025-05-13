@@ -165,7 +165,7 @@ const NovelDetail = () => {
               <Card sx={{ height: '100%' }}>
                 <CardMedia
                   component="img"
-                  image={primarySource.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + primarySource.cover_url) : defaultCover}
+                  image={primarySource.cover_url || defaultCover}
                   alt={novel?.title}
                   sx={{ height: 400, objectFit: 'contain' }}
                   onError={(e: any) => {

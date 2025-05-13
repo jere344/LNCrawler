@@ -1,28 +1,55 @@
 import React from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Rating, Chip
+  Typography, Box, Rating, Chip, Skeleton
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import defaultCover from '@assets/default-cover.jpg';
+import { Novel } from '@models/novels_types';
 
-interface NovelCardProps {
-  novel: {
-    id: string;
-    title: string;
-    slug: string;
-    cover_url: string | null;
-    avg_rating?: number | null;
-    rating_count?: number;
-    total_views?: number;
-    weekly_views?: number;
-  };
+export interface BaseNovelCardProps {
+  novel: Novel;
   onClick?: () => void;
+  isLoading?: boolean;
 }
 
-const NovelCard: React.FC<NovelCardProps> = ({ novel, onClick }) => {
+export function formatCount(count: number): string {
+  if (count >= 1000000) {
+    return `${(count / 1000000).toFixed(1)}M`;
+  } else if (count >= 1000) {
+    return `${(count / 1000).toFixed(1)}K`;
+  }
+  return `${count}`;
+}
+
+export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({ 
+  novel, 
+  onClick, 
+  isLoading = false 
+}) => {
+  const preferredSource = novel.prefered_source;
   
+  if (isLoading) {
+    return (
+      <Card sx={{ 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column'
+      }}>
+        <Skeleton variant="rectangular" height={220} />
+        <CardContent>
+          <Skeleton variant="text" height={40} />
+          <Skeleton variant="text" width="60%" />
+          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+            <Skeleton variant="rectangular" width={80} height={24} />
+            <Skeleton variant="rectangular" width={80} height={24} />
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card 
       sx={{ 
@@ -43,11 +70,9 @@ const NovelCard: React.FC<NovelCardProps> = ({ novel, onClick }) => {
         <CardMedia
           component="img"
           height="220"
-          image={novel.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + novel.cover_url) : defaultCover}
+          image={preferredSource?.cover_url || defaultCover}
           alt={novel.title}
-          sx={{ 
-            objectFit: 'cover',
-          }}
+          sx={{ objectFit: 'cover' }}
         />
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
           <Typography 
@@ -78,34 +103,27 @@ const NovelCard: React.FC<NovelCardProps> = ({ novel, onClick }) => {
               />
               <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
                 {novel.avg_rating ? novel.avg_rating.toFixed(1) : 'N/A'}
-                {novel.rating_count && novel.rating_count > 0 && (
-                  ` (${novel.rating_count})`
-                )}
+                {novel.rating_count > 0 && ` (${formatCount(novel.rating_count)})`}
               </Typography>
             </Box>
           )}
           
-          {/* View statistics */}
+          {/* Basic stats */}
           <Box sx={{ mt: 'auto', display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {novel.total_views !== undefined && (
               <Chip 
                 icon={<VisibilityIcon fontSize="small" />}
-                label={`${novel.total_views >= 1000 
-                  ? `${(novel.total_views / 1000).toFixed(1)}K` 
-                  : novel.total_views} views`}
+                label={`${formatCount(novel.total_views)} views`}
                 size="small"
                 variant="outlined"
               />
             )}
             
-            {novel.weekly_views !== undefined && novel.weekly_views > 0 && (
+            {novel.total_chapters > 0 && (
               <Chip 
-                icon={<TrendingUpIcon fontSize="small" />}
-                label={`${novel.weekly_views >= 1000 
-                  ? `${(novel.weekly_views / 1000).toFixed(1)}K` 
-                  : novel.weekly_views} this week`}
+                icon={<MenuBookIcon fontSize="small" />}
+                label={`${novel.total_chapters} chapters`}
                 size="small"
-                color="primary"
                 variant="outlined"
               />
             )}
@@ -116,4 +134,4 @@ const NovelCard: React.FC<NovelCardProps> = ({ novel, onClick }) => {
   );
 };
 
-export default NovelCard;
+export default BaseNovelCard;

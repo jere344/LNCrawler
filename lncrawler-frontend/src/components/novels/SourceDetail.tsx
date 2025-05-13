@@ -29,7 +29,7 @@ import StarBorderIcon from '@mui/icons-material/StarBorder';
 import CommentIcon from '@mui/icons-material/Comment';
 import defaultCover from '@assets/default-cover.jpg';
 import CommentSection from '../comments/CommentSection';
-import { SourceDetail as ISourceDetail } from '@models/novels_types';
+import { NovelFromSource as ISourceDetail } from '@models/novels_types';
 
 const SourceDetail = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
@@ -45,6 +45,7 @@ const SourceDetail = () => {
   });
   const [ratingInProgress, setRatingInProgress] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
@@ -73,8 +74,13 @@ const SourceDetail = () => {
     fetchSourceDetail();
   }, [novelSlug, sourceSlug]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+    
+    // Load comments only when switching to the comments tab for the first time
+    if (newValue === 1 && !commentsLoaded) {
+      setCommentsLoaded(true);
+    }
   };
 
   const handleBackClick = () => {
@@ -109,7 +115,7 @@ const SourceDetail = () => {
     }
   };
 
-  const handleRatingChange = async (event: React.SyntheticEvent, value: number | null) => {
+  const handleRatingChange = async (_event: React.SyntheticEvent, value: number | null) => {
     if (!value || !novelSlug || ratingInProgress) return;
     
     setRatingInProgress(true);
@@ -172,7 +178,7 @@ const SourceDetail = () => {
             <Card sx={{ height: '100%' }}>
               <CardMedia
                 component="img"
-                image={source.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + source.cover_url) : defaultCover}
+                image={source.cover_url || defaultCover}
                 alt={source.title}
                 sx={{ height: 400, objectFit: 'contain' }}
                 onError={(e: any) => {
@@ -247,7 +253,7 @@ const SourceDetail = () => {
                 Last Updated:
               </Typography>
               <Typography component="span" sx={{ ml: 1 }}>
-                {formatDate(source.last_updated)}
+                {formatDate(source.last_chapter_update)}
               </Typography>
             </Box>
             
@@ -387,7 +393,7 @@ const SourceDetail = () => {
           
           {/* Comments Tab */}
           <Box role="tabpanel" hidden={activeTab !== 1} sx={{ py: 3 }}>
-            {novelSlug && (
+            {novelSlug && activeTab === 1 && (
               <CommentSection 
                 novelSlug={novelSlug}
                 title="Novel Comments" 

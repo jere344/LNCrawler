@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Box, Container, Typography, TextField, Grid, Paper, 
   FormControl, InputLabel, Select, MenuItem, Checkbox,
-  ListItemText, OutlinedInput, Chip, Button, FormGroup,
+  Chip, Button, FormGroup,
   FormControlLabel, Rating, IconButton, InputAdornment,
   CircularProgress, Pagination, Stack, Autocomplete
 } from '@mui/material';
@@ -12,19 +12,9 @@ import TuneIcon from '@mui/icons-material/Tune';
 import SortIcon from '@mui/icons-material/Sort';
 import CloseIcon from '@mui/icons-material/Close';
 import { novelService } from '../../services/api';
-import NovelCard from '../novels/novelcardtypes/NovelCard';
+import BaseNovelCard from '../novels/novelcardtypes/BaseNovelCard';
 import { debounce } from 'lodash';
-
-interface Novel {
-  id: string;
-  title: string;
-  slug: string;
-  cover_url: string | null;
-  sources_count: number;
-  total_chapters: number;
-  avg_rating: number | null;
-  rating_count: number;
-}
+import { Novel } from '@models/novels_types';
 
 interface FilterOptions {
   genres: string[];
@@ -605,7 +595,8 @@ const SearchPage: React.FC = () => {
                   <MenuItem value="title">Title</MenuItem>
                   <MenuItem value="rating">Rating</MenuItem>
                   <MenuItem value="date_added">Date Added</MenuItem>
-                  <MenuItem value="popularity">Popularity</MenuItem>
+                  <MenuItem value="popularity">All-time Views</MenuItem>
+                  <MenuItem value="trending">Trending (Weekly Views)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -741,7 +732,7 @@ const SearchPage: React.FC = () => {
         <Grid container spacing={3}>
           {novels.map((novel) => (
             <Grid item key={novel.id} xs={6} sm={4} md={3} lg={2}>
-              <NovelCard 
+              <BaseNovelCard 
                 novel={novel} 
                 onClick={() => handleNovelClick(novel.slug)}
               />

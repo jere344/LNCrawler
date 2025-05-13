@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { novelService } from '../../services/api';
 import defaultCover from '@assets/default-cover.jpg';
 import StarIcon from '@mui/icons-material/Star';
-import { Novel, NovelListResponse } from '@models/novels_types';
+import { Novel } from '@models/novels_types';
 
 const NovelList = () => {
   const [novels, setNovels] = useState<Novel[]>([]);
@@ -45,7 +45,7 @@ const NovelList = () => {
     fetchNovels();
   }, [page]);
 
-  const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
+  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -93,7 +93,7 @@ const NovelList = () => {
                     <CardMedia
                       component="img"
                       height="250"
-                      image={novel.cover_url ? (import.meta.env.VITE_API_BASE_URL + "/" + novel.cover_url) : defaultCover}
+                      image={novel.prefered_source?.cover_url || defaultCover}
                       alt={novel.title}
                       sx={{ objectFit: 'cover' }}
                       onError={(e: any) => {

@@ -14,6 +14,7 @@ import SourceDetail from '@components/novels/SourceDetail';
 import ChapterList from '@components/novels/ChapterList';
 import ChapterReader from '@components/novels/ChapterReader';
 import SearchPage from '@components/search/SearchPage';
+import HomePage from '@components/home/HomePage';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -52,8 +53,8 @@ function AppWithTheme() {
                     <Route path="/novels/:novelSlug/:sourceSlug/chapterlist" element={<ChapterList />} />
                     <Route path="/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber" element={<ChapterReader />} />
                     
-                    {/* Home page - redirect to novels */}
-                    <Route path="/" element={<Navigate to="/novels" replace />} />
+                    {/* Home page - now uses the new HomePage component */}
+                    <Route path="/" element={<HomePage />} />
                     
                 </Routes>
                 {/* <Footer /> */}

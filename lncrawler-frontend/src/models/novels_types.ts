@@ -1,39 +1,14 @@
-export interface SourceDetail {
-  id: string;
-  title: string;
-  source_url: string;
-  source_name: string;
-  source_slug: string;
-  cover_url: string | null;
-  authors: string[];
-  genres: string[];
-  tags: string[];
-  language: string;
-  status: string;
-  synopsis: string;
-  chapters_count: number;
-  volumes_count: number;
-  last_updated: string;
-  novel_id: string;
-  novel_slug: string;
-  novel_title: string;
-  upvotes: number;
-  downvotes: number;
-  vote_score: number;
-  user_vote: 'up' | 'down' | null;
-}
-
 export interface Novel {
   id: string;
   title: string;
   slug: string;
-  cover_url: string | null;
   sources_count: number;
   total_chapters: number;
   avg_rating: number | null;
   rating_count: number;
   total_views?: number;
   weekly_views?: number;
+  prefered_source: NovelFromSource | null;
 }
 
 export interface NovelListResponse {
@@ -43,13 +18,13 @@ export interface NovelListResponse {
   results: Novel[];
 }
 
-export interface NovelSource {
+export interface NovelFromSource {
   id: string;
   title: string;
   source_url: string;
   source_name: string;
   source_slug: string;
-  cover_url: string | null;
+  cover_path: string | null;
   authors: string[];
   genres: string[];
   tags: string[];
@@ -58,18 +33,22 @@ export interface NovelSource {
   synopsis: string;
   chapters_count: number;
   volumes_count: number;
-  last_updated: string;
+  last_chapter_update: string;
   upvotes: number;
   downvotes: number;
   vote_score: number;
   user_vote: 'up' | 'down' | null;
+  novel_id: string;
+  novel_slug: string;
+  novel_title: string;
+  cover_url: string | null;
 }
 
 export interface NovelDetail {
   id: string;
   title: string;
   slug: string;
-  sources: NovelSource[];
+  sources: NovelFromSource[];
   created_at: string;
   updated_at: string;
   avg_rating: number | null;
@@ -77,6 +56,7 @@ export interface NovelDetail {
   user_rating: number | null;
   total_views: number;
   weekly_views: number;
+  prefered_source: NovelFromSource | null;
 }
 
 export interface ChapterContent {
