@@ -45,7 +45,7 @@ class DownloaderService:
             
             # Find the parent directory path
             base_dir = Path(settings.BASE_DIR).parent
-            lncrawl_dir = base_dir / "lightnovel-crawler-website"
+            lncrawl_dir = base_dir / "dipudb-lncrawler-jere344-patches"
             bot_path = lncrawl_dir / "lncrawl" / "bots" / "python_api" / "__init__.py"
             
             if not bot_path.exists():
@@ -97,7 +97,7 @@ class DownloaderService:
         try:
             # Get the base directory for the crawler package
             base_dir = Path(settings.BASE_DIR).parent
-            lncrawl_dir = base_dir / "lightnovel-crawler-website"
+            lncrawl_dir = base_dir / "dipudb-lncrawler-jere344-patches"
             
             # Set the working directory to the crawler package directory
             os.chdir(str(lncrawl_dir))
@@ -244,7 +244,7 @@ class DownloaderService:
         try:
             # Get the base directory for the crawler package
             base_dir = Path(settings.BASE_DIR).parent
-            lncrawl_dir = base_dir / "lightnovel-crawler-website"
+            lncrawl_dir = base_dir / "dipudb-lncrawler-jere344-patches"
             
             # Set the working directory to the crawler package directory
             os.chdir(str(lncrawl_dir))
