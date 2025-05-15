@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, Typography, Grid, useMediaQuery, useTheme, ButtonBase } from '@mui/material';
+import { Box, Card, Typography, Grid, useMediaQuery, useTheme, ButtonBase, Skeleton } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CommentIcon from '@mui/icons-material/Comment';
 import StarIcon from '@mui/icons-material/Star';
@@ -10,11 +10,45 @@ import { NovelFromSource } from '@models/novels_types';
 interface FeaturedNovelCardProps {
   novel: NovelFromSource;
   onClick: () => void;
+  isLoading?: boolean;
 }
 
-const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick }) => {
+const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, isLoading = false }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  const coverHeight = isMobile ? 180 : 270;
+  const coverWidth = coverHeight * 2/3;
+
+  if (isLoading) {
+    return (
+      <Grid container spacing={2}>
+        <Grid item xs={4} md={4} lg={2}>
+          <Skeleton variant="rectangular" sx={{ borderRadius: 1.5, width: coverWidth, height: coverHeight, mx: 'auto' }} />
+        </Grid>
+        <Grid item xs={8} md={8} lg={10}>
+          <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <Skeleton variant="text" height={isMobile ? 28 : 32} width="70%" sx={{ mb: 1 }} />
+            <Skeleton variant="text" height={20} sx={{ mb: 0.5 }} />
+            <Skeleton variant="text" height={20} sx={{ mb: 0.5 }} />
+            <Skeleton variant="text" height={20} width="80%" sx={{ mb: 2 }} />
+            
+            <Grid container spacing={1} sx={{ mt: 'auto' }}>
+              {[...Array(isMobile ? 4 : 6)].map((_, index) => (
+                <Grid item xs={6} sm={4} key={index}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Skeleton variant="circular" width={16} height={16} />
+                    <Skeleton variant="text" width="80%" height={18} />
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        </Grid>
+      </Grid>
+    );
+  }
+
   const formatter = Intl.NumberFormat('en', { notation: 'compact' });
   const coverUrl = novel.cover_url || '';
 
@@ -41,9 +75,6 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick })
       return `${years} years ago`;
     }
   }
-
-  const coverHeight = isMobile ? 180 : 270;
-  const coverWidth = coverHeight * 2/3;
 
   return (
     <ButtonBase 

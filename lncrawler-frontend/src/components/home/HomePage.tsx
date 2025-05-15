@@ -5,7 +5,7 @@ import {
   Box, 
   Grid, 
   Divider,
-  CircularProgress,
+  // CircularProgress, // Removed
   Button,
   useTheme,
   Paper,
@@ -177,13 +177,6 @@ const HomePage: React.FC = () => {
     </Paper>
   );
   
-  // Helper function for loading spinner
-  const renderLoading = () => (
-    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-      <CircularProgress />
-    </Box>
-  );
-
   return (
     <Container maxWidth="xl">
       <Box sx={{ my: 2 }}>
@@ -225,10 +218,16 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {trendingError ? (
+        {loadingTrending ? (
+          <Grid container spacing={3}>
+            {[...Array(4)].map((_, index) => (
+              <Grid item xs={6} sm={3} key={`trending-skeleton-${index}`}>
+                <TrendingNovelCard novel={{} as Novel} isLoading={true} rank={index + 1} />
+              </Grid>
+            ))}
+          </Grid>
+        ) : trendingError ? (
           renderErrorMessage(trendingError)
-        ) : loadingTrending ? (
-          renderLoading()
         ) : (
           <Grid container spacing={3}>
             {trendingNovels.slice(0, 4).map((novel, index) => (
@@ -256,10 +255,16 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {topError ? (
+        {loadingTop ? (
+          <Grid container spacing={2}>
+            {[...Array(12)].map((_, index) => (
+              <Grid item xs={4} sm={3} md={2} lg={2} key={`top-skeleton-${index}`}>
+                <NovelItemCard novel={{} as Novel} isLoading={true} rank={index + 1} onClick={() => {}} />
+              </Grid>
+            ))}
+          </Grid>
+        ) : topError ? (
           renderErrorMessage(topError)
-        ) : loadingTop ? (
-          renderLoading()
         ) : (
           <Grid container spacing={2}>
             {topNovels.slice(0, 12).map((novel, rank) => (
@@ -304,7 +309,13 @@ const HomePage: React.FC = () => {
           sx={{ py: 3 }}
         >
           {loadingTop ? (
-            renderLoading()
+            <Grid container spacing={1}>
+              {[...Array(12)].map((_, index) => (
+                <Grid item xs={6} sm={4} md={3} key={`most-read-skeleton-${index}`}>
+                  <CompactNovelCard novel={{} as Novel} isLoading={true} showClicks onClick={() => {}} />
+                </Grid>
+              ))}
+            </Grid>
           ) : topError ? (
             renderErrorMessage(topError)
           ) : (
@@ -331,7 +342,13 @@ const HomePage: React.FC = () => {
           sx={{ py: 3 }}
         >
           {loadingTrending ? (
-            renderLoading()
+            <Grid container spacing={1}>
+              {[...Array(12)].map((_, index) => (
+                <Grid item xs={6} sm={4} md={3} key={`new-trends-skeleton-${index}`}>
+                  <CompactNovelCard novel={{} as Novel} isLoading={true} showTrends onClick={() => {}} />
+                </Grid>
+              ))}
+            </Grid>
           ) : trendingError ? (
             renderErrorMessage(trendingError)
           ) : (
@@ -358,7 +375,13 @@ const HomePage: React.FC = () => {
           sx={{ py: 3 }}
         >
           {loadingTopRated ? (
-            renderLoading()
+            <Grid container spacing={1}>
+              {[...Array(12)].map((_, index) => (
+                <Grid item xs={6} sm={4} md={3} key={`user-rated-skeleton-${index}`}>
+                  <CompactNovelCard novel={{} as Novel} isLoading={true} showRating onClick={() => {}} />
+                </Grid>
+              ))}
+            </Grid>
           ) : topRatedError ? (
             renderErrorMessage(topRatedError)
           ) : (
@@ -389,10 +412,10 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {featuredError ? (
+        {loadingFeatured ? (
+          <FeaturedNovelCard novel={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
+        ) : featuredError ? (
           renderErrorMessage(featuredError)
-        ) : loadingFeatured ? (
-          renderLoading()
         ) : featuredNovel ? (
           <FeaturedNovelCard 
             novel={featuredNovel}
@@ -419,10 +442,16 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {recentError ? (
+        {loadingRecent ? (
+          <Grid container spacing={2}>
+            {[...Array(12)].map((_, index) => (
+              <Grid item xs={12} sm={6} md={4} key={`recent-skeleton-${index}`}>
+                <ChapterCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
+              </Grid>
+            ))}
+          </Grid>
+        ) : recentError ? (
           renderErrorMessage(recentError)
-        ) : loadingRecent ? (
-          renderLoading()
         ) : (
           <Grid container spacing={2}>
             {recentChapters.slice(0, 12).map((source) => (

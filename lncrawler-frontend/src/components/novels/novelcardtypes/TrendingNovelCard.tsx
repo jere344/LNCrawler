@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Badge, Chip
+  Typography, Box, Badge, Chip, Skeleton // Added Skeleton
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
@@ -19,8 +19,34 @@ interface TrendingNovelCardProps {
 const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({ 
   novel, 
   onClick, 
-  rank 
+  rank,
+  isLoading = false 
 }) => {
+  if (isLoading) {
+    return (
+      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
+        {rank !== undefined && (
+          <Skeleton variant="circular" width={30} height={30} sx={{ position: 'absolute', top: -8, left: -8, zIndex: 1 }} />
+        )}
+        <Box sx={{ position: 'relative', width: '100%', aspectRatio: '2/3' }}>
+          <Skeleton variant="rectangular" sx={{ width: '100%', height: '100%' }} />
+          {/* Placeholder for "HOT" badge */}
+          <Skeleton variant="rectangular" width={50} height={24} sx={{ position: 'absolute', top: 10, right: 10, borderRadius: 1, transform: 'translate(50%, -50%)' }}/>
+        </Box>
+        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1, pb: 1, px: 1.5, '&:last-child': { pb: 1 } }}>
+          <Skeleton variant="text" height={28} sx={{ mb: 0.5 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 'auto' }}>
+            <Skeleton variant="circular" width={16} height={16} sx={{ mr: 0.5 }} />
+            <Skeleton variant="text" width="60%" height={20} />
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+            <Skeleton variant="rectangular" width={60} height={20} sx={{ borderRadius: '16px' }} />
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const preferredSource = novel.prefered_source;
   
   return (

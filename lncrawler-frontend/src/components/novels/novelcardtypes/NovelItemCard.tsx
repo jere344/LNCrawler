@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, Typography, Badge, ButtonBase } from '@mui/material';
+import { Box, Card, Typography, Badge, ButtonBase, Skeleton } from '@mui/material';
 import StarIcon from '@mui/icons-material/Star';
 import BookIcon from '@mui/icons-material/Book';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -9,9 +9,28 @@ interface NovelItemCardProps {
   novel: Novel;
   onClick: () => void;
   rank?: number;
+  isLoading?: boolean;
 }
 
-const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick }) => {
+const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false }) => {
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', width: '100%' }}>
+        <Card sx={{ aspectRatio: '2/3', borderRadius: 1.5, overflow: 'hidden', mb: 1, width: '100%', boxShadow: 2 }}>
+          <Skeleton variant="rectangular" sx={{ width: '100%', height: '100%' }} />
+        </Card>
+        <Box sx={{ px: 0.5, width: '100%' }}>
+          <Skeleton variant="text" height={20} sx={{ mb: 0.25 }} />
+          <Skeleton variant="text" height={20} width="80%" sx={{ mb: 0.5 }} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.5 }}>
+            <Skeleton variant="text" width="50%" height={15} />
+            <Skeleton variant="text" width="70%" height={15} />
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
+
   const coverUrl = novel.prefered_source?.cover_url || '';
 
   return (
