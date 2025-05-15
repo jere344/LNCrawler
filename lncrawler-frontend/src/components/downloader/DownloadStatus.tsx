@@ -181,7 +181,7 @@ const DownloadStatus = () => {
         </Box>
         
         <Typography variant="body2" color="text.secondary">
-          Please don't close this page. The download will continue in the background.
+          You can close the page if you do not wish to monitor the progress, the download will continue in the background.
         </Typography>
       </Paper>
     </Container>

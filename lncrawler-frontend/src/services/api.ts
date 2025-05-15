@@ -204,8 +204,9 @@ export const novelService = {
     tag?: string[];
     author?: string[];
     status?: string;
+    language?: string;
     min_rating?: number;
-    sort_by?: 'title' | 'rating' | 'date_added' | 'popularity';
+    sort_by?: 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated';
     sort_order?: 'asc' | 'desc';
   }) => {
     // Build query string
@@ -215,6 +216,7 @@ export const novelService = {
     if (params.page) queryParams.append('page', params.page.toString());
     if (params.page_size) queryParams.append('page_size', params.page_size.toString());
     if (params.status) queryParams.append('status', params.status);
+    if (params.language) queryParams.append('language', params.language);
     if (params.min_rating) queryParams.append('min_rating', params.min_rating.toString());
     if (params.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params.sort_order) queryParams.append('sort_order', params.sort_order);

@@ -65,7 +65,7 @@ const DownloadForm = () => {
         
         <Box component="form" onSubmit={handleSubmit}>
           <Typography variant="body1" sx={{ mb: 3 }}>
-            The novel will be downloaded in JSON format with all chapters included.
+            The novel will be downloaded and add to our library.
           </Typography>
           
           <Box sx={{ display: 'flex', gap: 2 }}>

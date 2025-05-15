@@ -15,12 +15,15 @@ import { novelService } from '../../services/api';
 import BaseNovelCard from '../novels/novelcardtypes/BaseNovelCard';
 import { debounce } from 'lodash';
 import { Novel } from '@models/novels_types';
+import { languageCodeToFlag, availableLanguages, languageCodeToName } from '@utils/Misc';
+
 
 interface FilterOptions {
   genres: string[];
   tags: string[];
   authors: string[];
   statuses: string[];
+  languages: string[];
 }
 
 // Add these interfaces for the suggestion types
@@ -48,7 +51,8 @@ const SearchPage: React.FC = () => {
     genres: [],
     tags: [],
     authors: [],
-    statuses: []
+    statuses: [],
+    languages: availableLanguages,
   });
   
   // State for current filters
@@ -57,6 +61,7 @@ const SearchPage: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>(searchParams.getAll('tag'));
   const [selectedAuthors, setSelectedAuthors] = useState<string[]>(searchParams.getAll('author'));
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
+  const [selectedLanguage, setSelectedLanguage] = useState(searchParams.get('language') || '');
   const [minRating, setMinRating] = useState<number | null>(
     searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
   );
@@ -163,10 +168,11 @@ const SearchPage: React.FC = () => {
           tag: searchParams.getAll('tag'),
           author: searchParams.getAll('author'),
           status: searchParams.get('status') || undefined,
+          language: searchParams.get('language') || undefined,
           min_rating: searchParams.get('min_rating') ? 
             Number(searchParams.get('min_rating')) : undefined,
           sort_by: (searchParams.get('sort_by') as any) || 'title',
-          sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc',
+          sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
         });
         
         setNovels(response.results);
@@ -175,8 +181,15 @@ const SearchPage: React.FC = () => {
         setCurrentPage(response.current_page);
         
         // Store filter options (mainly for status options)
-        setFilterOptions(response.filters);
-        
+        setFilterOptions(
+          {
+            genres: response.genres || [],
+            tags: response.tags || [],
+            authors: response.authors || [],
+            statuses: response.statuses || [],
+            languages: response.languages || availableLanguages,
+          }
+        );
       } catch (error) {
         console.error('Error fetching search results:', error);
       } finally {
@@ -237,6 +250,7 @@ const SearchPage: React.FC = () => {
     setSelectedTags([]);
     setSelectedAuthors([]);
     setSelectedStatus('');
+    setSelectedLanguage('');
     setMinRating(null);
     setSortBy('title');
     setSortOrder('asc');
@@ -244,8 +258,8 @@ const SearchPage: React.FC = () => {
     // Reset URL params to default
     setSearchParams(new URLSearchParams({ page: '1' }));
   };
-  
-  // Apply filters
+
+   // Apply filters
   const applyFilters = () => {
     updateSearchParams({
       query: searchQuery,
@@ -253,6 +267,7 @@ const SearchPage: React.FC = () => {
       tag: selectedTags,
       author: selectedAuthors,
       status: selectedStatus,
+      language: selectedLanguage,
       min_rating: minRating,
       sort_by: sortBy,
       sort_order: sortOrder,
@@ -556,6 +571,27 @@ const SearchPage: React.FC = () => {
               </FormControl>
             </Grid>
             
+            {/* Language Filter */}
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Language</InputLabel>
+                <Select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  label="Language"
+                >
+                  <MenuItem value="">
+                    <em>Any</em>
+                  </MenuItem>
+                  {filterOptions.languages.map((langCode) => (
+                    <MenuItem key={langCode} value={langCode}>
+                      {languageCodeToFlag(langCode)} {languageCodeToName(langCode)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            
             {/* Minimum Rating */}
             <Grid item xs={12} md={6}>
               <Typography component="legend">Minimum Rating</Typography>
@@ -597,6 +633,7 @@ const SearchPage: React.FC = () => {
                   <MenuItem value="date_added">Date Added</MenuItem>
                   <MenuItem value="popularity">All-time Views</MenuItem>
                   <MenuItem value="trending">Trending (Weekly Views)</MenuItem>
+                  <MenuItem value="last_updated">Last Updated</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -633,8 +670,8 @@ const SearchPage: React.FC = () => {
       
       {/* Active Filters Display */}
       {(selectedGenres.length > 0 || selectedTags.length > 0 || 
-       selectedAuthors.length > 0 || selectedStatus || minRating || 
-       sortBy !== 'title' || sortOrder !== 'asc') && (
+       selectedAuthors.length > 0 || selectedStatus || selectedLanguage || 
+       minRating || sortBy !== 'title' || sortOrder !== 'asc') && (
         <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {selectedGenres.map(genre => (
             <Chip 
@@ -681,6 +718,16 @@ const SearchPage: React.FC = () => {
               onDelete={() => {
                 setSelectedStatus('');
                 updateSearchParams({ status: null });
+              }}
+            />
+          )}
+          
+          {selectedLanguage && (
+            <Chip 
+              label={`Language: ${languageCodeToFlag(selectedLanguage)} ${languageCodeToName(selectedLanguage)}`}
+              onDelete={() => {
+                setSelectedLanguage('');
+                updateSearchParams({ language: null });
               }}
             />
           )}

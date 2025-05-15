@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from django.db.models import F, Avg, Q, Count, Value
+from django.db.models import F, Avg, Q, Count, Value, Max, Min
 from django.db.models.functions import Coalesce
 from ..models.novels_models import (
     Novel,
@@ -239,6 +239,7 @@ def search_novels(request):
     tags = request.GET.getlist("tag", [])
     authors = request.GET.getlist("author", [])
     status = request.GET.get("status", "")
+    language = request.GET.get("language", "")
     min_rating = request.GET.get("min_rating", None)
     sort_by = request.GET.get("sort_by", "title")
     sort_order = request.GET.get("sort_order", "asc")
@@ -271,6 +272,10 @@ def search_novels(request):
     # Filter by status
     if status:
         novels_query = novels_query.filter(sources__status=status).distinct()
+        
+    # Filter by language
+    if language:
+        novels_query = novels_query.filter(sources__language=language).distinct()
 
     # Filter by minimum rating
     if min_rating and min_rating.isdigit():
@@ -321,6 +326,20 @@ def search_novels(request):
         )
         order_field = "-weekly_views" if sort_order == "desc" else "weekly_views"
         novels_query = novels_query.order_by(order_field, "title")
+    elif sort_by == "last_updated":
+        # Annotate with the most recent last_updated date among all sources
+        if sort_order == "desc":
+            novels_query = novels_query.annotate(
+                last_update=Max('sources__last_updated')
+            )
+            order_field = "-last_update"
+            novels_query = novels_query.order_by(order_field, "title")
+        else:
+            novels_query = novels_query.annotate(
+                last_update=Min('sources__last_updated')
+            )
+            order_field = "last_update"
+            novels_query = novels_query.order_by(order_field, "title")
     else:
         # Default sorting by title
         novels_query = novels_query.order_by("title")

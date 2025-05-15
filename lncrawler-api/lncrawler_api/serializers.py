@@ -17,13 +17,14 @@ class BasicNovelSerializer(serializers.ModelSerializer):
     total_views = serializers.SerializerMethodField()
     weekly_views = serializers.SerializerMethodField()
     prefered_source = serializers.SerializerMethodField()
+    languages = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
         fields = [
             'id', 'title', 'slug', 'sources_count', 'total_chapters',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source'
+            'prefered_source', 'languages'
         ]
     
     def get_prefered_source(self, obj):
@@ -57,6 +58,16 @@ class BasicNovelSerializer(serializers.ModelSerializer):
             year_week=current_year_week
         ).first()
         return weekly_view.views if weekly_view else 0
+    
+    def get_languages(self, obj):
+        """
+        Returns a list of languages for the sources of the novel
+        """
+        languages = set()
+        for source in obj.sources.all():
+            if source.language:
+                languages.add(source.language)
+        return list(languages)
     
 
 class DetailedNovelSerializer(serializers.ModelSerializer):

@@ -1,53 +1,71 @@
 import React, { createContext, useState, useContext, useMemo, useCallback, useEffect } from "react";
 import { Theme } from "@mui/material";
-import { getLightTheme } from "./lightTheme";
-import { getDarkTheme } from "./darkTheme";
+import { ThemeId, ThemeOption } from "./types";
+import { availableThemes, getThemeById } from "./availableThemes";
 
 type ThemeContextType = {
+    currentThemeId: ThemeId;
+    setThemeById: (id: ThemeId) => void;
     isDarkMode: boolean;
-    toggleTheme: () => void;
     theme: Theme;
+    availableThemes: ThemeOption[];
 };
 
 const ThemeContext = createContext<ThemeContextType>({
+    currentThemeId: "light",
+    setThemeById: () => {},
     isDarkMode: false,
-    toggleTheme: () => {},
-    theme: getLightTheme(),
+    theme: getThemeById("light").getTheme(),
+    availableThemes: [],
 });
 
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // Get initial theme preference from localStorage or system preference
-    const getInitialThemePreference = (): boolean => {
-        const savedTheme = localStorage.getItem("darkMode");
-        if (savedTheme !== null) {
-            return savedTheme === "true";
+    const getInitialThemeId = (): ThemeId => {
+        const savedThemeId = localStorage.getItem("themeId");
+
+        if (savedThemeId && availableThemes.some((theme) => theme.id === savedThemeId)) {
+            return savedThemeId;
         }
-        return window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+        // If no saved theme or invalid theme, check system preference for dark/light
+        const prefersDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        return prefersDarkMode ? "dark" : "light";
     };
 
-    const [isDarkMode, setIsDarkMode] = useState<boolean>(getInitialThemePreference);
+    const [currentThemeId, setCurrentThemeId] = useState<ThemeId>(getInitialThemeId);
 
-    const toggleTheme = useCallback(() => {
-        setIsDarkMode((prevMode) => !prevMode);
+    const setThemeById = useCallback((id: ThemeId) => {
+        setCurrentThemeId(id);
     }, []);
 
     useEffect(() => {
-        localStorage.setItem("darkMode", isDarkMode.toString());
-    }, [isDarkMode]);
+        localStorage.setItem("themeId", currentThemeId);
+    }, [currentThemeId]);
+
+    const currentTheme = useMemo(() => {
+        return getThemeById(currentThemeId);
+    }, [currentThemeId]);
 
     const theme = useMemo(() => {
-        return isDarkMode ? getDarkTheme() : getLightTheme();
-    }, [isDarkMode]);
+        return currentTheme.getTheme();
+    }, [currentTheme]);
+
+    const isDarkMode = useMemo(() => {
+        return currentTheme.isDark;
+    }, [currentTheme]);
 
     const value = useMemo(
         () => ({
+            currentThemeId,
+            setThemeById,
             isDarkMode,
-            toggleTheme,
             theme,
+            availableThemes,
         }),
-        [isDarkMode, toggleTheme, theme]
+        [currentThemeId, setThemeById, isDarkMode, theme]
     );
 
     return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

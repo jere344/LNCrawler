@@ -26,6 +26,7 @@ import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import TranslateIcon from '@mui/icons-material/Translate';
+import { languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 
 interface NovelSourcesProps {
   novel: any;
@@ -151,7 +152,9 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick, h
                                   Language
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
-                                  {source.language || 'Unknown'}
+                                  {source.language ?
+                                    (languageCodeToName(source.language || 'en') + ' ' + languageCodeToFlag(source.language || 'en') )
+                                    : 'Unknown'}
                                 </Typography>
                               </Box>
                             }

@@ -1,9 +1,11 @@
-import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Link } from "@mui/material";
+import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Link, ListItemIcon, ListItemText } from "@mui/material";
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import PaletteIcon from '@mui/icons-material/Palette';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import GitHubIcon from '@mui/icons-material/GitHub';
+import CheckIcon from '@mui/icons-material/Check';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -22,17 +24,18 @@ const DiscordIcon = () => (
 
 // Enhanced Header component with navigation tabs
 const Header = () => {
-    const { isDarkMode, toggleTheme } = useTheme();
+    const { isDarkMode, currentThemeId, setThemeById, availableThemes } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
     const muiTheme = useMuiTheme();
     const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+    const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
     
     // Determine the current path for active tab highlighting
     const getCurrentPath = () => {
         if (location.pathname.startsWith('/download')) return '/download';
-        if (location.pathname.startsWith('/novels')) return '/novels';
+        if (location.pathname.startsWith('/novels')) return '/';
         if (location.pathname === '/') return '/';
         return location.pathname;
     };
@@ -48,6 +51,19 @@ const Header = () => {
     
     const handleMenuClose = () => {
         setMenuAnchor(null);
+    };
+
+    const handleThemeMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
+        setThemeMenuAnchor(event.currentTarget);
+    };
+
+    const handleThemeMenuClose = () => {
+        setThemeMenuAnchor(null);
+    };
+
+    const handleThemeChange = (themeId: string) => {
+        setThemeById(themeId);
+        handleThemeMenuClose();
     };
 
     // Use the appropriate logo based on dark mode
@@ -128,10 +144,48 @@ const Header = () => {
                         <GitHubIcon />
                     </IconButton>
                     
-                    {/* Theme Toggle */}
-                    <IconButton onClick={toggleTheme} color="inherit" aria-label="Toggle theme">
-                        {isDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
+                    {/* Theme Menu */}
+                    <IconButton 
+                        onClick={handleThemeMenuOpen} 
+                        color="inherit" 
+                        aria-label="Change theme"
+                        aria-controls="theme-menu"
+                        aria-haspopup="true"
+                    >
+                        <PaletteIcon />
                     </IconButton>
+                    <Menu
+                        id="theme-menu"
+                        anchorEl={themeMenuAnchor}
+                        open={Boolean(themeMenuAnchor)}
+                        onClose={handleThemeMenuClose}
+                        anchorOrigin={{
+                            vertical: 'bottom',
+                            horizontal: 'right',
+                        }}
+                        transformOrigin={{
+                            vertical: 'top',
+                            horizontal: 'right',
+                        }}
+                    >
+                        {availableThemes.map((theme) => (
+                            <MenuItem 
+                                key={theme.id}
+                                onClick={() => handleThemeChange(theme.id)}
+                                selected={currentThemeId === theme.id}
+                            >
+                                {currentThemeId === theme.id && (
+                                    <ListItemIcon>
+                                        <CheckIcon fontSize="small" />
+                                    </ListItemIcon>
+                                )}
+                                <ListItemText 
+                                    inset={currentThemeId !== theme.id}
+                                    primary={theme.name} 
+                                />
+                            </MenuItem>
+                        ))}
+                    </Menu>
                     
                     {/* Mobile Menu Button */}
                     {isMobile && (

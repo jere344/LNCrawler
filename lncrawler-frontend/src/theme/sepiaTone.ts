@@ -1,76 +1,76 @@
 import { createTheme } from "@mui/material";
 import { ThemeOption } from "./types";
 
-export const getDarkTheme = () =>
+export const getSepiaToneTheme = () =>
     createTheme({
         palette: {
-            mode: "dark",
+            mode: "light",
             primary: {
-                main: "#c8a4ff",
-                light: "#f4deff",
-                dark: "#9c78cc",
-                contrastText: "#11071e",
+                main: "#8b5a2b",
+                light: "#a67c52",
+                dark: "#6d4520",
+                contrastText: "#f8f0e3",
             },
             secondary: {
-                main: "#ad8ee6",
-                light: "#dfbeff",
-                dark: "#7c61b3",
-                contrastText: "#11071e",
+                main: "#d2b48c",
+                light: "#e8d6b3",
+                dark: "#b89a6f",
+                contrastText: "#4b3621",
             },
             background: {
-                default: "#13101a",
-                paper: "#1c1726",
+                default: "#f5e8d3",
+                paper: "#f8f0e3",
             },
             text: {
-                primary: "#e9e0f5",
-                secondary: "#c3b8d9",
+                primary: "#4b3621",
+                secondary: "#705c46",
             },
             error: {
-                main: "#f44336",
-                light: "#e57373",
-                dark: "#d32f2f",
+                main: "#b33c3c",
+                light: "#c46666",
+                dark: "#8f2e2e",
             },
             success: {
-                main: "#66bb6a",
-                light: "#81c784",
-                dark: "#388e3c",
+                main: "#5c8c3e",
+                light: "#7ea65b",
+                dark: "#467032",
             },
             info: {
-                main: "#64b5f6",
-                light: "#90caf9",
-                dark: "#3b6ea8",
+                main: "#5a7a99",
+                light: "#7c95ac",
+                dark: "#445f75",
             },
             warning: {
-                main: "#ffb74d",
-                light: "#ffd54f",
-                dark: "#f57c00",
+                main: "#d18f2d",
+                light: "#dba95a",
+                dark: "#a5711f",
             },
         },
         typography: {
-            fontFamily: '"Inter", "Noto Sans JP", sans-serif',
+            fontFamily: '"Merriweather", "Noto Serif JP", serif',
             fontSize: 14,
             h1: {
-                fontFamily: '"Source Serif Pro", serif',
+                fontFamily: '"Merriweather", serif',
                 fontWeight: 700,
-                color: "#c8a4ff",
+                color: "#8b5a2b",
                 letterSpacing: "-0.02em",
                 fontSize: "2.2rem",
             },
             h2: {
-                fontFamily: '"Source Serif Pro", serif',
+                fontFamily: '"Merriweather", serif',
                 fontWeight: 700,
-                color: "#c8a4ff",
+                color: "#8b5a2b",
                 letterSpacing: "-0.02em",
                 fontSize: "1.9rem",
             },
             h3: {
-                fontFamily: '"Source Serif Pro", serif',
+                fontFamily: '"Merriweather", serif',
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
                 fontSize: "1.6rem",
             },
             h4: {
-                fontFamily: '"Source Serif Pro", serif',
+                fontFamily: '"Merriweather", serif',
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
                 fontSize: "1.4rem",
@@ -83,43 +83,34 @@ export const getDarkTheme = () =>
                 fontWeight: 600,
                 fontSize: "1.05rem",
             },
-            subtitle1: {
-                fontWeight: 500,
-                fontSize: "1rem",
-            },
-            subtitle2: {
-                fontWeight: 500,
-                fontSize: "0.9rem",
-            },
             body1: {
-                lineHeight: 1.6,
+                lineHeight: 1.7,
                 fontSize: "0.95rem",
             },
             body2: {
-                lineHeight: 1.5,
+                lineHeight: 1.6,
                 fontSize: "0.875rem",
             },
         },
-        spacing: 8,
         shape: {
-            borderRadius: 8,
+            borderRadius: 6,
         },
         components: {
             MuiButton: {
                 styleOverrides: {
                     root: {
-                        borderRadius: 6,
+                        borderRadius: 4,
                         textTransform: "none",
                         padding: "6px 16px",
                         fontSize: "0.875rem",
                         fontWeight: 600,
                     },
                     containedPrimary: {
-                        boxShadow: "0 4px 12px rgba(200, 164, 255, 0.3)",
-                        background: "linear-gradient(135deg, #9c78cc 0%, #c8a4ff 100%)",
+                        boxShadow: "0 2px 8px rgba(139, 90, 43, 0.3)",
+                        background: "linear-gradient(135deg, #8b5a2b 0%, #a67c52 100%)",
                         "&:hover": {
-                            boxShadow: "0 6px 16px rgba(200, 164, 255, 0.4)",
-                            background: "linear-gradient(135deg, #9c78cc 10%, #b290e3 100%)",
+                            boxShadow: "0 4px 12px rgba(139, 90, 43, 0.4)",
+                            background: "linear-gradient(135deg, #8b5a2b 10%, #9a6e44 100%)",
                         },
                     },
                     outlinedPrimary: {
@@ -130,15 +121,13 @@ export const getDarkTheme = () =>
             MuiCard: {
                 styleOverrides: {
                     root: {
-                        borderRadius: 10,
-                        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-                        backgroundColor: "#1c1726",
-                        backgroundImage: "linear-gradient(135deg, #1c1726 0%, #22182e 100%)",
+                        borderRadius: 8,
+                        boxShadow: "0 2px 8px rgba(75, 54, 33, 0.08)",
                         transition: "transform 0.3s ease, box-shadow 0.3s ease",
-                        borderLeft: "1px solid rgba(200, 164, 255, 0.1)",
-                        borderTop: "1px solid rgba(200, 164, 255, 0.1)",
+                        backgroundColor: "#f8f0e3",
+                        border: "1px solid rgba(139, 90, 43, 0.1)",
                         "&:hover": {
-                            boxShadow: "0 8px 24px rgba(200, 164, 255, 0.2)",
+                            boxShadow: "0 6px 16px rgba(139, 90, 43, 0.15)",
                             transform: "translateY(-2px)",
                         },
                     },
@@ -147,16 +136,17 @@ export const getDarkTheme = () =>
             MuiAppBar: {
                 styleOverrides: {
                     root: {
-                        backgroundColor: "rgba(28, 23, 38, 0.95)",
+                        backgroundColor: "rgba(248, 240, 227, 0.95)",
+                        color: "#4b3621",
                         backdropFilter: "blur(10px)",
-                        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.2)",
+                        boxShadow: "0 2px 8px rgba(75, 54, 33, 0.1)",
                     },
                 },
             },
             MuiDivider: {
                 styleOverrides: {
                     root: {
-                        borderColor: "rgba(200, 164, 255, 0.15)",
+                        borderColor: "rgba(139, 90, 43, 0.15)",
                     },
                 },
             },
@@ -166,13 +156,13 @@ export const getDarkTheme = () =>
                         backgroundImage: "none",
                     },
                     elevation1: {
-                        boxShadow: "0 1px 8px rgba(0, 0, 0, 0.2)",
+                        boxShadow: "0 1px 6px rgba(75, 54, 33, 0.06)",
                     },
                     elevation2: {
-                        boxShadow: "0 2px 12px rgba(0, 0, 0, 0.25)",
+                        boxShadow: "0 2px 10px rgba(75, 54, 33, 0.1)",
                     },
                     elevation3: {
-                        boxShadow: "0 4px 14px rgba(0, 0, 0, 0.3)",
+                        boxShadow: "0 3px 12px rgba(75, 54, 33, 0.12)",
                     },
                 },
             },
@@ -187,14 +177,7 @@ export const getDarkTheme = () =>
                         },
                     },
                     colorPrimary: {
-                        background: "linear-gradient(135deg, #9c78cc 0%, #c8a4ff 100%)",
-                    },
-                },
-            },
-            MuiTypography: {
-                styleOverrides: {
-                    gutterBottom: {
-                        marginBottom: "0.6em",
+                        background: "linear-gradient(135deg, #8b5a2b 0%, #a67c52 100%)",
                     },
                 },
             },
@@ -202,20 +185,20 @@ export const getDarkTheme = () =>
                 styleOverrides: {
                     body: {
                         scrollbarWidth: "thin",
-                        scrollbarColor: "#9c78cc #13101a",
+                        scrollbarColor: "#d2b48c #f5e8d3",
                         "&::-webkit-scrollbar": {
                             width: "8px",
                             height: "8px",
                         },
                         "&::-webkit-scrollbar-track": {
-                            background: "#13101a",
+                            background: "#f5e8d3",
                         },
                         "&::-webkit-scrollbar-thumb": {
-                            background: "#9c78cc",
+                            background: "#d2b48c",
                             borderRadius: "4px",
                         },
                         "&::-webkit-scrollbar-thumb:hover": {
-                            background: "#c8a4ff",
+                            background: "#8b5a2b",
                         },
                     },
                     "& .MuiContainer-root": {
@@ -246,9 +229,9 @@ export const getDarkTheme = () =>
         },
     });
 
-export const darkTheme: ThemeOption = {
-    id: "dark",
-    name: "Dark",
-    isDark: true,
-    getTheme: getDarkTheme,
+export const sepiaToneTheme: ThemeOption = {
+    id: "sepia",
+    name: "Sepia",
+    isDark: false,
+    getTheme: getSepiaToneTheme
 };

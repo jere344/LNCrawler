@@ -9,6 +9,7 @@ export interface Novel {
   total_views?: number;
   weekly_views?: number;
   prefered_source: NovelFromSource | null;
+  languages: string[];
 }
 
 export interface NovelListResponse {

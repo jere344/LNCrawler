@@ -1,4 +1,5 @@
 import { createTheme } from "@mui/material";
+import { ThemeOption } from "./types";
 
 export const getLightTheme = () =>
     createTheme({
@@ -241,3 +242,10 @@ export const getLightTheme = () =>
             },
         },
     });
+
+export const lightTheme: ThemeOption = {
+    id: "light",
+    name: "Light",
+    isDark: false,
+    getTheme: getLightTheme
+};

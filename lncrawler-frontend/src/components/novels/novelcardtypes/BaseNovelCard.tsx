@@ -5,12 +5,12 @@ import {
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import LanguageIcon from '@mui/icons-material/Language';
 import UpdateIcon from '@mui/icons-material/Update';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
+import { languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 
 export interface BaseNovelCardProps {
   novel: Novel;
@@ -105,21 +105,47 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               objectFit: 'cover'
             }}
           />
-          {/* Language badge */}
-          <Chip
-            icon={<LanguageIcon sx={{ fontSize: '0.7rem', color: '#fff' }} />}
-            label={preferredSource?.language || 'Unknown'}
-            size="small"
+          {/* Language flags */}
+          <Box
             sx={{
               position: 'absolute',
               top: 8,
               right: 8,
+              display: 'flex',
+              gap: 0.5,
               backgroundColor: 'rgba(0, 0, 0, 0.6)',
-              color: '#fff',
-              fontWeight: 'bold',
-              fontSize: '0.7rem'
+              borderRadius: 1,
+              padding: '2px 4px',
             }}
-          />
+          >
+            {novel.languages.length > 0 ? (
+              novel.languages.map((lang) => (
+                <Tooltip key={lang} title={languageCodeToName(lang)}>
+                  <Typography
+                    sx={{
+                      fontSize: '1.2rem',
+                      lineHeight: 1.2,
+                      cursor: 'default',
+                    }}
+                  >
+                    {languageCodeToFlag(lang)}
+                  </Typography>
+                </Tooltip>
+              ))
+            ) : (
+              <Tooltip title="Unknown language">
+                <Typography
+                  sx={{
+                    fontSize: '1rem',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  ?
+                </Typography>
+              </Tooltip>
+            )}
+          </Box>
         </Box>
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: 1 }}>
           <Typography 
