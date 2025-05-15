@@ -3,6 +3,7 @@ import { Box, Card, Typography, ButtonBase, Skeleton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
 import { formatTimeAgo, getChapterName, toLocalDate } from '@utils/Misc';
+import defaultCover from '@assets/default-cover.jpg';
 
 interface ChapterCardProps {
   source: NovelFromSource;
@@ -32,8 +33,6 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
     );
   }
 
-  const coverUrl = source.cover_url || '';
-
   const chapterName = (source.title && source.chapters_count !== 0) ? getChapterName(source.title) : '';
   
   return (
@@ -62,7 +61,8 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
       }}>
         <Box
           component="img"
-          src={coverUrl}
+          loading="lazy"
+          src={source.cover_url || defaultCover}
           alt={source.title}
           sx={{
             width: '100%',

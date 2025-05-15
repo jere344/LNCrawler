@@ -7,6 +7,7 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
 import { formatTimeAgo, toLocalDate } from '@utils/Misc';
+import defaultCover from '@assets/default-cover.jpg';
 
 interface FeaturedNovelCardProps {
   novel: NovelFromSource;
@@ -51,7 +52,6 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
   }
 
   const formatter = Intl.NumberFormat('en', { notation: 'compact' });
-  const coverUrl = novel.cover_url || '';
 
   return (
     <ButtonBase 
@@ -78,7 +78,8 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
           }}>
             <Box
               component="img"
-              src={coverUrl}
+              loading="lazy"
+              src={novel.cover_url || defaultCover}
               alt={novel.title}
               sx={{
                 height: '100%',

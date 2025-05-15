@@ -57,7 +57,6 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   }
 
   const formatter = Intl.NumberFormat('en', { notation: 'compact' });
-  const coverUrl = novel.prefered_source?.cover_url || defaultCover;
 
   // Fixed dimensions for 2:3 ratio
   const coverHeightFixed = 90; 
@@ -88,7 +87,8 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       >
         <Box
           component="img"
-          src={coverUrl}
+          loading="lazy"
+          src={novel.prefered_source?.cover_url || defaultCover}
           alt={novel.title}
           sx={{
             width: '100%',

@@ -4,6 +4,7 @@ import StarIcon from '@mui/icons-material/Star';
 import BookIcon from '@mui/icons-material/Book';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import { Novel } from '@models/novels_types';
+import defaultCover from '@assets/default-cover.jpg';
 
 interface NovelItemCardProps {
   novel: Novel;
@@ -30,8 +31,6 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       </Box>
     );
   }
-
-  const coverUrl = novel.prefered_source?.cover_url || '';
 
   return (
     <ButtonBase 
@@ -62,7 +61,8 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       >
         <Box
           component="img"
-          src={coverUrl}
+          loading="lazy"
+          src={novel.prefered_source?.cover_url || defaultCover}
           alt={novel.title}
           sx={{
             width: '100%',

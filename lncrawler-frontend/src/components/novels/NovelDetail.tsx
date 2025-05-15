@@ -10,12 +10,10 @@ import {
   Paper,
   CardMedia,
   Button,
-  Divider,
   Chip,
   useTheme,
   alpha,
   Skeleton,
-  Fade,
   Zoom,
 } from '@mui/material';
 import { novelService } from '../../services/api';
@@ -25,12 +23,13 @@ import LanguageIcon from '@mui/icons-material/Language';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import defaultCover from '@assets/default-cover.jpg';
 import { NovelDetail as INovelDetail } from '@models/novels_types';
 import NovelSources from './NovelSources.tsx';
 import NovelSynopsis from './common/NovelSynopsis.tsx';
 import NovelRating from './common/NovelRating.tsx';
-import NovelGenres from './common/NovelGenres.tsx'; // Added import
+import NovelGenres from './common/NovelGenres.tsx';
 
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
@@ -69,6 +68,15 @@ const NovelDetail = () => {
   const handleSourceClick = (sourceSlug: string) => {
     if (!novelSlug) return;
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
+  };
+
+  // Quick Start handler - navigate to the preferred source (first in the list)
+  const handleQuickStart = () => {
+    if (!novelSlug || !novel || novel.sources.length === 0) return;
+    
+    // The sources are already sorted by vote score, so the first one is the preferred
+    const preferredSource = novel.sources[0];
+    navigate(`/novels/${novelSlug}/${preferredSource.source_slug}`);
   };
 
   const handleVote = async (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => {
@@ -120,14 +128,11 @@ const NovelDetail = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg">
+      <Container maxWidth="lg" sx={{ pb: 6 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
-          <Button startIcon={<ArrowBackIcon />} onClick={handleBackClick}>
-            Back to Novels
-          </Button>
+          <Skeleton variant="rounded" width={150} height={36} sx={{ borderRadius: '20px' }} />
         </Box>
         
-        {/* Hero Section Skeleton */}
         <Paper 
           elevation={0}
           sx={{ 
@@ -135,54 +140,63 @@ const NovelDetail = () => {
             overflow: 'hidden',
             borderRadius: 3,
             mb: 4,
-            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.8)} 0%, ${alpha(theme.palette.primary.main, 0.6)} 100%)`,
+            position: 'relative',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.3)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
           }}
         >
-          <Box sx={{ position: 'relative', height: '300px', overflow: 'hidden' }}>
-            <Skeleton variant="rectangular" width="100%" height="100%" animation="wave" />
-          </Box>
-          
-          <Box sx={{ p: 3 }}>
-            <Skeleton variant="text" width="60%" height={60} animation="wave" />
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 2 }}>
-              <Skeleton variant="rectangular" width={150} height={28} animation="wave" />
-            </Box>
-            
-            <Grid container spacing={3} sx={{ mt: 1 }}>
-              <Grid item xs={12} md={8}>
-                <Skeleton variant="text" width="90%" animation="wave" />
-                <Skeleton variant="text" width="75%" animation="wave" />
-                <Box sx={{ mt: 3 }}>
-                  <Skeleton variant="rectangular" width={120} height={36} animation="wave" sx={{ mr: 2, display: 'inline-block' }} />
-                  <Skeleton variant="rectangular" width={120} height={36} animation="wave" sx={{ display: 'inline-block' }} />
-                </Box>
+          <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={4} lg={3}>
+                <Skeleton 
+                  variant="rectangular" 
+                  sx={{ 
+                    width: '100%', 
+                    paddingTop: '150%', 
+                    borderRadius: 2,
+                    transform: 'none'
+                  }} 
+                />
               </Grid>
-              <Grid item xs={12} md={4}>
-                <Skeleton variant="rectangular" width="100%" height={120} animation="wave" />
+              
+              <Grid item xs={12} md={8} lg={9}>
+                <Skeleton variant="text" height={60} width="80%" sx={{ mb: 1 }} />
+                
+                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                  <Skeleton variant="rounded" width={120} height={32} />
+                  <Skeleton variant="rounded" width={100} height={32} />
+                </Box>
+                
+                <Skeleton variant="rounded" width={180} height={32} sx={{ mb: 2 }} />
+                
+                <Box sx={{ height: '2px', mb: 2.5, mt: 0.5 }}>
+                  <Skeleton variant="text" height={2} width="60%" />
+                </Box>
+                
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+                  {[1, 2, 3, 4].map((item) => (
+                    <Skeleton key={item} variant="rounded" width={100} height={32} />
+                  ))}
+                </Box>
+                
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 3 }}>
+                  {[1, 2, 3, 4, 5].map((item) => (
+                    <Skeleton key={item} variant="rounded" width={80} height={24} />
+                  ))}
+                </Box>
+                
+                <Skeleton variant="rounded" width={220} height={48} />
               </Grid>
             </Grid>
           </Box>
         </Paper>
         
-        {/* Available Sources Skeleton */}
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 3, 
-            mb: 4, 
-            borderRadius: 3,
-          }}
-        >
-          <Skeleton variant="text" width="40%" height={40} animation="wave" />
-          <Divider sx={{ my: 2 }} />
-          
-          <Grid container spacing={3}>
-            {[1, 2, 3].map((item) => (
-              <Grid item xs={12} sm={6} md={4} key={item}>
-                <Skeleton variant="rectangular" width="100%" height={200} animation="wave" sx={{ borderRadius: 2 }} />
-              </Grid>
-            ))}
-          </Grid>
+        {/* Skeleton for Synopsis */}
+        <Paper sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+          <Skeleton variant="text" width={150} height={32} sx={{ mb: 2 }} />
+          <Skeleton variant="text" height={20} sx={{ mb: 1 }} />
+          <Skeleton variant="text" height={20} sx={{ mb: 1 }} />
+          <Skeleton variant="text" height={20} sx={{ mb: 1 }} />
+          <Skeleton variant="text" height={20} width="80%" />
         </Paper>
       </Container>
     );
@@ -224,317 +238,341 @@ const NovelDetail = () => {
   const primarySource = novel?.sources[0] || null;
 
   return (
-    <Fade in={pageLoaded} timeout={800}>
-      <Container maxWidth="lg" sx={{ pb: 6 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
-          <Button 
-            startIcon={<ArrowBackIcon />} 
-            onClick={handleBackClick}
-            variant="outlined"
-            sx={{ 
-              borderRadius: '20px',
-              px: 2,
-            }}
-          >
-            Back to Novels
-          </Button>
-        </Box>
+    <Container maxWidth="lg" sx={{ pb: 6 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
+        <Button 
+          startIcon={<ArrowBackIcon />} 
+          onClick={handleBackClick}
+          variant="outlined"
+          sx={{ 
+            borderRadius: '20px',
+            px: 2,
+          }}
+        >
+          Back to Novels
+        </Button>
+      </Box>
 
-        {primarySource && (
-          <Paper 
-            elevation={0}
+      {primarySource && (
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 0,
+            overflow: 'hidden',
+            borderRadius: 3,
+            mb: 4,
+            position: 'relative',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.3)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
+          }}
+        >
+          {/* Hero background with blur effect */}
+          <Box 
             sx={{ 
-              p: 0,
-              overflow: 'hidden',
-              borderRadius: 3,
-              mb: 4,
-              position: 'relative',
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.3)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              opacity: 0.35,
+              backgroundImage: `url(${primarySource.cover_url || defaultCover})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              filter: 'blur(20px)',
+              zIndex: 0,
             }}
-          >
-            {/* Hero background with blur effect */}
-            <Box 
-            id="hero-background"
-              sx={{ 
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                opacity: 0.35,
-                backgroundImage: `url(${primarySource.cover_url || defaultCover})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                filter: 'blur(20px)',
-                zIndex: 0,
-              }}
-            />
-            {/* region Misc metadata */}
-             <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={4} lg={3}>
-                  <Zoom in={true} timeout={1000}>
-                    <Box
-                      sx={{
-                        position: 'relative',
-                        width: '100%',
-                        paddingTop: '150%',
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
-                        border: `4px solid ${theme.palette.common.white}`,
-                      }}
-                    >
-                      <CardMedia
-                        component="img"
-                        image={primarySource.cover_url || defaultCover}
-                        alt={novel?.title}
-                        sx={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                        }}
-                        onError={(e: any) => {
-                          e.target.onerror = null;
-                          e.target.src = defaultCover;
-                        }}
-                      />
-                      
-                      {/* Language indicators */}
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          bottom: 8,
-                          right: 8,
-                          display: 'flex',
-                          gap: 0.5,
-                          flexDirection: 'column',
-                          alignItems: 'flex-end',
-                        }}
-                      >
-                        {Array.from(new Set(novel.sources.map(source => source.language)))
-                          .filter(Boolean)
-                          .map((language, index) => (
-                            <Box
-                              key={index}
-                              sx={{
-                                bgcolor: 'rgba(0,0,0,0.7)',
-                                color: 'white',
-                                px: 1,
-                                py: 0.3,
-                                borderRadius: 1,
-                                fontSize: '0.75rem',
-                                fontWeight: 'bold',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 0.5,
-                                textTransform: 'uppercase',
-                              }}
-                            >
-                              <LanguageIcon sx={{ fontSize: '0.9rem' }} />
-                              {language}
-                            </Box>
-                          ))}
-                      </Box>
-                    </Box>
-                  </Zoom>
-                </Grid>
-                
-                <Grid item xs={12} md={8} lg={9}>
-                  <Typography 
-                    variant="h3" 
-                    gutterBottom 
-                    sx={{ 
-                      color: 'common.white',
-                      textShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                      fontWeight: 700,
+          />
+          {/* region Misc metadata */}
+            <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={4} lg={3}>
+                <Zoom in={true} timeout={1000}>
+                  <Box
+                    sx={{
+                      position: 'relative',
+                      width: '100%',
+                      paddingTop: '150%',
+                      borderRadius: 2,
+                      overflow: 'hidden',
+                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
+                      border: `4px solid ${theme.palette.common.white}`,
                     }}
                   >
-                    {novel?.title}
-                  </Typography>
-                  
-                  {/* Author and Status badges */}
-                  <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                      {primarySource.authors.length > 0 && (
-                        <Box
-                          sx={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            bgcolor: alpha('#8e44ad', 0.7),
-                            backdropFilter: 'blur(10px)',
-                            px: 2,
-                            py: 0.75,
-                            borderRadius: 6,
-                          }}
-                        >
-                          <Typography 
-                            variant="body1" 
-                            sx={{ 
-                              color: theme.palette.common.white,
-                              fontWeight: 600,
+                    <CardMedia
+                      component="img"
+                      image={primarySource.cover_url || defaultCover}
+                      alt={novel?.title}
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                      onError={(e: any) => {
+                        e.target.onerror = null;
+                        e.target.src = defaultCover;
+                      }}
+                    />
+                    
+                    {/* Language indicators */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: 8,
+                        right: 8,
+                        display: 'flex',
+                        gap: 0.5,
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                      }}
+                    >
+                      {Array.from(new Set(novel.sources.map(source => source.language)))
+                        .filter(Boolean)
+                        .map((language, index) => (
+                          <Box
+                            key={index}
+                            sx={{
+                              bgcolor: 'rgba(0,0,0,0.7)',
+                              color: 'white',
+                              px: 1,
+                              py: 0.3,
+                              borderRadius: 1,
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
                               display: 'flex',
                               alignItems: 'center',
+                              gap: 0.5,
+                              textTransform: 'uppercase',
                             }}
                           >
-                            <PersonIcon sx={{ mr: 1, fontSize: '1rem' }} />
-                            {primarySource.authors.join(', ')}
-                          </Typography>
-                        </Box>
-                      )}
-                      
-                      {primarySource.status && (
-                        <Chip
-                          icon={<FlagIcon />}
-                          label={primarySource.status}
-                          size="medium"
-                          sx={{
-                            bgcolor: primarySource.status.toLowerCase() === 'completed' ? 
-                              alpha('#27ae60', 0.7) : alpha('#3498db', 0.7),
-                            color: 'white',
-                            fontWeight: 600,
-                            backdropFilter: 'blur(10px)',
-                            '& .MuiChip-icon': { color: 'white' }
-                          }}
-                        />
-                      )}
-                    </Box>
-                    
-                    {/* Rating component with better contrasting colors */}
-                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
-                      {novelSlug && novel && (
-                        <NovelRating
-                          novelSlug={novelSlug}
-                          initialUserRating={novel.user_rating}
-                          initialAvgRating={novel.avg_rating}
-                          initialRatingCount={novel.rating_count}
-                          size="small"
-                        />
-                      )}
+                            <LanguageIcon sx={{ fontSize: '0.9rem' }} />
+                            {language}
+                          </Box>
+                        ))}
                     </Box>
                   </Box>
+                </Zoom>
+              </Grid>
+              
+              <Grid item xs={12} md={8} lg={9}>
+                <Typography 
+                  variant="h3" 
+                  gutterBottom 
+                  sx={{ 
+                    color: 'common.white',
+                    textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    fontWeight: 700,
+                  }}
+                >
+                  {novel?.title}
+                </Typography>
+                
+                {/* Author and Status badges */}
+                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                    {primarySource.authors.length > 0 && (
+                      <Box
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          bgcolor: alpha('#8e44ad', 0.7),
+                          backdropFilter: 'blur(10px)',
+                          px: 2,
+                          py: 0.75,
+                          borderRadius: 6,
+                        }}
+                      >
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            color: theme.palette.common.white,
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <PersonIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                          {primarySource.authors.join(', ')}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {primarySource.status && (
+                      <Chip
+                        icon={<FlagIcon />}
+                        label={primarySource.status}
+                        size="medium"
+                        sx={{
+                          bgcolor: primarySource.status.toLowerCase() === 'completed' ? 
+                            alpha('#27ae60', 0.7) : alpha('#3498db', 0.7),
+                          color: 'white',
+                          fontWeight: 600,
+                          backdropFilter: 'blur(10px)',
+                          '& .MuiChip-icon': { color: 'white' }
+                        }}
+                      />
+                    )}
+                  </Box>
                   
-                  {/* Divider with gradient */}
+                  {/* Rating component with better contrasting colors */}
+                  <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
+                    {novelSlug && novel && (
+                      <NovelRating
+                        novelSlug={novelSlug}
+                        initialUserRating={novel.user_rating}
+                        initialAvgRating={novel.avg_rating}
+                        initialRatingCount={novel.rating_count}
+                        size="small"
+                      />
+                    )}
+                  </Box>
+                </Box>
+                
+                {/* Divider with gradient */}
+                <Box 
+                  sx={{ 
+                    height: '2px', 
+                    background: `linear-gradient(to right, ${alpha(theme.palette.common.white, 0.8)}, transparent)`,
+                    mb: 2.5,
+                    mt: 0.5,
+                  }} 
+                />
+                
+                {/* Stats badges with improved design */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
                   <Box 
                     sx={{ 
-                      height: '2px', 
-                      background: `linear-gradient(to right, ${alpha(theme.palette.common.white, 0.8)}, transparent)`,
-                      mb: 2.5,
-                      mt: 0.5,
-                    }} 
-                  />
-                  
-                  {/* Stats badges with improved design */}
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-                    <Box 
-                      sx={{ 
-                        display: 'flex',
-                        alignItems: 'center',
-                        bgcolor: alpha('#e74c3c', 0.7),
-                        backdropFilter: 'blur(10px)',
-                        px: 2, 
-                        py: 0.75, 
-                        borderRadius: 6,
-                      }}
+                      display: 'flex',
+                      alignItems: 'center',
+                      bgcolor: alpha('#e74c3c', 0.7),
+                      backdropFilter: 'blur(10px)',
+                      px: 2, 
+                      py: 0.75, 
+                      borderRadius: 6,
+                    }}
+                  >
+                    <VisibilityIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ color: theme.palette.common.white, fontWeight: 700 }}
                     >
-                      <VisibilityIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: theme.palette.common.white, fontWeight: 700 }}
-                      >
-                        {novel?.total_views?.toLocaleString() || 0} Views
-                      </Typography>
-                    </Box>
-                    
-                    <Box 
-                      sx={{ 
-                        display: 'flex',
-                        alignItems: 'center',
-                        bgcolor: alpha('#2ecc71', 0.7),
-                        backdropFilter: 'blur(10px)',
-                        px: 2, 
-                        py: 0.75, 
-                        borderRadius: 6,
-                      }}
-                    >
-                      <TrendingUpIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: theme.palette.common.white, fontWeight: 700 }}
-                      >
-                        {novel?.weekly_views?.toLocaleString() || 0} Weekly
-                      </Typography>
-                    </Box>
-                    
-                    <Box 
-                      sx={{ 
-                        display: 'flex',
-                        alignItems: 'center',
-                        bgcolor: alpha('#3498db', 0.7),
-                        backdropFilter: 'blur(10px)',
-                        px: 2, 
-                        py: 0.75, 
-                        borderRadius: 6,
-                      }}
-                    >
-                      <BookIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: theme.palette.common.white, fontWeight: 700 }}
-                      >
-                        {novel.sources.length} {novel.sources.length > 1 ? 'Sources' : 'Source'}
-                      </Typography>
-                    </Box>
-                    
-                    <Box 
-                      sx={{ 
-                        display: 'flex',
-                        alignItems: 'center',
-                        bgcolor: alpha('#9b59b6', 0.7),
-                        backdropFilter: 'blur(10px)',
-                        px: 2, 
-                        py: 0.75, 
-                        borderRadius: 6,
-                      }}
-                    >
-                      <MenuBookIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
-                      <Typography 
-                        variant="body2" 
-                        sx={{ color: theme.palette.common.white, fontWeight: 700 }}
-                      >
-                        {Math.max(...novel.sources.map(source => source.chapters_count))} Chapters
-                      </Typography>
-                    </Box>
+                      {novel?.total_views?.toLocaleString() || 0} Views
+                    </Typography>
                   </Box>
                   
-                  {/* Genres tags with improved styling */}
-                  {primarySource.genres.length > 0 && (
-                    <Box sx={{ mb: 3 }}>
-                      <NovelGenres 
-                        genres={primarySource.genres} 
-                        chipSize="small"
-                        // textColor will default to a light color suitable for the hero section
-                      />
-                    </Box>
-                  )}
-                </Grid>
+                  <Box 
+                    sx={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      bgcolor: alpha('#2ecc71', 0.7),
+                      backdropFilter: 'blur(10px)',
+                      px: 2, 
+                      py: 0.75, 
+                      borderRadius: 6,
+                    }}
+                  >
+                    <TrendingUpIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ color: theme.palette.common.white, fontWeight: 700 }}
+                    >
+                      {novel?.weekly_views?.toLocaleString() || 0} Weekly
+                    </Typography>
+                  </Box>
+                  
+                  <Box 
+                    sx={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      bgcolor: alpha('#3498db', 0.7),
+                      backdropFilter: 'blur(10px)',
+                      px: 2, 
+                      py: 0.75, 
+                      borderRadius: 6,
+                    }}
+                  >
+                    <BookIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ color: theme.palette.common.white, fontWeight: 700 }}
+                    >
+                      {novel.sources.length} {novel.sources.length > 1 ? 'Sources' : 'Source'}
+                    </Typography>
+                  </Box>
+                  
+                  <Box 
+                    sx={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      bgcolor: alpha('#9b59b6', 0.7),
+                      backdropFilter: 'blur(10px)',
+                      px: 2, 
+                      py: 0.75, 
+                      borderRadius: 6,
+                    }}
+                  >
+                    <MenuBookIcon sx={{ mr: 1, color: theme.palette.common.white, fontSize: '0.9rem' }} />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ color: theme.palette.common.white, fontWeight: 700 }}
+                    >
+                      {Math.max(...novel.sources.map(source => source.chapters_count))} Chapters
+                    </Typography>
+                  </Box>
+                </Box>
+                
+                {/* Genres tags with improved styling */}
+                {primarySource.genres.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <NovelGenres 
+                      genres={primarySource.genres} 
+                      chipSize="small"
+                      // textColor will default to a light color suitable for the hero section
+                    />
+                  </Box>
+                )}
+                
+                {/* Quick Start Button - Another prominent location for mobile users */}
+                <Box sx={{ mb: 3 }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="large"
+                    onClick={handleQuickStart}
+                    startIcon={<PlayArrowIcon />}
+                    sx={{
+                      borderRadius: 2,
+                      py: 1.2,
+                      px: 3,
+                      fontWeight: 700,
+                      fontSize: '1rem',
+                      textTransform: 'none',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                      background: theme.palette.primary.main,
+                      '&:hover': {
+                        background: theme.palette.primary.dark,
+                      },
+                      display: { xs: 'flex' }
+                    }}
+                  >
+                    Start Reading Now (Best Source)
+                  </Button>
+                </Box>
               </Grid>
-            </Box>
-          </Paper>
-        )}
+            </Grid>
+          </Box>
+        </Paper>
+      )}
 
-        {/* Novel Synopsis */}
-        {primarySource && primarySource.synopsis && (
-          <NovelSynopsis synopsis={primarySource.synopsis} />
-        )}
+      {/* Novel Synopsis */}
+      {primarySource && primarySource.synopsis && (
+        <NovelSynopsis synopsis={primarySource.synopsis} />
+      )}
 
-        {/* Available Sources */}
-        <NovelSources novel={novel!} handleSourceClick={handleSourceClick} handleVote={handleVote} votingInProgress={votingInProgress} formatDate={formatDate} />
-      </Container>
-    </Fade>
+      {/* Available Sources */}
+      <NovelSources novel={novel!} handleSourceClick={handleSourceClick} handleVote={handleVote} votingInProgress={votingInProgress} formatDate={formatDate} />
+    </Container>
   );
 };
 
