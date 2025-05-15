@@ -8,51 +8,87 @@ import {
   CircularProgress,
   Button,
   useTheme,
-  useMediaQuery,
-  Paper
+  Paper,
+  Tabs,
+  Tab
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { novelService } from '@services/api';
-import { Novel } from '@models/novels_types';
-import TrendingNovelCard from '@components/novels/novelcardtypes/TrendingNovelCard';
-import DetailedNovelCard from '@components/novels/novelcardtypes/DetailedNovelCard';
-import BaseNovelCard from '@components/novels/novelcardtypes/BaseNovelCard';
+import { Novel, NovelFromSource } from '@models/novels_types';
 import CompactNovelCard from '@components/novels/novelcardtypes/CompactNovelCard';
+import FeaturedNovelCard from '@components/novels/novelcardtypes/FeaturedNovelCard';
+import ChapterCard from '@components/novels/novelcardtypes/ChapterCard';
+import NovelItemCard from '@components/novels/novelcardtypes/NovelItemCard';
+import TrendingNovelCard from '@components/novels/novelcardtypes/TrendingNovelCard';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
-
+  
   // State for different novel sections
+  const [topNovels, setTopNovels] = useState<Novel[]>([]);
   const [trendingNovels, setTrendingNovels] = useState<Novel[]>([]);
   const [topRatedNovels, setTopRatedNovels] = useState<Novel[]>([]);
-  const [recentNovels, setRecentNovels] = useState<Novel[]>([]);
+  const [recentChapters, setRecentChapters] = useState<NovelFromSource[]>([]);
+  const [featuredNovel, setFeaturedNovel] = useState<NovelFromSource | null>(null);
   
   // Loading states
+  const [loadingTop, setLoadingTop] = useState<boolean>(true);
   const [loadingTrending, setLoadingTrending] = useState<boolean>(true);
   const [loadingTopRated, setLoadingTopRated] = useState<boolean>(true);
   const [loadingRecent, setLoadingRecent] = useState<boolean>(true);
+  const [loadingFeatured, setLoadingFeatured] = useState<boolean>(true);
 
   // Error states
+  const [topError, setTopError] = useState<string | null>(null);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [topRatedError, setTopRatedError] = useState<string | null>(null);
   const [recentError, setRecentError] = useState<string | null>(null);
+  const [featuredError, setFeaturedError] = useState<string | null>(null);
 
-  const handleNovelClick = (novelSlug: string) => {
-    navigate(`/novels/${novelSlug}`);
+  // Rankings tab state
+  const [rankingTab, setRankingTab] = useState<number>(0);
+
+  const handleNovelClick = (novelSlug: string, sourceSlug?: string) => {
+    if (sourceSlug) {
+      navigate(`/novels/${novelSlug}/${sourceSlug}`);
+    } else {
+      navigate(`/novels/${novelSlug}`);
+    }
+  };
+
+  const handleRankingTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setRankingTab(newValue);
   };
 
   useEffect(() => {
-    // Fetch trending novels (highest weekly views)
+    // Fetch top novels (best of all time)
+    const fetchTopNovels = async () => {
+      try {
+        setLoadingTop(true);
+        const response = await novelService.searchNovels({
+          sort_by: 'popularity',
+          sort_order: 'desc',
+          page_size: 12
+        });
+        setTopNovels(response.results || []);
+        setTopError(null);
+      } catch (error) {
+        console.error('Error fetching top novels:', error);
+        setTopError('Failed to load top novels. Please try again later.');
+      } finally {
+        setLoadingTop(false);
+      }
+    };
+
+    // Fetch trending novels (weekly views)
     const fetchTrendingNovels = async () => {
       try {
         setLoadingTrending(true);
         const response = await novelService.searchNovels({
           sort_by: 'popularity',
           sort_order: 'desc',
-          page_size: 10
+          page_size: 12
         });
         setTrendingNovels(response.results || []);
         setTrendingError(null);
@@ -71,8 +107,7 @@ const HomePage: React.FC = () => {
         const response = await novelService.searchNovels({
           sort_by: 'rating',
           sort_order: 'desc',
-          min_rating: 4.0,
-          page_size: 6
+          page_size: 12
         });
         setTopRatedNovels(response.results || []);
         setTopRatedError(null);
@@ -84,28 +119,47 @@ const HomePage: React.FC = () => {
       }
     };
 
-    // Fetch recently added novels
-    const fetchRecentNovels = async () => {
+    // Fetch recently updated chapters
+    const fetchRecentChapters = async () => {
       try {
         setLoadingRecent(true);
-        const response = await novelService.searchNovels({
-          sort_by: 'date_added',
-          sort_order: 'desc',
-          page_size: 12
-        });
-        setRecentNovels(response.results || []);
+        // This would be an API call to get latest chapter updates
+        // For now, using listNovels as placeholder
+        const response = await novelService.listNovels(1, 12);
+        setRecentChapters(response.results.map((novel: { prefered_source: any; }) => novel.prefered_source).filter(Boolean) as NovelFromSource[]);
         setRecentError(null);
       } catch (error) {
-        console.error('Error fetching recent novels:', error);
-        setRecentError('Failed to load recent novels. Please try again later.');
+        console.error('Error fetching recent chapters:', error);
+        setRecentError('Failed to load recent chapters. Please try again later.');
       } finally {
         setLoadingRecent(false);
       }
     };
 
+    // Fetch featured novel
+    const fetchFeaturedNovel = async () => {
+      try {
+        setLoadingFeatured(true);
+        // This would be an API call to get a featured novel
+        // For now, using the first novel from topNovels as placeholder
+        const response = await novelService.listNovels(1, 1);
+        if (response.results.length > 0 && response.results[0].prefered_source) {
+          setFeaturedNovel(response.results[0].prefered_source);
+        }
+        setFeaturedError(null);
+      } catch (error) {
+        console.error('Error fetching featured novel:', error);
+        setFeaturedError('Failed to load featured novel. Please try again later.');
+      } finally {
+        setLoadingFeatured(false);
+      }
+    };
+
+    fetchTopNovels();
     fetchTrendingNovels();
     fetchTopRatedNovels();
-    fetchRecentNovels();
+    fetchRecentChapters();
+    fetchFeaturedNovel();
   }, []);
 
   // Helper function for error display
@@ -131,32 +185,42 @@ const HomePage: React.FC = () => {
   );
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
-      <Box sx={{ mb: 6, textAlign: 'center' }}>
-        <Typography variant="h3" component="h1" gutterBottom fontWeight="bold">
-          Welcome to LNCrawler
+    <Container maxWidth="xl">
+      <Box sx={{ my: 2 }}>
+        <Typography variant="h1" component="h1" gutterBottom sx={{ 
+          fontWeight: 'bold',
+          textAlign: 'center',
+          mb: 3
+        }}>
+          LNCrawler
         </Typography>
-        <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
-          Discover thousands of web novels, light novels and more
-        </Typography>
-        <Button 
-          variant="contained" 
-          size="large" 
-          onClick={() => navigate('/novels/search')}
-          sx={{ mt: 2 }}
-        >
-          Search Novels
-        </Button>
+        <Box sx={{ 
+          backgroundColor: theme.palette.background.paper,
+          padding: 2,
+          mx:0,
+          borderRadius: 2,
+          mb: 4
+        }}>
+          <Typography paragraph>
+            Looking for a great place to read Light Novels?
+          </Typography>
+          <Typography paragraph>
+            LNCrawler is a very special platform where you can read the translated versions of world famous Asian light novels from hundreds of differents sources in multiple languages. 
+          </Typography>
+          <Typography>
+            If you can't find your novel here, you can instantly and automatically add it to our database from the Add Novel page.
+          </Typography>
+        </Box>
       </Box>
 
-      {/* Trending Novels Section */}
+      {/* Weekly Trending Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h4" component="h2" fontWeight="bold">
-            Trending Now
+          <Typography variant="h5" component="h2" fontWeight="bold">
+            This Week's Hottest Novels 🔥
           </Typography>
-          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=popularity')}>
-            See All
+          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=weekly_views&sort_order=desc')}>
+            View More
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -167,12 +231,12 @@ const HomePage: React.FC = () => {
           renderLoading()
         ) : (
           <Grid container spacing={3}>
-            {trendingNovels.slice(0, 5).map((novel, index) => (
-              <Grid item xs={12} sm={6} md={4} lg={2.4} key={novel.id}>
+            {trendingNovels.slice(0, 4).map((novel, index) => (
+              <Grid item xs={6} sm={3} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
-                  rank={index + 1}
                   onClick={() => handleNovelClick(novel.slug)}
+                  rank={index + 1}
                 />
               </Grid>
             ))}
@@ -180,29 +244,30 @@ const HomePage: React.FC = () => {
         )}
       </Box>
 
-      {/* Top Rated Novels Section */}
+      {/* Best of All Time Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h4" component="h2" fontWeight="bold">
-            Top Rated
+          <Typography variant="h5" component="h2" fontWeight="bold">
+            Best of all time
           </Typography>
-          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=rating&sort_order=desc')}>
-            See All
+          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=popularity&sort_order=desc')}>
+            View More
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {topRatedError ? (
-          renderErrorMessage(topRatedError)
-        ) : loadingTopRated ? (
+        {topError ? (
+          renderErrorMessage(topError)
+        ) : loadingTop ? (
           renderLoading()
         ) : (
-          <Grid container spacing={3}>
-            {topRatedNovels.slice(0, 6).map((novel) => (
-              <Grid item xs={12} md={6} key={novel.id}>
-                <DetailedNovelCard 
+          <Grid container spacing={2}>
+            {topNovels.slice(0, 12).map((novel, rank) => (
+              <Grid item xs={4} sm={3} md={2} lg={2} key={novel.id}>
+                <NovelItemCard 
                   novel={novel} 
                   onClick={() => handleNovelClick(novel.slug)}
+                  rank={rank + 1}
                 />
               </Grid>
             ))}
@@ -210,14 +275,146 @@ const HomePage: React.FC = () => {
         )}
       </Box>
 
-      {/* Recent Additions Section */}
+      {/* Ranking Section with Tabs */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h4" component="h2" fontWeight="bold">
-            Recently Added
+          <Typography variant="h5" component="h2" fontWeight="bold">
+            Ranking
+          </Typography>
+          <Button variant="text" onClick={() => navigate('/novels/search')}>
+            View More
+          </Button>
+        </Box>
+        <Divider sx={{ mb: 1 }} />
+
+        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs value={rankingTab} onChange={handleRankingTabChange} aria-label="novel rankings">
+            <Tab label="Most Read" id="tab-most-read" aria-controls="tabpanel-most-read" />
+            <Tab label="New Trends" id="tab-new-trends" aria-controls="tabpanel-new-trends" />
+            <Tab label="User Rated" id="tab-user-rated" aria-controls="tabpanel-user-rated" />
+          </Tabs>
+        </Box>
+        
+        {/* Most Read Tab Panel */}
+        <Box
+          role="tabpanel"
+          hidden={rankingTab !== 0}
+          id="tabpanel-most-read"
+          aria-labelledby="tab-most-read"
+          sx={{ py: 3 }}
+        >
+          {loadingTop ? (
+            renderLoading()
+          ) : topError ? (
+            renderErrorMessage(topError)
+          ) : (
+            <Grid container spacing={1}>
+              {topNovels.slice(0, 12).map((novel) => (
+                <Grid item xs={6} sm={4} md={3} key={novel.id}>
+                  <CompactNovelCard
+                    novel={novel}
+                    onClick={() => handleNovelClick(novel.slug)}
+                    showClicks
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Box>
+
+        {/* New Trends Tab Panel */}
+        <Box
+          role="tabpanel"
+          hidden={rankingTab !== 1}
+          id="tabpanel-new-trends"
+          aria-labelledby="tab-new-trends"
+          sx={{ py: 3 }}
+        >
+          {loadingTrending ? (
+            renderLoading()
+          ) : trendingError ? (
+            renderErrorMessage(trendingError)
+          ) : (
+            <Grid container spacing={1}>
+              {trendingNovels.slice(0, 12).map((novel) => (
+                <Grid item xs={6} sm={4} md={3} key={novel.id}>
+                  <CompactNovelCard
+                    novel={novel}
+                    onClick={() => handleNovelClick(novel.slug)}
+                    showTrends
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Box>
+
+        {/* User Rated Tab Panel */}
+        <Box
+          role="tabpanel"
+          hidden={rankingTab !== 2}
+          id="tabpanel-user-rated"
+          aria-labelledby="tab-user-rated"
+          sx={{ py: 3 }}
+        >
+          {loadingTopRated ? (
+            renderLoading()
+          ) : topRatedError ? (
+            renderErrorMessage(topRatedError)
+          ) : (
+            <Grid container spacing={1}>
+              {topRatedNovels.slice(0, 12).map((novel) => (
+                <Grid item xs={6} sm={4} md={3} key={novel.id}>
+                  <CompactNovelCard
+                    novel={novel}
+                    onClick={() => handleNovelClick(novel.slug)}
+                    showRating
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Box>
+      </Box>
+
+      {/* Featured Novel Section */}
+      <Box sx={{ mb: 6 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" component="h2" fontWeight="bold">
+            Featured
+          </Typography>
+          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=popularity&sort_order=desc')}>
+            View More
+          </Button>
+        </Box>
+        <Divider sx={{ mb: 3 }} />
+        
+        {featuredError ? (
+          renderErrorMessage(featuredError)
+        ) : loadingFeatured ? (
+          renderLoading()
+        ) : featuredNovel ? (
+          <FeaturedNovelCard 
+            novel={featuredNovel}
+            onClick={() => {
+              if (featuredNovel.novel_slug && featuredNovel.source_slug) {
+                handleNovelClick(featuredNovel.novel_slug, featuredNovel.source_slug);
+              }
+            }}
+          />
+        ) : (
+          <Typography variant="body1" align="center">No featured novel available</Typography>
+        )}
+      </Box>
+
+      {/* Recently Added Chapters Section */}
+      <Box sx={{ mb: 6 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" component="h2" fontWeight="bold">
+            Recently Added Chapters
           </Typography>
           <Button variant="text" onClick={() => navigate('/novels/search?sort_by=date_added&sort_order=desc')}>
-            See All
+            View More
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -227,28 +424,19 @@ const HomePage: React.FC = () => {
         ) : loadingRecent ? (
           renderLoading()
         ) : (
-          <Grid container spacing={3}>
-            {isMobile ? (
-              // Compact layout for mobile
-              recentNovels.slice(0, 6).map((novel) => (
-                <Grid item xs={12} key={novel.id}>
-                  <CompactNovelCard 
-                    novel={novel} 
-                    onClick={() => handleNovelClick(novel.slug)}
-                  />
-                </Grid>
-              ))
-            ) : (
-              // Regular layout for larger screens
-              recentNovels.slice(0, isTablet ? 6 : 12).map((novel) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={novel.id}>
-                  <BaseNovelCard 
-                    novel={novel} 
-                    onClick={() => handleNovelClick(novel.slug)}
-                  />
-                </Grid>
-              ))
-            )}
+          <Grid container spacing={2}>
+            {recentChapters.slice(0, 12).map((source) => (
+              <Grid item xs={12} sm={6} md={4} key={source.id}>
+                <ChapterCard
+                  source={source}
+                  onClick={() => {
+                    if (source.novel_slug && source.source_slug) {
+                      handleNovelClick(source.novel_slug, source.source_slug);
+                    }
+                  }}
+                />
+              </Grid>
+            ))}
           </Grid>
         )}
       </Box>

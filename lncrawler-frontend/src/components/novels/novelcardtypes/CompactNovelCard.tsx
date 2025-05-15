@@ -1,8 +1,9 @@
 import React from 'react';
 import { 
-  Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Rating
+  Box, Card, Typography, Rating, ButtonBase
 } from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import CommentIcon from '@mui/icons-material/Comment';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 
@@ -10,74 +11,141 @@ interface CompactNovelCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
+  showClicks?: boolean;
+  showTrends?: boolean;
+  showRating?: boolean;
 }
 
-const CompactNovelCard: React.FC<CompactNovelCardProps> = ({ novel, onClick }) => {
-  const preferredSource = novel.prefered_source;
-  
+const CompactNovelCard: React.FC<CompactNovelCardProps> = ({ 
+  novel, 
+  onClick, 
+  showClicks = false,
+  showTrends = false,
+  showRating = false
+}) => {
+  const formatter = Intl.NumberFormat('en', { notation: 'compact' });
+  const coverUrl = novel.prefered_source?.cover_url || defaultCover;
+
+  // Fixed dimensions for 2:3 ratio
+  const coverHeight = 90; 
+  const coverWidth = coverHeight * 2/3;
+
   return (
-    <Card 
-      sx={{ 
-        height: '100%', 
-        display: 'flex',
-        transition: 'transform 0.2s ease',
-        '&:hover': {
-          transform: 'translateY(-3px)',
-        }
+    <ButtonBase 
+      onClick={onClick}
+      sx={{
+        display: 'flex', 
+        justifyContent: 'flex-start', 
+        alignItems: 'flex-start', 
+        height: coverHeight + 'px',
+        width: '100%',
+        textAlign: 'left',
       }}
     >
-      <CardActionArea 
-        sx={{ display: 'flex', height: '100%', alignItems: 'stretch', justifyContent: 'flex-start' }}
-        onClick={onClick}
+      <Card
+        sx={{
+          width: coverWidth,
+          minWidth: coverWidth,
+          height: '100%',
+          borderRadius: 1.5,
+          overflow: 'hidden',
+          boxShadow: 2,
+          flexShrink: 0,
+        }}
       >
-        <Box sx={{ width: 60, position: 'relative' }}>
-          <CardMedia
-            component="img"
-            sx={{ 
-              width: 60, 
-              height: '90px', // 2:3 aspect ratio
-              objectFit: 'cover' 
-            }}
-            image={preferredSource?.cover_url || defaultCover}
-            alt={novel.title}
-          />
-        </Box>
-        <CardContent sx={{ flex: '1', paddingY: 1 }}>
-          <Typography 
-            variant="subtitle2" 
-            component="div" 
-            sx={{ 
-              fontWeight: 'medium',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 1,
-              WebkitBoxOrient: 'vertical',
-            }}
-          >
-            {novel.title}
-          </Typography>
-          
-          {novel.avg_rating !== undefined && (
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-              <Rating 
-                value={novel.avg_rating || 0} 
-                precision={0.5} 
-                readOnly 
-                size="small" 
-              />
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-                {novel.avg_rating?.toFixed(1) || 'N/A'}
+        <Box
+          component="img"
+          src={coverUrl}
+          alt={novel.title}
+          sx={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+      </Card>
+      
+      <Box sx={{ 
+        flexGrow: 1,
+        flexShrink: 1,
+        overflow: 'hidden',
+        p: 1.5,
+        display: 'flex', 
+        flexDirection: 'column', 
+        justifyContent: 'space-between',
+        height: '100%'
+      }}>
+        <Typography 
+          variant="body2"
+          component="h4" 
+          sx={{
+            fontWeight: 'bold',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 1,
+            WebkitBoxOrient: 'vertical',
+            mb: 0.5
+          }}
+        >
+          {novel.title}
+        </Typography>
+        
+        {showRating && (
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+            <Rating 
+              value={novel.avg_rating || 0} 
+              precision={0.1} 
+              size="small" 
+              readOnly 
+            />
+            <Typography variant="caption" component="span" sx={{ ml: 1, color: 'text.secondary' }}>
+              ({novel.rating_count || 0})
+            </Typography>
+          </Box>
+        )}
+        
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 0.25,
+          fontSize: '0.75rem',
+          color: 'text.secondary',
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <VisibilityIcon sx={{ fontSize: 14, flexShrink: 0 }} />
+            <Typography 
+              variant="caption" 
+              component="span"
+              noWrap
+              sx={{ 
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {formatter.format(showTrends ? (novel.weekly_views || 0) : (novel.total_views || 0))}
+              {showTrends ? ' (Weekly)' : ' (All times)'}
+            </Typography>
+          </Box>
+          {(showClicks || showTrends) && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <CommentIcon sx={{ fontSize: 14, flexShrink: 0 }} />
+              <Typography 
+                variant="caption" 
+                component="span"
+                noWrap
+                sx={{ 
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {formatter.format(0)} comments
               </Typography>
             </Box>
           )}
-          
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-            {novel.total_chapters} chapters
-          </Typography>
-        </CardContent>
-      </CardActionArea>
-    </Card>
+        </Box>
+      </Box>
+    </ButtonBase>
   );
 };
 

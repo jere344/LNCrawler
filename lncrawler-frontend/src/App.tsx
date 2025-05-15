@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import { CssBaseline, ThemeProvider as MuiThemeProvider } from "@mui/material";
+import { CssBaseline, ThemeProvider as MuiThemeProvider, Container } from "@mui/material";
 import { useLayoutEffect } from "react";
 import "./App.css";
 import { ThemeProvider, useTheme } from "@theme/ThemeContext";
@@ -37,24 +37,26 @@ function AppWithTheme() {
             <Wrapper>
                 <CssBaseline />
                 <Header />
-                <Routes>
-                    {/* Downloader routes */}
-                    <Route path="/download" element={<DownloaderHome />} />
-                    <Route path="/download/search/:jobId" element={<SearchResults />} />
-                    <Route path="/download/:jobId/:sourceIndex/:novelIndex" element={<DownloadForm />} />
-                    <Route path="/download/status/:jobId" element={<DownloadStatus />} />
-                    
-                    {/* Novel reading routes with new URL structure */}
-                    <Route path="/novels/search" element={<SearchPage />} />
-                    <Route path="/novels/:novelSlug" element={<NovelDetail />} />
-                    <Route path="/novels/:novelSlug/:sourceSlug" element={<SourceDetail />} />
-                    <Route path="/novels/:novelSlug/:sourceSlug/chapterlist" element={<ChapterList />} />
-                    <Route path="/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber" element={<ChapterReader />} />
-                    
-                    {/* Home page */}
-                    <Route path="/" element={<HomePage />} />
-                    
-                </Routes>
+                <Container maxWidth="lg" sx={{ px: { xs: 0, sm: 3, md: 4 }, py: 2 }}>
+                    <Routes>
+                        {/* Downloader routes */}
+                        <Route path="/download" element={<DownloaderHome />} />
+                        <Route path="/download/search/:jobId" element={<SearchResults />} />
+                        <Route path="/download/:jobId/:sourceIndex/:novelIndex" element={<DownloadForm />} />
+                        <Route path="/download/status/:jobId" element={<DownloadStatus />} />
+                        
+                        {/* Novel reading routes with new URL structure */}
+                        <Route path="/novels/search" element={<SearchPage />} />
+                        <Route path="/novels/:novelSlug" element={<NovelDetail />} />
+                        <Route path="/novels/:novelSlug/:sourceSlug" element={<SourceDetail />} />
+                        <Route path="/novels/:novelSlug/:sourceSlug/chapterlist" element={<ChapterList />} />
+                        <Route path="/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber" element={<ChapterReader />} />
+                        
+                        {/* Home page */}
+                        <Route path="/" element={<HomePage />} />
+                        
+                    </Routes>
+                </Container>
                 {/* <Footer /> */}
             </Wrapper>
         </MuiThemeProvider>

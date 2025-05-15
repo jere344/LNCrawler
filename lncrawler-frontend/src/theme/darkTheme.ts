@@ -6,24 +6,24 @@ export const getDarkTheme = () =>
         palette: {
             mode: "dark",
             primary: {
-                main: "#c8a4ff", // luminous purple
+                main: "#c8a4ff",
                 light: "#f4deff",
                 dark: "#9c78cc",
                 contrastText: "#11071e",
             },
             secondary: {
-                main: "#ad8ee6", // soft lavender
+                main: "#ad8ee6",
                 light: "#dfbeff",
                 dark: "#7c61b3",
                 contrastText: "#11071e",
             },
             background: {
-                default: "#13101a", // deep violet-tinted black
-                paper: "#1c1726", // rich dark purple-black
+                default: "#13101a",
+                paper: "#1c1726",
             },
             text: {
-                primary: "#e9e0f5", // soft white with purple tint
-                secondary: "#c3b8d9", // muted lavender
+                primary: "#e9e0f5",
+                secondary: "#c3b8d9",
             },
             error: {
                 main: "#f44336",
@@ -47,62 +47,71 @@ export const getDarkTheme = () =>
             },
         },
         typography: {
-            fontFamily: '"Nunito", "Noto Sans", "Roboto", "Helvetica", "Arial", sans-serif',
+            fontFamily: '"Inter", "Noto Sans JP", sans-serif',
+            fontSize: 14, // Reduced base font size
             h1: {
-                fontFamily: '"Libre Baskerville", "Georgia", serif',
+                fontFamily: '"Source Serif Pro", serif',
                 fontWeight: 700,
                 color: "#c8a4ff",
-                letterSpacing: "-0.01em",
+                letterSpacing: "-0.02em",
+                fontSize: "2.2rem", // Reduced from default
             },
             h2: {
-                fontFamily: '"Libre Baskerville", "Georgia", serif',
+                fontFamily: '"Source Serif Pro", serif',
                 fontWeight: 700,
                 color: "#c8a4ff",
-                letterSpacing: "-0.01em",
+                letterSpacing: "-0.02em",
+                fontSize: "1.9rem", // Reduced from default
             },
             h3: {
-                fontFamily: '"Libre Baskerville", "Georgia", serif',
+                fontFamily: '"Source Serif Pro", serif',
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
+                fontSize: "1.6rem", // Reduced from default
             },
             h4: {
-                fontFamily: '"Libre Baskerville", "Georgia", serif',
+                fontFamily: '"Source Serif Pro", serif',
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
+                fontSize: "1.4rem", // Reduced from default
             },
             h5: {
                 fontWeight: 600,
+                fontSize: "1.2rem", // Reduced from default
             },
             h6: {
                 fontWeight: 600,
+                fontSize: "1.05rem", // Reduced from default
             },
             subtitle1: {
                 fontWeight: 500,
-                fontSize: "1.1rem",
+                fontSize: "1rem", // Reduced from 1.1rem
             },
             subtitle2: {
                 fontWeight: 500,
-                fontSize: "0.95rem",
+                fontSize: "0.9rem", // Reduced from 0.95rem
             },
             body1: {
-                lineHeight: 1.7,
-                fontSize: "1.05rem",
+                lineHeight: 1.6, // Reduced from 1.7
+                fontSize: "0.95rem", // Reduced from 1.05rem
             },
             body2: {
-                lineHeight: 1.6,
+                lineHeight: 1.5, // Reduced from 1.6
+                fontSize: "0.875rem", // Added explicit size
             },
         },
+        spacing: 8, // Base spacing unit
         shape: {
-            borderRadius: 10,
+            borderRadius: 8, // Reduced from 10
         },
         components: {
             MuiButton: {
                 styleOverrides: {
                     root: {
-                        borderRadius: 8,
+                        borderRadius: 6, // Reduced from 8
                         textTransform: "none",
-                        padding: "8px 20px",
-                        fontSize: "0.95rem",
+                        padding: "6px 16px", // Reduced from 8px 20px
+                        fontSize: "0.875rem", // Reduced from 0.95rem
                         fontWeight: 600,
                     },
                     containedPrimary: {
@@ -121,8 +130,8 @@ export const getDarkTheme = () =>
             MuiCard: {
                 styleOverrides: {
                     root: {
-                        borderRadius: 12,
-                        boxShadow: "0 6px 16px rgba(0, 0, 0, 0.3)",
+                        borderRadius: 10, // Reduced from 12
+                        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)", // Reduced shadow
                         backgroundColor: "#1c1726",
                         backgroundImage: "linear-gradient(135deg, #1c1726 0%, #22182e 100%)",
                         transition: "transform 0.3s ease, box-shadow 0.3s ease",
@@ -157,21 +166,25 @@ export const getDarkTheme = () =>
                         backgroundImage: "none",
                     },
                     elevation1: {
-                        boxShadow: "0 2px 10px rgba(0, 0, 0, 0.2)",
+                        boxShadow: "0 1px 8px rgba(0, 0, 0, 0.2)", // Reduced shadow
                     },
                     elevation2: {
-                        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
+                        boxShadow: "0 2px 12px rgba(0, 0, 0, 0.25)", // Reduced shadow
                     },
                     elevation3: {
-                        boxShadow: "0 6px 18px rgba(0, 0, 0, 0.3)",
+                        boxShadow: "0 4px 14px rgba(0, 0, 0, 0.3)", // Reduced shadow
                     },
                 },
             },
             MuiChip: {
                 styleOverrides: {
                     root: {
-                        borderRadius: 16,
+                        borderRadius: 12, // Reduced from 16
                         fontWeight: 500,
+                        height: "28px", // More compact height
+                        "& .MuiChip-label": {
+                            padding: "0 10px", // Reduced padding
+                        },
                     },
                     colorPrimary: {
                         background: "linear-gradient(135deg, #9c78cc 0%, #c8a4ff 100%)",
@@ -181,7 +194,7 @@ export const getDarkTheme = () =>
             MuiTypography: {
                 styleOverrides: {
                     gutterBottom: {
-                        marginBottom: "0.8em",
+                        marginBottom: "0.6em", // Reduced from 0.8em
                     },
                 },
             },
@@ -204,6 +217,30 @@ export const getDarkTheme = () =>
                         "&::-webkit-scrollbar-thumb:hover": {
                             background: "#c8a4ff",
                         },
+                    },
+                    // Add more compact defaults
+                    "& .MuiContainer-root": {
+                        paddingLeft: "12px",
+                        paddingRight: "12px",
+                    },
+                    "& .MuiCardContent-root": {
+                        padding: "16px", // Reduced padding
+                        "&:last-child": {
+                            paddingBottom: "16px", // Consistent padding
+                        },
+                    },
+                    "& .MuiCardActions-root": {
+                        padding: "8px 12px", // Reduced padding
+                    },
+                    "& .MuiDialogContent-root": {
+                        padding: "16px", // Reduced padding
+                    },
+                    "& .MuiDialogActions-root": {
+                        padding: "8px 12px", // Reduced padding
+                    },
+                    "& .MuiListItem-root": {
+                        paddingTop: "6px", // Reduced padding
+                        paddingBottom: "6px", // Reduced padding
                     },
                 },
             },

@@ -22,11 +22,6 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
   rank 
 }) => {
   const preferredSource = novel.prefered_source;
-
-  // Calculate trend percentage if both total and weekly views are available
-  const trendPercentage = novel.total_views && novel.weekly_views 
-    ? Math.round((novel.weekly_views / novel.total_views) * 100)
-    : null;
   
   return (
     <Card 
@@ -38,8 +33,8 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         overflow: 'visible',
         transition: 'transform 0.3s ease, box-shadow 0.3s ease',
         '&:hover': {
-          transform: 'translateY(-5px) scale(1.02)',
-          boxShadow: '0px 10px 20px -5px rgba(0,0,0,0.2)',
+          transform: 'translateY(-3px) scale(1.01)',
+          boxShadow: '0px 6px 12px -3px rgba(0,0,0,0.2)',
         }
       }}
     >
@@ -47,19 +42,20 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         <Box 
           sx={{
             position: 'absolute',
-            top: -10,
-            left: -10,
+            top: -8,
+            left: -8,
             backgroundColor: 'primary.main',
             color: 'white',
             borderRadius: '50%',
-            width: 36,
-            height: 36,
+            width: 30,
+            height: 30,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: 'bold',
             boxShadow: 2,
-            zIndex: 1
+            zIndex: 1,
+            fontSize: '0.9rem'
           }}
         >
           {rank}
@@ -75,23 +71,23 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
             <Box sx={{ 
               bgcolor: 'error.main', 
               color: 'white', 
-              px: 1, 
-              py: 0.5, 
+              px: 0.7, 
+              py: 0.3, 
               borderRadius: 1,
               display: 'flex',
               alignItems: 'center',
-              gap: 0.5
+              gap: 0.3
             }}>
-              <WhatshotIcon fontSize="small" />
-              <Typography variant="caption" fontWeight="bold">
+              <WhatshotIcon sx={{ fontSize: '0.9rem' }} />
+              <Typography variant="caption" fontWeight="bold" fontSize="0.7rem">
                 HOT
               </Typography>
             </Box>
           }
           sx={{
             '& .MuiBadge-badge': {
-              top: 16,
-              right: 16,
+              top: 12,
+              right: 12,
               border: '2px solid',
               borderColor: 'background.paper',
             },
@@ -112,10 +108,17 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
           />
         </Badge>
         
-        <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5 }}>
+        <CardContent sx={{ 
+          flexGrow: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          pt: 1, 
+          pb: 1, 
+          px: 1.5,
+          '&:last-child': { pb: 1 }
+        }}>
           <Typography 
-            gutterBottom 
-            variant="h6" 
+            variant="subtitle1" 
             component="div" 
             sx={{ 
               fontWeight: 'bold',
@@ -123,50 +126,40 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               display: '-webkit-box',
-              WebkitLineClamp: 2,
+              WebkitLineClamp: 1,
               WebkitBoxOrient: 'vertical',
-              mb: 1
+              mb: 0.5
             }}
           >
             {novel.title}
           </Typography>
           
-          {/* Trending statistics */}
-          <Box sx={{ mt: 'auto' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <TrendingUpIcon color="error" />
-              <Typography 
-                variant="body1" 
-                color="error.main" 
-                fontWeight="bold" 
-                sx={{ ml: 1 }}
-              >
-                {formatCount(novel.weekly_views || 0)} views this week
-              </Typography>
-            </Box>
-            
-            {trendPercentage !== null && trendPercentage > 5 && (
-              <Chip 
-                label={`${trendPercentage}% of all views are from this week!`}
-                color="error"
-                size="small"
-                sx={{ fontWeight: 'bold' }}
-              />
-            )}
-            
-            {preferredSource?.genres && preferredSource.genres.length > 0 && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                {preferredSource.genres.slice(0, 2).map((genre, index) => (
-                  <Chip 
-                    key={index}
-                    label={genre}
-                    size="small"
-                    color="secondary"
-                  />
-                ))}
-              </Box>
-            )}
+          {/* Trending statistics - simplified */}
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 'auto' }}>
+            <TrendingUpIcon color="error" sx={{ fontSize: '1rem' }} />
+            <Typography 
+              variant="body2" 
+              color="error.main" 
+              fontWeight="bold" 
+              sx={{ ml: 0.5, fontSize: '0.85rem' }}
+            >
+              {formatCount(novel.weekly_views || 0)} views
+            </Typography>
           </Box>
+          
+          {preferredSource?.genres && preferredSource.genres.length > 0 && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+              {preferredSource.genres.slice(0, 1).map((genre, index) => (
+                <Chip 
+                  key={index}
+                  label={genre}
+                  size="small"
+                  color="secondary"
+                  sx={{ height: 20, '& .MuiChip-label': { px: 1, py: 0, fontSize: '0.7rem' } }}
+                />
+              ))}
+            </Box>
+          )}
         </CardContent>
       </CardActionArea>
     </Card>
