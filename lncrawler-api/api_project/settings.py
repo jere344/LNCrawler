@@ -188,6 +188,23 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'auth_app.CustomUser'
 
+import logging
+
+# Define a custom UTF-8 stream handler
+class UTF8StreamHandler(logging.StreamHandler):
+    def __init__(self):
+        super().__init__()
+        
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            stream = self.stream
+            # Ensure the message is encoded as UTF-8
+            stream.write(msg + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -207,12 +224,12 @@ LOGGING = {
     },
     'handlers': {
         'django_console': {
-            'class': 'logging.StreamHandler',
+            'class': 'api_project.settings.UTF8StreamHandler',
             'formatter': 'django_formatter',
             'level': 'DEBUG',
         },
         'lncrawler_api_console': {
-            'class': 'logging.StreamHandler',
+            'class': 'api_project.settings.UTF8StreamHandler',
             'formatter': 'lncrawler_api_formatter',
             'level': 'DEBUG',
         },
@@ -220,16 +237,19 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
             'formatter': 'django_formatter',
+            'encoding': 'utf-8',
         },
         'apibot_file': { 
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'apibot.log'),
             'formatter': 'apibot_formatter',
+            'encoding': 'utf-8',
         },
         'lncrawler_api_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'lncrawler_api.log'),
             'formatter': 'lncrawler_api_formatter',
+            'encoding': 'utf-8',
         },
     },
     'loggers': {

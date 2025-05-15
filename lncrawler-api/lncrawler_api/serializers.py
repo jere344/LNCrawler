@@ -5,6 +5,7 @@ from .models.novels_models import (
     NovelViewCount, WeeklyNovelView
 )
 from django.db.models import Avg, F, ExpressionWrapper, IntegerField
+from urllib.parse import quote
 
 
 class BasicNovelSerializer(serializers.ModelSerializer):
@@ -159,7 +160,8 @@ class NovelSourceSerializer(serializers.ModelSerializer):
 
     def get_cover_url(self, obj):
         if obj.cover_path:
-            return f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}/{settings.LNCRAWL_OUTPUT_PATH}/{obj.cover_path}"
+            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.cover_path}", safe=':/')
+            return 
         return None
     
     def get_authors(self, obj):
