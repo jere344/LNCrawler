@@ -1,5 +1,4 @@
 import { Box, Chip, Typography, useTheme, alpha } from '@mui/material';
-import BookmarkIcon from '@mui/icons-material/Bookmark'; // Optional: if you want an icon
 
 interface NovelGenresProps {
   genres: string[];
@@ -30,13 +29,12 @@ const NovelGenres: React.FC<NovelGenresProps> = ({
         <Typography 
           variant={titleVariant}
           sx={{ 
-            color: textColor || alpha(theme.palette.common.white, 0.7), // Default to white for hero, adaptable otherwise
+            color: textColor || alpha(theme.palette.common.white, 0.7),
             mb: 1,
             display: 'flex',
             alignItems: 'center',
           }}
         >
-          {/* Optional: <BookmarkIcon sx={{ mr: 1, fontSize: '1rem', color: textColor || theme.palette.primary.main }} /> */}
           {title}:
         </Typography>
       )}

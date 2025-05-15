@@ -23,14 +23,20 @@ export interface Novel {
 }
 
 export interface SearchSource {
-  name: string;
   url: string;
-  novels: Novel[];
+  info: string;
+  index: number;
+}
+
+export interface SearchResult {
+  index: number;
+  title: string;
+  sources: SearchSource[];
 }
 
 export interface SearchResults {
   status: string;
-  results: SearchSource[];
+  results: SearchResult[];
 }
 
 // Download-related types

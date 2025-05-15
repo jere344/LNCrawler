@@ -20,7 +20,8 @@ import {
   Select,
   MenuItem,
   Grid,
-  Stack
+  Stack,
+  SelectChangeEvent
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -101,9 +102,9 @@ const ChapterList = () => {
     setPage(value);
   };
 
-  const handlePageSizeChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    setPageSize(event.target.value as number);
-    setPage(1); // Reset to first page when changing page size
+  const handlePageSizeChange = (event: SelectChangeEvent<number>) => {
+    setPageSize(Number(event.target.value));
+    setPage(1);
   };
 
   const filteredVolumes = Object.entries(volumeChapters).reduce((acc: { [key: number]: Chapter[] }, [volume, chapters]) => {

@@ -1,4 +1,4 @@
-import { Box, Container, Typography, Link, Divider, Grid, useMediaQuery, Button } from "@mui/material";
+import { Box, Container, Typography, Link, Divider, Grid } from "@mui/material";
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
@@ -7,7 +7,6 @@ import EmailIcon from '@mui/icons-material/Email';
 // Footer component with developer information and links
 const Footer = () => {
     const muiTheme = useMuiTheme();
-    const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
     const currentYear = new Date().getFullYear();
 
     return (

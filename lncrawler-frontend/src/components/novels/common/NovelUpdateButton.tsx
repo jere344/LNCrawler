@@ -126,7 +126,7 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
 
       {updateComplete && downloadStatus && (
         <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>
-          Update complete for {novelTitle}! {downloadStatus.output_files ? `${downloadStatus.output_files.length} file(s) processed.` : ''}
+          Update complete for {novelTitle}!
         </Alert>
       )}
       

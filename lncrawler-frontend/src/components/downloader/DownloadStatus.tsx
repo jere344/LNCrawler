@@ -8,9 +8,6 @@ import {
   Button,
   Alert,
   Divider,
-  List,
-  ListItem,
-  ListItemText,
   Container
 } from '@mui/material';
 import { downloadService } from '@services/api';

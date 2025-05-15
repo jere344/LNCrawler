@@ -124,11 +124,7 @@ const ChapterReader = () => {
   const handleBackToSource = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
   };
-
-  const handleBackToNovel = () => {
-    navigate(`/novels/${novelSlug}`);
-  };
-
+  
   const handleNextChapter = () => {
     if (chapter?.next_chapter) {
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}`);

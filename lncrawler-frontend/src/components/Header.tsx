@@ -1,4 +1,4 @@
-import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Button, Link } from "@mui/material";
+import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Link } from "@mui/material";
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import SearchIcon from '@mui/icons-material/Search';
@@ -12,7 +12,6 @@ import { useState } from "react";
 // Import logos
 import logoLight from "@assets/logo-transparent.png";
 import logoDark from "@assets/logo-transparent-dark.png";
-import logoFull from "@assets/logo.png";
 
 // Discord icon component (Material UI doesn't have a built-in Discord icon)
 const DiscordIcon = () => (
@@ -33,6 +32,7 @@ const Header = () => {
     // Determine the current path for active tab highlighting
     const getCurrentPath = () => {
         if (location.pathname.startsWith('/download')) return '/download';
+        if (location.pathname.startsWith('/novels')) return '/novels';
         if (location.pathname === '/') return '/';
         return location.pathname;
     };
