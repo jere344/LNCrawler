@@ -12,10 +12,12 @@ import {
   Divider,
   ListItemButton,
   ListItemText,
-  LinearProgress
+  LinearProgress,
+  Container
 } from '@mui/material';
 import { searchService } from '@services/api';
 import { SearchStatus, SearchResults as SearchResultsType } from '@models/downloader_types';
+import DownloadStepper from './DownloadStepper';
 
 const POLLING_INTERVAL = 2000; // 2 seconds
 
@@ -99,106 +101,123 @@ const SearchResults = () => {
 
   if (loading) { // Simplified loading condition
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
-        <CircularProgress size={40} />
-        <Typography sx={{ mt: 2 }}>Initializing search...</Typography>
-      </Box>
+      <Container maxWidth="md">
+        <DownloadStepper activeStep="search" />
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
+          <CircularProgress size={40} />
+          <Typography sx={{ mt: 2 }}>Initializing search...</Typography>
+        </Box>
+      </Container>
     );
   }
 
   if (error || (status && status.error)) {
-    return <Alert severity="error">{error || status?.error || 'An error occurred'}</Alert>;
+    return (
+      <Container maxWidth="md">
+        <DownloadStepper activeStep="search" />
+        <Alert severity="error">{error || status?.error || 'An error occurred'}</Alert>
+      </Container>
+    );
   }
 
   if (!status?.search_completed) {
     // Display search progress
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4, maxWidth: 'md', mx: 'auto' }}>
-        <Typography variant="h5" gutterBottom>
-          Searching for novels...
-        </Typography>
-        
-        <Box sx={{ width: '100%', mb: 3 }}>
-          <Typography variant="body2" gutterBottom>
-            {status?.status_display || 'Initializing...'}
+      <Container maxWidth="md">
+        <DownloadStepper activeStep="search" />
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4, maxWidth: 'md', mx: 'auto' }}>
+          <Typography variant="h5" gutterBottom>
+            Searching for novels...
           </Typography>
           
-          <LinearProgress 
-            variant="determinate" 
-            value={status?.progress_percentage || 0} 
-            sx={{ height: 10, borderRadius: 1 }}
-          />
-          
-          {status?.progress !== undefined && status?.total_items !== undefined && (
-            <Typography variant="body2" sx={{ mt: 1 }} textAlign="right">
-              {status.progress} / {status.total_items} items
+          <Box sx={{ width: '100%', mb: 3 }}>
+            <Typography variant="body2" gutterBottom>
+              {status?.status_display || 'Initializing...'}
             </Typography>
-          )}
+            
+            <LinearProgress 
+              variant="determinate" 
+              value={status?.progress_percentage || 0} 
+              sx={{ height: 10, borderRadius: 1 }}
+            />
+            
+            {status?.progress !== undefined && status?.total_items !== undefined && (
+              <Typography variant="body2" sx={{ mt: 1 }} textAlign="right">
+                {status.progress} / {status.total_items} items
+              </Typography>
+            )}
+          </Box>
+          
+          <Typography variant="body2" color="text.secondary">
+            Please wait while we search for your novel. This may take a few moments.
+          </Typography>
+          
+          <Button 
+            variant="outlined" 
+            sx={{ mt: 3 }} 
+            onClick={() => navigate('/')}
+          >
+            Cancel Search
+          </Button>
         </Box>
-        
-        <Typography variant="body2" color="text.secondary">
-          Please wait while we search for your novel. This may take a few moments.
-        </Typography>
-        
-        <Button 
-          variant="outlined" 
-          sx={{ mt: 3 }} 
-          onClick={() => navigate('/')}
-        >
-          Cancel Search
-        </Button>
-      </Box>
+      </Container>
     );
   }
 
   if (results && results.status === 'success') {
     return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h5" gutterBottom>
-          Search Results
-        </Typography>
-        
-        <Button 
-          variant="outlined" 
-          sx={{ mb: 2 }} 
-          onClick={() => navigate('/')}
-        >
-          New Search
-        </Button>
+      <Container maxWidth="md">
+        <DownloadStepper activeStep="select" />
+        <Box sx={{ p: 2 }}>
+          <Typography variant="h5" gutterBottom>
+            Search Results
+          </Typography>
+          
+          <Button 
+            variant="outlined" 
+            sx={{ mb: 2 }} 
+            onClick={() => navigate('/')}
+          >
+            New Search
+          </Button>
 
-        {results.results && results.results.length > 0 ? (
-          results.results.map((source, sourceIndex) => (
-            <Card key={`source-${sourceIndex}`} sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6">{source.title}</Typography>
-                
-                <List>
-                  {source.sources.map((novel, novelIndex) => (
-                    <Box key={`novel-${novelIndex}`}>
-                      {novelIndex > 0 && <Divider />}
-                      <ListItemButton onClick={() => handleNovelSelect(sourceIndex, novelIndex)}>
-                        <ListItemText 
-                          primary={source.title} 
-                          secondary={novel.url} 
-                        />
-                      </ListItemButton>
-                    </Box>
-                  ))}
-                </List>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <Alert severity="info">No novels found matching your query. Please try a different search term.</Alert>
-        )}
-      </Box>
+          {results.results && results.results.length > 0 ? (
+            results.results.map((source, sourceIndex) => (
+              <Card key={`source-${sourceIndex}`} sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6">{source.title}</Typography>
+                  
+                  <List>
+                    {source.sources.map((novel, novelIndex) => (
+                      <Box key={`novel-${novelIndex}`}>
+                        {novelIndex > 0 && <Divider />}
+                        <ListItemButton onClick={() => handleNovelSelect(sourceIndex, novelIndex)}>
+                          <ListItemText 
+                            primary={source.title} 
+                            secondary={novel.url} 
+                          />
+                        </ListItemButton>
+                      </Box>
+                    ))}
+                  </List>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Alert severity="info">No novels found matching your query. Please try a different search term.</Alert>
+          )}
+        </Box>
+      </Container>
     );
   }
 
   return (
-    <Alert severity="warning">
-      Unexpected response format. Please try searching again.
-    </Alert>
+    <Container maxWidth="md">
+      <DownloadStepper activeStep="search" />
+      <Alert severity="warning">
+        Unexpected response format. Please try searching again.
+      </Alert>
+    </Container>
   );
 };
 

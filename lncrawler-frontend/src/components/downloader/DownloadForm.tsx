@@ -6,10 +6,12 @@ import {
   Button,
   Paper,
   CircularProgress,
-  Alert
+  Alert,
+  Container
 } from '@mui/material';
 import { downloadService } from '@services/api';
 import { DownloadParams } from '@models/downloader_types';
+import DownloadStepper from './DownloadStepper';
 
 const DownloadForm = () => {
   const { jobId, sourceIndex = '0', novelIndex = '0' } = useParams<{
@@ -52,44 +54,47 @@ const DownloadForm = () => {
   };
 
   return (
-    <Paper sx={{ p: 3, maxWidth: 'md', mx: 'auto', mt: 2 }}>
-      <Typography variant="h5" gutterBottom>
-        Download Options
-      </Typography>
-      
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-      
-      <Box component="form" onSubmit={handleSubmit}>
-        <Typography variant="body1" sx={{ mb: 3 }}>
-          The novel will be downloaded in JSON format with all chapters included.
+    <Container maxWidth="md">
+      <DownloadStepper activeStep="download" />
+      <Paper sx={{ p: 3, maxWidth: 'md', mx: 'auto', mt: 2 }}>
+        <Typography variant="h5" gutterBottom>
+          Download Options
         </Typography>
         
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="outlined"
-            onClick={() => navigate(-1)}
-            disabled={loading}
-          >
-            Back
-          </Button>
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        
+        <Box component="form" onSubmit={handleSubmit}>
+          <Typography variant="body1" sx={{ mb: 3 }}>
+            The novel will be downloaded in JSON format with all chapters included.
+          </Typography>
           
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <CircularProgress size={24} sx={{ mr: 1 }} />
-                Starting Download...
-              </>
-            ) : (
-              'Start Download'
-            )}
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={() => navigate(-1)}
+              disabled={loading}
+            >
+              Back
+            </Button>
+            
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <CircularProgress size={24} sx={{ mr: 1 }} />
+                  Starting Download...
+                </>
+              ) : (
+                'Start Download'
+              )}
+            </Button>
+          </Box>
         </Box>
-      </Box>
-    </Paper>
+      </Paper>
+    </Container>
   );
 };
 
