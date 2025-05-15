@@ -10,7 +10,7 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, languageCodeToFlag, languageCodeToName, toLocalDate } from '@utils/Misc';
 
 export interface BaseNovelCardProps {
   novel: Novel;
@@ -64,15 +64,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
       </Card>
     );
   }
-
-  // Format date to show only date without time
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Unknown';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  // Get the last chapter update date
-  const lastUpdate = preferredSource?.last_chapter_update;
 
   return (
     <Card 
@@ -268,7 +259,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               <Tooltip title="Last Updated">
                 <Chip 
                   icon={<UpdateIcon />}
-                  label={formatDate(lastUpdate)}
+                  label={preferredSource?.last_chapter_update ? formatTimeAgo(toLocalDate(preferredSource?.last_chapter_update)) : 'Unknown'}
                   size="small"
                   variant="outlined"
                 />

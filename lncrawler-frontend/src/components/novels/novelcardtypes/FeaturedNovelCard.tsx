@@ -6,7 +6,7 @@ import StarIcon from '@mui/icons-material/Star';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgo, toLocalDateString } from '@utils/Misc';
+import { formatTimeAgo, toLocalDate } from '@utils/Misc';
 
 interface FeaturedNovelCardProps {
   novel: NovelFromSource;
@@ -148,7 +148,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <EditIcon fontSize="small" />
                   <Typography variant="caption">
-                    {novel.last_chapter_update ? formatTimeAgo(toLocalDateString(novel.last_chapter_update)) : 'Unknown'}
+                    {novel.last_chapter_update ? formatTimeAgo(toLocalDate(novel.last_chapter_update)) : 'Unknown'}
                   </Typography>
                 </Box>
               </Grid>

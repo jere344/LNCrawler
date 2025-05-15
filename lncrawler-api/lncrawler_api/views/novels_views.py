@@ -330,13 +330,13 @@ def search_novels(request):
         # Annotate with the most recent last_updated date among all sources
         if sort_order == "desc":
             novels_query = novels_query.annotate(
-                last_update=Max('sources__last_updated')
+                last_update=Max('sources__last_chapter_update')
             )
             order_field = "-last_update"
             novels_query = novels_query.order_by(order_field, "title")
         else:
             novels_query = novels_query.annotate(
-                last_update=Min('sources__last_updated')
+                last_update=Min('sources__last_chapter_update')
             )
             order_field = "last_update"
             novels_query = novels_query.order_by(order_field, "title")

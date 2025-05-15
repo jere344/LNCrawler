@@ -66,7 +66,7 @@ const SearchPage: React.FC = () => {
     searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
   );
   const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'title');
-  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'asc');
+  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
   
   // State for autocomplete options
   const [genreSuggestions, setGenreSuggestions] = useState<Suggestion[]>([]);
@@ -253,7 +253,7 @@ const SearchPage: React.FC = () => {
     setSelectedLanguage('');
     setMinRating(null);
     setSortBy('title');
-    setSortOrder('asc');
+    setSortOrder('desc');
     
     // Reset URL params to default
     setSearchParams(new URLSearchParams({ page: '1' }));

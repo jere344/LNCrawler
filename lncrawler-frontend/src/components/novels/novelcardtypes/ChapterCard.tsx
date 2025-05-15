@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Card, Typography, ButtonBase, Skeleton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, toLocalDateString } from '@utils/Misc';
+import { formatTimeAgo, getChapterName, toLocalDate } from '@utils/Misc';
 
 interface ChapterCardProps {
   source: NovelFromSource;
@@ -132,7 +132,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
               textOverflow: 'ellipsis',
             }}
           >
-            {source.last_chapter_update ? formatTimeAgo(toLocalDateString(source.last_chapter_update)) : 'Unknown'}
+            {source.last_chapter_update ? formatTimeAgo(toLocalDate(source.last_chapter_update)) : 'Unknown'}
           </Typography>
         </Box>
       </Box>

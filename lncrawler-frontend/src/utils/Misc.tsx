@@ -1,4 +1,4 @@
-export function toLocalDateString(dateString: string): Date {
+export function toLocalDate(dateString: string): Date {
     const date = new Date(dateString);
     const timezoneOffset = date.getTimezoneOffset() * 60 * 1000; // convert to milliseconds
     const localDate = new Date(date.getTime() + timezoneOffset);
