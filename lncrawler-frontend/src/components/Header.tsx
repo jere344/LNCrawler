@@ -9,11 +9,36 @@ import CheckIcon from '@mui/icons-material/Check';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 // Import logos
 import logoLight from "@assets/logo-transparent.png";
 import logoDark from "@assets/logo-transparent-dark.png";
+
+// Custom hook to track scroll direction
+const useScrollDirection = () => {
+  const [scrollDirection, setScrollDirection] = useState('up');
+  const [prevOffset, setPrevOffset] = useState(0);
+
+  const toggleScrollDirection = useCallback(() => {
+    const scrollY = window.scrollY;
+    if (scrollY === 0) {
+      setScrollDirection('up');
+    } else if (scrollY > prevOffset) {
+      setScrollDirection('down');
+    } else if (scrollY < prevOffset) {
+      setScrollDirection('up');
+    }
+    setPrevOffset(scrollY);
+  }, [prevOffset]);
+
+  useEffect(() => {
+    window.addEventListener('scroll', toggleScrollDirection);
+    return () => window.removeEventListener('scroll', toggleScrollDirection);
+  }, [toggleScrollDirection]);
+
+  return scrollDirection;
+};
 
 // Discord icon component (Material UI doesn't have a built-in Discord icon)
 const DiscordIcon = () => (
@@ -31,6 +56,7 @@ const Header = () => {
     const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
+    const scrollDirection = useScrollDirection();
     
     // Determine the current path for active tab highlighting
     const getCurrentPath = () => {
@@ -70,7 +96,17 @@ const Header = () => {
     const logoSrc = isDarkMode ? logoDark : logoLight;
 
     return (
-        <AppBar position="sticky" color="default" elevation={1}>
+        <AppBar 
+            position="sticky" 
+            color="default" 
+            elevation={1}
+            sx={{ 
+                transition: 'transform 0.3s ease-in-out',
+                ...(isMobile && {
+                    transform: scrollDirection === 'down' ? 'translateY(-100%)' : 'translateY(0)',
+                })
+            }}
+        >
             <Toolbar sx={{ justifyContent: 'space-between' }}>
                 {/* Logo/Home section */}
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
