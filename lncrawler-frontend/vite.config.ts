@@ -15,5 +15,43 @@ export default defineConfig({
       '@config': path.resolve(__dirname, './src/config'),
       '@utils': path.resolve(__dirname, './src/utils'),
     }
-  }
+  },
+  build: {
+    // Output directory
+    outDir: 'dist',
+    
+    // Ensure JavaScript files are properly emitted with correct types
+    assetsDir: 'assets',
+    
+    // Configure rollup options
+    rollupOptions: {
+      output: {
+        // Ensure proper file extensions and MIME types
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
+    },
+    
+    // Minify options
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: false, // Keep console logs for debugging
+        drop_debugger: true,
+      },
+    },
+    
+    // Sourcemaps for easier debugging
+    sourcemap: true,
+  },
+  // Server options
+  server: {
+    host: true,
+    port: 8185,
+    // Use consistent content types
+    fs: {
+      strict: true,
+    },
+  },
 })

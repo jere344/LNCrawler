@@ -16,8 +16,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(encoding='utf-8')
 
-SITE_URL = os.environ.get("SITE_URL", "http://localhost:5173")
-SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000")
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185")
+SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8186")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -32,7 +32,7 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-CORS_ORIGIN_WHITELIST = tuple(os.environ.get("CORS_ORIGIN_WHITELIST", "http://localhost:5173,http://127.0.0.1:5173").split(","))
+CORS_ORIGIN_WHITELIST = tuple(os.environ.get("CORS_ORIGIN_WHITELIST", "http://localhost:8185,http://127.0.0.1:8185").split(","))
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -43,11 +43,11 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+CSRF_TRUSTED_ORIGINS = CORS_ORIGIN_WHITELIST
 
 # Security settings for HTTPS
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True  # Redirect HTTP to HTTPS
+    SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

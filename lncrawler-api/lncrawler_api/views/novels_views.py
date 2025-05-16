@@ -430,20 +430,16 @@ def autocomplete_suggestion(request):
 @api_view(["GET"])
 def random_featured_novel(request):
     """
-    Get a random featured novel
+    Get a random featured novel or a random novel if no featured novels are available
     """
-    # Count featured novels
-    featured_count = FeaturedNovel.objects.count()
-    
-    if featured_count == 0:
-        return Response(
-            {"error": "No featured novels available"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    
-    # Get a random featured novel
     import random
-    random_index = random.randint(0, featured_count - 1)
+
+    featured_count = FeaturedNovel.objects.count()
+    if featured_count == 0:
+        random_index = random.randint(0, Novel.objects.count() - 1)
+    else:
+        random_index = random.randint(0, featured_count - 1)
+        
     featured = FeaturedNovel.objects.all()[random_index]
     
     # Get the novel and serialize it
