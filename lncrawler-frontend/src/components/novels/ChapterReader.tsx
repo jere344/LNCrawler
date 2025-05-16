@@ -222,12 +222,17 @@ const ChapterReader = () => {
       case 'none':
         // Do nothing
         break;
-      case 'scroll':
-        // Scroll one viewport height up or down
-        const direction = edge === 'left' ? -1 : 1;
-        const scrollAmount = window.innerHeight * 0.8 * direction;
+      case 'scrollUp':
+        // Scroll up by 80% of viewport height
         window.scrollBy({
-          top: scrollAmount,
+          top: -window.innerHeight * 0.8,
+          behavior: 'smooth'
+        });
+        break;
+      case 'scrollDown':
+        // Scroll down by 80% of viewport height
+        window.scrollBy({
+          top: window.innerHeight * 0.8,
           behavior: 'smooth'
         });
         break;
@@ -465,7 +470,11 @@ const ChapterReader = () => {
                   fontSize: `${readerSettings.fontSize}px`, 
                   lineHeight: readerSettings.lineSpacing,
                   textAlign: readerSettings.textAlign,
-                  fontFamily: readerSettings.fontFamily || undefined
+                  fontFamily: readerSettings.fontFamily || undefined,
+                  userSelect: readerSettings.textSelectable ? 'text' : 'none',
+                  WebkitUserSelect: readerSettings.textSelectable ? 'text' : 'none',
+                  MozUserSelect: readerSettings.textSelectable ? 'text' : 'none',
+                  msUserSelect: readerSettings.textSelectable ? 'text' : 'none',
                 }}
                 dangerouslySetInnerHTML={{ __html: chapter.body }}
               />

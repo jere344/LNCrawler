@@ -3,7 +3,7 @@ import {
   Drawer, Box, Typography, IconButton, Divider, Button, Slider,
   FormControl, InputLabel, Select, MenuItem, ToggleButtonGroup, ToggleButton,
   Popover, useTheme, useMediaQuery, SelectChangeEvent,
-  Grid2 as Grid,
+  Grid2 as Grid, Switch, FormControlLabel,
 } from '@mui/material';
 import { ColorResult, ChromePicker } from 'react-color';
 import Cookies from 'js-cookie';
@@ -17,6 +17,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CloseIcon from '@mui/icons-material/Close';
 import ClearIcon from '@mui/icons-material/Clear';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import VerticalAlignTopIcon from '@mui/icons-material/VerticalAlignTop';
 import VerticalAlignBottomIcon from '@mui/icons-material/VerticalAlignBottom';
 import BlockIcon from '@mui/icons-material/Block';
 
@@ -24,7 +25,7 @@ import BlockIcon from '@mui/icons-material/Block';
 const COOKIE_PREFIX = 'lncrawler_reader_';
 const COOKIE_EXPIRY = 365; // days
 
-export type EdgeTapBehavior = 'none' | 'scroll' | 'chapter';
+export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 
 export interface ReaderSettings {
   fontSize: number;
@@ -38,6 +39,7 @@ export interface ReaderSettings {
   dimLevel: number;
   leftEdgeTapBehavior: EdgeTapBehavior;
   rightEdgeTapBehavior: EdgeTapBehavior;
+  textSelectable: boolean;
 }
 
 // Default settings
@@ -53,6 +55,7 @@ export const defaultSettings: ReaderSettings = {
   dimLevel: 0,
   leftEdgeTapBehavior: 'none',
   rightEdgeTapBehavior: 'none',
+  textSelectable: true,
 };
 
 export interface ChapterInfo {
@@ -95,7 +98,8 @@ const readingModeOptions = [
 
 const edgeTapOptions = [
   { name: 'Do Nothing', value: 'none', icon: BlockIcon },
-  { name: 'Scroll Page', value: 'scroll', icon: VerticalAlignBottomIcon },
+  { name: 'Scroll Up', value: 'scrollUp', icon: VerticalAlignTopIcon },
+  { name: 'Scroll Down', value: 'scrollDown', icon: VerticalAlignBottomIcon },
   { name: 'Change Chapter', value: 'chapter', icon: ChevronRightIcon },
 ];
 
@@ -193,6 +197,12 @@ const ReaderSettings = ({
     const newSettings = { ...settings, [key]: value };
     onSettingChange(newSettings);
     saveSetting(key, value);
+  };
+
+  const handleTextSelectableChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newSettings = { ...settings, textSelectable: event.target.checked };
+    onSettingChange(newSettings);
+    saveSetting('textSelectable', event.target.checked);
   };
 
   const saveSetting = (key: string, value: any) => {
@@ -578,6 +588,20 @@ const ReaderSettings = ({
       </Box>
 
       <Divider sx={{ my: 2 }} />
+
+      {/* Text Selection Toggle */}
+      <Box sx={{ mb: 3 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={settings.textSelectable}
+              onChange={handleTextSelectableChange}
+              color="primary"
+            />
+          }
+          label="Allow Text Selection/Copy"
+        />
+      </Box>
 
       {/* Edge Tap Behavior */}
       <Box sx={{ mb: 3 }}>
