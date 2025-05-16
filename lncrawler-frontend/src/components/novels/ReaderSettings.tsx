@@ -42,7 +42,7 @@ export type EdgeTapBehavior = 'none' | 'scroll' | 'chapter';
 
 export interface ReaderSettings {
   fontSize: number;
-  fontFamily: string;
+  fontFamily: string | null;
   textAlign: 'left' | 'center' | 'justify' | 'right';
   fontColor: string | null;
   backgroundColor: string | null;
@@ -57,7 +57,7 @@ export interface ReaderSettings {
 // Default settings
 export const defaultSettings: ReaderSettings = {
   fontSize: 18,
-  fontFamily: 'Arial, sans-serif',
+  fontFamily: null,
   textAlign: 'justify',
   fontColor: null,
   backgroundColor: null,
@@ -87,10 +87,11 @@ interface ReaderSettingsProps {
 
 interface FontOption {
   name: string;
-  value: string;
+  value: string | null;
 }
 
 const fontOptions: FontOption[] = [
+  { name: 'Default (theme font)', value: null },
   { name: 'Arial', value: 'Arial, sans-serif' },
   { name: 'Times New Roman', value: 'Times New Roman, serif' },
   { name: 'Georgia', value: 'Georgia, serif' },
@@ -135,9 +136,10 @@ const ReaderSettings = ({
   };
 
   const handleFontFamilyChange = (event: SelectChangeEvent) => {
-    const newSettings = { ...settings, fontFamily: event.target.value };
+    const value = event.target.value === "null" ? null : event.target.value;
+    const newSettings = { ...settings, fontFamily: value };
     onSettingChange(newSettings);
-    saveSetting('fontFamily', event.target.value);
+    saveSetting('fontFamily', value);
   };
 
   const handleTextAlignChange = (_event: React.MouseEvent<HTMLElement>, newValue: string | null) => {
@@ -346,12 +348,16 @@ const ReaderSettings = ({
         <FormControl fullWidth variant="outlined" size="small">
           <InputLabel>Font</InputLabel>
           <Select
-            value={settings.fontFamily}
+            value={settings.fontFamily === null ? "null" : settings.fontFamily}
             onChange={handleFontFamilyChange}
             label="Font"
           >
             {fontOptions.map((font) => (
-              <MenuItem key={font.value} value={font.value} style={{ fontFamily: font.value }}>
+              <MenuItem 
+                key={font.name} 
+                value={font.value === null ? "null" : font.value}
+                style={{ fontFamily: font.value || undefined }}
+              >
                 {font.name}
               </MenuItem>
             ))}

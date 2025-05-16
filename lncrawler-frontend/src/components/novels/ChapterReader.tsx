@@ -466,7 +466,7 @@ const ChapterReader = () => {
                   fontSize: `${readerSettings.fontSize}px`, 
                   lineHeight: readerSettings.lineSpacing,
                   textAlign: readerSettings.textAlign,
-                  fontFamily: readerSettings.fontFamily
+                  fontFamily: readerSettings.fontFamily || undefined
                 }}
                 dangerouslySetInnerHTML={{ __html: chapter.body }}
               />

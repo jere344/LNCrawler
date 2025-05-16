@@ -21,7 +21,7 @@
 
 @font-face {
   font-family: 'OpenDyslexic';
-  src: url('/fonts/OpenDyslexic-BoldItalic.otf') format('opentype');
+  src: url('/fonts/OpenDyslexic-Bold-Italic.otf') format('opentype');
   font-weight: bold;
   font-style: italic;
 }

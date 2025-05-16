@@ -47,7 +47,7 @@ const HomePage: React.FC = () => {
   const [featuredError, setFeaturedError] = useState<string | null>(null);
 
   // Rankings tab state
-  const [rankingTab, setRankingTab] = useState<number>(0);
+  const [rankingTab, setRankingTab] = useState<number>(1);
 
   const handleNovelClick = (novelSlug: string, sourceSlug?: string) => {
     if (sourceSlug) {
@@ -57,7 +57,7 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const handleRankingTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleRankingTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setRankingTab(newValue);
   };
 
