@@ -152,11 +152,6 @@ const CommentItem = ({
                 cursor: 'pointer',
                 transition: 'filter 0.2s',
                 p: 1,
-                borderLeft: '4px solid #f5c842',
-                bgcolor: 'rgba(255, 244, 229, 0.2)',
-                '&:hover': {
-                  bgcolor: 'rgba(255, 244, 229, 0.5)',
-                }
               }}
             >
               {comment.message}

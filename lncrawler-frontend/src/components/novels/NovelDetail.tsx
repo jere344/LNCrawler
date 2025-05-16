@@ -5,7 +5,6 @@ import FlagIcon from '@mui/icons-material/Flag';
 import {
   Container,
   Typography,
-  Grid,
   Box,
   Paper,
   CardMedia,
@@ -15,6 +14,7 @@ import {
   alpha,
   Skeleton,
   Zoom,
+  Grid2 as Grid,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -146,7 +146,7 @@ const NovelDetail = () => {
         >
           <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={4} lg={3}>
+              <Grid size={{ xs: 12, md: 4, lg: 3 }}>
                 <Skeleton 
                   variant="rectangular" 
                   sx={{ 
@@ -158,7 +158,7 @@ const NovelDetail = () => {
                 />
               </Grid>
               
-              <Grid item xs={12} md={8} lg={9}>
+              <Grid size={{ xs: 12, md: 8, lg: 9 }}>
                 <Skeleton variant="text" height={60} width="80%" sx={{ mb: 1 }} />
                 
                 <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
@@ -284,7 +284,7 @@ const NovelDetail = () => {
           {/* region Misc metadata */}
             <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={4} lg={3}>
+              <Grid size={{ xs: 12, md: 4, lg: 3 }}>
                 <Zoom in={true} timeout={1000}>
                   <Box
                     sx={{
@@ -355,7 +355,7 @@ const NovelDetail = () => {
                 </Zoom>
               </Grid>
               
-              <Grid item xs={12} md={8} lg={9}>
+              <Grid size={{ xs: 12, md: 8, lg: 9 }}>
                 <Typography 
                   variant="h3" 
                   gutterBottom 
@@ -528,12 +528,10 @@ const NovelDetail = () => {
                     <NovelGenres 
                       genres={primarySource.genres} 
                       chipSize="small"
-                      // textColor will default to a light color suitable for the hero section
                     />
                   </Box>
                 )}
                 
-                {/* Quick Start Button - Another prominent location for mobile users */}
                 <Box sx={{ mb: 3 }}>
                   <Button
                     variant="contained"

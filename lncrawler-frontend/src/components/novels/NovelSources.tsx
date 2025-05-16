@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Grid,
   Paper,
   Typography,
   Divider,
@@ -17,6 +16,7 @@ import {
   Tooltip,
   alpha,
   useTheme,
+  Grid2 as Grid,
 } from '@mui/material';
 import LanguageIcon from '@mui/icons-material/Language';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -66,7 +66,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick, h
 
       <Grid container spacing={3}>
         {novel.sources.map((source: any, index: number) => (
-          <Grid item xs={12} sm={6} md={4} key={source.id}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
             <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }}>
               <Card
                 sx={{

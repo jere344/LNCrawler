@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, Typography, Grid, useMediaQuery, useTheme, ButtonBase, Skeleton } from '@mui/material';
+import { Box, Card, Typography, useMediaQuery, useTheme, ButtonBase, Skeleton, Grid2 as Grid } from '@mui/material'; 
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CommentIcon from '@mui/icons-material/Comment';
 import StarIcon from '@mui/icons-material/Star';
@@ -25,10 +25,10 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
   if (isLoading) {
     return (
       <Grid container spacing={2}>
-        <Grid item xs={4} md={4} lg={2}>
+        <Grid size={{ xs: 4, md: 4, lg: 2 }}>
           <Skeleton variant="rectangular" sx={{ borderRadius: 1.5, width: coverWidth, height: coverHeight, mx: 'auto' }} />
         </Grid>
-        <Grid item xs={8} md={8} lg={10}>
+        <Grid size={{ xs: 8, md: 8, lg: 10 }}>
           <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Skeleton variant="text" height={isMobile ? 28 : 32} width="70%" sx={{ mb: 1 }} />
             <Skeleton variant="text" height={20} sx={{ mb: 0.5 }} />
@@ -37,7 +37,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
             
             <Grid container spacing={1} sx={{ mt: 'auto' }}>
               {[...Array(isMobile ? 4 : 6)].map((_, index) => (
-                <Grid item xs={6} sm={4} key={index}>
+                <Grid size={{ xs: 6, sm: 4 }} key={index}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Skeleton variant="circular" width={16} height={16} />
                     <Skeleton variant="text" width="80%" height={18} />
@@ -67,7 +67,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
       }}
     >
       <Grid container spacing={2}>
-        <Grid item xs={4} md={4} lg={2}>
+        <Grid size={{ xs: 4, md: 4, lg: 2 }}>
           <Card sx={{ 
             borderRadius: 1.5, 
             overflow: 'hidden',
@@ -89,7 +89,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
             />
           </Card>
         </Grid>
-        <Grid item xs={8} md={8} lg={10}>
+        <Grid size={{ xs: 8, md: 8, lg: 10 }}>
           <Box sx={{ height: '100%' }}>
             <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', mb: 1 }}>
               {novel.title}
@@ -107,7 +107,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
             />
             
             <Grid container spacing={1}>
-              <Grid item xs={6} sm={4}>
+              <Grid size={{ xs: 6, sm: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <VisibilityIcon fontSize="small" />
                   <Typography variant="caption">
@@ -116,7 +116,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
                 </Box>
               </Grid>
               
-              <Grid item xs={6} sm={4}>
+              <Grid size={{ xs: 6, sm: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <VisibilityIcon fontSize="small" />
                   <Typography variant="caption">
@@ -126,7 +126,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
               </Grid>
               
               {!isMobile && (
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <CommentIcon fontSize="small" />
                     <Typography variant="caption">
@@ -136,7 +136,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
                 </Grid>
               )}
               
-              <Grid item xs={6} sm={4}>
+              <Grid size={{ xs: 6, sm: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <StarIcon fontSize="small" />
                   <Typography variant="caption">
@@ -145,7 +145,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
                 </Box>
               </Grid>
               
-              <Grid item xs={6} sm={4}>
+              <Grid size={{ xs: 6, sm: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <EditIcon fontSize="small" />
                   <Typography variant="caption">
@@ -155,7 +155,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
               </Grid>
               
               {!isMobile && (
-                <Grid item xs={6} sm={4}>
+                <Grid size={{ xs: 6, sm: 4 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <BookmarkIcon fontSize="small" />
                     <Typography variant="caption">

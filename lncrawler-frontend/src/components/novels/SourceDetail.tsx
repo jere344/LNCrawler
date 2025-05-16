@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
-  Grid,
   Box,
   Paper,
   Button,
@@ -15,6 +14,7 @@ import {
   alpha,
   Skeleton,
   Zoom,
+  Grid2 as Grid,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -152,7 +152,7 @@ const SourceDetail = () => {
         >
           <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={4} lg={3}>
+              <Grid size={{ xs: 12, md: 4, lg: 3 }}>
                 <Box
                   sx={{
                     position: 'relative',
@@ -174,7 +174,7 @@ const SourceDetail = () => {
                 </Box>
               </Grid>
               
-              <Grid item xs={12} md={8} lg={9}>
+              <Grid size={{ xs: 12, md: 8, lg: 9 }}>
                 <Skeleton variant="text" width="80%" height={60} sx={{ mb: 1 }} animation="wave" />
                 <Skeleton variant="text" width="60%" height={40} sx={{ mb: 3 }} animation="wave" />
                 
@@ -199,11 +199,11 @@ const SourceDetail = () => {
                 />
                 
                 <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={12} sm={6} md={6}>
+                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
                     <Skeleton variant="rectangular" width="100%" height={60} sx={{ borderRadius: 2 }} animation="wave" />
                   </Grid>
                   
-                  <Grid item xs={12} sm={6} md={6}>
+                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
                     <Skeleton variant="rectangular" width="100%" height={60} sx={{ borderRadius: 2 }} animation="wave" />
                   </Grid>
                 </Grid>
@@ -260,7 +260,7 @@ const SourceDetail = () => {
           }}
         >
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Skeleton variant="text" width={100} height={30} sx={{ mb: 2 }} animation="wave" />
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {[...Array(5)].map((_, i) => (
@@ -269,7 +269,7 @@ const SourceDetail = () => {
               </Box>
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Skeleton variant="text" width={100} height={30} sx={{ mb: 2 }} animation="wave" />
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {[...Array(7)].map((_, i) => (
@@ -407,7 +407,7 @@ const SourceDetail = () => {
           
           <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={4} lg={3}>
+              <Grid size={{ xs: 12, md: 4, lg: 3 }}>
                 <Zoom in={true} timeout={1000}>
                   <Box
                     sx={{
@@ -464,7 +464,7 @@ const SourceDetail = () => {
                 </Zoom>
               </Grid>
               
-              <Grid item xs={12} md={8} lg={9}>
+              <Grid size={{ xs: 12, md: 8, lg: 9 }}>
                 <Typography 
                   variant="h3" 
                   gutterBottom 
@@ -582,7 +582,7 @@ const SourceDetail = () => {
                 
                 {/* Source stats with improved design */}
                 <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid item xs={12} sm={6} md={6}>
+                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
                     <Box
                       sx={{
                         display: 'flex',
@@ -606,7 +606,7 @@ const SourceDetail = () => {
                     </Box>
                   </Grid>
                   
-                  <Grid item xs={12} sm={6} md={6}>
+                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
                     <Box
                       sx={{
                         display: 'flex',
@@ -868,20 +868,20 @@ const SourceDetail = () => {
           >
             <Grid container spacing={3}>
               {source.genres.length > 0 && (
-                <Grid item xs={12} md={source.tags.length > 0 ? 6 : 12}>
+                <Grid size={{ xs: 12, md: source.tags.length > 0 ? 6 : 12 }}>
                   <NovelGenres 
                     genres={source.genres} 
                     title="Genres"
                     titleVariant="h6"
                     chipSize="medium"
-                    textColor={theme.palette.text.primary} // Use theme's primary text color
-                    showTitle={true} // Explicitly show title with icon (handled by NovelGenres if BookmarkIcon is used)
+                    textColor={theme.palette.text.primary}
+                    showTitle={true} 
                   />
                 </Grid>
               )}
               
               {source.tags.length > 0 && (
-                <Grid item xs={12} md={source.genres.length > 0 ? 6 : 12}>
+                <Grid size={{ xs: 12, md: source.genres.length > 0 ? 6 : 12 }}>
                   <NovelTags 
                     tags={source.tags} 
                     title="Tags"

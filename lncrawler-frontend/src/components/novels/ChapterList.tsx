@@ -19,9 +19,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
   Stack,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Grid2 as Grid,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -177,12 +177,12 @@ const ChapterList = () => {
 
         <Box sx={{ mt: 3, mb: 3 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item>
+            <Grid>
               <Typography variant="subtitle1">
                 {chapterData.count} Total Chapters
               </Typography>
             </Grid>
-            <Grid item xs>
+            <Grid size="grow">
               <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
                 <Typography variant="body2">
                   Page {chapterData.current_page} of {chapterData.total_pages}

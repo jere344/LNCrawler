@@ -1,7 +1,8 @@
 import React from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Rating, Chip, Skeleton, Grid, Tooltip
+  Typography, Box, Rating, Chip, Skeleton, Tooltip,
+  Grid2 as Grid,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -224,7 +225,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               } 
             }}
           >
-            <Grid item xs={5}>
+            <Grid size={5}>
               <Tooltip title="Total Chapters">
                 <Chip 
                   icon={<MenuBookIcon />}
@@ -235,7 +236,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               </Tooltip>
             </Grid>
             
-            <Grid item xs={7}>
+            <Grid size={7}>
               <Tooltip title="Status">
                 <Chip 
                   label={preferredSource?.status || 'Unknown'}
@@ -245,7 +246,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               </Tooltip>
             </Grid>
 
-            <Grid item xs={5}>
+            <Grid size={5}>
               <Tooltip title="Views">
                 <Chip 
                   icon={<VisibilityIcon />}
@@ -256,7 +257,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               </Tooltip>
             </Grid>
             
-            <Grid item xs={7}>
+            <Grid size={7}>
               <Tooltip title="Last Updated">
                 <Chip 
                   icon={<UpdateIcon />}

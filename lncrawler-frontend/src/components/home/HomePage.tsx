@@ -3,14 +3,13 @@ import {
   Container, 
   Typography, 
   Box, 
-  Grid, 
   Divider,
-  // CircularProgress, // Removed
   Button,
   useTheme,
   Paper,
   Tabs,
-  Tab
+  Tab,
+  Grid2 as Grid
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { novelService } from '@services/api';
@@ -221,7 +220,7 @@ const HomePage: React.FC = () => {
         {loadingTrending ? (
           <Grid container spacing={3}>
             {[...Array(4)].map((_, index) => (
-              <Grid item xs={6} sm={3} key={`trending-skeleton-${index}`}>
+              <Grid size={{ xs: 6, sm: 3 }} key={`trending-skeleton-${index}`}>
                 <TrendingNovelCard novel={{} as Novel} isLoading={true} rank={index + 1} />
               </Grid>
             ))}
@@ -231,7 +230,7 @@ const HomePage: React.FC = () => {
         ) : (
           <Grid container spacing={3}>
             {trendingNovels.slice(0, 4).map((novel, index) => (
-              <Grid item xs={6} sm={3} key={novel.id}>
+              <Grid size={{ xs: 6, sm: 3 }} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
                   onClick={() => handleNovelClick(novel.slug)}
@@ -258,7 +257,7 @@ const HomePage: React.FC = () => {
         {loadingTop ? (
           <Grid container spacing={2}>
             {[...Array(12)].map((_, index) => (
-              <Grid item xs={4} sm={3} md={2} lg={2} key={`top-skeleton-${index}`}>
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`top-skeleton-${index}`}>
                 <NovelItemCard novel={{} as Novel} isLoading={true} rank={index + 1} onClick={() => {}} />
               </Grid>
             ))}
@@ -268,7 +267,7 @@ const HomePage: React.FC = () => {
         ) : (
           <Grid container spacing={2}>
             {topNovels.slice(0, 12).map((novel, rank) => (
-              <Grid item xs={4} sm={3} md={2} lg={2} key={novel.id}>
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
                 <NovelItemCard 
                   novel={novel} 
                   onClick={() => handleNovelClick(novel.slug)}
@@ -311,7 +310,7 @@ const HomePage: React.FC = () => {
           {loadingTop ? (
             <Grid container spacing={1}>
               {[...Array(12)].map((_, index) => (
-                <Grid item xs={6} sm={4} md={3} key={`most-read-skeleton-${index}`}>
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`most-read-skeleton-${index}`}>
                   <CompactNovelCard novel={{} as Novel} isLoading={true} showClicks onClick={() => {}} />
                 </Grid>
               ))}
@@ -321,7 +320,7 @@ const HomePage: React.FC = () => {
           ) : (
             <Grid container spacing={1}>
               {topNovels.slice(0, 12).map((novel) => (
-                <Grid item xs={6} sm={4} md={3} key={novel.id}>
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
                     onClick={() => handleNovelClick(novel.slug)}
@@ -344,7 +343,7 @@ const HomePage: React.FC = () => {
           {loadingTrending ? (
             <Grid container spacing={1}>
               {[...Array(12)].map((_, index) => (
-                <Grid item xs={6} sm={4} md={3} key={`new-trends-skeleton-${index}`}>
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`new-trends-skeleton-${index}`}>
                   <CompactNovelCard novel={{} as Novel} isLoading={true} showTrends onClick={() => {}} />
                 </Grid>
               ))}
@@ -354,7 +353,7 @@ const HomePage: React.FC = () => {
           ) : (
             <Grid container spacing={1}>
               {trendingNovels.slice(0, 12).map((novel) => (
-                <Grid item xs={6} sm={4} md={3} key={novel.id}>
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
                     onClick={() => handleNovelClick(novel.slug)}
@@ -377,7 +376,7 @@ const HomePage: React.FC = () => {
           {loadingTopRated ? (
             <Grid container spacing={1}>
               {[...Array(12)].map((_, index) => (
-                <Grid item xs={6} sm={4} md={3} key={`user-rated-skeleton-${index}`}>
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`user-rated-skeleton-${index}`}>
                   <CompactNovelCard novel={{} as Novel} isLoading={true} showRating onClick={() => {}} />
                 </Grid>
               ))}
@@ -387,7 +386,7 @@ const HomePage: React.FC = () => {
           ) : (
             <Grid container spacing={1}>
               {topRatedNovels.slice(0, 12).map((novel) => (
-                <Grid item xs={6} sm={4} md={3} key={novel.id}>
+                <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
                     onClick={() => handleNovelClick(novel.slug)}
@@ -445,7 +444,7 @@ const HomePage: React.FC = () => {
         {loadingRecent ? (
           <Grid container spacing={2}>
             {[...Array(12)].map((_, index) => (
-              <Grid item xs={12} sm={6} md={4} key={`recent-skeleton-${index}`}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`recent-skeleton-${index}`}>
                 <ChapterCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
               </Grid>
             ))}
@@ -455,7 +454,7 @@ const HomePage: React.FC = () => {
         ) : (
           <Grid container spacing={2}>
             {recentChapters.slice(0, 12).map((source) => (
-              <Grid item xs={12} sm={6} md={4} key={source.id}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
                 <ChapterCard
                   source={source}
                   onClick={() => {

@@ -1,23 +1,9 @@
 import React, { useState } from 'react';
 import {
-  Drawer,
-  Box,
-  Typography,
-  Slider,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Grid,
-  Button,
-  Divider,
-  IconButton,
-  useMediaQuery,
-  useTheme,
-  SelectChangeEvent,
-  ToggleButtonGroup,
-  ToggleButton,
-  Popover,
+  Drawer, Box, Typography, IconButton, Divider, Button, Slider,
+  FormControl, InputLabel, Select, MenuItem, ToggleButtonGroup, ToggleButton,
+  Popover, useTheme, useMediaQuery, SelectChangeEvent,
+  Grid2 as Grid,
 } from '@mui/material';
 import { ColorResult, ChromePicker } from 'react-color';
 import Cookies from 'js-cookie';
@@ -284,7 +270,7 @@ const ReaderSettings = ({
       <Box sx={{ mb: 3 }}>
         <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Chapter Navigation</Typography>
         <Grid container spacing={1}>
-          <Grid item xs={4}>
+          <Grid size={4}>
             <Button 
               fullWidth 
               variant={chapterInfo.prevChapter ? "contained" : "outlined"}
@@ -297,7 +283,7 @@ const ReaderSettings = ({
               Prev
             </Button>
           </Grid>
-          <Grid item xs={4}>
+          <Grid size={4}>
             <Button 
               fullWidth 
               variant="outlined"
@@ -308,7 +294,7 @@ const ReaderSettings = ({
               Home
             </Button>
           </Grid>
-          <Grid item xs={4}>
+          <Grid size={4}>
             <Button 
               fullWidth 
               variant={chapterInfo.nextChapter ? "contained" : "outlined"}
@@ -396,7 +382,7 @@ const ReaderSettings = ({
       <Box sx={{ mb: 3 }}>
         <Typography variant="subtitle1" gutterBottom>Colors</Typography>
         <Grid container spacing={2}>
-          <Grid item xs={6}>
+          <Grid size={6}>
             <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Button
                 variant="outlined"
@@ -456,7 +442,7 @@ const ReaderSettings = ({
               />
             </Popover>
           </Grid>
-          <Grid item xs={6}>
+          <Grid size={6}>
             <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <Button
                 variant="outlined"
@@ -597,7 +583,7 @@ const ReaderSettings = ({
       <Box sx={{ mb: 3 }}>
         <Typography variant="subtitle1" gutterBottom>Edge Tap Behavior</Typography>
         <Grid container spacing={2}>
-          <Grid item xs={6}>
+          <Grid size={6}>
             <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
               Left Edge
             </Typography>
@@ -629,7 +615,7 @@ const ReaderSettings = ({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={6}>
+          <Grid size={6}>
             <Typography variant="body2" color="text.secondary" align="center" gutterBottom>
               Right Edge
             </Typography>

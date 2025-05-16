@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { 
-  Box, Container, Typography, TextField, Grid, Paper, 
+  Box, Container, Typography, TextField, Paper, 
   FormControl, InputLabel, Select, MenuItem, Checkbox,
   Chip, Button, FormGroup,
   FormControlLabel, Rating, IconButton, InputAdornment,
-  CircularProgress, Pagination, Stack, Autocomplete
+  CircularProgress, Pagination, Stack, Autocomplete,
+  Grid2 as Grid,
 } from '@mui/material';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
@@ -349,7 +350,7 @@ const SearchPage: React.FC = () => {
           
           <Grid container spacing={3}>
             {/* Genres - Autocomplete */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Autocomplete
                 multiple
                 options={genreSuggestions}
@@ -417,7 +418,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Tags - Autocomplete */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}> 
               <Autocomplete
                 multiple
                 options={tagSuggestions}
@@ -485,7 +486,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Authors - Autocomplete */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Autocomplete
                 multiple
                 options={authorSuggestions}
@@ -553,7 +554,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Status */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -572,7 +573,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Language Filter */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Language</InputLabel>
                 <Select
@@ -593,7 +594,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Minimum Rating */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography component="legend">Minimum Rating</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Rating
@@ -615,7 +616,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Sort Options */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Sort By</InputLabel>
                 <Select
@@ -639,7 +640,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Sort Order */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormGroup row>
                 <FormControlLabel
                   control={
@@ -654,7 +655,7 @@ const SearchPage: React.FC = () => {
             </Grid>
             
             {/* Apply Filters Button */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Button 
                 variant="contained" 
                 color="primary"
@@ -778,7 +779,7 @@ const SearchPage: React.FC = () => {
       {!loading && novels.length > 0 && (
         <Grid container spacing={3}>
           {novels.map((novel) => (
-            <Grid item key={novel.id} xs={6} sm={4} md={3} lg={2}>
+            <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
               <BaseNovelCard 
                 novel={novel} 
                 onClick={() => handleNovelClick(novel.slug)}
