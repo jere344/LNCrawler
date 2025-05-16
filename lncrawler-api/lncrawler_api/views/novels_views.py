@@ -15,6 +15,7 @@ from ..models.novels_models import (
     Author,
     NovelViewCount,
     WeeklyNovelView,
+    FeaturedNovel,
 )
 from ..utils import get_client_ip
 from datetime import datetime
@@ -424,3 +425,35 @@ def autocomplete_suggestion(request):
         )
 
     return Response(suggestions)
+
+
+@api_view(["GET"])
+def random_featured_novel(request):
+    """
+    Get a random featured novel
+    """
+    # Count featured novels
+    featured_count = FeaturedNovel.objects.count()
+    
+    if featured_count == 0:
+        return Response(
+            {"error": "No featured novels available"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    # Get a random featured novel
+    import random
+    random_index = random.randint(0, featured_count - 1)
+    featured = FeaturedNovel.objects.all()[random_index]
+    
+    # Get the novel and serialize it
+    novel = featured.novel
+    serializer = DetailedNovelSerializer(novel, context={"request": request})
+    
+    data = {
+        'novel': serializer.data,
+        'description': featured.description,
+        'featured_since': featured.created_at,
+    }
+    
+    return Response(data)

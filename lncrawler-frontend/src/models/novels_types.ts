@@ -60,6 +60,13 @@ export interface NovelDetail {
   prefered_source: NovelFromSource | null;
 }
 
+export interface NovelFeaturedResponse {
+  novel: Novel;
+  description: string;
+  featured_since: string;
+}
+
+
 export interface ChapterContent {
   id: string;
   chapter_id: number;

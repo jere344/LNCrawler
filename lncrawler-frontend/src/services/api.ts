@@ -249,6 +249,12 @@ export const novelService = {
     });
     return response.data;
   },
+
+  // Get a random featured novel
+  getRandomFeaturedNovel: async () => {
+    const response = await api.get('/novels/featured/random/');
+    return response.data;
+  },
 };
 
 export const commentService = {

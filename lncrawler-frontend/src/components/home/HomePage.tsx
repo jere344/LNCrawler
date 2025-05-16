@@ -140,11 +140,9 @@ const HomePage: React.FC = () => {
     const fetchFeaturedNovel = async () => {
       try {
         setLoadingFeatured(true);
-        // This would be an API call to get a featured novel
-        // For now, using the first novel from topNovels as placeholder
-        const response = await novelService.listNovels(1, 1);
-        if (response.results.length > 0 && response.results[0].prefered_source) {
-          setFeaturedNovel(response.results[0].prefered_source);
+        const response = await novelService.getRandomFeaturedNovel();
+        if (response.novel) {
+          setFeaturedNovel(response.novel.prefered_source);
         }
         setFeaturedError(null);
       } catch (error) {

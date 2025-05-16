@@ -521,3 +521,20 @@ class WeeklyNovelView(models.Model):
         weekly_view.refresh_from_db()
         
         return weekly_view
+
+
+class FeaturedNovel(models.Model):
+    """
+    Tracks which novels are featured on the site
+    """
+    novel = models.OneToOneField(Novel, on_delete=models.CASCADE, related_name='featured')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    description = models.TextField(blank=True, help_text="Reason why this novel is featured")
+    
+    def __str__(self):
+        return f"Featured: {self.novel.title}"
+    
+    class Meta:
+        verbose_name = "Featured Novel"
+        verbose_name_plural = "Featured Novels"
