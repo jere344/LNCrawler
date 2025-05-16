@@ -152,7 +152,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               display: '-webkit-box',
-              WebkitLineClamp: 1,
+              WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               mb: 0.5
             }}

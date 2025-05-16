@@ -86,7 +86,7 @@ const HomePage: React.FC = () => {
       try {
         setLoadingTrending(true);
         const response = await novelService.searchNovels({
-          sort_by: 'popularity',
+          sort_by: 'trending',
           sort_order: 'desc',
           page_size: 12
         });
@@ -123,9 +123,11 @@ const HomePage: React.FC = () => {
     const fetchRecentChapters = async () => {
       try {
         setLoadingRecent(true);
-        // This would be an API call to get latest chapter updates
-        // For now, using listNovels as placeholder
-        const response = await novelService.listNovels(1, 12);
+        const response = await novelService.searchNovels({
+          sort_by: 'last_updated',
+          sort_order: 'desc',
+          page_size: 12
+        });
         setRecentChapters(response.results.map((novel: { prefered_source: any; }) => novel.prefered_source).filter(Boolean) as NovelFromSource[]);
         setRecentError(null);
       } catch (error) {

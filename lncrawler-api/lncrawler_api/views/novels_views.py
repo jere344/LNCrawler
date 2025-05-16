@@ -317,15 +317,15 @@ def search_novels(request):
     elif sort_by == "trending":
         # Use weekly view count for trending
         novels_query = novels_query.annotate(
-            weekly_views=Coalesce(
+            week_views=Coalesce(
                 Avg(
                     "weekly_views__views",
                     filter=Q(weekly_views__year_week=current_year_week),
                 ),
-                Value(0),
+                Value(0.0),
             )
         )
-        order_field = "-weekly_views" if sort_order == "desc" else "weekly_views"
+        order_field = "-week_views" if sort_order == "desc" else "week_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "last_updated":
         # Annotate with the most recent last_updated date among all sources
