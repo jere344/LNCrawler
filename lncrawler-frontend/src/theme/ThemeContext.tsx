@@ -19,6 +19,20 @@ const ThemeContext = createContext<ThemeContextType>({
     availableThemes: [],
 });
 
+// Helper function to load Google Fonts
+const loadGoogleFont = (url: string | undefined) => {
+    if (!url) return;
+
+    // Check if this font is already loaded
+    const existingLink = document.head.querySelector(`link[href="${url}"]`);
+    if (existingLink) return;
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = url;
+    document.head.appendChild(link);
+};
+
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -48,6 +62,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const currentTheme = useMemo(() => {
         return getThemeById(currentThemeId);
     }, [currentThemeId]);
+
+    // Load font when theme changes
+    useEffect(() => {
+        if (currentTheme.font?.url) {
+            loadGoogleFont(currentTheme.font.url);
+        }
+    }, [currentTheme]);
 
     const theme = useMemo(() => {
         return currentTheme.getTheme();

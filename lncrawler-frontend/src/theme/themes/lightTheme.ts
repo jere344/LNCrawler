@@ -1,5 +1,5 @@
 import { createTheme } from "@mui/material";
-import { ThemeOption } from "./types";
+import { ThemeOption } from "../types";
 
 export const getLightTheme = () =>
     createTheme({
@@ -247,5 +247,11 @@ export const lightTheme: ThemeOption = {
     id: "light",
     name: "Light",
     isDark: false,
-    getTheme: getLightTheme
+    getTheme: getLightTheme,
+    hidden: false,
+    password: undefined,
+    font: {
+        family: '"Roboto", "Helvetica", "Arial", sans-serif',
+        url: "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+    }
 };

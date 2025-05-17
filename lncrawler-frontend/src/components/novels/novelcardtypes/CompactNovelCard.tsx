@@ -87,7 +87,6 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       >
         <Box
           component="img"
-          loading="lazy"
           src={novel.prefered_source?.cover_url || defaultCover}
           alt={novel.title}
           sx={{
@@ -118,7 +117,8 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
             display: '-webkit-box',
             WebkitLineClamp: 1,
             WebkitBoxOrient: 'vertical',
-            mb: 0.5
+            mb: 0.5,
+            lineHeight: 1,
           }}
         >
           {novel.title}

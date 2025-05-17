@@ -86,7 +86,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         <Box sx={{ position: 'relative', paddingTop: '150%' /* 2:3 aspect ratio */ }}>
           <CardMedia
             component="img"
-            loading="lazy"
             image={novel.prefered_source?.cover_url || defaultCover}
             alt={novel.title}
             sx={{ 

@@ -61,7 +61,6 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
       }}>
         <Box
           component="img"
-          loading="lazy"
           src={source.cover_url || defaultCover}
           alt={source.title}
           sx={{

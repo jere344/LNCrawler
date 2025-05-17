@@ -61,7 +61,6 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       >
         <Box
           component="img"
-          loading="lazy"
           src={novel.prefered_source?.cover_url || defaultCover}
           alt={novel.title}
           sx={{

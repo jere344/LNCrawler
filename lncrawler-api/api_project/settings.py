@@ -119,8 +119,6 @@ DATABASES = {
         'ATOMIC_REQUESTS': True,
     }
 }
-print("Database settings loaded from environment variables : ", os.environ.get('POSTGRES_DB', 'lncrawler'), os.environ.get('POSTGRES_USER', 'postgres'), os.environ.get('POSTGRES_PASSWORD', 'postgres'), os.environ.get('POSTGRES_HOST', 'localhost'), os.environ.get('POSTGRES_PORT', '5432'))
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

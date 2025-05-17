@@ -202,7 +202,7 @@ const Header = () => {
                             horizontal: 'right',
                         }}
                     >
-                        {availableThemes.map((theme) => (
+                        {availableThemes.filter((theme) => !theme.hidden).map((theme) => (
                             <MenuItem 
                                 key={theme.id}
                                 onClick={() => handleThemeChange(theme.id)}

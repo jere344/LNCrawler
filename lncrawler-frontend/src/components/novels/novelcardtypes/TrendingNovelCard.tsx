@@ -102,7 +102,8 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               borderRadius: 1,
               display: 'flex',
               alignItems: 'center',
-              gap: 0.3
+              gap: 0.3,
+
             }}>
               <WhatshotIcon sx={{ fontSize: '0.9rem' }} />
               <Typography variant="caption" fontWeight="bold" fontSize="0.7rem">
@@ -114,7 +115,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
             '& .MuiBadge-badge': {
               top: 12,
               right: 12,
-              border: '2px solid',
+              border: 'none',
               borderColor: 'background.paper',
             },
             display: 'block',

@@ -78,7 +78,6 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ novel, onClick, i
           }}>
             <Box
               component="img"
-              loading="lazy"
               src={novel.cover_url || defaultCover}
               alt={novel.title}
               sx={{

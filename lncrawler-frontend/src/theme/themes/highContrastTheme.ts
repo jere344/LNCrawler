@@ -1,5 +1,5 @@
 import { createTheme } from "@mui/material";
-import { ThemeOption } from "./types";
+import { ThemeOption } from "../types";
 
 export const getHighContrastTheme = () =>
     createTheme({
@@ -272,4 +272,10 @@ export const highContrastTheme: ThemeOption = {
     name: "High Contrast",
     isDark: true,
     getTheme: getHighContrastTheme,
+    hidden: false,
+    password: undefined,
+    font: {
+        family: '"Inter", "Noto Sans JP", sans-serif',
+        url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+Pro:wght@600;700&display=swap",
+    },
 };

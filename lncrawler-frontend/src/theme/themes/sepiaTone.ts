@@ -1,5 +1,5 @@
 import { createTheme } from "@mui/material";
-import { ThemeOption } from "./types";
+import { ThemeOption } from "../types";
 
 export const getSepiaToneTheme = () =>
     createTheme({
@@ -233,5 +233,11 @@ export const sepiaToneTheme: ThemeOption = {
     id: "sepia",
     name: "Sepia",
     isDark: false,
-    getTheme: getSepiaToneTheme
+    getTheme: getSepiaToneTheme,
+    hidden: false,
+    password: undefined,
+    font: {
+        family: '"Merriweather", "Noto Serif JP", serif',
+        url: "https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Noto+Serif+JP:wght@400;700&display=swap",
+    },
 };

@@ -17,6 +17,7 @@ import BaseNovelCard from '../novels/novelcardtypes/BaseNovelCard';
 import { debounce } from 'lodash';
 import { Novel } from '@models/novels_types';
 import { languageCodeToFlag, availableLanguages, languageCodeToName } from '@utils/Misc';
+import { useTheme } from '@theme/ThemeContext';
 
 
 interface FilterOptions {
@@ -226,9 +227,17 @@ const SearchPage: React.FC = () => {
     setSearchParams(params);
   };
   
+  const { setThemeById, availableThemes } = useTheme();
+
   // Handle search form submission
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    for (const theme of availableThemes) {
+      if (theme.password === searchQuery) {
+        setThemeById(theme.id);
+        return;
+      }
+    }
     updateSearchParams({ query: searchQuery });
   };
   
