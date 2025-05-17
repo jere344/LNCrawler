@@ -59,9 +59,9 @@ lncrawler/
 
 ### Configuration
 
-1.  **Clone the repository (if you haven't already):**
+1.  **Clone the repository and submodule (if you haven't already):**
     ```bash
-    git clone https://github.com/jere344/LNCrawler.git
+    git clone https://github.com/jere344/LNCrawler.git --recurse-submodules
     cd lncrawler
     ```
 

@@ -25,7 +25,7 @@ class DownloaderService:
     def _setup_django():
         """Set up Django environment in a subprocess"""
         try:
-            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'lncrawler_api.settings')
+            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'api_project.settings')
             django.setup()
         except Exception as e:
             logger.error(f"Failed to setup Django in subprocess: {str(e)}")
@@ -531,7 +531,6 @@ class DownloaderService:
                 status=Job.STATUS_SEARCH_COMPLETED,
                 query="Direct Download"
             )
-        print(f"job : {type(job)}")
 
         # Start download process with the direct URL
         process = multiprocessing.Process(

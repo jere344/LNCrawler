@@ -9,6 +9,7 @@ services:
       - POSTGRES_DB=lncrawler
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=biyoo
+    command: postgres -c max_connections=200 -c idle_in_transaction_session_timeout=60000
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -21,7 +22,7 @@ services:
       - ./lncrawler-api:/app
       - ./Lightnovels:/app/Lightnovels
       - ./lncrawler-api/logs:/app/logs
-      - ./dipudb-lncrawler-jere344-patches:/app/dipudb-lncrawler
+      - ./dipudb-lncrawler-jere344-patches:/dipudb-lncrawler-jere344-patches
     ports:
       - "8186:8000"
     environment:
@@ -54,11 +55,12 @@ services:
              python manage.py runserver 0.0.0.0:8000"
 
   frontend:
-    build: ./lncrawler-frontend
+    build:
+      context: ./lncrawler-frontend
+      args:
+        - VITE_API_BASE_URL=http://localhost:8186 # Your website API URL
     ports:
       - "8185:80"
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8186 # Your website API URL
     depends_on:
       - api
 
