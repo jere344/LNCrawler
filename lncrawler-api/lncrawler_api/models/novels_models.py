@@ -371,10 +371,18 @@ class Chapter(models.Model):
             try:
                 full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.chapter_path)
                 if os.path.exists(full_path):
+                    # If the file is larger than 2KB, we assume it has not failed content and 
+                    # no need to parse the JSON file
+                    if os.path.getsize(full_path) > 2048:
+                        return True
+
+                    # If less than 2KB it's ambiguous, either it faled or has little content (only an image)
                     with open(full_path, 'r', encoding='utf-8') as f:
                         chapter_data = json.load(f)
                         body = chapter_data.get('body')
-                        return body is not None and len(body) > 0
+                        fail_message = "Failed to download chapter body"
+                        return body is not None and len(body) > 0 and fail_message not in body
+                        
             except Exception:
                 pass
         
