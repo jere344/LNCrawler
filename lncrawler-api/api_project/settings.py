@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv(encoding='utf-8')
 
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185")
-SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8186")
+SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -119,6 +119,7 @@ DATABASES = {
         'ATOMIC_REQUESTS': True,
     }
 }
+print("Database settings loaded from environment variables : ", os.environ.get('POSTGRES_DB', 'lncrawler'), os.environ.get('POSTGRES_USER', 'postgres'), os.environ.get('POSTGRES_PASSWORD', 'postgres'), os.environ.get('POSTGRES_HOST', 'localhost'), os.environ.get('POSTGRES_PORT', '5432'))
 
 
 # Password validation
@@ -164,7 +165,7 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_FULL_URL = SITE_URL.rstrip("/") + "/" + MEDIA_URL.rstrip("/") + "/"
 
-LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR, 'Lightnovels')
+LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR.parent, 'Lightnovels')
 LNCRAWL_URL = "lightnovels/"
 LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 

@@ -27,6 +27,7 @@ class DownloaderService:
         try:
             os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'api_project.settings')
             django.setup()
+            DownloaderService.refresh_connection()
         except Exception as e:
             logger.error(f"Failed to setup Django in subprocess: {str(e)}")
             raise
@@ -89,6 +90,22 @@ class DownloaderService:
             raise ImportError(f"Could not import PythonApiBot: {str(e)}")
     
     @staticmethod
+    def refresh_connection():
+        """
+        Refresh the database connection
+        This is useful in a subprocess to ensure the connection is valid
+        """
+        from django.db import connection
+        try:
+            connection.close()
+            connection.connect()
+            connection.ensure_connection()
+            logger.debug("Database connection refreshed successfully")
+        except Exception as e:
+            logger.error(f"Failed to refresh database connection: {str(e)}")
+            raise
+
+    @staticmethod
     def _run_search_process(job_id, query):
         """
         Run novel search in a separate process
@@ -150,6 +167,7 @@ class DownloaderService:
                     except Exception as e:
                         logger.error(f"Error monitoring search progress: {str(e)}")
                     time.sleep(2)
+                job.update_progress(0, 0) # Reset progress when done
 
             # Start monitoring thread before starting search
             monitor_thread = threading.Thread(target=monitor_search_progress)

@@ -18,10 +18,10 @@ services:
   api:
     build: ./lncrawler-api
     volumes:
-      - ./lncrawler-api:/app
+      - ./lncrawler-api:/app/lncrawler-api
       - ./Lightnovels:/app/Lightnovels
-      - ./lncrawler-api/logs:/app/logs
-      - ./dipudb-lncrawler-jere344-patches:/dipudb-lncrawler-jere344-patches
+      - ./lncrawler-api/logs:/app/lncrawler-api/logs
+      - ./dipudb-lncrawler-jere344-patches:/app/dipudb-lncrawler-jere344-patches
     ports:
       - "8186:8000"
     environment:
