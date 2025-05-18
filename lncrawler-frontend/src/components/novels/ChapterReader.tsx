@@ -35,8 +35,14 @@ interface ChapterCache {
   [key: string]: IChapterContent;
 }
 
+// Interface for scroll position storage
+interface ScrollPositions {
+  [key: string]: number;
+}
+
 const COOKIE_PREFIX = 'lncrawler_reader_';
 const EDGE_TAP_WIDTH_PERCENTAGE = 15; // % of screen width for edge tap detection
+const MAX_STORED_POSITIONS = 20; // Maximum number of scroll positions to store
 
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
@@ -61,6 +67,12 @@ const ChapterReader = () => {
   // Create a ref to store our chapter cache that persists through renders
   const chapterCacheRef = useRef<ChapterCache>({});
   const contentRef = useRef<HTMLDivElement>(null);
+  
+  // Create a ref to store scroll positions for different chapters
+  const scrollPositionsRef = useRef<ScrollPositions>({});
+  
+  // Current chapter key for scroll position tracking
+  const currentChapterKey = `${novelSlug}|${sourceSlug}|${chapterNumber}`;
 
   // Helper function to generate a cache key
   const getCacheKey = (novel: string, source: string, chapter: number): string => {
@@ -123,6 +135,34 @@ const ChapterReader = () => {
     loadSettingsFromCookies();
   }, []);
 
+  // Save current scroll position
+  const saveScrollPosition = () => {
+    if (!currentChapterKey || !readerSettings.savePosition) return;
+    console.log('Saving scroll position for chapter:', currentChapterKey, 'at position:', window.scrollY);
+    scrollPositionsRef.current[currentChapterKey] = window.scrollY;
+    
+    // Prune old entries if we have too many
+    const keys = Object.keys(scrollPositionsRef.current);
+    if (keys.length > MAX_STORED_POSITIONS) {
+      // Remove the oldest entries
+      const keysToRemove = keys.slice(0, keys.length - MAX_STORED_POSITIONS);
+      keysToRemove.forEach(key => {
+        delete scrollPositionsRef.current[key];
+      });
+    }
+  };
+
+  // Restore scroll position
+  const restoreScrollPosition = () => {
+    if (!currentChapterKey || !readerSettings.savePosition) return;
+    
+    const savedPosition = scrollPositionsRef.current[currentChapterKey];
+    if (savedPosition !== undefined) {
+      // Use setTimeout to ensure the DOM has been fully rendered
+      window.scrollTo(0, savedPosition);
+    }
+  };
+
   useEffect(() => {
     const loadCurrentChapter = async () => {
       if (!novelSlug || !sourceSlug || !chapterNumber) return;
@@ -151,6 +191,20 @@ const ChapterReader = () => {
     loadCurrentChapter();
   }, [novelSlug, sourceSlug, chapterNumber]);
 
+  // Restore scroll position when chapter content is loaded
+  useEffect(() => {
+    if (!loading && chapter) {
+      restoreScrollPosition();
+    }
+  }, [loading, chapter]);
+
+  // Save scroll position when component unmounts
+  useEffect(() => {
+    return () => {
+      saveScrollPosition();
+    };
+  }, []);
+
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
     
@@ -161,21 +215,25 @@ const ChapterReader = () => {
   };
 
   const handleBackToChapters = () => {
+    saveScrollPosition();
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
   };
 
   const handleBackToSource = () => {
+    saveScrollPosition();
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
   };
   
   const handleNextChapter = () => {
     if (chapter?.next_chapter) {
+      saveScrollPosition();
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}`);
     }
   };
 
   const handlePrevChapter = () => {
     if (chapter?.prev_chapter) {
+      saveScrollPosition();
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}`);
     }
   };

@@ -40,6 +40,7 @@ export interface ReaderSettings {
   leftEdgeTapBehavior: EdgeTapBehavior;
   rightEdgeTapBehavior: EdgeTapBehavior;
   textSelectable: boolean;
+  savePosition: boolean;
 }
 
 // Default settings
@@ -56,6 +57,7 @@ export const defaultSettings: ReaderSettings = {
   leftEdgeTapBehavior: 'none',
   rightEdgeTapBehavior: 'none',
   textSelectable: true,
+  savePosition: true,
 };
 
 export interface ChapterInfo {
@@ -203,6 +205,12 @@ const ReaderSettings = ({
     const newSettings = { ...settings, textSelectable: event.target.checked };
     onSettingChange(newSettings);
     saveSetting('textSelectable', event.target.checked);
+  };
+
+  const handleSavePositionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newSettings = { ...settings, savePosition: event.target.checked };
+    onSettingChange(newSettings);
+    saveSetting('savePosition', event.target.checked);
   };
 
   const saveSetting = (key: string, value: any) => {
@@ -589,7 +597,7 @@ const ReaderSettings = ({
 
       <Divider sx={{ my: 2 }} />
 
-      {/* Text Selection Toggle */}
+      {/* Text Selection and Position Toggles */}
       <Box sx={{ mb: 3 }}>
         <FormControlLabel
           control={
@@ -600,6 +608,16 @@ const ReaderSettings = ({
             />
           }
           label="Allow Text Selection/Copy"
+        />
+        <FormControlLabel
+          control={
+            <Switch
+              checked={settings.savePosition}
+              onChange={handleSavePositionChange}
+              color="primary"
+            />
+          }
+          label="Remember Reading Position"
         />
       </Box>
 
