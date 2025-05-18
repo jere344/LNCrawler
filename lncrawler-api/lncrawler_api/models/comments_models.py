@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings # Added for settings.AUTH_USER_MODEL
 
 class Comment(models.Model):
     """
@@ -9,7 +10,15 @@ class Comment(models.Model):
     # Use string reference to avoid circular import issues at definition time
     novel = models.ForeignKey('lncrawler_api.Novel', on_delete=models.CASCADE, related_name='comments', null=True, blank=True)
     chapter = models.ForeignKey('lncrawler_api.Chapter', on_delete=models.CASCADE, related_name='comments', null=True, blank=True)
-    author_name = models.CharField(max_length=100)
+    
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='comments'
+    )
+    author_name = models.CharField(max_length=100) # Will store username if user is linked, or provided name if anonymous
     message = models.TextField()
     contains_spoiler = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -25,7 +34,8 @@ class Comment(models.Model):
     
     def __str__(self):
         target = f"Novel: {self.novel.title}" if self.novel else f"Chapter: {self.chapter.title}"
-        return f"Comment by {self.author_name} on {target}"
+        author_display = self.user.username if self.user else self.author_name
+        return f"Comment by {author_display} on {target}"
     
     @property
     def vote_score(self):
@@ -35,6 +45,9 @@ class Comment(models.Model):
         if bool(self.novel) == bool(self.chapter):
             raise ValueError("Comment must be associated with either a novel or a chapter, but not both or neither")
         
+        if self.user: # If a user is linked to this comment
+            self.author_name = self.user.username # Set/update author_name to their current username
+            
         if self.parent:
             if self.novel and self.parent.novel_id != self.novel_id:
                 raise ValueError("Reply must be to a comment on the same novel")

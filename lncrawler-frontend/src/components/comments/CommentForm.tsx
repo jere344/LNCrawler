@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   TextField,
@@ -9,6 +9,7 @@ import {
   Paper,
   Alert,
 } from '@mui/material';
+import { useAuth } from '../../context/AuthContext';
 
 interface CommentFormProps {
   onSubmit: (commentData: { 
@@ -28,6 +29,7 @@ const CommentForm = ({
   parentAuthor, 
   onCancel 
 }: CommentFormProps) => {
+  const { isAuthenticated, user } = useAuth(); // Get auth status and user
   const [authorName, setAuthorName] = useState('');
   const [message, setMessage] = useState('');
   const [containsSpoiler, setContainsSpoiler] = useState(false);
@@ -35,10 +37,21 @@ const CommentForm = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      setAuthorName(user.username);
+    } else {
+      // If user logs out while form is open, clear the name
+      // Or if they were never logged in, ensure it's empty for them to fill
+      setAuthorName(''); 
+    }
+  }, [isAuthenticated, user]);
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!authorName.trim()) {
+    if (!authorName.trim() && !isAuthenticated) { // Only require if not authenticated
       setError('Please enter your name');
       return;
     }
@@ -53,13 +66,15 @@ const CommentForm = ({
     
     try {
       await onSubmit({
-        author_name: authorName,
+        author_name: isAuthenticated && user ? user.username : authorName, // Send username if auth, else field value
         message,
         contains_spoiler: containsSpoiler
       });
       
       // Reset form on success
-      setAuthorName('');
+      if (!isAuthenticated) { // Don't clear author name if logged in
+        setAuthorName('');
+      }
       setMessage('');
       setContainsSpoiler(false);
       setSuccess(true);
@@ -114,7 +129,8 @@ const CommentForm = ({
           margin="normal"
           value={authorName}
           onChange={(e) => setAuthorName(e.target.value)}
-          required
+          required={!isAuthenticated} // Not required if authenticated
+          disabled={isAuthenticated} // Disable if authenticated
         />
         
         <TextField

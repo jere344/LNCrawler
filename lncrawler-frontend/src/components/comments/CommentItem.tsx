@@ -7,6 +7,7 @@ import {
   Button,
   IconButton,
   Tooltip,
+  Avatar,
 } from '@mui/material';
 import ReplyIcon from '@mui/icons-material/Reply';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
@@ -14,11 +15,11 @@ import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ThumbUpAltOutlinedIcon from '@mui/icons-material/ThumbUpAltOutlined';
 import ThumbDownAltOutlinedIcon from '@mui/icons-material/ThumbDownAltOutlined';
-import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt'; // For filled state
-import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt'; // For filled state
+import ThumbUpAltIcon from '@mui/icons-material/ThumbUpAlt';
+import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
 
 import CommentForm from './CommentForm';
-import { commentService } from '../../services/api'; // Import commentService
+import { commentService } from '../../services/api';
 import { Comment as IComment } from '@models/comments_types';
 
 interface CommentItemProps {
@@ -42,6 +43,11 @@ const CommentItem = ({
   const [isVoting, setIsVoting] = useState(false);
   
   const hasReplies = comment.replies && comment.replies.length > 0;
+
+  // Determine the name to display
+  // Prioritize live username if the user is authenticated and username is provided
+  // Otherwise, fall back to the author_name (historical or anonymous)
+  const displayName = (comment.user != undefined && comment.user.username) ? comment.user.username : comment.author_name;
 
   // Format date to readable format
   const formatDate = (dateString: string) => {
@@ -93,13 +99,27 @@ const CommentItem = ({
         sx={{ 
           p: 2, 
           bgcolor: comment.from_other_source ? 'action.hover' : 'background.paper',
-          borderLeft: depth > 0 ? '3px solid #9c27b0' : 'none',
+          borderLeft: depth > 0 ? '3px solid #9c27b0' : 'none', 
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {/* Show avatar only if it's an authenticated user's comment and they have a profile pic */}
+            {comment.user != undefined && comment.user.profile_pic && (
+              <Avatar 
+                alt={displayName} // Use determined displayName
+                src={comment.user.profile_pic} 
+                sx={{ width: 24, height: 24, mr: 1 }} 
+              />
+            )}
+            {/* Show initial-based avatar if authenticated user but no profile pic */}
+            {comment.user != undefined && !comment.user.profile_pic && (
+              <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main' }}>
+                {displayName ? displayName.charAt(0).toUpperCase() : '?'}
+              </Avatar>
+            )}
             <Typography variant="subtitle1" fontWeight="bold">
-              {comment.author_name}
+              {displayName}
               
               {comment.from_other_source && comment.source_name && (
                 <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>

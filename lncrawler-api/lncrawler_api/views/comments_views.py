@@ -7,7 +7,7 @@ from ..models.comments_models import Comment, CommentVote # Updated import
 from ..utils import get_client_ip # Import get_client_ip
 
 
-def get_comment_with_replies(comment, from_other_source=False, source_name=None, type=None, chapter_title=None, chapter_id=None, source_slug=None):
+def get_comment_with_replies(comment, request, from_other_source=False, source_name=None, type=None, chapter_title=None, chapter_id=None, source_slug=None):
     """
     Recursively get a comment and all its replies in a nested structure
     """
@@ -19,11 +19,21 @@ def get_comment_with_replies(comment, from_other_source=False, source_name=None,
         'created_at': comment.created_at,
         'from_other_source': from_other_source,
         'has_replies': comment.replies.exists(),
-        'upvotes': comment.upvotes, # Add upvotes
-        'downvotes': comment.downvotes, # Add downvotes
-        'vote_score': comment.vote_score, # Add vote_score
+        'upvotes': comment.upvotes,
+        'downvotes': comment.downvotes,
+        'vote_score': comment.vote_score,
         'replies': []
     }
+    
+    if comment.user: 
+        user_details = {}
+        user_details['user_id'] = str(comment.user.id)
+        user_details['username'] = comment.user.username
+        if comment.user.profile_pic:
+            user_details['profile_pic'] = request.build_absolute_uri(comment.user.profile_pic.url)
+        else:
+            user_details['profile_pic'] = None
+        result['user'] = user_details
     
     # Add optional fields if they exist
     if source_name:
@@ -41,6 +51,7 @@ def get_comment_with_replies(comment, from_other_source=False, source_name=None,
     for reply in comment.replies.all().order_by('created_at'):
         result['replies'].append(get_comment_with_replies(
             reply,
+            request,
             from_other_source=from_other_source,
             source_name=source_name,
             type=type,
@@ -72,7 +83,7 @@ def novel_comments(request, novel_slug):
     # Process novel comments with their replies
     novel_comments_data = []
     for comment in novel_comments:
-        comment_data = get_comment_with_replies(comment, type='novel')
+        comment_data = get_comment_with_replies(comment, request, type='novel')
         novel_comments_data.append(comment_data)
     
     # Process chapter comments with their replies
@@ -83,6 +94,7 @@ def novel_comments(request, novel_slug):
         
         comment_data = get_comment_with_replies(
             comment,
+            request,
             type='chapter',
             chapter_title=chapter.title,
             chapter_id=chapter.chapter_id,
@@ -104,14 +116,22 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
     If source_slug and chapter_number are provided, it's a chapter comment.
     Otherwise, it's a novel comment.
     """
-    author_name = request.data.get('author_name')
     message = request.data.get('message')
     contains_spoiler = request.data.get('contains_spoiler', False)
     parent_id = request.data.get('parent_id')
 
-    if not author_name or not message:
+    user_instance = None
+    author_name_to_save = None
+
+    if request.user.is_authenticated:
+        user_instance = request.user
+        author_name_to_save = request.user.username
+    else:
+        author_name_to_save = request.data.get('author_name')
+
+    if not author_name_to_save or not message:
         return Response(
-            {'error': 'Author name and message are required'},
+            {'error': 'Author name (if anonymous) and message are required'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -138,14 +158,14 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
         
         comment_obj = Comment.objects.create(
             chapter=chapter,
-            author_name=author_name,
+            user=user_instance,
+            author_name=author_name_to_save,
             message=message,
             contains_spoiler=contains_spoiler,
             ip_address=client_ip,
             parent=parent_comment_obj
         )
-        # For chapter comments, type is implicitly 'chapter' via get_comment_with_replies
-        comment_data_for_response = get_comment_with_replies(comment_obj)
+        comment_data_for_response = get_comment_with_replies(comment_obj, request)
     else:
         # Novel comment
         if parent_id:
@@ -159,13 +179,14 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
         
         comment_obj = Comment.objects.create(
             novel=novel,
-            author_name=author_name,
+            user=user_instance,
+            author_name=author_name_to_save,
             message=message,
             contains_spoiler=contains_spoiler,
             ip_address=client_ip,
             parent=parent_comment_obj
         )
-        comment_data_for_response = get_comment_with_replies(comment_obj, type='novel')
+        comment_data_for_response = get_comment_with_replies(comment_obj, request, type='novel')
 
     return Response(comment_data_for_response, status=status.HTTP_201_CREATED)
 
@@ -191,6 +212,7 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
             for comment in other_comments:
                 comment_data = get_comment_with_replies(
                     comment,
+                    request,
                     from_other_source=True,
                     source_name=other_source.source_name
                 )
@@ -201,7 +223,7 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     # Process specific chapter comments with their replies
     specific_comments_data = []
     for comment in specific_comments:
-        comment_data = get_comment_with_replies(comment)
+        comment_data = get_comment_with_replies(comment, request)
         specific_comments_data.append(comment_data)
     
     # Combine all comments and sort by creation date
