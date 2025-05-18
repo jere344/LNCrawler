@@ -15,4 +15,9 @@ export interface Comment {
   upvotes: number;
   downvotes: number;
   vote_score: number;
+  user: {
+    id: string;
+    username: string;
+    profile_pic: string;
+  }
 }

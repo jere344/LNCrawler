@@ -33,6 +33,28 @@ class UserSerializer(serializers.ModelSerializer):
             
         return representation
 
+class OtherUserSerializer(serializers.ModelSerializer):
+    profile_pic = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'profile_pic')
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        
+        profile_pic_url = representation.get('profile_pic')
+
+        if profile_pic_url and not profile_pic_url.startswith('http'):
+            request = self.context.get('request')
+            if request:
+                representation['profile_pic'] = request.build_absolute_uri(profile_pic_url)
+            else:
+                formatted_url = profile_pic_url if profile_pic_url.startswith('/') else f'/{profile_pic_url}'
+                representation['profile_pic'] = f"{settings.SITE_API_URL}{formatted_url}"
+
+        return representation
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True, required=True)

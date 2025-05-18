@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from ..models.novels_models import Novel, Chapter # NovelFromSource is not directly used here but Chapter needs it
 from ..models.comments_models import Comment, CommentVote # Updated import
 from ..utils import get_client_ip # Import get_client_ip
+from auth_app.serializers import OtherUserSerializer
 
 
 def get_comment_with_replies(comment, request, from_other_source=False, source_name=None, type=None, chapter_title=None, chapter_id=None, source_slug=None):
@@ -26,14 +27,8 @@ def get_comment_with_replies(comment, request, from_other_source=False, source_n
     }
     
     if comment.user: 
-        user_details = {}
-        user_details['user_id'] = str(comment.user.id)
-        user_details['username'] = comment.user.username
-        if comment.user.profile_pic:
-            user_details['profile_pic'] = request.build_absolute_uri(comment.user.profile_pic.url)
-        else:
-            user_details['profile_pic'] = None
-        result['user'] = user_details
+        serializer = OtherUserSerializer(comment.user, context={'request': request})
+        result['user'] = serializer.data
     
     # Add optional fields if they exist
     if source_name:
