@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from django.conf import settings # Added for settings.AUTH_USER_MODEL
+from django.conf import settings
 
 class Comment(models.Model):
     """

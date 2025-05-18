@@ -2,9 +2,9 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from ..models.novels_models import Novel, Chapter # NovelFromSource is not directly used here but Chapter needs it
-from ..models.comments_models import Comment, CommentVote # Updated import
-from ..utils import get_client_ip # Import get_client_ip
+from ..models import Novel, Chapter
+from ..models.comments_models import Comment, CommentVote
+from ..utils import get_client_ip
 from auth_app.serializers import OtherUserSerializer
 
 

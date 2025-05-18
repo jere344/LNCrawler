@@ -1,8 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views
-from .views import comments_views
+from .views import novels_views, comments_views, sources_views
 
 # Configure the REST Framework router
 router = DefaultRouter()
@@ -35,10 +34,10 @@ urlpatterns = [
     path('novels/featured/random/', novels_views.random_featured_novel, name='random_featured_novel'),  # Add this new endpoint
     path('novels/<slug:novel_slug>/', novels_views.novel_detail_by_slug, name='novel_detail_by_slug'),
     path('novels/<slug:novel_slug>/rate/', novels_views.rate_novel, name='rate_novel'),
-    path('novels/<slug:novel_slug>/<slug:source_slug>/', novels_views.source_detail, name='source_detail'),
-    path('novels/<slug:novel_slug>/<slug:source_slug>/vote/', novels_views.vote_source, name='vote_source'),
-    path('novels/<slug:novel_slug>/<slug:source_slug>/chapters/', novels_views.novel_chapters_by_source, name='novel_chapters_by_source'),
-    path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', novels_views.chapter_content_by_number, name='chapter_content_by_number'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/', sources_views.source_detail, name='source_detail'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/vote/', sources_views.vote_source, name='vote_source'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/chapters/', sources_views.novel_chapters_by_source, name='novel_chapters_by_source'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', sources_views.chapter_content_by_number, name='chapter_content_by_number'),
 
     # downloader endpoints
     path('downloader/search/start/', views.start_search, name='start_search'),
