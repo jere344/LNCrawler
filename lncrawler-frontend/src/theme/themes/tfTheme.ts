@@ -224,9 +224,11 @@ export const getTransTheme = () =>
                     },
                     colorPrimary: {
                         background: "linear-gradient(90deg, #F5A9B8 0%, #D1899D 100%)",
+                        color: "#FFFFFF",
                     },
                     colorSecondary: {
                         background: "linear-gradient(90deg, #5BCEFA 0%, #36A6D1 100%)",
+                        color: "#FFFFFF",
                     },
                 },
             },

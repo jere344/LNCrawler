@@ -16,8 +16,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(encoding='utf-8')
 
-SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185")
-SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000")
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185").rstrip("/")
+SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000").rstrip("/")
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'lncrawler_api',
     'auth_app',
     'django.contrib.sitemaps',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -169,6 +170,7 @@ LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],

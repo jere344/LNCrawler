@@ -194,6 +194,7 @@ export const getHackerTheme = () =>
                     },
                     colorPrimary: {
                         background: "linear-gradient(90deg, #004d00 0%, #00cc00 100%)",
+                        color: "#000000",
                     },
                 },
             },

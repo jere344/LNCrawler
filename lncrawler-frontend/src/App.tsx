@@ -15,6 +15,10 @@ import ChapterList from '@components/novels/ChapterList';
 import ChapterReader from '@components/novels/ChapterReader';
 import SearchPage from '@components/search/SearchPage';
 import HomePage from '@components/home/HomePage';
+// Import new auth components
+import LoginPage from '@components/auth/LoginPage';
+import RegisterPage from '@components/auth/RegisterPage';
+import ProfilePage from '@components/auth/ProfilePage';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -54,6 +58,11 @@ function AppWithTheme() {
                         }}
                     >
                         <Routes>
+                            {/* Authentication routes */}
+                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="/register" element={<RegisterPage />} />
+                            <Route path="/profile" element={<ProfilePage />} />
+                            
                             {/* Downloader routes */}
                             <Route path="/download" element={<DownloaderHome />} />
                             <Route path="/download/search/:jobId" element={<SearchResults />} />

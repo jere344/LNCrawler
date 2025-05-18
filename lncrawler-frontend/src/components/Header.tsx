@@ -1,13 +1,18 @@
-import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Link, ListItemIcon, ListItemText } from "@mui/material";
+import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Link, ListItemIcon, ListItemText, Button, Divider, Avatar } from "@mui/material";
 import PaletteIcon from '@mui/icons-material/Palette';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import CheckIcon from '@mui/icons-material/Check';
+import LoginIcon from '@mui/icons-material/Login';
+import LogoutIcon from '@mui/icons-material/Logout';
+import PersonIcon from '@mui/icons-material/Person';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "../context/AuthContext";
 
 // Import logos
 import logoLight from "@assets/logo-transparent.png";
@@ -48,12 +53,14 @@ const DiscordIcon = () => (
 // Enhanced Header component with navigation tabs
 const Header = () => {
     const { isDarkMode, currentThemeId, setThemeById, availableThemes } = useTheme();
+    const { isAuthenticated, user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const muiTheme = useMuiTheme();
     const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
+    const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
     const scrollDirection = useScrollDirection();
     
     // Determine the current path for active tab highlighting
@@ -61,12 +68,13 @@ const Header = () => {
         if (location.pathname.startsWith('/download')) return '/download';
         if (location.pathname.startsWith('/novels')) return '/';
         if (location.pathname === '/') return '/';
-        return location.pathname;
+        return '/';
     };
     
     const handleNavigate = (path: string) => {
         navigate(path);
         setMenuAnchor(null);
+        setAccountMenuAnchor(null);
     };
     
     const handleMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -90,8 +98,32 @@ const Header = () => {
         handleThemeMenuClose();
     };
 
+    const handleAccountMenuOpen = (event: React.MouseEvent<HTMLButtonElement | HTMLDivElement>) => {
+        setAccountMenuAnchor(event.currentTarget);
+    };
+
+    const handleAccountMenuClose = () => {
+        setAccountMenuAnchor(null);
+    };
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+            handleAccountMenuClose();
+            navigate('/');
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
+    };
+
     // Use the appropriate logo based on dark mode
     const logoSrc = isDarkMode ? logoDark : logoLight;
+
+    // Get user's initials for avatar
+    const getUserInitials = () => {
+        if (!user || !user.username) return '?';
+        return user.username.charAt(0).toUpperCase();
+    };
 
     return (
         <AppBar 
@@ -221,6 +253,87 @@ const Header = () => {
                         ))}
                     </Menu>
                     
+                    {/* Authentication Menu */}
+                    {isAuthenticated ? (
+                        <>
+                            <Box 
+                                onClick={handleAccountMenuOpen}
+                                sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    cursor: 'pointer',
+                                    ml: 1
+                                }}
+                            >
+                                <Avatar 
+                                    sx={{ 
+                                        width: 32, 
+                                        height: 32,
+                                        bgcolor: 'primary.main',
+                                        fontSize: '0.875rem'
+                                    }}
+                                    src={user?.profile_pic || undefined}
+                                >
+                                    {getUserInitials()}
+                                </Avatar>
+                                {!isMobile && (
+                                    <Typography variant="body2" sx={{ ml: 1 }}>
+                                        {user?.username || 'User'}
+                                    </Typography>
+                                )}
+                            </Box>
+                            <Menu
+                                id="account-menu"
+                                anchorEl={accountMenuAnchor}
+                                open={Boolean(accountMenuAnchor)}
+                                onClose={handleAccountMenuClose}
+                                anchorOrigin={{
+                                    vertical: 'bottom',
+                                    horizontal: 'right',
+                                }}
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                            >
+                                <MenuItem onClick={() => handleNavigate('/profile')}>
+                                    <ListItemIcon>
+                                        <PersonIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Profile" />
+                                </MenuItem>
+                                <MenuItem onClick={handleLogout}>
+                                    <ListItemIcon>
+                                        <LogoutIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Logout" />
+                                </MenuItem>
+                            </Menu>
+                        </>
+                    ) : (
+                        !isMobile ? (
+                            <Box sx={{ ml: 1 }}>
+                                <Button 
+                                    variant="outlined" 
+                                    size="small" 
+                                    onClick={() => navigate('/login')}
+                                    startIcon={<LoginIcon />}
+                                    sx={{ mr: 1 }}
+                                >
+                                    Login
+                                </Button>
+                            </Box>
+                        ) : (
+                            <IconButton 
+                                color="inherit" 
+                                onClick={handleAccountMenuOpen}
+                                aria-label="Account"
+                            >
+                                <AccountCircleIcon />
+                            </IconButton>
+                        )
+                    )}
+                    
                     {/* Mobile Menu Button */}
                     {isMobile && (
                         <>
@@ -238,9 +351,31 @@ const Header = () => {
                                 onClose={handleMenuClose}
                             >
                                 <MenuItem onClick={() => handleNavigate('/')}>Home</MenuItem>
-                                <MenuItem onClick={() => handleNavigate('/download')}>Download</MenuItem>
+                                <MenuItem onClick={() => handleNavigate('/download')}>Add Novel</MenuItem>
                             </Menu>
                         </>
+                    )}
+                    
+                    {/* Mobile Account Menu */}
+                    {isMobile && !isAuthenticated && (
+                        <Menu
+                            anchorEl={accountMenuAnchor}
+                            open={Boolean(accountMenuAnchor)}
+                            onClose={handleAccountMenuClose}
+                        >
+                            <MenuItem onClick={() => handleNavigate('/login')}>
+                                <ListItemIcon>
+                                    <LoginIcon fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText primary="Login" />
+                            </MenuItem>
+                            <MenuItem onClick={() => handleNavigate('/register')}>
+                                <ListItemIcon>
+                                    <PersonIcon fontSize="small" />
+                                </ListItemIcon>
+                                <ListItemText primary="Register" />
+                            </MenuItem>
+                        </Menu>
                     )}
                 </Box>
             </Toolbar>

@@ -220,6 +220,7 @@ export const getPinkTheme = () =>
                     colorPrimary: {
                         background: "linear-gradient(45deg, #ff4d8d 30%, #ff80ab 90%)",
                         boxShadow: "0 2px 8px rgba(255, 77, 141, 0.3)",
+                        color: "#fff",
                     },
                 },
             },

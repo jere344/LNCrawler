@@ -172,7 +172,6 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     def get_cover_url(self, obj):
         if obj.cover_path:
             return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.cover_path}", safe=':/')
-            return 
         return None
     
     def get_authors(self, obj):

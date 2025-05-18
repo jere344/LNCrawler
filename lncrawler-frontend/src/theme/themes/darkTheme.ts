@@ -188,6 +188,7 @@ export const getDarkTheme = () =>
                     },
                     colorPrimary: {
                         background: "linear-gradient(135deg, #9c78cc 0%, #c8a4ff 100%)",
+                        color: "#11071e",
                     },
                 },
             },

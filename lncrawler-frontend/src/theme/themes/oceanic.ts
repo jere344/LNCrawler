@@ -179,6 +179,7 @@ export const getOceanicTheme = () =>
                     },
                     colorPrimary: {
                         background: "linear-gradient(135deg, #1976d2 0%, #64b5f6 100%)",
+                        color: "#0a192f",
                     },
                 },
             },

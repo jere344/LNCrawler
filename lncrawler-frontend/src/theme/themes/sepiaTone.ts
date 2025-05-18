@@ -178,6 +178,7 @@ export const getSepiaToneTheme = () =>
                     },
                     colorPrimary: {
                         background: "linear-gradient(135deg, #8b5a2b 0%, #a67c52 100%)",
+                        color: "#f5e8d3",
                     },
                 },
             },

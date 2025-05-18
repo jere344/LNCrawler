@@ -185,6 +185,7 @@ export const getLightTheme = () =>
                     },
                     colorPrimary: {
                         background: "linear-gradient(135deg, #5d3a8e 0%, #7952b3 100%)",
+                        color: "#ffffff",
                     },
                 },
             },
