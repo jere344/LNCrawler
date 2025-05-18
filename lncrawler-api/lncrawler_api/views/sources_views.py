@@ -58,6 +58,9 @@ def vote_source(request, novel_slug, source_slug):
         source=source, ip_address=client_ip, defaults={"vote_type": vote_type}
     )
 
+    # Get the updated vote counts
+    source.refresh_from_db()
+
     # Return updated vote counts
     return Response(
         {

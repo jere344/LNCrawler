@@ -38,8 +38,6 @@ const NovelDetail = () => {
   const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [votingInProgress, setVotingInProgress] = useState<{[key: string]: boolean}>({});
-  const [pageLoaded, setPageLoaded] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchNovelDetail = async () => {
@@ -54,7 +52,6 @@ const NovelDetail = () => {
         setError('Failed to load novel details. Please try again later.');
       } finally {
         setLoading(false);
-        setPageLoaded(true)
       }
     };
 
@@ -77,53 +74,6 @@ const NovelDetail = () => {
     // The sources are already sorted by vote score, so the first one is the preferred
     const preferredSource = novel.sources[0];
     navigate(`/novels/${novelSlug}/${preferredSource.source_slug}`);
-  };
-
-  const handleVote = async (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => {
-    event.stopPropagation();
-    if (!novelSlug || votingInProgress[sourceSlug]) return;
-    
-    setVotingInProgress(prev => ({ ...prev, [sourceSlug]: true }));
-    try {
-      const voteResponse = await novelService.voteSource(novelSlug, sourceSlug, voteType);
-      
-      if (novel) {
-        const updatedSources = novel.sources.map(source => {
-          if (source.source_slug === sourceSlug) {
-            return {
-              ...source,
-              upvotes: voteResponse.upvotes,
-              downvotes: voteResponse.downvotes,
-              vote_score: voteResponse.vote_score,
-              user_vote: voteResponse.user_vote
-            };
-          }
-          return source;
-        });
-        
-        // Sort sources by vote score
-        updatedSources.sort((a, b) => b.vote_score - a.vote_score);
-        
-        setNovel({
-          ...novel,
-          sources: updatedSources
-        });
-      }
-    } catch (err) {
-      console.error('Error voting for source:', err);
-    } finally {
-      setVotingInProgress(prev => ({ ...prev, [sourceSlug]: false }));
-    }
-  };
-
-  // Format date to readable format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    }).format(date);
   };
 
   if (loading) {
@@ -568,8 +518,13 @@ const NovelDetail = () => {
         <NovelSynopsis synopsis={primarySource.synopsis} />
       )}
 
-      {/* Available Sources */}
-      <NovelSources novel={novel!} handleSourceClick={handleSourceClick} handleVote={handleVote} votingInProgress={votingInProgress} formatDate={formatDate} />
+      {/* Available Sources - simplified props */}
+      {novel && (
+        <NovelSources 
+          novel={{...novel, slug: novelSlug}} 
+          handleSourceClick={handleSourceClick}
+        />
+      )}
     </Container>
   );
 };

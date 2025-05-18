@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Paper,
   Typography,
@@ -27,17 +27,59 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import TranslateIcon from '@mui/icons-material/Translate';
 import { languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { novelService } from '../../services/api';
 
 interface NovelSourcesProps {
   novel: any;
   handleSourceClick: (sourceSlug: string) => void;
-  handleVote: (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => void;
-  votingInProgress: { [key: string]: boolean };
-  formatDate: (dateString: string) => string;
 }
 
-const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick, handleVote, votingInProgress, formatDate }) => {
+const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick }) => {
   const theme = useTheme();
+  const [sources, setSources] = useState<any[]>(novel.sources);
+  const [votingInProgress, setVotingInProgress] = useState<{ [key: string]: boolean }>({});
+
+  const handleVote = async (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (!novel.slug || votingInProgress[sourceSlug]) return;
+    
+    setVotingInProgress(prev => ({ ...prev, [sourceSlug]: true }));
+    try {
+      const voteResponse = await novelService.voteSource(novel.slug, sourceSlug, voteType);
+      
+      const updatedSources = sources.map(source => {
+        if (source.source_slug === sourceSlug) {
+          return {
+            ...source,
+            upvotes: voteResponse.upvotes,
+            downvotes: voteResponse.downvotes,
+            vote_score: voteResponse.vote_score,
+            user_vote: voteResponse.user_vote
+          };
+        }
+        return source;
+      });
+      
+      // Sort sources by vote score
+      updatedSources.sort((a, b) => b.vote_score - a.vote_score);
+      
+      setSources(updatedSources);
+    } catch (err) {
+      console.error('Error voting for source:', err);
+    } finally {
+      setVotingInProgress(prev => ({ ...prev, [sourceSlug]: false }));
+    }
+  };
+
+  // Format date to readable format
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }).format(date);
+  };
 
   return (
     <Paper
@@ -65,7 +107,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick, h
       <Divider sx={{ mb: 3 }} />
 
       <Grid container spacing={3}>
-        {novel.sources.map((source: any, index: number) => (
+        {sources.map((source: any, index: number) => (
           <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
             <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }}>
               <Card
