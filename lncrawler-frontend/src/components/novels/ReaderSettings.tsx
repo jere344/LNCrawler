@@ -214,7 +214,7 @@ const ReaderSettings = ({
   };
 
   const saveSetting = (key: string, value: any) => {
-    Cookies.set(COOKIE_PREFIX + key, JSON.stringify(value), { expires: COOKIE_EXPIRY });
+    Cookies.set(COOKIE_PREFIX + key, JSON.stringify(value), { expires: COOKIE_EXPIRY, sameSite: 'Strict' });
   };
 
   const resetDefaults = () => {

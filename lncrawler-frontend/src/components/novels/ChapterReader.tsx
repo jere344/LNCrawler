@@ -138,7 +138,6 @@ const ChapterReader = () => {
   // Save current scroll position
   const saveScrollPosition = () => {
     if (!currentChapterKey || !readerSettings.savePosition) return;
-    console.log('Saving scroll position for chapter:', currentChapterKey, 'at position:', window.scrollY);
     scrollPositionsRef.current[currentChapterKey] = window.scrollY;
     
     // Prune old entries if we have too many
