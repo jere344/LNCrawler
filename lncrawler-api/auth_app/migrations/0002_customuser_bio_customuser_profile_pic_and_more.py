@@ -3,6 +3,26 @@
 from django.db import migrations, models
 
 
+def fix_duplicate_emails(apps, schema_editor):
+    CustomUser = apps.get_model('auth_app', 'CustomUser')
+    
+    # Get all emails and their counts
+    email_counts = {}
+    for user in CustomUser.objects.all():
+        if user.email in email_counts:
+            email_counts[user.email].append(user)
+        else:
+            email_counts[user.email] = [user]
+    
+    # Handle duplicates
+    for email, users in email_counts.items():
+        if len(users) > 1:
+            # Keep the first user, modify emails for the rest
+            for i, user in enumerate(users[1:], 1):
+                user.email = f"{user.email.split('@')[0]}+{i}@{user.email.split('@')[1]}"
+                user.save()
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -25,6 +45,9 @@ class Migration(migrations.Migration):
             name="date_joined",
             field=models.DateTimeField(auto_now_add=True),
         ),
+        # Fix duplicate emails before making the field unique
+        migrations.RunPython(fix_duplicate_emails),
+        # Now make the email field unique
         migrations.AlterField(
             model_name="customuser",
             name="email",
