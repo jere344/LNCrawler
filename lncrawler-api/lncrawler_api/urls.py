@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 from .views import novels_views, comments_views, sources_views, users_views 
+from .views.csrf import get_csrf_token
 
 # Configure the REST Framework router
 router = DefaultRouter()
@@ -59,4 +60,6 @@ urlpatterns = [
     path('downloader/jobs/', views.list_jobs, name='list_jobs'),
     path('downloader/jobs/<str:job_id>/', views.job_details, name='job_details'),
 
+    # CSRF token endpoint
+    path('csrf-token/', get_csrf_token, name='csrf_token'),
 ]

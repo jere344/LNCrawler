@@ -50,8 +50,6 @@ export const authService = {
   
   // Logout user
   _logout: async () => {
-    const response = await api.post('/auth/logout/');
-    
     // Clear auth data from storage
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');
@@ -59,6 +57,7 @@ export const authService = {
     // Remove authorization header
     delete api.defaults.headers.common['Authorization'];
     
+    const response = await api.post('/auth/logout/');
     return response.data;
   },
   

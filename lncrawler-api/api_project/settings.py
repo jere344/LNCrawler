@@ -44,6 +44,10 @@ CORS_ALLOW_METHODS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = CORS_ORIGIN_WHITELIST
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_COOKIE_HTTPONLY = False 
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_SAMESITE = 'Lax' 
 
 # Security settings for HTTPS
 if not DEBUG:
@@ -51,10 +55,12 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]  # Extract domain from SITE_URL
 else:
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+    CSRF_COOKIE_DOMAIN = None
 
 
 # Application definition
