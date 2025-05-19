@@ -15,7 +15,7 @@ const getCsrfToken = (): string | null => {
 const fetchCsrfToken = async (): Promise<string | null> => {
   try {
     // Make a GET request to an endpoint that will set the CSRF cookie
-    await axios.get(`${API_BASE_URL}/api/csrf-token/`, { withCredentials: true });
+    await axios.get(`${API_BASE_URL}/csrf-token/`, { withCredentials: true });
     return getCsrfToken();
   } catch (error) {
     console.error('Error fetching CSRF token:', error);
