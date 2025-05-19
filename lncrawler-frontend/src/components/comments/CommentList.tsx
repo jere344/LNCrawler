@@ -8,24 +8,21 @@ import { Comment } from '@models/comments_types';
 
 interface CommentListProps {
   comments: Comment[];
-  showCommentType?: boolean;
-  emptyMessage?: string;
-  showOtherSourceWarning?: boolean;
-  onAddReply?: (parentId: string, commentData: { 
+  onAddReply?: (commentData: { 
     author_name: string; 
     message: string; 
     contains_spoiler: boolean;
     parent_id: string;
   }) => Promise<void>;
+  currentSource?: string;
 }
 
 const CommentList = ({
   comments,
-  showCommentType = false,
-  emptyMessage = 'No comments yet. Be the first to comment!',
-  showOtherSourceWarning = false,
   onAddReply,
+  currentSource,
 }: CommentListProps) => {
+  const emptyMessage = 'No comments yet. Be the first to comment!';
 
   if (comments.length === 0) {
     return (
@@ -39,7 +36,7 @@ const CommentList = ({
 
   return (
     <Box>
-      {showOtherSourceWarning && comments.some(c => c.from_other_source) && (
+      {currentSource && comments.some(comment => comment.source_slug !== currentSource) && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           Some comments below were posted for different sources. Sources may use different chapter numbering so there may be spoilers or seemingly irrelevant comments.
         </Alert>
@@ -48,9 +45,9 @@ const CommentList = ({
       {comments.map(comment => (
         <CommentItem
           key={comment.id}
+          fromOtherSource={currentSource ? (comment.source_slug !== currentSource) : false}
           comment={comment}
-          showCommentType={showCommentType}
-          onAddReply={onAddReply} // Ensure this is correctly passed
+          onAddReply={onAddReply}
         />
       ))}
     </Box>

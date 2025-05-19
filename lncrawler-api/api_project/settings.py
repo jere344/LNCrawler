@@ -58,6 +58,7 @@ if not DEBUG:
     CSRF_COOKIE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]  # Extract domain from SITE_URL
 else:
     SECURE_SSL_REDIRECT = False
+    SECURE_PROXY_SSL_HEADER = None
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
     CSRF_COOKIE_DOMAIN = None

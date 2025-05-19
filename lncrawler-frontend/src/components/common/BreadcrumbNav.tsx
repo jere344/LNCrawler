@@ -38,6 +38,7 @@ const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items }) => {
           if (isLast || !item.link) {
             return (
               <Typography
+                component="span"
                 key={item.label}
                 sx={{ 
                   display: 'flex', 

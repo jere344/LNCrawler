@@ -4,7 +4,6 @@ export interface Comment {
   message: string;
   contains_spoiler: boolean;
   created_at: string;
-  from_other_source?: boolean;
   source_name?: string;
   type?: 'novel' | 'chapter';
   chapter_title?: string;
@@ -19,5 +18,6 @@ export interface Comment {
     id: string;
     username: string;
     profile_pic: string;
-  }
+  },
+  user_vote?: 'up' | 'down';
 }

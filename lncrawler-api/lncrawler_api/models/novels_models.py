@@ -13,6 +13,7 @@ class Novel(models.Model):
     novel_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    comment_count = models.PositiveIntegerField(default=0)
     
     def __str__(self):
         return self.title
@@ -20,7 +21,16 @@ class Novel(models.Model):
     @property
     def sources_count(self):
         return self.sources.count()
-
+        
+    def increment_comment_count(self):
+        """
+        Increment the comment count for the novel
+        """
+        Novel.objects.filter(pk=self.pk).update(
+            comment_count=F('comment_count') + 1
+        )
+        # Refresh from database to get the latest values
+        self.refresh_from_db()
 
 class Person(models.Model):
     """Base model for people involved with novels (authors, editors, translators)"""

@@ -21,25 +21,26 @@ import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
 import CommentForm from './CommentForm';
 import { commentService } from '../../services/api';
 import { Comment as IComment } from '@models/comments_types';
+import { getChapterName } from '@utils/Misc';
 
 interface CommentItemProps {
   comment: IComment;
   depth?: number;
-  showCommentType?: boolean;
-  onAddReply?: (parentId: string, commentData: any) => Promise<void>;
+  onAddReply?: (commentData: any) => Promise<void>;
+  fromOtherSource?: boolean;
 }
 
 const CommentItem = ({
   comment,
   depth = 0,
-  showCommentType = false,
   onAddReply,
+  fromOtherSource = false,
 }: CommentItemProps) => {
   const [isSpoilerRevealed, setSpoilerRevealed] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [votes, setVotes] = useState({ upvotes: comment.upvotes, downvotes: comment.downvotes });
-  const [currentVote, setCurrentVote] = useState<'up' | 'down' | null>(null); // Track user's vote on this comment
+  const [currentVote, setCurrentVote] = useState<'up' | 'down' | null>(comment.user_vote || null);
   const [isVoting, setIsVoting] = useState(false);
   
   const hasReplies = comment.replies && comment.replies.length > 0;
@@ -63,7 +64,7 @@ const CommentItem = ({
   
   const handleReplySubmit = async (data: any) => {
     if (onAddReply) {
-      await onAddReply(comment.id, {
+      await onAddReply({
         ...data,
         parent_id: comment.id
       });
@@ -98,7 +99,7 @@ const CommentItem = ({
         elevation={1} 
         sx={{ 
           p: 2, 
-          bgcolor: comment.from_other_source ? 'action.hover' : 'background.paper',
+          bgcolor: fromOtherSource ? 'action.hover' : 'background.paper',
           borderLeft: depth > 0 ? '3px solid #9c27b0' : 'none', 
         }}
       >
@@ -120,12 +121,6 @@ const CommentItem = ({
             )}
             <Typography variant="subtitle1" fontWeight="bold">
               {displayName}
-              
-              {comment.from_other_source && comment.source_name && (
-                <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                  (from {comment.source_name})
-                </Typography>
-              )}
             </Typography>
             
             {hasReplies && (
@@ -144,13 +139,13 @@ const CommentItem = ({
           </Typography>
         </Box>
         
-        {showCommentType && comment.type && (
+        {comment.type && (
           <Box sx={{ mb: 1 }}>
             {comment.type === 'novel' ? (
               <Chip size="small" label="Novel Comment" color="primary" variant="outlined" />
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Chip size="small" label={`Chapter ${comment.chapter_id}: ${comment.chapter_title}`} color="secondary" variant="outlined" />
+                <Chip size="small" label={`Chapter ${comment.chapter_id}: ${getChapterName(comment.chapter_title || '')}`} color="secondary" variant="outlined" />
                 <Typography variant="body2" color="text.secondary">
                   from {comment.source_name}
                 </Typography>
@@ -258,8 +253,8 @@ const CommentItem = ({
               key={reply.id}
               comment={reply}
               depth={depth + 1}
-              showCommentType={showCommentType}
               onAddReply={onAddReply}
+              fromOtherSource={fromOtherSource}
             />
           ))}
         </Box>

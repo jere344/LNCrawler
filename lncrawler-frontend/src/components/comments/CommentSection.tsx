@@ -59,84 +59,31 @@ const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) 
     contains_spoiler: boolean; 
   }) => {
     try {
-      let newComment;
-      
       if (isChapterComments && chapterData) {
-        newComment = await novelService.addChapterComment(
+        await novelService.addChapterComment(
           chapterData.novelSlug,
           chapterData.sourceSlug,
           chapterData.chapterNumber,
           commentData
         );
+        // Refetch all comments to ensure consistency
+        const updatedComments = await novelService.getChapterComments(
+          chapterData.novelSlug,
+          chapterData.sourceSlug,
+          chapterData.chapterNumber
+        );
+        setComments(updatedComments);
       } else if (novelSlug) {
-        newComment = await novelService.addNovelComment(novelSlug, commentData);
+        await novelService.addNovelComment(novelSlug, commentData);
+        // Refetch all comments to ensure consistency
+        const updatedComments = await novelService.getNovelComments(novelSlug);
+        setComments(updatedComments);
       } else {
         throw new Error('Either novelSlug or chapterData must be provided');
       }
-      
-      // Add the new comment to the list
-      setComments(prev => [newComment, ...prev]);
     } catch (err) {
       console.error('Failed to add comment:', err);
       throw err; // Re-throw the error so the CommentForm can handle it
-    }
-  };
-  
-  const handleAddReply = async (parentId: string, commentData: { 
-    author_name: string; 
-    message: string; 
-    contains_spoiler: boolean; 
-    parent_id: string;
-  }) => {
-    try {
-      let newReply;
-      
-      if (isChapterComments && chapterData) {
-        newReply = await novelService.addChapterComment(
-          chapterData.novelSlug,
-          chapterData.sourceSlug,
-          chapterData.chapterNumber,
-          commentData
-        );
-      } else if (novelSlug) {
-        newReply = await novelService.addNovelComment(novelSlug, commentData);
-      } else {
-        throw new Error('Either novelSlug or chapterData must be provided');
-      }
-      
-      // Find the parent comment and add the reply to it
-      // Note: This is a simplified approach. In a real app, you might want to refetch all comments
-      // This approach keeps the UI updated without a full refetch
-      setComments(prevComments => {
-        // Function to recursively find and update the comment with the new reply
-        const updateCommentWithReply = (comments: any[]): any[] => {
-          return comments.map(comment => {
-            if (comment.id === parentId) {
-              // Add the reply to this comment
-              return {
-                ...comment,
-                replies: [...(comment.replies || []), newReply],
-                has_replies: true
-              };
-            }
-            
-            // If this comment has replies, check them too
-            if (comment.replies && comment.replies.length > 0) {
-              return {
-                ...comment,
-                replies: updateCommentWithReply(comment.replies)
-              };
-            }
-            
-            return comment;
-          });
-        };
-        
-        return updateCommentWithReply(prevComments);
-      });
-    } catch (err) {
-      console.error('Failed to add reply:', err);
-      throw err;
     }
   };
 
@@ -161,10 +108,8 @@ const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) 
       ) : (
         <CommentList 
           comments={comments}
-          showCommentType={!isChapterComments} // Only show comment types in novel comments view
-          emptyMessage="No comments yet. Be the first to comment!"
-          showOtherSourceWarning={isChapterComments} // Only show warning for chapter comments
-          onAddReply={handleAddReply}
+          onAddReply={handleAddComment}
+          currentSource={chapterData?.sourceSlug}
         />
       )}
     </Box>

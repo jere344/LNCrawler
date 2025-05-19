@@ -172,7 +172,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
                   textOverflow: 'ellipsis',
                 }}
               >
-                {formatter.format(0)} comments
+                {formatter.format(novel.comment_count)} comments
               </Typography>
             </Box>
           )}

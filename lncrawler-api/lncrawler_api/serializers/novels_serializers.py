@@ -26,7 +26,7 @@ class BasicNovelSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'slug', 'sources_count',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_bookmarked'
+            'prefered_source', 'languages', 'is_bookmarked', 'comment_count'
         ]
     
     def get_prefered_source(self, obj):
@@ -96,7 +96,7 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
-            'prefered_source', 'is_bookmarked'
+            'prefered_source', 'is_bookmarked', 'comment_count'
         ]
     
     def get_sources(self, obj):

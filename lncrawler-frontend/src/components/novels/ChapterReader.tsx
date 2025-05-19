@@ -453,7 +453,7 @@ const ChapterReader = () => {
                 icon: <BookIcon fontSize="inherit" />
               },
               {
-                label: "Source",
+                label: chapter.source_name,
                 link: `/novels/${novelSlug}/${sourceSlug}`,
                 icon: <LanguageIcon fontSize="inherit" />
               },
