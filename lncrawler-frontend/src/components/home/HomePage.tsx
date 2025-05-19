@@ -412,12 +412,12 @@ const HomePage: React.FC = () => {
         <Divider sx={{ mb: 3 }} />
         
         {loadingFeatured ? (
-          <FeaturedNovelCard novel={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
+          <FeaturedNovelCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
         ) : featuredError ? (
           renderErrorMessage(featuredError)
         ) : featuredNovel ? (
           <FeaturedNovelCard 
-            novel={featuredNovel}
+            source={featuredNovel}
             onClick={() => {
               if (featuredNovel.novel_slug && featuredNovel.source_slug) {
                 handleNovelClick(featuredNovel.novel_slug, featuredNovel.source_slug);
@@ -458,8 +458,8 @@ const HomePage: React.FC = () => {
                 <ChapterCard
                   source={source}
                   onClick={() => {
-                    if (source.novel_slug && source.source_slug) {
-                      handleNovelClick(source.novel_slug, source.source_slug);
+                    if (source.novel_slug) {
+                      handleNovelClick(source.novel_slug);
                     }
                   }}
                 />

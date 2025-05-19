@@ -3,7 +3,6 @@ export interface Novel {
   title: string;
   slug: string;
   sources_count: number;
-  total_chapters: number;
   avg_rating: number | null;
   rating_count: number;
   total_views?: number;
@@ -43,6 +42,7 @@ export interface NovelFromSource {
   novel_slug: string;
   novel_title: string;
   cover_url: string | null;
+  latest_available_chapter: Chapter | null;
 }
 
 export interface NovelDetail {

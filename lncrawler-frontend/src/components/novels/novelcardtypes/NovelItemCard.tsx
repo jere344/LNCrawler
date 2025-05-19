@@ -143,7 +143,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
                 textOverflow: 'ellipsis',
               }}
             >
-              {novel.total_chapters || novel.prefered_source?.chapters_count || 0} Chapters
+              {novel.prefered_source?.chapters_count || 0} Chapters
             </Typography>
           </Box>
         </Box>

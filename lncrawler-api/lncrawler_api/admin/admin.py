@@ -112,10 +112,10 @@ class SourceVoteInline(admin.TabularInline):
 
 @admin.register(Novel)
 class NovelAdmin(admin.ModelAdmin):
-    list_display = ('title', 'slug', 'sources_count', 'total_chapters', 'view_count_display', 'created_at', 'updated_at')
+    list_display = ('title', 'slug', 'sources_count', 'view_count_display', 'created_at', 'updated_at')
     search_fields = ('title', 'slug')
     prepopulated_fields = {'slug': ('title',)}
-    readonly_fields = ('id', 'created_at', 'updated_at', 'sources_count', 'total_chapters', 'view_count_display')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'sources_count', 'view_count_display')
     inlines = [NovelFromSourceInline, NovelRatingInline]
     
     def view_count_display(self, obj):

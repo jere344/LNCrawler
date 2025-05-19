@@ -302,7 +302,6 @@ export const authService = {
     
     // Store the token in localStorage
     if (response.data.token) {
-      console.log('Login successful, token:', response.data.token);
       localStorage.setItem('authToken', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       

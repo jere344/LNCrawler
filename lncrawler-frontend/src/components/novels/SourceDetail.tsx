@@ -98,7 +98,7 @@ const SourceDetail = () => {
 
   const handleLatestChapterClick = () => {
     if (!source) return;
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${source.chapters_count}`);
+    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${source.latest_available_chapter?.chapter_id || 0}`);
   };
   
   const handleVote = async (voteType: 'up' | 'down') => {
@@ -600,7 +600,7 @@ const SourceDetail = () => {
                           Chapters
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {source.chapters_count}
+                          {source.latest_available_chapter?.chapter_id || 0}
                         </Typography>
                       </Box>
                     </Box>
@@ -718,7 +718,7 @@ const SourceDetail = () => {
                         fullWidth
                         startIcon={<ViewListIcon />}
                         onClick={handleChaptersClick}
-                        disabled={source.chapters_count === 0}
+                        disabled={source.latest_available_chapter?.chapter_id === 0}
                         sx={{
                           borderRadius: '12px',
                           p: 1.5,
@@ -757,7 +757,7 @@ const SourceDetail = () => {
                         fullWidth
                         startIcon={<PlayArrowIcon />}
                         onClick={handleFirstChapterClick}
-                        disabled={source.chapters_count === 0}
+                        disabled={source.latest_available_chapter?.chapter_id === 0}
                         sx={{
                           borderRadius: '12px',
                           p: 1.5,
@@ -796,7 +796,7 @@ const SourceDetail = () => {
                         fullWidth
                         startIcon={<SkipNextIcon />}
                         onClick={handleLatestChapterClick}
-                        disabled={source.chapters_count === 0}
+                        disabled={!source.latest_available_chapter}
                         sx={{
                           borderRadius: '12px',
                           p: 1.5,
@@ -814,7 +814,7 @@ const SourceDetail = () => {
                             Latest Chapter
                           </Typography>
                           <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            Chapter {source.chapters_count}
+                            Chapter {source.latest_available_chapter?.chapter_id || 0}
                           </Typography>
                         </Box>
                         <SkipNextIcon sx={{ 

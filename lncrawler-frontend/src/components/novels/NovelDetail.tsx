@@ -71,8 +71,7 @@ const NovelDetail = () => {
   const handleQuickStart = () => {
     if (!novelSlug || !novel || novel.sources.length === 0) return;
     
-    // The sources are already sorted by vote score, so the first one is the preferred
-    const preferredSource = novel.sources[0];
+    const preferredSource = novel.prefered_source || novel.sources[0];
     navigate(`/novels/${novelSlug}/${preferredSource.source_slug}`);
   };
 
@@ -467,7 +466,7 @@ const NovelDetail = () => {
                       variant="body2" 
                       sx={{ color: theme.palette.common.white, fontWeight: 700 }}
                     >
-                      {Math.max(...novel.sources.map(source => source.chapters_count))} Chapters
+                      {Math.max(...novel.sources.map(source => source.latest_available_chapter?.chapter_id || 0))} Chapters
                     </Typography>
                   </Box>
                 </Box>

@@ -33,7 +33,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
     );
   }
 
-  const chapterName = (source.title && source.chapters_count !== 0) ? getChapterName(source.title) : '';
+  const chapterName = getChapterName(source.latest_available_chapter?.title || "");
   
   return (
     <ButtonBase 
@@ -111,7 +111,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
               mb: 0.5
             }}
           >
-            Chapter {source.chapters_count}
+            Chapter {source.latest_available_chapter?.chapter_id}
             {chapterName ? ` : ${chapterName}` : ''}
           </Typography>
         </Box>

@@ -20,6 +20,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     novel_title = serializers.SerializerMethodField()
     vote_score = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
+    latest_available_chapter = serializers.SerializerMethodField()
     
     class Meta:
         model = NovelFromSource
@@ -27,7 +28,8 @@ class NovelSourceSerializer(serializers.ModelSerializer):
             'id', 'title', 'source_url', 'source_name', 'source_slug', 'cover_path',
             'authors', 'genres', 'tags', 'language', 'status', 'synopsis',
             'chapters_count', 'volumes_count', 'last_chapter_update', 'upvotes', 'downvotes',
-            'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url'
+            'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
+            'latest_available_chapter'
         ]
 
     def get_cover_url(self, obj):
@@ -70,6 +72,13 @@ class NovelSourceSerializer(serializers.ModelSerializer):
 
     def get_vote_score(self, obj):
         return obj.upvotes - obj.downvotes
+    
+    def get_latest_available_chapter(self, obj):
+        """Return the latest available chapter with content"""
+        latest_chapter = obj.chapters.filter(has_content=True).order_by('-chapter_id').first()
+        if latest_chapter:
+            return ChapterSerializer(latest_chapter).data
+        return None
 
 
 class ChapterSerializer(serializers.ModelSerializer):

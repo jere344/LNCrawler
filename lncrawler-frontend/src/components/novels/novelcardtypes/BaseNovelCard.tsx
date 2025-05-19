@@ -228,7 +228,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               <Tooltip title="Total Chapters">
                 <Chip 
                   icon={<MenuBookIcon />}
-                  label={novel.total_chapters > 0 ? formatCount(novel.total_chapters) : 'Unknown'}
+                  label={novel.prefered_source?.chapters_count ? formatCount(novel.prefered_source.chapters_count) : 'Unknown'}
                   size="small"
                   variant="outlined"
                 />

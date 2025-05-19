@@ -277,6 +277,7 @@ class Chapter(models.Model):
     chapter_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
     images = models.JSONField(default=dict)  # Keep as JSONField due to complex structure
     success = models.BooleanField(default=False)
+    has_content = models.BooleanField(default=False)  # New field to track content availability
     
     class Meta:
         unique_together = ('novel_from_source', 'chapter_id')
@@ -300,9 +301,9 @@ class Chapter(models.Model):
         
         return None
     
-    @property
-    def has_content(self):
-        """Check if the chapter file exists and has content"""
+    def check_has_content(self):
+        """Check if the chapter file exists and has content, and update the has_content field"""
+        has_content = False
         if self.chapter_path:
             try:
                 full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.chapter_path)
@@ -310,19 +311,29 @@ class Chapter(models.Model):
                     # If the file is larger than 2KB, we assume it has not failed content and 
                     # no need to parse the JSON file
                     if os.path.getsize(full_path) > 2048:
-                        return True
-
-                    # If less than 2KB it's ambiguous, either it faled or has little content (only an image)
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        chapter_data = json.load(f)
-                        body = chapter_data.get('body')
-                        fail_message = "Failed to download chapter body"
-                        return body is not None and len(body) > 0 and fail_message not in body
-                        
+                        has_content = True
+                    else:
+                        # If less than 2KB it's ambiguous, either it failed or has little content (only an image)
+                        with open(full_path, 'r', encoding='utf-8') as f:
+                            chapter_data = json.load(f)
+                            body = chapter_data.get('body')
+                            fail_message = "Failed to download chapter body"
+                            has_content = body is not None and len(body) > 0 and fail_message not in body
             except Exception:
-                pass
+                has_content = False
         
-        return False
+        # Update the field if it's different
+        if self.has_content != has_content:
+            self.has_content = has_content
+            self.save(update_fields=['has_content'])
+        
+        return has_content
+    
+    def save(self, *args, **kwargs):
+        # If we're not explicitly updating specific fields, check content
+        if not kwargs.get('update_fields') or 'has_content' not in kwargs.get('update_fields', []):
+            self.check_has_content()
+        super().save(*args, **kwargs)
 
 
 class SourceVote(models.Model):

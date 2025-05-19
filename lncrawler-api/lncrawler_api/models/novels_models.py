@@ -20,10 +20,6 @@ class Novel(models.Model):
     @property
     def sources_count(self):
         return self.sources.count()
-    
-    @property
-    def total_chapters(self):
-        return sum(source.chapters_count for source in self.sources.all())
 
 
 class Person(models.Model):

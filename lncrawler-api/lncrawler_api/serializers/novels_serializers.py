@@ -22,7 +22,7 @@ class BasicNovelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Novel
         fields = [
-            'id', 'title', 'slug', 'sources_count', 'total_chapters',
+            'id', 'title', 'slug', 'sources_count',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages'
         ]

@@ -17,6 +17,7 @@ import {
   alpha,
   useTheme,
   Grid2 as Grid,
+  CardMedia,
 } from '@mui/material';
 import LanguageIcon from '@mui/icons-material/Language';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -26,7 +27,8 @@ import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import TranslateIcon from '@mui/icons-material/Translate';
-import { languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import ImageIcon from '@mui/icons-material/Image';
+import { getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 import { novelService } from '../../services/api';
 
 interface NovelSourcesProps {
@@ -149,6 +151,38 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
                     onClick={() => handleSourceClick(source.source_slug)}
                     sx={{ height: '100%' }}
                   >
+                    {/* Source Cover Image */}
+                    {source.cover_url ? (
+                      <CardMedia
+                        component="img"
+                        height="140"
+                        image={source.cover_url}
+                        alt={`${source.source_name} cover`}
+                        sx={{ 
+                          objectFit: 'cover',
+                          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`
+                        }}
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          height: 120,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: alpha(theme.palette.primary.light, 0.1),
+                          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`
+                        }}
+                      >
+                        <ImageIcon 
+                          sx={{ 
+                            fontSize: 60, 
+                            color: alpha(theme.palette.primary.main, 0.3)
+                          }} 
+                        />
+                      </Box>
+                    )}
+                    
                     <CardContent>
                       <Typography
                         variant="h6"
@@ -208,7 +242,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
                           sx={{
                             py: 0.5,
                             display: 'flex',
-                            alignItems: 'center',
+                            alignItems: 'flex-start',
                           }}
                         >
                           <Box
@@ -222,19 +256,37 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
                               mr: 1.5,
                               background: alpha(theme.palette.primary.main, 0.1),
                               color: theme.palette.primary.main,
+                              mt: 0.5, // Align with first line
                             }}
                           >
                             <MenuBookIcon fontSize="small" />
                           </Box>
                           <ListItemText
                             primary={
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                                  Chapters
-                                </Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                                  {source.chapters_count}
-                                </Typography>
+                              <Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                                    Chapters
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                                    {source.latest_available_chapter?.chapter_id || 0}
+                                  </Typography>
+                                </Box>
+                                {getChapterName(source.latest_available_chapter?.title || '') !== '' && (
+                                  <Typography 
+                                    variant="body2" 
+                                    sx={{ 
+                                      color: theme.palette.primary.main,
+                                      fontWeight: 500,
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      fontSize: '0.75rem'
+                                    }}
+                                  >
+                                    {getChapterName(source.latest_available_chapter?.title || '')}
+                                  </Typography>
+                                )}
                               </Box>
                             }
                           />
