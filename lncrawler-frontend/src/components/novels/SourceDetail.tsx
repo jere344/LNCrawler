@@ -38,6 +38,8 @@ import NovelRating from './common/NovelRating';
 import NovelGenres from './common/NovelGenres';
 import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
+import BreadcrumbNav from '../common/BreadcrumbNav';
+import BookIcon from '@mui/icons-material/Book';
 
 const SourceDetail = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
@@ -363,6 +365,22 @@ const SourceDetail = () => {
 
   return (
       <Container maxWidth="lg">
+        {!loading && source && (
+          <BreadcrumbNav
+            items={[
+              {
+                label: source.novel_title,
+                link: `/novels/${novelSlug}`,
+                icon: <BookIcon fontSize="inherit" />
+              },
+              {
+                label: source.source_name,
+                icon: <LanguageIcon fontSize="inherit" />
+              }
+            ]}
+          />
+        )}
+        
         <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
           <Button 
             startIcon={<ArrowBackIcon />} 

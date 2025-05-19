@@ -27,6 +27,10 @@ import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import { Chapter, ChapterListResponse as IChapterListResponse } from '@models/novels_types';
+import BreadcrumbNav from '../common/BreadcrumbNav';
+import BookIcon from '@mui/icons-material/Book';
+import LanguageIcon from '@mui/icons-material/Language';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 
 interface IExtendedChapterListResponse extends IChapterListResponse {
   count: number;
@@ -145,6 +149,27 @@ const ChapterList = () => {
 
   return (
     <Container maxWidth="md">
+      {!loading && chapterData && (
+        <BreadcrumbNav
+          items={[
+            {
+              label: chapterData.novel_title,
+              link: `/novels/${novelSlug}`,
+              icon: <BookIcon fontSize="inherit" />
+            },
+            {
+              label: chapterData.source_name,
+              link: `/novels/${novelSlug}/${sourceSlug}`,
+              icon: <LanguageIcon fontSize="inherit" />
+            },
+            {
+              label: "Chapters",
+              icon: <ListAltIcon fontSize="inherit" />
+            }
+          ]}
+        />
+      )}
+      
       <Button startIcon={<ArrowBackIcon />} onClick={handleBackClick} sx={{ mt: 2 }}>
         Back to Source
       </Button>

@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from ..models import (
     Novel, Author, Genre, Tag,
-    NovelViewCount, WeeklyNovelView
+    NovelViewCount, WeeklyNovelView,
+    NovelBookmark
 )
 from django.db.models import Avg, F, ExpressionWrapper, IntegerField
 from .sources_serializers import NovelSourceSerializer
@@ -18,13 +19,14 @@ class BasicNovelSerializer(serializers.ModelSerializer):
     weekly_views = serializers.SerializerMethodField()
     prefered_source = serializers.SerializerMethodField()
     languages = serializers.SerializerMethodField()
+    is_bookmarked = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
         fields = [
             'id', 'title', 'slug', 'sources_count',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages'
+            'prefered_source', 'languages', 'is_bookmarked'
         ]
     
     def get_prefered_source(self, obj):
@@ -68,6 +70,12 @@ class BasicNovelSerializer(serializers.ModelSerializer):
             if source.language:
                 languages.add(source.language)
         return list(languages)
+
+    def get_is_bookmarked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return NovelBookmark.objects.filter(novel=obj, user=request.user).exists()
+        return None
     
 
 class DetailedNovelSerializer(serializers.ModelSerializer):
@@ -81,13 +89,14 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
     total_views = serializers.SerializerMethodField()
     weekly_views = serializers.SerializerMethodField()
     prefered_source = serializers.SerializerMethodField()
+    is_bookmarked = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
         fields = [
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
-            'prefered_source'
+            'prefered_source', 'is_bookmarked'
         ]
     
     def get_sources(self, obj):
@@ -143,6 +152,12 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             year_week=current_year_week
         ).first()
         return weekly_view.views if weekly_view else 0
+
+    def get_is_bookmarked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return NovelBookmark.objects.filter(novel=obj, user=request.user).exists()
+        return None
 
 
 class AuthorSerializer(serializers.ModelSerializer):

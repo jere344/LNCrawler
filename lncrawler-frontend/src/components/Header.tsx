@@ -1,4 +1,4 @@
-import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Link, ListItemIcon, ListItemText, Button, Divider, Avatar } from "@mui/material";
+import { IconButton, Box, Typography, AppBar, Toolbar, useMediaQuery, Tab, Tabs, Menu, MenuItem, Link, ListItemIcon, ListItemText, Button, Avatar } from "@mui/material";
 import PaletteIcon from '@mui/icons-material/Palette';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
@@ -8,6 +8,7 @@ import LoginIcon from '@mui/icons-material/Login';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import LibraryBooksIcon from '@mui/icons-material/LibraryBooks'; // Add Library icon
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -66,6 +67,7 @@ const Header = () => {
     // Determine the current path for active tab highlighting
     const getCurrentPath = () => {
         if (location.pathname.startsWith('/download')) return '/download';
+        if (location.pathname.startsWith('/library')) return '/library';
         if (location.pathname.startsWith('/novels')) return '/';
         if (location.pathname === '/') return '/';
         return '/';
@@ -175,6 +177,9 @@ const Header = () => {
                         sx={{ flexGrow: 1, ml: 4 }}
                     >
                         <Tab label="Home" value="/" onClick={() => navigate('/')} />
+                        {isAuthenticated && (
+                            <Tab label="Library" value="/library" onClick={() => navigate('/library')} />
+                        )}
                         <Tab label="Add Novel" value="/download" onClick={() => navigate('/download')} />
                     </Tabs>
                 )}
@@ -351,6 +356,14 @@ const Header = () => {
                                 onClose={handleMenuClose}
                             >
                                 <MenuItem onClick={() => handleNavigate('/')}>Home</MenuItem>
+                                {isAuthenticated && (
+                                    <MenuItem onClick={() => handleNavigate('/library')}>
+                                        <ListItemIcon>
+                                            <LibraryBooksIcon fontSize="small" />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Library" />
+                                    </MenuItem>
+                                )}
                                 <MenuItem onClick={() => handleNavigate('/download')}>Add Novel</MenuItem>
                             </Menu>
                         </>

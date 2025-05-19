@@ -33,6 +33,7 @@
       "@theme/*": ["src/theme/*"],
       "@config/*": ["src/config/*"],
       "@utils/*": ["src/utils/*"],
+      "@context/*": ["src/context/*"],
     }
   },
   "include": ["src"]

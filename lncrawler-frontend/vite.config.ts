@@ -14,6 +14,7 @@ export default defineConfig({
       '@theme': path.resolve(__dirname, './src/theme'),
       '@config': path.resolve(__dirname, './src/config'),
       '@utils': path.resolve(__dirname, './src/utils'),
+      '@context': path.resolve(__dirname, './src/context'),
     }
   },
   build: {

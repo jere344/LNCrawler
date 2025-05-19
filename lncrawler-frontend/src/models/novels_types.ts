@@ -9,6 +9,7 @@ export interface Novel {
   weekly_views?: number;
   prefered_source: NovelFromSource | null;
   languages: string[];
+  is_bookmarked?: boolean | null;
 }
 
 export interface NovelListResponse {
@@ -43,6 +44,7 @@ export interface NovelFromSource {
   novel_title: string;
   cover_url: string | null;
   latest_available_chapter: Chapter | null;
+  is_bookmarked?: boolean | null; // Added for consistency, though NovelFromSource is part of NovelDetail
 }
 
 export interface NovelDetail {
@@ -58,6 +60,7 @@ export interface NovelDetail {
   total_views: number;
   weekly_views: number;
   prefered_source: NovelFromSource | null;
+  is_bookmarked?: boolean | null;
 }
 
 export interface NovelFeaturedResponse {

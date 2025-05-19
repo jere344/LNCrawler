@@ -29,6 +29,11 @@ import { ChapterContent as IChapterContent } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, defaultSettings, EdgeTapBehavior } from './ReaderSettings';
 import Cookies from 'js-cookie';
 import CloseIcon from '@mui/icons-material/Close';
+import BreadcrumbNav from '../common/BreadcrumbNav';
+import BookIcon from '@mui/icons-material/Book';
+import LanguageIcon from '@mui/icons-material/Language';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 // Interface for our chapter cache
 interface ChapterCache {
@@ -438,6 +443,33 @@ const ChapterReader = () => {
           padding: { xs: 0, md: 4 },
         }}
       >
+        {/* Add breadcrumbs for desktop view only */}
+        {!isMobile && (
+          <BreadcrumbNav
+            items={[
+              {
+                label: chapter.novel_title,
+                link: `/novels/${novelSlug}`,
+                icon: <BookIcon fontSize="inherit" />
+              },
+              {
+                label: "Source",
+                link: `/novels/${novelSlug}/${sourceSlug}`,
+                icon: <LanguageIcon fontSize="inherit" />
+              },
+              {
+                label: "Chapters",
+                link: `/novels/${novelSlug}/${sourceSlug}/chapterlist`,
+                icon: <ListAltIcon fontSize="inherit" />
+              },
+              {
+                label: chapter.title,
+                icon: <MenuBookIcon fontSize="inherit" />
+              }
+            ]}
+          />
+        )}
+        
         <Box
           ref={contentRef}
           onClick={handleContentClick}
@@ -560,6 +592,7 @@ const ChapterReader = () => {
                   startIcon={<ArrowBackIcon />} 
                   onClick={handlePrevChapter}
                   variant="outlined"
+                  component="a"
                 >
                   Previous Chapter
                 </Button>

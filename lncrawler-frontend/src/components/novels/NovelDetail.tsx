@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PersonIcon from '@mui/icons-material/Person';
 import FlagIcon from '@mui/icons-material/Flag';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import {
   Container,
   Typography,
@@ -15,21 +16,27 @@ import {
   Skeleton,
   Zoom,
   Grid2 as Grid,
+  Tooltip,
+  IconButton,
+  Snackbar,
+  Alert,
 } from '@mui/material';
-import { novelService } from '../../services/api';
+import { novelService, userService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import defaultCover from '@assets/default-cover.jpg';
 import { NovelDetail as INovelDetail } from '@models/novels_types';
 import NovelSources from './NovelSources.tsx';
 import NovelSynopsis from './common/NovelSynopsis.tsx';
 import NovelRating from './common/NovelRating.tsx';
 import NovelGenres from './common/NovelGenres.tsx';
+import BreadcrumbNav from '../common/BreadcrumbNav';
 
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
@@ -38,6 +45,17 @@ const NovelDetail = () => {
   const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState<boolean>(false);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   useEffect(() => {
     const fetchNovelDetail = async () => {
@@ -47,6 +65,7 @@ const NovelDetail = () => {
       try {
         const data = await novelService.getNovelDetail(novelSlug);
         setNovel(data);
+        setIsBookmarked(!!data.is_bookmarked);
       } catch (err) {
         console.error('Error fetching novel details:', err);
         setError('Failed to load novel details. Please try again later.');
@@ -73,6 +92,47 @@ const NovelDetail = () => {
     
     const preferredSource = novel.prefered_source || novel.sources[0];
     navigate(`/novels/${novelSlug}/${preferredSource.source_slug}`);
+  };
+
+  // Handle bookmark toggle
+  const handleBookmarkToggle = async () => {
+    if (!novelSlug || bookmarkLoading) return;
+    
+    setBookmarkLoading(true);
+    try {
+      if (isBookmarked) {
+        await userService.removeNovelBookmark(novelSlug);
+        setSnackbar({
+          open: true,
+          message: 'Novel removed from bookmarks',
+          severity: 'success',
+        });
+      } else {
+        await userService.addNovelBookmark(novelSlug);
+        setSnackbar({
+          open: true,
+          message: 'Novel added to bookmarks',
+          severity: 'success',
+        });
+      }
+      setIsBookmarked(!isBookmarked);
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to update bookmarks. Please try again.',
+        severity: 'error',
+      });
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({
+      ...prev,
+      open: false,
+    }));
   };
 
   if (loading) {
@@ -188,6 +248,17 @@ const NovelDetail = () => {
 
   return (
     <Container maxWidth="lg" sx={{ pb: 6 }}>
+      {!loading && novel && (
+        <BreadcrumbNav
+          items={[
+            {
+              label: novel.title,
+              icon: <BookIcon fontSize="inherit" />
+            }
+          ]}
+        />
+      )}
+      
       <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
         <Button 
           startIcon={<ArrowBackIcon />} 
@@ -299,6 +370,34 @@ const NovelDetail = () => {
                             {language}
                           </Box>
                         ))}
+                    </Box>
+                    
+                    {/* Add bookmark button to top-right corner of image */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                      }}
+                    >
+                      <Tooltip title={isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}>
+                        <IconButton
+                          onClick={handleBookmarkToggle}
+                          disabled={bookmarkLoading}
+                          aria-label={isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
+                          sx={{
+                            bgcolor: 'rgba(0, 0, 0, 0.6)',
+                            color: isBookmarked ? theme.palette.warning.main : 'white',
+                            '&:hover': {
+                              bgcolor: 'rgba(0, 0, 0, 0.8)',
+                            },
+                            transition: 'all 0.2s ease',
+                            transform: isBookmarked ? 'scale(1.1)' : 'scale(1)',
+                          }}
+                        >
+                          {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </Box>
                 </Zoom>
@@ -500,7 +599,8 @@ const NovelDetail = () => {
                       '&:hover': {
                         background: theme.palette.primary.dark,
                       },
-                      display: { xs: 'flex' }
+                      display: { xs: 'flex' },
+                      mr: 2,
                     }}
                   >
                     Start Reading Now (Best Source)
@@ -524,6 +624,24 @@ const NovelDetail = () => {
           handleSourceClick={handleSourceClick}
         />
       )}
+
+      {/* Snackbar notification for bookmark actions */}
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={3000} 
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleCloseSnackbar} 
+          severity={snackbar.severity} 
+          variant="filled"
+          elevation={6}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

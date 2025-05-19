@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views
+from .views import novels_views, comments_views, sources_views, users_views 
 
 # Configure the REST Framework router
 router = DefaultRouter()
@@ -32,6 +32,12 @@ urlpatterns = [
     path('novels/search/', novels_views.search_novels, name='search_novels'),  # Add this new endpoint
     path('novels/autocomplete/', novels_views.autocomplete_suggestion, name='autocomplete_suggestion'),  # Add this new endpoint
     path('novels/featured/random/', novels_views.random_featured_novel, name='random_featured_novel'),  # Add this new endpoint
+    
+    # User-specific Novel Bookmarking
+    path('users/bookmarks/novels/', users_views.list_bookmarked_novels, name='list_bookmarked_novels'),
+    path('users/bookmarks/novels/<slug:novel_slug>/add/', users_views.add_novel_bookmark, name='add_novel_bookmark'),
+    path('users/bookmarks/novels/<slug:novel_slug>/remove/', users_views.remove_novel_bookmark, name='remove_novel_bookmark'),
+
     path('novels/<slug:novel_slug>/', novels_views.novel_detail_by_slug, name='novel_detail_by_slug'),
     path('novels/<slug:novel_slug>/rate/', novels_views.rate_novel, name='rate_novel'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/', sources_views.source_detail, name='source_detail'),

@@ -38,6 +38,7 @@ export { jobService } from './job.service';
 export { novelService } from './novel.service';
 export { commentService } from './comment.service';
 export { authService } from './auth.service';
+export { userService } from './user.service';
 
 // Add interceptor to set the auth token on startup
 const token = localStorage.getItem('authToken');

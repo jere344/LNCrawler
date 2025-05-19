@@ -1,17 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
   Typography, Box, Rating, Chip, Skeleton, Tooltip,
-  Grid2 as Grid,
+  Grid2 as Grid, IconButton,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import UpdateIcon from '@mui/icons-material/Update';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { formatTimeAgo, languageCodeToFlag, languageCodeToName, toLocalDate } from '@utils/Misc';
+import { userService } from '@services/user.service';
+import { useAuth } from '@context/AuthContext';
 
 export interface BaseNovelCardProps {
   novel: Novel;
@@ -34,6 +38,32 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   isLoading = false 
 }) => {
   const preferredSource = novel.prefered_source;
+  const { isAuthenticated } = useAuth();
+  const [isBookmarked, setIsBookmarked] = useState<boolean | null>(novel.is_bookmarked || false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  
+  const handleBookmarkClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    if (!isAuthenticated || bookmarkLoading) return;
+    
+    try {
+      setBookmarkLoading(true);
+      
+      if (isBookmarked) {
+        await userService.removeNovelBookmark(novel.slug);
+        setIsBookmarked(false);
+      } else {
+        await userService.addNovelBookmark(novel.slug);
+        setIsBookmarked(true);
+      }
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
   
   if (isLoading) {
     return (
@@ -138,6 +168,35 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               </Tooltip>
             )}
           </Box>
+          
+          {/* Bookmark button */}
+          {isAuthenticated && (
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                right: 8,
+                zIndex: 2
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <IconButton
+                size="small"
+                onClick={handleBookmarkClick}
+                sx={{
+                  bgcolor: 'rgba(0, 0, 0, 0.6)',
+                  color: 'white',
+                  '&:hover': {
+                    bgcolor: 'rgba(0, 0, 0, 0.8)',
+                  },
+                  width: 36,
+                  height: 36,
+                }}
+              >
+                {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+              </IconButton>
+            </Box>
+          )}
         </Box>
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: 1 }}>
           <Typography 
