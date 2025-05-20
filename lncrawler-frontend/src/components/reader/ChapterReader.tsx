@@ -5,41 +5,31 @@ import {
   Typography,
   Paper,
   Box,
-  Button,
   CircularProgress,
-  Divider,
-  IconButton,
-  Toolbar,
-  AppBar,
-  Tabs,
-  Tab,
   useMediaQuery,
   useTheme,
-  Slide,
-  Tooltip,
   Snackbar,
   Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import { novelService, userService } from '../../services/api';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import HomeIcon from '@mui/icons-material/Home';
-import ListIcon from '@mui/icons-material/List';
-import CommentIcon from '@mui/icons-material/Comment';
-import SettingsIcon from '@mui/icons-material/Settings';
-import DoneIcon from '@mui/icons-material/Done';
-import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
-import CommentSection from '../comments/CommentSection';
-import { ChapterContent as IChapterContent } from '@models/novels_types';
-import ReaderSettings, { ReaderSettings as IReaderSettings, defaultSettings, EdgeTapBehavior } from './ReaderSettings';
-import Cookies from 'js-cookie';
-import CloseIcon from '@mui/icons-material/Close';
-import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import CommentIcon from '@mui/icons-material/Comment';
+import { ChapterContent as IChapterContent } from '@models/novels_types';
+import ReaderSettings, { ReaderSettings as IReaderSettings, defaultSettings, EdgeTapBehavior } from './ReaderSettings';
+import Cookies from 'js-cookie';
+import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
+
+import ReaderToolbar from './controls/ReaderToolbar';
+import ReaderViewport from './viewport/ReaderViewport';
+import ReaderContent from './content/ReaderContent';
+import ReaderControls from './controls/ReaderControls';
+import CommentSection from '../comments/CommentSection';
 
 // Interface for our chapter cache
 interface ChapterCache {
@@ -68,8 +58,6 @@ const ChapterReader = () => {
   const [chapter, setChapter] = useState<IChapterContent | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(0);
-  const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [markingAsRead, setMarkingAsRead] = useState(false);
   const [markReadSuccess, setMarkReadSuccess] = useState(false);
   
@@ -79,6 +67,9 @@ const ChapterReader = () => {
   // Reader settings state
   const [readerSettings, setReaderSettings] = useState<IReaderSettings>(defaultSettings);
   const [controlsVisible, setControlsVisible] = useState(false);
+  
+  // Add state for active tab
+  const [activeTab, setActiveTab] = useState(0);
   
   // Create a ref to store our chapter cache that persists through renders
   const chapterCacheRef = useRef<ChapterCache>({});
@@ -220,15 +211,6 @@ const ChapterReader = () => {
     };
   }, []);
 
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
-    
-    // Load comments only when switching to the comments tab for the first time
-    if (newValue === 1 && !commentsLoaded) {
-      setCommentsLoaded(true);
-    }
-  };
-
   const handleBackToChapters = () => {
     saveScrollPosition();
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
@@ -241,6 +223,7 @@ const ChapterReader = () => {
   
   const handleNextChapter = () => {
     if (chapter?.next_chapter) {
+      setActiveTab(0);
       saveScrollPosition();
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}`);
     }
@@ -248,6 +231,7 @@ const ChapterReader = () => {
 
   const handlePrevChapter = () => {
     if (chapter?.prev_chapter) {
+      setActiveTab(0);
       saveScrollPosition();
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}`);
     }
@@ -358,6 +342,18 @@ const ChapterReader = () => {
     }
   };
 
+  // Function to switch to comments tab
+  const handleSwitchToComments = () => {
+    setActiveTab(1);
+    // Scroll back to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Function to handle tab changes
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+  
   if (loading) {
     return (
       <Container>
@@ -371,123 +367,33 @@ const ChapterReader = () => {
   if (error || !chapter) {
     return (
       <Container>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate(-1)} sx={{ mt: 2 }}>
-          Back
-        </Button>
-        <Paper elevation={3} sx={{ p: 3, textAlign: 'center', mt: 3 }}>
+        <Box sx={{ p: 3, textAlign: 'center', mt: 3 }}>
           <Typography color="error">{error || 'Chapter not found'}</Typography>
-        </Paper>
+        </Box>
       </Container>
     );
   }
 
   return (
     <>
-      {/* Desktop Toolbar */}
-      {!isMobile && (
-        <AppBar position="sticky" color="default" elevation={1} sx={{ top: 0 }}>
-          <Toolbar>
-            <IconButton edge="start" color="inherit" onClick={handleBackToChapters}>
-              <ListIcon />
-            </IconButton>
-            <IconButton color="inherit" onClick={handleBackToSource}>
-              <HomeIcon />
-            </IconButton>
-            
-            <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
-              {chapter.prev_chapter && (
-                <IconButton color="inherit" onClick={handlePrevChapter}>
-                  <ArrowBackIcon />
-                </IconButton>
-              )}
-              
-              <Typography variant="h6" sx={{ flexGrow: 0, textAlign: 'center', fontSize: { sm: '1.25rem' }, mx: 2 }}>
-                {chapter.title}
-              </Typography>
-              
-              {chapter.next_chapter && (
-                <IconButton color="inherit" onClick={handleNextChapter}>
-                  <ArrowForwardIcon />
-                </IconButton>
-              )}
-            </Box>
-            
-            {isAuthenticated && (
-              <Tooltip title="Mark as read">
-                <IconButton 
-                  color="primary" 
-                  onClick={handleMarkAsRead} 
-                  disabled={markingAsRead || markReadSuccess}
-                  sx={{ mr: 1 }}
-                >
-                  {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
-                </IconButton>
-              </Tooltip>
-            )}
-            
-            <IconButton color="inherit" onClick={() => setControlsVisible(true)}>
-              <SettingsIcon />
-            </IconButton>
-          </Toolbar>
-        </AppBar>
-      )}
-
-      {/* Mobile Top Controls */}
-      {isMobile && (
-        <Slide direction="down" in={controlsVisible} mountOnEnter unmountOnExit>
-          <AppBar 
-            position="fixed" 
-            color="default" 
-            elevation={4} 
-            sx={{ 
-              top: 0,
-              zIndex: theme.zIndex.drawer + 1,
-              backgroundColor: theme.palette.background.paper,
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              backdropFilter: 'blur(8px)',
-              boxShadow: 3
-            }}
-          >
-            <Toolbar sx={{ justifyContent: 'space-between' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <IconButton edge="start" color="inherit" onClick={handleBackToChapters} sx={{ mr: 1 }}>
-                  <ListIcon />
-                </IconButton>
-                <IconButton color="inherit" onClick={handleBackToSource}>
-                  <HomeIcon />
-                </IconButton>
-              </Box>
-              
-              <Typography 
-                variant="subtitle1" 
-                noWrap 
-                sx={{ 
-                  fontWeight: 'medium',
-                  maxWidth: 'calc(100% - 160px)',
-                  textAlign: 'center'
-                }}
-              >
-                {chapter.title}
-              </Typography>
-              
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                {isAuthenticated && (
-                  <IconButton 
-                    color="primary" 
-                    onClick={handleMarkAsRead} 
-                    disabled={markingAsRead || markReadSuccess}
-                  >
-                    {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
-                  </IconButton>
-                )}
-                <IconButton color="inherit" onClick={() => setControlsVisible(false)}>
-                  <CloseIcon />
-                </IconButton>
-              </Box>
-            </Toolbar>
-          </AppBar>
-        </Slide>
-      )}
+      {/* Reader Toolbar */}
+      <ReaderToolbar 
+        isMobile={isMobile}
+        controlsVisible={controlsVisible}
+        title={chapter.title}
+        prevChapter={chapter.prev_chapter}
+        nextChapter={chapter.next_chapter}
+        isAuthenticated={isAuthenticated}
+        markReadSuccess={markReadSuccess}
+        markingAsRead={markingAsRead}
+        onMarkAsRead={handleMarkAsRead}
+        onChapterList={handleBackToChapters}
+        onHome={handleBackToSource}
+        onPrevious={handlePrevChapter}
+        onNext={handleNextChapter}
+        onSettings={() => setControlsVisible(true)}
+        onCloseControls={() => setControlsVisible(false)}
+      />
 
       <Container 
         maxWidth="md" 
@@ -522,177 +428,103 @@ const ChapterReader = () => {
           />
         )}
         
-        <Box
-          ref={contentRef}
-          onClick={handleContentClick}
-          sx={{
-            minHeight: 'calc(100vh - 64px)',
-            position: 'relative',
-            // Display overlay indicators for edge tap zones on mobile
-            '&::before, &::after': isMobile ? {
-              content: '""',
-              position: 'fixed',
-              top: 0,
-              bottom: 0,
-              width: `${EDGE_TAP_WIDTH_PERCENTAGE}%`,
-              backgroundColor: 'rgba(0, 0, 0, 0.05)',
-              zIndex: 0,
-              pointerEvents: 'none',
-              opacity: controlsVisible ? 1 : 0,
-              transition: 'opacity 0.3s ease'
-            } : {},
-            '&::before': isMobile ? {
-              left: 0,
-              borderRight: '1px dashed rgba(0, 0, 0, 0.2)'
-            } : {},
-            '&::after': isMobile ? {
-              right: 0,
-              borderLeft: '1px dashed rgba(0, 0, 0, 0.2)'
-            } : {}
+        <Paper 
+          elevation={3} 
+          sx={{ 
+            p: { xs: 2, md: 4 }, 
+            mt: 2, 
+            mb: 8,
+            backgroundColor: readerSettings.backgroundColor || undefined,
+            color: readerSettings.fontColor || undefined,
+            mx: `${readerSettings.margin}%`
           }}
         >
-          {/* Dimming Overlay */}
-          {readerSettings.dimLevel > 0 && (
-            <Box
-              sx={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'black',
-                opacity: readerSettings.dimLevel / 100,
-                zIndex: theme.zIndex.drawer - 1,
-                pointerEvents: 'none', // Allows clicking through the overlay
-              }}
-            />
-          )}
+          {/* Chapter title and content */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h5" gutterBottom align="center" sx={{ color: readerSettings.fontColor || undefined }}>
+              {chapter.title}
+            </Typography>
+            <Typography variant="subtitle1" sx={{ color: 'text.secondary', textAlign: 'center' }}>
+              {chapter.novel_title}
+            </Typography>
+          </Box>
           
-          <Paper 
-            elevation={3} 
-            sx={{ 
-              p: { xs: 2, md: 4 }, 
-              mt: 2, 
-              mb: 8,
-              backgroundColor: readerSettings.backgroundColor || undefined,
-              color: readerSettings.fontColor || undefined,
-              mx: `${readerSettings.margin}%`
-            }}
-          >
-            {/* Chapter title and content */}
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h5" gutterBottom align="center" sx={{ color: readerSettings.fontColor || undefined }}>
-                {chapter.title}
-              </Typography>
-              <Typography variant="subtitle1" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-                {chapter.novel_title}
-              </Typography>
-            </Box>
-            
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-              <Tabs value={activeTab} onChange={handleTabChange} aria-label="chapter tabs">
-                <Tab label="Chapter" id="tab-0" />
-                <Tab 
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      Comments
-                      <CommentIcon sx={{ ml: 1 }} />
-                    </Box>
-                  } 
-                  id="tab-1" 
-                />
-              </Tabs>
-            </Box>
-            
-            {/* Chapter content Tab */}
-            <Box role="tabpanel" hidden={activeTab !== 0} sx={{ mb: 4 }}>
-              <Typography 
-                sx={{ 
-                  fontSize: `${readerSettings.fontSize}px`, 
-                  lineHeight: readerSettings.lineSpacing,
-                  textAlign: readerSettings.textAlign,
-                  fontFamily: readerSettings.fontFamily || undefined,
-                  userSelect: readerSettings.textSelectable ? 'text' : 'none',
-                  WebkitUserSelect: readerSettings.textSelectable ? 'text' : 'none',
-                  MozUserSelect: readerSettings.textSelectable ? 'text' : 'none',
-                  msUserSelect: readerSettings.textSelectable ? 'text' : 'none',
-                }}
-                dangerouslySetInnerHTML={{ __html: chapter.body }}
+          {/* Tab controls */}
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+            <Tabs value={activeTab} onChange={handleTabChange} aria-label="chapter tabs">
+              <Tab label="Chapter" id="tab-0" />
+              <Tab 
+                label={
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    Comments
+                    <CommentIcon sx={{ ml: 1 }} />
+                  </Box>
+                } 
+                id="tab-1" 
               />
-            </Box>
-            
-            {/* Comments Tab */}
-            <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
-              {novelSlug && sourceSlug && chapterNumber && activeTab === 1 && (
-                <CommentSection 
-                  chapterData={{
-                    novelSlug,
-                    sourceSlug,
-                    chapterNumber: parseInt(chapterNumber)
-                  }}
-                  title="Chapter Comments"
-                />
-              )}
-            </Box>
-            
-            <Divider sx={{ mt: 4, mb: 2 }} />
-            
-            {/* Navigation buttons */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-              {chapter.prev_chapter ? (
-                <Button 
-                  startIcon={<ArrowBackIcon />} 
-                  onClick={handlePrevChapter}
-                  variant="outlined"
-                  component="a"
-                >
-                  Previous Chapter
-                </Button>
-              ) : <div></div>}
-              
-              {/* Add Mark as Read button if user is authenticated */}
-              {isAuthenticated && (
-                <Button
-                  startIcon={markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
-                  onClick={handleMarkAsRead}
-                  variant="outlined"
-                  color="primary"
-                  disabled={markingAsRead || markReadSuccess}
-                  sx={{ mx: 1 }}
-                >
-                  {markReadSuccess ? 'Marked as Read' : 'Mark as Read'}
-                </Button>
-              )}
-              
-              {chapter.next_chapter && (
-                <Button 
-                  endIcon={<ArrowForwardIcon />} 
-                  onClick={handleNextChapter}
-                  variant="contained"
-                >
-                  Next Chapter
-                </Button>
-              )}
-            </Box>
-
-            {/* Success Notification */}
-            <Snackbar 
-              open={markReadSuccess} 
-              autoHideDuration={3000} 
-              onClose={() => setMarkReadSuccess(false)}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            </Tabs>
+          </Box>
+          
+          {/* Chapter content Tab */}
+          <Box role="tabpanel" hidden={activeTab !== 0} sx={{ mb: 4 }}>
+            <ReaderViewport
+              ref={contentRef}
+              isMobile={isMobile}
+              controlsVisible={controlsVisible}
+              edgeTapWidthPercentage={EDGE_TAP_WIDTH_PERCENTAGE}
+              dimLevel={readerSettings.dimLevel}
+              leftEdgeTapBehavior={readerSettings.leftEdgeTapBehavior}
+              rightEdgeTapBehavior={readerSettings.rightEdgeTapBehavior}
+              onContentClick={handleContentClick}
             >
-              <Alert onClose={() => setMarkReadSuccess(false)} severity="success" sx={{ width: '100%' }}>
-                Chapter marked as read successfully!
-              </Alert>
-            </Snackbar>
-          </Paper>
-        </Box>
+              <ReaderContent content={chapter.body} settings={readerSettings} />
+            </ReaderViewport>
+          </Box>
+          
+          {/* Comments Tab */}
+          <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
+            {novelSlug && sourceSlug && chapterNumber && activeTab === 1 && (
+              <CommentSection 
+                chapterData={{
+                  novelSlug,
+                  sourceSlug,
+                  chapterNumber: parseInt(chapterNumber)
+                }}
+                title="Chapter Comments"
+              />
+            )}
+          </Box>
+            
+          {/* Reader Controls */}
+          <ReaderControls
+            prevChapter={chapter.prev_chapter}
+            nextChapter={chapter.next_chapter}
+            isAuthenticated={isAuthenticated}
+            markReadSuccess={markReadSuccess}
+            markingAsRead={markingAsRead}
+            onMarkAsRead={handleMarkAsRead}
+            onPrevious={handlePrevChapter}
+            onNext={handleNextChapter}
+            onGoToComments={handleSwitchToComments}
+          />
+
+          {/* Success Notification */}
+          <Snackbar 
+            open={markReadSuccess} 
+            autoHideDuration={3000} 
+            onClose={() => setMarkReadSuccess(false)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          >
+            <Alert onClose={() => setMarkReadSuccess(false)} severity="success" sx={{ width: '100%' }}>
+              Chapter marked as read successfully!
+            </Alert>
+          </Snackbar>
+        </Paper>
       </Container>
 
       {/* Settings Drawer */}
       <ReaderSettings
-        open={isMobile ? controlsVisible : controlsVisible}
+        open={controlsVisible}
         onClose={() => setControlsVisible(false)}
         settings={readerSettings}
         onSettingChange={setReaderSettings}
