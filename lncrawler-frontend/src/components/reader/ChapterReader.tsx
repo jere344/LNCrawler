@@ -38,12 +38,14 @@ interface ChapterCache {
 
 // Interface for scroll position storage
 interface ScrollPositions {
-  [key: string]: number;
+  [key: string]: number; // Value is percentage of total scrollable height
 }
 
 const COOKIE_PREFIX = 'lncrawler_reader_';
 const EDGE_TAP_WIDTH_PERCENTAGE = 15; // % of screen width for edge tap detection
 const MAX_STORED_POSITIONS = 20; // Maximum number of scroll positions to store
+const SCROLL_POSITION_STORAGE_KEY = 'lncrawler_scroll_positions';
+const SCROLL_SAVE_THROTTLE = 1000; // Save scroll position at most every 1000ms
 
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
@@ -75,8 +77,8 @@ const ChapterReader = () => {
   const chapterCacheRef = useRef<ChapterCache>({});
   const contentRef = useRef<HTMLDivElement>(null);
   
-  // Create a ref to store scroll positions for different chapters
-  const scrollPositionsRef = useRef<ScrollPositions>({});
+  // Use state for scroll positions loaded from localStorage
+  const [scrollPositions, setScrollPositions] = useState<ScrollPositions>({});
   
   // Current chapter key for scroll position tracking
   const currentChapterKey = `${novelSlug}|${sourceSlug}|${chapterNumber}`;
@@ -142,30 +144,100 @@ const ChapterReader = () => {
     loadSettingsFromCookies();
   }, []);
 
-  // Save current scroll position
+  // Load saved scroll positions from localStorage
+  useEffect(() => {
+    try {
+      const savedPositions = localStorage.getItem(SCROLL_POSITION_STORAGE_KEY);
+      if (savedPositions) {
+        setScrollPositions(JSON.parse(savedPositions));
+      }
+    } catch (error) {
+      console.error('Error loading saved scroll positions:', error);
+    }
+  }, []);
+
+  // Add a ref to track the last time we saved the scroll position
+  const lastScrollSaveRef = useRef<number>(0);
+  
+  // Calculate scroll position as a percentage of total scrollable height
+  const calculateScrollPercentage = (): number => {
+    const scrollTop = window.scrollY;
+    const scrollHeight = document.documentElement.scrollHeight;
+    const clientHeight = document.documentElement.clientHeight;
+    
+    // If there's nothing to scroll, return 0
+    if (scrollHeight <= clientHeight) return 0;
+    
+    // Calculate how far we've scrolled as a percentage
+    const scrollableHeight = scrollHeight - clientHeight;
+    return (scrollTop / scrollableHeight) * 100;
+  };
+
+  // Save current scroll position to localStorage with throttling
   const saveScrollPosition = () => {
     if (!currentChapterKey || !readerSettings.savePosition) return;
-    scrollPositionsRef.current[currentChapterKey] = window.scrollY;
+    
+    const now = Date.now();
+    // Throttle saves to avoid excessive writes
+    if (now - lastScrollSaveRef.current < SCROLL_SAVE_THROTTLE) {
+      return;
+    }
+    lastScrollSaveRef.current = now;
+    
+    const scrollPercentage = calculateScrollPercentage();
+    const updatedPositions = { ...scrollPositions, [currentChapterKey]: scrollPercentage };
     
     // Prune old entries if we have too many
-    const keys = Object.keys(scrollPositionsRef.current);
+    const keys = Object.keys(updatedPositions);
     if (keys.length > MAX_STORED_POSITIONS) {
       // Remove the oldest entries
       const keysToRemove = keys.slice(0, keys.length - MAX_STORED_POSITIONS);
       keysToRemove.forEach(key => {
-        delete scrollPositionsRef.current[key];
+        delete updatedPositions[key];
       });
+    }
+    
+    // Save to state and localStorage
+    setScrollPositions(updatedPositions);
+    try {
+      // Use requestAnimationFrame to batch DOM reads/writes
+      requestAnimationFrame(() => {
+        localStorage.setItem(SCROLL_POSITION_STORAGE_KEY, JSON.stringify(updatedPositions));
+      });
+    } catch (error) {
+      console.error('Error saving scroll position to localStorage:', error);
     }
   };
 
-  // Restore scroll position
+  // Restore scroll position from percentage using requestAnimationFrame
   const restoreScrollPosition = () => {
     if (!currentChapterKey || !readerSettings.savePosition) return;
     
-    const savedPosition = scrollPositionsRef.current[currentChapterKey];
-    if (savedPosition !== undefined) {
-      // Use setTimeout to ensure the DOM has been fully rendered
-      window.scrollTo(0, savedPosition);
+    const savedPercentage = scrollPositions[currentChapterKey];
+    if (savedPercentage !== undefined) {
+      // Use requestAnimationFrame to avoid layout thrashing
+      requestAnimationFrame(() => {
+        // Read scroll dimensions
+        const scrollHeight = document.documentElement.scrollHeight;
+        const clientHeight = document.documentElement.clientHeight;
+        const scrollableHeight = scrollHeight - clientHeight;
+        
+        if (scrollableHeight <= 0) {
+          // Try again later if content hasn't fully rendered
+          setTimeout(() => restoreScrollPosition(), 100);
+          return;
+        }
+        
+        const scrollTop = (savedPercentage / 100) * scrollableHeight;
+        
+        // Write to scroll position in next frame
+        requestAnimationFrame(() => {
+          window.scrollTo({
+            top: scrollTop,
+            behavior: 'auto' // Use 'auto' instead of 'smooth' to avoid animation issues
+          });
+        });
+      });
     }
   };
 
@@ -204,12 +276,47 @@ const ChapterReader = () => {
     }
   }, [loading, chapter]);
 
-  // Save scroll position when component unmounts
+  // Save scroll position when navigating or every minute
   useEffect(() => {
-    return () => {
-      saveScrollPosition();
+    // Save position periodically while reading
+    const saveInterval = setInterval(() => {
+      if (chapter && !loading && readerSettings.savePosition) {
+        saveScrollPosition();
+      }
+    }, 60000); // Save every minute
+    
+    // Save on page visibility change (tab switching, etc.)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveScrollPosition();
+      }
     };
-  }, []);
+    
+    // Use passive scroll listener with throttling
+    let scrollTimeout: number | null = null;
+    const handleScroll = () => {
+      if (scrollTimeout === null) {
+        scrollTimeout = window.setTimeout(() => {
+          scrollTimeout = null;
+          saveScrollPosition();
+        }, SCROLL_SAVE_THROTTLE);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    
+    // Cleanup
+    return () => {
+      clearInterval(saveInterval);
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('scroll', handleScroll);
+      saveScrollPosition(); // Save one last time when component unmounts
+    };
+  }, [chapter, loading, readerSettings.savePosition, currentChapterKey]);
 
   const handleBackToChapters = () => {
     saveScrollPosition();
