@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Card, Typography, ButtonBase, Skeleton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, toLocalDate } from '@utils/Misc';
+import { formatTimeAgo, getChapterNameWithNumber, toLocalDate } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
 
 interface ChapterCardProps {
@@ -33,8 +33,6 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
     );
   }
 
-  const chapterName = getChapterName(source.latest_available_chapter?.title || "");
-  
   return (
     <ButtonBase 
       onClick={onClick} 
@@ -111,8 +109,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
               mb: 0.5
             }}
           >
-            Chapter {source.latest_available_chapter?.chapter_id}
-            {chapterName ? ` : ${chapterName}` : ''}
+            {getChapterNameWithNumber(source.latest_available_chapter?.title, source.latest_available_chapter?.chapter_id)}
           </Typography>
         </Box>
         

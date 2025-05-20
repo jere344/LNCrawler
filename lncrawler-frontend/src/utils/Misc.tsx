@@ -34,6 +34,15 @@ export const getChapterName = (title: string): string => {
     return latestChapterTitle || "";
 };
 
+export const getChapterNameWithNumber = (title?: string, chapterNumber?: number): string => {
+    if (!chapterNumber) {
+        return "";
+    }
+    title = getChapterName(title || "");
+    return "Chapter " + chapterNumber + (title ? " - " + title : "");
+}
+
+
 export const languageCodeToFlag = (language: string): string => {
     const languageMap: { [key: string]: string } = {
         'en': '🇬🇧',

@@ -31,6 +31,7 @@ import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
+import { getChapterNameWithNumber } from '@utils/Misc';
 
 interface IExtendedChapterListResponse extends IChapterListResponse {
   count: number;
@@ -271,7 +272,7 @@ const ChapterList = () => {
                         }}
                       >
                         <ListItemText 
-                          primary={chapter.title} 
+                          primary={getChapterNameWithNumber(chapter.title, chapter.chapter_id)}
                           secondary={!chapter.has_content ? 'Content unavailable' : null}
                         />
                       </ListItemButton>

@@ -16,7 +16,7 @@ import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, toLocalDate } from '@utils/Misc';
+import { formatTimeAgo, getChapterName, toLocalDate } from '@utils/Misc';
 
 interface ReadingHistoryCardProps {
   novel: Novel;
@@ -117,7 +117,9 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
               </Stack>
               
               <Typography variant="body2" gutterBottom>
-                <strong>Chapter:</strong> {novel.reading_history.last_read_chapter.title}
+                <strong>Chapter:</strong> {novel.reading_history.last_read_chapter.chapter_id} 
+                {getChapterName(novel.reading_history.last_read_chapter.title) != '' ? ' - ' : ''}
+                {getChapterName(novel.reading_history.last_read_chapter.title)}
               </Typography>
               
               {novel.reading_history.last_read_chapter.volume_title && (

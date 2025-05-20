@@ -37,6 +37,7 @@ import NovelSynopsis from './common/NovelSynopsis.tsx';
 import NovelRating from './common/NovelRating.tsx';
 import NovelGenres from './common/NovelGenres.tsx';
 import BreadcrumbNav from '../common/BreadcrumbNav';
+import { getChapterNameWithNumber } from '@utils/Misc.tsx';
 
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
@@ -87,12 +88,35 @@ const NovelDetail = () => {
   };
 
   // Quick Start handler - navigate to the preferred source (first in the list)
+  // const handleQuickStart = () => {
+  //   if (!novelSlug || !novel || novel.sources.length === 0) return;
+    
+  //   // If we have reading history, navigate to last read chapter
+  //   if (novel.reading_history?.last_read_chapter) {
+  //     const { source_slug, last_read_chapter } = novel.reading_history;
+  //     navigate(`/novels/${novelSlug}/${source_slug}/chapter/${last_read_chapter.chapter_id}`);
+  //   } else {
+  //     // Otherwise start from the beginning of the preferred source
+  //     const preferredSource = novel.prefered_source || novel.sources[0];
+  //     navigate(`/novels/${novelSlug}/${preferredSource.source_slug}/chapter/1`);
+  //   }
+  // };
+
   const handleQuickStart = () => {
     if (!novelSlug || !novel || novel.sources.length === 0) return;
-    
+    // Start from chapter 1 of the preferred source
     const preferredSource = novel.prefered_source || novel.sources[0];
-    navigate(`/novels/${novelSlug}/${preferredSource.source_slug}`);
-  };
+    navigate(`/novels/${novelSlug}/${preferredSource.source_slug}/chapter/1`);
+  }
+
+  const handleQuickContinue = () => {
+    if (!novelSlug || !novel || novel.sources.length === 0) return;
+    // If we have reading history, navigate to last read chapter
+    if (novel.reading_history?.last_read_chapter) {
+      const { source_slug, last_read_chapter } = novel.reading_history;
+      navigate(`/novels/${novelSlug}/${source_slug}/chapter/${last_read_chapter.chapter_id}`);
+    }
+  }
 
   // Handle bookmark toggle
   const handleBookmarkToggle = async () => {
@@ -304,8 +328,8 @@ const NovelDetail = () => {
           {/* region Misc metadata */}
             <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
             <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 4, lg: 3 }}>
-                <Zoom in={true} timeout={1000}>
+              <Grid size={{ xs: 12, md: 5, lg: 4 }}>
+                <Zoom in={true} timeout={500}>
                   <Box
                     sx={{
                       position: 'relative',
@@ -403,7 +427,7 @@ const NovelDetail = () => {
                 </Zoom>
               </Grid>
               
-              <Grid size={{ xs: 12, md: 8, lg: 9 }}>
+              <Grid size={{ xs: 12, md: 7, lg: 8 }}>
                 <Typography 
                   variant="h3" 
                   gutterBottom 
@@ -444,22 +468,6 @@ const NovelDetail = () => {
                           {primarySource.authors.join(', ')}
                         </Typography>
                       </Box>
-                    )}
-                    
-                    {primarySource.status && (
-                      <Chip
-                        icon={<FlagIcon />}
-                        label={primarySource.status}
-                        size="medium"
-                        sx={{
-                          bgcolor: primarySource.status.toLowerCase() === 'completed' ? 
-                            alpha('#27ae60', 0.7) : alpha('#3498db', 0.7),
-                          color: 'white',
-                          fontWeight: 600,
-                          backdropFilter: 'blur(10px)',
-                          '& .MuiChip-icon': { color: 'white' }
-                        }}
-                      />
                     )}
                   </Box>
                   
@@ -580,31 +588,93 @@ const NovelDetail = () => {
                   </Box>
                 )}
                 
-                <Box sx={{ mb: 3 }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    size="large"
-                    onClick={handleQuickStart}
-                    startIcon={<PlayArrowIcon />}
-                    sx={{
-                      borderRadius: 2,
-                      py: 1.2,
-                      px: 3,
-                      fontWeight: 700,
-                      fontSize: '1rem',
-                      textTransform: 'none',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                      background: theme.palette.primary.main,
-                      '&:hover': {
-                        background: theme.palette.primary.dark,
-                      },
-                      display: { xs: 'flex' },
-                      mr: 2,
-                    }}
-                  >
-                    Start Reading Now (Best Source)
-                  </Button>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <Box sx={{ 
+                    width: '100%', 
+                    display: 'flex', 
+                    flexDirection: { xs: 'column', sm: 'row' }, 
+                    gap: 1,
+                    mb: 1
+                  }}></Box>
+
+                  {novel.reading_history && (
+                      <Tooltip title={`Continue from chapter ${novel.reading_history.last_read_chapter.chapter_id}`} arrow placement="top">
+                        <Button 
+                          variant="contained" 
+                          color="warning" 
+                          size="large" 
+                          fullWidth
+                          startIcon={<BookmarkIcon />}
+                          onClick={handleQuickContinue}
+                          sx={{
+                            borderRadius: '12px',
+                            p: 1.5,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            display: 'flex',
+                            justifyContent: 'flex-start',
+                            alignItems: 'center',
+                            textAlign: 'left',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            mb: 1
+                          }}
+                        >
+                          <Box sx={{ zIndex: 1 }}>
+                            <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
+                              Continue Reading
+                            </Typography>
+                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                              {getChapterNameWithNumber(novel.reading_history.last_read_chapter.title, novel.reading_history.last_read_chapter.chapter_id)}
+                            </Typography>
+                          </Box>
+                          <BookIcon sx={{ 
+                            position: 'absolute', 
+                            right: '5px', 
+                            fontSize: '3rem', 
+                            opacity: 0.2,
+                            transform: 'rotate(15deg)'
+                          }} />
+                        </Button>
+                      </Tooltip>
+                    )}  
+                    <Tooltip title="Start reading from chapter 1" arrow placement="top">
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="large"
+                        fullWidth
+                        startIcon={<PlayArrowIcon />}
+                        onClick={handleQuickStart}
+                        disabled={novel.prefered_source?.latest_available_chapter?.chapter_id === 0}
+                        sx={{
+                          borderRadius: '12px',
+                          p: 1.5,
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                          display: 'flex',
+                          justifyContent: 'flex-start',
+                          alignItems: 'center',
+                          textAlign: 'left',
+                          position: 'relative',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <Box sx={{ zIndex: 1 }}>
+                          <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
+                            Start Reading
+                          </Typography>
+                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                            From Chapter 1
+                          </Typography>
+                        </Box>
+                        <PlayArrowIcon sx={{ 
+                          position: 'absolute', 
+                          right: '5px', 
+                          fontSize: '3rem', 
+                          opacity: 0.2,
+                          transform: 'rotate(15deg)'
+                        }} />
+                      </Button>
+                    </Tooltip>
                 </Box>
               </Grid>
             </Grid>

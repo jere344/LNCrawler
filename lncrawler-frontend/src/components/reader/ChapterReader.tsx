@@ -30,6 +30,7 @@ import ReaderViewport from './viewport/ReaderViewport';
 import ReaderContent from './content/ReaderContent';
 import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
+import { getChapterNameWithNumber } from '@utils/Misc';
 
 // Interface for our chapter cache
 interface ChapterCache {
@@ -524,7 +525,7 @@ const ChapterReader = () => {
       <ReaderToolbar 
         isMobile={isMobile}
         controlsVisible={controlsVisible}
-        title={chapter.title}
+        title={getChapterNameWithNumber(chapter.title, chapter.chapter_id)}
         prevChapter={chapter.prev_chapter}
         nextChapter={chapter.next_chapter}
         isAuthenticated={isAuthenticated}
@@ -566,7 +567,7 @@ const ChapterReader = () => {
                 icon: <ListAltIcon fontSize="inherit" />
               },
               {
-                label: chapter.title,
+                label: getChapterNameWithNumber(chapter.title, chapter.chapter_id),
                 icon: <MenuBookIcon fontSize="inherit" />
               }
             ]}
@@ -587,7 +588,7 @@ const ChapterReader = () => {
           {/* Chapter title and content */}
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" gutterBottom align="center" sx={{ color: readerSettings.fontColor || undefined }}>
-              {chapter.title}
+              {getChapterNameWithNumber(chapter.title, chapter.chapter_id)}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: 'text.secondary', textAlign: 'center' }}>
               {chapter.novel_title}
@@ -674,7 +675,7 @@ const ChapterReader = () => {
         settings={readerSettings}
         onSettingChange={setReaderSettings}
         chapterInfo={{
-          title: chapter.title,
+          title: getChapterNameWithNumber(chapter.title, chapter.chapter_id),
           novelTitle: chapter.novel_title,
           prevChapter: chapter.prev_chapter,
           nextChapter: chapter.next_chapter

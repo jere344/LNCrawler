@@ -21,7 +21,7 @@ import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
 import CommentForm from './CommentForm';
 import { commentService } from '../../services/api';
 import { Comment as IComment } from '@models/comments_types';
-import { getChapterName } from '@utils/Misc';
+import { getChapterNameWithNumber } from '@utils/Misc';
 
 interface CommentItemProps {
   comment: IComment;
@@ -145,7 +145,7 @@ const CommentItem = ({
               <Chip size="small" label="Novel Comment" color="primary" variant="outlined" />
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Chip size="small" label={`Chapter ${comment.chapter_id}: ${getChapterName(comment.chapter_title || '')}`} color="secondary" variant="outlined" />
+                <Chip size="small" label={getChapterNameWithNumber(comment.chapter_title, comment.chapter_id)} color="secondary" variant="outlined" />
                 <Typography variant="body2" color="text.secondary">
                   from {comment.source_name}
                 </Typography>

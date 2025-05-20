@@ -292,7 +292,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
                           />
                         </ListItem>
 
-                        <ListItem
+                        {/* <ListItem
                           disablePadding
                           sx={{
                             py: 0.5,
@@ -334,7 +334,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
                               </Box>
                             }
                           />
-                        </ListItem>
+                        </ListItem> */}
 
                         <ListItem
                           disablePadding

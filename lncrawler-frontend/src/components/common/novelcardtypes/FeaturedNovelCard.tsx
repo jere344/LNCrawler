@@ -6,7 +6,7 @@ import StarIcon from '@mui/icons-material/Star';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, toLocalDate } from '@utils/Misc';
+import { formatTimeAgo, getChapterNameWithNumber, toLocalDate } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
 
 interface FeaturedNovelCardProps {
@@ -158,8 +158,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <BookmarkIcon fontSize="small" />
                     <Typography variant="caption">
-                      Chapter {source.latest_available_chapter?.chapter_id || 0} -
-                      {source.latest_available_chapter?.title ? getChapterName(source.latest_available_chapter?.title) : 'Unknown'}
+                      {getChapterNameWithNumber(source.latest_available_chapter?.title, source.latest_available_chapter?.chapter_id)}
                     </Typography>
                   </Box>
                 </Grid>

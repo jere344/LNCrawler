@@ -284,7 +284,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               } 
             }}
           >
-            <Grid size={5}>
+            <Grid size={6}>
               <Tooltip title="Total Chapters">
                 <Chip 
                   icon={<MenuBookIcon />}
@@ -295,7 +295,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               </Tooltip>
             </Grid>
             
-            <Grid size={7}>
+            {/* <Grid size={7}>
               <Tooltip title="Status">
                 <Chip 
                   label={preferredSource?.status || 'Unknown'}
@@ -303,9 +303,9 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
                   variant="outlined"
                 />
               </Tooltip>
-            </Grid>
+            </Grid> */}
 
-            <Grid size={5}>
+            <Grid size={6}>
               <Tooltip title="Views">
                 <Chip 
                   icon={<VisibilityIcon />}
@@ -316,7 +316,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               </Tooltip>
             </Grid>
             
-            <Grid size={7}>
+            <Grid size={12}>
               <Tooltip title="Last Updated">
                 <Chip 
                   icon={<UpdateIcon />}
