@@ -328,19 +328,51 @@ const ChapterReader = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
   };
   
+  // Add this function to handle automatic marking as read when navigating
+  const handleChapterNavigation = async (direction: 'prev' | 'next') => {
+    // Save current scroll position
+    saveScrollPosition();
+    
+    // Get the chapter number to navigate to
+    const targetChapter = direction === 'next' 
+      ? chapter?.next_chapter 
+      : chapter?.prev_chapter;
+    
+    if (!targetChapter) return;
+    
+    // For automatic marking settings, mark the current chapter as read when navigating away
+    if (isAuthenticated && 
+        chapterNumber && 
+        novelSlug && 
+        sourceSlug && 
+        (readerSettings.markReadBehavior === 'automatic' || 
+         readerSettings.markReadBehavior === 'buttonAutomatic')) {
+      try {
+        await userService.markChapterAsRead(
+          novelSlug,
+          sourceSlug,
+          parseInt(chapterNumber)
+        );
+      } catch (error) {
+        console.error('Error automatically marking chapter as read:', error);
+      }
+    }
+    
+    // Navigate to the target chapter
+    setActiveTab(0);
+    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${targetChapter}`);
+  };
+
+  // Update the navigation handlers to use the new function
   const handleNextChapter = () => {
     if (chapter?.next_chapter) {
-      setActiveTab(0);
-      saveScrollPosition();
-      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}`);
+      handleChapterNavigation('next');
     }
   };
 
   const handlePrevChapter = () => {
     if (chapter?.prev_chapter) {
-      setActiveTab(0);
-      saveScrollPosition();
-      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}`);
+      handleChapterNavigation('prev');
     }
   };
 
@@ -481,6 +513,11 @@ const ChapterReader = () => {
     );
   }
 
+  // Update the rendering of reader controls based on mark read behavior
+  const shouldShowMarkReadButton = isAuthenticated && 
+    (readerSettings.markReadBehavior === 'button' || 
+     readerSettings.markReadBehavior === 'buttonAutomatic');
+
   return (
     <>
       {/* Reader Toolbar */}
@@ -493,6 +530,7 @@ const ChapterReader = () => {
         isAuthenticated={isAuthenticated}
         markReadSuccess={markReadSuccess}
         markingAsRead={markingAsRead}
+        showMarkReadButton={shouldShowMarkReadButton}
         onMarkAsRead={handleMarkAsRead}
         onChapterList={handleBackToChapters}
         onHome={handleBackToSource}
@@ -606,7 +644,7 @@ const ChapterReader = () => {
           <ReaderControls
             prevChapter={chapter.prev_chapter}
             nextChapter={chapter.next_chapter}
-            isAuthenticated={isAuthenticated}
+            isAuthenticated={isAuthenticated && shouldShowMarkReadButton}
             markReadSuccess={markReadSuccess}
             markingAsRead={markingAsRead}
             onMarkAsRead={handleMarkAsRead}
@@ -642,6 +680,7 @@ const ChapterReader = () => {
           nextChapter: chapter.next_chapter
         }}
         onNavigate={handleSettingsNavigate}
+        isAuthenticated={isAuthenticated}
       />
     </>
   );

@@ -27,6 +27,7 @@ interface ReaderToolbarProps {
   isAuthenticated: boolean;
   markReadSuccess: boolean;
   markingAsRead: boolean;
+  showMarkReadButton: boolean; // New prop
   onMarkAsRead: () => void;
   onChapterList: () => void;
   onHome: () => void;
@@ -49,6 +50,7 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
   isAuthenticated,
   markReadSuccess,
   markingAsRead,
+  showMarkReadButton,
   onMarkAsRead,
   onChapterList,
   onHome,
@@ -89,7 +91,7 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
             )}
           </Box>
           
-          {isAuthenticated && (
+          {isAuthenticated && showMarkReadButton && (
             <Tooltip title="Mark as read">
               <IconButton 
                 color="primary" 
@@ -148,7 +150,7 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
           </Typography>
           
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            {isAuthenticated && (
+            {isAuthenticated && showMarkReadButton && (
               <IconButton 
                 color="primary" 
                 onClick={onMarkAsRead} 

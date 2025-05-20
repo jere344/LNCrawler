@@ -17,6 +17,7 @@ const COOKIE_PREFIX = 'lncrawler_reader_';
 const COOKIE_EXPIRY = 365; // days
 
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
+export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
 
 export interface ReaderSettings {
   fontSize: number;
@@ -32,6 +33,7 @@ export interface ReaderSettings {
   rightEdgeTapBehavior: EdgeTapBehavior;
   textSelectable: boolean;
   savePosition: boolean;
+  markReadBehavior: MarkReadBehavior;
 }
 
 // Default settings
@@ -49,6 +51,7 @@ export const defaultSettings: ReaderSettings = {
   rightEdgeTapBehavior: 'none',
   textSelectable: true,
   savePosition: true,
+  markReadBehavior: 'buttonAutomatic',
 };
 
 export interface ChapterInfo {
@@ -65,6 +68,7 @@ interface ReaderSettingsProps {
   onSettingChange: (settings: ReaderSettings) => void;
   chapterInfo: ChapterInfo;
   onNavigate: (type: 'prev' | 'home' | 'next') => void;
+  isAuthenticated?: boolean;
 }
 
 const ReaderSettings = ({
@@ -74,6 +78,7 @@ const ReaderSettings = ({
   onSettingChange,
   chapterInfo,
   onNavigate,
+  isAuthenticated = false,
 }: ReaderSettingsProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -158,6 +163,12 @@ const ReaderSettings = ({
     const newSettings = { ...settings, savePosition: save };
     onSettingChange(newSettings);
     saveSetting('savePosition', save);
+  };
+  
+  const handleMarkReadBehaviorChange = (behavior: MarkReadBehavior) => {
+    const newSettings = { ...settings, markReadBehavior: behavior };
+    onSettingChange(newSettings);
+    saveSetting('markReadBehavior', behavior);
   };
 
   const resetDefaults = () => {
@@ -260,9 +271,12 @@ const ReaderSettings = ({
         rightEdgeTapBehavior={settings.rightEdgeTapBehavior}
         textSelectable={settings.textSelectable}
         savePosition={settings.savePosition}
+        markReadBehavior={settings.markReadBehavior}
         onEdgeTapChange={handleEdgeTapChange}
         onTextSelectableChange={handleTextSelectableChange}
         onSavePositionChange={handleSavePositionChange}
+        onMarkReadBehaviorChange={handleMarkReadBehaviorChange}
+        isAuthenticated={isAuthenticated}
       />
 
       {/* Reset Button */}
