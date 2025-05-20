@@ -13,7 +13,7 @@ import TuneIcon from '@mui/icons-material/Tune';
 import SortIcon from '@mui/icons-material/Sort';
 import CloseIcon from '@mui/icons-material/Close';
 import { novelService } from '../../services/api';
-import BaseNovelCard from '../novels/novelcardtypes/BaseNovelCard';
+import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
 import { debounce } from 'lodash';
 import { Novel } from '@models/novels_types';
 import { languageCodeToFlag, availableLanguages, languageCodeToName } from '@utils/Misc';

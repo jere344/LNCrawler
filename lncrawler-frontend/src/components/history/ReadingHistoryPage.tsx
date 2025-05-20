@@ -21,7 +21,7 @@ import { Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import HistoryIcon from '@mui/icons-material/History';
-import ReadingHistoryCard from '../novels/novelcardtypes/ReadingHistoryCard';
+import ReadingHistoryCard from '../common/novelcardtypes/ReadingHistoryCard';
 
 interface ReadingHistoryResponse {
   count: number;

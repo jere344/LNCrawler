@@ -14,11 +14,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { novelService } from '@services/api';
 import { Novel, NovelFromSource } from '@models/novels_types';
-import CompactNovelCard from '@components/novels/novelcardtypes/CompactNovelCard';
-import FeaturedNovelCard from '@components/novels/novelcardtypes/FeaturedNovelCard';
-import ChapterCard from '@components/novels/novelcardtypes/ChapterCard';
-import NovelItemCard from '@components/novels/novelcardtypes/NovelItemCard';
-import TrendingNovelCard from '@components/novels/novelcardtypes/TrendingNovelCard';
+import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
+import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCard';
+import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
+import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
+import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();

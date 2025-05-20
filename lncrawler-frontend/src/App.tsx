@@ -12,7 +12,7 @@ import DownloadStatus from '@components/downloader/DownloadStatus';
 import NovelDetail from '@components/novels/NovelDetail';
 import SourceDetail from '@components/novels/SourceDetail';
 import ChapterList from '@components/novels/ChapterList';
-import ChapterReader from '@components/novels/ChapterReader';
+import ChapterReader from '@components/reader/ChapterReader';
 import SearchPage from '@components/search/SearchPage';
 import HomePage from '@components/home/HomePage';
 // Import new auth components

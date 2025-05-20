@@ -12,7 +12,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { userService } from '@services/user.service';
-import BaseNovelCard from '@components/novels/novelcardtypes/BaseNovelCard';
+import BaseNovelCard from '@components/common/novelcardtypes/BaseNovelCard';
 import { Novel, NovelListResponse } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
