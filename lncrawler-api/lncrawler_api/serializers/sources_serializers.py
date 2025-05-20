@@ -5,6 +5,8 @@ from ..models import (
 )
 from urllib.parse import quote
 from ..utils import get_client_ip
+from .users_serializers import ReadingHistorySerializer
+from .chapter_serializers import ChapterSerializer
 
 
 class NovelSourceSerializer(serializers.ModelSerializer):
@@ -21,6 +23,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     vote_score = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
     latest_available_chapter = serializers.SerializerMethodField()
+    reading_history = serializers.SerializerMethodField()
     
     class Meta:
         model = NovelFromSource
@@ -29,7 +32,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
             'authors', 'genres', 'tags', 'language', 'status', 'synopsis',
             'chapters_count', 'volumes_count', 'last_chapter_update', 'upvotes', 'downvotes',
             'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
-            'latest_available_chapter'
+            'latest_available_chapter', 'reading_history'
         ]
 
     def get_cover_url(self, obj):
@@ -79,15 +82,17 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         if latest_chapter:
             return ChapterSerializer(latest_chapter).data
         return None
-
-
-class ChapterSerializer(serializers.ModelSerializer):
-    """
-    Serializes chapter information
-    """
-    class Meta:
-        model = Chapter
-        fields = ['id', 'chapter_id', 'title', 'url', 'volume', 'volume_title', 'has_content']   
+    
+    def get_reading_history(self, obj):
+        """
+        Return the reading history for the current user
+        """
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            history = obj.read_by_users.filter(user=request.user).first()
+            if history:
+                return ReadingHistorySerializer(history).data
+        return None
 
 
 class ChapterContentSerializer(serializers.ModelSerializer):

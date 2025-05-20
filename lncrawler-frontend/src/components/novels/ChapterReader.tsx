@@ -16,14 +16,19 @@ import {
   useMediaQuery,
   useTheme,
   Slide,
+  Tooltip,
+  Snackbar,
+  Alert,
 } from '@mui/material';
-import { novelService } from '../../services/api';
+import { novelService, userService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import HomeIcon from '@mui/icons-material/Home';
 import ListIcon from '@mui/icons-material/List';
 import CommentIcon from '@mui/icons-material/Comment';
 import SettingsIcon from '@mui/icons-material/Settings';
+import DoneIcon from '@mui/icons-material/Done';
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import CommentSection from '../comments/CommentSection';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, defaultSettings, EdgeTapBehavior } from './ReaderSettings';
@@ -34,6 +39,7 @@ import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import { useAuth } from '@context/AuthContext';
 
 // Interface for our chapter cache
 interface ChapterCache {
@@ -64,6 +70,11 @@ const ChapterReader = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
+  const [markingAsRead, setMarkingAsRead] = useState(false);
+  const [markReadSuccess, setMarkReadSuccess] = useState(false);
+  
+  // Get authentication state to check if the user is logged in
+  const { isAuthenticated } = useAuth();
   
   // Reader settings state
   const [readerSettings, setReaderSettings] = useState<IReaderSettings>(defaultSettings);
@@ -328,6 +339,25 @@ const ChapterReader = () => {
     handleEdgeTap(e);
   };
 
+  // Function to mark the current chapter as read
+  const handleMarkAsRead = async () => {
+    if (!novelSlug || !sourceSlug || !chapterNumber || !isAuthenticated) return;
+    
+    try {
+      setMarkingAsRead(true);
+      await userService.markChapterAsRead(
+        novelSlug,
+        sourceSlug,
+        parseInt(chapterNumber)
+      );
+      setMarkReadSuccess(true);
+    } catch (error) {
+      console.error('Error marking chapter as read:', error);
+    } finally {
+      setMarkingAsRead(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -382,6 +412,19 @@ const ChapterReader = () => {
               )}
             </Box>
             
+            {isAuthenticated && (
+              <Tooltip title="Mark as read">
+                <IconButton 
+                  color="primary" 
+                  onClick={handleMarkAsRead} 
+                  disabled={markingAsRead || markReadSuccess}
+                  sx={{ mr: 1 }}
+                >
+                  {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
+                </IconButton>
+              </Tooltip>
+            )}
+            
             <IconButton color="inherit" onClick={() => setControlsVisible(true)}>
               <SettingsIcon />
             </IconButton>
@@ -428,6 +471,15 @@ const ChapterReader = () => {
               </Typography>
               
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                {isAuthenticated && (
+                  <IconButton 
+                    color="primary" 
+                    onClick={handleMarkAsRead} 
+                    disabled={markingAsRead || markReadSuccess}
+                  >
+                    {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
+                  </IconButton>
+                )}
                 <IconButton color="inherit" onClick={() => setControlsVisible(false)}>
                   <CloseIcon />
                 </IconButton>
@@ -598,6 +650,20 @@ const ChapterReader = () => {
                 </Button>
               ) : <div></div>}
               
+              {/* Add Mark as Read button if user is authenticated */}
+              {isAuthenticated && (
+                <Button
+                  startIcon={markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
+                  onClick={handleMarkAsRead}
+                  variant="outlined"
+                  color="primary"
+                  disabled={markingAsRead || markReadSuccess}
+                  sx={{ mx: 1 }}
+                >
+                  {markReadSuccess ? 'Marked as Read' : 'Mark as Read'}
+                </Button>
+              )}
+              
               {chapter.next_chapter && (
                 <Button 
                   endIcon={<ArrowForwardIcon />} 
@@ -608,6 +674,18 @@ const ChapterReader = () => {
                 </Button>
               )}
             </Box>
+
+            {/* Success Notification */}
+            <Snackbar 
+              open={markReadSuccess} 
+              autoHideDuration={3000} 
+              onClose={() => setMarkReadSuccess(false)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+              <Alert onClose={() => setMarkReadSuccess(false)} severity="success" sx={{ width: '100%' }}>
+                Chapter marked as read successfully!
+              </Alert>
+            </Snackbar>
           </Paper>
         </Box>
       </Container>

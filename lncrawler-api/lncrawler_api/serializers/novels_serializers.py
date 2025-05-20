@@ -6,6 +6,7 @@ from ..models import (
 )
 from django.db.models import Avg, F, ExpressionWrapper, IntegerField
 from .sources_serializers import NovelSourceSerializer
+from .users_serializers import DetailedReadingHistorySerializer
 from ..utils import get_client_ip
 
 
@@ -20,13 +21,15 @@ class BasicNovelSerializer(serializers.ModelSerializer):
     prefered_source = serializers.SerializerMethodField()
     languages = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
+    reading_history = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
         fields = [
             'id', 'title', 'slug', 'sources_count',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_bookmarked', 'comment_count'
+            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'reading_history'
         ]
     
     def get_prefered_source(self, obj):
@@ -77,6 +80,13 @@ class BasicNovelSerializer(serializers.ModelSerializer):
             return NovelBookmark.objects.filter(novel=obj, user=request.user).exists()
         return None
     
+    def get_reading_history(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            history = obj.reading_histories.filter(user=request.user).first()
+            if history:
+                return DetailedReadingHistorySerializer(history).data
+        return None
 
 class DetailedNovelSerializer(serializers.ModelSerializer):
     """
@@ -90,13 +100,14 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
     weekly_views = serializers.SerializerMethodField()
     prefered_source = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
+    reading_history = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
         fields = [
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
-            'prefered_source', 'is_bookmarked', 'comment_count'
+            'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history'
         ]
     
     def get_sources(self, obj):
@@ -158,6 +169,13 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return NovelBookmark.objects.filter(novel=obj, user=request.user).exists()
         return None
+
+    def get_reading_history(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            history = obj.reading_histories.filter(user=request.user).first()
+            if history:
+                return DetailedReadingHistorySerializer(history).data
 
 
 class AuthorSerializer(serializers.ModelSerializer):

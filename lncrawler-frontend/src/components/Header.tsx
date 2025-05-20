@@ -9,6 +9,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks'; // Add Library icon
+import HistoryIcon from '@mui/icons-material/History';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -67,7 +68,11 @@ const Header = () => {
     // Determine the current path for active tab highlighting
     const getCurrentPath = () => {
         if (location.pathname.startsWith('/download')) return '/download';
-        if (location.pathname.startsWith('/library')) return '/library';
+
+        if (isAuthenticated) { // avoir a warning in the console during loading before useAuth kicks in
+            if (location.pathname.startsWith('/library')) return '/library';
+            if (location.pathname.startsWith('/history')) return '/history';
+        }
         if (location.pathname.startsWith('/novels')) return '/';
         if (location.pathname === '/') return '/';
         return '/';
@@ -180,6 +185,10 @@ const Header = () => {
                         {isAuthenticated && (
                             <Tab label="Library" value="/library" onClick={() => navigate('/library')} />
                         )}
+                        {isAuthenticated && (
+                            <Tab label="History" value="/history" onClick={() => navigate('/history')} />
+                        )}
+                        
                         <Tab label="Add Novel" value="/download" onClick={() => navigate('/download')} />
                     </Tabs>
                 )}
@@ -362,6 +371,14 @@ const Header = () => {
                                             <LibraryBooksIcon fontSize="small" />
                                         </ListItemIcon>
                                         <ListItemText primary="Library" />
+                                    </MenuItem>
+                                )}
+                                {isAuthenticated && (
+                                    <MenuItem onClick={() => handleNavigate('/history')}>
+                                        <ListItemIcon>
+                                            <HistoryIcon fontSize="small" />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Reading History" />
                                     </MenuItem>
                                 )}
                                 <MenuItem onClick={() => handleNavigate('/download')}>Add Novel</MenuItem>

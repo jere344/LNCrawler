@@ -21,6 +21,8 @@ import RegisterPage from '@components/auth/RegisterPage';
 import ProfilePage from '@components/auth/ProfilePage';
 // Import new library page
 import LibraryPage from '@components/library/LibraryPage';
+// Import reading history page
+import ReadingHistoryPage from '@components/history/ReadingHistoryPage';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -65,8 +67,9 @@ function AppWithTheme() {
                             <Route path="/register" element={<RegisterPage />} />
                             <Route path="/profile" element={<ProfilePage />} />
                             
-                            {/* Library route */}
+                            {/* Library and History routes */}
                             <Route path="/library" element={<LibraryPage />} />
+                            <Route path="/history" element={<ReadingHistoryPage />} />
                             
                             {/* Downloader routes */}
                             <Route path="/download" element={<DownloaderHome />} />

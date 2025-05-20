@@ -38,6 +38,12 @@ urlpatterns = [
     path('users/bookmarks/novels/', users_views.list_bookmarked_novels, name='list_bookmarked_novels'),
     path('users/bookmarks/novels/<slug:novel_slug>/add/', users_views.add_novel_bookmark, name='add_novel_bookmark'),
     path('users/bookmarks/novels/<slug:novel_slug>/remove/', users_views.remove_novel_bookmark, name='remove_novel_bookmark'),
+    
+    # User Reading History
+    path('users/reading-history/', users_views.list_reading_history, name='list_reading_history'),
+    path('users/reading-history/<uuid:history_id>/delete/', users_views.delete_reading_history, name='delete_reading_history'),
+    path('users/reading-history/mark-read/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', 
+         users_views.mark_chapter_as_read, name='mark_chapter_as_read'),
 
     path('novels/<slug:novel_slug>/', novels_views.novel_detail_by_slug, name='novel_detail_by_slug'),
     path('novels/<slug:novel_slug>/rate/', novels_views.rate_novel, name='rate_novel'),

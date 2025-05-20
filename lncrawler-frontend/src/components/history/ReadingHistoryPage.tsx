@@ -7,39 +7,52 @@ import {
   Alert,
   CircularProgress,
   useMediaQuery,
-  Paper
+  Paper,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useNavigate } from 'react-router-dom';
 import { userService } from '@services/user.service';
-import BaseNovelCard from '@components/novels/novelcardtypes/BaseNovelCard';
-import { Novel, NovelListResponse } from '@models/novels_types';
+import { Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
-import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import HistoryIcon from '@mui/icons-material/History';
+import ReadingHistoryCard from '../novels/novelcardtypes/ReadingHistoryCard';
 
-const LibraryPage: React.FC = () => {
-  const [bookmarkedNovels, setBookmarkedNovels] = useState<Novel[]>([]);
+interface ReadingHistoryResponse {
+  count: number;
+  total_pages: number;
+  current_page: number;
+  results: Novel[];
+}
+
+const ReadingHistoryPage: React.FC = () => {
+  const [historyNovels, setHistoryNovels] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [novelToDeleteId, setNovelToDeleteId] = useState<string | null>(null);
   const theme = useTheme();
-  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const fetchBookmarkedNovels = async (pageNum = 1) => {
+  const fetchReadingHistory = async (pageNum = 1) => {
     try {
       setLoading(true);
       setError(null);
-      const response: NovelListResponse = await userService.listBookmarkedNovels(pageNum);
-      setBookmarkedNovels(response.results);
+      const response: ReadingHistoryResponse = await userService.listReadingHistory(pageNum);
+      setHistoryNovels(response.results);
       setTotalPages(response.total_pages);
       setPage(response.current_page);
     } catch (err) {
-      console.error('Error fetching bookmarks:', err);
-      setError('Failed to load your bookmarked novels. Please try again later.');
+      console.error('Error fetching reading history:', err);
+      setError('Failed to load your reading history. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -47,7 +60,7 @@ const LibraryPage: React.FC = () => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchBookmarkedNovels(page);
+      fetchReadingHistory(page);
     }
   }, [isAuthenticated, page]);
 
@@ -56,10 +69,33 @@ const LibraryPage: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const handleNovelClick = (novel: Novel) => {
-    navigate(`/novels/${novel.slug}`);
+  const openDeleteDialog = (novelId: string) => {
+    setNovelToDeleteId(novelId);
+    setDeleteDialogOpen(true);
   };
 
+  const closeDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setNovelToDeleteId(null);
+  };
+
+  const confirmDelete = async () => {
+    if (novelToDeleteId) {
+      try {
+        const novel = historyNovels.find(n => n.id === novelToDeleteId);
+        if (novel?.reading_history) {
+          await userService.deleteReadingHistory(novel.reading_history.id);
+          setHistoryNovels(prevNovels => 
+            prevNovels.filter(novel => novel.id !== novelToDeleteId)
+          );
+        }
+        closeDeleteDialog();
+      } catch (err) {
+        console.error('Error deleting reading history:', err);
+        setError('Failed to delete reading history entry. Please try again later.');
+      }
+    }
+  };
 
   if (!isAuthenticated) {
     return (
@@ -76,15 +112,15 @@ const LibraryPage: React.FC = () => {
           my: 4
         }}
       >
-        <LibraryBooksIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
+        <HistoryIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
         <Typography variant="h5" component="h1" gutterBottom>
-          Your Library
+          Reading History
         </Typography>
         <Typography variant="body1" color="text.secondary" align="center">
-          You need to be logged in to access your library.
+          You need to be logged in to access your reading history.
         </Typography>
         <Typography variant="body2" color="text.secondary" align="center">
-          Please log in to view your bookmarked novels.
+          Please log in to view your recently read novels.
         </Typography>
       </Paper>
     );
@@ -95,14 +131,14 @@ const LibraryPage: React.FC = () => {
       <BreadcrumbNav
         items={[
           {
-            label: "Library",
-            icon: <LibraryBooksIcon fontSize="inherit" />
+            label: "Reading History",
+            icon: <HistoryIcon fontSize="inherit" />
           }
         ]}
       />
 
       <Typography variant="h4" component="h1" gutterBottom>
-        Your Library
+        Reading History
       </Typography>
       
       {loading ? (
@@ -113,7 +149,7 @@ const LibraryPage: React.FC = () => {
         <Alert severity="error" sx={{ my: 2 }}>
           {error}
         </Alert>
-      ) : bookmarkedNovels.length === 0 ? (
+      ) : historyNovels.length === 0 ? (
         <Paper 
           elevation={2}
           sx={{ 
@@ -126,27 +162,26 @@ const LibraryPage: React.FC = () => {
           }}
         >
           <Typography variant="h6" color="text.secondary" align="center">
-            Your library is empty
+            Your reading history is empty
           </Typography>
           <Typography variant="body2" color="text.secondary" align="center">
-            Bookmark novels to add them to your library.
+            Start reading novels to track your progress.
           </Typography>
         </Paper>
       ) : (
         <>
           <Box sx={{ mt: 2, mb: 4 }}>
-            <Grid container spacing={3}>
-              {bookmarkedNovels.map((novel) => (
-                <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                  <BaseNovelCard 
+            <Grid container spacing={2}>
+              {historyNovels.map((novel) => (
+                <Grid key={novel.id} size={12}>
+                  <ReadingHistoryCard 
                     novel={novel} 
-                    onClick={() => handleNovelClick(novel)}
+                    onDelete={openDeleteDialog} 
                   />
                 </Grid>
               ))}
             </Grid>
           </Box>
-          
           
           {totalPages > 1 && (
             <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
@@ -161,8 +196,27 @@ const LibraryPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={closeDeleteDialog}
+      >
+        <DialogTitle>Remove from history?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to remove this novel from your reading history? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDeleteDialog}>Cancel</Button>
+          <Button onClick={confirmDelete} color="error" autoFocus>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
 
-export default LibraryPage;
+export default ReadingHistoryPage;

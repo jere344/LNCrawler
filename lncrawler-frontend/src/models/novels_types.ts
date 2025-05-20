@@ -11,6 +11,7 @@ export interface Novel {
   languages: string[];
   is_bookmarked?: boolean | null;
   comment_count: number;
+  reading_history?: ReadingHistory | null;
 }
 
 export interface NovelListResponse {
@@ -45,6 +46,7 @@ export interface NovelFromSource {
   novel_title: string;
   cover_url: string | null;
   latest_available_chapter: Chapter | null;
+  reading_history?: ReadingHistory | null;
 }
 
 export interface NovelDetail {
@@ -62,6 +64,7 @@ export interface NovelDetail {
   prefered_source: NovelFromSource | null;
   is_bookmarked?: boolean | null;
   comment_count: number;
+  reading_history?: ReadingHistory | null;
 }
 
 export interface NovelFeaturedResponse {
@@ -104,4 +107,12 @@ export interface ChapterListResponse {
   source_name: string;
   source_slug: string;
   chapters: Chapter[];
+}
+
+export interface ReadingHistory {
+  id: string;
+  last_read_chapter : Chapter;
+  last_read_at: string;
+  source_slug?: string;
+  novel_slug?: string;
 }

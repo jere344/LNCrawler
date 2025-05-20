@@ -106,14 +106,42 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         '&:hover': {
           transform: 'translateY(-5px)',
           boxShadow: '0px 10px 15px -3px rgba(0,0,0,0.1)',
-        }
+        },
+        position: 'relative'
       }}
     >
+      {isAuthenticated && (
+        <Box
+          sx={{
+            position: 'absolute',
+            right: 8,
+            top: 'calc(50% - 8px)',
+            zIndex: 10
+          }}
+        >
+          <IconButton
+            size="small"
+            onClick={handleBookmarkClick}
+            sx={{
+              bgcolor: 'rgba(0, 0, 0, 0.6)',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'rgba(0, 0, 0, 0.8)',
+              },
+              width: 36,
+              height: 36,
+            }}
+          >
+            {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+          </IconButton>
+        </Box>
+      )}
+
       <CardActionArea 
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
         onClick={onClick}
       >
-        <Box sx={{ position: 'relative', paddingTop: '150%' /* 2:3 aspect ratio */ }}>
+        <Box sx={{ position: 'relative', paddingTop: '150%' }}>
           <CardMedia
             component="img"
             image={novel.prefered_source?.cover_url || defaultCover}
@@ -169,34 +197,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             )}
           </Box>
           
-          {/* Bookmark button */}
-          {isAuthenticated && (
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: 8,
-                right: 8,
-                zIndex: 2
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <IconButton
-                size="small"
-                onClick={handleBookmarkClick}
-                sx={{
-                  bgcolor: 'rgba(0, 0, 0, 0.6)',
-                  color: 'white',
-                  '&:hover': {
-                    bgcolor: 'rgba(0, 0, 0, 0.8)',
-                  },
-                  width: 36,
-                  height: 36,
-                }}
-              >
-                {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-              </IconButton>
-            </Box>
-          )}
+          {/* Removed bookmark button from here */}
         </Box>
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: 1 }}>
           <Typography 
