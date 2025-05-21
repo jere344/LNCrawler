@@ -26,12 +26,14 @@ interface ReadingHistoryCardProps {
 const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete }) => {
   const navigate = useNavigate();
 
+  const continue_chapter = novel.reading_history?.next_chapter || novel.reading_history?.last_read_chapter;
+
   const handleContinueReading = () => {
-    if (!novel.reading_history) return;
+    if (!continue_chapter || !novel.reading_history) return;
     
-    const { novel_slug, source_slug, last_read_chapter } = novel.reading_history;
-    if (novel_slug && source_slug && last_read_chapter) {
-      navigate(`/novels/${novel_slug}/${source_slug}/chapter/${last_read_chapter.chapter_id}`);
+    const { novel_slug, source_slug } = novel.reading_history;
+    if (novel_slug && source_slug && continue_chapter) {
+      navigate(`/novels/${novel_slug}/${source_slug}/chapter/${continue_chapter.chapter_id}`);
     }
   };
 
@@ -102,7 +104,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             {novel.title}
           </Typography>
           
-          {novel.reading_history && (
+          {novel.reading_history && continue_chapter && (
             <Box sx={{ mt: 1 }}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                 <Typography variant="body2" color="text.secondary">

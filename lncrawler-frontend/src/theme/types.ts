@@ -1,5 +1,3 @@
-import { Theme } from "@mui/material";
-
 export type ThemeId = string;
 
 export interface ThemeFont {

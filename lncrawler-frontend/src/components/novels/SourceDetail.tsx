@@ -125,9 +125,10 @@ const SourceDetail = () => {
     }
   };
 
+  const continue_chapter = source?.reading_history?.next_chapter || source?.reading_history?.last_read_chapter;
   const handleContinueReading = () => {
-    if (!source || !source.reading_history) return;
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${source.reading_history.last_read_chapter.chapter_id}`);
+    if (!novelSlug || !sourceSlug || !continue_chapter) return;
+    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`);
   };
 
 
@@ -711,8 +712,8 @@ const SourceDetail = () => {
                 </Box>
                 
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                  {source.reading_history && (
-                      <Tooltip title={`Continue from chapter ${source.reading_history.last_read_chapter.chapter_id}`} arrow placement="top">
+                  {continue_chapter && (
+                      <Tooltip title={`Continue from chapter ${continue_chapter.chapter_id}`} arrow placement="top">
                         <Button 
                           variant="contained" 
                           color="warning" 
@@ -739,8 +740,8 @@ const SourceDetail = () => {
                             </Typography>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>
                               {getChapterNameWithNumber(
-                                source.reading_history.last_read_chapter.title,
-                                source.reading_history.last_read_chapter.chapter_id
+                                continue_chapter.title,
+                                continue_chapter.chapter_id
                               )}
                             </Typography>
                           </Box>

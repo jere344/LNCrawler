@@ -116,8 +116,7 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
     # Get the novel, source, and chapter
     novel = get_object_or_404(Novel, slug=novel_slug)
     source = get_object_or_404(NovelFromSource, novel=novel, source_slug=source_slug)
-    # Because we read a chapter, we mark as reading the next one
-    chapter = get_object_or_404(Chapter, novel_from_source=source, chapter_id=int(chapter_number) + 1) 
+    chapter = get_object_or_404(Chapter, novel_from_source=source, chapter_id=chapter_number)
     
     # Update or create reading history for this novel
     reading_history, created = ReadingHistory.objects.update_or_create(

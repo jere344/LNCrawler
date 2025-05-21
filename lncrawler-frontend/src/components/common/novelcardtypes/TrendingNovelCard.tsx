@@ -26,7 +26,14 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
     return (
       <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
         {rank !== undefined && (
-          <Skeleton variant="circular" width={30} height={30} sx={{ position: 'absolute', top: -8, left: -8, zIndex: 1 }} />
+          <Skeleton variant="rectangular" width={40} height={28} sx={{ 
+            position: 'absolute', 
+            top: 10, 
+            left: 0, 
+            zIndex: 1,
+            borderTopRightRadius: 4,
+            borderBottomRightRadius: 4,
+          }} />
         )}
         <Box sx={{ position: 'relative', width: '100%', aspectRatio: '2/3' }}>
           <Skeleton variant="rectangular" sx={{ width: '100%', height: '100%' }} />
@@ -68,23 +75,24 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         <Box 
           sx={{
             position: 'absolute',
-            top: -8,
-            left: -8,
-            backgroundColor: 'primary.main',
+            top: 10,
+            left: 0,
+            backgroundColor: 'secondary.dark',
             color: 'white',
-            borderRadius: '50%',
-            width: 30,
-            height: 30,
+            borderTopRightRadius: '4px',
+            borderBottomRightRadius: '4px',
+            padding: '4px 10px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: 'bold',
-            boxShadow: 2,
+            boxShadow: 1,
             zIndex: 1,
-            fontSize: '0.9rem'
+            fontSize: '0.85rem',
+            minWidth: '30px',
           }}
         >
-          {rank}
+          #{rank}
         </Box>
       )}
       
@@ -161,7 +169,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
             {novel.title}
           </Typography>
           
-          {/* Trending statistics - simplified */}
+          {/* Trending statistics */}
           <Box sx={{ display: 'flex', alignItems: 'center', mt: 'auto' }}>
             <TrendingUpIcon color="error" sx={{ fontSize: '1rem' }} />
             <Typography 
@@ -170,23 +178,9 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               fontWeight="bold" 
               sx={{ ml: 0.5, fontSize: '0.85rem' }}
             >
-              {formatCount(novel.weekly_views || 0)} views
+              {formatCount(novel.weekly_views || 0)} views this week
             </Typography>
           </Box>
-          
-          {preferredSource?.genres && preferredSource.genres.length > 0 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {preferredSource.genres.slice(0, 1).map((genre, index) => (
-                <Chip 
-                  key={index}
-                  label={genre}
-                  size="small"
-                  color="secondary"
-                  sx={{ height: 20, '& .MuiChip-label': { px: 1, py: 0, fontSize: '0.7rem' } }}
-                />
-              ))}
-            </Box>
-          )}
         </CardContent>
       </CardActionArea>
     </Card>

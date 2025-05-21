@@ -87,20 +87,6 @@ const NovelDetail = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
   };
 
-  // Quick Start handler - navigate to the preferred source (first in the list)
-  // const handleQuickStart = () => {
-  //   if (!novelSlug || !novel || novel.sources.length === 0) return;
-    
-  //   // If we have reading history, navigate to last read chapter
-  //   if (novel.reading_history?.last_read_chapter) {
-  //     const { source_slug, last_read_chapter } = novel.reading_history;
-  //     navigate(`/novels/${novelSlug}/${source_slug}/chapter/${last_read_chapter.chapter_id}`);
-  //   } else {
-  //     // Otherwise start from the beginning of the preferred source
-  //     const preferredSource = novel.prefered_source || novel.sources[0];
-  //     navigate(`/novels/${novelSlug}/${preferredSource.source_slug}/chapter/1`);
-  //   }
-  // };
 
   const handleQuickStart = () => {
     if (!novelSlug || !novel || novel.sources.length === 0) return;
@@ -109,14 +95,16 @@ const NovelDetail = () => {
     navigate(`/novels/${novelSlug}/${preferredSource.source_slug}/chapter/1`);
   }
 
+  const continue_chapter = novel?.reading_history?.next_chapter || novel?.reading_history?.last_read_chapter;
+
   const handleQuickContinue = () => {
     if (!novelSlug || !novel || novel.sources.length === 0) return;
-    // If we have reading history, navigate to last read chapter
-    if (novel.reading_history?.last_read_chapter) {
-      const { source_slug, last_read_chapter } = novel.reading_history;
-      navigate(`/novels/${novelSlug}/${source_slug}/chapter/${last_read_chapter.chapter_id}`);
+    
+    if (continue_chapter && novel.reading_history) {
+      navigate(`/novels/${novelSlug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}`);
     }
   }
+  
 
   // Handle bookmark toggle
   const handleBookmarkToggle = async () => {
@@ -597,8 +585,8 @@ const NovelDetail = () => {
                     mb: 1
                   }}></Box>
 
-                  {novel.reading_history && (
-                      <Tooltip title={`Continue from chapter ${novel.reading_history.last_read_chapter.chapter_id}`} arrow placement="top">
+                  {continue_chapter && (
+                      <Tooltip title={`Continue from chapter ${continue_chapter.chapter_id}`} arrow placement="top">
                         <Button 
                           variant="contained" 
                           color="warning" 
@@ -624,7 +612,7 @@ const NovelDetail = () => {
                               Continue Reading
                             </Typography>
                             <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                              {getChapterNameWithNumber(novel.reading_history.last_read_chapter.title, novel.reading_history.last_read_chapter.chapter_id)}
+                              {getChapterNameWithNumber(continue_chapter.title, continue_chapter.chapter_id)}
                             </Typography>
                           </Box>
                           <BookIcon sx={{ 

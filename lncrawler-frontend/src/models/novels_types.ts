@@ -112,6 +112,7 @@ export interface ChapterListResponse {
 export interface ReadingHistory {
   id: string;
   last_read_chapter : Chapter;
+  next_chapter?: Chapter;
   last_read_at: string;
   source_slug?: string;
   novel_slug?: string;

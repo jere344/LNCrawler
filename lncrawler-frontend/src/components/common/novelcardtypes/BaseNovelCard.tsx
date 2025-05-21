@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
   Typography, Box, Rating, Chip, Skeleton, Tooltip,
-  Grid2 as Grid, IconButton,
+  Grid2 as Grid, IconButton, Badge,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -13,7 +13,7 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, languageCodeToFlag, languageCodeToName, toLocalDate } from '@utils/Misc';
+import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName, toLocalDate } from '@utils/Misc';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
 
@@ -41,6 +41,25 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   const { isAuthenticated } = useAuth();
   const [isBookmarked, setIsBookmarked] = useState<boolean | null>(novel.is_bookmarked || false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  
+  let unreadChapters = null;
+  if (novel.reading_history && preferredSource?.latest_available_chapter) {
+    const latestChapterId = preferredSource.latest_available_chapter.chapter_id;
+    const lastReadChapterId = novel.reading_history.last_read_chapter.chapter_id;
+    
+    const unread = latestChapterId - lastReadChapterId;
+    if (unread > 0) {
+      unreadChapters = unread;
+    }
+  }
+
+  let tooltip = "";
+  if (unreadChapters) {
+    tooltip = `${unreadChapters} unread chapter${unreadChapters > 1 ? 's' : ''}`;
+  }
+  if (novel.reading_history?.next_chapter) {
+    tooltip += `. Next : ${getChapterName(novel.reading_history.next_chapter.title)}`;
+  }
   
   const handleBookmarkClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -107,9 +126,31 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           transform: 'translateY(-5px)',
           boxShadow: '0px 10px 15px -3px rgba(0,0,0,0.1)',
         },
-        position: 'relative'
+        position: 'relative',
+        overflow: 'visible',
       }}
     >
+      {unreadChapters && (
+        <Tooltip title={tooltip} arrow>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: -8,
+              left: -8,
+              zIndex: 2,
+              backgroundColor: 'primary.main',
+              color: 'primary.contrastText',
+              borderRadius: '12px',
+              padding: '2px 8px',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 4px rgba(0,0,0,0.2)',
+            }}
+          >
+            {unreadChapters > 999 ? '999+' : unreadChapters}
+          </Box>
+        </Tooltip>
+      )}
+
       {isAuthenticated && (
         <Box
           sx={{
@@ -196,8 +237,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               </Tooltip>
             )}
           </Box>
-          
-          {/* Removed bookmark button from here */}
         </Box>
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: 1 }}>
           <Typography 
