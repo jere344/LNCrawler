@@ -20,4 +20,5 @@ export interface Comment {
     profile_pic: string;
   },
   user_vote?: 'up' | 'down';
+  edited: boolean;
 }

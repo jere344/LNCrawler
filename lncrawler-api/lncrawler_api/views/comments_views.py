@@ -230,3 +230,48 @@ def vote_comment(request, comment_id):
         'downvotes': comment.downvotes,
         'vote_score': comment.vote_score
     }, status=status.HTTP_200_OK)
+
+@api_view(['PUT'])
+def edit_comment(request, comment_id):
+    """
+    Edit a comment. Only the comment owner can edit it.
+    """
+    comment = get_object_or_404(Comment, id=comment_id)
+    
+    # Check if user is authenticated and is the comment owner
+    if not request.user.is_authenticated:
+        return Response({'error': 'You must be logged in to edit a comment'}, 
+                       status=status.HTTP_401_UNAUTHORIZED)
+    
+    if comment.user != request.user:
+        return Response({'error': 'You can only edit your own comments'}, 
+                       status=status.HTTP_403_FORBIDDEN)
+    
+    message = request.data.get('message')
+    contains_spoiler = request.data.get('contains_spoiler', comment.contains_spoiler)
+    
+    if not message:
+        return Response({'error': 'Message is required'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    # Update comment fields
+    comment.message = message
+    comment.contains_spoiler = contains_spoiler
+    comment.edited = True
+    comment.save()
+    
+    # Return the updated comment using the appropriate serializer
+    if comment.chapter:
+        chapter = comment.chapter
+        source = chapter.novel_from_source
+        serializer = ChapterCommentSerializer(comment, context={
+            'request': request,
+            'chapter_title': chapter.title,
+            'chapter_id': chapter.chapter_id,
+            'source_name': source.source_name,
+            'source_slug': source.source_slug
+        })
+    else:
+        serializer = NovelCommentSerializer(comment, context={'request': request})
+    
+    return Response(serializer.data, status=status.HTTP_200_OK)

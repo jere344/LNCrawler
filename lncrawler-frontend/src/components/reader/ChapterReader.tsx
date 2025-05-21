@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -83,6 +83,18 @@ const ChapterReader = () => {
   
   // Current chapter key for scroll position tracking
   const currentChapterKey = `${novelSlug}|${sourceSlug}|${chapterNumber}`;
+
+  // Memoize chapterData for CommentSection to prevent re-renders on scroll
+  const chapterDataForComments = useMemo(() => {
+    if (novelSlug && sourceSlug && chapterNumber) {
+      return {
+        novelSlug,
+        sourceSlug,
+        chapterNumber: parseInt(chapterNumber),
+      };
+    }
+    return null;
+  }, [novelSlug, sourceSlug, chapterNumber]);
 
   // Helper function to generate a cache key
   const getCacheKey = (novel: string, source: string, chapter: number): string => {
@@ -629,13 +641,9 @@ const ChapterReader = () => {
           
           {/* Comments Tab */}
           <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
-            {novelSlug && sourceSlug && chapterNumber && activeTab === 1 && (
+            {chapterDataForComments && activeTab === 1 && (
               <CommentSection 
-                chapterData={{
-                  novelSlug,
-                  sourceSlug,
-                  chapterNumber: parseInt(chapterNumber)
-                }}
+                chapterData={chapterDataForComments}
                 title="Chapter Comments"
               />
             )}

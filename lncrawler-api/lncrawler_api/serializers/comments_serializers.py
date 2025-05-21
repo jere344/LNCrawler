@@ -55,7 +55,7 @@ class ChapterCommentSerializer(CommentSerializer):
     source_slug = serializers.CharField(read_only=True)
 
     class Meta(CommentSerializer.Meta):
-        fields = CommentSerializer.Meta.fields + ['type', 'chapter_title', 'chapter_id', 'source_name', 'source_slug']
+        fields = CommentSerializer.Meta.fields + ['type', 'chapter_title', 'chapter_id', 'source_name', 'source_slug', 'edited']
     
     def to_representation(self, instance):
         data = super().to_representation(instance)
