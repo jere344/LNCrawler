@@ -256,7 +256,7 @@ const NovelDetail = () => {
   }
 
   // Use the first source in the sorted list (by votes) as the primary source
-  const primarySource = novel?.sources[0] || null;
+  const primarySource = novel.prefered_source || novel.sources[0];
 
   return (
     <Container maxWidth="lg" sx={{ pb: 6 }}>
