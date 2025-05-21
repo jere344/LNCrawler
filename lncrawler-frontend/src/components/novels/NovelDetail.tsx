@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PersonIcon from '@mui/icons-material/Person';
-import FlagIcon from '@mui/icons-material/Flag';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import {
   Container,
@@ -10,7 +9,6 @@ import {
   Paper,
   CardMedia,
   Button,
-  Chip,
   useTheme,
   alpha,
   Skeleton,
@@ -255,7 +253,6 @@ const NovelDetail = () => {
     );
   }
 
-  // Use the first source in the sorted list (by votes) as the primary source
   const primarySource = novel.prefered_source || novel.sources[0];
 
   return (

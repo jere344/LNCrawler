@@ -11,7 +11,6 @@ import {
   ListItem,
   ListItemText,
   Box,
-  Chip,
   IconButton,
   Tooltip,
   alpha,
@@ -21,7 +20,6 @@ import {
 } from '@mui/material';
 import LanguageIcon from '@mui/icons-material/Language';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import BarChartIcon from '@mui/icons-material/BarChart';
 import UpdateIcon from '@mui/icons-material/Update';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
@@ -109,7 +107,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
       <Divider sx={{ mb: 3 }} />
 
       <Grid container spacing={3}>
-        {sources.map((source: any, index: number) => (
+        {sources.sort((a: any, b: any) => b.vote_score - a.vote_score).map((source: any, index: number) => (
           <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
             <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }}>
               <Card
@@ -291,50 +289,6 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
                             }
                           />
                         </ListItem>
-
-                        {/* <ListItem
-                          disablePadding
-                          sx={{
-                            py: 0.5,
-                            display: 'flex',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              minWidth: 24,
-                              height: 24,
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              mr: 1.5,
-                              background: alpha(theme.palette.secondary.main, 0.1),
-                              color: theme.palette.secondary.main,
-                            }}
-                          >
-                            <BarChartIcon fontSize="small" />
-                          </Box>
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                                  Status
-                                </Typography>
-                                <Chip
-                                  label={source.status}
-                                  size="small"
-                                  sx={{
-                                    height: 20,
-                                    '& .MuiChip-label': { px: 1, py: 0, fontSize: '0.7rem' },
-                                    bgcolor: source.status === 'Completed' ? theme.palette.success.main : theme.palette.info.main,
-                                    color: '#fff',
-                                  }}
-                                />
-                              </Box>
-                            }
-                          />
-                        </ListItem> */}
 
                         <ListItem
                           disablePadding
