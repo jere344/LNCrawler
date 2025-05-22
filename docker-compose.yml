@@ -20,6 +20,7 @@ services:
     volumes:
       - ./lncrawler-api:/app/lncrawler-api
       - ./Lightnovels:/app/Lightnovels
+      - ./imports:/app/imports
       - ./lncrawler-api/logs:/app/lncrawler-api/logs
       - ./dipudb-lncrawler-jere344-patches:/app/dipudb-lncrawler-jere344-patches
     ports:

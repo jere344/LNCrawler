@@ -98,7 +98,6 @@ export const novelService = {
     query?: string;
     page?: number;
     page_size?: number;
-    genre?: string[];
     tag?: string[];
     author?: string[];
     status?: string;
@@ -119,11 +118,6 @@ export const novelService = {
     if (params.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params.sort_order) queryParams.append('sort_order', params.sort_order);
     
-    // Handle array parameters
-    if (params.genre && params.genre.length) {
-      params.genre.forEach(genre => queryParams.append('genre', genre));
-    }
-    
     if (params.tag && params.tag.length) {
       params.tag.forEach(tag => queryParams.append('tag', tag));
     }
@@ -137,7 +131,7 @@ export const novelService = {
   },
 
   // Add this function to your novelService object
-  getAutocompleteSuggestions: async (type: 'genre' | 'tag' | 'author', query: string): Promise<{ name: string; count: number }[]> => {
+  getAutocompleteSuggestions: async (type: 'tag' | 'author', query: string): Promise<{ name: string; count: number }[]> => {
     const response = await api.get(`/novels/autocomplete/`, {
       params: {
         type,

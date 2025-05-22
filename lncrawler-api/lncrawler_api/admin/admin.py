@@ -1,14 +1,9 @@
 from django.contrib import admin
-from django.urls import path
-from django.shortcuts import render
 from django.utils.html import format_html
 from django.urls import reverse
-from .forms import MetaJsonImportForm, MassImportForm
-from .commands import handle_meta_json_import, handle_mass_import
-from django.conf import settings
 from ..models import (
     Job, Novel, NovelFromSource, Volume, Chapter, Author, 
-    Editor, Translator, Tag, Genre, SourceVote, NovelRating,
+    Editor, Translator, Tag, SourceVote, NovelRating,
     NovelViewCount, WeeklyNovelView, Comment, CommentVote, FeaturedNovel
 )
 
@@ -55,11 +50,6 @@ class TagAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
 
-@admin.register(Genre)
-class GenreAdmin(admin.ModelAdmin):
-    list_display = ('name',)
-    search_fields = ('name',)
-
 # Inline for showing sources in Novel admin
 class NovelFromSourceInline(admin.TabularInline):
     model = NovelFromSource
@@ -79,8 +69,8 @@ class NovelFromSourceInline(admin.TabularInline):
 class ChapterInline(admin.TabularInline):
     model = Chapter
     extra = 0
-    fields = ('chapter_id', 'link_to_chapter', 'success', 'has_content')
-    readonly_fields = ('chapter_id', 'link_to_chapter', 'success', 'has_content')
+    fields = ('chapter_id', 'link_to_chapter', 'has_content')
+    readonly_fields = ('chapter_id', 'link_to_chapter', 'has_content')
     show_change_link = True
     can_delete = False
     ordering = ('chapter_id',)
@@ -126,56 +116,6 @@ class NovelAdmin(admin.ModelAdmin):
     
     view_count_display.short_description = 'Views'
     
-    # Add import button to the changelist page
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path('import-meta-json/', self.admin_site.admin_view(self.import_meta_json), name='novel-import-meta'),
-            path('mass-import/', self.admin_site.admin_view(self.mass_import), name='novel-mass-import'),
-        ]
-        return custom_urls + urls
-    
-    def import_meta_json(self, request):
-        if request.method == 'POST':
-            form = MetaJsonImportForm(request.POST)
-            return handle_meta_json_import(self, request, form)
-        else:
-            form = MetaJsonImportForm()
-        
-        context = {
-            'form': form,
-            'opts': self.model._meta,
-            'title': 'Import Novel from meta.json',
-        }
-        return render(request, 'admin/import_meta_json.html', context)
-
-    def mass_import(self, request):
-        if request.method == 'POST':
-            form = MassImportForm(request.POST)
-            return handle_mass_import(self, request, form)
-        else:
-            form = MassImportForm()
-        
-        context = {
-            'form': form,
-            'opts': self.model._meta,
-            'title': 'Mass Import Novels from Directory',
-            'library_path': settings.LNCRAWL_OUTPUT_PATH
-        }
-        return render(request, 'admin/mass_import_form.html', context)
-
-    # Add an import button to the changelist page
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        extra_context['import_button'] = {
-            'url': reverse('admin:novel-import-meta'),
-            'label': 'Import from meta.json'
-        }
-        extra_context['mass_import_button'] = {
-            'url': reverse('admin:novel-mass-import'),
-            'label': 'Mass Import'
-        }
-        return super().changelist_view(request, extra_context=extra_context)
 
 @admin.register(NovelFromSource)
 class NovelFromSourceAdmin(admin.ModelAdmin):
@@ -206,8 +146,8 @@ class VolumeAdmin(admin.ModelAdmin):
 
 @admin.register(Chapter)
 class ChapterAdmin(admin.ModelAdmin):
-    list_display = ('title', 'link_to_novel_source', 'chapter_id', 'volume', 'success', 'has_content')
-    list_filter = ('novel_from_source__source_name', 'success', 'volume')
+    list_display = ('title', 'link_to_novel_source', 'chapter_id', 'volume', 'has_content')
+    list_filter = ('novel_from_source__source_name','volume')
     search_fields = ('title', 'novel_from_source__title')
     raw_id_fields = ('novel_from_source',)
     

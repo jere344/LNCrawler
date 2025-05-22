@@ -29,7 +29,6 @@ export interface NovelFromSource {
   source_slug: string;
   cover_path: string | null;
   authors: string[];
-  genres: string[];
   tags: string[];
   language: string;
   status: string;

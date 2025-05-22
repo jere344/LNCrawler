@@ -14,7 +14,6 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     Serializes novel source information
     """
     authors = serializers.SerializerMethodField()
-    genres = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     novel_id = serializers.SerializerMethodField()
@@ -29,7 +28,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         model = NovelFromSource
         fields = [
             'id', 'title', 'source_url', 'source_name', 'source_slug', 'cover_path',
-            'authors', 'genres', 'tags', 'language', 'status', 'synopsis',
+            'authors', 'tags', 'language', 'status', 'synopsis',
             'chapters_count', 'volumes_count', 'last_chapter_update', 'upvotes', 'downvotes',
             'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
             'latest_available_chapter', 'reading_history'
@@ -42,9 +41,6 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     
     def get_authors(self, obj):
         return [author.name for author in obj.authors.all()]
-    
-    def get_genres(self, obj):
-        return [genre.name for genre in obj.genres.all()]
     
     def get_tags(self, obj):
         return [tag.name for tag in obj.tags.all()]

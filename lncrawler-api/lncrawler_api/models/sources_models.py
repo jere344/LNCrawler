@@ -5,8 +5,9 @@ import json
 from datetime import datetime
 from django.conf import settings
 from django.utils.text import slugify
+from django.utils import timezone
 
-from .novels_models import Novel, Author, Editor, Translator, Genre, Tag
+from .novels_models import Novel, Author, Editor, Translator, Tag
 
 
 class NovelFromSource(models.Model):
@@ -47,7 +48,6 @@ class NovelFromSource(models.Model):
     synopsis = models.TextField(blank=True, null=True)
     
     # Categories (many-to-many)
-    genres = models.ManyToManyField(Genre, related_name='novels', blank=True)
     tags = models.ManyToManyField(Tag, related_name='novels', blank=True)
     
     # Extra metadata fields that may be in the JSON
@@ -157,7 +157,7 @@ class NovelFromSource(models.Model):
                 'english_publisher': novel_data.get('english_publisher'),
                 'novelupdates_url': novel_data.get('novelupdates_url'),
                 'meta_file_path': meta_json_path,
-                'last_chapter_update': datetime.now(),
+                'last_chapter_update': timezone.now(),
             }
         )
         
@@ -185,16 +185,8 @@ class NovelFromSource(models.Model):
                 translator, _ = Translator.objects.get_or_create(name=translator_name)
                 novel_from_source.translators.add(translator)
         
-        # Handle genres (list of strings)
-        genres_list = novel_data.get('genres', [])
-        novel_from_source.genres.clear()
-        for genre_name in genres_list:
-            if genre_name:
-                genre, _ = Genre.objects.get_or_create(name=genre_name)
-                novel_from_source.genres.add(genre)
-        
         # Handle tags (list of strings)
-        tags_list = novel_data.get('tags', [])
+        tags_list = novel_data.get('novel_tags', [])
         novel_from_source.tags.clear()
         for tag_name in tags_list:
             if tag_name:
@@ -239,7 +231,6 @@ class NovelFromSource(models.Model):
                         'volume_title': chapter_data.get('volume_title', ''),
                         'chapter_path': relative_chapter_path if file_exists else None,
                         'images': chapter_data.get('images', {}),
-                        'success': chapter_data.get('success', False) if file_exists else False,
                     }
                 )
         
@@ -276,7 +267,6 @@ class Chapter(models.Model):
     volume_title = models.CharField(max_length=255, blank=True, null=True)
     chapter_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
     images = models.JSONField(default=dict)  # Keep as JSONField due to complex structure
-    success = models.BooleanField(default=False)
     has_content = models.BooleanField(default=False)  # New field to track content availability
     
     class Meta:
@@ -304,9 +294,20 @@ class Chapter(models.Model):
     def check_has_content(self):
         """Check if the chapter file exists and has content, and update the has_content field"""
         has_content = False
-        if self.chapter_path:
+        chapter_path = self.chapter_path
+        
+        # If no chapter_path is available, construct it from source_path and chapter_id
+        if not chapter_path:
             try:
-                full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.chapter_path)
+                source_path = self.novel_from_source.source_path
+                if source_path:
+                    chapter_path = os.path.join(source_path, 'json', f"{self.chapter_id:05d}.json")
+            except Exception:
+                chapter_path = None
+        
+        if chapter_path:
+            try:
+                full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, chapter_path)
                 if os.path.exists(full_path):
                     # If the file is larger than 2KB, we assume it has not failed content and 
                     # no need to parse the JSON file
@@ -325,6 +326,8 @@ class Chapter(models.Model):
         # Update the field if it's different
         if self.has_content != has_content:
             self.has_content = has_content
+            if self.chapter_path != chapter_path:
+                self.chapter_path = chapter_path
             self.save(update_fields=['has_content'])
         
         return has_content

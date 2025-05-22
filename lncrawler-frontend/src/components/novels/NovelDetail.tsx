@@ -33,7 +33,7 @@ import { NovelDetail as INovelDetail } from '@models/novels_types';
 import NovelSources from './NovelSources.tsx';
 import NovelSynopsis from './common/NovelSynopsis.tsx';
 import NovelRating from './common/NovelRating.tsx';
-import NovelGenres from './common/NovelGenres.tsx';
+import NovelTags from './common/NovelTags';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { getChapterNameWithNumber } from '@utils/Misc.tsx';
 
@@ -563,11 +563,10 @@ const NovelDetail = () => {
                   </Box>
                 </Box>
                 
-                {/* Genres tags with improved styling */}
-                {primarySource.genres.length > 0 && (
+                {primarySource.tags.length > 0 && (
                   <Box sx={{ mb: 3 }}>
-                    <NovelGenres 
-                      genres={primarySource.genres} 
+                    <NovelTags
+                      tags={primarySource.tags} 
                       chipSize="small"
                     />
                   </Box>

@@ -175,6 +175,8 @@ LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR.parent, 'Lightnovels')
 LNCRAWL_URL = "lightnovels/"
 LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 
+IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',

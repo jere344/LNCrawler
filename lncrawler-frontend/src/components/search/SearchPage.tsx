@@ -21,7 +21,6 @@ import { useTheme } from '@theme/ThemeContext';
 
 
 interface FilterOptions {
-  genres: string[];
   tags: string[];
   authors: string[];
   statuses: string[];
@@ -50,7 +49,6 @@ const SearchPage: React.FC = () => {
   
   // State for filter options
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    genres: [],
     tags: [],
     authors: [],
     statuses: [],
@@ -59,7 +57,6 @@ const SearchPage: React.FC = () => {
   
   // State for current filters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
-  const [selectedGenres, setSelectedGenres] = useState<string[]>(searchParams.getAll('genre'));
   const [selectedTags, setSelectedTags] = useState<string[]>(searchParams.getAll('tag'));
   const [selectedAuthors, setSelectedAuthors] = useState<string[]>(searchParams.getAll('author'));
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
@@ -71,17 +68,14 @@ const SearchPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
   
   // State for autocomplete options
-  const [genreSuggestions, setGenreSuggestions] = useState<Suggestion[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<Suggestion[]>([]);
   const [authorSuggestions, setAuthorSuggestions] = useState<Suggestion[]>([]);
   
   // State for autocomplete input values
-  const [genreInput, setGenreInput] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [authorInput, setAuthorInput] = useState('');
   
   // State for loading suggestions
-  const [loadingGenres, setLoadingGenres] = useState(false);
   const [loadingTags, setLoadingTags] = useState(false);
   const [loadingAuthors, setLoadingAuthors] = useState(false);
   
@@ -89,28 +83,6 @@ const SearchPage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   
   // Create debounced functions for fetching suggestions
-  const fetchGenreSuggestions = useCallback(
-    debounce(async (query: string) => {
-      if (query.length < 3) {
-        setGenreSuggestions([]);
-        setLoadingGenres(false);
-        return;
-      }
-      
-      setLoadingGenres(true);
-      try {
-        const response = await novelService.getAutocompleteSuggestions('genre', query);
-        setGenreSuggestions(response);
-      } catch (error) {
-        console.error('Error fetching genre suggestions:', error);
-        setGenreSuggestions([]);
-      } finally {
-        setLoadingGenres(false);
-      }
-    }, DEBOUNCE_TIME),
-    []
-  );
-  
   const fetchTagSuggestions = useCallback(
     debounce(async (query: string) => {
       if (query.length < 3) {
@@ -166,7 +138,6 @@ const SearchPage: React.FC = () => {
           query: searchParams.get('query') || undefined,
           page,
           page_size: ITEMS_PER_PAGE,
-          genre: searchParams.getAll('genre'),
           tag: searchParams.getAll('tag'),
           author: searchParams.getAll('author'),
           status: searchParams.get('status') || undefined,
@@ -185,7 +156,6 @@ const SearchPage: React.FC = () => {
         // Store filter options (mainly for status options)
         setFilterOptions(
           {
-            genres: response.genres || [],
             tags: response.tags || [],
             authors: response.authors || [],
             statuses: response.statuses || [],
@@ -256,7 +226,6 @@ const SearchPage: React.FC = () => {
   // Handle clear filters
   const handleClearFilters = () => {
     setSearchQuery('');
-    setSelectedGenres([]);
     setSelectedTags([]);
     setSelectedAuthors([]);
     setSelectedStatus('');
@@ -273,7 +242,6 @@ const SearchPage: React.FC = () => {
   const applyFilters = () => {
     updateSearchParams({
       query: searchQuery,
-      genre: selectedGenres,
       tag: selectedTags,
       author: selectedAuthors,
       status: selectedStatus,
@@ -358,74 +326,6 @@ const SearchPage: React.FC = () => {
           </Box>
           
           <Grid container spacing={3}>
-            {/* Genres - Autocomplete */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Autocomplete
-                multiple
-                options={genreSuggestions}
-                value={selectedGenres}
-                inputValue={genreInput}
-                onInputChange={(_, newInputValue) => {
-                  setGenreInput(newInputValue);
-                  fetchGenreSuggestions(newInputValue);
-                }}
-                onChange={(_, newValue) => {
-                  setSelectedGenres(newValue.map(item => typeof item === 'string' ? item : item.name));
-                }}
-                getOptionLabel={(option) => {
-                  if (typeof option === 'string') {
-                    return option;
-                  }
-                  return `${option.name} (${option.count})`;
-                }}
-                isOptionEqualToValue={(option, value) => {
-                  const optionName = typeof option === 'string' ? option : option.name;
-                  const valueName = typeof value === 'string' ? value : value.name;
-                  return optionName === valueName;
-                }}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => {
-                    const tagName = typeof option === 'string' ? option : option.name;
-                    return (
-                      <Chip
-                        label={tagName}
-                        {...getTagProps({ index })}
-                      />
-                    );
-                  })
-                }
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Genres"
-                    placeholder="Type to search genres..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <React.Fragment>
-                          {loadingGenres ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </React.Fragment>
-                      ),
-                    }}
-                    helperText="Type at least 3 characters to search"
-                  />
-                )}
-                renderOption={(props, option) => (
-                  <li {...props}>
-                    {typeof option === 'string' ? 
-                      option : 
-                      `${option.name} (${option.count})`
-                    }
-                  </li>
-                )}
-                filterOptions={(x) => x} // Don't filter options client-side
-                noOptionsText="No genres found"
-                loading={loadingGenres}
-                loadingText="Loading..."
-              />
-            </Grid>
-            
             {/* Tags - Autocomplete */}
             <Grid size={{ xs: 12, md: 6 }}> 
               <Autocomplete
@@ -679,23 +579,10 @@ const SearchPage: React.FC = () => {
       )}
       
       {/* Active Filters Display */}
-      {(selectedGenres.length > 0 || selectedTags.length > 0 || 
+      {(selectedTags.length > 0 || 
        selectedAuthors.length > 0 || selectedStatus || selectedLanguage || 
        minRating || sortBy !== 'title' || sortOrder !== 'asc') && (
         <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {selectedGenres.map(genre => (
-            <Chip 
-              key={`genre-${genre}`} 
-              label={`Genre: ${genre}`}
-              onDelete={() => {
-                setSelectedGenres(selectedGenres.filter(g => g !== genre));
-                updateSearchParams({ 
-                  genre: selectedGenres.filter(g => g !== genre)
-                });
-              }}
-            />
-          ))}
-          
           {selectedTags.map(tag => (
             <Chip 
               key={`tag-${tag}`} 

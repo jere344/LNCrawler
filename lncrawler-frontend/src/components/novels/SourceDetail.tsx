@@ -23,7 +23,6 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import CommentIcon from '@mui/icons-material/Comment';
 import PersonIcon from '@mui/icons-material/Person';
-import FlagIcon from '@mui/icons-material/Flag';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import LaunchIcon from '@mui/icons-material/Launch';
@@ -35,7 +34,6 @@ import CommentSection from '../comments/CommentSection';
 import { NovelFromSource as ISourceDetail } from '@models/novels_types';
 import NovelSynopsis from './common/NovelSynopsis';
 import NovelRating from './common/NovelRating';
-import NovelGenres from './common/NovelGenres';
 import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
 import BreadcrumbNav from '../common/BreadcrumbNav';
@@ -257,7 +255,7 @@ const SourceDetail = () => {
           <Skeleton variant="rectangular" width="100%" height={100} sx={{ borderRadius: 2 }} animation="wave" />
         </Paper>
 
-        {/* Genres and Tags Section Skeleton */}
+        {/* Tags Section Skeleton */}
         <Paper 
           elevation={3} 
           sx={{ 
@@ -905,8 +903,8 @@ const SourceDetail = () => {
           </Paper>
         )}
 
-        {/* Genres and Tags Section */}
-        {(source.genres.length > 0 || source.tags.length > 0) && (
+        {/* Tags Section */}
+        {(source.tags.length > 0) && (
           <Paper 
             elevation={3} 
             sx={{ 
@@ -919,21 +917,8 @@ const SourceDetail = () => {
             }}
           >
             <Grid container spacing={3}>
-              {source.genres.length > 0 && (
-                <Grid size={{ xs: 12, md: source.tags.length > 0 ? 6 : 12 }}>
-                  <NovelGenres 
-                    genres={source.genres} 
-                    title="Genres"
-                    titleVariant="h6"
-                    chipSize="medium"
-                    textColor={theme.palette.text.primary}
-                    showTitle={true} 
-                  />
-                </Grid>
-              )}
-              
               {source.tags.length > 0 && (
-                <Grid size={{ xs: 12, md: source.genres.length > 0 ? 6 : 12 }}>
+                <Grid size={{ xs: 12, md: source.tags.length > 0 ? 6 : 12 }}>
                   <NovelTags 
                     tags={source.tags} 
                     title="Tags"

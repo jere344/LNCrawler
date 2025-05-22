@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from ..models import (
-    Novel, Author, Genre, Tag,
+    Novel, Author, Tag,
     NovelViewCount, WeeklyNovelView,
     NovelBookmark
 )
@@ -181,12 +181,6 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
 class AuthorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Author
-        fields = ['name']
-
-
-class GenreSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Genre
         fields = ['name']
 
 

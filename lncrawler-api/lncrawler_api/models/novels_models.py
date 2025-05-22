@@ -66,14 +66,6 @@ class Tag(models.Model):
         return self.name
 
 
-class Genre(models.Model):
-    """Genres for novels"""
-    name = models.CharField(max_length=100, unique=True)
-
-    def __str__(self):
-        return self.name
-
-
 class NovelRating(models.Model):
     """
     Tracks user ratings for novels (1-5 stars)

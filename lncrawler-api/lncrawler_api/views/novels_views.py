@@ -9,7 +9,6 @@ from django.db.models.functions import Coalesce
 from ..models import (
     Novel,
     NovelRating,
-    Genre,
     Tag,
     Author,
     FeaturedNovel,
@@ -112,7 +111,6 @@ def search_novels(request):
     page_size = request.GET.get("page_size", 20)
 
     # Get filter parameters
-    genres = request.GET.getlist("genre", [])
     tags = request.GET.getlist("tag", [])
     authors = request.GET.getlist("author", [])
     status = request.GET.get("status", "")
@@ -131,10 +129,6 @@ def search_novels(request):
             | Q(sources__synopsis__icontains=query)
             | Q(sources__authors__name__icontains=query)
         ).distinct()
-
-    # Filter by genres
-    if genres:
-        novels_query = novels_query.filter(sources__genres__name__in=genres).distinct()
 
     # Filter by tags
     if tags:
@@ -249,7 +243,7 @@ def search_novels(request):
 @api_view(["GET"])
 def autocomplete_suggestion(request):
     """
-    Get autocomplete suggestions for genres, tags, or authors with novel counts
+    Get autocomplete suggestions for tags, or authors with novel counts
     """
     search_type = request.GET.get("type", "")
     query = request.GET.get("query", "").strip()
@@ -258,19 +252,7 @@ def autocomplete_suggestion(request):
     if len(query) < 3:
         return Response([])
 
-    if search_type == "genre":
-        # Count novels for each genre
-        genre_counts = (
-            Genre.objects.filter(name__icontains=query)
-            .annotate(novel_count=Count("novels", distinct=True))
-            .order_by("-novel_count")[:limit]
-        )
-
-        suggestions = [
-            {"name": genre.name, "count": genre.novel_count} for genre in genre_counts
-        ]
-
-    elif search_type == "tag":
+    if search_type == "tag":
         # Count novels for each tag
         tag_counts = (
             Tag.objects.filter(name__icontains=query)

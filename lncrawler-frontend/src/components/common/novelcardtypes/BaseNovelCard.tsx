@@ -269,20 +269,15 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             </Typography>
           </Box>
           
-          {/* Genres */}
+          {/* Tags */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <Tooltip title="Genres">
+            <Tooltip title="Tags">
               <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 16, height: 16 }} />
             </Tooltip>
             <Typography variant="body2" color="text.secondary" noWrap>
-              {preferredSource?.genres && preferredSource.genres.length > 0
-                ? `${preferredSource.genres.slice(0, 3).join(', ')}${preferredSource.genres.length > 3 ? '...' : ''}`
-                : (
-                    preferredSource?.tags && preferredSource.tags.length > 0
-                      ? `${preferredSource.tags.slice(0, 3).join(', ')}${preferredSource.tags.length > 3 ? '...' : ''}`
-                      : 'Unknown'
-                )
-              }
+              {preferredSource?.tags && preferredSource.tags.length > 0 ? 
+                `${preferredSource.tags.slice(0, 3).join(', ')}${preferredSource.tags.length > 3 ? '...' : ''}` 
+                : 'Unknown'}
             </Typography>
           </Box>
           
