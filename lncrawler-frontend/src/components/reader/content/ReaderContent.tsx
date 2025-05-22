@@ -1,13 +1,16 @@
 import React from 'react';
 import { Typography } from '@mui/material';
 import { ReaderSettings } from '../ReaderSettings';
+import { ChapterContent } from '@models/novels_types';
 
 interface ReaderContentProps {
-  content: string;
+  chapter: ChapterContent;
   settings: ReaderSettings;
 }
 
-const ReaderContent: React.FC<ReaderContentProps> = ({ content, settings }) => {
+const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
+  const imageStyles = `<style>img { max-width: 100%; height: auto; }</style>`;
+  
   return (
     <Typography 
       sx={{ 
@@ -20,7 +23,7 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ content, settings }) => {
         MozUserSelect: settings.textSelectable ? 'text' : 'none',
         msUserSelect: settings.textSelectable ? 'text' : 'none',
       }}
-      dangerouslySetInnerHTML={{ __html: content }}
+      dangerouslySetInnerHTML= {{ __html: imageStyles + chapter.body.replace("src=\"images/", `src="${chapter.images_path}/`) }}
     />
   );
 };

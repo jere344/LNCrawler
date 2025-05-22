@@ -86,6 +86,7 @@ export interface ChapterContent {
   body: string;
   prev_chapter?: number | null;
   next_chapter?: number | null;
+  images_path?: string;
 }
 
 export interface Chapter {

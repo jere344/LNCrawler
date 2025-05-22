@@ -635,7 +635,7 @@ const ChapterReader = () => {
               rightEdgeTapBehavior={readerSettings.rightEdgeTapBehavior}
               onContentClick={handleContentClick}
             >
-              <ReaderContent content={chapter.body} settings={readerSettings} />
+              <ReaderContent chapter={chapter} settings={readerSettings} />
             </ReaderViewport>
           </Box>
           
