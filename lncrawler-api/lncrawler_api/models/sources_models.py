@@ -55,8 +55,6 @@ class NovelFromSource(models.Model):
     novel_tags = models.TextField(blank=True, null=True)
     has_manga = models.BooleanField(null=True, blank=True)
     has_mtl = models.BooleanField(null=True, blank=True)
-    source = models.CharField(max_length=255, null=True, blank=True)
-    description = models.TextField(null=True, blank=True)
     original_publisher = models.CharField(max_length=255, null=True, blank=True)
     english_publisher = models.CharField(max_length=255, null=True, blank=True)
     novelupdates_url = models.URLField(max_length=500, null=True, blank=True)
@@ -151,8 +149,6 @@ class NovelFromSource(models.Model):
                 'novel_tags': novel_data.get('novel_tags'),
                 'has_manga': novel_data.get('has_manga'),
                 'has_mtl': novel_data.get('has_mtl'),
-                'source': novel_data.get('source'),
-                'description': novel_data.get('description'),
                 'original_publisher': novel_data.get('original_publisher'),
                 'english_publisher': novel_data.get('english_publisher'),
                 'novelupdates_url': novel_data.get('novelupdates_url'),
@@ -221,6 +217,10 @@ class NovelFromSource(models.Model):
                 # Check if the file exists
                 file_exists = os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, relative_chapter_path))
                 
+                # Extract only the image filenames (keys) from the images dictionary
+                images_dict = chapter_data.get('images', {})
+                image_filenames = list(images_dict.keys()) if images_dict else []
+                
                 Chapter.objects.update_or_create(
                     novel_from_source=novel_from_source,
                     chapter_id=chapter_id,
@@ -230,7 +230,7 @@ class NovelFromSource(models.Model):
                         'volume': chapter_data.get('volume', 0),
                         'volume_title': chapter_data.get('volume_title', ''),
                         'chapter_path': relative_chapter_path if file_exists else None,
-                        'images': chapter_data.get('images', {}),
+                        'images': image_filenames,
                     }
                 )
         
@@ -266,7 +266,7 @@ class Chapter(models.Model):
     volume = models.IntegerField(default=0)
     volume_title = models.CharField(max_length=255, blank=True, null=True)
     chapter_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
-    images = models.JSONField(default=dict)  # Keep as JSONField due to complex structure
+    images = models.JSONField(default=list)  # store only image filenames
     has_content = models.BooleanField(default=False)  # New field to track content availability
     
     class Meta:
@@ -291,7 +291,7 @@ class Chapter(models.Model):
         
         return None
     
-    def check_has_content(self):
+    def check_has_content(self, save=True):
         """Check if the chapter file exists and has content, and update the has_content field"""
         has_content = False
         chapter_path = self.chapter_path
@@ -328,14 +328,16 @@ class Chapter(models.Model):
             self.has_content = has_content
             if self.chapter_path != chapter_path:
                 self.chapter_path = chapter_path
-            self.save(update_fields=['has_content'])
+            
+            if save:
+                self.save(update_fields=['has_content'])
         
         return has_content
     
     def save(self, *args, **kwargs):
         # If we're not explicitly updating specific fields, check content
         if not kwargs.get('update_fields') or 'has_content' not in kwargs.get('update_fields', []):
-            self.check_has_content()
+            self.check_has_content(save=False)
         super().save(*args, **kwargs)
 
 

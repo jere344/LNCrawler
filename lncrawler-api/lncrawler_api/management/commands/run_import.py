@@ -118,7 +118,8 @@ class Command(BaseCommand):
                         ))
                         
                 except Exception as e:
-                    logger.error(f"Error importing {meta_file_path}: {str(e)}")
+                    logger.error(f"Error importing {meta_file_path}")
+                    logger.exception(e)
                     import_results['failed'].append({
                         'path': meta_file_path,
                         'error': str(e)

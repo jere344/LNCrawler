@@ -1,8 +1,6 @@
 from rest_framework import serializers
 from django.conf import settings
-from ..models import (
-    NovelFromSource, Chapter
-)
+from ..models import NovelFromSource
 from urllib.parse import quote
 from ..utils import get_client_ip
 from .users_serializers import ReadingHistorySerializer
@@ -90,57 +88,3 @@ class NovelSourceSerializer(serializers.ModelSerializer):
                 return ReadingHistorySerializer(history).data
         return None
 
-
-class ChapterContentSerializer(serializers.ModelSerializer):
-    """
-    Serializes chapter content with navigation
-    """
-    body = serializers.SerializerMethodField()
-    prev_chapter = serializers.SerializerMethodField()
-    next_chapter = serializers.SerializerMethodField()
-    novel_title = serializers.SerializerMethodField()
-    novel_id = serializers.SerializerMethodField()
-    novel_slug = serializers.SerializerMethodField()
-    source_id = serializers.SerializerMethodField()
-    source_name = serializers.SerializerMethodField() 
-    source_slug = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Chapter
-        fields = [
-            'id', 'chapter_id', 'title', 'novel_title', 'novel_id', 'novel_slug',
-            'source_id', 'source_name', 'source_slug', 'body', 'prev_chapter', 'next_chapter'
-        ]
-    
-    def get_body(self, obj):
-        return obj.body
-    
-    def get_prev_chapter(self, obj):
-        previous_chapter = obj.novel_from_source.chapters.filter(
-            chapter_id__lt=obj.chapter_id
-        ).order_by('-chapter_id').first()
-        return previous_chapter.chapter_id if previous_chapter and previous_chapter.has_content else None
-    
-    def get_next_chapter(self, obj):
-        next_chapter = obj.novel_from_source.chapters.filter(
-            chapter_id__gt=obj.chapter_id
-        ).order_by('chapter_id').first()
-        return next_chapter.chapter_id if next_chapter and next_chapter.has_content else None
-    
-    def get_novel_title(self, obj):
-        return obj.novel_from_source.novel.title
-    
-    def get_novel_id(self, obj):
-        return str(obj.novel_from_source.novel.id)
-    
-    def get_novel_slug(self, obj):
-        return obj.novel_from_source.novel.slug
-    
-    def get_source_id(self, obj):
-        return str(obj.novel_from_source.id)
-    
-    def get_source_name(self, obj):
-        return obj.novel_from_source.source_name
-    
-    def get_source_slug(self, obj):
-        return obj.novel_from_source.source_slug
