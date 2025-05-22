@@ -2,6 +2,7 @@ from django.db import models
 import uuid
 import os
 import json
+import shutil
 from datetime import datetime
 from django.conf import settings
 from django.utils.text import slugify
@@ -235,6 +236,24 @@ class NovelFromSource(models.Model):
                 )
         
         return novel_from_source
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to also remove the source folder
+        """
+        # Check if we have a source path and it exists
+        print(f"Deleting source folder: {self.source_path}")
+        if self.source_path:
+            full_source_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.source_path)
+            if os.path.exists(full_source_path) and os.path.isdir(full_source_path):
+                try:
+                    # Delete the source folder and all its contents
+                    shutil.rmtree(full_source_path)
+                except Exception as e:
+                    print(f"Error deleting source folder {full_source_path}: {e}")
+        
+        # Call the parent delete method to delete the database record
+        super().delete(*args, **kwargs)
 
 
 class Volume(models.Model):

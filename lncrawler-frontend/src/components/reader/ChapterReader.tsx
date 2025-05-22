@@ -506,6 +506,20 @@ const ChapterReader = () => {
     setActiveTab(newValue);
   };
   
+  // Memoize the chapter and settings for ReaderContent to prevent re-renders on scroll
+  const memoizedChapterContent = useMemo(() => ({
+    chapter,
+    settings: readerSettings
+  }), [
+    chapter?.body,
+    chapter?.images_path,
+    readerSettings.fontSize,
+    readerSettings.lineSpacing,
+    readerSettings.textAlign,
+    readerSettings.fontFamily,
+    readerSettings.textSelectable
+  ]);
+
   if (loading) {
     return (
       <Container>
@@ -635,7 +649,12 @@ const ChapterReader = () => {
               rightEdgeTapBehavior={readerSettings.rightEdgeTapBehavior}
               onContentClick={handleContentClick}
             >
-              <ReaderContent chapter={chapter} settings={readerSettings} />
+              {memoizedChapterContent.chapter && (
+                <ReaderContent 
+                  chapter={memoizedChapterContent.chapter} 
+                  settings={memoizedChapterContent.settings} 
+                />
+              )}
             </ReaderViewport>
           </Box>
           

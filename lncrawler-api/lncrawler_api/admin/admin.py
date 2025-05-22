@@ -136,6 +136,14 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
         return obj.vote_score
     
     vote_score_display.short_description = 'Vote Score'
+
+    def delete_queryset(self, request, queryset):
+        """
+        Override the default delete_queryset method to call delete() on each object
+        This ensures the model's delete method runs for bulk deletions from the list page
+        """
+        for obj in queryset:
+            obj.delete()
     
 @admin.register(Volume)
 class VolumeAdmin(admin.ModelAdmin):

@@ -8,9 +8,52 @@ interface ReaderContentProps {
   settings: ReaderSettings;
 }
 
-const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
-  const imageStyles = `<style>img { max-width: 100%; height: auto; }</style>`;
+const bodyStyles = `
+<style>
+  #reader-content img { 
+    max-width: 100%; 
+    height: auto; 
+  }
+  #reader-content a {
+    pointer-events: none;
+    cursor: default;
+    color: inherit;
+  }
+  #reader-content a:hover {
+    text-decoration: none;
+  }
+  #reader-content code {
+    padding: 0px 4px;
+    font-family: monospace;
+    font-size: 90%;
+  }
+  #reader-content form {
+    display: none;
+  }
+</style>
+` 
+
+// Compare previous and new props to determine if re-render is needed
+const arePropsEqual = (prevProps: ReaderContentProps, nextProps: ReaderContentProps) => {
+  // Compare chapter properties that affect rendering
+  const chapterChanged = 
+    prevProps.chapter.body !== nextProps.chapter.body ||
+    prevProps.chapter.images_path !== nextProps.chapter.images_path;
   
+  // Compare settings properties that affect rendering
+  const settingsChanged = 
+    prevProps.settings.fontSize !== nextProps.settings.fontSize ||
+    prevProps.settings.lineSpacing !== nextProps.settings.lineSpacing ||
+    prevProps.settings.textAlign !== nextProps.settings.textAlign ||
+    prevProps.settings.fontFamily !== nextProps.settings.fontFamily ||
+    prevProps.settings.textSelectable !== nextProps.settings.textSelectable;
+  
+  // Only re-render if something important changed
+  return !(chapterChanged || settingsChanged);
+};
+
+const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
+  console.log("render")
   return (
     <Typography 
       sx={{ 
@@ -23,9 +66,10 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
         MozUserSelect: settings.textSelectable ? 'text' : 'none',
         msUserSelect: settings.textSelectable ? 'text' : 'none',
       }}
-      dangerouslySetInnerHTML= {{ __html: imageStyles + chapter.body.replace("src=\"images/", `src="${chapter.images_path}/`) }}
+      id="reader-content"
+      dangerouslySetInnerHTML= {{ __html: bodyStyles + chapter.body.replace(/src=\"images\//g, `src="${chapter.images_path}/`) }}
     />
   );
 };
 
-export default ReaderContent;
+export default React.memo(ReaderContent, arePropsEqual);

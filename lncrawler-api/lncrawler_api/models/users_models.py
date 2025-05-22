@@ -38,4 +38,4 @@ class ReadingHistory(models.Model):
         verbose_name_plural = "Reading novel histories"
     
     def __str__(self):
-        return f"{self.user.username} - {self.source.name}"
+        return f"{self.user.username}"
