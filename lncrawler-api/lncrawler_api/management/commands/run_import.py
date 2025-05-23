@@ -61,12 +61,10 @@ class Command(BaseCommand):
                     source_folder_name = os.path.basename(source_folder)
                     novel_folder_name = os.path.basename(os.path.dirname(source_folder))
                     
-                    # Make sure we're at least 2 folders deep
-                    parent_of_novel = os.path.dirname(os.path.dirname(source_folder))
-                    if parent_of_novel == import_folder:
+                    # Make sure we're 2 folders deep
+                    if os.path.dirname(os.path.dirname(source_folder)) == import_folder:
                         # This means the structure is import_folder/novel/source/meta.json which is correct
                         self.stdout.write(f"Processing: {novel_folder_name}/{source_folder_name}")
-                        
 
                         library_path = settings.LNCRAWL_OUTPUT_PATH
                         library_novel_path = os.path.join(library_path, novel_folder_name)
@@ -89,6 +87,10 @@ class Command(BaseCommand):
                             else:  # move
                                 shutil.move(source_folder, target_source_path)
                                 self.stdout.write(f"Moved {source_folder} to {target_source_path}")
+                                # delete the parent folder if it's empty mow
+                                if not os.listdir(os.path.dirname(source_folder)):
+                                    os.rmdir(os.path.dirname(source_folder))
+                                    self.stdout.write(f"Removed empty directory: {os.path.dirname(source_folder)}")
                             
                             import_results['file_operations'].append({
                                 'source': source_folder,

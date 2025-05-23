@@ -204,10 +204,18 @@ class NovelFromSource(models.Model):
                     }
                 )
         
-        # Process chapters
+        # Process chapters - using bulk create/update for better performance
         if 'chapters' in novel_data:
             # Get the base directory for chapter JSON files
             relative_json_dir = os.path.join(source_path, 'json')
+            
+            # Get existing chapters for this source to avoid duplicates
+            existing_chapters = {
+                ch.chapter_id: ch for ch in Chapter.objects.filter(novel_from_source=novel_from_source)
+            }
+            
+            new_chapters = []
+            chapters_to_update = []
             
             for chapter_data in novel_data['chapters']:
                 chapter_id = chapter_data.get('id')
@@ -221,19 +229,43 @@ class NovelFromSource(models.Model):
                 # Extract only the image filenames (keys) from the images dictionary
                 images_dict = chapter_data.get('images', {})
                 image_filenames = list(images_dict.keys()) if images_dict else []
+    
+                # Prepare chapter data
+                chapter_dict = {
+                    'url': chapter_data.get('url', ''),
+                    'title': chapter_data.get('title', f'Chapter {chapter_id}'),
+                    'volume': chapter_data.get('volume', 0),
+                    'volume_title': chapter_data.get('volume_title', ''),
+                    'chapter_path': relative_chapter_path if file_exists else None,
+                    'images': image_filenames,
+                    'has_content': check_chapter_path_has_content(relative_chapter_path) if file_exists else False,
+                }
                 
-                Chapter.objects.update_or_create(
-                    novel_from_source=novel_from_source,
-                    chapter_id=chapter_id,
-                    defaults={
-                        'url': chapter_data.get('url', ''),
-                        'title': chapter_data.get('title', f'Chapter {chapter_id}'),
-                        'volume': chapter_data.get('volume', 0),
-                        'volume_title': chapter_data.get('volume_title', ''),
-                        'chapter_path': relative_chapter_path if file_exists else None,
-                        'images': image_filenames,
-                    }
-                )
+                # If chapter exists, update it, otherwise create new
+                if chapter_id in existing_chapters:
+                    chapter = existing_chapters[chapter_id]
+                    for key, value in chapter_dict.items():
+                        setattr(chapter, key, value)
+                    chapters_to_update.append(chapter)
+                else:
+                    new_chapters.append(Chapter(
+                        novel_from_source=novel_from_source,
+                        chapter_id=chapter_id,
+                        **chapter_dict
+                    ))
+            
+            # Bulk create new chapters
+            if new_chapters:
+                Chapter.objects.bulk_create(new_chapters)
+            
+            # Bulk update existing chapters
+            if chapters_to_update:
+                fields_to_update = ['url', 'title', 'volume', 'volume_title', 'chapter_path', 'images', 'has_content']
+                Chapter.objects.bulk_update(chapters_to_update, fields_to_update)
+            
+            # Update last_chapter_update timestamp
+            novel_from_source.last_chapter_update = timezone.now()
+            novel_from_source.save(update_fields=['last_chapter_update'])
         
         return novel_from_source
 
@@ -274,6 +306,30 @@ class Volume(models.Model):
         return f"{self.title} - {self.novel_from_source.title}"
 
 
+def check_chapter_path_has_content(chapter_path):
+    """
+    Check if the chapter file exists and has content
+    """
+    if chapter_path:
+        try:
+            full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, chapter_path)
+            if os.path.exists(full_path):
+                # If the file is larger than 2KB, we assume it has not failed content and 
+                # no need to parse the JSON file
+                if os.path.getsize(full_path) > 2048:
+                    return True
+                else:
+                    # If less than 2KB it's ambiguous, either it failed or has little content (only an image)
+                    with open(full_path, 'r', encoding='utf-8') as f:
+                        chapter_data = json.load(f)
+                        body = chapter_data.get('body')
+                        fail_message = "Failed to download chapter body"
+                        return body is not None and len(body) > 0 and fail_message not in body
+        except Exception:
+            return False
+    
+    return False
+
 class Chapter(models.Model):
     """
     Represents a chapter within a novel from a specific source
@@ -312,9 +368,7 @@ class Chapter(models.Model):
     
     def check_has_content(self, save=True):
         """Check if the chapter file exists and has content, and update the has_content field"""
-        has_content = False
         chapter_path = self.chapter_path
-        
         # If no chapter_path is available, construct it from source_path and chapter_id
         if not chapter_path:
             try:
@@ -324,23 +378,9 @@ class Chapter(models.Model):
             except Exception:
                 chapter_path = None
         
+        has_content = False
         if chapter_path:
-            try:
-                full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, chapter_path)
-                if os.path.exists(full_path):
-                    # If the file is larger than 2KB, we assume it has not failed content and 
-                    # no need to parse the JSON file
-                    if os.path.getsize(full_path) > 2048:
-                        has_content = True
-                    else:
-                        # If less than 2KB it's ambiguous, either it failed or has little content (only an image)
-                        with open(full_path, 'r', encoding='utf-8') as f:
-                            chapter_data = json.load(f)
-                            body = chapter_data.get('body')
-                            fail_message = "Failed to download chapter body"
-                            has_content = body is not None and len(body) > 0 and fail_message not in body
-            except Exception:
-                has_content = False
+            has_content = check_chapter_path_has_content(chapter_path)
         
         # Update the field if it's different
         if self.has_content != has_content:
