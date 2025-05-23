@@ -61,6 +61,12 @@ def sanitize(text: str) -> str:
     # Collapse multiple spaces into one
     text = re.sub(r'\s+', ' ', text).strip()
 
+    # remove trailing . (windows delete silently the trailing . when renaming)
+    text = text.rstrip(".")
+
+    # Remove leading and trailing spaces
+    text = text.strip()
+
     return text
 
 
@@ -192,6 +198,7 @@ class MultiEpubParser:
                 parser.extract()
                 parser.parse_metadata()
                 chapters = parser.parse_toc()
+                volume_title = parser.metadata.get('title', f"Volume {volume_id}")
                 
                 # Update metadata collections
                 all_authors.update(parser.metadata['authors'])
@@ -228,7 +235,7 @@ class MultiEpubParser:
                         "url": f"local://{os.path.basename(epub_path)}/{chapter['src']}",
                         "title": chapter['title'],
                         "volume": volume_id,
-                        "volume_title": f"Volume {volume_id}",
+                        "volume_title": volume_title,
                         "body": html_content,
                         "images": {img_name: None for img_name in images.keys()},
                         "success": True if html_content else False

@@ -35,12 +35,20 @@ class EpubParser:
         self.content_opf_path = None
         for root, dirs, files in os.walk(self.temp_dir):
             for file in files:
-                if file.endswith('content.opf') or file.endswith('package.opf') or file.endswith('volume.opf') or file.endswith('book.opf'):
+                if file.endswith('content.opf') or file.endswith('package.opf') or file.endswith('volume.opf'):
                     self.content_opf_path = os.path.join(root, file)
                     break
             if self.content_opf_path:
                 break
         
+        if not self.content_opf_path:
+            for root, dirs, files in os.walk(self.temp_dir):
+                for file in files:
+                    if file.endswith('.opf'):
+                        self.content_opf_path = os.path.join(root, file)
+                        break
+                if self.content_opf_path:
+                    break
         return self.content_opf_path
     
     def parse_metadata(self):

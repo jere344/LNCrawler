@@ -54,6 +54,12 @@ def sanitize(text: str) -> str:
     # Collapse multiple spaces into one
     text = re.sub(r'\s+', ' ', text).strip()
 
+    # remove trailing . (windows delete silently the trailing . when renaming)
+    text = text.rstrip(".")
+
+    # Remove leading and trailing spaces
+    text = text.strip()
+
     return text
 
 
