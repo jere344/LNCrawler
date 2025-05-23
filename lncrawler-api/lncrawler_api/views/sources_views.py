@@ -3,10 +3,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
+import os
+from urllib.parse import quote
 
 from ..models import Novel, SourceVote, NovelViewCount, WeeklyNovelView
 from ..serializers import NovelSourceSerializer, ChapterSerializer, ChapterContentSerializer
+from ..serializers.sources_serializers import GalleryImageSerializer
 from ..utils import get_client_ip
+from django.conf import settings
 
 
 @api_view(["GET"])
@@ -106,6 +110,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
         }
     )
 
+
 @api_view(["GET"])
 def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     """
@@ -129,3 +134,54 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
 
     serializer = ChapterContentSerializer(chapter)
     return Response(serializer.data)
+
+
+@api_view(["GET"])
+def source_image_gallery(request, novel_slug, source_slug):
+    """
+    Get all images from a specific source for gallery display
+    """
+    novel = get_object_or_404(Novel, slug=novel_slug)
+    source = get_object_or_404(novel.sources, source_slug=source_slug)
+
+    # Get chapters with images
+    chapters_with_images = source.chapters.filter(images__isnull=False)
+    print(f"Chapters with images: {chapters_with_images.count()}")
+
+    if not chapters_with_images.exists():
+        return Response({"detail": "No images found for this source"}, status=status.HTTP_404_NOT_FOUND)
+
+    # Pagination parameters
+    page_number = request.GET.get("page", 1)
+    page_size = request.GET.get("page_size", 20)
+
+    # Prepare image data
+    image_data = []
+    for chapter in chapters_with_images:
+        base_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}/images/"
+        for image_name in chapter.images:
+            image_data.append({
+                "chapter_id": chapter.chapter_id,
+                "chapter_title": chapter.title,
+                "image_url": quote(f"{base_image_url}{image_name}", safe=':/'),
+                "image_name": image_name
+            })
+
+    # Paginate the results
+    paginator = Paginator(image_data, page_size)
+    page_obj = paginator.get_page(page_number)
+
+    serializer = GalleryImageSerializer(page_obj, many=True)
+
+    return Response({
+        "novel_id": str(novel.id),
+        "novel_title": novel.title,
+        "novel_slug": novel.slug,
+        "source_id": str(source.id),
+        "source_name": source.source_name,
+        "source_slug": source.source_slug,
+        "count": paginator.count,
+        "total_pages": paginator.num_pages,
+        "current_page": int(page_number),
+        "images": serializer.data
+    })

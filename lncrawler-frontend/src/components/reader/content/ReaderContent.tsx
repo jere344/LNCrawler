@@ -53,7 +53,6 @@ const arePropsEqual = (prevProps: ReaderContentProps, nextProps: ReaderContentPr
 };
 
 const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
-  console.log("render")
   return (
     <Typography 
       sx={{ 

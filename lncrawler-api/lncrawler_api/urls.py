@@ -54,6 +54,7 @@ urlpatterns = [
     path('novels/<slug:novel_slug>/<slug:source_slug>/vote/', sources_views.vote_source, name='vote_source'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapters/', sources_views.novel_chapters_by_source, name='novel_chapters_by_source'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', sources_views.chapter_content_by_number, name='chapter_content_by_number'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/gallery/', sources_views.source_image_gallery, name='source_image_gallery'),
 
     # downloader endpoints
     path('downloader/search/start/', views.start_search, name='start_search'),

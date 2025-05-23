@@ -40,6 +40,8 @@ import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import { getChapterNameWithNumber } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
+import CollectionsIcon from '@mui/icons-material/Collections';
+import ActionButton from '../common/ActionButton';
 
 const SourceDetail = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
@@ -103,6 +105,10 @@ const SourceDetail = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${source.latest_available_chapter?.chapter_id || 0}`);
   };
   
+  const handleGalleryClick = () => {
+    navigate(`/novels/${novelSlug}/${sourceSlug}/gallery`);
+  };
+
   const handleVote = async (voteType: 'up' | 'down') => {
     if (!novelSlug || !sourceSlug || votingInProgress || !source) return;
     
@@ -514,26 +520,28 @@ const SourceDetail = () => {
                   }}
                 >
                   From: {source.source_name}
-                  <Tooltip title="Visit Source">
-                    <IconButton
-                      size="small"
-                      href={source.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ 
-                        color: alpha(theme.palette.common.white, 0.9),
-                        '&:hover': {
-                          color: theme.palette.common.white,
-                          bgcolor: alpha(theme.palette.common.white, 0.1)
-                        }
-                      }}
-                    >
-                      <LaunchIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                  {source.source_url.startsWith('http') && (
+                    <Tooltip title="Visit Source">
+                      <IconButton
+                        size="small"
+                        href={source.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ 
+                          color: alpha(theme.palette.common.white, 0.9),
+                          '&:hover': {
+                            color: theme.palette.common.white,
+                            bgcolor: alpha(theme.palette.common.white, 0.1)
+                          }
+                        }}
+                      >
+                        <LaunchIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </Typography>
                 
-                {/* Author and Status badges */}
+                {/* Author badges */}
                 <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                     {source.authors.length > 0 && (
@@ -564,7 +572,7 @@ const SourceDetail = () => {
                     )}
                   </Box>
                   
-                  {/* Novel rating component with better styling */}
+                  {/* Novel rating component  */}
                   <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
                     {novelSlug && (
                       <NovelRating
@@ -588,7 +596,7 @@ const SourceDetail = () => {
                   }} 
                 />
                 
-                {/* Source stats with improved design */}
+                {/* Source stats */}
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                   <Grid size={{ xs: 12, sm: 6, md: 6 }}>
                     <Box
@@ -639,7 +647,7 @@ const SourceDetail = () => {
                   </Grid>
                 </Grid>
                 
-                {/* Source vote actions with integrated display */}
+                {/* Source vote actions*/}
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.8), mb: 1 }}>
                     Rate this source:
@@ -711,48 +719,19 @@ const SourceDetail = () => {
                 
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   {continue_chapter && (
-                      <Tooltip title={`Continue from chapter ${continue_chapter.chapter_id}`} arrow placement="top">
-                        <Button 
-                          variant="contained" 
-                          color="warning" 
-                          size="large" 
-                          fullWidth
-                          startIcon={<BookmarkIcon />}
-                          onClick={handleContinueReading}
-                          sx={{
-                            borderRadius: '12px',
-                            p: 1.5,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            display: 'flex',
-                            justifyContent: 'flex-start',
-                            alignItems: 'center',
-                            textAlign: 'left',
-                            position: 'relative',
-                            overflow: 'hidden',
-                            mb: 1
-                          }}
-                        >
-                          <Box sx={{ zIndex: 1 }}>
-                            <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
-                              Continue Reading
-                            </Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                              {getChapterNameWithNumber(
-                                continue_chapter.title,
-                                continue_chapter.chapter_id
-                              )}
-                            </Typography>
-                          </Box>
-                          <BookIcon sx={{ 
-                            position: 'absolute', 
-                            right: '5px', 
-                            fontSize: '3rem', 
-                            opacity: 0.2,
-                            transform: 'rotate(15deg)'
-                          }} />
-                        </Button>
-                      </Tooltip>
-                    )}
+                    <ActionButton
+                      title="Continue Reading"
+                      subtitle={getChapterNameWithNumber(
+                        continue_chapter.title,
+                        continue_chapter.chapter_id
+                      )}
+                      startIcon={<BookmarkIcon />}
+                      color="warning"
+                      onClick={handleContinueReading}
+                      tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
+                      sx={{ mb: 1 }}
+                    />
+                  )}
                   <Box sx={{ 
                     width: '100%', 
                     display: 'flex', 
@@ -760,122 +739,45 @@ const SourceDetail = () => {
                     gap: 1,
                     mb: 1
                   }}>
-                    <Tooltip title="Browse all chapters" arrow placement="top">
-                      <Button 
-                        variant="contained" 
-                        color="info" 
-                        size="large" 
-                        fullWidth
-                        startIcon={<ViewListIcon />}
-                        onClick={handleChaptersClick}
-                        disabled={source.latest_available_chapter?.chapter_id === 0}
-                        sx={{
-                          borderRadius: '12px',
-                          p: 1.5,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          display: 'flex',
-                          justifyContent: 'flex-start',
-                          alignItems: 'center',
-                          textAlign: 'left',
-                          position: 'relative',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <Box sx={{ zIndex: 1 }}>
-                          <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
-                            Chapter List
-                          </Typography>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            View all {source.chapters_count} chapters
-                          </Typography>
-                        </Box>
-                        <ListAltIcon sx={{ 
-                          position: 'absolute', 
-                          right: '5px',  
-                          fontSize: '3rem', 
-                          opacity: 0.2,
-                          transform: 'rotate(15deg)'
-                        }} />
-                      </Button>
-                    </Tooltip>
+                    <ActionButton
+                      title="Chapter List"
+                      subtitle={`View all ${source?.chapters_count} chapters`}
+                      startIcon={<ViewListIcon />}
+                      backgroundIcon={<ListAltIcon />}
+                      color="info"
+                      onClick={handleChaptersClick}
+                      disabled={source?.latest_available_chapter?.chapter_id === 0}
+                      tooltip="Browse all chapters"
+                    />
 
-                    <Tooltip title="Start reading from chapter 1" arrow placement="top">
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="large"
-                        fullWidth
-                        startIcon={<PlayArrowIcon />}
-                        onClick={handleFirstChapterClick}
-                        disabled={source.latest_available_chapter?.chapter_id === 0}
-                        sx={{
-                          borderRadius: '12px',
-                          p: 1.5,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          display: 'flex',
-                          justifyContent: 'flex-start',
-                          alignItems: 'center',
-                          textAlign: 'left',
-                          position: 'relative',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <Box sx={{ zIndex: 1 }}>
-                          <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
-                            Start Reading
-                          </Typography>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            From Chapter 1
-                          </Typography>
-                        </Box>
-                        <PlayArrowIcon sx={{ 
-                          position: 'absolute', 
-                          right: '5px', 
-                          fontSize: '3rem', 
-                          opacity: 0.2,
-                          transform: 'rotate(15deg)'
-                        }} />
-                      </Button>
-                    </Tooltip>
+                    <ActionButton
+                      title="Image Gallery"
+                      subtitle="Browse all images"
+                      startIcon={<CollectionsIcon />}
+                      color="secondary"
+                      onClick={handleGalleryClick}
+                      tooltip="View image gallery"
+                    />
 
-                    <Tooltip title="Jump to the most recent chapter" arrow placement="top">
-                      <Button
-                        variant="contained"
-                        color="secondary"
-                        size="large"
-                        fullWidth
-                        startIcon={<SkipNextIcon />}
-                        onClick={handleLatestChapterClick}
-                        disabled={!source.latest_available_chapter}
-                        sx={{
-                          borderRadius: '12px',
-                          p: 1.5,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          display: 'flex',
-                          justifyContent: 'flex-start',
-                          alignItems: 'center',
-                          textAlign: 'left',
-                          position: 'relative',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <Box sx={{ zIndex: 1 }}>
-                          <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
-                            Latest Chapter
-                          </Typography>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            Chapter {source.latest_available_chapter?.chapter_id || 0}
-                          </Typography>
-                        </Box>
-                        <SkipNextIcon sx={{ 
-                          position: 'absolute', 
-                          right: '5px', 
-                          fontSize: '3rem', 
-                          opacity: 0.2,
-                          transform: 'rotate(15deg)'
-                        }} />
-                      </Button>
-                    </Tooltip>
+                    <ActionButton
+                      title="Start Reading"
+                      subtitle="From Chapter 1"
+                      startIcon={<PlayArrowIcon />}
+                      color="success"
+                      onClick={handleFirstChapterClick}
+                      disabled={source?.latest_available_chapter?.chapter_id === 0}
+                      tooltip="Start reading from chapter 1"
+                    />
+
+                    <ActionButton
+                      title="Latest Chapter"
+                      subtitle={`Chapter ${source?.latest_available_chapter?.chapter_id || 0}`}
+                      startIcon={<SkipNextIcon />}
+                      color="primary"
+                      onClick={handleLatestChapterClick}
+                      disabled={!source?.latest_available_chapter}
+                      tooltip="Jump to the most recent chapter"
+                    />
                   </Box>
                 </Box>
               </Grid>
@@ -884,7 +786,7 @@ const SourceDetail = () => {
         </Paper>
         
         {/* Update Button Section */}
-        {source && source.source_url && (
+        {source && source.source_url && source.source_url.startsWith('http') && (
           <Paper 
             elevation={3} 
             sx={{ 

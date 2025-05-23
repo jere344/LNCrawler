@@ -147,4 +147,12 @@ export const novelService = {
     const response = await api.get('/novels/featured/random/');
     return response.data;
   },
+
+  // Get the image gallery for a source
+  getSourceGallery: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 20) => {
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/gallery/`, {
+      params: { page, page_size: pageSize }
+    });
+    return response.data;
+  },
 };

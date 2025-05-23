@@ -36,6 +36,7 @@ import NovelRating from './common/NovelRating.tsx';
 import NovelTags from './common/NovelTags';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { getChapterNameWithNumber } from '@utils/Misc.tsx';
+import ActionButton from '../common/ActionButton';
 
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
@@ -582,83 +583,29 @@ const NovelDetail = () => {
                   }}></Box>
 
                   {continue_chapter && (
-                      <Tooltip title={`Continue from chapter ${continue_chapter.chapter_id}`} arrow placement="top">
-                        <Button 
-                          variant="contained" 
-                          color="warning" 
-                          size="large" 
-                          fullWidth
-                          startIcon={<BookmarkIcon />}
-                          onClick={handleQuickContinue}
-                          sx={{
-                            borderRadius: '12px',
-                            p: 1.5,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            display: 'flex',
-                            justifyContent: 'flex-start',
-                            alignItems: 'center',
-                            textAlign: 'left',
-                            position: 'relative',
-                            overflow: 'hidden',
-                            mb: 1
-                          }}
-                        >
-                          <Box sx={{ zIndex: 1 }}>
-                            <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
-                              Continue Reading
-                            </Typography>
-                            <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                              {getChapterNameWithNumber(continue_chapter.title, continue_chapter.chapter_id)}
-                            </Typography>
-                          </Box>
-                          <BookIcon sx={{ 
-                            position: 'absolute', 
-                            right: '5px', 
-                            fontSize: '3rem', 
-                            opacity: 0.2,
-                            transform: 'rotate(15deg)'
-                          }} />
-                        </Button>
-                      </Tooltip>
-                    )}  
-                    <Tooltip title="Start reading from chapter 1" arrow placement="top">
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="large"
-                        fullWidth
-                        startIcon={<PlayArrowIcon />}
-                        onClick={handleQuickStart}
-                        disabled={novel.prefered_source?.latest_available_chapter?.chapter_id === 0}
-                        sx={{
-                          borderRadius: '12px',
-                          p: 1.5,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          display: 'flex',
-                          justifyContent: 'flex-start',
-                          alignItems: 'center',
-                          textAlign: 'left',
-                          position: 'relative',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <Box sx={{ zIndex: 1 }}>
-                          <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
-                            Start Reading
-                          </Typography>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            From Chapter 1
-                          </Typography>
-                        </Box>
-                        <PlayArrowIcon sx={{ 
-                          position: 'absolute', 
-                          right: '5px', 
-                          fontSize: '3rem', 
-                          opacity: 0.2,
-                          transform: 'rotate(15deg)'
-                        }} />
-                      </Button>
-                    </Tooltip>
+                    <ActionButton
+                      title="Continue Reading"
+                      subtitle={getChapterNameWithNumber(continue_chapter.title, continue_chapter.chapter_id)}
+                      startIcon={<BookmarkIcon />}
+                      backgroundIcon={<BookIcon />}
+                      color="warning"
+                      onClick={handleQuickContinue}
+                      tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
+                      tooltipPlacement="top"
+                    />
+                  )}
+                  
+                  <ActionButton
+                    title="Start Reading"
+                    subtitle="From Chapter 1"
+                    startIcon={<PlayArrowIcon />}
+                    backgroundIcon={<BookIcon />}
+                    color="success"
+                    onClick={handleQuickStart}
+                    disabled={novel.prefered_source?.latest_available_chapter?.chapter_id === 0}
+                    tooltip="Start reading from chapter 1"
+                    tooltipPlacement="top"
+                  />
                 </Box>
               </Grid>
             </Grid>

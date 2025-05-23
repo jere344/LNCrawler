@@ -23,6 +23,8 @@ import ProfilePage from '@components/auth/ProfilePage';
 import LibraryPage from '@components/library/LibraryPage';
 // Import reading history page
 import ReadingHistoryPage from '@components/history/ReadingHistoryPage';
+// Import image gallery page
+import ImageGallery from '@components/novels/ImageGallery';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -83,6 +85,7 @@ function AppWithTheme() {
                             <Route path="/novels/:novelSlug/:sourceSlug" element={<SourceDetail />} />
                             <Route path="/novels/:novelSlug/:sourceSlug/chapterlist" element={<ChapterList />} />
                             <Route path="/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber" element={<ChapterReader />} />
+                            <Route path="/novels/:novelSlug/:sourceSlug/gallery" element={<ImageGallery />} />
                             
                             {/* Home page */}
                             <Route path="/" element={<HomePage />} />

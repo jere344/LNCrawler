@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.conf import settings
-from ..models import NovelFromSource
+from ..models import NovelFromSource, Chapter
 from urllib.parse import quote
 from ..utils import get_client_ip
 from .users_serializers import ReadingHistorySerializer
@@ -87,4 +87,14 @@ class NovelSourceSerializer(serializers.ModelSerializer):
             if history:
                 return ReadingHistorySerializer(history).data
         return None
+
+
+class GalleryImageSerializer(serializers.Serializer):
+    """
+    Serializes image information for the gallery
+    """
+    chapter_id = serializers.IntegerField()
+    chapter_title = serializers.CharField()
+    image_url = serializers.CharField()
+    image_name = serializers.CharField()
 
