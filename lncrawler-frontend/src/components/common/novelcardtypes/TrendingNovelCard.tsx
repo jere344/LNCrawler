@@ -1,26 +1,29 @@
 import React from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Badge, Chip, Skeleton // Added Skeleton
+  Typography, Box, Badge, Skeleton // Added Skeleton
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { formatCount } from './BaseNovelCard';
+import { Link } from 'react-router-dom';
 
 interface TrendingNovelCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
   rank?: number;
+  to?: string;
 }
 
 const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({ 
   novel, 
   onClick, 
   rank,
-  isLoading = false 
+  isLoading = false,
+  to
 }) => {
   if (isLoading) {
     return (
@@ -99,6 +102,8 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
       <CardActionArea 
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
         onClick={onClick}
+        component={to ? Link : 'div'}
+        to={to}
       >
         <Badge
           badgeContent={

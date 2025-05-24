@@ -5,15 +5,17 @@ import BookIcon from '@mui/icons-material/Book';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import { Novel } from '@models/novels_types';
 import defaultCover from '@assets/default-cover.jpg';
+import { Link } from 'react-router-dom';
 
 interface NovelItemCardProps {
   novel: Novel;
-  onClick: () => void;
+  onClick?: () => void;
   rank?: number;
   isLoading?: boolean;
+  to?: string;
 }
 
-const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false }) => {
+const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to }) => {
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', width: '100%' }}>
@@ -35,6 +37,8 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
   return (
     <ButtonBase 
       onClick={onClick}
+      component={to ? Link : 'button'}
+      to={to}
       sx={{
         display: 'flex',
         flexDirection: 'column',

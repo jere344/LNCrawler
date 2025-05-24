@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Container, 
-  Typography, 
-  Box, 
+import {
+  Container,
+  Typography,
+  Box,
   Divider,
   Button,
   useTheme,
@@ -11,7 +11,7 @@ import {
   Tab,
   Grid2 as Grid
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { novelService } from '@services/api';
 import { Novel, NovelFromSource } from '@models/novels_types';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
@@ -22,7 +22,6 @@ import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCa
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
-  const navigate = useNavigate();
   
   // State for different novel sections
   const [topNovels, setTopNovels] = useState<Novel[]>([]);
@@ -47,14 +46,6 @@ const HomePage: React.FC = () => {
 
   // Rankings tab state
   const [rankingTab, setRankingTab] = useState<number>(1);
-
-  const handleNovelClick = (novelSlug: string, sourceSlug?: string) => {
-    if (sourceSlug) {
-      navigate(`/novels/${novelSlug}/${sourceSlug}`);
-    } else {
-      navigate(`/novels/${novelSlug}`);
-    }
-  };
 
   const handleRankingTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setRankingTab(newValue);
@@ -211,7 +202,7 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" fontWeight="bold">
             This Week's Hottest Novels 🔥
           </Typography>
-          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=weekly_views&sort_order=desc')}>
+          <Button component={Link} to="/novels/search?sort_by=weekly_views&sort_order=desc" variant="text">
             View More
           </Button>
         </Box>
@@ -233,7 +224,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 6, sm: 3 }} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
-                  onClick={() => handleNovelClick(novel.slug)}
+                  to={`/novels/${novel.slug}`}
                   rank={index + 1}
                 />
               </Grid>
@@ -248,7 +239,7 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" fontWeight="bold">
             Best of all time
           </Typography>
-          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=popularity&sort_order=desc')}>
+          <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
             View More
           </Button>
         </Box>
@@ -270,7 +261,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
                 <NovelItemCard 
                   novel={novel} 
-                  onClick={() => handleNovelClick(novel.slug)}
+                  to={`/novels/${novel.slug}`}
                   rank={rank + 1}
                 />
               </Grid>
@@ -285,7 +276,7 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" fontWeight="bold">
             Ranking
           </Typography>
-          <Button variant="text" onClick={() => navigate('/novels/search')}>
+          <Button component={Link} to="/novels/search" variant="text">
             View More
           </Button>
         </Box>
@@ -323,7 +314,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    onClick={() => handleNovelClick(novel.slug)}
+                    to={`/novels/${novel.slug}`}
                     showClicks
                   />
                 </Grid>
@@ -356,7 +347,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    onClick={() => handleNovelClick(novel.slug)}
+                    to={`/novels/${novel.slug}`}
                     showTrends
                   />
                 </Grid>
@@ -389,7 +380,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    onClick={() => handleNovelClick(novel.slug)}
+                    to={`/novels/${novel.slug}`}
                     showRating
                   />
                 </Grid>
@@ -405,7 +396,7 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" fontWeight="bold">
             Featured
           </Typography>
-          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=popularity&sort_order=desc')}>
+          <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
             View More
           </Button>
         </Box>
@@ -418,11 +409,7 @@ const HomePage: React.FC = () => {
         ) : featuredNovel ? (
           <FeaturedNovelCard 
             source={featuredNovel}
-            onClick={() => {
-              if (featuredNovel.novel_slug && featuredNovel.source_slug) {
-                handleNovelClick(featuredNovel.novel_slug, featuredNovel.source_slug);
-              }
-            }}
+            to={featuredNovel.novel_slug && featuredNovel.source_slug ? `/novels/${featuredNovel.novel_slug}/${featuredNovel.source_slug}` : featuredNovel.novel_slug ? `/novels/${featuredNovel.novel_slug}` : undefined}
           />
         ) : (
           <Typography variant="body1" align="center">No featured novel available</Typography>
@@ -435,7 +422,7 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" fontWeight="bold">
             Recently Added Chapters
           </Typography>
-          <Button variant="text" onClick={() => navigate('/novels/search?sort_by=date_added&sort_order=desc')}>
+          <Button component={Link} to="/novels/search?sort_by=date_added&sort_order=desc" variant="text">
             View More
           </Button>
         </Box>
@@ -457,11 +444,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
                 <ChapterCard
                   source={source}
-                  onClick={() => {
-                    if (source.novel_slug) {
-                      handleNovelClick(source.novel_slug);
-                    }
-                  }}
+                  to={source.novel_slug ? `/novels/${source.novel_slug}` : undefined}
                 />
               </Grid>
             ))}

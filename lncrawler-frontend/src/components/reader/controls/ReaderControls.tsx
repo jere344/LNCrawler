@@ -5,6 +5,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import DoneIcon from '@mui/icons-material/Done';
 import CommentIcon from '@mui/icons-material/Comment';
 import CircularProgress from '@mui/material/CircularProgress';
+import { Link as RouterLink } from 'react-router-dom'; // Import RouterLink
 
 interface ReaderControlsProps {
   prevChapter?: number | null;
@@ -17,6 +18,9 @@ interface ReaderControlsProps {
   onNext: () => void;
   onGoToComments?: () => void;
   variant?: 'full' | 'compact';
+  // Add URL props
+  prevUrl?: string;
+  nextUrl?: string;
 }
 
 /**
@@ -34,6 +38,8 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
   onNext,
   onGoToComments,
   variant = 'full',
+  prevUrl,
+  nextUrl,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -52,7 +58,8 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
             startIcon={<ArrowBackIcon />} 
             onClick={onPrevious}
             variant="outlined"
-            component="a"
+            component={prevUrl ? RouterLink : "a"}
+            to={prevUrl}
             fullWidth={isMobile}
             size={isMobile ? "medium" : "large"}
           >
@@ -65,6 +72,8 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
             endIcon={<ArrowForwardIcon />} 
             onClick={onNext}
             variant="contained"
+            component={nextUrl ? RouterLink : "a"}
+            to={nextUrl}
             fullWidth={isMobile}
             size={isMobile ? "medium" : "large"}
           >
@@ -94,7 +103,8 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
               startIcon={<ArrowBackIcon />} 
               onClick={onPrevious}
               variant="outlined"
-              component="a"
+              component={prevUrl ? RouterLink : "a"}
+              to={prevUrl}
               fullWidth={isMobile}
               size={isMobile ? "medium" : "large"}
             >
@@ -148,6 +158,8 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
               endIcon={<ArrowForwardIcon />} 
               onClick={onNext}
               variant="contained"
+              component={nextUrl ? RouterLink : "a"}
+              to={nextUrl}
               fullWidth={isMobile}
               size={isMobile ? "medium" : "large"}
             >

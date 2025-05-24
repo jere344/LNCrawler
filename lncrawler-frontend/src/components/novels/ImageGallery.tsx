@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -52,7 +52,6 @@ type ImageWithDimensions = GalleryImage & { width?: number; height?: number };
 
 const ImageGallery = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
-  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -113,10 +112,6 @@ const ImageGallery = () => {
       setAllDimensionsLoaded(true);
     });
   }, [gallery]); // Trigger when gallery data (and thus its images) changes
-
-  const handleBackClick = () => {
-    navigate(`/novels/${novelSlug}/${sourceSlug}`);
-  };
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
@@ -185,7 +180,7 @@ const ImageGallery = () => {
   if (error || (!gallery && !loading)) { // Adjusted error condition
     return (
       <Container>
-        <Button startIcon={<ArrowBackIcon />} onClick={handleBackClick} sx={{ mt: 2 }}>
+        <Button startIcon={<ArrowBackIcon />} component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} sx={{ mt: 2 }}>
           Back to Source
         </Button>
         <Paper 
@@ -204,7 +199,8 @@ const ImageGallery = () => {
           <Button 
             variant="contained" 
             color="primary" 
-            onClick={handleBackClick}
+            component={Link} 
+            to={`/novels/${novelSlug}/${sourceSlug}`} // navigation using Link
             sx={{ mt: 2 }}
           >
             Return to Source
@@ -240,7 +236,8 @@ const ImageGallery = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
         <Button 
           startIcon={<ArrowBackIcon />} 
-          onClick={handleBackClick}
+          component={Link} 
+          to={`/novels/${novelSlug}/${sourceSlug}`} // navigation using Link
           variant="outlined"
           sx={{ 
             borderRadius: '20px',
@@ -266,7 +263,7 @@ const ImageGallery = () => {
           Image Gallery
         </Typography>
         <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-          {gallery?.count} images from {gallery?.source_name}
+          {gallery?.count} images from {gallery?.novel_title}
         </Typography>
 
         <FormControlLabel

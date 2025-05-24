@@ -18,6 +18,7 @@ import {
   Grid2 as Grid,
   CardMedia,
 } from '@mui/material';
+import { Link } from 'react-router-dom';
 import LanguageIcon from '@mui/icons-material/Language';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import UpdateIcon from '@mui/icons-material/Update';
@@ -31,10 +32,9 @@ import { novelService } from '../../services/api';
 
 interface NovelSourcesProps {
   novel: any;
-  handleSourceClick: (sourceSlug: string) => void;
 }
 
-const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick }) => {
+const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
   const theme = useTheme();
   const [sources, setSources] = useState<any[]>(novel.sources);
   const [votingInProgress, setVotingInProgress] = useState<{ [key: string]: boolean }>({});
@@ -146,7 +146,8 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, handleSourceClick })
                 {/* Card content area (clickable) */}
                 <Box sx={{ flexGrow: 1 }}>
                   <CardActionArea
-                    onClick={() => handleSourceClick(source.source_slug)}
+                    component={Link}
+                    to={`/novels/${novel.slug}/${source.source_slug}`}
                     sx={{ height: '100%' }}
                   >
                     {/* Source Cover Image */}

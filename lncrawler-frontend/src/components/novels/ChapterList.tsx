@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -41,7 +41,6 @@ interface IExtendedChapterListResponse extends IChapterListResponse {
 
 const ChapterList = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
-  const navigate = useNavigate();
   
   const [chapterData, setChapterData] = useState<IExtendedChapterListResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -91,18 +90,6 @@ const ChapterList = () => {
     fetchChapters();
   }, [novelSlug, sourceSlug, page, pageSize]);
 
-  const handleBackClick = () => {
-    if (chapterData) {
-      navigate(`/novels/${novelSlug}/${sourceSlug}`);
-    } else {
-      navigate('/');
-    }
-  };
-
-  const handleChapterClick = (chapterNumber: number) => {
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}`);
-  };
-
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
   };
@@ -138,7 +125,7 @@ const ChapterList = () => {
   if (error || !chapterData) {
     return (
       <Container>
-        <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/')} sx={{ mt: 2 }}>
+        <Button startIcon={<ArrowBackIcon />} component={Link} to={`/`} sx={{ mt: 2 }}>
           Back to Novels
         </Button>
         <Paper elevation={3} sx={{ p: 3, textAlign: 'center', mt: 3 }}>
@@ -171,7 +158,7 @@ const ChapterList = () => {
         />
       )}
       
-      <Button startIcon={<ArrowBackIcon />} onClick={handleBackClick} sx={{ mt: 2 }}>
+      <Button component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} startIcon={<ArrowBackIcon />} sx={{ mt: 2 }}>
         Back to Source
       </Button>
 
@@ -262,7 +249,8 @@ const ChapterList = () => {
                   {filteredVolumes[volume].map((chapter) => (
                     <ListItem disablePadding key={chapter.id} divider>
                       <ListItemButton 
-                        onClick={() => handleChapterClick(chapter.chapter_id)}
+                        component={Link}
+                        to={`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.chapter_id}`}
                         disabled={!chapter.has_content}
                         sx={{
                           opacity: chapter.has_content ? 1 : 0.5,

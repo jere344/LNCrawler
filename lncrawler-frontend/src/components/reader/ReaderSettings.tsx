@@ -27,7 +27,6 @@ export interface ReaderSettings {
   backgroundColor: string | null;
   margin: number;
   lineSpacing: number;
-  readingMode: 'classic' | 'manga' | 'mangaReversed' | 'webtoon';
   dimLevel: number;
   leftEdgeTapBehavior: EdgeTapBehavior;
   rightEdgeTapBehavior: EdgeTapBehavior;
@@ -45,7 +44,6 @@ export const defaultSettings: ReaderSettings = {
   backgroundColor: null,
   margin: 0,
   lineSpacing: 1.6,
-  readingMode: 'classic',
   dimLevel: 0,
   leftEdgeTapBehavior: 'none',
   rightEdgeTapBehavior: 'none',
@@ -69,6 +67,9 @@ interface ReaderSettingsProps {
   chapterInfo: ChapterInfo;
   onNavigate: (type: 'prev' | 'home' | 'next') => void;
   isAuthenticated?: boolean;
+  prevUrl?: string;
+  nextUrl?: string;
+  homeUrl?: string;
 }
 
 const ReaderSettings = ({
@@ -79,6 +80,9 @@ const ReaderSettings = ({
   chapterInfo,
   onNavigate,
   isAuthenticated = false,
+  prevUrl,
+  nextUrl,
+  homeUrl,
 }: ReaderSettingsProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -137,12 +141,6 @@ const ReaderSettings = ({
     const newSettings = { ...settings, lineSpacing };
     onSettingChange(newSettings);
     saveSetting('lineSpacing', lineSpacing);
-  };
-
-  const handleReadingModeChange = (readingMode: string) => {
-    const newSettings = { ...settings, readingMode: readingMode as any };
-    onSettingChange(newSettings);
-    saveSetting('readingMode', readingMode);
   };
 
   // Behavior Settings Handlers
@@ -225,6 +223,9 @@ const ReaderSettings = ({
         onPrevious={() => onNavigate('prev')}
         onNext={() => onNavigate('next')}
         onHome={() => onNavigate('home')}
+        prevUrl={prevUrl}
+        nextUrl={nextUrl}
+        homeUrl={homeUrl}
       />
 
       <Divider sx={{ mb: 2 }} />
@@ -257,10 +258,8 @@ const ReaderSettings = ({
       <LayoutSettings 
         margin={settings.margin}
         lineSpacing={settings.lineSpacing}
-        readingMode={settings.readingMode}
         onMarginChange={handleMarginChange}
         onLineSpacingChange={handleLineSpacingChange}
-        onReadingModeChange={handleReadingModeChange}
       />
 
       <Divider sx={{ my: 2 }} />

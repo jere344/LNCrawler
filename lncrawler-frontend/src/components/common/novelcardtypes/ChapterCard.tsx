@@ -4,14 +4,16 @@ import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
 import { formatTimeAgo, getChapterNameWithNumber, toLocalDate } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
+import { Link } from 'react-router-dom';
 
 interface ChapterCardProps {
   source: NovelFromSource;
-  onClick: () => void;
+  onClick?: () => void;
   isLoading?: boolean;
+  to?: string;
 }
 
-const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = false }) => {
+const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = false, to }) => {
   const coverHeight = 90;
   const coverWidth = coverHeight * 2/3;
 
@@ -35,7 +37,9 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
 
   return (
     <ButtonBase 
-      onClick={onClick} 
+      onClick={onClick}
+      component={to ? Link : 'button'}
+      to={to}
       sx={{ 
         display: 'flex', 
         justifyContent: 'flex-start', 

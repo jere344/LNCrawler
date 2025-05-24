@@ -6,6 +6,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CommentIcon from '@mui/icons-material/Comment';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
+import { Link } from 'react-router-dom';
 
 interface CompactNovelCardProps {
   novel: Novel;
@@ -14,6 +15,7 @@ interface CompactNovelCardProps {
   showClicks?: boolean;
   showTrends?: boolean;
   showRating?: boolean;
+  to?: string;
 }
 
 const CompactNovelCard: React.FC<CompactNovelCardProps> = ({ 
@@ -22,7 +24,8 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   isLoading = false,
   showClicks = false,
   showTrends = false,
-  showRating = false
+  showRating = false,
+  to
 }) => {
   const coverHeight = 90; 
   const coverWidth = coverHeight * 2/3;
@@ -65,6 +68,8 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   return (
     <ButtonBase 
       onClick={onClick}
+      component={to ? Link : 'button'}
+      to={to}
       sx={{
         display: 'flex', 
         justifyContent: 'flex-start', 

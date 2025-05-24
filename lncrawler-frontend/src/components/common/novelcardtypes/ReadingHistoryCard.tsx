@@ -11,7 +11,7 @@ import {
   Stack,
   Chip
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -24,22 +24,7 @@ interface ReadingHistoryCardProps {
 }
 
 const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete }) => {
-  const navigate = useNavigate();
-
   const continue_chapter = novel.reading_history?.next_chapter || novel.reading_history?.last_read_chapter;
-
-  const handleContinueReading = () => {
-    if (!continue_chapter || !novel.reading_history) return;
-    
-    const { novel_slug, source_slug } = novel.reading_history;
-    if (novel_slug && source_slug && continue_chapter) {
-      navigate(`/novels/${novel_slug}/${source_slug}/chapter/${continue_chapter.chapter_id}`);
-    }
-  };
-
-  const handleNovelDetails = () => {
-    navigate(`/novels/${novel.slug}`);
-  };
 
   return (
     <Card 
@@ -84,7 +69,8 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           borderTopLeftRadius: 4,
           borderBottomLeftRadius: 4,
         }}
-        onClick={handleNovelDetails}
+        component={Link}
+        to={`/novels/${novel.slug}`}
         className="clickable"
       />
 
@@ -93,13 +79,15 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
         <CardContent sx={{ pb: 1, flexGrow: 1 }}>
           <Typography 
             variant="h6" 
-            component="div" 
+            component={Link}
+            to={`/novels/${novel.slug}`}
             sx={{ 
               fontWeight: 'bold',
               cursor: 'pointer',
-              '&:hover': { color: 'primary.main' }
+              '&:hover': { color: 'primary.main' },
+              color: 'text.primary',
+              textDecoration: 'none',
             }}
-            onClick={handleNovelDetails}
           >
             {novel.title}
           </Typography>
@@ -143,9 +131,10 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             color="primary" 
             variant="contained"
             startIcon={<MenuBookIcon />}
-            onClick={handleContinueReading}
             disabled={!novel.reading_history}
             sx={{ mr: 1 }}
+            component={Link}
+            to={novel.reading_history && continue_chapter ? `/novels/${novel.reading_history.novel_slug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}` : ''}
           >
             Continue
           </Button>
@@ -154,7 +143,8 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             color="secondary"
             variant="outlined"
             startIcon={<InfoIcon />}
-            onClick={handleNovelDetails}
+            component={Link}
+            to={`/novels/${novel.slug}`}
           >
             Details
           </Button>

@@ -7,10 +7,10 @@ import {
   Popover,
   Grid2 as Grid,
   useTheme,
-  Slider,
 } from '@mui/material';
 import { ChromePicker, ColorResult } from 'react-color';
 import ClearIcon from '@mui/icons-material/Clear';
+import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface ColorSettingsProps {
   fontColor: string | null;
@@ -213,7 +213,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
       {/* Dim Level Slider */}
       <Box sx={{ mt: 2 }}>
         <Typography variant="subtitle1" gutterBottom>Screen Dim: {dimLevel}%</Typography>
-        <Slider
+        <MobileSafeSlider
           value={dimLevel}
           onChange={handleDimLevelChange}
           min={0}

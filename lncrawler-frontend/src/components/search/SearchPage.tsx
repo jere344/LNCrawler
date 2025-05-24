@@ -7,7 +7,7 @@ import {
   CircularProgress, Pagination, Stack, Autocomplete,
   Grid2 as Grid,
 } from '@mui/material';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
 import SortIcon from '@mui/icons-material/Sort';
@@ -37,7 +37,6 @@ const ITEMS_PER_PAGE = 24;
 const DEBOUNCE_TIME = 300; // milliseconds
 
 const SearchPage: React.FC = () => {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // State for search results
@@ -216,11 +215,6 @@ const SearchPage: React.FC = () => {
     const params = new URLSearchParams(searchParams);
     params.set('page', page.toString());
     setSearchParams(params);
-  };
-  
-  // Handle clicking on a novel
-  const handleNovelClick = (novelSlug: string) => {
-    navigate(`/novels/${novelSlug}`);
   };
   
   // Handle clear filters
@@ -678,7 +672,7 @@ const SearchPage: React.FC = () => {
             <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
               <BaseNovelCard 
                 novel={novel} 
-                onClick={() => handleNovelClick(novel.slug)}
+                to={`/novels/${novel.slug}`}
               />
             </Grid>
           ))}

@@ -3,6 +3,7 @@ import { Box, Button, Typography, Grid2 as Grid } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import HomeIcon from '@mui/icons-material/Home';
+import { Link as RouterLink } from 'react-router-dom'; // Import RouterLink
 
 interface ReaderNavigationProps {
   prevChapter?: number | null;
@@ -12,6 +13,10 @@ interface ReaderNavigationProps {
   onHome: () => void;
   variant?: 'buttons' | 'compact';
   showLabels?: boolean;
+  // Add URL props
+  prevUrl?: string;
+  nextUrl?: string;
+  homeUrl?: string;
 }
 
 /**
@@ -26,6 +31,9 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
   onHome,
   variant = 'buttons',
   showLabels = true,
+  prevUrl,
+  nextUrl,
+  homeUrl,
 }) => {
   if (variant === 'compact') {
     return (
@@ -35,17 +43,20 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             startIcon={<ArrowBackIcon />} 
             onClick={onPrevious}
             variant="outlined"
-            component="a"
+            component={prevUrl ? RouterLink : "a"}
+            to={prevUrl}
           >
             {showLabels ? 'Previous Chapter' : ''}
           </Button>
-        ) : <div></div>}
+        ) : <></>}
         
         {nextChapter && (
           <Button 
             endIcon={<ArrowForwardIcon />} 
             onClick={onNext}
             variant="contained"
+            component={nextUrl ? RouterLink : "a"}
+            to={nextUrl}
           >
             {showLabels ? 'Next Chapter' : ''}
           </Button>
@@ -67,6 +78,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             onClick={onPrevious}
             disabled={!prevChapter}
             size="medium"
+            component={prevUrl ? RouterLink : "a"}
+            to={prevUrl}
           >
             Prev
           </Button>
@@ -78,6 +91,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             startIcon={<HomeIcon />}
             onClick={onHome}
             size="medium"
+            component={homeUrl ? RouterLink : "a"}
+            to={homeUrl}
           >
             Home
           </Button>
@@ -91,6 +106,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             onClick={onNext}
             disabled={!nextChapter}
             size="medium"
+            component={nextUrl ? RouterLink : "a"}
+            to={nextUrl}
           >
             Next
           </Button>

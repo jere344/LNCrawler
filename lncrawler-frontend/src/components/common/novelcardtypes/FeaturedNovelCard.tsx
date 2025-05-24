@@ -8,14 +8,16 @@ import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
 import { formatTimeAgo, getChapterNameWithNumber, toLocalDate } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
+import { Link } from 'react-router-dom';
 
 interface FeaturedNovelCardProps {
   source: NovelFromSource;
-  onClick: () => void;
+  onClick?: () => void;
   isLoading?: boolean;
+  to?: string;
 }
 
-const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, isLoading = false }) => {
+const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, isLoading = false, to }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
@@ -56,6 +58,8 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
   return (
     <ButtonBase 
       onClick={onClick}
+      component={to ? Link : 'button'}
+      to={to}
       sx={{
         width: '100%',
         display: 'block',

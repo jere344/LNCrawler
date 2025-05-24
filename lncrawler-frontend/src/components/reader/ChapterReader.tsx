@@ -520,6 +520,12 @@ const ChapterReader = () => {
     readerSettings.textSelectable
   ]);
 
+  // Add these variables to generate navigation URLs
+  const prevUrl = chapter?.prev_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}` : undefined;
+  const nextUrl = chapter?.next_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}` : undefined;
+  const homeUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}` : undefined;
+  const chapterListUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}/chapterlist` : undefined;
+
   if (loading) {
     return (
       <Container>
@@ -565,6 +571,10 @@ const ChapterReader = () => {
         onNext={handleNextChapter}
         onSettings={() => setControlsVisible(true)}
         onCloseControls={() => setControlsVisible(false)}
+        prevUrl={prevUrl}
+        nextUrl={nextUrl}
+        homeUrl={homeUrl}
+        chapterListUrl={chapterListUrl}
       />
 
       <Container 
@@ -679,6 +689,8 @@ const ChapterReader = () => {
             onPrevious={handlePrevChapter}
             onNext={handleNextChapter}
             onGoToComments={handleSwitchToComments}
+            prevUrl={prevUrl}
+            nextUrl={nextUrl}
           />
 
           {/* Success Notification */}
@@ -709,6 +721,9 @@ const ChapterReader = () => {
         }}
         onNavigate={handleSettingsNavigate}
         isAuthenticated={isAuthenticated}
+        prevUrl={prevUrl}
+        nextUrl={nextUrl}
+        homeUrl={homeUrl}
       />
     </>
   );

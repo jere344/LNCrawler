@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Container,
   Typography,
   Box,
   Paper,
   Button,
-  Chip,
   CardMedia,
   IconButton,
   Tooltip,
@@ -45,7 +44,6 @@ import ActionButton from '../common/ActionButton';
 
 const SourceDetail = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
-  const navigate = useNavigate();
   const theme = useTheme();
   const [source, setSource] = useState<ISourceDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -84,31 +82,6 @@ const SourceDetail = () => {
     fetchSourceDetail();
   }, [novelSlug, sourceSlug]);
 
-  const handleBackClick = () => {
-    if (source) {
-      navigate(`/novels/${source.novel_slug}`);
-    } else {
-      navigate('/');
-    }
-  };
-
-  const handleChaptersClick = () => {
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
-  };
-
-  const handleFirstChapterClick = () => {
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/1`);
-  };
-
-  const handleLatestChapterClick = () => {
-    if (!source) return;
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${source.latest_available_chapter?.chapter_id || 0}`);
-  };
-  
-  const handleGalleryClick = () => {
-    navigate(`/novels/${novelSlug}/${sourceSlug}/gallery`);
-  };
-
   const handleVote = async (voteType: 'up' | 'down') => {
     if (!novelSlug || !sourceSlug || votingInProgress || !source) return;
     
@@ -130,11 +103,6 @@ const SourceDetail = () => {
   };
 
   const continue_chapter = source?.reading_history?.next_chapter || source?.reading_history?.last_read_chapter;
-  const handleContinueReading = () => {
-    if (!novelSlug || !sourceSlug || !continue_chapter) return;
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`);
-  };
-
 
   // Format date to readable format
   const formatDate = (dateString: string) => {
@@ -346,7 +314,7 @@ const SourceDetail = () => {
   if (error || !source) {
     return (
       <Container>
-        <Button startIcon={<ArrowBackIcon />} onClick={handleBackClick} sx={{ mt: 2 }}>
+        <Button startIcon={<ArrowBackIcon />} component={Link} to={`/novels/${novelSlug}`} variant="outlined" sx={{ mt: 2 }}>
           Back to Novel
         </Button>
         <Paper 
@@ -365,7 +333,8 @@ const SourceDetail = () => {
           <Button 
             variant="contained" 
             color="primary" 
-            onClick={handleBackClick}
+            component={Link}
+            to={`/novels/${novelSlug}`}
             sx={{ mt: 2 }}
           >
             Return to Novel
@@ -395,8 +364,9 @@ const SourceDetail = () => {
         
         <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
           <Button 
-            startIcon={<ArrowBackIcon />} 
-            onClick={handleBackClick}
+            startIcon={<ArrowBackIcon />}
+            component={Link}
+            to={`/novels/${novelSlug}`}
             variant="outlined"
             sx={{ 
               borderRadius: '20px',
@@ -727,7 +697,8 @@ const SourceDetail = () => {
                       )}
                       startIcon={<BookmarkIcon />}
                       color="warning"
-                      onClick={handleContinueReading}
+                      // onClick={handleContinueReading}
+                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`}
                       tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
                       sx={{ mb: 1 }}
                     />
@@ -745,7 +716,7 @@ const SourceDetail = () => {
                       startIcon={<ViewListIcon />}
                       backgroundIcon={<ListAltIcon />}
                       color="info"
-                      onClick={handleChaptersClick}
+                      to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
                       disabled={source?.latest_available_chapter?.chapter_id === 0}
                       tooltip="Browse all chapters"
                     />
@@ -755,7 +726,7 @@ const SourceDetail = () => {
                       subtitle="Browse all images"
                       startIcon={<CollectionsIcon />}
                       color="secondary"
-                      onClick={handleGalleryClick}
+                      to={`/novels/${novelSlug}/${sourceSlug}/gallery`}
                       tooltip="View image gallery"
                     />
 
@@ -764,7 +735,7 @@ const SourceDetail = () => {
                       subtitle="From Chapter 1"
                       startIcon={<PlayArrowIcon />}
                       color="success"
-                      onClick={handleFirstChapterClick}
+                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/1`}
                       disabled={source?.latest_available_chapter?.chapter_id === 0}
                       tooltip="Start reading from chapter 1"
                     />
@@ -774,7 +745,7 @@ const SourceDetail = () => {
                       subtitle={`Chapter ${source?.latest_available_chapter?.chapter_id || 0}`}
                       startIcon={<SkipNextIcon />}
                       color="primary"
-                      onClick={handleLatestChapterClick}
+                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
                       disabled={!source?.latest_available_chapter}
                       tooltip="Jump to the most recent chapter"
                     />

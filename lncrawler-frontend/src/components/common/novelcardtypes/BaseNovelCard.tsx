@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
   Typography, Box, Rating, Chip, Skeleton, Tooltip,
-  Grid2 as Grid, IconButton, Badge,
+  Grid2 as Grid, IconButton
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -16,11 +16,13 @@ import { Novel } from '@models/novels_types';
 import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName, toLocalDate } from '@utils/Misc';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
+import { Link } from 'react-router-dom';
 
 export interface BaseNovelCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
+  to?: string;
 }
 
 export function formatCount(count: number): string {
@@ -35,7 +37,8 @@ export function formatCount(count: number): string {
 export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({ 
   novel, 
   onClick, 
-  isLoading = false 
+  isLoading = false,
+  to
 }) => {
   const preferredSource = novel.prefered_source;
   const { isAuthenticated } = useAuth();
@@ -181,6 +184,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
       <CardActionArea 
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
         onClick={onClick}
+        component={to ? Link : 'div'}
+        to={to}
       >
         <Box sx={{ position: 'relative', paddingTop: '150%' }}>
           <CardMedia
@@ -289,7 +294,11 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               readOnly 
               size="small" 
             />
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+            <Typography variant="body2" color="text.secondary" 
+            sx={{ 
+              ml: 0.25,
+              fontSize: '0.875rem',
+            }}>
               {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
               {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
             </Typography>
@@ -328,16 +337,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
                 />
               </Tooltip>
             </Grid>
-            
-            {/* <Grid size={7}>
-              <Tooltip title="Status">
-                <Chip 
-                  label={preferredSource?.status || 'Unknown'}
-                  size="small"
-                  variant="outlined"
-                />
-              </Tooltip>
-            </Grid> */}
 
             <Grid size={6}>
               <Tooltip title="Views">

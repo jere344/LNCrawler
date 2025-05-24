@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button, Typography, Box, Tooltip, SxProps, Theme } from '@mui/material';
+import { Link } from 'react-router-dom';
 
 interface ActionButtonProps {
   /**
@@ -34,6 +35,11 @@ interface ActionButtonProps {
   onClick?: () => void;
   
   /**
+   * URL to navigate to when button is clicked (alternative to onClick)
+   */
+  to?: string;
+  
+  /**
    * Whether the button is disabled
    */
   disabled?: boolean;
@@ -62,6 +68,7 @@ interface ActionButtonProps {
 /**
  * A styled action button with a title, subtitle, and icon.
  * The icon is displayed both as a start icon and as a larger rotated background icon.
+ * Can be used as a navigation link with 'to' prop or as a regular button with 'onClick' prop.
  */
 const ActionButton: React.FC<ActionButtonProps> = ({
   title,
@@ -70,34 +77,39 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   backgroundIcon,
   color = "primary",
   onClick,
+  to,
   disabled = false,
   tooltip,
   tooltipPlacement = "top",
   sx = {},
   fullWidth = true,
 }) => {
-  const button = (
-    <Button
-      variant="contained"
-      color={color}
-      size="large"
-      fullWidth={fullWidth}
-      startIcon={startIcon}
-      onClick={onClick}
-      disabled={disabled}
-      sx={{
-        borderRadius: '12px',
-        p: 1.5,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-        textAlign: 'left',
-        position: 'relative',
-        overflow: 'hidden',
-        ...sx
-      }}
-    >
+  const buttonProps = {
+    variant: "contained" as const,
+    color,
+    size: "large" as const,
+    fullWidth,
+    startIcon,
+    disabled,
+    component: to ? Link : undefined,
+    to: to || undefined,
+    onClick: to ? undefined : onClick,
+    sx: {
+      borderRadius: '12px',
+      p: 1.5,
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      display: 'flex',
+      justifyContent: 'flex-start',
+      alignItems: 'center',
+      textAlign: 'left',
+      position: 'relative',
+      overflow: 'hidden',
+      ...sx
+    }
+  };
+
+  const buttonContent = (
+    <>
       <Box sx={{ zIndex: 1 }}>
         <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
           {title}
@@ -117,8 +129,10 @@ const ActionButton: React.FC<ActionButtonProps> = ({
           transform: 'rotate(15deg)'
         }
       })}
-    </Button>
+    </>
   );
+
+  const button = <Button {...buttonProps}>{buttonContent}</Button>;
 
   if (tooltip) {
     return (

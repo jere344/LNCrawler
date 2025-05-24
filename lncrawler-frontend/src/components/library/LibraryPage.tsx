@@ -10,7 +10,6 @@ import {
   Paper
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useNavigate } from 'react-router-dom';
 import { userService } from '@services/user.service';
 import BaseNovelCard from '@components/common/novelcardtypes/BaseNovelCard';
 import { Novel, NovelListResponse } from '@models/novels_types';
@@ -25,7 +24,6 @@ const LibraryPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const theme = useTheme();
-  const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -54,10 +52,6 @@ const LibraryPage: React.FC = () => {
   const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
     window.scrollTo(0, 0);
-  };
-
-  const handleNovelClick = (novel: Novel) => {
-    navigate(`/novels/${novel.slug}`);
   };
 
 
@@ -140,7 +134,7 @@ const LibraryPage: React.FC = () => {
                 <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
                   <BaseNovelCard 
                     novel={novel} 
-                    onClick={() => handleNovelClick(novel)}
+                    to={`/novels/${novel.slug}`}
                   />
                 </Grid>
               ))}

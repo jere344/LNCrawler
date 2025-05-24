@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import PersonIcon from '@mui/icons-material/Person';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import {
@@ -40,7 +40,6 @@ import ActionButton from '../common/ActionButton';
 
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
-  const navigate = useNavigate();
   const theme = useTheme();
   const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -76,34 +75,7 @@ const NovelDetail = () => {
 
     fetchNovelDetail();
   }, [novelSlug]);
-
-  const handleBackClick = () => {
-    navigate('/');
-  };
-
-  const handleSourceClick = (sourceSlug: string) => {
-    if (!novelSlug) return;
-    navigate(`/novels/${novelSlug}/${sourceSlug}`);
-  };
-
-
-  const handleQuickStart = () => {
-    if (!novelSlug || !novel || novel.sources.length === 0) return;
-    // Start from chapter 1 of the preferred source
-    const preferredSource = novel.prefered_source || novel.sources[0];
-    navigate(`/novels/${novelSlug}/${preferredSource.source_slug}/chapter/1`);
-  }
-
   const continue_chapter = novel?.reading_history?.next_chapter || novel?.reading_history?.last_read_chapter;
-
-  const handleQuickContinue = () => {
-    if (!novelSlug || !novel || novel.sources.length === 0) return;
-    
-    if (continue_chapter && novel.reading_history) {
-      navigate(`/novels/${novelSlug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}`);
-    }
-  }
-  
 
   // Handle bookmark toggle
   const handleBookmarkToggle = async () => {
@@ -225,7 +197,7 @@ const NovelDetail = () => {
   if (error || !novel) {
     return (
       <Container maxWidth="lg">
-        <Button startIcon={<ArrowBackIcon />} onClick={handleBackClick} sx={{ mt: 2 }}>
+        <Button startIcon={<ArrowBackIcon />} component={Link} to="/" sx={{ mt: 2 }}>
           Back to Novels
         </Button>
         <Paper 
@@ -244,7 +216,7 @@ const NovelDetail = () => {
           <Button 
             variant="contained" 
             color="primary" 
-            onClick={handleBackClick}
+            component={Link} to="/"
             sx={{ mt: 2 }}
           >
             Return to Home
@@ -253,8 +225,6 @@ const NovelDetail = () => {
       </Container>
     );
   }
-
-  const primarySource = novel.prefered_source || novel.sources[0];
 
   return (
     <Container maxWidth="lg" sx={{ pb: 6 }}>
@@ -272,7 +242,7 @@ const NovelDetail = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
         <Button 
           startIcon={<ArrowBackIcon />} 
-          onClick={handleBackClick}
+          component={Link} to="/"
           variant="outlined"
           sx={{ 
             borderRadius: '20px',
@@ -283,7 +253,7 @@ const NovelDetail = () => {
         </Button>
       </Box>
 
-      {primarySource && (
+      {novel.prefered_source && (
         <Paper 
           elevation={0}
           sx={{ 
@@ -304,7 +274,7 @@ const NovelDetail = () => {
               width: '100%',
               height: '100%',
               opacity: 0.35,
-              backgroundImage: `url(${primarySource.cover_url || defaultCover})`,
+              backgroundImage: `url(${novel.prefered_source.cover_url || defaultCover})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               filter: 'blur(20px)',
@@ -329,7 +299,7 @@ const NovelDetail = () => {
                   >
                     <CardMedia
                       component="img"
-                      image={primarySource.cover_url || defaultCover}
+                      image={novel.prefered_source.cover_url || defaultCover}
                       alt={novel?.title}
                       sx={{
                         position: 'absolute',
@@ -429,7 +399,7 @@ const NovelDetail = () => {
                 {/* Author and Status badges */}
                 <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                    {primarySource.authors.length > 0 && (
+                    {novel.prefered_source.authors.length > 0 && (
                       <Box
                         sx={{
                           display: 'inline-flex',
@@ -451,7 +421,7 @@ const NovelDetail = () => {
                           }}
                         >
                           <PersonIcon sx={{ mr: 1, fontSize: '1rem' }} />
-                          {primarySource.authors.join(', ')}
+                          {novel.prefered_source.authors.join(', ')}
                         </Typography>
                       </Box>
                     )}
@@ -564,10 +534,10 @@ const NovelDetail = () => {
                   </Box>
                 </Box>
                 
-                {primarySource.tags.length > 0 && (
+                {novel.prefered_source.tags.length > 0 && (
                   <Box sx={{ mb: 3 }}>
                     <NovelTags
-                      tags={primarySource.tags} 
+                      tags={novel.prefered_source.tags} 
                       chipSize="small"
                     />
                   </Box>
@@ -582,14 +552,14 @@ const NovelDetail = () => {
                     mb: 1
                   }}></Box>
 
-                  {continue_chapter && (
+                  {continue_chapter && novel.prefered_source && (
                     <ActionButton
                       title="Continue Reading"
                       subtitle={getChapterNameWithNumber(continue_chapter.title, continue_chapter.chapter_id)}
                       startIcon={<BookmarkIcon />}
                       backgroundIcon={<BookIcon />}
                       color="warning"
-                      onClick={handleQuickContinue}
+                      to={`/novels/${novelSlug}/${novel.prefered_source.source_slug}/chapter/${continue_chapter.chapter_id}`}
                       tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
                       tooltipPlacement="top"
                     />
@@ -601,7 +571,7 @@ const NovelDetail = () => {
                     startIcon={<PlayArrowIcon />}
                     backgroundIcon={<BookIcon />}
                     color="success"
-                    onClick={handleQuickStart}
+                    to={`/novels/${novelSlug}/${novel.prefered_source.source_slug}/chapter/1`}
                     disabled={novel.prefered_source?.latest_available_chapter?.chapter_id === 0}
                     tooltip="Start reading from chapter 1"
                     tooltipPlacement="top"
@@ -614,15 +584,14 @@ const NovelDetail = () => {
       )}
 
       {/* Novel Synopsis */}
-      {primarySource && primarySource.synopsis && (
-        <NovelSynopsis synopsis={primarySource.synopsis} />
+      {novel.prefered_source && novel.prefered_source.synopsis && (
+        <NovelSynopsis synopsis={novel.prefered_source.synopsis} />
       )}
 
       {/* Available Sources - simplified props */}
       {novel && (
         <NovelSources 
           novel={{...novel, slug: novelSlug}} 
-          handleSourceClick={handleSourceClick}
         />
       )}
 

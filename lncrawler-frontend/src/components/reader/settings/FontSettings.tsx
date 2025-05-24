@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Box,
   Typography,
-  Slider,
   FormControl,
   InputLabel,
   Select,
@@ -15,6 +14,7 @@ import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
 import FormatAlignCenterIcon from '@mui/icons-material/FormatAlignCenter';
 import FormatAlignJustifyIcon from '@mui/icons-material/FormatAlignJustify';
 import FormatAlignRightIcon from '@mui/icons-material/ArrowForward';
+import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface FontSettingsProps {
   fontSize: number;
@@ -66,7 +66,7 @@ const FontSettings: React.FC<FontSettingsProps> = ({
     <>
       <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle1" gutterBottom>Font Size: {fontSize}px</Typography>
-        <Slider
+        <MobileSafeSlider
           value={fontSize}
           onChange={handleFontSizeChange}
           min={12}

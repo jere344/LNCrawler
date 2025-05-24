@@ -2,30 +2,16 @@ import React from 'react';
 import {
   Box,
   Typography,
-  Slider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  SelectChangeEvent,
 } from '@mui/material';
+import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface LayoutSettingsProps {
   margin: number;
   lineSpacing: number;
-  readingMode: string;
   onMarginChange: (margin: number) => void;
   onLineSpacingChange: (spacing: number) => void;
-  onReadingModeChange: (mode: string) => void;
 }
 
-// Reading mode options
-export const readingModeOptions = [
-  { name: 'Classic', value: 'classic' },
-  { name: 'Manga', value: 'manga' },
-  { name: 'Manga Reversed', value: 'mangaReversed' },
-  { name: 'Webtoon', value: 'webtoon' },
-];
 
 /**
  * Component for layout-related reader settings
@@ -33,10 +19,8 @@ export const readingModeOptions = [
 const LayoutSettings: React.FC<LayoutSettingsProps> = ({
   margin,
   lineSpacing,
-  readingMode,
   onMarginChange,
   onLineSpacingChange,
-  onReadingModeChange,
 }) => {
   const handleMarginChange = (_event: Event, newValue: number | number[]) => {
     onMarginChange(newValue as number);
@@ -46,15 +30,11 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
     onLineSpacingChange(newValue as number);
   };
 
-  const handleReadingModeChange = (event: SelectChangeEvent) => {
-    onReadingModeChange(event.target.value);
-  };
-
   return (
     <>
       <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle1" gutterBottom>Margin: {margin}%</Typography>
-        <Slider
+        <MobileSafeSlider
           value={margin}
           onChange={handleMarginChange}
           min={-2}
@@ -71,7 +51,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
 
       <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle1" gutterBottom>Line Spacing: {lineSpacing}</Typography>
-        <Slider
+        <MobileSafeSlider
           value={lineSpacing}
           onChange={handleLineSpacingChange}
           min={1}
@@ -84,23 +64,6 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
           ]}
           valueLabelDisplay="auto"
         />
-      </Box>
-      
-      <Box sx={{ mb: 2 }}>
-        <FormControl fullWidth variant="outlined" size="small">
-          <InputLabel>Reading Mode</InputLabel>
-          <Select
-            value={readingMode}
-            onChange={handleReadingModeChange}
-            label="Reading Mode"
-          >
-            {readingModeOptions.map((mode) => (
-              <MenuItem key={mode.value} value={mode.value}>
-                {mode.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
       </Box>
     </>
   );

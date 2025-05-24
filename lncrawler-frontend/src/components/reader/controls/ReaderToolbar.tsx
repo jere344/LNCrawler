@@ -17,6 +17,7 @@ import DoneIcon from '@mui/icons-material/Done';
 import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material/styles';
+import { Link as RouterLink } from 'react-router-dom'; // Import RouterLink
 
 interface ReaderToolbarProps {
   isMobile: boolean;
@@ -27,7 +28,7 @@ interface ReaderToolbarProps {
   isAuthenticated: boolean;
   markReadSuccess: boolean;
   markingAsRead: boolean;
-  showMarkReadButton: boolean; // New prop
+  showMarkReadButton: boolean;
   onMarkAsRead: () => void;
   onChapterList: () => void;
   onHome: () => void;
@@ -35,6 +36,11 @@ interface ReaderToolbarProps {
   onNext: () => void;
   onSettings: () => void;
   onCloseControls: () => void;
+  // Add URL props
+  prevUrl?: string;
+  nextUrl?: string;
+  homeUrl?: string;
+  chapterListUrl?: string;
 }
 
 /**
@@ -58,6 +64,10 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
   onNext,
   onSettings,
   onCloseControls,
+  prevUrl,
+  nextUrl,
+  homeUrl,
+  chapterListUrl,
 }) => {
   const theme = useTheme();
 
@@ -66,16 +76,32 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
     return (
       <AppBar position="sticky" color="default" elevation={1} sx={{ top: 0 }}>
         <Toolbar>
-          <IconButton edge="start" color="inherit" onClick={onChapterList}>
+          <IconButton 
+            edge="start" 
+            color="inherit" 
+            onClick={onChapterList}
+            component={chapterListUrl ? RouterLink : "a"}
+            to={chapterListUrl}
+          >
             <ListIcon />
           </IconButton>
-          <IconButton color="inherit" onClick={onHome}>
+          <IconButton 
+            color="inherit" 
+            onClick={onHome}
+            component={homeUrl ? RouterLink : "a"}
+            to={homeUrl}
+          >
             <HomeIcon />
           </IconButton>
           
           <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
             {prevChapter && (
-              <IconButton color="inherit" onClick={onPrevious}>
+              <IconButton 
+                color="inherit" 
+                onClick={onPrevious}
+                component={prevUrl ? RouterLink : "a"}
+                to={prevUrl}
+              >
                 <ArrowBackIcon />
               </IconButton>
             )}
@@ -85,7 +111,12 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
             </Typography>
             
             {nextChapter && (
-              <IconButton color="inherit" onClick={onNext}>
+              <IconButton 
+                color="inherit" 
+                onClick={onNext}
+                component={nextUrl ? RouterLink : "a"}
+                to={nextUrl}
+              >
                 <ArrowForwardIcon />
               </IconButton>
             )}
@@ -129,10 +160,22 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
       >
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton edge="start" color="inherit" onClick={onChapterList} sx={{ mr: 1 }}>
+            <IconButton 
+              edge="start" 
+              color="inherit" 
+              onClick={onChapterList} 
+              sx={{ mr: 1 }}
+              component={chapterListUrl ? RouterLink : "a"}
+              to={chapterListUrl}
+            >
               <ListIcon />
             </IconButton>
-            <IconButton color="inherit" onClick={onHome}>
+            <IconButton 
+              color="inherit" 
+              onClick={onHome}
+              component={homeUrl ? RouterLink : "a"}
+              to={homeUrl}
+            >
               <HomeIcon />
             </IconButton>
           </Box>
