@@ -4,7 +4,8 @@ from django.urls import reverse
 from ..models import (
     Job, Novel, NovelFromSource, Volume, Chapter, Author, 
     Editor, Translator, Tag, SourceVote, NovelRating,
-    NovelViewCount, WeeklyNovelView, Comment, CommentVote, FeaturedNovel
+    NovelViewCount, WeeklyNovelView, Comment, CommentVote, FeaturedNovel,
+    NovelSimilarity
 )
 
 @admin.register(Job)
@@ -320,3 +321,15 @@ class FeaturedNovelAdmin(admin.ModelAdmin):
         return preview
     
     description_preview.short_description = 'Description'
+
+@admin.register(NovelSimilarity)
+class NovelSimilarityAdmin(admin.ModelAdmin):
+    list_display = ('from_novel', 'to_novel', 'similarity')
+    search_fields = ('from_novel__title', 'to_novel__title')
+    raw_id_fields = ('from_novel', 'to_novel')
+    readonly_fields = ('similarity',)
+    fieldsets = (
+        ('Similarity Information', {
+            'fields': ('from_novel', 'to_novel', 'similarity')
+        }),
+    )

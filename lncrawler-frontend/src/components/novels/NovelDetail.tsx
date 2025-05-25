@@ -37,6 +37,8 @@ import NovelTags from './common/NovelTags';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { getChapterNameWithNumber } from '@utils/Misc.tsx';
 import ActionButton from '../common/ActionButton';
+import NovelRecommendation from '../common/NovelRecommendation';
+import SectionContainer from '@components/common/SectionContainer.tsx';
 
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
@@ -585,14 +587,25 @@ const NovelDetail = () => {
 
       {/* Novel Synopsis */}
       {novel.prefered_source && novel.prefered_source.synopsis && (
-        <NovelSynopsis synopsis={novel.prefered_source.synopsis} />
+        <SectionContainer title="Synopsis" icon={<BookmarkIcon />}>
+          <NovelSynopsis synopsis={novel.prefered_source.synopsis} />
+        </SectionContainer>
       )}
 
-      {/* Available Sources - simplified props */}
+      {/* Similar Novels / Recommendations */}
+      {novel.similar_novels && novel.similar_novels.length > 0 && (
+        <SectionContainer title="Similar Novels" icon={<TrendingUpIcon />}>
+          <NovelRecommendation similarNovels={novel.similar_novels} />
+        </SectionContainer>
+      )}
+
+      {/* Available Sources */}
       {novel && (
-        <NovelSources 
-          novel={{...novel, slug: novelSlug}} 
-        />
+        <SectionContainer title="Available Sources" icon={<LanguageIcon />}>
+          <NovelSources 
+            novel={{...novel, slug: novelSlug}} 
+          />
+        </SectionContainer>
       )}
 
       {/* Snackbar notification for bookmark actions */}

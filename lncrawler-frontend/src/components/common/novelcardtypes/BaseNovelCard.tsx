@@ -198,7 +198,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               left: 0,
               width: '100%',
               height: '100%',
-              objectFit: 'cover'
+              objectFit: 'cover',
             }}
           />
           {/* Language flags */}
@@ -256,7 +256,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
-              mb: 0.5
+              mb: 0.5,
+              textAlign: 'left',
             }}
           >
             {novel.title}

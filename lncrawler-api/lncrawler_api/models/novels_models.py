@@ -169,3 +169,19 @@ class FeaturedNovel(models.Model):
     class Meta:
         verbose_name = "Featured Novel"
         verbose_name_plural = "Featured Novels"
+
+
+class NovelSimilarity(models.Model):
+    """
+    Stores similarity scores between novels
+    """
+    from_novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='similar_to')
+    to_novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='similar_from')
+    similarity = models.FloatField(default=0.0, help_text="Similarity score between 0 and 1")
+    
+    class Meta:
+        unique_together = ('from_novel', 'to_novel')
+        verbose_name_plural = "Novel Similarities"
+    
+    def __str__(self):
+        return f"{self.from_novel.title} → {self.to_novel.title}: {self.similarity}"

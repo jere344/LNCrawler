@@ -12,6 +12,7 @@ export interface Novel {
   is_bookmarked?: boolean | null;
   comment_count: number;
   reading_history?: ReadingHistory | null;
+  similar_novels?: SimilarNovel[];
 }
 
 export interface NovelListResponse {
@@ -19,6 +20,7 @@ export interface NovelListResponse {
   total_pages: number;
   current_page: number;
   results: Novel[];
+  recommendations?: Novel[];
 }
 
 export interface NovelFromSource {
@@ -64,6 +66,11 @@ export interface NovelDetail {
   is_bookmarked?: boolean | null;
   comment_count: number;
   reading_history?: ReadingHistory | null;
+  similar_novels?: SimilarNovel[];
+}
+
+export interface SimilarNovel extends Novel {
+  similarity: number;
 }
 
 export interface NovelFeaturedResponse {

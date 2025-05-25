@@ -2,9 +2,9 @@ from rest_framework import serializers
 from ..models import (
     Novel, Author, Tag,
     NovelViewCount, WeeklyNovelView,
-    NovelBookmark
+    NovelBookmark, NovelSimilarity
 )
-from django.db.models import Avg, F, ExpressionWrapper, IntegerField
+from django.db.models import Avg, F, ExpressionWrapper, IntegerField, Subquery, OuterRef
 from .sources_serializers import NovelSourceSerializer
 from .users_serializers import DetailedReadingHistorySerializer
 from ..utils import get_client_ip
@@ -101,21 +101,24 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
     prefered_source = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
+    similar_novels = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
         fields = [
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
-            'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history'
+            'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history',
+            'similar_novels'
         ]
     
     def get_sources(self, obj):
         return NovelSourceSerializer(
-            obj.sources.all().order_by(('-upvotes')).reverse(),
+            obj.sources.all(),
             many=True,
             context=self.context
         ).data
+            
     
     def get_prefered_source(self, obj):
         # Calculate vote score as upvotes - downvotes using annotate
@@ -176,6 +179,49 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             history = obj.reading_histories.filter(user=request.user).first()
             if history:
                 return DetailedReadingHistorySerializer(history).data
+        return None
+        
+    def get_similar_novels(self, obj):
+        # Get the top 12 similar novels
+        similar_novels = obj.similar_to.select_related('to_novel').order_by('-similarity')[:10]
+        
+        # If we don't have enough similar novels, get most viewed novels
+        if similar_novels.count() < 12:
+            # Get IDs of novels we already have
+            existing_ids = list(similar_novels.values_list('to_novel_id', flat=True))
+            needed_count = 12 - len(existing_ids)
+            
+            # Get the most viewed novels not already in our list
+            most_viewed = NovelViewCount.objects.exclude(
+                novel_id=obj.id
+            ).exclude(
+                novel_id__in=existing_ids
+            ).order_by('-views')[:needed_count]
+            
+            # Combine the results
+            result = list(similar_novels)
+            for view_count in most_viewed:
+                result.append({
+                    'to_novel': view_count.novel,
+                    'similarity': 0.0
+                })
+            similar_novels = result
+        
+        # Serialize the novels
+        result = []
+        for item in similar_novels:
+            if hasattr(item, 'to_novel'):
+                # Regular NovelSimilarity object
+                novel_data = BasicNovelSerializer(item.to_novel, context=self.context).data
+                novel_data['similarity'] = item.similarity
+            else:
+                # Dictionary from most viewed novels
+                novel_data = BasicNovelSerializer(item['to_novel'], context=self.context).data
+                novel_data['similarity'] = item['similarity']
+            
+            result.append(novel_data)
+        
+        return result
 
 
 class AuthorSerializer(serializers.ModelSerializer):

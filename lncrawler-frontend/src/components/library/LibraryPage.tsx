@@ -7,7 +7,8 @@ import {
   Alert,
   CircularProgress,
   useMediaQuery,
-  Paper
+  Paper,
+  Divider
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { userService } from '@services/user.service';
@@ -16,9 +17,11 @@ import { Novel, NovelListResponse } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import NovelRecommendation from '@components/common/NovelRecommendation';
 
 const LibraryPage: React.FC = () => {
   const [bookmarkedNovels, setBookmarkedNovels] = useState<Novel[]>([]);
+  const [recommendations, setRecommendations] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -33,6 +36,7 @@ const LibraryPage: React.FC = () => {
       setError(null);
       const response: NovelListResponse = await userService.listBookmarkedNovels(pageNum);
       setBookmarkedNovels(response.results);
+      setRecommendations(response.recommendations || []);
       setTotalPages(response.total_pages);
       setPage(response.current_page);
     } catch (err) {
@@ -107,51 +111,70 @@ const LibraryPage: React.FC = () => {
         <Alert severity="error" sx={{ my: 2 }}>
           {error}
         </Alert>
-      ) : bookmarkedNovels.length === 0 ? (
-        <Paper 
-          elevation={2}
-          sx={{ 
-            p: 4, 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center',
-            gap: 2,
-            my: 4
-          }}
-        >
-          <Typography variant="h6" color="text.secondary" align="center">
-            Your library is empty
-          </Typography>
-          <Typography variant="body2" color="text.secondary" align="center">
-            Bookmark novels to add them to your library.
-          </Typography>
-        </Paper>
       ) : (
         <>
-          <Box sx={{ mt: 2, mb: 4 }}>
-            <Grid container spacing={3}>
-              {bookmarkedNovels.map((novel) => (
-                <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                  <BaseNovelCard 
-                    novel={novel} 
-                    to={`/novels/${novel.slug}`}
-                  />
+          {bookmarkedNovels.length === 0 ? (
+            <Paper 
+              elevation={2}
+              sx={{ 
+                p: 4, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center',
+                gap: 2,
+                my: 4
+              }}
+            >
+              <Typography variant="h6" color="text.secondary" align="center">
+                Your library is empty
+              </Typography>
+              <Typography variant="body2" color="text.secondary" align="center">
+                Bookmark novels to add them to your library.
+              </Typography>
+            </Paper>
+          ) : (
+            <>
+              <Box sx={{ mt: 2, mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 2 }}>Your Bookmarks</Typography>
+                <Grid container spacing={3}>
+                  {bookmarkedNovels.map((novel) => (
+                    <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+                      <BaseNovelCard 
+                        novel={novel} 
+                        to={`/novels/${novel.slug}`}
+                      />
+                    </Grid>
+                  ))}
                 </Grid>
-              ))}
-            </Grid>
-          </Box>
-          
-          
-          {totalPages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-              <Pagination 
-                count={totalPages} 
-                page={page} 
-                onChange={handlePageChange}
-                color="primary"
-                size={isMobile ? "small" : "medium"}
-              />
+              </Box>
+              
+              {totalPages > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                  <Pagination 
+                    count={totalPages} 
+                    page={page} 
+                    onChange={handlePageChange}
+                    color="primary"
+                    size={isMobile ? "small" : "medium"}
+                  />
+                </Box>
+              )}
+            </>
+          )}
+
+          <Divider sx={{ my: 8 }} />
+
+          {/* Display recommendations if available */}
+          {recommendations.length > 0 && (
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="h5" sx={{ mb: 2 }}>Recommended for You</Typography>
             </Box>
+          )}
+          {recommendations.length > 0 && (
+            <NovelRecommendation 
+              similarNovels={recommendations.map(novel => ({...novel, similarity: 0}))} 
+              loading={false}
+            />
           )}
         </>
       )}
