@@ -190,9 +190,9 @@ class Command(BaseCommand):
         title_lines = textwrap.wrap(source.title, width=25 if has_cover else 35)
         for line in title_lines[:3]:  # Max 3 lines
             draw.text((left_margin, current_y), line, fill=(255, 255, 255), font=title_font)
-            current_y += 40
+            current_y += 50
         
-        current_y += 20
+        current_y += 10
         
         # Author
         if source.authors:

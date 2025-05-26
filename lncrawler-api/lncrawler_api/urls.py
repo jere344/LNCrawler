@@ -33,6 +33,7 @@ urlpatterns = [
 
     # Novel-related endpoints with new URL structure
     path('novels/', novels_views.list_novels, name='list_novels'),
+    path('novels/home/', novels_views.home_page, name='home_page'),  # Add this new endpoint
     path('novels/search/', novels_views.search_novels, name='search_novels'),  # Add this new endpoint
     path('novels/autocomplete/', novels_views.autocomplete_suggestion, name='autocomplete_suggestion'),  # Add this new endpoint
     path('novels/featured/random/', novels_views.random_featured_novel, name='random_featured_novel'),  # Add this new endpoint

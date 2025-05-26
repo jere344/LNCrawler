@@ -12,12 +12,14 @@ from ..models import (
     Tag,
     Author,
     FeaturedNovel,
+    NovelFromSource,
 )
 from ..utils import get_client_ip
 from datetime import datetime
 from ..serializers import (
     BasicNovelSerializer,
     DetailedNovelSerializer,
+    NovelSourceSerializer,
 
 )
 
@@ -249,14 +251,14 @@ def autocomplete_suggestion(request):
     query = request.GET.get("query", "").strip()
     limit = int(request.GET.get("limit", "10"))
 
-    if len(query) < 3:
+    if len(query) < 1:
         return Response([])
 
     if search_type == "tag":
         # Count novels for each tag
         tag_counts = (
             Tag.objects.filter(name__icontains=query)
-            .annotate(novel_count=Count("novenovelslfromsource", distinct=True))
+            .annotate(novel_count=Count("novels", distinct=True))
             .order_by("-novel_count")[:limit]
         )
 
@@ -316,3 +318,78 @@ def random_featured_novel(request):
     }
     
     return Response(data)
+
+@api_view(["GET"])
+def home_page(request):
+    """
+    Get all data needed for the home page in a single request
+    """
+    from datetime import datetime
+    
+    # Get current ISO year and week for trending
+    current_date = datetime.now()
+    current_year_week = (
+        f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
+    )
+    
+    # Base queryset with common annotations
+    base_queryset = Novel.objects.select_related().prefetch_related(
+        'sources', 'ratings', 'view_count', 'weekly_views'
+    )
+    
+    # Top novels (most popular)
+    top_novels = (
+        base_queryset.annotate(
+            total_views=Coalesce(F('view_count__views'), Value(0))
+        )
+        .order_by('-total_views', 'title')[:12]
+    )
+    
+    # Trending novels (weekly views)
+    trending_novels = (
+        base_queryset.annotate(
+            week_views=Coalesce(
+                Avg(
+                    "weekly_views__views",
+                    filter=Q(weekly_views__year_week=current_year_week),
+                ),
+                Value(0.0),
+            )
+        )
+        .order_by('-week_views', 'title')[:12]
+    )
+    
+    # Top rated novels
+    top_rated_novels = (
+        base_queryset.annotate(
+            avg_rating=Coalesce(Avg("ratings__rating"), Value(0.0))
+        )
+        .order_by('-avg_rating', 'title')[:12]
+    )
+    
+    # Get featured novel
+    featured_novel_data = None
+    featured_count = FeaturedNovel.objects.count()
+    if featured_count > 0:
+        import random
+        random_index = random.randint(0, featured_count - 1)
+        featured = FeaturedNovel.objects.select_related('novel').all()[random_index]
+        featured_novel_data = {
+            'novel': DetailedNovelSerializer(featured.novel, context={"request": request}).data,
+            'description': featured.description,
+            'featured_since': featured.created_at,
+        }
+    
+    # for the recently updated it's a list of NovelFromSource insead of Novel that we want
+    recently_updated = NovelFromSource.objects.order_by('-last_chapter_update')[:12]
+    
+    # Serialize all the data
+    response_data = {
+        'top_novels': BasicNovelSerializer(top_novels, many=True, context={"request": request}).data,
+        'trending_novels': BasicNovelSerializer(trending_novels, many=True, context={"request": request}).data,
+        'top_rated_novels': BasicNovelSerializer(top_rated_novels, many=True, context={"request": request}).data,
+        'recently_updated': NovelSourceSerializer(recently_updated, many=True, context={"request": request}).data,
+        'featured_novel': featured_novel_data,
+    }
+    
+    return Response(response_data)

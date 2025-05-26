@@ -84,7 +84,7 @@ const SearchPage: React.FC = () => {
   // Create debounced functions for fetching suggestions
   const fetchTagSuggestions = useCallback(
     debounce(async (query: string) => {
-      if (query.length < 3) {
+      if (query.length < 1) {
         setTagSuggestions([]);
         setLoadingTags(false);
         return;
@@ -106,7 +106,7 @@ const SearchPage: React.FC = () => {
   
   const fetchAuthorSuggestions = useCallback(
     debounce(async (query: string) => {
-      if (query.length < 3) {
+      if (query.length < 1) {
         setAuthorSuggestions([]);
         setLoadingAuthors(false);
         return;
@@ -454,25 +454,6 @@ const SearchPage: React.FC = () => {
                 loading={loadingAuthors}
                 loadingText="Loading..."
               />
-            </Grid>
-            
-            {/* Status */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  label="Status"
-                >
-                  <MenuItem value="">
-                    <em>Any</em>
-                  </MenuItem>
-                  {filterOptions.statuses.map((status) => (
-                    <MenuItem key={status} value={status}>{status}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
             </Grid>
             
             {/* Language Filter */}

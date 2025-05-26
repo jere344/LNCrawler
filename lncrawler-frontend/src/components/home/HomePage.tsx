@@ -24,25 +24,17 @@ const HomePage: React.FC = () => {
   const theme = useTheme();
   
   // State for different novel sections
-  const [topNovels, setTopNovels] = useState<Novel[]>([]);
-  const [trendingNovels, setTrendingNovels] = useState<Novel[]>([]);
-  const [topRatedNovels, setTopRatedNovels] = useState<Novel[]>([]);
-  const [recentChapters, setRecentChapters] = useState<NovelFromSource[]>([]);
-  const [featuredNovel, setFeaturedNovel] = useState<NovelFromSource | null>(null);
+  const [homeData, setHomeData] = useState<{
+    top_novels: Novel[];
+    trending_novels: Novel[];
+    top_rated_novels: Novel[];
+    recently_updated: NovelFromSource[];
+    featured_novel: any;
+  } | null>(null);
   
-  // Loading states
-  const [loadingTop, setLoadingTop] = useState<boolean>(true);
-  const [loadingTrending, setLoadingTrending] = useState<boolean>(true);
-  const [loadingTopRated, setLoadingTopRated] = useState<boolean>(true);
-  const [loadingRecent, setLoadingRecent] = useState<boolean>(true);
-  const [loadingFeatured, setLoadingFeatured] = useState<boolean>(true);
-
-  // Error states
-  const [topError, setTopError] = useState<string | null>(null);
-  const [trendingError, setTrendingError] = useState<string | null>(null);
-  const [topRatedError, setTopRatedError] = useState<string | null>(null);
-  const [recentError, setRecentError] = useState<string | null>(null);
-  const [featuredError, setFeaturedError] = useState<string | null>(null);
+  // Loading and error states
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Rankings tab state
   const [rankingTab, setRankingTab] = useState<number>(1);
@@ -52,104 +44,21 @@ const HomePage: React.FC = () => {
   };
 
   useEffect(() => {
-    // Fetch top novels (best of all time)
-    const fetchTopNovels = async () => {
+    const fetchHomeData = async () => {
       try {
-        setLoadingTop(true);
-        const response = await novelService.searchNovels({
-          sort_by: 'popularity',
-          sort_order: 'desc',
-          page_size: 12
-        });
-        setTopNovels(response.results || []);
-        setTopError(null);
+        setLoading(true);
+        const data = await novelService.getHomePageData();
+        setHomeData(data);
+        setError(null);
       } catch (error) {
-        console.error('Error fetching top novels:', error);
-        setTopError('Failed to load top novels. Please try again later.');
+        console.error('Error fetching home page data:', error);
+        setError('Failed to load home page data. Please try again later.');
       } finally {
-        setLoadingTop(false);
+        setLoading(false);
       }
     };
 
-    // Fetch trending novels (weekly views)
-    const fetchTrendingNovels = async () => {
-      try {
-        setLoadingTrending(true);
-        const response = await novelService.searchNovels({
-          sort_by: 'trending',
-          sort_order: 'desc',
-          page_size: 12
-        });
-        setTrendingNovels(response.results || []);
-        setTrendingError(null);
-      } catch (error) {
-        console.error('Error fetching trending novels:', error);
-        setTrendingError('Failed to load trending novels. Please try again later.');
-      } finally {
-        setLoadingTrending(false);
-      }
-    };
-
-    // Fetch top rated novels
-    const fetchTopRatedNovels = async () => {
-      try {
-        setLoadingTopRated(true);
-        const response = await novelService.searchNovels({
-          sort_by: 'rating',
-          sort_order: 'desc',
-          page_size: 12
-        });
-        setTopRatedNovels(response.results || []);
-        setTopRatedError(null);
-      } catch (error) {
-        console.error('Error fetching top rated novels:', error);
-        setTopRatedError('Failed to load top rated novels. Please try again later.');
-      } finally {
-        setLoadingTopRated(false);
-      }
-    };
-
-    // Fetch recently updated chapters
-    const fetchRecentChapters = async () => {
-      try {
-        setLoadingRecent(true);
-        const response = await novelService.searchNovels({
-          sort_by: 'last_updated',
-          sort_order: 'desc',
-          page_size: 12
-        });
-        setRecentChapters(response.results.map((novel: { prefered_source: any; }) => novel.prefered_source).filter(Boolean) as NovelFromSource[]);
-        setRecentError(null);
-      } catch (error) {
-        console.error('Error fetching recent chapters:', error);
-        setRecentError('Failed to load recent chapters. Please try again later.');
-      } finally {
-        setLoadingRecent(false);
-      }
-    };
-
-    // Fetch featured novel
-    const fetchFeaturedNovel = async () => {
-      try {
-        setLoadingFeatured(true);
-        const response = await novelService.getRandomFeaturedNovel();
-        if (response.novel) {
-          setFeaturedNovel(response.novel.prefered_source);
-        }
-        setFeaturedError(null);
-      } catch (error) {
-        console.error('Error fetching featured novel:', error);
-        setFeaturedError('Failed to load featured novel. Please try again later.');
-      } finally {
-        setLoadingFeatured(false);
-      }
-    };
-
-    fetchTopNovels();
-    fetchTrendingNovels();
-    fetchTopRatedNovels();
-    fetchRecentChapters();
-    fetchFeaturedNovel();
+    fetchHomeData();
   }, []);
 
   // Helper function for error display
@@ -166,6 +75,17 @@ const HomePage: React.FC = () => {
       <Typography>{message}</Typography>
     </Paper>
   );
+
+  // Show global error if API call failed
+  if (error) {
+    return (
+      <Container maxWidth="xl">
+        <Box sx={{ my: 4 }}>
+          {renderErrorMessage(error)}
+        </Box>
+      </Container>
+    );
+  }
   
   return (
     <Container maxWidth="xl">
@@ -208,7 +128,7 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {loadingTrending ? (
+        {loading ? (
           <Grid container spacing={3}>
             {[...Array(4)].map((_, index) => (
               <Grid size={{ xs: 6, sm: 3 }} key={`trending-skeleton-${index}`}>
@@ -216,11 +136,9 @@ const HomePage: React.FC = () => {
               </Grid>
             ))}
           </Grid>
-        ) : trendingError ? (
-          renderErrorMessage(trendingError)
         ) : (
           <Grid container spacing={3}>
-            {trendingNovels.slice(0, 4).map((novel, index) => (
+            {homeData?.trending_novels.slice(0, 4).map((novel, index) => (
               <Grid size={{ xs: 6, sm: 3 }} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
@@ -228,7 +146,7 @@ const HomePage: React.FC = () => {
                   rank={index + 1}
                 />
               </Grid>
-            ))}
+            )) || []}
           </Grid>
         )}
       </Box>
@@ -245,7 +163,7 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {loadingTop ? (
+        {loading ? (
           <Grid container spacing={2}>
             {[...Array(12)].map((_, index) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`top-skeleton-${index}`}>
@@ -253,11 +171,9 @@ const HomePage: React.FC = () => {
               </Grid>
             ))}
           </Grid>
-        ) : topError ? (
-          renderErrorMessage(topError)
         ) : (
           <Grid container spacing={2}>
-            {topNovels.slice(0, 12).map((novel, rank) => (
+            {homeData?.top_novels.slice(0, 12).map((novel, rank) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
                 <NovelItemCard 
                   novel={novel} 
@@ -265,7 +181,7 @@ const HomePage: React.FC = () => {
                   rank={rank + 1}
                 />
               </Grid>
-            ))}
+            )) || []}
           </Grid>
         )}
       </Box>
@@ -298,7 +214,7 @@ const HomePage: React.FC = () => {
           aria-labelledby="tab-most-read"
           sx={{ py: 3 }}
         >
-          {loadingTop ? (
+          {loading ? (
             <Grid container spacing={1}>
               {[...Array(12)].map((_, index) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`most-read-skeleton-${index}`}>
@@ -306,11 +222,9 @@ const HomePage: React.FC = () => {
                 </Grid>
               ))}
             </Grid>
-          ) : topError ? (
-            renderErrorMessage(topError)
           ) : (
             <Grid container spacing={1}>
-              {topNovels.slice(0, 12).map((novel) => (
+              {homeData?.top_novels.slice(0, 12).map((novel) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
@@ -318,7 +232,7 @@ const HomePage: React.FC = () => {
                     showClicks
                   />
                 </Grid>
-              ))}
+              )) || []}
             </Grid>
           )}
         </Box>
@@ -331,7 +245,7 @@ const HomePage: React.FC = () => {
           aria-labelledby="tab-new-trends"
           sx={{ py: 3 }}
         >
-          {loadingTrending ? (
+          {loading ? (
             <Grid container spacing={1}>
               {[...Array(12)].map((_, index) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`new-trends-skeleton-${index}`}>
@@ -339,11 +253,9 @@ const HomePage: React.FC = () => {
                 </Grid>
               ))}
             </Grid>
-          ) : trendingError ? (
-            renderErrorMessage(trendingError)
           ) : (
             <Grid container spacing={1}>
-              {trendingNovels.slice(0, 12).map((novel) => (
+              {homeData?.trending_novels.slice(0, 12).map((novel) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
@@ -351,7 +263,7 @@ const HomePage: React.FC = () => {
                     showTrends
                   />
                 </Grid>
-              ))}
+              )) || []}
             </Grid>
           )}
         </Box>
@@ -364,7 +276,7 @@ const HomePage: React.FC = () => {
           aria-labelledby="tab-user-rated"
           sx={{ py: 3 }}
         >
-          {loadingTopRated ? (
+          {loading ? (
             <Grid container spacing={1}>
               {[...Array(12)].map((_, index) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`user-rated-skeleton-${index}`}>
@@ -372,11 +284,9 @@ const HomePage: React.FC = () => {
                 </Grid>
               ))}
             </Grid>
-          ) : topRatedError ? (
-            renderErrorMessage(topRatedError)
           ) : (
             <Grid container spacing={1}>
-              {topRatedNovels.slice(0, 12).map((novel) => (
+              {homeData?.top_rated_novels.slice(0, 12).map((novel) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
@@ -384,7 +294,7 @@ const HomePage: React.FC = () => {
                     showRating
                   />
                 </Grid>
-              ))}
+              )) || []}
             </Grid>
           )}
         </Box>
@@ -402,14 +312,15 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {loadingFeatured ? (
+        {loading ? (
           <FeaturedNovelCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
-        ) : featuredError ? (
-          renderErrorMessage(featuredError)
-        ) : featuredNovel ? (
+        ) : homeData?.featured_novel ? (
           <FeaturedNovelCard 
-            source={featuredNovel}
-            to={featuredNovel.novel_slug && featuredNovel.source_slug ? `/novels/${featuredNovel.novel_slug}/${featuredNovel.source_slug}` : featuredNovel.novel_slug ? `/novels/${featuredNovel.novel_slug}` : undefined}
+            source={homeData.featured_novel.novel.prefered_source}
+            to={homeData.featured_novel.novel.prefered_source?.novel_slug && homeData.featured_novel.novel.prefered_source?.source_slug ? 
+              `/novels/${homeData.featured_novel.novel.prefered_source.novel_slug}/${homeData.featured_novel.novel.prefered_source.source_slug}` : 
+              homeData.featured_novel.novel.prefered_source?.novel_slug ? 
+                `/novels/${homeData.featured_novel.novel.prefered_source.novel_slug}` : undefined}
           />
         ) : (
           <Typography variant="body1" align="center">No featured novel available</Typography>
@@ -420,31 +331,18 @@ const HomePage: React.FC = () => {
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5" component="h2" fontWeight="bold">
-            Recently Added Chapters
+            Recently Updated Novels
           </Typography>
-          <Button component={Link} to="/novels/search?sort_by=date_added&sort_order=desc" variant="text">
-            View More
-          </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {loadingRecent ? (
+        {!loading && homeData && (
           <Grid container spacing={2}>
-            {[...Array(12)].map((_, index) => (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`recent-skeleton-${index}`}>
-                <ChapterCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
-              </Grid>
-            ))}
-          </Grid>
-        ) : recentError ? (
-          renderErrorMessage(recentError)
-        ) : (
-          <Grid container spacing={2}>
-            {recentChapters.slice(0, 12).map((source) => (
+            {homeData.recently_updated.slice(0, 12).map((source) => (
               <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
                 <ChapterCard
                   source={source}
-                  to={source.novel_slug ? `/novels/${source.novel_slug}` : undefined}
+                  to={source.source_slug ? `/novels/${source.novel_slug}/${source.source_slug}` : undefined}
                 />
               </Grid>
             ))}

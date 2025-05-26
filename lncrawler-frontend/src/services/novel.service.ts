@@ -148,6 +148,12 @@ export const novelService = {
     return response.data;
   },
 
+  // Get all home page data in a single request
+  getHomePageData: async () => {
+    const response = await api.get('/novels/home/');
+    return response.data;
+  },
+
   // Get the image gallery for a source
   getSourceGallery: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 20) => {
     const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/gallery/`, {
