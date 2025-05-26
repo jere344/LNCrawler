@@ -61,13 +61,11 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Security settings for HTTPS
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     CSRF_COOKIE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]  # Extract domain from SITE_URL
 else:
-    SECURE_SSL_REDIRECT = False
     SECURE_PROXY_SSL_HEADER = None
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
