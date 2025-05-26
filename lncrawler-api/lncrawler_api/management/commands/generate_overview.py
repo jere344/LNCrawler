@@ -14,8 +14,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from ...models import NovelFromSource
 
 
-FONT_PATH = os.path.join(settings.STATIC_ROOT, 'fonts', 'NotoSans-Regular.ttf')
-
 # HTML Parser to strip HTML tags
 class HTMLTextExtractor(HTMLParser):
     def __init__(self):
@@ -31,6 +29,116 @@ class HTMLTextExtractor(HTMLParser):
 
 class Command(BaseCommand):
     help = 'Generate overview images for sources'
+
+    # Font configuration
+    FONT_DIR_NAME = 'fonts'
+    DEFAULT_FONT_FILE = "NotoSans-Regular.ttf"
+    CJK_FONT_FILES_MAP = {
+        'sc': "NotoSansSC-Regular.ttf",
+        'jp': "NotoSansJP-Regular.ttf",
+        'kr': "NotoSansKR-Regular.ttf",
+    }
+    FALLBACK_SYSTEM_FONT_NAME = "arial.ttf"
+
+    # Font sizes (consistent with original)
+    TITLE_FONT_SIZE = 52
+    AUTHOR_FONT_SIZE = 32
+    SYNOPSIS_FONT_SIZE = 24
+    TAG_FONT_SIZE = 20
+    CHAPTER_COUNT_FONT_SIZE = 32 # Matches author font size in original
+    SOURCE_INFO_FONT_SIZE = 24   # Matches synopsis font size in original
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._initialize_font_paths()
+        self.loaded_font_objects = {}  # Cache: (font_identifier_str, size) -> ImageFont object
+
+    def _initialize_font_paths(self):
+        static_root_path = Path(str(settings.STATIC_ROOT))
+        self.font_base_dir = static_root_path / self.FONT_DIR_NAME
+        
+        self.font_file_paths = {
+            'default': self.font_base_dir / self.DEFAULT_FONT_FILE,
+        }
+        for lang_code, font_file in self.CJK_FONT_FILES_MAP.items():
+            self.font_file_paths[lang_code] = self.font_base_dir / font_file
+
+        # Initial check for font directory and default font for early warning
+        if not self.font_base_dir.is_dir():
+            self.stdout.write(self.style.WARNING(f"Font directory not found: {self.font_base_dir}. Font loading may fail."))
+        if not self.font_file_paths['default'].exists():
+            self.stdout.write(self.style.WARNING(f"Default font not found: {self.font_file_paths['default']}. Font loading may rely on fallbacks."))
+
+    def _get_font_instance(self, text_content: str, size: int) -> ImageFont.FreeTypeFont:
+        font_path_candidates = []
+
+        if self.text_has_cjk(text_content):
+            cjk_preference_order = ['sc', 'jp', 'kr']
+            for lang_code in cjk_preference_order:
+                path = self.font_file_paths.get(lang_code)
+                if path and path.exists():
+                    font_path_candidates.append(path)
+        
+        default_font_path = self.font_file_paths.get('default')
+        if default_font_path: # Always add default font path
+            font_path_candidates.append(default_font_path)
+        
+        # Remove duplicates while preserving order (e.g. if default was already added via CJK list if one was missing)
+        # More direct: ensure default is tried if CJK specific ones fail or are not applicable.
+        # The list `font_path_candidates` will contain existing CJK fonts (if applicable)
+        # followed by the default font.
+        
+        # Revised candidate list logic:
+        paths_to_try = []
+        if self.text_has_cjk(text_content):
+            for lang_code in ['sc', 'jp', 'kr']: # Preferred CJK order
+                p = self.font_file_paths.get(lang_code)
+                if p and p.exists():
+                    paths_to_try.append(p)
+        
+        # Add default font if not already effectively covered or as a primary choice
+        if default_font_path and default_font_path.exists():
+            if default_font_path not in paths_to_try:
+                 paths_to_try.append(default_font_path)
+        elif default_font_path: # If default_font_path is configured but doesn't exist
+            # Add it so the warning for this specific path can be triggered if attempted
+            if default_font_path not in paths_to_try:
+                paths_to_try.append(default_font_path)
+
+
+        # Try loading from candidate paths
+        for font_path in paths_to_try:
+            cache_key = (str(font_path), size)
+            if cache_key in self.loaded_font_objects:
+                return self.loaded_font_objects[cache_key]
+            try:
+                font = ImageFont.truetype(str(font_path), size)
+                self.loaded_font_objects[cache_key] = font
+                return font
+            except OSError:
+                self.stdout.write(self.style.WARNING(f"Could not load font {font_path} (size {size}). Trying next."))
+                continue
+        
+        # If all specified fonts fail, try system fallback font
+        cache_key = (self.FALLBACK_SYSTEM_FONT_NAME, size)
+        if cache_key in self.loaded_font_objects:
+            return self.loaded_font_objects[cache_key]
+        try:
+            font = ImageFont.truetype(self.FALLBACK_SYSTEM_FONT_NAME, size)
+            self.loaded_font_objects[cache_key] = font
+            self.stdout.write(self.style.SUCCESS(f"Using system fallback font: {self.FALLBACK_SYSTEM_FONT_NAME} (size {size})"))
+            return font
+        except OSError:
+            self.stdout.write(self.style.ERROR(f"System fallback font {self.FALLBACK_SYSTEM_FONT_NAME} (size {size}) also failed."))
+            # Final fallback: Pillow's built-in bitmap font
+            cache_key_pillow_default = ("_pillow_default_", size) 
+            if cache_key_pillow_default in self.loaded_font_objects:
+                return self.loaded_font_objects[cache_key_pillow_default]
+            
+            pillow_font = ImageFont.load_default() # Note: size is not applicable here
+            self.loaded_font_objects[cache_key_pillow_default] = pillow_font
+            self.stdout.write(self.style.ERROR("Using Pillow's built-in bitmap font. Text quality and size will be severely affected."))
+            return pillow_font
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -173,12 +281,8 @@ class Command(BaseCommand):
 
     def add_text_content(self, draw: ImageDraw.Draw, source:NovelFromSource, width: int, height: int, has_cover: bool):
         # Load fonts with UTF-8 support
-        fonts = self.load_fonts()
-        if not fonts:
-            return
+        # Fonts are now loaded dynamically per text content and size
             
-        title_font, author_font, synopsis_font, tag_font = fonts
-        
         if has_cover:
             left_margin = 50
             text_width = width // 2
@@ -189,10 +293,11 @@ class Command(BaseCommand):
         current_y = 80
         
         # Title
+        title_font = self._get_font_instance(source.title, self.TITLE_FONT_SIZE)
         title_lines = textwrap.wrap(source.title, width=25 if has_cover else 35)
         for line in title_lines[:3]:  # Max 3 lines
             draw.text((left_margin, current_y), line, fill=(255, 255, 255), font=title_font)
-            current_y += 50
+            current_y += 50 # Keeping fixed line heights from original for now
         
         current_y += 10
         
@@ -200,24 +305,27 @@ class Command(BaseCommand):
         if source.authors:
             author_names = ", ".join([a.name for a in source.authors.all()])
             author_text = f"by {author_names}"
+            author_font = self._get_font_instance(author_text, self.AUTHOR_FONT_SIZE)
             draw.text((left_margin, current_y), author_text, fill=(220, 220, 220), font=author_font)
-            current_y += 40
+            current_y += 60
         
         # Chapter count
         chapter_count = source.chapters_count
         chapter_text = f"{chapter_count} chapter{'s' if chapter_count != 1 else ''}"
-        draw.text((left_margin, current_y), chapter_text, fill=(180, 200, 255), font=author_font)
+        chapter_count_font = self._get_font_instance(chapter_text, self.CHAPTER_COUNT_FONT_SIZE)
+        draw.text((left_margin, current_y), chapter_text, fill=(180, 200, 255), font=chapter_count_font)
         current_y += 40
         
         # Tags
         if hasattr(source, 'tags') and source.tags.exists():
-            tag_y = current_y
+            tag_y = current_y # Not used, current_y is updated directly
             current_x = left_margin
             
             # Draw tags in a flowing layout
             for i, tag in enumerate(source.tags.all()[:8]):  # Limit to 8 tags
                 tag_text = tag.name
-                tag_width = tag_font.getbbox(tag_text)[2] + 20
+                tag_font_obj = self._get_font_instance(tag_text, self.TAG_FONT_SIZE)
+                tag_width = tag_font_obj.getbbox(tag_text)[2] + 20 # width of text box + padding
                 
                 # Create new line if tag won't fit
                 if current_x + tag_width > left_margin + text_width:
@@ -237,7 +345,7 @@ class Command(BaseCommand):
                 )
                 
                 # Draw tag text
-                draw.text((current_x + 10, current_y + 2), tag_text, fill=text_color, font=tag_font)
+                draw.text((current_x + 10, current_y + 2), tag_text, fill=text_color, font=tag_font_obj)
                 
                 # Move x position for next tag
                 current_x += tag_width + 10
@@ -252,6 +360,7 @@ class Command(BaseCommand):
             parser.feed(html.unescape(source.synopsis))
             clean_synopsis = parser.get_text().strip()
             
+            synopsis_font = self._get_font_instance(clean_synopsis, self.SYNOPSIS_FONT_SIZE)
             synopsis_lines = textwrap.wrap(clean_synopsis, width=60 if has_cover else 80)
                 
             for line in synopsis_lines[:6]:  # Max 6 lines
@@ -261,13 +370,14 @@ class Command(BaseCommand):
                 current_y += 30
 
         # Add source info at bottom
-        source_text = f"More on {settings.SITE_URL}/"
-        draw.text((left_margin + 100, height - 60), source_text, fill=(150, 150, 150), font=synopsis_font)
+        source_text = f"More on {settings.SITE_URL}/" # Assuming SITE_URL does not need specific CJK font
+        source_info_font = self._get_font_instance(source_text, self.SOURCE_INFO_FONT_SIZE)
+        draw.text((left_margin + 100, height - 60), source_text, fill=(150, 150, 150), font=source_info_font)
 
     def add_qr_code(self, img: Image.Image, source: NovelFromSource):
         """Add a more discrete QR code to the bottom left of the overview image"""
         # Generate the URL for the QR code
-        url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}"
+        url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.cover_path}"
         safe_url = quote(url, safe=':/')
         
         # Create QR code
@@ -347,37 +457,6 @@ class Command(BaseCommand):
         img.paste(border, (x - 3, y - 3), border)
         img.paste(cover_resized, (x, y))
 
-    def load_fonts(self):
-        """Load universal font with good UTF-8 support"""
-        try:
-            # Ensure the fonts directory exists
-            fonts_dir = os.path.dirname(FONT_PATH)
-            os.makedirs(fonts_dir, exist_ok=True)
-            
-            # Check if the font file exists
-            if not os.path.exists(FONT_PATH):
-                self.stdout.write(
-                    self.style.WARNING(f"Font file not found at {FONT_PATH}. "
-                                       f"Please download NotoSans-Regular.ttf and place it in {fonts_dir}")
-                )
-                # Try to use a fallback font
-                title_font = ImageFont.load_default()
-                author_font = ImageFont.load_default()
-                synopsis_font = ImageFont.load_default()
-                tag_font = ImageFont.load_default()
-            else:
-                # Use the universal font in different sizes
-                title_font = ImageFont.truetype(FONT_PATH, 52)
-                author_font = ImageFont.truetype(FONT_PATH, 32)
-                synopsis_font = ImageFont.truetype(FONT_PATH, 24)
-                tag_font = ImageFont.truetype(FONT_PATH, 20)
-                
-            return title_font, author_font, synopsis_font, tag_font
-                
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error loading fonts: {str(e)}"))
-            return None
-
     def draw_rounded_rectangle(self, draw, xy, radius, color):
         """Draw a rounded rectangle"""
         upper_left_point = xy[0], xy[1]
@@ -412,7 +491,7 @@ class Command(BaseCommand):
                     fill=color)
 
     def text_has_cjk(self, text):
-        """Check if text contains non-Latin Unicode characters"""
+        """Check if text contains non-Latin Unicode characters (simple check)"""
         if not text:
             return False
             
