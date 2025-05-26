@@ -14,6 +14,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from ...models import NovelFromSource
 
 
+FONT_PATH = os.path.join(settings.STATIC_ROOT, 'fonts', 'NotoSans-Regular.ttf')
+
 # HTML Parser to strip HTML tags
 class HTMLTextExtractor(HTMLParser):
     def __init__(self):
@@ -199,7 +201,7 @@ class Command(BaseCommand):
             author_names = ", ".join([a.name for a in source.authors.all()])
             author_text = f"by {author_names}"
             draw.text((left_margin, current_y), author_text, fill=(220, 220, 220), font=author_font)
-            current_y += 60
+            current_y += 40
         
         # Chapter count
         chapter_count = source.chapters_count
@@ -265,7 +267,7 @@ class Command(BaseCommand):
     def add_qr_code(self, img: Image.Image, source: NovelFromSource):
         """Add a more discrete QR code to the bottom left of the overview image"""
         # Generate the URL for the QR code
-        url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.cover_path}"
+        url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}"
         safe_url = quote(url, safe=':/')
         
         # Create QR code
@@ -346,43 +348,34 @@ class Command(BaseCommand):
         img.paste(cover_resized, (x, y))
 
     def load_fonts(self):
-        """Load fonts with good UTF-8 support"""
+        """Load universal font with good UTF-8 support"""
         try:
-            # List of fonts with good Unicode support in order of preference
-            font_options = [
-                # Cross-platform fonts with good Unicode support
-                "Arial Unicode MS",
-                "DejaVu Sans",
-                "Noto Sans",
-                # Windows fonts
-                "msyh.ttc",      # Microsoft YaHei (has good Unicode coverage)
-                "arial.ttf",
-                "segoeui.ttf",
-                # Linux/macOS fonts
-                "NotoSans-Regular.ttf",
-            ]
+            # Ensure the fonts directory exists
+            fonts_dir = os.path.dirname(FONT_PATH)
+            os.makedirs(fonts_dir, exist_ok=True)
             
-            # Try each font until one works
-            for font_name in font_options:
-                try:
-                    title_font = ImageFont.truetype(font_name, 52)
-                    author_font = ImageFont.truetype(font_name, 32)
-                    synopsis_font = ImageFont.truetype(font_name, 24)
-                    tag_font = ImageFont.truetype(font_name, 20)
-                    return title_font, author_font, synopsis_font, tag_font
-                except OSError:
-                    continue
-            
-            # Fallback to default font
-            self.stdout.write(self.style.WARNING("Using default font"))
-            title_font = ImageFont.truetype("arial.ttf", 52)
-            author_font = ImageFont.truetype("arial.ttf", 32)
-            synopsis_font = ImageFont.truetype("arial.ttf", 24)
-            tag_font = ImageFont.truetype("arial.ttf", 20)
+            # Check if the font file exists
+            if not os.path.exists(FONT_PATH):
+                self.stdout.write(
+                    self.style.WARNING(f"Font file not found at {FONT_PATH}. "
+                                       f"Please download NotoSans-Regular.ttf and place it in {fonts_dir}")
+                )
+                # Try to use a fallback font
+                title_font = ImageFont.load_default()
+                author_font = ImageFont.load_default()
+                synopsis_font = ImageFont.load_default()
+                tag_font = ImageFont.load_default()
+            else:
+                # Use the universal font in different sizes
+                title_font = ImageFont.truetype(FONT_PATH, 52)
+                author_font = ImageFont.truetype(FONT_PATH, 32)
+                synopsis_font = ImageFont.truetype(FONT_PATH, 24)
+                tag_font = ImageFont.truetype(FONT_PATH, 20)
+                
             return title_font, author_font, synopsis_font, tag_font
                 
-        except OSError:
-            self.stdout.write(self.style.ERROR("Could not load any fonts"))
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"Error loading fonts: {str(e)}"))
             return None
 
     def draw_rounded_rectangle(self, draw, xy, radius, color):
