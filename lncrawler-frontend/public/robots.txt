@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 
 # Sitemap
-Sitemap: https://api.lncrawler.monster/sitemap.xml
+Sitemap: __SITEMAP_URL__

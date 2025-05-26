@@ -19,6 +19,8 @@ RUN npm ci
 # Copy all files
 COPY . .
 
+RUN sed -i "s|__SITEMAP_URL__|$VITE_API_BASE_URL/sitemap.xml|g" public/robots.txt
+
 # Build the app
 RUN npm run build
 
