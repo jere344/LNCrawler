@@ -81,7 +81,31 @@ class ChapterReaderSitemap(BaseSitemap):
     changefreq = 'weekly'
 
     def items(self):
-        return Chapter.objects.select_related('novel_from_source__novel').filter(has_content=True).order_by('novel_from_source_id', 'chapter_id')
+        chapters_to_include = []
+        novel_sources = NovelFromSource.objects.select_related('novel').all()
+
+        for nfs in novel_sources:
+            # Get the first chapter with content
+            first_chapter = Chapter.objects.filter(
+                novel_from_source=nfs,
+                has_content=True
+            ).order_by('chapter_id').first()
+
+            if first_chapter:
+                chapters_to_include.append(first_chapter)
+
+            # Get the last chapter with content
+            last_chapter = Chapter.objects.filter(
+                novel_from_source=nfs,
+                has_content=True
+            ).order_by('-chapter_id').first()
+
+            if last_chapter:
+                # Avoid adding the same chapter twice if it's the only chapter
+                if not first_chapter or first_chapter.id != last_chapter.id:
+                    chapters_to_include.append(last_chapter)
+        
+        return chapters_to_include
 
     def lastmod(self, obj):
         # obj is a Chapter instance.
