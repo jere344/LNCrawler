@@ -22,7 +22,14 @@ def check_chapter_path_has_content(chapter_path):
                         chapter_data = json.load(f)
                         body = chapter_data.get('body')
                         fail_message = "Failed to download chapter body"
-                        return body is not None and len(body) > 0 and fail_message not in body
+                        has_content =  body is not None and len(body) > 0 and fail_message not in body
+                        if not has_content:
+                            # then we delete the file to speed up the next check and to automatically download it
+                            # back on the next download
+                            os.remove(full_path)
+                            return False
+
+                        return True
         except Exception:
             return False
     
