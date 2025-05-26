@@ -38,6 +38,7 @@ class NovelFromSource(models.Model):
     # Path information relative to settings.LNCRAWL_OUTPUT_PATH
     source_path = models.CharField(max_length=500, null=True, blank=True)
     cover_path = models.CharField(max_length=500, null=True, blank=True)
+    overview_picture_path = models.CharField(max_length=500, null=True, blank=True) 
     
     # People relationships (many-to-many)
     authors = models.ManyToManyField(Author, related_name='novels', blank=True)
@@ -54,7 +55,6 @@ class NovelFromSource(models.Model):
     
     # Extra metadata fields that may be in the JSON
     is_rtl = models.BooleanField(default=False)
-    novel_tags = models.TextField(blank=True, null=True)
     has_manga = models.BooleanField(null=True, blank=True)
     has_mtl = models.BooleanField(null=True, blank=True)
     original_publisher = models.CharField(max_length=255, null=True, blank=True)
@@ -148,7 +148,6 @@ class NovelFromSource(models.Model):
                 'status': novel_data.get('status', 'Unknown'),
                 'synopsis': novel_data.get('synopsis', ''),
                 'is_rtl': novel_data.get('is_rtl', False),
-                'novel_tags': novel_data.get('novel_tags'),
                 'has_manga': novel_data.get('has_manga'),
                 'has_mtl': novel_data.get('has_mtl'),
                 'original_publisher': novel_data.get('original_publisher'),
@@ -268,7 +267,24 @@ class NovelFromSource(models.Model):
             novel_from_source.last_chapter_update = timezone.now()
             novel_from_source.save(update_fields=['last_chapter_update'])
         
+        # Generate overview image
+        novel_from_source.generate_overview_image()
+        
         return novel_from_source
+
+    def generate_overview_image(self):
+        """
+        Generate an overview image for this novel source
+        """
+        try:
+            # Use dynamic import to avoid circular dependency
+            from ..management.commands.generate_overview import Command as GenerateOverviewCommand
+            overview_generator = GenerateOverviewCommand()
+            overview_generator.generate_overview(self)
+            return True
+        except Exception as e:
+            print(f"Error generating overview image for {self.title}: {e}")
+            return False
 
     def delete(self, *args, **kwargs):
         """

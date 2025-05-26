@@ -120,12 +120,12 @@ class NovelAdmin(admin.ModelAdmin):
 
 @admin.register(NovelFromSource)
 class NovelFromSourceAdmin(admin.ModelAdmin):
-    list_display = ('title', 'source_name', 'link_to_novel', 'status', 'chapters_count', 'vote_score_display', 'last_chapter_update')
+    list_display = ('title', 'source_name', 'link_to_novel', 'status', 'chapters_count', 'vote_score_display', 'last_chapter_update', 'id')
     list_filter = ('source_name', 'status', 'language')
     search_fields = ('title', 'novel__title', 'source_name')
     readonly_fields = ('id', 'created_at', 'updated_at', 'chapters_count', 'link_to_novel', 'upvotes', 'downvotes', 'vote_score')
     raw_id_fields = ('novel',)
-    inlines = [ChapterInline, SourceVoteInline]
+    inlines = [SourceVoteInline]
     
     def link_to_novel(self, obj):
         url = reverse('admin:lncrawler_api_novel_change', args=[obj.novel.id])

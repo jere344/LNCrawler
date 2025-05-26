@@ -148,15 +148,29 @@ def source_image_gallery(request, novel_slug, source_slug):
     chapters_with_images = source.chapters.filter(images__isnull=False)
     print(f"Chapters with images: {chapters_with_images.count()}")
 
-    if not chapters_with_images.exists():
+    # Check if there are any images available
+    has_overview = source.overview_picture_path and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path))
+    if not chapters_with_images.exists() and not has_overview:
         return Response({"detail": "No images found for this source"}, status=status.HTTP_404_NOT_FOUND)
 
     # Pagination parameters
-    page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 20)
+    page_number = int(request.GET.get("page", 1))
+    page_size = int(request.GET.get("page_size", 20))
 
     # Prepare image data
     image_data = []
+    
+    # Add the overview image if it exists
+    if has_overview:
+        overview_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
+        image_data.append({
+            "chapter_id": 0,  # Special ID for overview
+            "chapter_title": "Novel Overview",
+            "image_url": quote(overview_image_url, safe=':/'),
+            "image_name": "overview.png"
+        })
+
+    # Add chapter images
     for chapter in chapters_with_images:
         base_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}/images/"
         for image_name in chapter.images:
@@ -170,8 +184,11 @@ def source_image_gallery(request, novel_slug, source_slug):
     # Paginate the results
     paginator = Paginator(image_data, page_size)
     page_obj = paginator.get_page(page_number)
-
-    serializer = GalleryImageSerializer(page_obj, many=True)
+    
+    # Get all images for the current page
+    current_page_images = list(page_obj)
+    
+    serializer = GalleryImageSerializer(current_page_images, many=True)
 
     return Response({
         "novel_id": str(novel.id),
