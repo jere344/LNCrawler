@@ -377,7 +377,7 @@ class Command(BaseCommand):
     def add_qr_code(self, img: Image.Image, source: NovelFromSource):
         """Add a more discrete QR code to the bottom left of the overview image"""
         # Generate the URL for the QR code
-        url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.cover_path}"
+        url = f"{settings.SITE_URL}/{settings.LNCRAWL_URL}{source.source_path}"
         safe_url = quote(url, safe=':/')
         
         # Create QR code
