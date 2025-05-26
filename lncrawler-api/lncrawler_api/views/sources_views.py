@@ -110,6 +110,13 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
             "total_pages": paginator.num_pages,
             "current_page": int(page_number),
             "chapters": serializer.data,
+            "source_overview_image_url": (
+                f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
+                if source.overview_picture_path and os.path.exists(
+                    os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path)
+                )
+                else None
+            ),
         }
     )
 

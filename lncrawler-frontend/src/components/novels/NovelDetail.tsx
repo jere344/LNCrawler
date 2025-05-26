@@ -40,6 +40,8 @@ import ActionButton from '../common/ActionButton';
 import NovelRecommendation from '../common/NovelRecommendation';
 import SectionContainer from '@components/common/SectionContainer.tsx';
 
+const DEFAULT_OG_IMAGE = '/og-image.jpg';
+
 const NovelDetail = () => {
   const { novelSlug } = useParams<{ novelSlug: string }>();
   const theme = useTheme();
@@ -119,6 +121,21 @@ const NovelDetail = () => {
       open: false,
     }));
   };
+
+  const pageUrl = window.location.href;
+  const siteName = "LNCrawler";
+
+  const metaTitle = novel 
+    ? `${novel.title} - Read Light Novel Online | ${siteName}`
+    : `Loading Novel | ${siteName}`;
+  const metaDescription = novel
+    ? `Discover ${novel.title}, an Asian light novel. ${novel.prefered_source?.synopsis ? `Synopsis: ${novel.prefered_source.synopsis.substring(0, 100).replace(/<[^>]+>/g, '')}... ` : ''}Read reviews, find sources, and dive into the story on ${siteName}.`
+    : `Loading novel details. Your source for Asian light novels and web novels - ${siteName}.`;
+  const metaKeywordsList = novel
+    ? [novel.title, ...(novel.prefered_source?.tags || []), ...(novel.prefered_source?.authors || []), "light novel", "web novel", "read online", "Asian novel"]
+    : ["light novel", "web novel", "read online", "Asian novel"];
+  const metaKeywords = [...new Set(metaKeywordsList.filter(Boolean))].join(', ');
+  const ogImage = novel?.prefered_source?.overview_url || novel?.prefered_source?.cover_url || DEFAULT_OG_IMAGE;
 
   if (loading) {
     return (
@@ -230,6 +247,25 @@ const NovelDetail = () => {
 
   return (
     <Container maxWidth="lg" sx={{ pb: 6 }}>
+      <title>{metaTitle}</title>
+      <meta name="description" content={metaDescription} />
+      <meta name="keywords" content={metaKeywords} />
+      <link rel="canonical" href={pageUrl} />
+
+      <meta property="og:title" content={metaTitle} />
+      <meta property="og:description" content={metaDescription} />
+      <meta property="og:type" content="book" />
+      <meta property="og:url" content={pageUrl} />
+      <meta property="og:site_name" content={siteName} />
+      <meta property="og:image" content={ogImage} />
+      {(novel?.prefered_source?.authors?.length || 0) > 0 && <meta property="book:author" content={novel.prefered_source?.authors.join(', ')} />}
+      {(novel?.prefered_source?.tags?.length || 0 > 0) && novel.prefered_source?.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={metaTitle} />
+      <meta name="twitter:description" content={metaDescription} />
+      <meta name="twitter:image" content={ogImage} />
+
       {!loading && novel && (
         <BreadcrumbNav
           items={[

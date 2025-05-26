@@ -35,6 +35,7 @@ interface Suggestion {
 
 const ITEMS_PER_PAGE = 24;
 const DEBOUNCE_TIME = 300; // milliseconds
+const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
 const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -247,8 +248,45 @@ const SearchPage: React.FC = () => {
     setShowFilters(false);
   };
   
+  const pageUrl = window.location.href;
+  const siteName = "LNCrawler";
+  const baseTitle = `Search Light Novels | ${siteName}`;
+  const queryTitle = searchQuery ? `Search results for "${searchQuery}" | ${siteName}` : baseTitle;
+
+  const metaTitle = loading ? `Searching... | ${siteName}` : queryTitle;
+  
+  let description = `Search and discover a vast collection of Asian light novels on ${siteName}. Filter by tags, authors, language, and more.`;
+  if (searchQuery) {
+    description = `Find light novels matching "${searchQuery}". ${totalCount > 0 ? `Found ${totalCount} results.` : ''} Explore on ${siteName}.`;
+  }
+  const metaDescription = description.substring(0, 160);
+
+  const keywordsList = ["search light novels", "find web novels", "LNCrawler search", "novel discovery"];
+  if (searchQuery) keywordsList.push(searchQuery);
+  selectedTags.forEach(tag => keywordsList.push(tag));
+  selectedAuthors.forEach(author => keywordsList.push(author));
+  if (selectedLanguage) keywordsList.push(languageCodeToName(selectedLanguage));
+  const metaKeywords = keywordsList.join(', ');
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      <title>{metaTitle}</title>
+      <meta name="description" content={metaDescription} />
+      <meta name="keywords" content={metaKeywords} />
+      <link rel="canonical" href={pageUrl} />
+
+      <meta property="og:title" content={metaTitle} />
+      <meta property="og:description" content={metaDescription} />
+      <meta property="og:type" content="website" />
+      <meta property="og:url" content={pageUrl} />
+      <meta property="og:site_name" content={siteName} />
+      <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={metaTitle} />
+      <meta name="twitter:description" content={metaDescription} />
+      <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+
       <Typography variant="h4" component="h1" gutterBottom>
         Search Novels
       </Typography>

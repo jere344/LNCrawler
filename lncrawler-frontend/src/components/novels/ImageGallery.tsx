@@ -28,6 +28,8 @@ import LanguageIcon from '@mui/icons-material/Language';
 import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
 
+const DEFAULT_OG_IMAGE = '/og-image.jpg';
+
 interface GalleryImage {
   chapter_id: number;
   chapter_title: string;
@@ -167,6 +169,21 @@ const ImageGallery = () => {
     });
   }, [imagesWithDimensions, showSmallImages]);
 
+  const pageUrl = window.location.href;
+  const siteName = "LNCrawler";
+
+  const metaTitle = gallery 
+    ? `Image Gallery: ${gallery.novel_title} (${gallery.source_name}) | ${siteName}`
+    : `Loading Image Gallery | ${siteName}`;
+  const metaDescription = gallery
+    ? `View image gallery for ${gallery.novel_title} from source ${gallery.source_name} on ${siteName}. ${gallery.count} illustrations and covers.`
+    : `Explore images from light novels on ${siteName}.`;
+  const metaKeywords = gallery
+    ? `${gallery.novel_title}, ${gallery.source_name}, image gallery, illustrations, light novel art, covers, novel images`
+    : "image gallery, light novel, illustrations, art";
+  const ogImage = (gallery && gallery.images.length > 1) ? gallery.images[1].image_url : gallery?.images[0]?.image_url || DEFAULT_OG_IMAGE;
+
+
   if (loading && !gallery) {
     return (
       <Container maxWidth="lg">
@@ -212,6 +229,23 @@ const ImageGallery = () => {
 
   return (
     <Container maxWidth="lg">
+      <title>{metaTitle}</title>
+      <meta name="description" content={metaDescription.substring(0, 160)} />
+      <meta name="keywords" content={metaKeywords} />
+      <link rel="canonical" href={pageUrl} />
+
+      <meta property="og:title" content={metaTitle} />
+      <meta property="og:description" content={metaDescription.substring(0, 160)} />
+      <meta property="og:type" content="image.gallery" />
+      <meta property="og:url" content={pageUrl} />
+      <meta property="og:site_name" content={siteName} />
+      <meta property="og:image" content={ogImage} />
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={metaTitle} />
+      <meta name="twitter:description" content={metaDescription.substring(0, 160)} />
+      <meta name="twitter:image" content={ogImage} />
+
       {gallery && (
         <BreadcrumbNav
           items={[

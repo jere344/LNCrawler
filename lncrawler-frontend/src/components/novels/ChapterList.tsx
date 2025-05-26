@@ -33,6 +33,8 @@ import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { getChapterNameWithNumber } from '@utils/Misc';
 
+const DEFAULT_OG_IMAGE = '/og-image.jpg';
+
 interface IExtendedChapterListResponse extends IChapterListResponse {
   count: number;
   total_pages: number;
@@ -112,6 +114,19 @@ const ChapterList = () => {
     return acc;
   }, {});
 
+  const pageUrl = window.location.href;
+  const siteName = "LNCrawler";
+
+  const metaTitle = chapterData 
+    ? `Chapter List - ${chapterData.novel_title} (${chapterData.source_name}) | ${siteName}` 
+    : `Loading Chapters | ${siteName}`;
+  const metaDescription = chapterData 
+    ? `Browse all ${chapterData.count} chapters for ${chapterData.novel_title} from source ${chapterData.source_name} on ${siteName}. Find the chapter you want to read.`
+    : `Loading chapter list. Discover light novels on ${siteName}.`;
+  const metaKeywords = chapterData 
+    ? `${chapterData.novel_title}, ${chapterData.source_name}, chapter list, all chapters, light novel chapters, web novel`
+    : "chapter list, light novel, web novel";
+  const ogImage = chapterData?.source_overview_image_url || DEFAULT_OG_IMAGE;
   if (loading) {
     return (
       <Container>
@@ -137,6 +152,23 @@ const ChapterList = () => {
 
   return (
     <Container maxWidth="md">
+      <title>{metaTitle}</title>
+      <meta name="description" content={metaDescription.substring(0, 160)} />
+      <meta name="keywords" content={metaKeywords} />
+      <link rel="canonical" href={pageUrl} />
+
+      <meta property="og:title" content={metaTitle} />
+      <meta property="og:description" content={metaDescription.substring(0, 160)} />
+      <meta property="og:type" content="website" />
+      <meta property="og:url" content={pageUrl} />
+      <meta property="og:site_name" content={siteName} />
+      <meta property="og:image" content={ogImage} />
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={metaTitle} />
+      <meta name="twitter:description" content={metaDescription.substring(0, 160)} />
+      <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+
       {!loading && chapterData && (
         <BreadcrumbNav
           items={[

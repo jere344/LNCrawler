@@ -95,6 +95,7 @@ export interface ChapterContent {
   prev_chapter?: number | null;
   next_chapter?: number | null;
   images_path?: string;
+  source_overview_image_url?: string | null;
 }
 
 export interface Chapter {
@@ -115,6 +116,7 @@ export interface ChapterListResponse {
   source_name: string;
   source_slug: string;
   chapters: Chapter[];
+  source_overview_image_url?: string | null;
 }
 
 export interface ReadingHistory {

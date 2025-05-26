@@ -42,6 +42,8 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import ActionButton from '../common/ActionButton';
 
+const DEFAULT_OG_IMAGE = '/og-image.jpg';
+
 const SourceDetail = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const theme = useTheme();
@@ -113,6 +115,21 @@ const SourceDetail = () => {
       day: 'numeric' 
     }).format(date);
   };
+
+  const pageUrl = window.location.href;
+  const siteName = "LNCrawler";
+
+  const metaTitle = source 
+    ? `${source.title} (${source.source_name}) - Read on ${siteName}`
+    : `Loading Novel Source | ${siteName}`;
+  const metaDescription = source
+    ? `Read ${source.title} from ${source.source_name}. Synopsis: ${source.synopsis ? source.synopsis.substring(0, 120).replace(/<[^>]+>/g, '') + '...' : `Discover this light novel on ${siteName}.`} Chapters, ratings, and more.`
+    : `Loading details for this novel source on ${siteName}.`;
+  const metaKeywordsList = source
+    ? [source.title, source.source_name, ...source.tags, ...source.authors, "read light novel", "web novel"]
+    : ["light novel", "web novel", "source details"];
+  const metaKeywords = [...new Set(metaKeywordsList.filter(Boolean))].join(', '); // Unique keywords
+  const ogImage = source?.overview_url || source?.cover_url || DEFAULT_OG_IMAGE;
 
   if (loading) {
     return (
@@ -346,6 +363,25 @@ const SourceDetail = () => {
 
   return (
       <Container maxWidth="lg">
+        <title>{metaTitle}</title>
+        <meta name="description" content={metaDescription} />
+        <meta name="keywords" content={metaKeywords} />
+        <link rel="canonical" href={pageUrl} />
+
+        <meta property="og:title" content={metaTitle} />
+        <meta property="og:description" content={metaDescription} />
+        <meta property="og:type" content="book" />
+        <meta property="og:url" content={pageUrl} />
+        <meta property="og:site_name" content={siteName} />
+        <meta property="og:image" content={ogImage} />
+        {source?.authors?.length > 0 && <meta property="book:author" content={source.authors.join(', ')} />}
+        {source?.tags?.length > 0 && source.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
+        
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={metaTitle} />
+        <meta name="twitter:description" content={metaDescription} />
+        <meta name="twitter:image" content={ogImage} />
+
         {!loading && source && (
           <BreadcrumbNav
             items={[

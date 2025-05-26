@@ -26,13 +26,14 @@ class ChapterContentSerializer(serializers.ModelSerializer):
     source_name = serializers.SerializerMethodField() 
     source_slug = serializers.SerializerMethodField()
     images_path = serializers.SerializerMethodField()
+    source_overview_image_url = serializers.SerializerMethodField()
     
     class Meta:
         model = Chapter
         fields = [
             'id', 'chapter_id', 'title', 'novel_title', 'novel_id', 'novel_slug',
             'source_id', 'source_name', 'source_slug', 'body', 'prev_chapter', 'next_chapter',
-            'images_path',
+            'images_path', 'source_overview_image_url',
         ]
     
     def get_body(self, obj):
@@ -71,4 +72,9 @@ class ChapterContentSerializer(serializers.ModelSerializer):
     def get_images_path(self, obj:Chapter):
         if obj.images: # no need if no images
             return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.novel_from_source.source_path}/images", safe=':/')
+        return None
+    
+    def get_source_overview_image_url(self, obj:Chapter):
+        if obj.novel_from_source.overview_picture_path:
+            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.novel_from_source.overview_picture_path}", safe=':/')
         return None

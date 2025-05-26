@@ -47,6 +47,7 @@ const EDGE_TAP_WIDTH_PERCENTAGE = 15; // % of screen width for edge tap detectio
 const MAX_STORED_POSITIONS = 20; // Maximum number of scroll positions to store
 const SCROLL_POSITION_STORAGE_KEY = 'lncrawler_scroll_positions';
 const SCROLL_SAVE_THROTTLE = 1000; // Save scroll position at most every 1000ms
+const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
@@ -526,6 +527,21 @@ const ChapterReader = () => {
   const homeUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}` : undefined;
   const chapterListUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}/chapterlist` : undefined;
 
+  const pageUrl = window.location.href;
+  const siteName = "LNCrawler";
+
+  const metaTitle = chapter ? `Read ${getChapterNameWithNumber(chapter.title, chapter.chapter_id)} - ${chapter.novel_title} | ${siteName}` : `Loading Chapter | ${siteName}`;
+  const metaDescription = chapter 
+    ? `Read Chapter ${chapter.chapter_id}: ${chapter.title} of the light novel ${chapter.novel_title}. ${chapter.body ? chapter.body.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : `Continue reading ${chapter.novel_title} on ${siteName}.`}`
+    : `Loading chapter content. Read light novels online on ${siteName}.`;
+  const metaKeywords = chapter 
+    ? `${chapter.novel_title}, ${chapter.source_name}, chapter ${chapter.chapter_id}, ${chapter.title}, read light novel, online reader, web novel`
+    : "light novel, web novel, chapter reader, online reading";
+  const ogImage = chapter?.source_overview_image_url ? 
+    chapter.source_overview_image_url 
+    : `${window.location.origin}${DEFAULT_OG_IMAGE}`;
+
+
   if (loading) {
     return (
       <Container>
@@ -553,6 +569,24 @@ const ChapterReader = () => {
 
   return (
     <>
+      <title>{metaTitle}</title>
+      <meta name="description" content={metaDescription} />
+      <meta name="keywords" content={metaKeywords} />
+      <link rel="canonical" href={pageUrl} />
+
+      <meta property="og:title" content={metaTitle} />
+      <meta property="og:description" content={metaDescription} />
+      <meta property="og:type" content="article" />
+      <meta property="og:url" content={pageUrl} />
+      <meta property="og:site_name" content={siteName} />
+      <meta property="og:image" content={ogImage} />
+      {chapter && <meta property="article:section" content={chapter.novel_title} />}
+
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={metaTitle} />
+      <meta name="twitter:description" content={metaDescription} />
+      <meta name="twitter:image" content={ogImage} />
+
       {/* Reader Toolbar */}
       <ReaderToolbar 
         isMobile={isMobile}
