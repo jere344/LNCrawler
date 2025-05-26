@@ -21,6 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY start.sh /app/lncrawler-api/
 RUN chmod +x /app/lncrawler-api/start.sh
 
+# Create logs directory for gunicorn
+RUN mkdir -p /app/lncrawler-api/logs
+
 # Expose the port
 EXPOSE 8000
 

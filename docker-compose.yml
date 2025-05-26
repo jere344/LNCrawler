@@ -23,16 +23,12 @@ services:
       - ./imports:/app/imports
       - ./lncrawler-api/logs:/app/lncrawler-api/logs
       - ./dipudb-lncrawler-jere344-patches:/app/dipudb-lncrawler-jere344-patches
-    ports:
-      - "8186:8000"
     environment:
-      - SITE_URL=http://localhost:8185 # Your website frontend URL
-      - SITE_API_URL=http://localhost:8186 # Your website API URL
-      - CORS_ORIGIN_WHITELIST=http://localhost:8185,http://127.0.0.1:8185,http://frontend # Your website frontend URL. You may want the http and https versions
-      - ALLOWED_HOSTS=localhost,127.0.0.1,api # Your website API domains
+      - SITE_URL=http://localhost # Your website frontend URL
+      - SITE_API_URL=http://api.localhost # Your website API URL
       - SECRET_KEY=django-insecure-h=mhg#$sm-l4o240a+m#f=98$)+m0_3p0*%v%_*w)bi(d3f1u_ # Your Django secret key. You can generate one using `django-admin startproject --generate-secret-key`
-      - DEBUG=True # Set to False in production
-      - CORS_ALLOW_ALL_ORIGINS=True # Set to False in production
+      - DEBUG=False # Set to False in production
+      - CORS_ALLOW_ALL_ORIGINS=False # Set to False in production
 
       # Django Admin credentials. Can be changed at runtime from the admin panel
       - DJANGO_SUPERUSER_USERNAME=admin
@@ -50,16 +46,29 @@ services:
       db:
         condition: service_healthy
     command: ["sh", "/app/lncrawler-api/start.sh"]
-
+  
   frontend:
     build:
       context: ./lncrawler-frontend
       args:
-        - VITE_API_BASE_URL=http://localhost:8186 # Your website API URL
-    ports:
-      - "8185:80"
+        - VITE_API_BASE_URL=http://api.localhost # Your website API URL
     depends_on:
       - api
+    
+  nginx-proxy:
+    build: ./nginx-proxy
+    ports:
+      - "80:80"  # The main entry point
+    volumes:
+      - ./lncrawler-api/static:/static
+      - ./lncrawler-api/media:/media
+      - ./Lightnovels:/lightnovels
+    environment:
+      - API_HOST=api.localhost # Your API host
+      - FRONTEND_HOST=localhost # Your frontend host
+    depends_on:
+      - api
+      - frontend
 
 volumes:
   postgres_data:

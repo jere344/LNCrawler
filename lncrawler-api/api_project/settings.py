@@ -18,21 +18,25 @@ load_dotenv(encoding='utf-8')
 
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185").rstrip("/")
 SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000").rstrip("/")
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+SITE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]
+API_DOMAIN = SITE_API_URL.split("//")[-1].split("/")[0]
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 
-# SECURITY WARNING: don't run with debug turned on in production!
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-CORS_ORIGIN_WHITELIST = tuple(os.environ.get("CORS_ORIGIN_WHITELIST", "http://localhost:8185,http://127.0.0.1:8185").split(","))
+CORS_ALLOWED_ORIGINS = [
+    f"http://{SITE_DOMAIN}",
+    f"https://{SITE_DOMAIN}",
+    f"http://{API_DOMAIN}",
+    f"https://{API_DOMAIN}",
+]
+ALLOWED_HOSTS = [
+    SITE_DOMAIN,
+    API_DOMAIN,
+    'localhost',
+]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -42,8 +46,14 @@ CORS_ALLOW_METHODS = [
     'POST',
     'PUT',
 ]
+CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
 
-CSRF_TRUSTED_ORIGINS = CORS_ORIGIN_WHITELIST
+CSRF_TRUSTED_ORIGINS = [
+    f"http://{SITE_DOMAIN}",
+    f"https://{SITE_DOMAIN}",
+    f"http://{API_DOMAIN}",
+    f"https://{API_DOMAIN}",
+]
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False 
 CSRF_USE_SESSIONS = False
@@ -161,6 +171,9 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')

@@ -3,6 +3,7 @@ db.sqlite3
 Lightnovels/
 imports/
 media/
+static/
 
 
 

@@ -1,0 +1,48 @@
+server {
+    listen 80;
+    server_name ${API_HOST};
+    
+    # Proxy to API container
+    location / {
+        proxy_pass http://api:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Serve static files directly
+    location /static/ {
+        alias /static/;
+        expires 30d;
+        add_header Cache-Control "public, max-age=2592000";
+    }
+    
+    # Serve media files directly
+    location /media/ {
+        alias /media/;
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800";
+    }
+    
+    # Serve lightnovels files directly
+    location /lightnovels/ {
+        alias /lightnovels/;
+        expires 1d;
+        add_header Cache-Control "public, max-age=86400";
+    }
+}
+
+server {
+    listen 80;
+    server_name ${FRONTEND_HOST};
+    
+    # Frontend application
+    location / {
+        proxy_pass http://frontend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
