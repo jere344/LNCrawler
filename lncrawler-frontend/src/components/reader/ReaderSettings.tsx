@@ -10,6 +10,7 @@ import FontSettings from './settings/FontSettings';
 import ColorSettings from './settings/ColorSettings';
 import LayoutSettings from './settings/LayoutSettings';
 import BehaviorSettings from './settings/BehaviorSettings';
+import GestureSettings from './settings/GestureSettings';
 import ReaderNavigation from './controls/ReaderNavigation';
 
 // Define constants for cookie names
@@ -18,6 +19,7 @@ const COOKIE_EXPIRY = 365; // days
 
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
+export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter';
 
 export interface ReaderSettings {
   fontSize: number;
@@ -33,6 +35,10 @@ export interface ReaderSettings {
   textSelectable: boolean;
   savePosition: boolean;
   markReadBehavior: MarkReadBehavior;
+  keyboardNavigation: boolean;
+  swipeLeftGesture: SwipeGesture;
+  swipeRightGesture: SwipeGesture;
+  hideScrollbar: boolean;
 }
 
 // Default settings
@@ -50,6 +56,10 @@ export const defaultSettings: ReaderSettings = {
   textSelectable: true,
   savePosition: true,
   markReadBehavior: 'buttonAutomatic',
+  keyboardNavigation: true,
+  swipeLeftGesture: 'nextChapter',
+  swipeRightGesture: 'prevChapter',
+  hideScrollbar: false,
 };
 
 export interface ChapterInfo {
@@ -143,6 +153,12 @@ const ReaderSettings = ({
     saveSetting('lineSpacing', lineSpacing);
   };
 
+  const handleHideScrollbarChange = (hide: boolean) => {
+    const newSettings = { ...settings, hideScrollbar: hide };
+    onSettingChange(newSettings);
+    saveSetting('hideScrollbar', hide);
+  };
+
   // Behavior Settings Handlers
   const handleEdgeTapChange = (edge: 'left' | 'right', behavior: EdgeTapBehavior) => {
     const key = edge === 'left' ? 'leftEdgeTapBehavior' : 'rightEdgeTapBehavior';
@@ -167,6 +183,20 @@ const ReaderSettings = ({
     const newSettings = { ...settings, markReadBehavior: behavior };
     onSettingChange(newSettings);
     saveSetting('markReadBehavior', behavior);
+  };
+
+  const handleKeyboardNavigationChange = (enabled: boolean) => {
+    const newSettings = { ...settings, keyboardNavigation: enabled };
+    onSettingChange(newSettings);
+    saveSetting('keyboardNavigation', enabled);
+  };
+
+  // Gesture Settings Handlers
+  const handleSwipeGestureChange = (direction: 'left' | 'right', gesture: SwipeGesture) => {
+    const key = direction === 'left' ? 'swipeLeftGesture' : 'swipeRightGesture';
+    const newSettings = { ...settings, [key]: gesture };
+    onSettingChange(newSettings);
+    saveSetting(key, gesture);
   };
 
   const resetDefaults = () => {
@@ -258,8 +288,19 @@ const ReaderSettings = ({
       <LayoutSettings 
         margin={settings.margin}
         lineSpacing={settings.lineSpacing}
+        hideScrollbar={settings.hideScrollbar}
         onMarginChange={handleMarginChange}
         onLineSpacingChange={handleLineSpacingChange}
+        onHideScrollbarChange={handleHideScrollbarChange}
+      />
+
+      <Divider sx={{ my: 2 }} />
+
+      {/* Gesture Settings */}
+      <GestureSettings
+        swipeLeftGesture={settings.swipeLeftGesture}
+        swipeRightGesture={settings.swipeRightGesture}
+        onSwipeGestureChange={handleSwipeGestureChange}
       />
 
       <Divider sx={{ my: 2 }} />
@@ -271,10 +312,12 @@ const ReaderSettings = ({
         textSelectable={settings.textSelectable}
         savePosition={settings.savePosition}
         markReadBehavior={settings.markReadBehavior}
+        keyboardNavigation={settings.keyboardNavigation}
         onEdgeTapChange={handleEdgeTapChange}
         onTextSelectableChange={handleTextSelectableChange}
         onSavePositionChange={handleSavePositionChange}
         onMarkReadBehaviorChange={handleMarkReadBehaviorChange}
+        onKeyboardNavigationChange={handleKeyboardNavigationChange}
         isAuthenticated={isAuthenticated}
       />
 

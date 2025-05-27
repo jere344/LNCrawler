@@ -23,10 +23,12 @@ interface BehaviorSettingsProps {
   textSelectable: boolean;
   savePosition: boolean;
   markReadBehavior: MarkReadBehavior;
+  keyboardNavigation: boolean;
   onEdgeTapChange: (edge: 'left' | 'right', behavior: EdgeTapBehavior) => void;
   onTextSelectableChange: (selectable: boolean) => void;
   onSavePositionChange: (save: boolean) => void;
   onMarkReadBehaviorChange: (behavior: MarkReadBehavior) => void;
+  onKeyboardNavigationChange: (enabled: boolean) => void;
   isAuthenticated?: boolean;
 }
 
@@ -47,10 +49,12 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
   textSelectable,
   savePosition,
   markReadBehavior,
+  keyboardNavigation,
   onEdgeTapChange,
   onTextSelectableChange,
   onSavePositionChange,
   onMarkReadBehaviorChange,
+  onKeyboardNavigationChange,
   isAuthenticated = false,
 }) => {
   const handleEdgeTapChange = (edge: 'left' | 'right') => (event: SelectChangeEvent) => {
@@ -67,6 +71,10 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
 
   const handleMarkReadBehaviorChange = (event: SelectChangeEvent<string>) => {
     onMarkReadBehaviorChange(event.target.value as MarkReadBehavior);
+  };
+
+  const handleKeyboardNavigationChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onKeyboardNavigationChange(event.target.checked);
   };
 
   const getMarkReadExplanation = (behavior: MarkReadBehavior) => {
@@ -166,6 +174,18 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
           />
         }
         label="Remember Reading Position"
+        sx={{ mb: 1, display: 'block' }}
+      />
+      
+      <FormControlLabel
+        control={
+          <Switch
+            checked={keyboardNavigation}
+            onChange={handleKeyboardNavigationChange}
+            color="primary"
+          />
+        }
+        label="Enable Keyboard Navigation (←/→ arrows)"
         sx={{ mb: 1, display: 'block' }}
       />
     </Box>

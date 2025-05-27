@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useSwipeable } from 'react-swipeable';
 import {
   Container,
   Typography,
@@ -31,6 +32,7 @@ import ReaderContent from './content/ReaderContent';
 import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
 import { getChapterNameWithNumber } from '@utils/Misc';
+import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
 
 // Interface for our chapter cache
 interface ChapterCache {
@@ -507,6 +509,35 @@ const ChapterReader = () => {
     setActiveTab(newValue);
   };
   
+  // Add effect to apply scrollbar hiding based on settings
+  useEffect(() => {
+    if (readerSettings.hideScrollbar) {
+      // Add a style to hide scrollbar
+      const styleElement = document.createElement('style');
+      styleElement.id = 'hide-scrollbar-style';
+      styleElement.textContent = `
+        html { scrollbar-width: none; }
+        body { -ms-overflow-style: none; }
+        body::-webkit-scrollbar, body::-webkit-scrollbar-button { display: none; }
+      `;
+      document.head.appendChild(styleElement);
+    } else {
+      // Remove the style if it exists
+      const existingStyle = document.getElementById('hide-scrollbar-style');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+    }
+
+    return () => {
+      // Cleanup: remove the style when component unmounts
+      const existingStyle = document.getElementById('hide-scrollbar-style');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+    };
+  }, [readerSettings.hideScrollbar]);
+
   // Memoize the chapter and settings for ReaderContent to prevent re-renders on scroll
   const memoizedChapterContent = useMemo(() => ({
     chapter,
@@ -518,7 +549,8 @@ const ChapterReader = () => {
     readerSettings.lineSpacing,
     readerSettings.textAlign,
     readerSettings.fontFamily,
-    readerSettings.textSelectable
+    readerSettings.textSelectable,
+    readerSettings.hideScrollbar
   ]);
 
   // Add these variables to generate navigation URLs
@@ -541,6 +573,48 @@ const ChapterReader = () => {
     chapter.source_overview_image_url 
     : `${window.location.origin}${DEFAULT_OG_IMAGE}`;
 
+
+  // Handle swipe gestures
+  const handleGesture = (direction: 'left' | 'right') => {
+    console.log(`Handling swipe ${direction}`);
+    if (!chapter) return;
+    
+    // If controls are visible, don't handle swipes
+    if (controlsVisible) return;
+    
+    // Get gesture setting
+    const gesture = direction === 'left' 
+      ? readerSettings.swipeLeftGesture
+      : readerSettings.swipeRightGesture;
+      
+    switch (gesture) {
+      case 'prevChapter':
+        if (chapter.prev_chapter) {
+          handlePrevChapter();
+        }
+        break;
+      case 'nextChapter':
+        if (chapter.next_chapter) {
+          handleNextChapter();
+        }
+        break;
+      case 'none':
+      default:
+        // Do nothing
+        break;
+    }
+  };
+  
+  // Configure swipe handlers
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () => handleGesture('left'),
+    onSwipedRight: () => handleGesture('right'),
+    trackMouse: false,
+    preventScrollOnSwipe: false,
+    // Only detect wider/more intentional swipes to prevent accidental activation
+    delta: 50,
+    swipeDuration: 500,
+  });
 
   if (loading) {
     return (
@@ -616,6 +690,7 @@ const ChapterReader = () => {
         sx={{
           padding: { xs: 0, md: 4 },
         }}
+        {...swipeHandlers}
       >
         {/* Add breadcrumbs for desktop view only */}
         {!isMobile && (
@@ -758,6 +833,14 @@ const ChapterReader = () => {
         prevUrl={prevUrl}
         nextUrl={nextUrl}
         homeUrl={homeUrl}
+      />
+
+      {/* Add keyboard navigation handler */}
+      <ReaderKeyboardNavigation 
+        enabled={readerSettings.keyboardNavigation}
+        onNextChapter={handleNextChapter}
+        onPrevChapter={handlePrevChapter}
+        controlsVisible={controlsVisible}
       />
     </>
   );

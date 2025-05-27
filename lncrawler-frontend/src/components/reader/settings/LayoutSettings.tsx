@@ -2,14 +2,18 @@ import React from 'react';
 import {
   Box,
   Typography,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface LayoutSettingsProps {
   margin: number;
   lineSpacing: number;
+  hideScrollbar: boolean;
   onMarginChange: (margin: number) => void;
   onLineSpacingChange: (spacing: number) => void;
+  onHideScrollbarChange: (hide: boolean) => void;
 }
 
 
@@ -19,8 +23,10 @@ interface LayoutSettingsProps {
 const LayoutSettings: React.FC<LayoutSettingsProps> = ({
   margin,
   lineSpacing,
+  hideScrollbar,
   onMarginChange,
   onLineSpacingChange,
+  onHideScrollbarChange,
 }) => {
   const handleMarginChange = (_event: Event, newValue: number | number[]) => {
     onMarginChange(newValue as number);
@@ -28,6 +34,10 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
 
   const handleLineSpacingChange = (_event: Event, newValue: number | number[]) => {
     onLineSpacingChange(newValue as number);
+  };
+
+  const handleHideScrollbarChange = (_event: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    onHideScrollbarChange(checked);
   };
 
   return (
@@ -64,6 +74,22 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
           ]}
           valueLabelDisplay="auto"
         />
+      </Box>
+
+      <Box sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={hideScrollbar}
+              onChange={handleHideScrollbarChange}
+              color="primary"
+            />
+          }
+          label="Hide Scrollbar"
+        />
+        <Typography variant="caption" color="text.secondary" display="block">
+          Hide browser scrollbar for a cleaner reading experience
+        </Typography>
       </Box>
     </>
   );
