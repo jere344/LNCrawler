@@ -17,6 +17,4 @@ class LncrawlerApiConfig(AppConfig):
         from .scheduler import start_scheduler
 
         # Start the scheduler
-        logger.info("Starting LNCrawler scheduler...")
         start_scheduler()
-        logger.info("LNCrawler scheduler initialized")

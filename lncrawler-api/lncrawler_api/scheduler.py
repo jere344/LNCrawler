@@ -7,10 +7,23 @@ from typing import Optional
 logger = logging.getLogger('lncrawler_api')
 
 class Scheduler:
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self):
-        self.tasks = {}
-        self.running = False
-        self.thread = None
+        if not self._initialized:
+            self.tasks = {}
+            self.running = False
+            self.thread = None
+            self._initialized = True
     
     def register_task(self, interval: int, name: Optional[str] = None):
         """Register a task to run at a specific interval (in seconds)."""
@@ -22,7 +35,7 @@ class Scheduler:
                 'last_run': time.time(),
                 'next_run': time.time() + interval
             }
-            logger.info(f"Registered scheduled task: {task_name} (interval: {interval}s)")
+            logger.info(f"Registered scheduled task: {task_name} (interval: {interval}s). {len(self.tasks)} total tasks.")
             return func
         return decorator
     
@@ -48,6 +61,7 @@ class Scheduler:
     def start(self):
         """Start the scheduler."""
         if not self.running:
+            logger.info("Starting scheduler...")
             self.running = True
             self.thread = threading.Thread(target=self._run_tasks, name="LNCrawler-Scheduler")
             self.thread.daemon = True
@@ -63,17 +77,16 @@ class Scheduler:
                 self.thread = None
             logger.info("Scheduler stopped")
 
-# Create a global scheduler instance
+# Get the singleton scheduler instance
 scheduler = Scheduler()
 
 # Task to calculate novel similarities daily
-@scheduler.register_task(interval=86400, name="calculate_novel_similarities")  # 86400 seconds = 24 hours
+@scheduler.register_task(interval=86400, name="calculate_similarities")  # 86400 seconds = 24 hours
 def calculate_novel_similarities():
     """Run the calculate_similarities command to update novel recommendations daily."""
     logger.info("Starting daily novel similarity calculation...")
     try:
-        # Default weights: 70% text-based similarity, 30% bookmark-based similarity
-        call_command('calculate_similarities', '--text-weight=0.7', '--bookmark-weight=0.3')
+        call_command('calculate_similarities')
         logger.info("Daily novel similarity calculation completed successfully")
     except Exception as e:
         logger.error(f"Error in daily novel similarity calculation: {str(e)}", exc_info=True)
