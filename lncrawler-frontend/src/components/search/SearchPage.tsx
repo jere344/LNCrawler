@@ -508,7 +508,20 @@ const SearchPage: React.FC = () => {
                   </MenuItem>
                   {filterOptions.languages.map((langCode) => (
                     <MenuItem key={langCode} value={langCode}>
-                      {languageCodeToFlag(langCode)} {languageCodeToName(langCode)}
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <img 
+                          src={`/flags/${languageCodeToFlag(langCode)}.svg`} 
+                          alt={languageCodeToName(langCode)}
+                          style={{ 
+                            width: '20px',
+                            height: '15px',
+                            objectFit: 'cover',
+                            borderRadius: '2px',
+                            marginRight: '8px',
+                          }}
+                        />
+                        {languageCodeToName(langCode)}
+                      </Box>
                     </MenuItem>
                   ))}
                 </Select>
@@ -634,7 +647,24 @@ const SearchPage: React.FC = () => {
           
           {selectedLanguage && (
             <Chip 
-              label={`Language: ${languageCodeToFlag(selectedLanguage)} ${languageCodeToName(selectedLanguage)}`}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  Language:&nbsp;
+                  <img 
+                    src={`/flags/${languageCodeToFlag(selectedLanguage)}.svg`} 
+                    alt={languageCodeToName(selectedLanguage)}
+                    style={{ 
+                      width: '20px', 
+                      height: '15px', 
+                      objectFit: 'cover',
+                      borderRadius: '2px',
+                      marginRight: '4px',
+                      marginLeft: '4px',
+                    }}
+                  />
+                  {languageCodeToName(selectedLanguage)}
+                </Box>
+              }
               onDelete={() => {
                 setSelectedLanguage('');
                 updateSearchParams({ language: null });

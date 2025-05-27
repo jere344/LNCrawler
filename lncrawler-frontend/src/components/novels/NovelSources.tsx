@@ -18,7 +18,6 @@ import {
   CardMedia,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
-import LanguageIcon from '@mui/icons-material/Language';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import UpdateIcon from '@mui/icons-material/Update';
 import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
@@ -197,15 +196,32 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                         </Box>
                         <ListItemText
                           primary={
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
                                 Language
                               </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
-                                {source.language ?
-                                  (languageCodeToName(source.language || 'en') + ' ' + languageCodeToFlag(source.language || 'en') )
-                                  : 'Unknown'}
-                              </Typography>
+                              {source.language ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                  <img 
+                                    src={`/flags/${languageCodeToFlag(source.language)}.svg`} 
+                                    alt={languageCodeToName(source.language)}
+                                    style={{ 
+                                      width: '20px',
+                                      height: '15px',
+                                      objectFit: 'cover',
+                                      borderRadius: '2px',
+                                      marginRight: '8px' 
+                                    }}
+                                  />
+                                  <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
+                                    {languageCodeToName(source.language)}
+                                  </Typography>
+                                </Box>
+                              ) : (
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
+                                  Unknown
+                                </Typography>
+                              )}
                             </Box>
                           }
                         />

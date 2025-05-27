@@ -45,28 +45,28 @@ export const getChapterNameWithNumber = (title?: string, chapterNumber?: number)
 
 export const languageCodeToFlag = (language: string): string => {
     const languageMap: { [key: string]: string } = {
-        'en': '🇬🇧',
-        'fr': '🇫🇷',
-        'es': '🇪🇸',
-        'de': '🇩🇪',
-        'it': '🇮🇹',
-        'ja': '🇯🇵',
-        'ko': '🇰🇷',
-        'zh': '🇨🇳',
-        'pt': '🇧🇷',
-        'ru': '🇷🇺',
-        'ar': '🇸🇦',
-        'hi': '🇮🇳',
-        'th': '🇹🇭',
-        'vi': '🇻🇳',
-        'id': '🇮🇩',
-        'tr': '🇹🇷',
-        'pl': '🇵🇱',
-        'nl': '🇳🇱',
-        'sv': '🇸🇪',
-        'da': '🇩🇰',
+        'en': 'gb',
+        'fr': 'fr',
+        'es': 'es',
+        'de': 'de',
+        'it': 'it',
+        'ja': 'jp',
+        'ko': 'kr',
+        'zh': 'cn',
+        'pt': 'pt',
+        'ru': 'ru',
+        'ar': 'sa',
+        'hi': 'in',
+        'th': 'th',
+        'vi': 'vn',
+        'id': 'id',
+        'tr': 'tr',
+        'pl': 'pl',
+        'nl': 'nl',
+        'sv': 'se',
+        'da': 'dk',
     };
-    return languageMap[language] || '?';
+    return languageMap[language.toLowerCase()] || 'unknown';
 }
 
 export const languageCodeToName = (language: string): string => {
@@ -90,7 +90,7 @@ export const languageCodeToName = (language: string): string => {
         'pl': 'Polish',
         'nl': 'Dutch',
         'sv': 'Swedish',
-        'da': 'Danish',
+        'unknown': 'Unknown',
     };
     return languageMap[language] || '?';
 }

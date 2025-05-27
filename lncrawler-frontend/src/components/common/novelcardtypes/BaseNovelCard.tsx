@@ -205,36 +205,39 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           <Box
             sx={{
               position: 'absolute',
-              top: 8,
-              right: 8,
+              top: 0,
+              right: 0,
               display: 'flex',
               gap: 0.5,
-              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+              border: '1px solid rgb(0, 0, 0)',
               borderRadius: 1,
-              padding: '2px 4px',
+              alignItems: 'center', // Align items vertically
             }}
           >
             {novel.languages.length > 0 ? (
               novel.languages.map((lang) => (
                 <Tooltip key={lang} title={languageCodeToName(lang)}>
-                  <Typography
-                    sx={{
-                      fontSize: '1.2rem',
-                      lineHeight: 1.2,
-                      cursor: 'default',
+                  <img 
+                    src={`/flags/${languageCodeToFlag(lang)}.svg`} 
+                    alt={languageCodeToName(lang)}
+                    style={{ 
+                      width: '30px',
+                      height: '20px',
+                      objectFit: 'cover',
+                      borderRadius: '2px',
                     }}
-                  >
-                    {languageCodeToFlag(lang)}
-                  </Typography>
+                  />
                 </Tooltip>
               ))
             ) : (
               <Tooltip title="Unknown language">
                 <Typography
                   sx={{
-                    fontSize: '1rem',
+                    fontSize: '0.8rem', // Adjusted size for consistency
                     color: '#fff',
                     fontWeight: 'bold',
+                    lineHeight: 1, // Ensure '?' is vertically centered if it's taller
                   }}
                 >
                   ?
