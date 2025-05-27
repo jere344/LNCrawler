@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views, users_views 
+from .views import novels_views, comments_views, sources_views, users_views, boards_views
 from .views.csrf import get_csrf_token
 from django.contrib.sitemaps.views import sitemap
 from django.views.decorators.cache import cache_page
@@ -30,6 +30,12 @@ sitemaps = {
 urlpatterns = [
     # API base routes
     path('', include(router.urls)),
+
+    # Board endpoints
+    path('boards/', boards_views.list_boards, name='list_boards'),
+    path('boards/<slug:board_slug>/', boards_views.board_detail, name='board_detail'),
+    path('boards/<slug:board_slug>/comments/', boards_views.board_comments, name='board_comments'),
+    path('boards/<slug:board_slug>/comments/add/', boards_views.add_board_comment, name='add_board_comment'),
 
     # Novel comments
     path('novels/<slug:novel_slug>/comments/', comments_views.novel_comments, name='novel_comments'),

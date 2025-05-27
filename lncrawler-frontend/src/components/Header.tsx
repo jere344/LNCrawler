@@ -24,8 +24,9 @@ import LoginIcon from "@mui/icons-material/Login";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import LibraryBooksIcon from "@mui/icons-material/LibraryBooks"; // Add Library icon
+import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
 import HistoryIcon from "@mui/icons-material/History";
+import ForumIcon from "@mui/icons-material/Forum"; // Import Forum icon for Chat
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
@@ -76,6 +77,7 @@ const Header = () => {
     const location = useLocation();
     const muiTheme = useMuiTheme();
     const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+    const isTablet = useMediaQuery(muiTheme.breakpoints.between("sm", "md"));
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
     const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
@@ -90,6 +92,7 @@ const Header = () => {
             if (location.pathname.startsWith("/library")) return "/library";
             if (location.pathname.startsWith("/history")) return "/history";
         }
+        if (location.pathname.startsWith("/boards")) return "/boards";
         if (location.pathname.startsWith("/novels")) return "/";
         if (location.pathname === "/") return "/";
         return "/";
@@ -150,12 +153,12 @@ const Header = () => {
             elevation={1}
             sx={{
                 transition: "transform 0.3s ease-in-out",
-                ...(isMobile && {
+                ...((isMobile || isTablet) && {
                     transform: scrollDirection === "down" ? "translateY(-100%)" : "translateY(0)",
                 }),
             }}
         >
-            <Toolbar sx={{ justifyContent: "space-between" }}>
+            <Toolbar sx={{ justifyContent: "space-between", minHeight: isTablet ? 56 : 64, px: isTablet ? 1 : 2 }}>
                 {/* Logo/Home section */}
                 <Box sx={{ display: "flex", alignItems: "center" }}>
                     <Box
@@ -177,7 +180,7 @@ const Header = () => {
                                 mr: 1,
                             }}
                         />
-                        {!isMobile && (
+                        { !isTablet && (
                             <Typography variant="h6" component="div" sx={{ fontWeight: "bold" }}>
                                 LNCrawler
                             </Typography>
@@ -185,13 +188,25 @@ const Header = () => {
                     </Box>
                 </Box>
 
-                {/* Navigation Links - Desktop */}
+                {/* Navigation Links - Desktop and Tablet */}
                 {!isMobile && (
-                    <Tabs value={getCurrentPath()} indicatorColor="primary" textColor="primary" sx={{ flexGrow: 1, ml: 4 }}>
+                    <Tabs
+                        value={getCurrentPath()}
+                        indicatorColor="primary"
+                        textColor="primary"
+                        sx={{
+                            flexGrow: 1,
+                            ml: isTablet ? 1 : 2,
+                            "& .MuiTab-root": {
+                                      minWidth: "auto",
+                                      px: isTablet ? 1 : 1.5,
+                                  },
+                        }}
+                    >
                         <Tab label="Home" value="/" component={RouterLink} to="/" />
                         {isAuthenticated && <Tab label="Library" value="/library" component={RouterLink} to="/library" />}
                         {isAuthenticated && <Tab label="History" value="/history" component={RouterLink} to="/history" />}
-
+                        <Tab label="Chat" value="/boards" component={RouterLink} to="/boards" />
                         <Tab label="Add Novel" value="/download" component={RouterLink} to="/download" />
                     </Tabs>
                 )}
@@ -199,33 +214,45 @@ const Header = () => {
                 {/* Actions section */}
                 <Box sx={{ display: "flex", alignItems: "center" }}>
                     {/* Search Button */}
-                    <IconButton component={RouterLink} to="/novels/search" color="inherit" aria-label="Search">
-                        <SearchIcon />
+                    <IconButton
+                        component={RouterLink}
+                        to="/novels/search"
+                        color="inherit"
+                        aria-label="Search"
+                        sx={{ padding: isTablet ? 0.5 : 1 }}
+                    >
+                        <SearchIcon sx={{ fontSize: isTablet ? "1.25rem" : "1.5rem" }} />
                     </IconButton>
 
-                    {/* Discord Link */}
-                    <IconButton
-                        component={Link}
-                        href="https://discord.gg/a2b4Mfr4cU"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        color="inherit"
-                        aria-label="Discord"
-                    >
-                        <DiscordIcon />
-                    </IconButton>
+                    {/* Discord Link - Hide on tablet */}
+                    {!isTablet && (
+                        <IconButton
+                            component={Link}
+                            href="https://discord.gg/a2b4Mfr4cU"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            color="inherit"
+                            aria-label="Discord"
+                            sx={{ padding: isTablet ? 0.5 : 1 }}
+                        >
+                            <DiscordIcon />
+                        </IconButton>
+                    )}
 
-                    {/* GitHub Link */}
-                    <IconButton
-                        component={Link}
-                        href="https://github.com/jere344/lightnovel-crawler-website"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        color="inherit"
-                        aria-label="GitHub"
-                    >
-                        <GitHubIcon />
-                    </IconButton>
+                    {/* GitHub Link - Hide on tablet */}
+                    {!isTablet && (
+                        <IconButton
+                            component={Link}
+                            href="https://github.com/jere344/lightnovel-crawler-website"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            color="inherit"
+                            aria-label="GitHub"
+                            sx={{ padding: isTablet ? 0.5 : 1 }}
+                        >
+                            <GitHubIcon sx={{ fontSize: isTablet ? "1.25rem" : "1.5rem" }} />
+                        </IconButton>
+                    )}
 
                     {/* Theme Menu */}
                     <IconButton
@@ -234,8 +261,9 @@ const Header = () => {
                         aria-label="Change theme"
                         aria-controls="theme-menu"
                         aria-haspopup="true"
+                        sx={{ padding: isTablet ? 0.5 : 1 }}
                     >
-                        <PaletteIcon />
+                        <PaletteIcon sx={{ fontSize: isTablet ? "1.25rem" : "1.5rem" }} />
                     </IconButton>
                     <Menu
                         id="theme-menu"
@@ -279,16 +307,16 @@ const Header = () => {
                             >
                                 <Avatar
                                     sx={{
-                                        width: 32,
-                                        height: 32,
+                                        width: isTablet ? 28 : 32,
+                                        height: isTablet ? 28 : 32,
                                         bgcolor: "primary.main",
-                                        fontSize: "0.875rem",
+                                        fontSize: isTablet ? "0.75rem" : "0.875rem",
                                     }}
                                     src={user?.profile_pic || undefined}
                                 >
                                     {getUserInitials()}
                                 </Avatar>
-                                {!isMobile && (
+                                {!isMobile && !isTablet && (
                                     <Typography variant="body2" sx={{ ml: 1 }}>
                                         {user?.username || "User"}
                                     </Typography>
@@ -325,12 +353,12 @@ const Header = () => {
                     ) : !isMobile ? (
                         <Box sx={{ ml: 1 }}>
                             <Button
-                                variant="outlined"
+                                variant={isTablet ? "text" : "outlined"}
                                 size="small"
                                 component={RouterLink}
                                 to="/login"
-                                startIcon={<LoginIcon />}
-                                sx={{ mr: 1 }}
+                                startIcon={!isTablet && <LoginIcon />}
+                                sx={{ mr: 1, px: isTablet ? 1 : 2 }}
                             >
                                 Login
                             </Button>
@@ -367,8 +395,49 @@ const Header = () => {
                                         <ListItemText primary="Reading History" />
                                     </MenuItem>
                                 )}
+                                <MenuItem component={RouterLink} to="/boards" onClick={handleMenuClose}>
+                                    <ListItemIcon>
+                                        <ForumIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Chat" />
+                                </MenuItem>
                                 <MenuItem component={RouterLink} to="/download" onClick={handleMenuClose}>
                                     Add Novel
+                                </MenuItem>
+                            </Menu>
+                        </>
+                    )}
+
+                    {/* Tablet More Menu Button */}
+                    {isTablet && (
+                        <>
+                            <IconButton edge="end" color="inherit" aria-label="menu" onClick={handleMenuOpen} sx={{ padding: 0.5 }}>
+                                <MenuIcon sx={{ fontSize: "1.25rem" }} />
+                            </IconButton>
+                            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
+                                <MenuItem
+                                    component={Link}
+                                    href="https://discord.gg/a2b4Mfr4cU"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={handleMenuClose}
+                                >
+                                    <ListItemIcon>
+                                        <DiscordIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Discord" />
+                                </MenuItem>
+                                <MenuItem
+                                    component={Link}
+                                    href="https://github.com/jere344/lightnovel-crawler-website"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={handleMenuClose}
+                                >
+                                    <ListItemIcon>
+                                        <GitHubIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary="GitHub" />
                                 </MenuItem>
                             </Menu>
                         </>

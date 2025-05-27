@@ -4,3 +4,4 @@ from .sources_models import *
 from .comments_models import *
 from .users_models import *
 from .chapter_models import *
+from .boards_models import *

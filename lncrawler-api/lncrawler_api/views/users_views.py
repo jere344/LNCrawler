@@ -101,11 +101,8 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
     recommended_ids = [item['to_novel'] for item in similar_novels]
     
     # If we need more recommendations, add popular novels
-    print(f"Found {len(recommended_ids)} recommendations from similar novels.")
-    print("Need "f"max {max_recommendations} recommendations, currently have {len(recommended_ids)}.")
     if len(recommended_ids) < max_recommendations:
         needed = max_recommendations - len(recommended_ids)
-        print(f"Need {needed} more recommendations from popular novels.")
         excluded_ids = bookmarked_ids + recommended_ids
         
         # Get popular novels IDs in a single query
@@ -125,7 +122,6 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
     )
     
     recommendations = Novel.objects.filter(pk__in=recommended_ids).order_by(preserved_order)
-    print(f"Total recommendations returned: {len(recommendations)}")
     
     return recommendations
 

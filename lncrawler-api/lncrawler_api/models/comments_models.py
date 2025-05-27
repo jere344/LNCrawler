@@ -4,12 +4,13 @@ from django.conf import settings
 
 class Comment(models.Model):
     """
-    Represents a comment on a novel or chapter
+    Represents a comment on a novel, chapter, or board
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Use string reference to avoid circular import issues at definition time
     novel = models.ForeignKey('lncrawler_api.Novel', on_delete=models.CASCADE, related_name='comments', null=True, blank=True)
     chapter = models.ForeignKey('lncrawler_api.Chapter', on_delete=models.CASCADE, related_name='comments', null=True, blank=True)
+    board = models.ForeignKey('lncrawler_api.Board', on_delete=models.CASCADE, related_name='comments', null=True, blank=True)
     
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
@@ -34,7 +35,15 @@ class Comment(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        target = f"Novel: {self.novel.title}" if self.novel else f"Chapter: {self.chapter.title}"
+        if self.novel:
+            target = f"Novel: {self.novel.title}"
+        elif self.chapter:
+            target = f"Chapter: {self.chapter.title}"
+        elif self.board:
+            target = f"Board: {self.board.name}"
+        else:
+            target = "Unknown target"
+        
         author_display = self.user.username if self.user else self.author_name
         return f"Comment by {author_display} on {target}"
     
@@ -43,8 +52,12 @@ class Comment(models.Model):
         return self.upvotes - self.downvotes
     
     def save(self, *args, **kwargs):
-        if bool(self.novel) == bool(self.chapter):
-            raise ValueError("Comment must be associated with either a novel or a chapter, but not both or neither")
+        # Check that comment is associated with exactly one target
+        targets = [self.novel, self.chapter, self.board]
+        active_targets = [target for target in targets if target is not None]
+        
+        if len(active_targets) != 1:
+            raise ValueError("Comment must be associated with exactly one of: novel, chapter, or board")
         
         if self.user: # If a user is linked to this comment
             self.author_name = self.user.username # Set/update author_name to their current username
@@ -54,6 +67,8 @@ class Comment(models.Model):
                 raise ValueError("Reply must be to a comment on the same novel")
             if self.chapter and self.parent.chapter_id != self.chapter_id:
                 raise ValueError("Reply must be to a comment on the same chapter")
+            if self.board and self.parent.board_id != self.board_id:
+                raise ValueError("Reply must be to a comment on the same board")
             
         super().save(*args, **kwargs)
 

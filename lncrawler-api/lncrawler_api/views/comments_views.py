@@ -6,6 +6,7 @@ from ..models import Novel, Chapter
 from ..models.comments_models import Comment, CommentVote
 from ..utils import get_client_ip
 from ..serializers.comments_serializers import NovelCommentSerializer, ChapterCommentSerializer
+from ..serializers.boards_serializers import BoardCommentSerializer
 
 
 @api_view(['GET'])
@@ -270,6 +271,13 @@ def edit_comment(request, comment_id):
             'chapter_id': chapter.chapter_id,
             'source_name': source.source_name,
             'source_slug': source.source_slug
+        })
+    elif comment.board:
+        board = comment.board
+        serializer = BoardCommentSerializer(comment, context={
+            'request': request,
+            'board_name': board.name,
+            'board_slug': board.slug
         })
     else:
         serializer = NovelCommentSerializer(comment, context={'request': request})

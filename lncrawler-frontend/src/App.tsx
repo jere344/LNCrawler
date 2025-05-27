@@ -25,6 +25,9 @@ import LibraryPage from '@components/library/LibraryPage';
 import ReadingHistoryPage from '@components/history/ReadingHistoryPage';
 // Import image gallery page
 import ImageGallery from '@components/novels/ImageGallery';
+// Import board components
+import BoardList from '@components/boards/BoardList';
+import BoardDetail from '@components/boards/BoardDetail';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -72,6 +75,10 @@ function AppWithTheme() {
                             {/* Library and History routes */}
                             <Route path="/library" element={<LibraryPage />} />
                             <Route path="/history" element={<ReadingHistoryPage />} />
+                            
+                            {/* Board routes */}
+                            <Route path="/boards" element={<BoardList />} />
+                            <Route path="/boards/:boardSlug" element={<BoardDetail />} />
                             
                             {/* Downloader routes */}
                             <Route path="/download" element={<DownloaderHome />} />

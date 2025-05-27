@@ -215,6 +215,8 @@ const CommentItem = ({
           <Box sx={{ mb: 1 }}>
             {comment.type === 'novel' ? (
               <Chip size="small" label="Novel Comment" color="primary" variant="outlined" />
+            ) : comment.type === 'board' ? (
+              <Chip size="small" label="Board Comment" color="secondary" variant="outlined" />
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Chip size="small" label={getChapterNameWithNumber(comment.chapter_title, comment.chapter_id)} color="secondary" variant="outlined" />

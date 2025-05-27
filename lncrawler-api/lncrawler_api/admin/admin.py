@@ -5,7 +5,7 @@ from ..models import (
     Job, Novel, NovelFromSource, Volume, Chapter, Author, 
     Editor, Translator, Tag, SourceVote, NovelRating,
     NovelViewCount, WeeklyNovelView, Comment, CommentVote, FeaturedNovel,
-    NovelSimilarity
+    NovelSimilarity, Board
 )
 
 @admin.register(Job)
@@ -333,3 +333,16 @@ class NovelSimilarityAdmin(admin.ModelAdmin):
             'fields': ('from_novel', 'to_novel', 'similarity')
         }),
     )
+
+@admin.register(Board)
+class BoardAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'description_preview', 'created_at', 'comment_count', 'is_active')
+    search_fields = ('name', 'slug', 'description')
+    prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('id', 'created_at', 'comment_count')
+    
+    def description_preview(self, obj):
+        preview = obj.description[:50] + '...' if len(obj.description) > 50 else obj.description
+        return preview
+    
+    description_preview.short_description = 'Description'

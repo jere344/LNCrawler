@@ -5,10 +5,12 @@ export interface Comment {
   contains_spoiler: boolean;
   created_at: string;
   source_name?: string;
-  type?: 'novel' | 'chapter';
+  type?: 'novel' | 'chapter' | 'board';
   chapter_title?: string;
   chapter_id?: number;
   source_slug?: string;
+  board_name?: string;
+  board_slug?: string;
   replies?: Comment[];
   has_replies?: boolean;
   upvotes: number;

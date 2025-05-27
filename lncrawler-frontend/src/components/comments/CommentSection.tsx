@@ -3,6 +3,7 @@ import { Box, Typography, Divider, CircularProgress } from '@mui/material';
 import CommentForm from './CommentForm';
 import CommentList from './CommentList';
 import { novelService } from '../../services/api';
+import { boardService } from '../../services/board.service';
 
 interface CommentSectionProps {
   novelSlug?: string;
@@ -11,15 +12,17 @@ interface CommentSectionProps {
     sourceSlug: string;
     chapterNumber: number;
   };
+  boardSlug?: string;
   title: string;
 }
 
-const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) => {
+const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSectionProps) => {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const isChapterComments = !!chapterData;
+  const isBoardComments = !!boardSlug;
   
   useEffect(() => {
     const fetchComments = async () => {
@@ -29,7 +32,9 @@ const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) 
       try {
         let fetchedComments;
         
-        if (isChapterComments && chapterData) {
+        if (isBoardComments && boardSlug) {
+          fetchedComments = await boardService.getBoardComments(boardSlug);
+        } else if (isChapterComments && chapterData) {
           fetchedComments = await novelService.getChapterComments(
             chapterData.novelSlug,
             chapterData.sourceSlug,
@@ -38,7 +43,7 @@ const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) 
         } else if (novelSlug) {
           fetchedComments = await novelService.getNovelComments(novelSlug);
         } else {
-          throw new Error('Either novelSlug or chapterData must be provided');
+          throw new Error('Either novelSlug, chapterData, or boardSlug must be provided');
         }
         
         setComments(fetchedComments);
@@ -51,15 +56,21 @@ const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) 
     };
     
     fetchComments();
-  }, [novelSlug, chapterData, isChapterComments]);
+  }, [novelSlug, chapterData, boardSlug, isChapterComments, isBoardComments]);
   
   const handleAddComment = async (commentData: { 
     author_name: string; 
     message: string; 
     contains_spoiler: boolean; 
+    parent_id?: string;
   }) => {
     try {
-      if (isChapterComments && chapterData) {
+      if (isBoardComments && boardSlug) {
+        await boardService.addBoardComment(boardSlug, commentData);
+        // Refetch all comments to ensure consistency
+        const updatedComments = await boardService.getBoardComments(boardSlug);
+        setComments(updatedComments);
+      } else if (isChapterComments && chapterData) {
         await novelService.addChapterComment(
           chapterData.novelSlug,
           chapterData.sourceSlug,
@@ -79,7 +90,7 @@ const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) 
         const updatedComments = await novelService.getNovelComments(novelSlug);
         setComments(updatedComments);
       } else {
-        throw new Error('Either novelSlug or chapterData must be provided');
+        throw new Error('Either novelSlug, chapterData, or boardSlug must be provided');
       }
     } catch (err) {
       console.error('Failed to add comment:', err);
