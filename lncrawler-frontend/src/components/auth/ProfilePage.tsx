@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container } from '@mui/material';
+import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import LockIcon from '@mui/icons-material/Lock';
+import { authService } from '../../services/auth.service';
 
 const ProfilePage: React.FC = () => {
   const { user, updateProfile, refreshUser } = useAuth();
@@ -16,6 +18,16 @@ const ProfilePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Password change state
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    old_password: '',
+    new_password: '',
+    new_password2: ''
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -74,6 +86,28 @@ const ProfilePage: React.FC = () => {
     }
     setIsEditing(false);
     setError(null);
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordLoading(true);
+    setPasswordError(null);
+
+    try {
+      await authService.changePassword(passwordData);
+      setSuccess('Password changed successfully!');
+      setShowPasswordDialog(false);
+      setPasswordData({ old_password: '', new_password: '', new_password2: '' });
+    } catch (err: any) {
+      if (err.response?.data?.old_password) {
+        setPasswordError(err.response.data.old_password[0]);
+      } else if (err.response?.data?.new_password) {
+        setPasswordError(err.response.data.new_password[0]);
+      } else {
+        setPasswordError('Failed to change password. Please try again.');
+      }
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   return (
@@ -197,7 +231,76 @@ const ProfilePage: React.FC = () => {
               </Typography>
             </Grid>
           </Grid>
+
+          <Divider sx={{ my: 3 }} />
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              Security
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<LockIcon />}
+              onClick={() => setShowPasswordDialog(true)}
+            >
+              Change Password
+            </Button>
+          </Box>
         </Box>
+
+        {/* Password Change Dialog */}
+        <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Change Password</DialogTitle>
+          <DialogContent>
+            {passwordError && <Alert severity="error" sx={{ mb: 2 }}>{passwordError}</Alert>}
+            
+            <TextField
+              label="Current Password"
+              type="password"
+              fullWidth
+              margin="normal"
+              value={passwordData.old_password}
+              onChange={(e) => setPasswordData(prev => ({ ...prev, old_password: e.target.value }))}
+              required
+            />
+            <TextField
+              label="New Password"
+              type="password"
+              fullWidth
+              margin="normal"
+              value={passwordData.new_password}
+              onChange={(e) => setPasswordData(prev => ({ ...prev, new_password: e.target.value }))}
+              required
+            />
+            <TextField
+              label="Confirm New Password"
+              type="password"
+              fullWidth
+              margin="normal"
+              value={passwordData.new_password2}
+              onChange={(e) => setPasswordData(prev => ({ ...prev, new_password2: e.target.value }))}
+              required
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button 
+              onClick={() => {
+                setShowPasswordDialog(false);
+                setPasswordData({ old_password: '', new_password: '', new_password2: '' });
+                setPasswordError(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handlePasswordChange}
+              variant="contained"
+              disabled={passwordLoading || !passwordData.old_password || !passwordData.new_password || !passwordData.new_password2}
+            >
+              {passwordLoading ? <CircularProgress size={24} /> : 'Change Password'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Paper>
     </Container>
   );

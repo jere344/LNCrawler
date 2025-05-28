@@ -11,10 +11,15 @@ import {
   InputAdornment, 
   IconButton,
   Divider,
-  CircularProgress 
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
+import { authService } from '../../services/auth.service';
 
 const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -25,6 +30,13 @@ const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +58,31 @@ const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = async () => {
+    setForgotLoading(true);
+    setForgotError(null);
+
+    try {
+      await authService.forgotPassword(forgotEmail);
+      setForgotSuccess(true);
+    } catch (err: any) {
+      if (err.response?.data?.email) {
+        setForgotError(err.response.data.email[0]);
+      } else {
+        setForgotError('Failed to send reset email. Please try again.');
+      }
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const resetForgotPasswordForm = () => {
+    setShowForgotPassword(false);
+    setForgotEmail('');
+    setForgotSuccess(false);
+    setForgotError(null);
   };
 
   return (
@@ -128,11 +165,70 @@ const LoginPage: React.FC = () => {
               to="/register"
               variant="outlined"
               disabled={loading}
+              sx={{ mb: 2 }}
             >
               Create Account
             </Button>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setShowForgotPassword(true)}
+                disabled={loading}
+              >
+                Forgot Password?
+              </Button>
+            </Typography>
           </Box>
         </Box>
+
+        {/* Forgot Password Dialog */}
+        <Dialog open={showForgotPassword} onClose={resetForgotPasswordForm} maxWidth="sm" fullWidth>
+          <DialogTitle>Reset Password</DialogTitle>
+          <DialogContent>
+            {forgotSuccess ? (
+              <Box sx={{ textAlign: 'center', py: 2 }}>
+                <Typography variant="h6" color="success.main" gutterBottom>
+                  Email Sent!
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Check your email for password reset instructions.
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {forgotError && <Alert severity="error" sx={{ mb: 2 }}>{forgotError}</Alert>}
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Enter your email address and we'll send you a link to reset your password.
+                </Typography>
+                <TextField
+                  label="Email Address"
+                  type="email"
+                  fullWidth
+                  margin="normal"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+              </>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={resetForgotPasswordForm}>
+              {forgotSuccess ? 'Close' : 'Cancel'}
+            </Button>
+            {!forgotSuccess && (
+              <Button 
+                onClick={handleForgotPassword}
+                variant="contained"
+                disabled={forgotLoading || !forgotEmail}
+              >
+                {forgotLoading ? <CircularProgress size={24} /> : 'Send Reset Link'}
+              </Button>
+            )}
+          </DialogActions>
+        </Dialog>
       </Paper>
     </Container>
   );

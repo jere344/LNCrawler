@@ -4,10 +4,17 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from .serializers import UserSerializer, RegisterSerializer, LoginSerializer
+from .serializers import (
+    UserSerializer, RegisterSerializer, LoginSerializer,
+    ChangePasswordSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
+)
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
+from .models import PasswordResetToken
+from .email_service import email_service
+import logging
 
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
@@ -80,3 +87,96 @@ class UserExistsView(APIView):
             'username_exists': username_exists,
             'email_exists': email_exists
         })
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            # Set new password
+            request.user.set_password(serializer.validated_data['new_password'])
+            request.user.save()
+            
+            # Invalidate all existing tokens for security
+            Token.objects.filter(user=request.user).delete()
+            
+            # Create new token
+            new_token = Token.objects.create(user=request.user)
+            
+            return Response({
+                'message': 'Password changed successfully.',
+                'token': new_token.key  # Return new token
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ForgotPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            user = User.objects.get(email=email)
+            
+            # Create password reset token
+            reset_token = PasswordResetToken.objects.create(user=user)
+            
+            # Send email
+            email_sent = email_service.send_password_reset_email(
+                user_email=user.email,
+                username=user.username,
+                reset_token=reset_token.token
+            )
+            
+            if email_sent:
+                return Response({
+                    'message': 'Password reset email sent successfully.'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send email. Please try again later.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ResetPasswordView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            token = serializer.validated_data['token']
+            new_password = serializer.validated_data['new_password']
+            
+            try:
+                reset_token = PasswordResetToken.objects.get(token=token)
+                
+                if not reset_token.is_valid():
+                    return Response({
+                        'error': 'Invalid or expired reset token.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Reset password
+                user = reset_token.user
+                user.set_password(new_password)
+                user.save()
+                
+                # Mark token as used
+                reset_token.used = True
+                reset_token.save()
+                
+                # Invalidate all existing tokens for security
+                Token.objects.filter(user=user).delete()
+                
+                return Response({
+                    'message': 'Password reset successfully.'
+                }, status=status.HTTP_200_OK)
+                
+            except PasswordResetToken.DoesNotExist:
+                return Response({
+                    'error': 'Invalid reset token.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

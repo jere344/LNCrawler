@@ -4,9 +4,6 @@ from pathlib import Path
 from typing import Optional
 import html
 from html.parser import HTMLParser
-import qrcode
-from urllib.parse import quote
-
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
@@ -209,8 +206,6 @@ class Command(BaseCommand):
         overlay = self.create_gradient_overlay(width, height)
         img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
         
-        self.add_qr_code(img, source)
-        
         if cover_img:
             self.add_cover_element(img, cover_img)
         
@@ -372,53 +367,7 @@ class Command(BaseCommand):
         # Add source info at bottom
         source_text = f"More on {settings.SITE_URL}/" # Assuming SITE_URL does not need specific CJK font
         source_info_font = self._get_font_instance(source_text, self.SOURCE_INFO_FONT_SIZE)
-        draw.text((left_margin + 100, height - 60), source_text, fill=(150, 150, 150), font=source_info_font)
-
-    def add_qr_code(self, img: Image.Image, source: NovelFromSource):
-        """Add a more discrete QR code to the bottom left of the overview image"""
-        # Generate the URL for the QR code
-        url = f"{settings.SITE_URL}/novels/{source.novel.slug}/{source.source_slug}"
-        safe_url = quote(url, safe=':/')
-        
-        # Create QR code
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=4,  # Smaller box size
-            border=1
-        )
-        qr.add_data(safe_url)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="white", back_color="black")
-        
-        # Resize QR code to be smaller (80x80 pixels)
-        qr_size = 80
-        qr_img = qr_img.resize((qr_size, qr_size))
-        
-        # Convert to RGBA if needed
-        if qr_img.mode != 'RGBA':
-            qr_img = qr_img.convert('RGBA')
-
-        img_width, img_height = img.size
-        position = (50, img_height - qr_size - 30)
-        bg = Image.new('RGBA', (qr_size + 10, qr_size + 10), (0, 0, 0, 120))
-        
-        qr_data = qr_img.getdata()
-        new_data = []
-        for item in qr_data:
-            # If white, make it semi-transparent
-            if item[0] > 200:  # White or near-white
-                new_data.append((255, 255, 255, 180))  # Semi-transparent white
-            else:
-                new_data.append((0, 0, 0, 200))  # Near-opaque black
-        
-        qr_img.putdata(new_data)
-        
-        # Paste semi-transparent background
-        img.paste(bg, (position[0] - 5, position[1] - 5), bg)
-        
-        # Paste QR code
-        img.paste(qr_img, position, qr_img)
+        draw.text((left_margin + 60, height - 60), source_text, fill=(150, 150, 150), font=source_info_font)
 
     def add_cover_element(self, img: Image.Image, cover_img: Image.Image):
         # Add cover as a more prominent element on the right side

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -23,7 +23,6 @@ const POLLING_INTERVAL = 2000; // 2 seconds
 
 const SearchResults = () => {
   const { jobId } = useParams<{ jobId: string }>();
-  const navigate = useNavigate();
   const [status, setStatus] = useState<SearchStatus | null>(null);
   const [results, setResults] = useState<SearchResultsType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,12 +92,6 @@ const SearchResults = () => {
   }, [jobId, status?.search_completed]); // Re-run if jobId or search_completed status changes.
                                          // status itself is not needed as a dep if only search_completed matters for polling logic.
 
-  const handleNovelSelect = (sourceIndex: number, novelIndex: number) => {
-    if (jobId) {
-      navigate(`/download/${jobId}/${sourceIndex}/${novelIndex}`);
-    }
-  };
-
   if (loading) { // Simplified loading condition
     return (
       <Container maxWidth="md">
@@ -155,7 +148,8 @@ const SearchResults = () => {
           <Button 
             variant="outlined" 
             sx={{ mt: 3 }} 
-            onClick={() => navigate('/')}
+            component={Link}
+            to="/download/"
           >
             Cancel Search
           </Button>
@@ -176,7 +170,8 @@ const SearchResults = () => {
           <Button 
             variant="outlined" 
             sx={{ mb: 2 }} 
-            onClick={() => navigate('/')}
+            component={Link}
+            to="/download/"
           >
             New Search
           </Button>
@@ -191,7 +186,10 @@ const SearchResults = () => {
                     {source.sources.map((novel, novelIndex) => (
                       <Box key={`novel-${novelIndex}`}>
                         {novelIndex > 0 && <Divider />}
-                        <ListItemButton onClick={() => handleNovelSelect(sourceIndex, novelIndex)}>
+                        <ListItemButton 
+                          component={Link} 
+                          to={`/download/${jobId}/${sourceIndex}/${novelIndex}`}
+                        >
                           <ListItemText 
                             primary={source.title} 
                             secondary={novel.url} 

@@ -42,6 +42,11 @@ services:
 
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
+
+      # Brevo email service credentials (for password reset emails)
+      - BREVO_API_KEY= # Your Brevo API key
+      - DEFAULT_FROM_EMAIL=no-reply@lncrawler.monster # Your Brevo sender email
+      - EMAIL_SENDER_NAME=LNCrawler # Your Brevo sender name
     depends_on:
       db:
         condition: service_healthy

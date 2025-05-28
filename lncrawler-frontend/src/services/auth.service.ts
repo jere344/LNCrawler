@@ -117,6 +117,39 @@ export const authService = {
     return response.data;
   },
   
+  // Change password
+  changePassword: async (passwordData: {
+    old_password: string;
+    new_password: string;
+    new_password2: string;
+  }) => {
+    const response = await api.post('/auth/change-password/', passwordData);
+    
+    // Update token if returned
+    if (response.data.token) {
+      localStorage.setItem('authToken', response.data.token);
+      api.defaults.headers.common['Authorization'] = `Token ${response.data.token}`;
+    }
+    
+    return response.data;
+  },
+
+  // Forgot password
+  forgotPassword: async (email: string) => {
+    const response = await api.post('/auth/forgot-password/', { email });
+    return response.data;
+  },
+
+  // Reset password
+  resetPassword: async (resetData: {
+    token: string;
+    new_password: string;
+    new_password2: string;
+  }) => {
+    const response = await api.post('/auth/reset-password/', resetData);
+    return response.data;
+  },
+
   // Helper method to check if user is authenticated
   isAuthenticated: () => {
     return !!localStorage.getItem('authToken');

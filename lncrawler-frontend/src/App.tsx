@@ -19,6 +19,7 @@ import HomePage from '@components/home/HomePage';
 import LoginPage from '@components/auth/LoginPage';
 import RegisterPage from '@components/auth/RegisterPage';
 import ProfilePage from '@components/auth/ProfilePage';
+import ResetPasswordPage from '@components/auth/ResetPasswordPage';
 // Import new library page
 import LibraryPage from '@components/library/LibraryPage';
 // Import reading history page
@@ -71,6 +72,7 @@ function AppWithTheme() {
                             <Route path="/login" element={<LoginPage />} />
                             <Route path="/register" element={<RegisterPage />} />
                             <Route path="/profile" element={<ProfilePage />} />
+                            <Route path="/reset-password" element={<ResetPasswordPage />} />
                             
                             {/* Library and History routes */}
                             <Route path="/library" element={<LibraryPage />} />

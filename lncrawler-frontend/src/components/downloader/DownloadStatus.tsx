@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -18,7 +18,6 @@ const POLLING_INTERVAL = 2000; // 2 seconds
 
 const DownloadStatus = () => {
   const { jobId } = useParams<{ jobId: string }>();
-  const navigate = useNavigate();
   
   const [status, setStatus] = useState<DownloadStatusType | null>(null);
   const [results, setResults] = useState<DownloadResults | null>(null);
@@ -82,8 +81,8 @@ const DownloadStatus = () => {
         <DownloadStepper activeStep="download" />
         <Box sx={{ p: 2, maxWidth: 'md', mx: 'auto' }}>
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-          <Button variant="contained" onClick={() => navigate('/')}>
-            Return to Home
+          <Button variant="contained" component={Link} to="/download/">
+            Return Home
           </Button>
         </Box>
       </Container>
@@ -98,8 +97,8 @@ const DownloadStatus = () => {
           <Alert severity="error" sx={{ mb: 2 }}>
             Download failed. Please try again.
           </Alert>
-          <Button variant="contained" onClick={() => navigate('/')}>
-            Return to Home
+          <Button variant="contained" component={Link} to="/download/">
+            Return Home
           </Button>
         </Box>
       </Container>
@@ -128,7 +127,8 @@ const DownloadStatus = () => {
           <Box sx={{ mt: 3 }}>
             <Button 
               variant="contained" 
-              onClick={() => navigate('/')}
+              component={Link}
+              to="/download/"
             >
               New Search
             </Button>
@@ -136,7 +136,8 @@ const DownloadStatus = () => {
           <Box sx={{ mt: 3 }}>
             <Button 
               variant="contained" 
-              onClick={() => navigate(`/novels/${results.output_slug}`)}
+              component={Link}
+              to={`/novels/${results.output_slug}`}
             >
               View Downloaded Novel
             </Button>

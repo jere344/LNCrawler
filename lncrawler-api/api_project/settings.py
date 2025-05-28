@@ -295,3 +295,9 @@ LOGGING = {
 
 # Create logs directory if it doesn't exist
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+
+
+# Email settings
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", None)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@lncrawler.monster")
+EMAIL_SENDER_NAME = os.environ.get("EMAIL_SENDER_NAME", "LNCrawler")
