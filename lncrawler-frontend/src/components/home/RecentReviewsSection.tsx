@@ -41,9 +41,6 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
         <Typography variant="h5" component="h2" fontWeight="bold">
           Latest Reviews
         </Typography>
-        <Button component={Link} to="/reviews" variant="text">
-          View More
-        </Button>
       </Box>
       <Divider sx={{ mb: 3 }} />
       
