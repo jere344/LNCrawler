@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Pagination, Card, CardContent, Rating, Link } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import LockIcon from '@mui/icons-material/Lock';
 import { authService } from '../../services/auth.service';
+import { reviewService } from '../../services/review.service';
+import { Link as RouterLink } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
 
 const ProfilePage: React.FC = () => {
   const { user, updateProfile, refreshUser } = useAuth();
@@ -29,6 +32,13 @@ const ProfilePage: React.FC = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
+  // User reviews state
+  const [userReviews, setUserReviews] = useState<any[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
+  const [reviewsPage, setReviewsPage] = useState(1);
+  const [totalReviewPages, setTotalReviewPages] = useState(1);
+
   useEffect(() => {
     if (user) {
       setUsername(user.username || '');
@@ -36,8 +46,34 @@ const ProfilePage: React.FC = () => {
       if (user.profile_pic) {
         setPreviewUrl(user.profile_pic);
       }
+      
+      // Fetch user reviews when component mounts
+      fetchUserReviews(1);
     }
   }, [user]);
+
+  const fetchUserReviews = async (page = 1) => {
+    if (!user) return;
+    
+    setReviewsLoading(true);
+    setReviewsError(null);
+    
+    try {
+      const response = await reviewService.getUserReviews(page);
+      setUserReviews(response.reviews);
+      setReviewsPage(response.pagination.current_page);
+      setTotalReviewPages(response.pagination.total_pages);
+    } catch (err) {
+      console.error('Error loading user reviews:', err);
+      setReviewsError('Failed to load your reviews. Please try again.');
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleReviewPageChange = (_: React.ChangeEvent<unknown>, page: number) => {
+    fetchUserReviews(page);
+  };
 
   const handleProfilePicChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -301,6 +337,80 @@ const ProfilePage: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* User Reviews Section */}
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            My Reviews
+          </Typography>
+
+          {reviewsError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {reviewsError}
+            </Alert>
+          )}
+
+          {reviewsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : userReviews.length > 0 ? (
+            <>
+              <Grid container spacing={2}>
+                {userReviews.map((review) => (
+                  <Grid item xs={12} key={review.id}>
+                    <Card sx={{ mb: 2 }}>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <Typography variant="h6" gutterBottom>
+                            {review.title}
+                          </Typography>
+                          <Rating value={review.rating} readOnly size="small" />
+                        </Box>
+                        
+                        <Typography variant="subtitle1" color="primary" component={RouterLink} to={`/novels/${review.novel_slug}`} sx={{ textDecoration: 'none', display: 'block', mb: 1 }}>
+                          {review.novel_title}
+                        </Typography>
+                        
+                        <Typography variant="body2" noWrap sx={{ mb: 2 }}>
+                          {review.content.length > 150 
+                            ? `${review.content.substring(0, 150)}...` 
+                            : review.content}
+                        </Typography>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                          </Typography>
+                          <Link component={RouterLink} to={`/novels/${review.novel_slug}`} underline="hover">
+                            View Novel
+                          </Link>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+              
+              {totalReviewPages > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                  <Pagination
+                    count={totalReviewPages}
+                    page={reviewsPage}
+                    onChange={handleReviewPageChange}
+                    color="primary"
+                  />
+                </Box>
+              )}
+            </>
+          ) : (
+            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper' }}>
+              <Typography variant="body1" color="text.secondary">
+                You haven't written any reviews yet.
+              </Typography>
+            </Paper>
+          )}
+        </Box>
       </Paper>
     </Container>
   );

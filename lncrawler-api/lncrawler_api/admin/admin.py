@@ -5,7 +5,7 @@ from ..models import (
     Job, Novel, NovelFromSource, Volume, Chapter, Author, 
     Editor, Translator, Tag, SourceVote, NovelRating,
     NovelViewCount, WeeklyNovelView, Comment, CommentVote, FeaturedNovel,
-    NovelSimilarity, Board
+    NovelSimilarity, Board, Review, ReviewReaction
 )
 
 @admin.register(Job)
@@ -346,3 +346,38 @@ class BoardAdmin(admin.ModelAdmin):
         return preview
     
     description_preview.short_description = 'Description'
+
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('novel', 'user', 'created_at', 'reaction_count_display')
+    search_fields = ('novel__title', 'user__username', 'content')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'reaction_count_display')
+    raw_id_fields = ('novel', 'user')
+    
+    def reaction_count_display(self, obj):
+        return obj.reaction_count
+    
+    reaction_count_display.short_description = 'Reactions'
+    
+    fieldsets = (
+        ('Review Information', {
+            'fields': ('id', 'novel', 'user', 'content', 'created_at', 'updated_at')
+        }),
+        ('Reactions', {
+            'fields': ('reaction_count_display',)
+        }),
+    )
+
+@admin.register(ReviewReaction)
+class ReviewReactionAdmin(admin.ModelAdmin):
+    list_display = ('review', 'user', 'reaction', 'created_at')
+    search_fields = ('review__novel__title', 'user__username', 'reaction')
+    readonly_fields = ('id', 'created_at')
+    raw_id_fields = ('review', 'user')
+    
+    fieldsets = (
+        ('Reaction Information', {
+            'fields': ('id', 'review', 'user', 'reaction', 'created_at')
+        }),
+    )

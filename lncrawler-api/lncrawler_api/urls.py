@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views, users_views, boards_views
+from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views
 from .views.csrf import get_csrf_token
 from django.contrib.sitemaps.views import sitemap
 from django.views.decorators.cache import cache_page
@@ -71,6 +71,16 @@ urlpatterns = [
     path('users/reading-history/mark-read/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', 
          users_views.mark_chapter_as_read, name='mark_chapter_as_read'),
 
+    
+    # Review endpoints
+    path('novels/<slug:novel_slug>/reviews/', reviews_views.novel_reviews, name='novel_reviews'),
+    path('novels/<slug:novel_slug>/reviews/add/', reviews_views.add_review, name='add_review'),
+    path('reviews/<uuid:review_id>/', reviews_views.review_detail, name='review_detail'),
+    path('reviews/<uuid:review_id>/reactions/add/', reviews_views.add_reaction, name='add_reaction'),
+    path('reviews/<uuid:review_id>/reactions/remove/', reviews_views.remove_reaction, name='remove_reaction'),
+    path('users/reviews/', reviews_views.user_reviews, name='user_reviews'),
+
+    # Novel detail and source endpoints
     path('novels/<slug:novel_slug>/', novels_views.novel_detail_by_slug, name='novel_detail_by_slug'),
     path('novels/<slug:novel_slug>/rate/', novels_views.rate_novel, name='rate_novel'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/', sources_views.source_detail, name='source_detail'),

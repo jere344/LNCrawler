@@ -14,11 +14,13 @@ import {
 import { Link } from 'react-router-dom';
 import { novelService } from '@services/api';
 import { Novel, NovelFromSource } from '@models/novels_types';
+import { Review } from '@services/review.service';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
 import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCard';
 import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
+import RecentReviewsSection from './RecentReviewsSection';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
@@ -30,6 +32,7 @@ const HomePage: React.FC = () => {
     top_rated_novels: Novel[];
     recently_updated: NovelFromSource[];
     featured_novel: any;
+    recent_reviews: Review[];
   } | null>(null);
   
   // Loading and error states
@@ -326,6 +329,12 @@ const HomePage: React.FC = () => {
           <Typography variant="body1" align="center">No featured novel available</Typography>
         )}
       </Box>
+
+      {/* Recent Reviews Section */}
+      <RecentReviewsSection 
+        reviews={homeData?.recent_reviews} 
+        isLoading={loading}
+      />
 
       {/* Recently Added Chapters Section */}
       <Box sx={{ mb: 6 }}>

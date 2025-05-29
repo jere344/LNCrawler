@@ -39,6 +39,7 @@ import { getChapterNameWithNumber } from '@utils/Misc.tsx';
 import ActionButton from '../common/ActionButton';
 import NovelRecommendation from '../common/NovelRecommendation';
 import SectionContainer from '@components/common/SectionContainer.tsx';
+import Reviews from './Reviews.tsx';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
@@ -627,6 +628,14 @@ const NovelDetail = () => {
           <NovelSynopsis synopsis={novel.prefered_source.synopsis} />
         </SectionContainer>
       )}
+
+      {/* Reviews Section */}
+      {novelSlug && (
+        <SectionContainer title="Reviews" icon={<MenuBookIcon />}>
+          <Reviews novelSlug={novelSlug} showAddReview={true} />
+        </SectionContainer>
+      )}
+
 
       {/* Similar Novels / Recommendations */}
       {novel.similar_novels && novel.similar_novels.length > 0 && (

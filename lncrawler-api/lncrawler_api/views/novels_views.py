@@ -14,6 +14,7 @@ from ..models import (
     FeaturedNovel,
     NovelFromSource,
 )
+from ..models.reviews_models import Review
 from ..utils import get_client_ip
 from datetime import datetime
 from ..serializers import (
@@ -22,6 +23,7 @@ from ..serializers import (
     NovelSourceSerializer,
 
 )
+from ..serializers.reviews_serializers import ReviewListSerializer
 
 @api_view(["GET"])
 def list_novels(request):
@@ -383,6 +385,9 @@ def home_page(request):
     # for the recently updated it's a list of NovelFromSource insead of Novel that we want
     recently_updated = NovelFromSource.objects.order_by('-last_chapter_update')[:12]
     
+    # Get recent reviews (4 most recent instead of 5)
+    recent_reviews = Review.objects.select_related('user', 'novel').prefetch_related('reactions__user').order_by('-created_at')[:4]
+    
     # Serialize all the data
     response_data = {
         'top_novels': BasicNovelSerializer(top_novels, many=True, context={"request": request}).data,
@@ -390,6 +395,7 @@ def home_page(request):
         'top_rated_novels': BasicNovelSerializer(top_rated_novels, many=True, context={"request": request}).data,
         'recently_updated': NovelSourceSerializer(recently_updated, many=True, context={"request": request}).data,
         'featured_novel': featured_novel_data,
+        'recent_reviews': ReviewListSerializer(recent_reviews, many=True, context={"request": request}).data,
     }
     
     return Response(response_data)
