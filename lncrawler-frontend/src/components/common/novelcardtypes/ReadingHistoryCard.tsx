@@ -61,8 +61,8 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           width: 120,
           minWidth: 120,
           height: '100%',
-          backgroundImage: novel.prefered_source?.cover_url 
-            ? `url(${novel.prefered_source.cover_url})` 
+          backgroundImage: novel.prefered_source?.cover_min_url 
+            ? `url(${novel.prefered_source.cover_min_url})` 
             : 'linear-gradient(to bottom right, #6a11cb, #2575fc)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',

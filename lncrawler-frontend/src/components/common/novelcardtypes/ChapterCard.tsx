@@ -63,7 +63,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
       }}>
         <Box
           component="img"
-          src={source.cover_url || defaultCover}
+          src={source.cover_min_url || defaultCover}
           alt={source.title}
           sx={{
             width: '100%',

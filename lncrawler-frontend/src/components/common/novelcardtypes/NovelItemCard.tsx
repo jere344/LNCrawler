@@ -65,7 +65,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       >
         <Box
           component="img"
-          src={novel.prefered_source?.cover_url || defaultCover}
+          src={novel.prefered_source?.cover_min_url || defaultCover}
           alt={novel.title}
           sx={{
             width: '100%',

@@ -19,6 +19,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     novel_title = serializers.SerializerMethodField()
     vote_score = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
+    cover_min_url = serializers.SerializerMethodField()
     overview_url = serializers.SerializerMethodField()
     latest_available_chapter = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
@@ -26,8 +27,8 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = NovelFromSource
         fields = [
-            'id', 'title', 'source_url', 'source_name', 'source_slug', 'cover_path',
-            'authors', 'tags', 'language', 'status', 'synopsis',
+            'id', 'title', 'source_url', 'source_name', 'source_slug', 
+            'authors', 'tags', 'language', 'synopsis', 'cover_min_url',
             'chapters_count', 'volumes_count', 'last_chapter_update', 'upvotes', 'downvotes',
             'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
             'latest_available_chapter', 'reading_history', 'overview_url',
@@ -36,6 +37,11 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     def get_cover_url(self, obj: NovelFromSource):
         if obj.cover_path:
             return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.cover_path}", safe=':/')
+        return None
+
+    def get_cover_min_url(self, obj: NovelFromSource):
+        if obj.cover_min_path:
+            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.cover_min_path}", safe=':/')
         return None
     
     def get_overview_url(self, obj: NovelFromSource):

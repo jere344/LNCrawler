@@ -190,7 +190,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         <Box sx={{ position: 'relative', paddingTop: '150%' }}>
           <CardMedia
             component="img"
-            image={novel.prefered_source?.cover_url || defaultCover}
+            image={novel.prefered_source?.cover_min_url || defaultCover}
             alt={novel.title}
             sx={{ 
               position: 'absolute',

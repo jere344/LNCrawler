@@ -46,6 +46,7 @@ export interface NovelFromSource {
   novel_slug: string;
   novel_title: string;
   cover_url: string | null;
+  cover_min_url: string | null;
   overview_url: string | null;
   latest_available_chapter: Chapter | null;
   reading_history?: ReadingHistory | null;

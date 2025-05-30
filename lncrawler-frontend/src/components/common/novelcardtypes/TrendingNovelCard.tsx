@@ -137,7 +137,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         >
           <CardMedia
             component="img"
-            image={preferredSource?.cover_url || defaultCover}
+            image={preferredSource?.cover_min_url || defaultCover}
             alt={novel.title}
             sx={{ 
               width: '100%',

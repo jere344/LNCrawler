@@ -38,6 +38,7 @@ class NovelFromSource(models.Model):
     # Path information relative to settings.LNCRAWL_OUTPUT_PATH
     source_path = models.CharField(max_length=500, null=True, blank=True)
     cover_path = models.CharField(max_length=500, null=True, blank=True)
+    cover_min_path = models.CharField(max_length=500, null=True, blank=True)
     overview_picture_path = models.CharField(max_length=500, null=True, blank=True) 
     
     # People relationships (many-to-many)
@@ -272,6 +273,8 @@ class NovelFromSource(models.Model):
         
         # Generate overview image
         novel_from_source.generate_overview_image()
+        # Generate miniature cover image
+        novel_from_source.generate_cover_min()
         
         return novel_from_source
 
@@ -287,6 +290,20 @@ class NovelFromSource(models.Model):
             return True
         except Exception as e:
             print(f"Error generating overview image for {self.title}: {e}")
+            return False
+    
+    def generate_cover_min(self, width=200, height=300, quality=80):
+        """
+        Generate a miniature WebP version of the cover image
+        """
+        try:
+            # Use dynamic import to avoid circular dependency
+            from ..management.commands.generate_cover_min import Command as GenerateCoverMinCommand
+            cover_min_generator = GenerateCoverMinCommand()
+            cover_min_generator.generate_cover_min(self, width, height, quality)
+            return True
+        except Exception as e:
+            print(f"Error generating miniature cover for {self.title}: {e}")
             return False
 
     def delete(self, *args, **kwargs):

@@ -82,7 +82,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
           }}>
             <Box
               component="img"
-              src={source.cover_url || defaultCover}
+              src={source.cover_min_url || defaultCover}
               alt={source.title}
               sx={{
                 height: '100%',

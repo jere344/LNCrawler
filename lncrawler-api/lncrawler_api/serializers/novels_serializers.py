@@ -2,7 +2,7 @@ from rest_framework import serializers
 from ..models import (
     Novel, Author, Tag,
     NovelViewCount, WeeklyNovelView,
-    NovelBookmark, NovelSimilarity
+    NovelBookmark
 )
 from django.db.models import Avg, F, ExpressionWrapper, IntegerField, Subquery, OuterRef
 from .sources_serializers import NovelSourceSerializer
