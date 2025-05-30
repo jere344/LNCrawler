@@ -572,16 +572,7 @@ const NovelDetail = () => {
                     </Typography>
                   </Box>
                 </Box>
-                
-                {novel.prefered_source.tags.length > 0 && (
-                  <Box sx={{ mb: 3 }}>
-                    <NovelTags
-                      tags={novel.prefered_source.tags} 
-                      chipSize="small"
-                    />
-                  </Box>
-                )}
-                
+
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Box sx={{ 
                     width: '100%', 
@@ -615,12 +606,37 @@ const NovelDetail = () => {
                     tooltip="Start reading from chapter 1"
                     tooltipPlacement="top"
                   />
+
+                  <ActionButton
+                    title="Go to Prefered Source"
+                    subtitle={novel.prefered_source.source_name}
+                    startIcon={<LanguageIcon />}
+                    backgroundIcon={<LanguageIcon />}
+                    color="primary"
+                    to={`/novels/${novelSlug}/${novel.prefered_source.source_slug}`}
+                    disabled={!novel.prefered_source}
+                    tooltip="Our novels are sourced from various sites with different translations, languages, and updates. Click to go to the prefered source for this novel."
+                    tooltipPlacement="top"
+                  />
                 </Box>
               </Grid>
             </Grid>
           </Box>
         </Paper>
       )}
+
+        <SectionContainer title="Tags" icon={<BookmarkIcon />}>
+        {/* we merge every novel.sources[].tags[] removing duplicates */}
+          <NovelTags 
+            tags={novel.sources.reduce((acc: string[], source) => {
+              if (source.tags) {
+                acc.push(...source.tags);
+              }
+              return acc;
+            }, [])}
+            chipSize="medium"
+          />
+        </SectionContainer>
 
       {/* Novel Synopsis */}
       {novel.prefered_source && novel.prefered_source.synopsis && (

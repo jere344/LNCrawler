@@ -41,6 +41,7 @@ import { getChapterNameWithNumber } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import ActionButton from '../common/ActionButton';
+import SectionContainer from '@components/common/SectionContainer.tsx';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
@@ -795,14 +796,10 @@ const SourceDetail = () => {
         {/* Update Button Section */}
         {source && source.source_url && source.source_url.startsWith('http') && (
           <Paper 
-            elevation={3} 
             sx={{ 
               p: { xs: 2, md: 3 }, 
-              mb: 4, 
+              mb: 4,
               borderRadius: 3,
-              background: theme.palette.mode === 'dark' 
-                ? alpha(theme.palette.background.paper, 0.95)
-                : theme.palette.background.default,
             }}
           >
             <NovelUpdateButton 
@@ -812,87 +809,31 @@ const SourceDetail = () => {
           </Paper>
         )}
 
-        {/* Tags Section */}
-        {(source.tags.length > 0) && (
-          <Paper 
-            elevation={3} 
-            sx={{ 
-              p: 3, 
-              mb: 4, 
-              borderRadius: 3,
-              background: theme.palette.mode === 'dark' 
-                ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
-                : theme.palette.background.paper,
-            }}
-          >
-            <Grid container spacing={3}>
-              {source.tags.length > 0 && (
-                <Grid size={{ xs: 12, md: source.tags.length > 0 ? 6 : 12 }}>
-                  <NovelTags 
-                    tags={source.tags} 
-                    title="Tags"
-                    titleVariant="h6"
-                    chipSize="medium"
-                  />
-                </Grid>
-              )}
-            </Grid>
-          </Paper>
+        {source.tags.length > 0 && (
+          <SectionContainer title="Tags" icon={<BookmarkIcon />}>
+            <NovelTags 
+              tags={source.tags} 
+              chipSize="medium" 
+            />
+          </SectionContainer>
         )}
         
-        <NovelSynopsis synopsis={source.synopsis || 'No synopsis available'} />
+        {source.synopsis && (
+          <SectionContainer title="Synopsis" icon={<BookmarkIcon />}>
+            <NovelSynopsis synopsis={source.synopsis} />
+          </SectionContainer>
+        )}
 
-        {/* Comments Section */}
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 3,
-            mb: 4, 
-            borderRadius: 3,
-            background: theme.palette.mode === 'dark' 
-              ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
-              : theme.palette.background.paper,
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Decorative element */}
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '5px',
-              height: '100%',
-              background: `linear-gradient(to bottom, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-            }}
-          />
-
-          <Typography 
-            variant="h5" 
-            gutterBottom 
-            sx={{ 
-              pl: 2,
-              borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              pb: 1,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <CommentIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-            Comments
-          </Typography>
-          
-          {novelSlug && (
-            <Box sx={{ px: 2, py: 1 }}>
-              <CommentSection 
-                novelSlug={novelSlug}
-                title="Novel Comments" 
-              />
-            </Box>
-          )}
-        </Paper>
-      </Container>
+        
+        {novelSlug && (
+          <SectionContainer title="Comments" icon={<CommentIcon />}>
+            <CommentSection 
+              novelSlug={novelSlug}
+              title="Novel Comments" 
+            />
+          </SectionContainer>
+        )}
+    </Container>
   );
 };
 
