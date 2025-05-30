@@ -182,8 +182,11 @@ class NovelFromSource(models.Model):
                 translator, _ = Translator.objects.get_or_create(name=translator_name)
                 novel_from_source.translators.add(translator)
         
-        # Handle tags (list of strings)
-        tags_list = novel_data.get('novel_tags', [])
+        # Handle tags (either list of string or comma-separated string)
+        if isinstance(novel_data.get('novel_tags'), str):
+            tags_list = [tag.strip() for tag in novel_data['novel_tags'].split(',')]
+        else:
+            tags_list = novel_data.get('novel_tags', [])
         novel_from_source.tags.clear()
         for tag_name in tags_list:
             if tag_name:
