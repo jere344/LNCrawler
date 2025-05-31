@@ -5,7 +5,7 @@ import threading
 import time
 import logging
 import importlib.util
-import multiprocessing
+import threading
 from pathlib import Path
 import django
 from ..utils import lncrawler_paths
@@ -477,16 +477,12 @@ class DownloaderService:
         )
         
         # Start search process
-        process = multiprocessing.Process(
+        thread = threading.Thread(
             target=cls._run_search_process,
             args=(job.id, query)
         )
-        process.daemon = True
-        process.start()
-        
-        # Store the process ID
-        job.job_pid = process.pid
-        job.save(update_fields=['job_pid'])
+        thread.daemon = True
+        thread.start()
         
         return job
     
@@ -559,18 +555,13 @@ class DownloaderService:
             )
 
         # Start download process with the direct URL
-        process = multiprocessing.Process(
+        thread = threading.Thread(
             target=cls._run_download_process,
             args=(job.id, novel_url)
         )
-        process.daemon = True
+        thread.daemon = True
         logger.debug(f"Using novel URL: {novel_url}")
-        process.start()
-        logger.debug(f"Started download process with PID: {process.pid}")
-        
-        # Store the process ID
-        job.job_pid = process.pid
-        job.save(update_fields=['job_pid'])
+        thread.start()
         
         return {
             'status': 'success',

@@ -32,9 +32,6 @@ class Job(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_CREATED)
     query = models.CharField(max_length=255, blank=True, null=True)
     
-    # Process tracking
-    job_pid = models.IntegerField(blank=True, null=True)
-    
     # Timestamps
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)

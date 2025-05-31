@@ -14,10 +14,10 @@ import { DownloadParams } from '@models/downloader_types';
 import DownloadStepper from './DownloadStepper';
 
 const DownloadForm = () => {
-  const { jobId, sourceIndex = '0', novelIndex = '0' } = useParams<{
+  const { jobId, novelIndex = '0', sourceIndex = '0' } = useParams<{
     jobId: string;
-    sourceIndex: string;
     novelIndex: string;
+    sourceIndex: string;
   }>();
   const navigate = useNavigate();
   

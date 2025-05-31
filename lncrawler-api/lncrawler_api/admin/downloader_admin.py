@@ -7,12 +7,12 @@ class JobAdmin(admin.ModelAdmin):
     list_display = ("id", "status", "query", "created_at", "updated_at", "progress", "total_items")
     list_filter = ("status", "created_at", "updated_at")
     search_fields = ("query", "output_path", "error_message", "import_message")
-    readonly_fields = ("id", "created_at", "updated_at", "job_pid")
+    readonly_fields = ("id", "created_at", "updated_at")
 
     fieldsets = (
         (
             "Job Information",
-            {"fields": ("id", "status", "query", "job_pid", "created_at", "updated_at")},
+            {"fields": ("id", "status", "query", "created_at", "updated_at")},
         ),
         ("Progress", {"fields": ("progress", "total_items")}),
         (
