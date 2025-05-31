@@ -30,10 +30,10 @@ class NovelFromSource(models.Model):
     
     # Basic metadata
     title = models.CharField(max_length=255)
-    source_url = models.URLField(max_length=500)
+    source_url = models.CharField(max_length=500)
     source_name = models.CharField(max_length=100)
     source_slug = models.SlugField(max_length=100, blank=True)
-    cover_url = models.URLField(max_length=500, null=True, blank=True)
+    cover_url = models.CharField(max_length=500, null=True, blank=True)
     
     # Path information relative to settings.LNCRAWL_OUTPUT_PATH
     source_path = models.CharField(max_length=500, null=True, blank=True)
