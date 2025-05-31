@@ -9,6 +9,7 @@ import multiprocessing
 from pathlib import Path
 import django
 from ..utils import lncrawler_paths
+from ..utils import chapter_utils
 
 from django.conf import settings
 
@@ -325,6 +326,13 @@ class DownloaderService:
                 source=job.selected_novel["url"].split("/")[2],
                 novel=job.selected_novel["title"]
             )
+
+            # If the path exist and is compressed, decompress it
+            if os.path.exists(custom_output_path):
+                potential_compressed_path = os.path.join(custom_output_path, "json.7z")
+                if os.path.exists(potential_compressed_path):
+                    chapter_utils.extract_tar_7zip_folder(tar_file_path=Path(potential_compressed_path))
+
             
             output_path_response = bot.set_output_path(custom_output_path)
             if output_path_response["status"] != "success":

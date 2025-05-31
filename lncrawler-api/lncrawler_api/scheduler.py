@@ -91,6 +91,17 @@ def calculate_novel_similarities():
     except Exception as e:
         logger.error(f"Error in daily novel similarity calculation: {str(e)}", exc_info=True)
 
+# Task to compress low traffic novels daily
+@scheduler.register_task(interval=86400, name="compress_low_traffic")  # 86400 seconds = 24 hours
+def compress_low_traffic_novels():
+    """Run the compress_low_traffic_novels command to compress novels with low weekly views."""
+    logger.info("Starting daily compression of low traffic novels...")
+    try:
+        call_command('compress_low_traffic_novels')
+        logger.info("Daily compression of low traffic novels completed successfully")
+    except Exception as e:
+        logger.error(f"Error in daily compression task: {str(e)}", exc_info=True)
+
 def start_scheduler():
     """Start the scheduler if it's not already running."""
     if not scheduler.running:

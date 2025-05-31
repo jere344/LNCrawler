@@ -142,14 +142,6 @@ class Command(BaseCommand):
                                 overview_parts = source.overview_picture_path.split(os.sep)
                                 if len(overview_parts) >= 2:
                                     source.overview_picture_path = os.sep.join([target_novel.novel_path.split(os.sep)[-1]] + overview_parts[1:])
-                            
-                            # chapter paths
-                            for chapter in source.chapters.all():
-                                if chapter.chapter_path:
-                                    chapter_parts = chapter.chapter_path.split(os.sep)
-                                    if len(chapter_parts) >= 2:
-                                        chapter.chapter_path = os.sep.join([target_novel.novel_path.split(os.sep)[-1]] + chapter_parts[1:])
-                                        chapter.save()
 
 
                     source.save()

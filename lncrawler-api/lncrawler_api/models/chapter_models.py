@@ -1,8 +1,5 @@
 from django.db import models
-import os
-import json
-from django.conf import settings
-from ..utils.chapter_utils import check_chapter_path_has_content
+from ..utils import chapter_utils
 
 
 class Volume(models.Model):
@@ -33,7 +30,6 @@ class Chapter(models.Model):
     title = models.CharField(max_length=255)
     volume = models.IntegerField(default=0)
     volume_title = models.CharField(max_length=255, blank=True, null=True)
-    chapter_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
     images = models.JSONField(default=list)  # store only image filenames
     has_content = models.BooleanField(default=False)  # New field to track content availability
     
@@ -47,40 +43,19 @@ class Chapter(models.Model):
     @property
     def body(self):
         """Read the chapter body from the file"""
-        if self.chapter_path:
-            try:
-                full_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.chapter_path)
-                if os.path.exists(full_path):
-                    with open(full_path, 'r', encoding='utf-8') as f:
-                        chapter_data = json.load(f)
-                        return chapter_data.get('body')
-            except Exception as e:
-                print(f"Error reading chapter file {full_path}: {e}")
-        
+        parsed_chapter = chapter_utils.get_chapter(self.novel_from_source.absolute_source_path, self.chapter_id)
+        if parsed_chapter:
+            return parsed_chapter.get('body', None)
+
         return None
     
     def check_has_content(self, save=True):
         """Check if the chapter file exists and has content, and update the has_content field"""
-        chapter_path = self.chapter_path
-        # If no chapter_path is available, construct it from source_path and chapter_id
-        if not chapter_path:
-            try:
-                source_path = self.novel_from_source.source_path
-                if source_path:
-                    chapter_path = os.path.join(source_path, 'json', f"{self.chapter_id:05d}.json")
-            except Exception:
-                chapter_path = None
-        
-        has_content = False
-        if chapter_path:
-            has_content = check_chapter_path_has_content(chapter_path)
+        has_content = chapter_utils.check_chapter_has_content(self.novel_from_source.absolute_source_path, self.chapter_id)
         
         # Update the field if it's different
         if self.has_content != has_content:
             self.has_content = has_content
-            if self.chapter_path != chapter_path:
-                self.chapter_path = chapter_path
-            
             if save:
                 self.save(update_fields=['has_content'])
         

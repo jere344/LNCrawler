@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from .novels_models import Novel, Author, Editor, Translator, Tag
 from .chapter_models import Volume, Chapter
-from ..utils.chapter_utils import check_chapter_path_has_content
+from ..utils import chapter_utils
 
 
 class NovelFromSource(models.Model):
@@ -83,6 +83,15 @@ class NovelFromSource(models.Model):
     @property
     def chapters_count(self):
         return self.chapters.count()
+    
+    @property
+    def absolute_source_path(self):
+        """
+        Returns the absolute path to the source directory
+        """
+        if self.source_path:
+            return os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.source_path)
+        return None
     
     @property
     def volumes_count(self):
@@ -210,9 +219,6 @@ class NovelFromSource(models.Model):
         
         # Process chapters - using bulk create/update for better performance
         if 'chapters' in novel_data:
-            # Get the base directory for chapter JSON files
-            relative_json_dir = os.path.join(source_path, 'json')
-            
             # Get existing chapters for this source to avoid duplicates
             existing_chapters = {
                 ch.chapter_id: ch for ch in Chapter.objects.filter(novel_from_source=novel_from_source)
@@ -224,12 +230,6 @@ class NovelFromSource(models.Model):
             for chapter_data in novel_data['chapters']:
                 chapter_id = chapter_data.get('id')
                 
-                # Format chapter_id with leading zeros for proper sorting
-                relative_chapter_path = os.path.join(relative_json_dir, f"{chapter_id:05d}.json")
-                
-                # Check if the file exists
-                file_exists = os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, relative_chapter_path))
-                
                 # Extract only the image filenames (keys) from the images dictionary
                 images_dict = chapter_data.get('images', {})
                 image_filenames = list(images_dict.keys()) if images_dict else []
@@ -240,9 +240,8 @@ class NovelFromSource(models.Model):
                     'title': chapter_data.get('title', f'Chapter {chapter_id}'),
                     'volume': chapter_data.get('volume', 0),
                     'volume_title': chapter_data.get('volume_title', ''),
-                    'chapter_path': relative_chapter_path if file_exists else None,
                     'images': image_filenames,
-                    'has_content': check_chapter_path_has_content(relative_chapter_path) if file_exists else False,
+                    'has_content': chapter_utils.check_chapter_has_content(source_absolute_path=source_dir, chapter_number=chapter_id)
                 }
                 
                 # If chapter exists, update it, otherwise create new
@@ -264,7 +263,7 @@ class NovelFromSource(models.Model):
             
             # Bulk update existing chapters
             if chapters_to_update:
-                fields_to_update = ['url', 'title', 'volume', 'volume_title', 'chapter_path', 'images', 'has_content']
+                fields_to_update = ['url', 'title', 'volume', 'volume_title', 'images', 'has_content']
                 Chapter.objects.bulk_update(chapters_to_update, fields_to_update)
             
             # Update last_chapter_update timestamp
