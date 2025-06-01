@@ -172,22 +172,22 @@ class NovelFromSource(models.Model):
             novel=novel,
             source_url=source_url,
             defaults={
-                'title': title,
+                'title': title[:500],
                 'external_source': external_source,
-                'source_slug': source_slug,
-                'source_path': source_path,
-                'cover_path': cover_path if os.path.exists(os.path.join(output_path, cover_path)) else None,
-                'cover_url': novel_data.get('cover_url'),
-                'language': novel_data.get('language', 'en'),
-                'status': novel_data.get('status', 'Unknown'),
-                'synopsis': novel_data.get('synopsis', ''),
+                'source_slug': source_slug[:100],
+                'source_path': source_path[:500],
+                'cover_path': cover_path[:500] if cover_path else None,
+                'cover_url': novel_data.get('cover_url', '')[:500],
+                'language': novel_data.get('language', 'en')[:100],
+                'status': novel_data.get('status', 'Unknown')[:20],
+                'synopsis': novel_data.get('synopsis', '')[:500],
                 'is_rtl': novel_data.get('is_rtl', False),
                 'has_manga': novel_data.get('has_manga'),
                 'has_mtl': novel_data.get('has_mtl'),
-                'original_publisher': novel_data.get('original_publisher'),
-                'english_publisher': novel_data.get('english_publisher'),
-                'novelupdates_url': novel_data.get('novelupdates_url'),
-                'meta_file_path': meta_json_path,
+                'original_publisher': novel_data.get('original_publisher', '')[:500],
+                'english_publisher': novel_data.get('english_publisher', '')[:500],
+                'novelupdates_url': novel_data.get('novelupdates_url', '')[:500],
+                'meta_file_path': meta_json_path[:500],
                 'last_chapter_update': timezone.now(),
             }
         )
@@ -234,7 +234,7 @@ class NovelFromSource(models.Model):
                     novel_from_source=novel_from_source,
                     volume_id=volume_data.get('id'),
                     defaults={
-                        'title': volume_data.get('title', f'Volume {volume_data.get("id")}'),
+                        'title': volume_data.get('title', f'Volume {volume_data.get("id")}')[:500],
                         'start_chapter': volume_data.get('start_chapter'),
                         'final_chapter': volume_data.get('final_chapter'),
                         'chapter_count': volume_data.get('chapter_count', 0),
@@ -260,10 +260,10 @@ class NovelFromSource(models.Model):
     
                 # Prepare chapter data
                 chapter_dict = {
-                    'url': chapter_data.get('url', ''),
-                    'title': chapter_data.get('title', f'Chapter {chapter_id}'),
+                    'url': chapter_data.get('url', '')[:500],
+                    'title': chapter_data.get('title', f'Chapter {chapter_id}')[:500],
                     'volume': chapter_data.get('volume', 0),
-                    'volume_title': chapter_data.get('volume_title', ''),
+                    'volume_title': chapter_data.get('volume_title', '')[:500],
                     'images': image_filenames,
                     'has_content': chapter_utils.check_chapter_has_content(source_absolute_path=source_dir, chapter_number=chapter_id)
                 }
