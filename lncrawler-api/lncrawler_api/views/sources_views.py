@@ -156,7 +156,6 @@ def source_image_gallery(request, novel_slug, source_slug):
 
     # Get chapters with images
     chapters_with_images = source.chapters.filter(images__isnull=False)
-    print(f"Chapters with images: {chapters_with_images.count()}")
 
     # Check if there are any images available
     has_overview = source.overview_picture_path and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path))

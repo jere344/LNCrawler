@@ -8,7 +8,7 @@ class Volume(models.Model):
     """
     novel_from_source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='volumes')
     volume_id = models.IntegerField()
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=500)
     start_chapter = models.IntegerField(null=True, blank=True)
     final_chapter = models.IntegerField(null=True, blank=True)
     chapter_count = models.IntegerField(default=0)
@@ -27,9 +27,9 @@ class Chapter(models.Model):
     novel_from_source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='chapters')
     chapter_id = models.IntegerField()
     url = models.URLField(max_length=500)
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=500)
     volume = models.IntegerField(default=0)
-    volume_title = models.CharField(max_length=255, blank=True, null=True)
+    volume_title = models.CharField(max_length=500, blank=True, null=True)
     images = models.JSONField(default=list)  # store only image filenames
     has_content = models.BooleanField(default=False)  # New field to track content availability
     

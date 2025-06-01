@@ -48,7 +48,7 @@ class NovelFromSource(models.Model):
     novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='sources')
     
     # Basic metadata
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=500)
     source_url = models.CharField(max_length=500)
     external_source = models.ForeignKey(ExternalSource, on_delete=models.CASCADE, related_name='novels')
     source_slug = models.SlugField(max_length=100, blank=True)
@@ -77,8 +77,8 @@ class NovelFromSource(models.Model):
     is_rtl = models.BooleanField(default=False)
     has_manga = models.BooleanField(null=True, blank=True)
     has_mtl = models.BooleanField(null=True, blank=True)
-    original_publisher = models.CharField(max_length=255, null=True, blank=True)
-    english_publisher = models.CharField(max_length=255, null=True, blank=True)
+    original_publisher = models.CharField(max_length=500, null=True, blank=True)
+    english_publisher = models.CharField(max_length=500, null=True, blank=True)
     novelupdates_url = models.URLField(max_length=500, null=True, blank=True)
     
     # Tracking
