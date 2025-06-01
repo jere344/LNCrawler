@@ -34,7 +34,7 @@ class ChapterAdmin(admin.ModelAdmin):
         "has_content",
         "comment_count",
     )
-    list_filter = ("novel_from_source__source_name", "volume", "has_content")
+    list_filter = ("novel_from_source__external_source__source_name", "volume", "has_content")
     search_fields = ("title", "novel_from_source__title")
     raw_id_fields = ("novel_from_source",)
     readonly_fields = ("comment_count",)

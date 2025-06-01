@@ -85,7 +85,7 @@ function AppWithTheme() {
                             {/* Downloader routes */}
                             <Route path="/download" element={<DownloaderHome />} />
                             <Route path="/download/search/:jobId" element={<SearchResults />} />
-                            <Route path="/download/:jobId/:sourceIndex/:novelIndex" element={<DownloadForm />} />
+                            <Route path="/download/:jobId/:novelIndex/:sourceIndex" element={<DownloadForm />} />
                             <Route path="/download/status/:jobId" element={<DownloadStatus />} />
                             
                             {/* Novel reading routes with new URL structure */}

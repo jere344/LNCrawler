@@ -12,6 +12,25 @@ from .chapter_models import Volume, Chapter
 from ..utils import chapter_utils
 
 
+class ExternalSource(models.Model):
+    """
+    Represents an external source (website) where novels are crawled from
+    """
+    STATUS_CHOICES = [
+        ('alive', 'Alive'),
+        ('dead', 'Dead'),
+    ]
+    
+    source_name = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='alive')
+    
+    class Meta:
+        ordering = ['source_name']
+    
+    def __str__(self):
+        return f"{self.source_name} ({self.get_status_display()})"
+
+
 class NovelFromSource(models.Model):
     """
     Represents a novel from a specific source with its metadata
@@ -31,7 +50,7 @@ class NovelFromSource(models.Model):
     # Basic metadata
     title = models.CharField(max_length=255)
     source_url = models.CharField(max_length=500)
-    source_name = models.CharField(max_length=100)
+    external_source = models.ForeignKey(ExternalSource, on_delete=models.CASCADE, related_name='novels')
     source_slug = models.SlugField(max_length=100, blank=True)
     cover_url = models.CharField(max_length=500, null=True, blank=True)
     
@@ -78,7 +97,7 @@ class NovelFromSource(models.Model):
         unique_together = ('novel', 'source_url')
     
     def __str__(self):
-        return f"{self.title} ({self.source_name})"
+        return f"{self.title} ({self.external_source.source_name})"
 
     @property
     def chapters_count(self):
@@ -139,9 +158,14 @@ class NovelFromSource(models.Model):
             }
         )
         
+        # Create or get the external source
+        source_name = os.path.basename(source_dir)
+        external_source, created = ExternalSource.objects.get_or_create(
+            source_name=source_name
+        )
+        
         # Create or update the NovelFromSource
         source_url = novel_data.get('url', '')
-        source_name = os.path.basename(source_dir)
         source_slug = slugify(source_name)
         
         novel_from_source, created = cls.objects.update_or_create(
@@ -149,7 +173,7 @@ class NovelFromSource(models.Model):
             source_url=source_url,
             defaults={
                 'title': title,
-                'source_name': source_name,
+                'external_source': external_source,
                 'source_slug': source_slug,
                 'source_path': source_path,
                 'cover_path': cover_path if os.path.exists(os.path.join(output_path, cover_path)) else None,

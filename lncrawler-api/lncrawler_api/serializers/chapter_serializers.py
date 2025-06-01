@@ -64,7 +64,7 @@ class ChapterContentSerializer(serializers.ModelSerializer):
         return str(obj.novel_from_source.id)
     
     def get_source_name(self, obj):
-        return obj.novel_from_source.source_name
+        return obj.novel_from_source.external_source.source_name
     
     def get_source_slug(self, obj):
         return obj.novel_from_source.source_slug

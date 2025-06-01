@@ -23,6 +23,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     overview_url = serializers.SerializerMethodField()
     latest_available_chapter = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
+    source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     
     class Meta:
         model = NovelFromSource

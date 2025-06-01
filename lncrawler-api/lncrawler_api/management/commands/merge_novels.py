@@ -82,7 +82,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR("Cannot merge novels: conflicting source paths detected"))
                 self.stdout.write("The following sources have paths that already exist in the target novel:")
                 for source in conflicting_sources:
-                    self.stdout.write(f"  - {source.source_name}: {source.source_path}")
+                    self.stdout.write(f"  - {source.external_source.source_name}: {source.source_path}")
                 raise CommandError(
                     f"Merge aborted due to {len(conflicting_sources)} conflicting source paths. "
                     "Please resolve these conflicts before attempting to merge."
@@ -95,7 +95,7 @@ class Command(BaseCommand):
 
             # List the sources that will be moved
             for source in sources:
-                self.stdout.write(f"  - {source.source_name}: {source.title}")
+                self.stdout.write(f"  - {source.external_source.source_name}: {source.title}")
 
             if move_files and source_novel.novel_path and target_novel.novel_path:
                 source_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, source_novel.novel_path)

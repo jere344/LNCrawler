@@ -107,8 +107,8 @@ def _import_novel_to_database(output_path, job):
             job.output_slug = novel.novel.slug + "/" + novel.source_slug
             job.save(update_fields=['output_slug', 'updated_at'])
             
-            logger.info(f"Successfully imported novel: {novel.title} from {novel.source_name}")
-            return True, f"Successfully imported novel: {novel.title} from {novel.source_name}"
+            logger.info(f"Successfully imported novel: {novel.title} from {novel.external_source.source_name}")
+            return True, f"Successfully imported novel: {novel.title} from {novel.external_source.source_name}"
         else:
             return False, "Failed to import novel from meta.json"
     

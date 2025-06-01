@@ -43,7 +43,7 @@ def novel_comments(request, novel_slug):
                 'request': request, 
                 'chapter_title': chapter.title,
                 'chapter_id': chapter.chapter_id,
-                'source_name': source.source_name,
+                'source_name': source.external_source.source_name,
                 'source_slug': source.source_slug
             })
         comment_data = serializer.data
@@ -125,7 +125,7 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
                 'request': request,
                 'chapter_title': chapter.title,
                 'chapter_id': chapter.chapter_id,
-                'source_name': source.source_name,
+                'source_name': source.external_source.source_name,
                 'source_slug': source.source_slug
             })
         else: # Novel comment
@@ -167,7 +167,7 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
             'request': request,
             'chapter_title': chapter.title,
             'chapter_id': chapter.chapter_id,
-            'source_name': source.source_name,
+            'source_name': source.external_source.source_name,
             'source_slug': source.source_slug
         })
     specific_comments_data = specific_comments_serializer.data
@@ -186,7 +186,7 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
                     'request': request,
                     'chapter_title': other_chapter.title,
                     'chapter_id': other_chapter.chapter_id,
-                    'source_name': other_source.source_name,
+                    'source_name': other_source.external_source.source_name,
                     'source_slug': other_source.source_slug
                 })
             for comment_data in serializer.data:
@@ -269,7 +269,7 @@ def edit_comment(request, comment_id):
             'request': request,
             'chapter_title': chapter.title,
             'chapter_id': chapter.chapter_id,
-            'source_name': source.source_name,
+            'source_name': source.external_source.source_name,
             'source_slug': source.source_slug
         })
     elif comment.board:

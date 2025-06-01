@@ -81,7 +81,7 @@ class Command(BaseCommand):
                     
                     # Only compress if json folder exists and compressed file doesn't exist
                     if json_folder_path.exists() and not compressed_file_path.exists():
-                        self.stdout.write(f'  Compressing source: {source.source_name}')
+                        self.stdout.write(f'  Compressing source: {source.external_source.source_name}')
                         
                         try:
                             success = chapter_utils.compress_folder_to_tar_7zip(
@@ -93,22 +93,22 @@ class Command(BaseCommand):
                             if success:
                                 compressed_count += 1
                                 self.stdout.write(
-                                    self.style.SUCCESS(f'    Successfully compressed {source.source_name}')
+                                    self.style.SUCCESS(f'    Successfully compressed {source.external_source.source_name}')
                                 )
                             else:
                                 failed_count += 1
                                 self.stdout.write(
-                                    self.style.ERROR(f'    Failed to compress {source.source_name}')
+                                    self.style.ERROR(f'    Failed to compress {source.external_source.source_name}')
                                 )
                         except Exception as e:
                             failed_count += 1
                             self.stdout.write(
-                                self.style.ERROR(f'    Error compressing {source.source_name}: {str(e)}')
+                                self.style.ERROR(f'    Error compressing {source.external_source.source_name}: {str(e)}')
                             )
                     elif compressed_file_path.exists():
-                        self.stdout.write(f'    Source {source.source_name} already compressed')
+                        self.stdout.write(f'    Source {source.external_source.source_name} already compressed')
                     else:
-                        self.stdout.write(f'    No json folder found for {source.source_name}')
+                        self.stdout.write(f'    No json folder found for {source.external_source.source_name}')
         
         # Final summary
         elapsed = time.time() - start_time

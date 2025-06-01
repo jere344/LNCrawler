@@ -20,7 +20,7 @@ class NovelFromSourceInline(admin.TabularInline):
     extra = 0
     fields = (
         "link_to_source",
-        "source_name",
+        "external_source__source_name",
         "status",
         "chapters_count",
         "last_chapter_update",

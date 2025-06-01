@@ -5,7 +5,7 @@ from ..models import (
     Editor,
     Translator,
     Tag,
-    Chapter,
+    ExternalSource,
     SourceVote,
     Volume,
 )
@@ -58,7 +58,7 @@ class SourceVoteInline(admin.TabularInline):
 class NovelFromSourceAdmin(admin.ModelAdmin):
     list_display = (
         "title",
-        "source_name",
+        "external_source__source_name",
         "link_to_novel",
         "status",
         "chapters_count",
@@ -66,8 +66,8 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
         "last_chapter_update",
         "id",
     )
-    list_filter = ("source_name", "status", "language")
-    search_fields = ("title", "novel__title", "source_name")
+    list_filter = ("external_source__source_name", "status", "language")
+    search_fields = ("title", "novel__title", "external_source__source_name")
     readonly_fields = (
         "id",
         "created_at",
@@ -113,7 +113,7 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
 @admin.register(Volume)
 class VolumeAdmin(admin.ModelAdmin):
     list_display = ("title", "novel_from_source", "volume_id", "chapter_count")
-    list_filter = ("novel_from_source__source_name",)
+    list_filter = ("novel_from_source__external_source__source_name",)
     search_fields = ("title", "novel_from_source__title")
     raw_id_fields = ("novel_from_source",)
 
@@ -126,3 +126,9 @@ class SourceVoteAdmin(admin.ModelAdmin):
     search_fields = ("source__title", "ip_address")
     readonly_fields = ("created_at", "updated_at")
     raw_id_fields = ("source",)
+
+@admin.register(ExternalSource)
+class ExternalSourceAdmin(admin.ModelAdmin):
+    list_display = ("source_name", "status")
+    search_fields = ("source_name",)
+    list_filter = ("status",)
