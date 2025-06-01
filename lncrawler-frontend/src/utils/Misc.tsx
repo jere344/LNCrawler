@@ -1,10 +1,3 @@
-export function toLocalDate(dateString: string): Date {
-    const date = new Date(dateString);
-    const timezoneOffset = date.getTimezoneOffset() * 60 * 1000; // convert to milliseconds
-    const localDate = new Date(date.getTime() + timezoneOffset);
-    return localDate;
-}
-
 export function formatTimeAgo(date : Date): string {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     const minutes = Math.floor(seconds / 60);

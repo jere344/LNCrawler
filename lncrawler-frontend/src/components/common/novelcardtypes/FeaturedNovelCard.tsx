@@ -6,7 +6,7 @@ import StarIcon from '@mui/icons-material/Star';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgo, getChapterNameWithNumber, toLocalDate } from '@utils/Misc';
+import { formatTimeAgo, getChapterNameWithNumber } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
 
@@ -152,7 +152,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <EditIcon fontSize="small" />
                   <Typography variant="caption">
-                    {source.last_chapter_update ? formatTimeAgo(toLocalDate(source.last_chapter_update)) : 'Unknown'}
+                    {source.last_chapter_update ? formatTimeAgo(new Date(source.last_chapter_update)) : 'Unknown'}
                   </Typography>
                 </Box>
               </Grid>

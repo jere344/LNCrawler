@@ -13,7 +13,7 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName, toLocalDate } from '@utils/Misc';
+import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -357,7 +357,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               <Tooltip title="Last Updated">
                 <Chip 
                   icon={<UpdateIcon />}
-                  label={preferredSource?.last_chapter_update ? formatTimeAgo(toLocalDate(preferredSource?.last_chapter_update)) : 'Unknown'}
+                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update)) : 'Unknown'}
                   size="small"
                   variant="outlined"
                 />
