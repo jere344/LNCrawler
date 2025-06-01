@@ -163,11 +163,11 @@ class Command(BaseCommand):
                         import_results['successful'].append({
                             'path': meta_file_path,
                             'title': novel_from_source.title,
-                            'source': novel_from_source.source_name
+                            'source': novel_from_source.external_source.source_name
                         })
                         
                         self.stdout.write(self.style.SUCCESS(
-                            f"Successfully imported '{novel_from_source.title}' from {novel_from_source.source_name}"
+                            f"Successfully imported '{novel_from_source.title}' from {novel_from_source.external_source.source_name}"
                         ))
                     else:
                         self.stdout.write(self.style.WARNING(
