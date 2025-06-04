@@ -40,10 +40,12 @@ import ActionButton from '../common/ActionButton';
 import NovelRecommendation from '../common/NovelRecommendation';
 import SectionContainer from '@components/common/SectionContainer.tsx';
 import Reviews from './Reviews.tsx';
+import { useAuth } from '@context/AuthContext';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
 const NovelDetail = () => {
+  const { isAuthenticated } = useAuth();
   const { novelSlug } = useParams<{ novelSlug: string }>();
   const theme = useTheme();
   const [novel, setNovel] = useState<INovelDetail | null>(null);
@@ -392,6 +394,7 @@ const NovelDetail = () => {
                     </Box>
                     
                     {/* Add bookmark button to top-right corner of image */}
+                    {isAuthenticated && (
                     <Box
                       sx={{
                         position: 'absolute',
@@ -418,6 +421,7 @@ const NovelDetail = () => {
                         </IconButton>
                       </Tooltip>
                     </Box>
+                    )}
                   </Box>
                 </Zoom>
               </Grid>
