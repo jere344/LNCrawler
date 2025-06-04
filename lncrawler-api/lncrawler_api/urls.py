@@ -3,14 +3,14 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views
 from .views.csrf import get_csrf_token
-from django.contrib.sitemaps.views import sitemap
+from django.contrib.sitemaps.views import sitemap, index
 from django.views.decorators.cache import cache_page
 from .views.sitemap import (
     StaticViewSitemap,
     NovelSitemap,
     SourceSitemap,
     ChapterListSitemap,
-    ChapterReaderSitemap,
+    # ChapterReaderSitemap,
     ImageGallerySitemap,
 )
 
@@ -23,7 +23,7 @@ sitemaps = {
     'novels': NovelSitemap,
     'sources': SourceSitemap,
     'chapterlists': ChapterListSitemap,
-    'chapters': ChapterReaderSitemap,
+    # 'chapters': ChapterReaderSitemap,
     'galleries': ImageGallerySitemap,
 }
 
@@ -106,6 +106,7 @@ urlpatterns = [
     # CSRF token endpoint
     path('csrf-token/', get_csrf_token, name='csrf_token'),
     
-    # Sitemap
-    path('sitemap.xml', cache_page(3600)(sitemap), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
+    # sitemap - 100h cache
+    path('sitemap.xml', cache_page(360000)(index), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.index'),
+    path('sitemap-<section>.xml', cache_page(360000)(sitemap), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
 ]
