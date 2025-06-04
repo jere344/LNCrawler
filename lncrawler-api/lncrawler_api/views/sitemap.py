@@ -76,7 +76,7 @@ class ChapterListSitemap(BaseSitemap):
     def items(self):
         return NovelFromSource.objects.select_related('novel').only(
             'source_slug', 'updated_at', 'last_chapter_update', 'novel__slug'
-        ).filter(chapters__isnull=False).distinct().order_by('novel__slug', 'source_slug')
+        ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
         return obj.last_chapter_update or obj.updated_at
