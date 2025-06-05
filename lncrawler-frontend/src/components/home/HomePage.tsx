@@ -125,7 +125,7 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" fontWeight="bold">
             This Week's Hottest Novels 🔥
           </Typography>
-          <Button component={Link} to="/novels/search?sort_by=weekly_views&sort_order=desc" variant="text">
+          <Button component={Link} to="/novels/search?sort_by=trending&sort_order=desc" variant="text">
             View More
           </Button>
         </Box>
