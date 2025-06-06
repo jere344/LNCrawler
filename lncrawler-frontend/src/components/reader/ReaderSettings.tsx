@@ -13,6 +13,7 @@ import PaletteIcon from '@mui/icons-material/Palette';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import SettingsIcon from '@mui/icons-material/Settings';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 // Import our new components
 import FontSettings from './settings/FontSettings';
@@ -20,6 +21,7 @@ import ColorSettings from './settings/ColorSettings';
 import LayoutSettings from './settings/LayoutSettings';
 import BehaviorSettings from './settings/BehaviorSettings';
 import GestureSettings from './settings/GestureSettings';
+import PageSettings from './settings/PageSettings';
 import ReaderNavigation from './controls/ReaderNavigation';
 import SettingsSection from './SettingsSection';
 
@@ -54,6 +56,8 @@ export interface ReaderSettings {
   paragraphIndent: boolean;
   paragraphSpacing: number;
   centerTapToOpenSettings: boolean;
+  pageMode: boolean;
+  showPages: boolean;
 }
 
 // Default settings
@@ -80,6 +84,8 @@ export const defaultSettings: ReaderSettings = {
   paragraphIndent: false,
   paragraphSpacing: 1,
   centerTapToOpenSettings: true,
+  pageMode: false,
+  showPages: true,
 };
 
 export interface ChapterInfo {
@@ -248,6 +254,19 @@ const ReaderSettings = ({
     const newSettings = { ...settings, [key]: gesture };
     onSettingChange(newSettings);
     saveSetting(key, gesture);
+  };
+
+  // Page Settings Handlers
+  const handlePageModeChange = (enabled: boolean) => {
+    const newSettings = { ...settings, pageMode: enabled };
+    onSettingChange(newSettings);
+    saveSetting('pageMode', enabled);
+  };
+
+  const handleShowPagesChange = (show: boolean) => {
+    const newSettings = { ...settings, showPages: show };
+    onSettingChange(newSettings);
+    saveSetting('showPages', show);
   };
 
   const resetDefaults = () => {
@@ -477,6 +496,19 @@ const ReaderSettings = ({
             onKeyboardNavigationChange={handleKeyboardNavigationChange}
             onCenterTapToOpenSettingsChange={handleCenterTapToOpenSettingsChange}
             isAuthenticated={isAuthenticated}
+          />
+        </SettingsSection>
+
+        {/* Page Mode Settings */}
+        <SettingsSection 
+          title="Page Mode" 
+          icon={<MenuBookIcon color="primary" />}
+        >
+          <PageSettings 
+            pageMode={settings.pageMode}
+            showPages={settings.showPages}
+            onPageModeChange={handlePageModeChange}
+            onShowPagesChange={handleShowPagesChange}
           />
         </SettingsSection>
 

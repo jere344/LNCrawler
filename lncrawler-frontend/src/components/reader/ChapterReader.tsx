@@ -35,6 +35,7 @@ import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
 import { getChapterNameWithNumber } from '@utils/Misc';
 import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
+import ChapterSEO from '@components/reader/ChapterSEO';
 
 // Interface for our chapter cache
 interface ChapterCache {
@@ -452,6 +453,44 @@ const ChapterReader = () => {
       return;
     }
 
+    // Page mode handling
+    if (readerSettings.pageMode && isMobile) {
+      const containerWidth = e.currentTarget.clientWidth;
+      const tapX = e.nativeEvent.offsetX;
+      const centerWidth = containerWidth * 0.4; // 40% center area
+      const leftEdge = (containerWidth - centerWidth) / 2;
+      const rightEdge = leftEdge + centerWidth;
+
+      // Check current scroll position
+      const currentScroll = window.scrollY;
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      const isAtTop = currentScroll <= 0;
+      const isAtBottom = currentScroll >= maxScroll - 5; // Small buffer for precision
+
+      if (tapX < leftEdge) {
+        // Left tap - previous page
+        if (!isAtTop) {
+          scrollByViewport('up');
+        } else if (chapter?.prev_chapter) {
+          handlePrevChapter();
+        }
+      } else if (tapX > rightEdge) {
+        // Right tap - next page
+        if (!isAtBottom) {
+          scrollByViewport('down');
+        } else if (chapter?.next_chapter) {
+          handleNextChapter();
+        }
+      } else {
+        // Center tap - toggle controls if enabled
+        if (readerSettings.centerTapToOpenSettings) {
+          setControlsVisible(!controlsVisible);
+        }
+      }
+      return;
+    }
+
+    // Original behavior for non-page mode
     // Handle edge taps
     const containerWidth = e.currentTarget.clientWidth;
     const tapX = e.nativeEvent.offsetX;
@@ -559,29 +598,41 @@ const ChapterReader = () => {
   const homeUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}` : undefined;
   const chapterListUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}/chapterlist` : undefined;
 
-  const pageUrl = window.location.href;
-  const siteName = "LNCrawler";
-
-  const metaTitle = chapter ? `Read ${getChapterNameWithNumber(chapter.title, chapter.chapter_id)} - ${chapter.novel_title} | ${siteName}` : `Loading Chapter | ${siteName}`;
-  const metaDescription = chapter 
-    ? `Read Chapter ${chapter.chapter_id}: ${chapter.title} of the light novel ${chapter.novel_title}. ${chapter.body ? chapter.body.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : `Continue reading ${chapter.novel_title} on ${siteName}.`}`
-    : `Loading chapter content. Read light novels online on ${siteName}.`;
-  const metaKeywords = chapter 
-    ? `${chapter.novel_title}, ${chapter.source_name}, chapter ${chapter.chapter_id}, ${chapter.title}, read light novel, online reader, web novel`
-    : "light novel, web novel, chapter reader, online reading";
-  const ogImage = chapter?.source_overview_image_url ? 
-    chapter.source_overview_image_url 
-    : `${window.location.origin}${DEFAULT_OG_IMAGE}`;
-
-
   // Handle swipe gestures
   const handleGesture = (direction: 'left' | 'right') => {
-    console.log(`Handling swipe ${direction}`);
+    if (!isMobile) return;
     if (!chapter) return;
     
     // If controls are visible, don't handle swipes
     if (controlsVisible) return;
     
+    // Page mode handling
+    if (readerSettings.pageMode) {
+      // Check current scroll position
+      const currentScroll = window.scrollY;
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      const isAtTop = currentScroll <= 0;
+      const isAtBottom = currentScroll >= maxScroll - 5; // Small buffer for precision
+
+      if (direction === 'left') {
+        // Swipe left - next page
+        if (!isAtBottom) {
+          scrollByViewport('down');
+        } else if (chapter?.next_chapter) {
+          handleNextChapter();
+        }
+      } else {
+        // Swipe right - previous page
+        if (!isAtTop) {
+          scrollByViewport('up');
+        } else if (chapter?.prev_chapter) {
+          handlePrevChapter();
+        }
+      }
+      return;
+    }
+    
+    // Original behavior for non-page mode
     // Get gesture setting
     const gesture = direction === 'left' 
       ? readerSettings.swipeLeftGesture
@@ -616,6 +667,109 @@ const ChapterReader = () => {
     swipeDuration: 500,
   });
 
+  // Add state for page mode tracking
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
+  // Add effect to disable scrolling when page mode is enabled
+  useEffect(() => {
+    if (readerSettings.pageMode && isMobile) {
+      // Disable scroll
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      // Add class to hide footer
+      document.body.classList.add('page-mode-active');
+    } else {
+      // Re-enable scroll
+      document.body.style.overflow = 'auto';
+      document.documentElement.style.overflow = 'auto';
+      // Remove class to show footer
+      document.body.classList.remove('page-mode-active');
+    }
+
+    return () => {
+      // Cleanup on unmount
+      document.body.style.overflow = 'auto';
+      document.documentElement.style.overflow = 'auto';
+      document.body.classList.remove('page-mode-active');
+    };
+  }, [readerSettings.pageMode, isMobile]);
+
+  // Add effect to calculate total pages when page mode is enabled
+  useEffect(() => {
+    if (readerSettings.pageMode && isMobile && !loading && chapter) {
+      const calculatePages = () => {
+        const viewportHeight = window.innerHeight * 0.95; // We scroll by 95% of viewport height
+        const scrollHeight = document.documentElement.scrollHeight;
+        const clientHeight = window.innerHeight;
+        
+        // Only calculate pages if there's scrollable content
+        if (scrollHeight <= clientHeight) {
+          setTotalPages(1);
+          setCurrentPage(1);
+          return;
+        }
+        
+        // Calculate total pages based on scrollable height
+        const scrollableHeight = scrollHeight - clientHeight;
+        const pages = Math.ceil(scrollableHeight / viewportHeight) + 1; // +1 for the first page
+        setTotalPages(pages);
+        
+        // Calculate current page based on scroll position
+        const currentScroll = window.scrollY;
+        let currentPageNum;
+        
+        if (currentScroll <= 0) {
+          currentPageNum = 1;
+        } else if (currentScroll >= scrollableHeight) {
+          currentPageNum = pages;
+        } else {
+          currentPageNum = Math.floor(currentScroll / viewportHeight) + 2; // +2 because we start from page 1 and add one more for partial pages
+        }
+        
+        // Ensure current page is within valid range
+        currentPageNum = Math.max(1, Math.min(currentPageNum, pages));
+        setCurrentPage(currentPageNum);
+      };
+      
+      // Calculate immediately
+      calculatePages();
+      
+      // Also recalculate when content is fully loaded with a small delay
+      const timer = setTimeout(() => {
+        calculatePages();
+      }, 100);
+      
+      window.addEventListener('resize', calculatePages);
+      
+      return () => {
+        window.removeEventListener('resize', calculatePages);
+        clearTimeout(timer);
+      };
+    }
+  }, [readerSettings.pageMode, loading, chapter]);
+
+  // Function to scroll by one viewport
+  const scrollByViewport = (direction: 'up' | 'down') => {
+    const viewportHeight = window.innerHeight * 0.95;
+    const currentScroll = window.scrollY;
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    
+    let newScroll;
+    if (direction === 'down') {
+      newScroll = Math.min(currentScroll + viewportHeight, maxScroll);
+      setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    } else {
+      newScroll = Math.max(currentScroll - viewportHeight, 0);
+      setCurrentPage(prev => Math.max(prev - 1, 1));
+    }
+    
+    window.scrollTo({
+      top: newScroll,
+      behavior: 'instant'
+    });
+  };
+
   if (loading) {
     return (
       <Container>
@@ -643,23 +797,7 @@ const ChapterReader = () => {
 
   return (
     <>
-      <title>{metaTitle}</title>
-      <meta name="description" content={metaDescription} />
-      <meta name="keywords" content={metaKeywords} />
-      <link rel="canonical" href={pageUrl} />
-
-      <meta property="og:title" content={metaTitle} />
-      <meta property="og:description" content={metaDescription} />
-      <meta property="og:type" content="article" />
-      <meta property="og:url" content={pageUrl} />
-      <meta property="og:site_name" content={siteName} />
-      <meta property="og:image" content={ogImage} />
-      {chapter && <meta property="article:section" content={chapter.novel_title} />}
-
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={metaTitle} />
-      <meta name="twitter:description" content={metaDescription} />
-      <meta name="twitter:image" content={ogImage} />
+      <ChapterSEO chapter={chapter}></ChapterSEO>
 
       {/* Reader Toolbar */}
       <ReaderToolbar 
@@ -835,6 +973,40 @@ const ChapterReader = () => {
             </Alert>
           </Snackbar>
         </Paper>
+
+                    
+        {/* Page mode indicator, absolute center bottom */}
+        {readerSettings.pageMode && isMobile && readerSettings.showPages && (
+          <Typography 
+            variant="body2"
+            sx={{ 
+              position: 'fixed', 
+              bottom: 8, 
+              left: '50%', 
+              transform: 'translateX(-50%)', 
+              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '4px',
+              zIndex: 1000
+            }}
+          >
+            {currentPage}/{totalPages}
+          </Typography>
+        )}
+        {readerSettings.pageMode && isMobile && readerSettings.showPages && (
+        <Box 
+          sx={{ 
+              position: 'fixed', 
+              left: 0,
+              bottom: 0, 
+              width: '100%', 
+              height: '3%',
+              backgroundColor: readerSettings.backgroundColor || theme.palette.background.paper,
+              zIndex: 999
+            }}
+        />
+        )}
       </Container>
 
       {/* Settings Drawer */}

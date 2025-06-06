@@ -25,3 +25,8 @@
   font-weight: bold;
   font-style: italic;
 }
+
+/* Hide footer when page mode is active */
+body.page-mode-active footer {
+  display: none !important;
+}
