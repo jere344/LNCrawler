@@ -1,7 +1,9 @@
 import {
   Drawer, Box, Typography, IconButton, Divider, Button,
-  useTheme, useMediaQuery, Stack,
+  useTheme, useMediaQuery, Stack, Dialog, DialogTitle, 
+  DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
+import { useState } from 'react';
 import Cookies from 'js-cookie';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -51,6 +53,7 @@ export interface ReaderSettings {
   hideScrollbar: boolean;
   paragraphIndent: boolean;
   paragraphSpacing: number;
+  centerTapToOpenSettings: boolean;
 }
 
 // Default settings
@@ -76,6 +79,7 @@ export const defaultSettings: ReaderSettings = {
   hideScrollbar: false,
   paragraphIndent: false,
   paragraphSpacing: 1,
+  centerTapToOpenSettings: true,
 };
 
 export interface ChapterInfo {
@@ -112,6 +116,7 @@ const ReaderSettings = ({
 }: ReaderSettingsProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Helper function to save setting to cookie
   const saveSetting = (key: string, value: any) => {
@@ -231,6 +236,12 @@ const ReaderSettings = ({
     saveSetting('keyboardNavigation', enabled);
   };
 
+  const handleCenterTapToOpenSettingsChange = (enabled: boolean) => {
+    const newSettings = { ...settings, centerTapToOpenSettings: enabled };
+    onSettingChange(newSettings);
+    saveSetting('centerTapToOpenSettings', enabled);
+  };
+
   // Gesture Settings Handlers
   const handleSwipeGestureChange = (direction: 'left' | 'right', gesture: SwipeGesture) => {
     const key = direction === 'left' ? 'swipeLeftGesture' : 'swipeRightGesture';
@@ -244,6 +255,15 @@ const ReaderSettings = ({
     Object.entries(defaultSettings).forEach(([key, value]) => {
       saveSetting(key, value);
     });
+    setResetConfirmOpen(false);
+  };
+
+  const handleResetClick = () => {
+    setResetConfirmOpen(true);
+  };
+
+  const handleResetCancel = () => {
+    setResetConfirmOpen(false);
   };
 
   // Export settings to JSON file
@@ -315,179 +335,208 @@ const ReaderSettings = ({
   };
 
   return (
-    <Drawer 
-      anchor={isMobile ? "bottom" : "right"} 
-      open={open} 
-      onClose={onClose}
-      PaperProps={{
-        sx: {
-          width: isMobile ? '100%' : '350px',
-          maxHeight: isMobile ? '60vh' : '100%',
-          borderTopLeftRadius: isMobile ? '16px' : 0,
-          borderTopRightRadius: isMobile ? '16px' : 0,
-          padding: 2,
-          paddingRight: 3,
-          overflow: 'auto',
-          zIndex: theme.zIndex.drawer,
-          boxShadow: 3,
-          backgroundColor: theme.palette.background.default,
-        }
-      }}
-    >
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        mx: -2,
-        mt: -2,
-        p: 2,
-        pb: 0.5,
-        position: 'sticky',
-        top: "-30px",
-        width: 'calc(100% + 32px)',
-        zIndex: 2,
-        backgroundColor: theme.palette.background.paper,
-      }}>
-        <Typography variant="h6">Reader Settings</Typography>
-        <IconButton onClick={onClose}>
-          <CloseIcon />
-        </IconButton>
-      </Box>
-
-      <Divider sx={{ mb: 2 }} />
-
-      {/* Navigation Controls - Always visible */}
-      <ReaderNavigation 
-        prevChapter={chapterInfo.prevChapter}
-        nextChapter={chapterInfo.nextChapter}
-        onPrevious={() => onNavigate('prev')}
-        onNext={() => onNavigate('next')}
-        onHome={() => onNavigate('home')}
-        prevUrl={prevUrl}
-        nextUrl={nextUrl}
-        homeUrl={homeUrl}
-      />
-
-      <Divider sx={{ mb: 2 }} />
-
-      {/* Font Settings */}
-      <SettingsSection 
-        title="Font" 
-        icon={<TextFieldsIcon color="primary" />}
-        defaultExpanded
+    <>
+      <Drawer 
+        anchor={isMobile ? "bottom" : "right"} 
+        open={open} 
+        onClose={onClose}
+        PaperProps={{
+          sx: {
+            width: isMobile ? '100%' : '350px',
+            maxHeight: isMobile ? '60vh' : '100%',
+            borderTopLeftRadius: isMobile ? '16px' : 0,
+            borderTopRightRadius: isMobile ? '16px' : 0,
+            padding: 2,
+            paddingRight: 3,
+            overflow: 'auto',
+            zIndex: theme.zIndex.drawer,
+            boxShadow: 3,
+            backgroundColor: theme.palette.background.default,
+          }
+        }}
       >
-        <FontSettings 
-          fontSize={settings.fontSize}
-          fontFamily={settings.fontFamily}
-          textAlign={settings.textAlign}
-          onFontSizeChange={handleFontSizeChange}
-          onFontFamilyChange={handleFontFamilyChange}
-          onTextAlignChange={handleTextAlignChange}
-        />
-      </SettingsSection>
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          mx: -2,
+          mt: -2,
+          p: 2,
+          pb: 0.5,
+          position: 'sticky',
+          top: "-30px",
+          width: 'calc(100% + 32px)',
+          zIndex: 2,
+          backgroundColor: theme.palette.background.paper,
+        }}>
+          <Typography variant="h6">Reader Settings</Typography>
+          <IconButton onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
 
-      {/* Color Settings */}
-      <SettingsSection 
-        title="Colors" 
-        icon={<PaletteIcon color="primary" />}
-      >
-        <ColorSettings 
-          fontColor={settings.fontColor}
-          backgroundColor={settings.backgroundColor}
-          dimLevel={settings.dimLevel}
-          onFontColorChange={handleFontColorChange}
-          onBackgroundColorChange={handleBackgroundColorChange}
-          onDimLevelChange={handleDimLevelChange}
-        />
-      </SettingsSection>
+        <Divider sx={{ mb: 2 }} />
 
-      {/* Layout Settings */}
-      <SettingsSection 
-        title="Layout" 
-        icon={<ViewColumnIcon color="primary" />}
-      >
-        <LayoutSettings 
-          margin={settings.margin}
-          lineSpacing={settings.lineSpacing}
-          wordSpacing={settings.wordSpacing}
-          letterSpacing={settings.letterSpacing}
-          hideScrollbar={settings.hideScrollbar}
-          paragraphIndent={settings.paragraphIndent}
-          paragraphSpacing={settings.paragraphSpacing}
-          onMarginChange={handleMarginChange}
-          onLineSpacingChange={handleLineSpacingChange}
-          onWordSpacingChange={handleWordSpacingChange}
-          onLetterSpacingChange={handleLetterSpacingChange}
-          onHideScrollbarChange={handleHideScrollbarChange}
-          onParagraphIndentChange={handleParagraphIndentChange}
-          onParagraphSpacingChange={handleParagraphSpacingChange}
+        {/* Navigation Controls - Always visible */}
+        <ReaderNavigation 
+          prevChapter={chapterInfo.prevChapter}
+          nextChapter={chapterInfo.nextChapter}
+          onPrevious={() => onNavigate('prev')}
+          onNext={() => onNavigate('next')}
+          onHome={() => onNavigate('home')}
+          prevUrl={prevUrl}
+          nextUrl={nextUrl}
+          homeUrl={homeUrl}
         />
-      </SettingsSection>
 
-      {/* Gesture Settings */}
-      <SettingsSection 
-        title="Gestures" 
-        icon={<TouchAppIcon color="primary" />}
-      >
-        <GestureSettings
-          swipeLeftGesture={settings.swipeLeftGesture}
-          swipeRightGesture={settings.swipeRightGesture}
-          onSwipeGestureChange={handleSwipeGestureChange}
-        />
-      </SettingsSection>
+        <Divider sx={{ mb: 2 }} />
 
-      {/* Behavior Settings */}
-      <SettingsSection 
-        title="Behavior" 
-        icon={<SettingsIcon color="primary" />}
-      >
-        <BehaviorSettings 
-          leftEdgeTapBehavior={settings.leftEdgeTapBehavior}
-          rightEdgeTapBehavior={settings.rightEdgeTapBehavior}
-          textSelectable={settings.textSelectable}
-          savePosition={settings.savePosition}
-          markReadBehavior={settings.markReadBehavior}
-          keyboardNavigation={settings.keyboardNavigation}
-          onEdgeTapChange={handleEdgeTapChange}
-          onTextSelectableChange={handleTextSelectableChange}
-          onSavePositionChange={handleSavePositionChange}
-          onMarkReadBehaviorChange={handleMarkReadBehaviorChange}
-          onKeyboardNavigationChange={handleKeyboardNavigationChange}
-          isAuthenticated={isAuthenticated}
-        />
-      </SettingsSection>
+        {/* Font Settings */}
+        <SettingsSection 
+          title="Font" 
+          icon={<TextFieldsIcon color="primary" />}
+          defaultExpanded
+        >
+          <FontSettings 
+            fontSize={settings.fontSize}
+            fontFamily={settings.fontFamily}
+            textAlign={settings.textAlign}
+            onFontSizeChange={handleFontSizeChange}
+            onFontFamilyChange={handleFontFamilyChange}
+            onTextAlignChange={handleTextAlignChange}
+          />
+        </SettingsSection>
 
-      {/* Import/Export Buttons - Always visible */}
-      <Stack spacing={1} sx={{ mt: 3 }}>
-        <Stack direction="row" spacing={1}>
+        {/* Color Settings */}
+        <SettingsSection 
+          title="Colors" 
+          icon={<PaletteIcon color="primary" />}
+        >
+          <ColorSettings 
+            fontColor={settings.fontColor}
+            backgroundColor={settings.backgroundColor}
+            dimLevel={settings.dimLevel}
+            onFontColorChange={handleFontColorChange}
+            onBackgroundColorChange={handleBackgroundColorChange}
+            onDimLevelChange={handleDimLevelChange}
+          />
+        </SettingsSection>
+
+        {/* Layout Settings */}
+        <SettingsSection 
+          title="Layout" 
+          icon={<ViewColumnIcon color="primary" />}
+        >
+          <LayoutSettings 
+            margin={settings.margin}
+            lineSpacing={settings.lineSpacing}
+            wordSpacing={settings.wordSpacing}
+            letterSpacing={settings.letterSpacing}
+            hideScrollbar={settings.hideScrollbar}
+            paragraphIndent={settings.paragraphIndent}
+            paragraphSpacing={settings.paragraphSpacing}
+            onMarginChange={handleMarginChange}
+            onLineSpacingChange={handleLineSpacingChange}
+            onWordSpacingChange={handleWordSpacingChange}
+            onLetterSpacingChange={handleLetterSpacingChange}
+            onHideScrollbarChange={handleHideScrollbarChange}
+            onParagraphIndentChange={handleParagraphIndentChange}
+            onParagraphSpacingChange={handleParagraphSpacingChange}
+          />
+        </SettingsSection>
+
+        {/* Gesture Settings */}
+        <SettingsSection 
+          title="Gestures" 
+          icon={<TouchAppIcon color="primary" />}
+        >
+          <GestureSettings
+            swipeLeftGesture={settings.swipeLeftGesture}
+            swipeRightGesture={settings.swipeRightGesture}
+            onSwipeGestureChange={handleSwipeGestureChange}
+          />
+        </SettingsSection>
+
+        {/* Behavior Settings */}
+        <SettingsSection 
+          title="Behavior" 
+          icon={<SettingsIcon color="primary" />}
+        >
+          <BehaviorSettings 
+            leftEdgeTapBehavior={settings.leftEdgeTapBehavior}
+            rightEdgeTapBehavior={settings.rightEdgeTapBehavior}
+            textSelectable={settings.textSelectable}
+            savePosition={settings.savePosition}
+            markReadBehavior={settings.markReadBehavior}
+            keyboardNavigation={settings.keyboardNavigation}
+            centerTapToOpenSettings={settings.centerTapToOpenSettings}
+            onEdgeTapChange={handleEdgeTapChange}
+            onTextSelectableChange={handleTextSelectableChange}
+            onSavePositionChange={handleSavePositionChange}
+            onMarkReadBehaviorChange={handleMarkReadBehaviorChange}
+            onKeyboardNavigationChange={handleKeyboardNavigationChange}
+            onCenterTapToOpenSettingsChange={handleCenterTapToOpenSettingsChange}
+            isAuthenticated={isAuthenticated}
+          />
+        </SettingsSection>
+
+        {/* Import/Export Buttons - Always visible */}
+        <Stack spacing={1} sx={{ mt: 3 }}>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              startIcon={<UploadIcon />}
+              onClick={importSettings}
+              sx={{ flex: 1 }}
+            >
+              Import
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={exportSettings}
+              sx={{ flex: 1 }}
+            >
+              Export
+            </Button>
+          </Stack>
+          {/* Reset Button */}
           <Button
-            variant="outlined"
-            startIcon={<UploadIcon />}
-            onClick={importSettings}
-            sx={{ flex: 1 }}
+            variant="contained"
+            color="secondary"
+            fullWidth
+            onClick={handleResetClick}
           >
-            Import
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={exportSettings}
-            sx={{ flex: 1 }}
-          >
-            Export
+            Reset to Defaults
           </Button>
         </Stack>
-        {/* Reset Button */}
-        <Button
-          variant="contained"
-          color="secondary"
-          fullWidth
-          onClick={resetDefaults}
-        >
-          Reset to Defaults
-        </Button>
-      </Stack>
-    </Drawer>
+      </Drawer>
+
+      {/* Reset Confirmation Dialog */}
+      <Dialog
+        open={resetConfirmOpen}
+        onClose={handleResetCancel}
+        aria-labelledby="reset-dialog-title"
+        aria-describedby="reset-dialog-description"
+      >
+        <DialogTitle id="reset-dialog-title">
+          Reset Settings to Defaults?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="reset-dialog-description">
+            This will reset all reader settings to their default values. This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleResetCancel} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={resetDefaults} color="secondary" variant="contained">
+            Reset
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };
 

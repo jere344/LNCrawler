@@ -13,6 +13,7 @@ import {
   Alert,
   Tabs,
   Tab,
+  IconButton,
 } from '@mui/material';
 import { novelService, userService } from '../../services/api';
 import BookIcon from '@mui/icons-material/Book';
@@ -20,6 +21,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import CommentIcon from '@mui/icons-material/Comment';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, defaultSettings, EdgeTapBehavior } from './ReaderSettings';
 import Cookies from 'js-cookie';
@@ -404,30 +406,6 @@ const ChapterReader = () => {
     setControlsVisible(false);
   };
 
-  // Function to handle edge taps
-  const handleEdgeTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMobile) return;
-    if (controlsVisible) return; // Don't handle edge taps when controls are visible
-
-    const containerWidth = e.currentTarget.clientWidth;
-    const tapX = e.nativeEvent.offsetX;
-    const edgeWidth = containerWidth * (EDGE_TAP_WIDTH_PERCENTAGE / 100);
-
-    // Left edge tap
-    if (tapX <= edgeWidth) {
-      handleEdgeBehavior('left', readerSettings.leftEdgeTapBehavior);
-      return;
-    }
-    // Right edge tap
-    if (tapX >= containerWidth - edgeWidth) {
-      handleEdgeBehavior('right', readerSettings.rightEdgeTapBehavior);
-      return;
-    }
-
-    // If tap is in the middle, toggle controls
-    setControlsVisible(!controlsVisible);
-  };
-
   // Function to execute the appropriate behavior based on edge settings
   const handleEdgeBehavior = (edge: 'left' | 'right', behavior: EdgeTapBehavior) => {
     switch (behavior) {
@@ -475,7 +453,25 @@ const ChapterReader = () => {
     }
 
     // Handle edge taps
-    handleEdgeTap(e);
+    const containerWidth = e.currentTarget.clientWidth;
+    const tapX = e.nativeEvent.offsetX;
+    const edgeWidth = containerWidth * (EDGE_TAP_WIDTH_PERCENTAGE / 100);
+
+    // Left edge tap
+    if (tapX <= edgeWidth) {
+      handleEdgeBehavior('left', readerSettings.leftEdgeTapBehavior);
+      return;
+    }
+    // Right edge tap
+    if (tapX >= containerWidth - edgeWidth) {
+      handleEdgeBehavior('right', readerSettings.rightEdgeTapBehavior);
+      return;
+    }
+
+    // Center tap - only toggle controls if setting is enabled
+    if (readerSettings.centerTapToOpenSettings) {
+      setControlsVisible(!controlsVisible);
+    }
   };
 
   // Function to mark the current chapter as read
@@ -745,7 +741,14 @@ const ChapterReader = () => {
           </Box>
           
           {/* Tab controls */}
-          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Box sx={{ 
+            borderBottom: 1, 
+            borderColor: 'divider', 
+            mb: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
             <Tabs value={activeTab} onChange={handleTabChange} aria-label="chapter tabs">
               <Tab label="Chapter" id="tab-0" />
               <Tab 
@@ -758,6 +761,20 @@ const ChapterReader = () => {
                 id="tab-1" 
               />
             </Tabs>
+            
+            <IconButton 
+              onClick={() => setControlsVisible(true)}
+              aria-label="Open reader settings"
+              sx={{ 
+                color: 'text.secondary',
+                '&:hover': {
+                  color: 'primary.main'
+                },
+                scale: '1.2'
+              }}
+            >
+              <SettingsIcon />
+            </IconButton>
           </Box>
           
           {/* Chapter content Tab */}

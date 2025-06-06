@@ -24,11 +24,13 @@ interface BehaviorSettingsProps {
   savePosition: boolean;
   markReadBehavior: MarkReadBehavior;
   keyboardNavigation: boolean;
+  centerTapToOpenSettings: boolean;
   onEdgeTapChange: (edge: 'left' | 'right', behavior: EdgeTapBehavior) => void;
   onTextSelectableChange: (selectable: boolean) => void;
   onSavePositionChange: (save: boolean) => void;
   onMarkReadBehaviorChange: (behavior: MarkReadBehavior) => void;
   onKeyboardNavigationChange: (enabled: boolean) => void;
+  onCenterTapToOpenSettingsChange: (enabled: boolean) => void;
   isAuthenticated?: boolean;
 }
 
@@ -50,11 +52,13 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
   savePosition,
   markReadBehavior,
   keyboardNavigation,
+  centerTapToOpenSettings,
   onEdgeTapChange,
   onTextSelectableChange,
   onSavePositionChange,
   onMarkReadBehaviorChange,
   onKeyboardNavigationChange,
+  onCenterTapToOpenSettingsChange,
   isAuthenticated = false,
 }) => {
   const handleEdgeTapChange = (edge: 'left' | 'right') => (event: SelectChangeEvent) => {
@@ -71,10 +75,6 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
 
   const handleMarkReadBehaviorChange = (event: SelectChangeEvent<string>) => {
     onMarkReadBehaviorChange(event.target.value as MarkReadBehavior);
-  };
-
-  const handleKeyboardNavigationChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onKeyboardNavigationChange(event.target.checked);
   };
 
   const getMarkReadExplanation = (behavior: MarkReadBehavior) => {
@@ -177,17 +177,33 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
         sx={{ mb: 1, display: 'block' }}
       />
       
-      <FormControlLabel
-        control={
-          <Switch
-            checked={keyboardNavigation}
-            onChange={handleKeyboardNavigationChange}
-            color="primary"
-          />
-        }
-        label="Enable Keyboard Navigation (←/→ arrows)"
-        sx={{ mb: 1, display: 'block' }}
-      />
+      {/* Keyboard Navigation Toggle */}
+      <FormControl fullWidth sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={keyboardNavigation}
+              onChange={(e) => onKeyboardNavigationChange(e.target.checked)}
+            />
+          }
+          label="Keyboard Navigation"
+        />
+        <FormHelperText>Use arrow keys and space for navigation</FormHelperText>
+      </FormControl>
+
+      {/* Center Tap to Open Settings Toggle */}
+      <FormControl fullWidth sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={centerTapToOpenSettings}
+              onChange={(e) => onCenterTapToOpenSettingsChange(e.target.checked)}
+            />
+          }
+          label="Center Tap to Open Settings"
+        />
+        <FormHelperText>Tap center of screen to open settings panel</FormHelperText>
+      </FormControl>
     </Box>
   );
 };
