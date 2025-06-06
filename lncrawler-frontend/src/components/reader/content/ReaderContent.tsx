@@ -30,6 +30,13 @@ const bodyStyles = `
   #reader-content form {
     display: none;
   }
+  #reader-content.paragraph-indent p {
+    text-indent: 2em;
+  }
+  #reader-content.paragraph-indent p:first-child,
+  #reader-content.paragraph-indent p:first-of-type {
+    text-indent: 0;
+  }
 </style>
 ` 
 
@@ -44,9 +51,13 @@ const arePropsEqual = (prevProps: ReaderContentProps, nextProps: ReaderContentPr
   const settingsChanged = 
     prevProps.settings.fontSize !== nextProps.settings.fontSize ||
     prevProps.settings.lineSpacing !== nextProps.settings.lineSpacing ||
+    prevProps.settings.wordSpacing !== nextProps.settings.wordSpacing ||
+    prevProps.settings.letterSpacing !== nextProps.settings.letterSpacing ||
     prevProps.settings.textAlign !== nextProps.settings.textAlign ||
     prevProps.settings.fontFamily !== nextProps.settings.fontFamily ||
-    prevProps.settings.textSelectable !== nextProps.settings.textSelectable;
+    prevProps.settings.textSelectable !== nextProps.settings.textSelectable ||
+    prevProps.settings.paragraphIndent !== nextProps.settings.paragraphIndent ||
+    prevProps.settings.paragraphSpacing !== nextProps.settings.paragraphSpacing;
   
   // Only re-render if something important changed
   return !(chapterChanged || settingsChanged);
@@ -58,14 +69,20 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
       sx={{ 
         fontSize: `${settings.fontSize}px`, 
         lineHeight: settings.lineSpacing,
+        wordSpacing: `${settings.wordSpacing}px`,
+        letterSpacing: `${settings.letterSpacing}px`,
         textAlign: settings.textAlign,
         fontFamily: settings.fontFamily || undefined,
         userSelect: settings.textSelectable ? 'text' : 'none',
         WebkitUserSelect: settings.textSelectable ? 'text' : 'none',
         MozUserSelect: settings.textSelectable ? 'text' : 'none',
         msUserSelect: settings.textSelectable ? 'text' : 'none',
+        '& p': {
+          marginBottom: `${settings.paragraphSpacing}em`,
+        },
       }}
       id="reader-content"
+      className={settings.paragraphIndent ? 'paragraph-indent' : ''}
       dangerouslySetInnerHTML= {{ __html: bodyStyles + chapter.body.replace(/src=\"images\//g, `src="${chapter.images_path}/`) }}
     />
   );

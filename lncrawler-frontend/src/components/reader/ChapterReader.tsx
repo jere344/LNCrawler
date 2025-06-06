@@ -547,10 +547,14 @@ const ChapterReader = () => {
     chapter?.images_path,
     readerSettings.fontSize,
     readerSettings.lineSpacing,
+    readerSettings.wordSpacing,
+    readerSettings.letterSpacing,
     readerSettings.textAlign,
     readerSettings.fontFamily,
     readerSettings.textSelectable,
-    readerSettings.hideScrollbar
+    readerSettings.hideScrollbar,
+    readerSettings.paragraphIndent,
+    readerSettings.paragraphSpacing
   ]);
 
   // Add these variables to generate navigation URLs

@@ -1,9 +1,16 @@
 import {
   Drawer, Box, Typography, IconButton, Divider, Button,
-  useTheme, useMediaQuery,
+  useTheme, useMediaQuery, Stack,
 } from '@mui/material';
 import Cookies from 'js-cookie';
 import CloseIcon from '@mui/icons-material/Close';
+import DownloadIcon from '@mui/icons-material/Download';
+import UploadIcon from '@mui/icons-material/Upload';
+import TextFieldsIcon from '@mui/icons-material/TextFields';
+import PaletteIcon from '@mui/icons-material/Palette';
+import ViewColumnIcon from '@mui/icons-material/ViewColumn';
+import TouchAppIcon from '@mui/icons-material/TouchApp';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 // Import our new components
 import FontSettings from './settings/FontSettings';
@@ -12,6 +19,7 @@ import LayoutSettings from './settings/LayoutSettings';
 import BehaviorSettings from './settings/BehaviorSettings';
 import GestureSettings from './settings/GestureSettings';
 import ReaderNavigation from './controls/ReaderNavigation';
+import SettingsSection from './SettingsSection';
 
 // Define constants for cookie names
 const COOKIE_PREFIX = 'lncrawler_reader_';
@@ -29,6 +37,8 @@ export interface ReaderSettings {
   backgroundColor: string | null;
   margin: number;
   lineSpacing: number;
+  wordSpacing: number;
+  letterSpacing: number;
   dimLevel: number;
   leftEdgeTapBehavior: EdgeTapBehavior;
   rightEdgeTapBehavior: EdgeTapBehavior;
@@ -39,6 +49,8 @@ export interface ReaderSettings {
   swipeLeftGesture: SwipeGesture;
   swipeRightGesture: SwipeGesture;
   hideScrollbar: boolean;
+  paragraphIndent: boolean;
+  paragraphSpacing: number;
 }
 
 // Default settings
@@ -50,6 +62,8 @@ export const defaultSettings: ReaderSettings = {
   backgroundColor: null,
   margin: 0,
   lineSpacing: 1.6,
+  wordSpacing: 0,
+  letterSpacing: 0,
   dimLevel: 0,
   leftEdgeTapBehavior: 'none',
   rightEdgeTapBehavior: 'none',
@@ -60,6 +74,8 @@ export const defaultSettings: ReaderSettings = {
   swipeLeftGesture: 'nextChapter',
   swipeRightGesture: 'prevChapter',
   hideScrollbar: false,
+  paragraphIndent: false,
+  paragraphSpacing: 1,
 };
 
 export interface ChapterInfo {
@@ -159,6 +175,30 @@ const ReaderSettings = ({
     saveSetting('hideScrollbar', hide);
   };
 
+  const handleWordSpacingChange = (spacing: number) => {
+    const newSettings = { ...settings, wordSpacing: spacing };
+    onSettingChange(newSettings);
+    saveSetting('wordSpacing', spacing);
+  };
+
+  const handleLetterSpacingChange = (spacing: number) => {
+    const newSettings = { ...settings, letterSpacing: spacing };
+    onSettingChange(newSettings);
+    saveSetting('letterSpacing', spacing);
+  };
+
+  const handleParagraphIndentChange = (indent: boolean) => {
+    const newSettings = { ...settings, paragraphIndent: indent };
+    onSettingChange(newSettings);
+    saveSetting('paragraphIndent', indent);
+  };
+
+  const handleParagraphSpacingChange = (spacing: number) => {
+    const newSettings = { ...settings, paragraphSpacing: spacing };
+    onSettingChange(newSettings);
+    saveSetting('paragraphSpacing', spacing);
+  };
+
   // Behavior Settings Handlers
   const handleEdgeTapChange = (edge: 'left' | 'right', behavior: EdgeTapBehavior) => {
     const key = edge === 'left' ? 'leftEdgeTapBehavior' : 'rightEdgeTapBehavior';
@@ -206,6 +246,74 @@ const ReaderSettings = ({
     });
   };
 
+  // Export settings to JSON file
+  const exportSettings = () => {
+    const settingsData = {
+      ...settings,
+      exportDate: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    const blob = new Blob([JSON.stringify(settingsData, null, 2)], {
+      type: 'application/json'
+    });
+    
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `lncrawler-reader-settings-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Import settings from JSON file
+  const importSettings = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedData = JSON.parse(e.target?.result as string);
+          
+          // Validate that the imported data has the expected structure
+          const validKeys = Object.keys(defaultSettings);
+          const importedSettings: Partial<ReaderSettings> = {};
+          
+          validKeys.forEach(key => {
+            if (key in importedData) {
+              importedSettings[key as keyof ReaderSettings] = importedData[key];
+            }
+          });
+          
+          // Merge with default settings to ensure all properties exist
+          const newSettings = { ...defaultSettings, ...importedSettings };
+          
+          // Update state and save to cookies
+          onSettingChange(newSettings);
+          Object.entries(newSettings).forEach(([key, value]) => {
+            saveSetting(key, value);
+          });
+          
+        } catch (error) {
+          console.error('Failed to import settings:', error);
+          alert('Failed to import settings. Please check that the file is a valid settings export.');
+        }
+      };
+      
+      reader.readAsText(file);
+    };
+    
+    input.click();
+  };
+
   return (
     <Drawer 
       anchor={isMobile ? "bottom" : "right"} 
@@ -218,9 +326,11 @@ const ReaderSettings = ({
           borderTopLeftRadius: isMobile ? '16px' : 0,
           borderTopRightRadius: isMobile ? '16px' : 0,
           padding: 2,
+          paddingRight: 3,
           overflow: 'auto',
           zIndex: theme.zIndex.drawer,
           boxShadow: 3,
+          backgroundColor: theme.palette.background.default,
         }
       }}
     >
@@ -246,7 +356,7 @@ const ReaderSettings = ({
 
       <Divider sx={{ mb: 2 }} />
 
-      {/* Navigation Controls */}
+      {/* Navigation Controls - Always visible */}
       <ReaderNavigation 
         prevChapter={chapterInfo.prevChapter}
         nextChapter={chapterInfo.nextChapter}
@@ -261,75 +371,122 @@ const ReaderSettings = ({
       <Divider sx={{ mb: 2 }} />
 
       {/* Font Settings */}
-      <FontSettings 
-        fontSize={settings.fontSize}
-        fontFamily={settings.fontFamily}
-        textAlign={settings.textAlign}
-        onFontSizeChange={handleFontSizeChange}
-        onFontFamilyChange={handleFontFamilyChange}
-        onTextAlignChange={handleTextAlignChange}
-      />
-
-      <Divider sx={{ mb: 2 }} />
+      <SettingsSection 
+        title="Font" 
+        icon={<TextFieldsIcon color="primary" />}
+        defaultExpanded
+      >
+        <FontSettings 
+          fontSize={settings.fontSize}
+          fontFamily={settings.fontFamily}
+          textAlign={settings.textAlign}
+          onFontSizeChange={handleFontSizeChange}
+          onFontFamilyChange={handleFontFamilyChange}
+          onTextAlignChange={handleTextAlignChange}
+        />
+      </SettingsSection>
 
       {/* Color Settings */}
-      <ColorSettings 
-        fontColor={settings.fontColor}
-        backgroundColor={settings.backgroundColor}
-        dimLevel={settings.dimLevel}
-        onFontColorChange={handleFontColorChange}
-        onBackgroundColorChange={handleBackgroundColorChange}
-        onDimLevelChange={handleDimLevelChange}
-      />
-
-      <Divider sx={{ mb: 2 }} />
+      <SettingsSection 
+        title="Colors" 
+        icon={<PaletteIcon color="primary" />}
+      >
+        <ColorSettings 
+          fontColor={settings.fontColor}
+          backgroundColor={settings.backgroundColor}
+          dimLevel={settings.dimLevel}
+          onFontColorChange={handleFontColorChange}
+          onBackgroundColorChange={handleBackgroundColorChange}
+          onDimLevelChange={handleDimLevelChange}
+        />
+      </SettingsSection>
 
       {/* Layout Settings */}
-      <LayoutSettings 
-        margin={settings.margin}
-        lineSpacing={settings.lineSpacing}
-        hideScrollbar={settings.hideScrollbar}
-        onMarginChange={handleMarginChange}
-        onLineSpacingChange={handleLineSpacingChange}
-        onHideScrollbarChange={handleHideScrollbarChange}
-      />
-
-      <Divider sx={{ my: 2 }} />
+      <SettingsSection 
+        title="Layout" 
+        icon={<ViewColumnIcon color="primary" />}
+      >
+        <LayoutSettings 
+          margin={settings.margin}
+          lineSpacing={settings.lineSpacing}
+          wordSpacing={settings.wordSpacing}
+          letterSpacing={settings.letterSpacing}
+          hideScrollbar={settings.hideScrollbar}
+          paragraphIndent={settings.paragraphIndent}
+          paragraphSpacing={settings.paragraphSpacing}
+          onMarginChange={handleMarginChange}
+          onLineSpacingChange={handleLineSpacingChange}
+          onWordSpacingChange={handleWordSpacingChange}
+          onLetterSpacingChange={handleLetterSpacingChange}
+          onHideScrollbarChange={handleHideScrollbarChange}
+          onParagraphIndentChange={handleParagraphIndentChange}
+          onParagraphSpacingChange={handleParagraphSpacingChange}
+        />
+      </SettingsSection>
 
       {/* Gesture Settings */}
-      <GestureSettings
-        swipeLeftGesture={settings.swipeLeftGesture}
-        swipeRightGesture={settings.swipeRightGesture}
-        onSwipeGestureChange={handleSwipeGestureChange}
-      />
-
-      <Divider sx={{ my: 2 }} />
+      <SettingsSection 
+        title="Gestures" 
+        icon={<TouchAppIcon color="primary" />}
+      >
+        <GestureSettings
+          swipeLeftGesture={settings.swipeLeftGesture}
+          swipeRightGesture={settings.swipeRightGesture}
+          onSwipeGestureChange={handleSwipeGestureChange}
+        />
+      </SettingsSection>
 
       {/* Behavior Settings */}
-      <BehaviorSettings 
-        leftEdgeTapBehavior={settings.leftEdgeTapBehavior}
-        rightEdgeTapBehavior={settings.rightEdgeTapBehavior}
-        textSelectable={settings.textSelectable}
-        savePosition={settings.savePosition}
-        markReadBehavior={settings.markReadBehavior}
-        keyboardNavigation={settings.keyboardNavigation}
-        onEdgeTapChange={handleEdgeTapChange}
-        onTextSelectableChange={handleTextSelectableChange}
-        onSavePositionChange={handleSavePositionChange}
-        onMarkReadBehaviorChange={handleMarkReadBehaviorChange}
-        onKeyboardNavigationChange={handleKeyboardNavigationChange}
-        isAuthenticated={isAuthenticated}
-      />
-
-      {/* Reset Button */}
-      <Button
-        variant="contained"
-        color="secondary"
-        fullWidth
-        onClick={resetDefaults}
+      <SettingsSection 
+        title="Behavior" 
+        icon={<SettingsIcon color="primary" />}
       >
-        Reset to Defaults
-      </Button>
+        <BehaviorSettings 
+          leftEdgeTapBehavior={settings.leftEdgeTapBehavior}
+          rightEdgeTapBehavior={settings.rightEdgeTapBehavior}
+          textSelectable={settings.textSelectable}
+          savePosition={settings.savePosition}
+          markReadBehavior={settings.markReadBehavior}
+          keyboardNavigation={settings.keyboardNavigation}
+          onEdgeTapChange={handleEdgeTapChange}
+          onTextSelectableChange={handleTextSelectableChange}
+          onSavePositionChange={handleSavePositionChange}
+          onMarkReadBehaviorChange={handleMarkReadBehaviorChange}
+          onKeyboardNavigationChange={handleKeyboardNavigationChange}
+          isAuthenticated={isAuthenticated}
+        />
+      </SettingsSection>
+
+      {/* Import/Export Buttons - Always visible */}
+      <Stack spacing={1} sx={{ mt: 3 }}>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            startIcon={<UploadIcon />}
+            onClick={importSettings}
+            sx={{ flex: 1 }}
+          >
+            Import
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={exportSettings}
+            sx={{ flex: 1 }}
+          >
+            Export
+          </Button>
+        </Stack>
+        {/* Reset Button */}
+        <Button
+          variant="contained"
+          color="secondary"
+          fullWidth
+          onClick={resetDefaults}
+        >
+          Reset to Defaults
+        </Button>
+      </Stack>
     </Drawer>
   );
 };

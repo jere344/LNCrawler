@@ -10,10 +10,18 @@ import MobileSafeSlider from '../../common/MobileSafeSlider';
 interface LayoutSettingsProps {
   margin: number;
   lineSpacing: number;
+  wordSpacing: number;
+  letterSpacing: number;
   hideScrollbar: boolean;
+  paragraphIndent: boolean;
+  paragraphSpacing: number;
   onMarginChange: (margin: number) => void;
   onLineSpacingChange: (spacing: number) => void;
+  onWordSpacingChange: (spacing: number) => void;
+  onLetterSpacingChange: (spacing: number) => void;
   onHideScrollbarChange: (hide: boolean) => void;
+  onParagraphIndentChange: (indent: boolean) => void;
+  onParagraphSpacingChange: (spacing: number) => void;
 }
 
 
@@ -23,10 +31,18 @@ interface LayoutSettingsProps {
 const LayoutSettings: React.FC<LayoutSettingsProps> = ({
   margin,
   lineSpacing,
+  wordSpacing,
+  letterSpacing,
   hideScrollbar,
+  paragraphIndent,
+  paragraphSpacing,
   onMarginChange,
   onLineSpacingChange,
+  onWordSpacingChange,
+  onLetterSpacingChange,
   onHideScrollbarChange,
+  onParagraphIndentChange,
+  onParagraphSpacingChange,
 }) => {
   const handleMarginChange = (_event: Event, newValue: number | number[]) => {
     onMarginChange(newValue as number);
@@ -36,8 +52,24 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
     onLineSpacingChange(newValue as number);
   };
 
+  const handleWordSpacingChange = (_event: Event, newValue: number | number[]) => {
+    onWordSpacingChange(newValue as number);
+  };
+
+  const handleLetterSpacingChange = (_event: Event, newValue: number | number[]) => {
+    onLetterSpacingChange(newValue as number);
+  };
+
   const handleHideScrollbarChange = (_event: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
     onHideScrollbarChange(checked);
+  };
+
+  const handleParagraphIndentChange = (_event: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {
+    onParagraphIndentChange(checked);
+  };
+
+  const handleParagraphSpacingChange = (_event: Event, newValue: number | number[]) => {
+    onParagraphSpacingChange(newValue as number);
   };
 
   return (
@@ -74,6 +106,75 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
           ]}
           valueLabelDisplay="auto"
         />
+      </Box>
+
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle1" gutterBottom>Word Spacing: {wordSpacing}px</Typography>
+        <MobileSafeSlider
+          value={wordSpacing}
+          onChange={handleWordSpacingChange}
+          min={-2}
+          max={10}
+          step={0.5}
+          marks={[
+            { value: -1.75, label: '-2px' },
+            { value: 0, label: '0px' },
+            { value: 5, label: '5px' },
+            { value: 9.75, label: '10px' },
+          ]}
+          valueLabelDisplay="auto"
+        />
+      </Box>
+
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle1" gutterBottom>Letter Spacing: {letterSpacing}px</Typography>
+        <MobileSafeSlider
+          value={letterSpacing}
+          onChange={handleLetterSpacingChange}
+          min={-1}
+          max={5}
+          step={0.1}
+          marks={[
+            { value: -0.9, label: '-1px' },
+            { value: 0, label: '0px' },
+            { value: 2.5, label: '2.5px' },
+            { value: 4.9, label: '5px' },
+          ]}
+          valueLabelDisplay="auto"
+        />
+      </Box>
+
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle1" gutterBottom>Paragraph Spacing: {paragraphSpacing}em</Typography>
+        <MobileSafeSlider
+          value={paragraphSpacing}
+          onChange={handleParagraphSpacingChange}
+          min={1}
+          max={3}
+          step={0.1}
+          marks={[
+            { value: 1, label: '1em' },
+            { value: 2, label: '2em' },
+            { value: 2.95, label: '3em' },
+          ]}
+          valueLabelDisplay="auto"
+        />
+      </Box>
+
+      <Box sx={{ mb: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={paragraphIndent}
+              onChange={handleParagraphIndentChange}
+              color="primary"
+            />
+          }
+          label="Paragraph Indent"
+        />
+        <Typography variant="caption" color="text.secondary" display="block">
+          Add indentation to the first line of each paragraph
+        </Typography>
       </Box>
 
       <Box sx={{ mb: 2 }}>
