@@ -29,6 +29,9 @@ import ImageGallery from '@components/novels/ImageGallery';
 // Import board components
 import BoardList from '@components/boards/BoardList';
 import BoardDetail from '@components/boards/BoardDetail';
+// Import reading list components
+import ReadingListsPage from '@components/readinglist/ReadingListsPage';
+import ReadingListDetail from '@components/readinglist/ReadingListDetail';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -78,6 +81,10 @@ function AppWithTheme() {
                             <Route path="/library" element={<LibraryPage />} />
                             <Route path="/history" element={<ReadingHistoryPage />} />
                             
+                            {/* Reading Lists routes */}
+                            <Route path="/reading-lists" element={<ReadingListsPage />} />
+                            <Route path="/reading-lists/:listId" element={<ReadingListDetail />} />
+
                             {/* Board routes */}
                             <Route path="/boards" element={<BoardList />} />
                             <Route path="/boards/:boardSlug" element={<BoardDetail />} />
@@ -98,6 +105,10 @@ function AppWithTheme() {
                             
                             {/* Home page */}
                             <Route path="/" element={<HomePage />} />
+
+                            {/* Fallback route */}
+                            <Route path="*" element={<HomePage />} />
+
                             
                         </Routes>
                     </Container>

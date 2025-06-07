@@ -1,14 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Pagination, Card, CardContent, Rating, Link } from '@mui/material';
+import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Pagination, Link } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import LockIcon from '@mui/icons-material/Lock';
 import { authService } from '../../services/auth.service';
 import { reviewService } from '../../services/review.service';
+import { readingListService } from '../../services/readinglist.service';
 import { Link as RouterLink } from 'react-router-dom';
-import { formatDistanceToNow } from 'date-fns';
+import { formatTimeAgo } from '@utils/Misc';
+import { ReadingList } from '@models/readinglist_types';
+import ReadingListCard from '../readinglist/ReadingListCard';
+import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 
 const ProfilePage: React.FC = () => {
   const { user, updateProfile, refreshUser } = useAuth();
@@ -39,6 +43,13 @@ const ProfilePage: React.FC = () => {
   const [reviewsPage, setReviewsPage] = useState(1);
   const [totalReviewPages, setTotalReviewPages] = useState(1);
 
+  // User reading lists state
+  const [userReadingLists, setUserReadingLists] = useState<ReadingList[]>([]);
+  const [readingListsLoading, setReadingListsLoading] = useState(false);
+  const [readingListsError, setReadingListsError] = useState<string | null>(null);
+  const [readingListsPage, setReadingListsPage] = useState(1);
+  const [totalReadingListsPages, setTotalReadingListsPages] = useState(1);
+
   useEffect(() => {
     if (user) {
       setUsername(user.username || '');
@@ -49,6 +60,8 @@ const ProfilePage: React.FC = () => {
       
       // Fetch user reviews when component mounts
       fetchUserReviews(1);
+      // Fetch user reading lists when component mounts
+      fetchUserReadingLists(1);
     }
   }, [user]);
 
@@ -71,8 +84,31 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const fetchUserReadingLists = async (page = 1) => {
+    if (!user) return;
+    
+    setReadingListsLoading(true);
+    setReadingListsError(null);
+    
+    try {
+      const response = await readingListService.getUserReadingLists(page);
+      setUserReadingLists(response.results);
+      setReadingListsPage(response.current_page || page);
+      setTotalReadingListsPages(response.total_pages || 1);
+    } catch (err) {
+      console.error('Error loading user reading lists:', err);
+      setReadingListsError('Failed to load your reading lists. Please try again.');
+    } finally {
+      setReadingListsLoading(false);
+    }
+  };
+
   const handleReviewPageChange = (_: React.ChangeEvent<unknown>, page: number) => {
     fetchUserReviews(page);
+  };
+
+  const handleReadingListPageChange = (_: React.ChangeEvent<unknown>, page: number) => {
+    fetchUserReadingLists(page);
   };
 
   const handleProfilePicChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -338,6 +374,62 @@ const ProfilePage: React.FC = () => {
           </DialogActions>
         </Dialog>
 
+        <Divider sx={{ my: 4 }} />
+        {/* User Reading Lists Section */}
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            My Reading Lists
+          </Typography>
+
+          {readingListsError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {readingListsError}
+            </Alert>
+          )}
+
+          {readingListsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : userReadingLists.length > 0 ? (
+            <>
+              <Grid container spacing={2}>
+                {userReadingLists.map((list) => (
+                  <Grid item xs={12} sm={6} key={list.id}>
+                    <ReadingListCard list={list} />
+                  </Grid>
+                ))}
+              </Grid>
+              
+              {totalReadingListsPages > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                  <Pagination
+                    count={totalReadingListsPages}
+                    page={readingListsPage}
+                    onChange={handleReadingListPageChange}
+                    color="primary"
+                  />
+                </Box>
+              )}
+            </>
+          ) : (
+            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper' }}>
+              <Typography variant="body1" color="text.secondary">
+                You haven't created any reading lists yet.
+              </Typography>
+              <Button 
+                component={RouterLink} 
+                to="/reading-lists" 
+                variant="contained" 
+                sx={{ mt: 2 }}
+              >
+                Browse Reading Lists
+              </Button>
+            </Paper>
+          )}
+        </Box>
+
+        <Divider sx={{ my: 4 }} />
         {/* User Reviews Section */}
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
@@ -350,47 +442,17 @@ const ProfilePage: React.FC = () => {
             </Alert>
           )}
 
-          {reviewsLoading ? (
+          {reviewsLoading && userReviews.length === 0 ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
               <CircularProgress />
             </Box>
           ) : userReviews.length > 0 ? (
             <>
-              <Grid container spacing={2}>
-                {userReviews.map((review) => (
-                  <Grid item xs={12} key={review.id}>
-                    <Card sx={{ mb: 2 }}>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <Typography variant="h6" gutterBottom>
-                            {review.title}
-                          </Typography>
-                          <Rating value={review.rating} readOnly size="small" />
-                        </Box>
-                        
-                        <Typography variant="subtitle1" color="primary" component={RouterLink} to={`/novels/${review.novel_slug}`} sx={{ textDecoration: 'none', display: 'block', mb: 1 }}>
-                          {review.novel_title}
-                        </Typography>
-                        
-                        <Typography variant="body2" noWrap sx={{ mb: 2 }}>
-                          {review.content.length > 150 
-                            ? `${review.content.substring(0, 150)}...` 
-                            : review.content}
-                        </Typography>
-                        
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" color="text.secondary">
-                            {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
-                          </Typography>
-                          <Link component={RouterLink} to={`/novels/${review.novel_slug}`} underline="hover">
-                            View Novel
-                          </Link>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
+              <OverviewReviewsSection 
+                reviews={userReviews}
+                isLoading={reviewsLoading}
+                maxItems={userReviews.length}
+              />
               
               {totalReviewPages > 1 && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>

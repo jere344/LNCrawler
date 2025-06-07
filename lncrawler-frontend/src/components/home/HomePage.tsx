@@ -20,7 +20,7 @@ import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCa
 import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
-import RecentReviewsSection from './RecentReviewsSection';
+import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
@@ -331,10 +331,23 @@ const HomePage: React.FC = () => {
       </Box>
 
       {/* Recent Reviews Section */}
-      <RecentReviewsSection 
-        reviews={homeData?.recent_reviews} 
-        isLoading={loading}
-      />
+      <Box sx={{ mb: 6 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" component="h2" fontWeight="bold">
+            Latest Reviews
+          </Typography>
+          <Button component={Link} to="/reviews" variant="text">
+            View More
+          </Button>
+        </Box>
+        <Divider sx={{ mb: 3 }} />
+        
+        <OverviewReviewsSection 
+          reviews={homeData?.recent_reviews} 
+          isLoading={loading}
+          maxItems={4}
+        />
+      </Box>
 
       {/* Recently Added Chapters Section */}
       <Box sx={{ mb: 6 }}>

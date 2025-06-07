@@ -14,10 +14,10 @@ import {
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Review } from '@services/review.service';
-import { formatDistanceToNow } from 'date-fns';
 import ReadOnlyMDXEditor from '@components/common/reviews/ReadOnlyMDXEditor';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import { formatTimeAgo } from '@utils/Misc';
 
 interface RecentReviewsSectionProps {
   reviews?: Review[];
@@ -94,7 +94,7 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
                             {review.user.username}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                            {formatTimeAgo(new Date(review.created_at))}
                           </Typography>
                         </Box>
                       </Box>

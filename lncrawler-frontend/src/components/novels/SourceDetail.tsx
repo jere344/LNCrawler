@@ -37,7 +37,7 @@ import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
-import { getChapterNameWithNumber } from '@utils/Misc.tsx';
+import { getChapterNameWithNumber, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import ActionButton from '../common/ActionButton';
@@ -479,7 +479,7 @@ const SourceDetail = () => {
                     <Box
                       sx={{
                         position: 'absolute',
-                        bottom: 8,
+                        top: 8,
                         right: 8,
                         bgcolor: 'rgba(0,0,0,0.7)',
                         color: 'white',
@@ -494,7 +494,16 @@ const SourceDetail = () => {
                         textTransform: 'uppercase',
                       }}
                     >
-                      <LanguageIcon sx={{ fontSize: '0.9rem' }} />
+                      <img 
+                        src={`/flags/${languageCodeToFlag(source.language)}.svg`} 
+                        alt={languageCodeToName(source.language)}
+                        style={{ 
+                          width: '20px',
+                          height: '15px',
+                          objectFit: 'cover',
+                          borderRadius: '2px',
+                        }}
+                      />
                       {source.language}
                     </Box>
                   </Box>

@@ -22,11 +22,11 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
   
   // Determine items per slide based on screen size
   const getItemsPerSlide = () => {
-    if (isMobile) return 1;
+    if (isMobile) return 2;
     if (isTablet) return 2;
-    if (isDesktop) return 3;
-    if (isLargeDesktop) return 4;
-    return 4;
+    if (isDesktop) return 4;
+    if (isLargeDesktop) return 5;
+    return 5;
   };
   
   const itemsPerSlide = getItemsPerSlide();
@@ -132,14 +132,14 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
               justifyContent: 'center',
               gap: 3,
               px: 1,
-              pb: 4
+              pb: 4,
             }}
           >
             {group.map((novel) => (
-              <Box key={novel.id} sx={{ flex: 1, maxWidth: `${90/itemsPerSlide}%` }}>
+              <Box key={novel.id} sx={{ flex: 1, maxWidth: `${80/itemsPerSlide}%`, marginTop: 1 }}>
                 <BaseNovelCard 
                   novel={novel}
-                  to={`/novels/${novel.slug}`} // Add link to novel page
+                  to={`/novels/${novel.slug}`}
                 />
               </Box>
             ))}

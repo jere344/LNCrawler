@@ -2,21 +2,20 @@ import React, { useState } from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
   Typography, Box, Rating, Chip, Skeleton, Tooltip,
-  Grid2 as Grid, IconButton
+  Grid2 as Grid
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import UpdateIcon from '@mui/icons-material/Update';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
-import BookmarkIcon from '@mui/icons-material/Bookmark';
-import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
-import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
+import BookmarkButton from '@components/common/BookmarkButton';
+import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
 
 export interface BaseNovelCardProps {
   novel: Novel;
@@ -42,8 +41,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
 }) => {
   const preferredSource = novel.prefered_source;
   const { isAuthenticated } = useAuth();
-  const [isBookmarked, setIsBookmarked] = useState<boolean | null>(novel.is_bookmarked || false);
-  const [bookmarkLoading, setBookmarkLoading] = useState(false);
   
   let unreadChapters = null;
   if (novel.reading_history && preferredSource?.latest_available_chapter) {
@@ -63,29 +60,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   if (novel.reading_history?.next_chapter) {
     tooltip += `. Next : ${getChapterName(novel.reading_history.next_chapter.title)}`;
   }
-  
-  const handleBookmarkClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    if (!isAuthenticated || bookmarkLoading) return;
-    
-    try {
-      setBookmarkLoading(true);
-      
-      if (isBookmarked) {
-        await userService.removeNovelBookmark(novel.slug);
-        setIsBookmarked(false);
-      } else {
-        await userService.addNovelBookmark(novel.slug);
-        setIsBookmarked(true);
-      }
-    } catch (error) {
-      console.error('Error toggling bookmark:', error);
-    } finally {
-      setBookmarkLoading(false);
-    }
-  };
   
   if (isLoading) {
     return (
@@ -117,6 +91,21 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
       </Card>
     );
   }
+
+  // Define button positions
+  const bookmarkButtonSx = {
+    position: 'absolute',
+    right: 8,
+    top: 'calc(50%)',
+    zIndex: 10
+  };
+  
+  const addToListButtonSx = {
+    position: 'absolute',
+    right: '48px',
+    top: 'calc(50%)',
+    zIndex: 10
+  };
 
   return (
     <Card 
@@ -155,30 +144,18 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
       )}
 
       {isAuthenticated && (
-        <Box
-          sx={{
-            position: 'absolute',
-            right: 8,
-            top: 'calc(50% - 8px)',
-            zIndex: 10
-          }}
-        >
-          <IconButton
-            size="small"
-            onClick={handleBookmarkClick}
-            sx={{
-              bgcolor: 'rgba(0, 0, 0, 0.6)',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'rgba(0, 0, 0, 0.8)',
-              },
-              width: 36,
-              height: 36,
-            }}
-          >
-            {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-          </IconButton>
-        </Box>
+        <>
+          <BookmarkButton 
+            isBookmarked={novel.is_bookmarked || false}
+            slug={novel.slug}
+            customSx={bookmarkButtonSx}
+          />
+          <CompactAddToListButton
+            novelId={novel.id}
+            novelTitle={novel.title}
+            customSx={addToListButtonSx}
+          />
+        </>
       )}
 
       <CardActionArea 
@@ -302,6 +279,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             sx={{ 
               ml: 0.25,
               fontSize: '0.875rem',
+              overflow: 'hidden',
+              height: '1.2em'
             }}>
               {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
               {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}

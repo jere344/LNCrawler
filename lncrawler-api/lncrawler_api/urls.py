@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views
+from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views, reading_lists_views
 from .views.csrf import get_csrf_token
 from django.contrib.sitemaps.views import sitemap, index
 from django.views.decorators.cache import cache_page
@@ -109,4 +109,16 @@ urlpatterns = [
     # sitemap - 100h cache
     path('sitemap.xml', cache_page(360000)(index), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.index'),
     path('sitemap-<section>.xml', cache_page(360000)(sitemap), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
+
+    # Reading List endpoints
+    path('reading-lists/', reading_lists_views.list_all_reading_lists, name='list_all_reading_lists'),
+    path('reading-lists/create/', reading_lists_views.create_reading_list, name='create_reading_list'),
+    path('reading-lists/<uuid:list_id>/', reading_lists_views.reading_list_detail, name='reading_list_detail'),
+    path('reading-lists/<uuid:list_id>/update/', reading_lists_views.update_reading_list, name='update_reading_list'),
+    path('reading-lists/<uuid:list_id>/delete/', reading_lists_views.delete_reading_list, name='delete_reading_list'),
+    path('reading-lists/<uuid:list_id>/add-novel/', reading_lists_views.add_novel_to_list, name='add_novel_to_list'),
+    path('reading-lists/<uuid:list_id>/reorder/', reading_lists_views.reorder_list_items, name='reorder_list_items'),
+    path('reading-lists/<uuid:list_id>/items/<uuid:item_id>/update/', reading_lists_views.update_list_item, name='update_list_item'),
+    path('reading-lists/<uuid:list_id>/items/<uuid:item_id>/remove/', reading_lists_views.remove_novel_from_list, name='remove_novel_from_list'),
+    path('users/reading-lists/', reading_lists_views.get_user_reading_lists, name='get_user_reading_lists'),
 ]

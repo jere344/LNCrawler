@@ -63,6 +63,7 @@ export { commentService } from './comment.service';
 export { authService } from './auth.service';
 export { userService } from './user.service';
 export { reviewService } from './review.service';
+export { readingListService } from './readinglist.service';
 
 // Add interceptor to set the auth token on startup
 const token = localStorage.getItem('authToken');

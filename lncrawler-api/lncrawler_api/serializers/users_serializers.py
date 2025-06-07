@@ -1,7 +1,6 @@
 from rest_framework import serializers
 
 from ..models import ReadingHistory, Chapter
-from ..models.sources_models import NovelFromSource
 from .chapter_serializers import ChapterSerializer
 
 class ReadingHistorySerializer(serializers.ModelSerializer):

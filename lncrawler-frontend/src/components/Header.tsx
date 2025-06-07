@@ -27,6 +27,7 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
 import HistoryIcon from "@mui/icons-material/History";
 import ForumIcon from "@mui/icons-material/Forum"; // Import Forum icon for Chat
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'; // Import icon for reading lists
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
@@ -88,10 +89,11 @@ const Header = () => {
         if (location.pathname.startsWith("/download")) return "/download";
 
         if (isAuthenticated) {
-            // avoir a warning in the console during loading before useAuth kicks in
+            // avoid a warning in the console during loading before useAuth kicks in
             if (location.pathname.startsWith("/library")) return "/library";
             if (location.pathname.startsWith("/history")) return "/history";
         }
+        if (location.pathname.startsWith("/reading-lists")) return "/reading-lists";
         if (location.pathname.startsWith("/boards")) return "/boards";
         if (location.pathname.startsWith("/novels")) return "/";
         if (location.pathname === "/") return "/";
@@ -206,6 +208,7 @@ const Header = () => {
                         <Tab label="Home" value="/" component={RouterLink} to="/" />
                         {isAuthenticated && <Tab label="Library" value="/library" component={RouterLink} to="/library" />}
                         {isAuthenticated && <Tab label="History" value="/history" component={RouterLink} to="/history" />}
+                        <Tab label="Lists" value="/reading-lists" component={RouterLink} to="/reading-lists" />
                         <Tab label="Chat" value="/boards" component={RouterLink} to="/boards" />
                         <Tab label="Add Novel" value="/download" component={RouterLink} to="/download" />
                     </Tabs>
@@ -393,6 +396,14 @@ const Header = () => {
                                             <HistoryIcon fontSize="small" />
                                         </ListItemIcon>
                                         <ListItemText primary="Reading History" />
+                                    </MenuItem>
+                                )}
+                                {isAuthenticated && (
+                                    <MenuItem component={RouterLink} to="/reading-lists" onClick={handleMenuClose}>
+                                        <ListItemIcon>
+                                            <FormatListBulletedIcon fontSize="small" />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Reading Lists" />
                                     </MenuItem>
                                 )}
                                 <MenuItem component={RouterLink} to="/boards" onClick={handleMenuClose}>

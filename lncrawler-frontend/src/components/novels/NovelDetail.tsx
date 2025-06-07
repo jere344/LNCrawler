@@ -14,12 +14,11 @@ import {
   Skeleton,
   Zoom,
   Grid2 as Grid,
-  Tooltip,
-  IconButton,
   Snackbar,
   Alert,
+  Tooltip,
 } from '@mui/material';
-import { novelService, userService } from '../../services/api';
+import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
@@ -27,7 +26,6 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
-import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import defaultCover from '@assets/default-cover.jpg';
 import { NovelDetail as INovelDetail } from '@models/novels_types';
 import NovelSources from './NovelSources.tsx';
@@ -35,12 +33,14 @@ import NovelSynopsis from './common/NovelSynopsis.tsx';
 import NovelRating from './common/NovelRating.tsx';
 import NovelTags from './common/NovelTags';
 import BreadcrumbNav from '../common/BreadcrumbNav';
-import { getChapterNameWithNumber } from '@utils/Misc.tsx';
+import { getChapterNameWithNumber, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
 import ActionButton from '../common/ActionButton';
 import NovelRecommendation from '../common/NovelRecommendation';
 import SectionContainer from '@components/common/SectionContainer.tsx';
 import Reviews from './Reviews.tsx';
 import { useAuth } from '@context/AuthContext';
+import BookmarkButton from '@components/common/BookmarkButton';
+import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
@@ -51,8 +51,6 @@ const NovelDetail = () => {
   const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isBookmarked, setIsBookmarked] = useState<boolean>(false);
-  const [bookmarkLoading, setBookmarkLoading] = useState<boolean>(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -71,7 +69,6 @@ const NovelDetail = () => {
       try {
         const data = await novelService.getNovelDetail(novelSlug);
         setNovel(data);
-        setIsBookmarked(!!data.is_bookmarked);
       } catch (err) {
         console.error('Error fetching novel details:', err);
         setError('Failed to load novel details. Please try again later.');
@@ -83,40 +80,6 @@ const NovelDetail = () => {
     fetchNovelDetail();
   }, [novelSlug]);
   const continue_chapter = novel?.reading_history?.next_chapter || novel?.reading_history?.last_read_chapter;
-
-  // Handle bookmark toggle
-  const handleBookmarkToggle = async () => {
-    if (!novelSlug || bookmarkLoading) return;
-    
-    setBookmarkLoading(true);
-    try {
-      if (isBookmarked) {
-        await userService.removeNovelBookmark(novelSlug);
-        setSnackbar({
-          open: true,
-          message: 'Novel removed from bookmarks',
-          severity: 'success',
-        });
-      } else {
-        await userService.addNovelBookmark(novelSlug);
-        setSnackbar({
-          open: true,
-          message: 'Novel added to bookmarks',
-          severity: 'success',
-        });
-      }
-      setIsBookmarked(!isBookmarked);
-    } catch (err) {
-      console.error('Error toggling bookmark:', err);
-      setSnackbar({
-        open: true,
-        message: 'Failed to update bookmarks. Please try again.',
-        severity: 'error',
-      });
-    } finally {
-      setBookmarkLoading(false);
-    }
-  };
 
   const handleCloseSnackbar = () => {
     setSnackbar((prev) => ({
@@ -356,71 +319,76 @@ const NovelDetail = () => {
                       }}
                     />
                     
-                    {/* Language indicators */}
+                    {/* Language flags */}
                     <Box
                       sx={{
                         position: 'absolute',
-                        bottom: 8,
-                        right: 8,
+                        top: 0,
+                        right: 0,
                         display: 'flex',
                         gap: 0.5,
-                        flexDirection: 'column',
-                        alignItems: 'flex-end',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+                        border: '1px solid rgb(0, 0, 0)',
+                        borderRadius: 1,
+                        alignItems: 'center',
                       }}
                     >
                       {Array.from(new Set(novel.sources.map(source => source.language)))
                         .filter(Boolean)
-                        .map((language, index) => (
-                          <Box
-                            key={index}
+                        .map((lang, index) => (
+                          <Tooltip key={index} title={languageCodeToName(lang)}>
+                            <img 
+                              src={`/flags/${languageCodeToFlag(lang)}.svg`} 
+                              alt={languageCodeToName(lang)}
+                              style={{ 
+                                width: '30px',
+                                height: '20px',
+                                objectFit: 'cover',
+                                borderRadius: '2px',
+                              }}
+                            />
+                          </Tooltip>
+                        ))}
+                      {Array.from(new Set(novel.sources.map(source => source.language))).length === 0 && (
+                        <Tooltip title="Unknown language">
+                          <Typography
                             sx={{
-                              bgcolor: 'rgba(0,0,0,0.7)',
-                              color: 'white',
-                              px: 1,
-                              py: 0.3,
-                              borderRadius: 1,
-                              fontSize: '0.75rem',
+                              fontSize: '0.8rem',
+                              color: '#fff',
                               fontWeight: 'bold',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                              textTransform: 'uppercase',
+                              lineHeight: 1,
                             }}
                           >
-                            <LanguageIcon sx={{ fontSize: '0.9rem' }} />
-                            {language}
-                          </Box>
-                        ))}
+                            ?
+                          </Typography>
+                        </Tooltip>
+                      )}
                     </Box>
                     
-                    {/* Add bookmark button to top-right corner of image */}
-                    {isAuthenticated && (
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                      }}
-                    >
-                      <Tooltip title={isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}>
-                        <IconButton
-                          onClick={handleBookmarkToggle}
-                          disabled={bookmarkLoading}
-                          aria-label={isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
-                          sx={{
-                            bgcolor: 'rgba(0, 0, 0, 0.6)',
-                            color: isBookmarked ? theme.palette.warning.main : 'white',
-                            '&:hover': {
-                              bgcolor: 'rgba(0, 0, 0, 0.8)',
-                            },
-                            transition: 'all 0.2s ease',
-                            transform: isBookmarked ? 'scale(1.1)' : 'scale(1)',
+                    {/* Add bookmark and reading list buttons */}
+                    {isAuthenticated && novelSlug && (
+                      <>
+                        <BookmarkButton 
+                          isBookmarked={!!novel.is_bookmarked} 
+                          slug={novelSlug}
+                          customSx={{
+                            position: 'absolute',
+                            right: 8,
+                            bottom: 8,
+                            zIndex: 10
                           }}
-                        >
-                          {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
+                        />
+                        <CompactAddToListButton
+                          novelId={novel.id}
+                          novelTitle={novel.title}
+                          customSx={{
+                            position: 'absolute',
+                            right: 52,
+                            bottom: 8,
+                            zIndex: 10
+                          }}
+                        />
+                      </>
                     )}
                   </Box>
                 </Zoom>
@@ -673,7 +641,7 @@ const NovelDetail = () => {
         </SectionContainer>
       )}
 
-      {/* Snackbar notification for bookmark actions */}
+      {/* Keep the Snackbar for other potential notifications */}
       <Snackbar 
         open={snackbar.open} 
         autoHideDuration={3000} 

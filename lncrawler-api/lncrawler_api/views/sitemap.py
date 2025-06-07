@@ -34,6 +34,7 @@ class StaticViewSitemap(BaseSitemap):
             '/profile',
             '/library',
             '/history',
+            '/reading-lists',
             '/download',
             '/novels/search',
         ]

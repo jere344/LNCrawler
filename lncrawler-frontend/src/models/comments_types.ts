@@ -1,3 +1,5 @@
+import { User } from './user_types';
+
 export interface Comment {
   id: string;
   author_name: string;
@@ -16,11 +18,7 @@ export interface Comment {
   upvotes: number;
   downvotes: number;
   vote_score: number;
-  user: {
-    id: string;
-    username: string;
-    profile_pic: string;
-  },
+  user: User;
   user_vote?: 'up' | 'down';
   edited: boolean;
 }

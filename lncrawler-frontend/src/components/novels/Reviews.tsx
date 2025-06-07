@@ -18,7 +18,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@mui/material';
-import { formatDistanceToNow } from 'date-fns';
+import { formatTimeAgo } from '@utils/Misc';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -213,7 +213,7 @@ const Reviews: React.FC<ReviewsProps> = ({
                       {review.user.username}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+                      {formatTimeAgo(new Date(review.created_at))}
                     </Typography>
                   </Box>
                 </Box>
