@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { CssBaseline, ThemeProvider as MuiThemeProvider, Container, Box } from "@mui/material";
 import { useLayoutEffect } from "react";
 import "./App.css";
@@ -106,8 +106,8 @@ function AppWithTheme() {
                             {/* Home page */}
                             <Route path="/" element={<HomePage />} />
 
-                            {/* Fallback route */}
-                            <Route path="*" element={<HomePage />} />
+                            {/* Fallback route - redirect to home */}
+                            <Route path="*" element={<Navigate to="/" replace />} />
 
                             
                         </Routes>
