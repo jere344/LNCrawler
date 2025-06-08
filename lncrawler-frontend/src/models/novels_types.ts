@@ -1,3 +1,5 @@
+import { ReadingList } from './readinglist_types';
+
 export interface Novel {
   id: string;
   title: string;
@@ -69,6 +71,7 @@ export interface NovelDetail {
   comment_count: number;
   reading_history?: ReadingHistory | null;
   similar_novels?: SimilarNovel[];
+  reading_lists?: ReadingList[];
 }
 
 export interface SimilarNovel extends Novel {

@@ -41,6 +41,8 @@ import Reviews from './Reviews.tsx';
 import { useAuth } from '@context/AuthContext';
 import BookmarkButton from '@components/common/BookmarkButton';
 import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
+import ReadingListCard from '../readinglist/ReadingListCard';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
@@ -624,6 +626,18 @@ const NovelDetail = () => {
         </SectionContainer>
       )}
 
+      {/* Reading Lists Section */}
+      {novel.reading_lists && novel.reading_lists.length > 0 && (
+        <SectionContainer title="In Reading Lists" icon={<PlaylistAddIcon />}>
+          <Grid container spacing={2}>
+            {novel.reading_lists.map((list) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={list.id}>
+                <ReadingListCard list={list} />
+              </Grid>
+            ))}
+          </Grid>
+        </SectionContainer>
+      )}
 
       {/* Similar Novels / Recommendations */}
       {novel.similar_novels && novel.similar_novels.length > 0 && (

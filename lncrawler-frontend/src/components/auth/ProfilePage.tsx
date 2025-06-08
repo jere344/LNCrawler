@@ -9,7 +9,6 @@ import { authService } from '../../services/auth.service';
 import { reviewService } from '../../services/review.service';
 import { readingListService } from '../../services/readinglist.service';
 import { Link as RouterLink } from 'react-router-dom';
-import { formatTimeAgo } from '@utils/Misc';
 import { ReadingList } from '@models/readinglist_types';
 import ReadingListCard from '../readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';

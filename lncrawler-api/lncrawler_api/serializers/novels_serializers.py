@@ -102,6 +102,7 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
     is_bookmarked = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
     similar_novels = serializers.SerializerMethodField()
+    reading_lists = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
@@ -109,7 +110,7 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
             'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history',
-            'similar_novels'
+            'similar_novels', 'reading_lists'
         ]
     
     def get_sources(self, obj):
@@ -222,6 +223,16 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             result.append(novel_data)
         
         return result
+    
+    def get_reading_lists(self, obj):
+        from .reading_lists_serializers import ReadingListSerializer
+        
+        # Get all reading lists that contain this novel
+        reading_lists = obj.in_reading_lists.values_list('reading_list', flat=True)
+        from ..models.users_models import ReadingList
+        lists = ReadingList.objects.filter(id__in=reading_lists)
+        
+        return ReadingListSerializer(lists, many=True, context=self.context).data
 
 
 class AuthorSerializer(serializers.ModelSerializer):
