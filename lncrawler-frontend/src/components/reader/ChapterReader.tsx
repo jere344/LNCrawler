@@ -671,9 +671,9 @@ const ChapterReader = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   
-  // Add effect to disable scrolling when page mode is enabled
+  // Add effect to disable scrolling when page mode is enabled and we are on not in the comments
   useEffect(() => {
-    if (readerSettings.pageMode && isMobile) {
+    if (readerSettings.pageMode && isMobile && activeTab === 0) {
       // Disable scroll
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
@@ -693,7 +693,7 @@ const ChapterReader = () => {
       document.documentElement.style.overflow = 'auto';
       document.body.classList.remove('page-mode-active');
     };
-  }, [readerSettings.pageMode, isMobile]);
+  }, [readerSettings.pageMode, isMobile, activeTab]);
 
   // Add effect to calculate total pages when page mode is enabled
   useEffect(() => {
