@@ -4,13 +4,17 @@ import {
   Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, CircularProgress,
   Paper, Stack,
-  Avatar
+  Avatar,
+  useTheme,
+  useMediaQuery,
+  IconButton
 } from '@mui/material';
 import {
   DndContext, 
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent
@@ -84,6 +88,7 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
             bgcolor: 'action.hover',
             borderRadius: 1,
             cursor: 'grab',
+            touchAction: 'none',
             '&:active': {
               cursor: 'grabbing'
             }
@@ -127,12 +132,20 @@ const ReadingListDetail = () => {
   const [editingNote, setEditingNote] = useState('');
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Configure drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8,
+      }
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
       }
     }),
     useSensor(KeyboardSensor, {
@@ -344,30 +357,62 @@ const ReadingListDetail = () => {
           </Box>
 
           <Stack direction="row" spacing={1}>
-            <Button
-              startIcon={<ShareIcon />}
-              onClick={handleShareList}
-              variant="outlined"
-            >
-              Share
-            </Button>
-            {isOwner() && (
+            {isMobile ? (
+              <>
+                <IconButton
+                  onClick={handleShareList}
+                  color="primary"
+                  title="Share"
+                >
+                  <ShareIcon />
+                </IconButton>
+                {isOwner() && (
+                  <>
+                    <IconButton
+                      onClick={() => setEditDialogOpen(true)}
+                      color="primary"
+                      title="Edit"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      color="error"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      title="Delete"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </>
+                )}
+              </>
+            ) : (
               <>
                 <Button
-                  startIcon={<EditIcon />}
-                  onClick={() => setEditDialogOpen(true)}
+                  startIcon={<ShareIcon />}
+                  onClick={handleShareList}
                   variant="outlined"
                 >
-                  Edit
+                  Share
                 </Button>
-                <Button
-                  startIcon={<DeleteIcon />}
-                  color="error"
-                  onClick={() => setDeleteDialogOpen(true)}
-                  variant="outlined"
-                >
-                  Delete
-                </Button>
+                {isOwner() && (
+                  <>
+                    <Button
+                      startIcon={<EditIcon />}
+                      onClick={() => setEditDialogOpen(true)}
+                      variant="outlined"
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      startIcon={<DeleteIcon />}
+                      color="error"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      variant="outlined"
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </Stack>
