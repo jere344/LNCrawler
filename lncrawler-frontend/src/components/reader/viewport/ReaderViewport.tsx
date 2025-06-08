@@ -8,6 +8,11 @@ interface ReaderViewportProps {
   controlsVisible: boolean;
   edgeTapWidthPercentage: number;
   dimLevel?: number;
+  nightMode?: boolean;
+  nightModeStrength?: number;
+  nightModeScheduleEnabled?: boolean;
+  nightModeStartTime?: string;
+  nightModeEndTime?: string;
   leftEdgeTapBehavior: EdgeTapBehavior;
   rightEdgeTapBehavior: EdgeTapBehavior;
   onContentClick: (e: React.MouseEvent<HTMLDivElement>) => void;
@@ -20,11 +25,40 @@ const ReaderViewport = forwardRef<HTMLDivElement, ReaderViewportProps>((
     controlsVisible,
     edgeTapWidthPercentage,
     dimLevel = 0,
+    nightMode = false,
+    nightModeStrength = 50,
+    nightModeScheduleEnabled = false,
+    nightModeStartTime = '20:00',
+    nightModeEndTime = '06:00',
     onContentClick
   }, 
   ref
 ) => {
   const theme = useTheme();
+
+  // Function to check if current time is within night mode schedule
+  const isNightModeTime = () => {
+    if (!nightModeScheduleEnabled) return true;
+    
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    const [startHour, startMin] = nightModeStartTime.split(':').map(Number);
+    const [endHour, endMin] = nightModeEndTime.split(':').map(Number);
+    
+    const startTime = startHour * 60 + startMin;
+    const endTime = endHour * 60 + endMin;
+    
+    // Handle overnight schedules (e.g., 20:00 to 06:00)
+    if (startTime > endTime) {
+      return currentTime >= startTime || currentTime <= endTime;
+    }
+    
+    return currentTime >= startTime && currentTime <= endTime;
+  };
+
+  // Determine if night mode should be active
+  const nightModeActive = nightMode && (!nightModeScheduleEnabled || isNightModeTime());
 
   return (
     <Box
@@ -72,6 +106,23 @@ const ReaderViewport = forwardRef<HTMLDivElement, ReaderViewportProps>((
           }}
         />
       )}
+      
+      {/* Night Mode Blue Light Filter Overlay */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: '#ffb347', // Warm orange tint to filter blue light
+          opacity: nightModeActive ? nightModeStrength / 100 : 0,
+          zIndex: theme.zIndex.drawer - 2,
+          pointerEvents: 'none', // Allows clicking through the overlay
+          mixBlendMode: 'multiply', // Better blending for blue light filter effect
+          transition: 'opacity 0.5s ease-in-out', // Smooth fade in/out transition
+        }}
+      />
       
       {children}
     </Box>

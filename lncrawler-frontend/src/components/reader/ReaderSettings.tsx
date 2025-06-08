@@ -58,6 +58,11 @@ export interface ReaderSettings {
   centerTapToOpenSettings: boolean;
   pageMode: boolean;
   showPages: boolean;
+  nightMode: boolean;
+  nightModeStrength: number;
+  nightModeScheduleEnabled: boolean;
+  nightModeStartTime: string;
+  nightModeEndTime: string;
 }
 
 // Default settings
@@ -86,6 +91,11 @@ export const defaultSettings: ReaderSettings = {
   centerTapToOpenSettings: true,
   pageMode: false,
   showPages: true,
+  nightMode: false,
+  nightModeStrength: 50,
+  nightModeScheduleEnabled: false,
+  nightModeStartTime: '20:00',
+  nightModeEndTime: '06:00',
 };
 
 export interface ChapterInfo {
@@ -165,6 +175,37 @@ const ReaderSettings = ({
     const newSettings = { ...settings, dimLevel: level };
     onSettingChange(newSettings);
     saveSetting('dimLevel', level);
+  };
+
+  // Night Mode Settings Handlers
+  const handleNightModeChange = (enabled: boolean) => {
+    const newSettings = { ...settings, nightMode: enabled };
+    onSettingChange(newSettings);
+    saveSetting('nightMode', enabled);
+  };
+
+  const handleNightModeStrengthChange = (strength: number) => {
+    const newSettings = { ...settings, nightModeStrength: strength };
+    onSettingChange(newSettings);
+    saveSetting('nightModeStrength', strength);
+  };
+
+  const handleNightModeScheduleChange = (enabled: boolean) => {
+    const newSettings = { ...settings, nightModeScheduleEnabled: enabled };
+    onSettingChange(newSettings);
+    saveSetting('nightModeScheduleEnabled', enabled);
+  };
+
+  const handleNightModeStartTimeChange = (time: string) => {
+    const newSettings = { ...settings, nightModeStartTime: time };
+    onSettingChange(newSettings);
+    saveSetting('nightModeStartTime', time);
+  };
+
+  const handleNightModeEndTimeChange = (time: string) => {
+    const newSettings = { ...settings, nightModeEndTime: time };
+    onSettingChange(newSettings);
+    saveSetting('nightModeEndTime', time);
   };
 
   // Layout Settings Handlers
@@ -435,9 +476,19 @@ const ReaderSettings = ({
             fontColor={settings.fontColor}
             backgroundColor={settings.backgroundColor}
             dimLevel={settings.dimLevel}
+            nightMode={settings.nightMode}
+            nightModeStrength={settings.nightModeStrength}
+            nightModeScheduleEnabled={settings.nightModeScheduleEnabled}
+            nightModeStartTime={settings.nightModeStartTime}
+            nightModeEndTime={settings.nightModeEndTime}
             onFontColorChange={handleFontColorChange}
             onBackgroundColorChange={handleBackgroundColorChange}
             onDimLevelChange={handleDimLevelChange}
+            onNightModeChange={handleNightModeChange}
+            onNightModeStrengthChange={handleNightModeStrengthChange}
+            onNightModeScheduleChange={handleNightModeScheduleChange}
+            onNightModeStartTimeChange={handleNightModeStartTimeChange}
+            onNightModeEndTimeChange={handleNightModeEndTimeChange}
           />
         </SettingsSection>
 

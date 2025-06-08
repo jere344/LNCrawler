@@ -7,6 +7,10 @@ import {
   Popover,
   Grid2 as Grid,
   useTheme,
+  Switch,
+  FormControlLabel,
+  TextField,
+  Divider,
 } from '@mui/material';
 import { ChromePicker, ColorResult } from 'react-color';
 import ClearIcon from '@mui/icons-material/Clear';
@@ -16,9 +20,19 @@ interface ColorSettingsProps {
   fontColor: string | null;
   backgroundColor: string | null;
   dimLevel: number;
+  nightMode: boolean;
+  nightModeStrength: number;
+  nightModeScheduleEnabled: boolean;
+  nightModeStartTime: string;
+  nightModeEndTime: string;
   onFontColorChange: (color: string | null) => void;
   onBackgroundColorChange: (color: string | null) => void;
   onDimLevelChange: (level: number) => void;
+  onNightModeChange: (enabled: boolean) => void;
+  onNightModeStrengthChange: (strength: number) => void;
+  onNightModeScheduleChange: (enabled: boolean) => void;
+  onNightModeStartTimeChange: (time: string) => void;
+  onNightModeEndTimeChange: (time: string) => void;
 }
 
 /**
@@ -28,9 +42,19 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
   fontColor,
   backgroundColor,
   dimLevel,
+  nightMode,
+  nightModeStrength,
+  nightModeScheduleEnabled,
+  nightModeStartTime,
+  nightModeEndTime,
   onFontColorChange,
   onBackgroundColorChange,
   onDimLevelChange,
+  onNightModeChange,
+  onNightModeStrengthChange,
+  onNightModeScheduleChange,
+  onNightModeStartTimeChange,
+  onNightModeEndTimeChange,
 }) => {
   const theme = useTheme();
   const [showFontColorPicker, setShowFontColorPicker] = useState(false);
@@ -80,6 +104,26 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
 
   const handleDimLevelChange = (_event: Event, newValue: number | number[]) => {
     onDimLevelChange(newValue as number);
+  };
+
+  const handleNightModeToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onNightModeChange(event.target.checked);
+  };
+
+  const handleNightModeStrengthChange = (_event: Event, newValue: number | number[]) => {
+    onNightModeStrengthChange(newValue as number);
+  };
+
+  const handleNightModeScheduleToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onNightModeScheduleChange(event.target.checked);
+  };
+
+  const handleStartTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onNightModeStartTimeChange(event.target.value);
+  };
+
+  const handleEndTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    onNightModeEndTimeChange(event.target.value);
   };
 
   return (
@@ -226,6 +270,96 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
           ]}
           valueLabelDisplay="auto"
         />
+      </Box>
+
+      <Divider sx={{ my: 2 }} />
+
+      {/* Night Mode Section */}
+      <Box sx={{ mt: 2 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={nightMode}
+              onChange={handleNightModeToggle}
+              color="primary"
+            />
+          }
+          label="Night Mode (Blue Light Filter)"
+        />
+        
+        {nightMode && (
+          <Box sx={{ mt: 2, pl: 2 }}>
+            {/* Night Mode Strength */}
+            <Typography variant="subtitle2" gutterBottom>
+              Filter Strength: {nightModeStrength}%
+            </Typography>
+            <MobileSafeSlider
+              value={nightModeStrength}
+              onChange={handleNightModeStrengthChange}
+              min={10}
+              max={90}
+              step={5}
+              marks={[
+                { value: 10, label: '10%' },
+                { value: 50, label: '50%' },
+                { value: 90, label: '90%' },
+              ]}
+              valueLabelDisplay="auto"
+              sx={{ mb: 2 }}
+            />
+            
+            {/* Schedule Toggle */}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={nightModeScheduleEnabled}
+                  onChange={handleNightModeScheduleToggle}
+                  color="primary"
+                />
+              }
+              label="Enable Schedule"
+              sx={{ mb: 2 }}
+            />
+            
+            {/* Schedule Times */}
+            {nightModeScheduleEnabled && (
+              <Grid container spacing={2}>
+                <Grid size={6}>
+                  <TextField
+                    label="Start Time"
+                    type="time"
+                    value={nightModeStartTime}
+                    onChange={handleStartTimeChange}
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                    inputProps={{
+                      step: 300, // 5 min
+                    }}
+                    size="small"
+                    fullWidth
+                  />
+                </Grid>
+                <Grid size={6}>
+                  <TextField
+                    label="End Time"
+                    type="time"
+                    value={nightModeEndTime}
+                    onChange={handleEndTimeChange}
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                    inputProps={{
+                      step: 300, // 5 min
+                    }}
+                    size="small"
+                    fullWidth
+                  />
+                </Grid>
+              </Grid>
+            )}
+          </Box>
+        )}
       </Box>
     </Box>
   );

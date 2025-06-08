@@ -52,7 +52,6 @@ const EDGE_TAP_WIDTH_PERCENTAGE = 15; // % of screen width for edge tap detectio
 const MAX_STORED_POSITIONS = 20; // Maximum number of scroll positions to store
 const SCROLL_POSITION_STORAGE_KEY = 'lncrawler_scroll_positions';
 const SCROLL_SAVE_THROTTLE = 1000; // Save scroll position at most every 1000ms
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
@@ -923,6 +922,11 @@ const ChapterReader = () => {
               controlsVisible={controlsVisible}
               edgeTapWidthPercentage={EDGE_TAP_WIDTH_PERCENTAGE}
               dimLevel={readerSettings.dimLevel}
+              nightMode={readerSettings.nightMode}
+              nightModeStrength={readerSettings.nightModeStrength}
+              nightModeScheduleEnabled={readerSettings.nightModeScheduleEnabled}
+              nightModeStartTime={readerSettings.nightModeStartTime}
+              nightModeEndTime={readerSettings.nightModeEndTime}
               leftEdgeTapBehavior={readerSettings.leftEdgeTapBehavior}
               rightEdgeTapBehavior={readerSettings.rightEdgeTapBehavior}
               onContentClick={handleContentClick}
