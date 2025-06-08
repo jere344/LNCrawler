@@ -14,11 +14,10 @@ const readingListService = {
   },
 
   // Get reading lists for a specific user
-  getUserReadingLists: async (page = 1, pageSize = 20, search = ''): Promise<ReadingListResponse> => {
+  getUserReadingLists: async (page = 1, pageSize = 20): Promise<ReadingListResponse> => {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('page_size', pageSize.toString());
-    if (search) params.append('search', search);
 
     const response = await api.get(`/users/reading-lists/?${params.toString()}`);
     return response.data;

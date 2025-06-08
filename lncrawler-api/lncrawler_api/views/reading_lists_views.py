@@ -56,7 +56,6 @@ def get_user_reading_lists(request):
     """
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 20)
-    search = request.GET.get("search", "")
     
     user_id = request.GET.get("user_id", request.user.id if request.user.is_authenticated else None)
     if not user_id:
@@ -67,18 +66,7 @@ def get_user_reading_lists(request):
     
     query_set = ReadingList.objects.filter(user_id=user_id)
     
-    if search:
-        query_set = query_set.filter(
-            Q(title__icontains=search) | 
-            Q(description__icontains=search)
-        )
-    
     query_set = query_set.order_by('-created_at')
-    if not query_set.exists():
-        return Response(
-            {"detail": "No reading lists found for this user."},
-            status=status.HTTP_404_NOT_FOUND
-        )
         
     paginator = Paginator(query_set, page_size)
     page_obj = paginator.get_page(page_number)

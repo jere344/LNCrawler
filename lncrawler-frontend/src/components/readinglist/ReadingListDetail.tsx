@@ -69,12 +69,15 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
         display: 'flex',
         gap: 1,
         alignItems: 'stretch',
+        width: '100%',
+        minWidth: 0,
       }}
     >
       {isOwner && (
         <Box 
           sx={{ 
-            width: 40, 
+            width: 40,
+            flexShrink: 0,
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
@@ -92,7 +95,11 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
         </Box>
       )}
 
-      <Box sx={{ flex: 1 }}>
+      <Box sx={{ 
+        flex: 1,
+        minWidth: 0,
+        overflow: 'hidden'
+      }}>
         <ReadingListCard 
           novel={item.novel} 
           to={`/novels/${item.novel.slug}`} 

@@ -22,7 +22,22 @@ export function formatTimeAgo(date : Date): string {
 }
 
 export const getChapterName = (title: string): string => {
-    const re = new RegExp("(((Chapter|Chapitre|Ch) ?|C)[0-9]+(.[0-9]+)? ?(-|[:;.])?)|^[0-9]+(.[0-9]+)?");
+    const chapterMarkers = [
+        'chapter', 
+        'c', 
+        'ch', 
+        'chapitre', 
+        'chương', 
+        'capítulo', 
+    ]
+    const escaped = chapterMarkers.map(m => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const markerGroup = `(?:${escaped.join('|')})`;
+
+    const re = new RegExp(
+        `(^(?:${markerGroup})?\\s*\\d+[-:, ]+)|([-:, ]+(?:${markerGroup})\\s*\\d+)`,
+        'gi'
+    );
+
     const latestChapterTitle = title.replace(re, "").trim();
     return latestChapterTitle || "";
 };

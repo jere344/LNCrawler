@@ -4,6 +4,7 @@ import {
   Typography, Box, Rating, Chip, Skeleton, Tooltip,
   IconButton, Paper, Menu, MenuItem, ListItemIcon, ListItemText,
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
+  useMediaQuery, useTheme,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -46,6 +47,8 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
 }) => {
   const preferredSource = novel.prefered_source;
   const { isAuthenticated } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [isNoteTruncated, setIsNoteTruncated] = useState(false);
@@ -129,6 +132,8 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
         },
         position: 'relative',
         overflow: 'hidden',
+        width: '100%',
+        minWidth: 0,
       }}
     >
 
@@ -245,132 +250,145 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
         </CardActionArea>
       </Box>
 
-      {/* Metadata Content */}
-      <CardActionArea 
-        sx={{ flex: 1, alignItems: 'stretch' }}
-        onClick={onClick}
-        component={to ? Link : 'div'}
-        to={to}
-      >
-        <CardContent sx={{ 
-          height: '100%', 
-          display: 'flex', 
-          flexDirection: 'column',
-          py: 1,
-          px: 2,
-          '&:last-child': { pb: 2 }
-        }}>
-          <Typography 
-            variant="h6" 
-            component="div" 
-            sx={{ 
-              fontWeight: 'medium',
-              lineHeight: 1.1,
-              textOverflow: 'ellipsis',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              mb: '6px',
-              overflow: 'hidden',
-            }}
-          >
-            {novel.title}
-          </Typography>
-          
-          {/* Author */}
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14 }} />
-            <Typography variant="body2" color="text.secondary" noWrap>
-              {preferredSource?.authors && preferredSource.authors.length > 0 
-                ? preferredSource.authors.slice(0, 2).join(', ')
-                : 'Unknown'}
+      {/* Metadata Content - Hide on mobile when note exists */}
+      {(!isMobile || !note) && (
+        <CardActionArea 
+          sx={{ 
+            flex: 1, 
+            alignItems: 'stretch',
+            minWidth: 0,
+          }}
+          onClick={onClick}
+          component={to ? Link : 'div'}
+          to={to}
+        >
+          <CardContent sx={{ 
+            height: '100%', 
+            display: 'flex', 
+            flexDirection: 'column',
+            py: 1,
+            px: 2,
+            '&:last-child': { pb: 2 },
+            minWidth: 0,
+            overflow: 'hidden',
+          }}>
+            <Typography 
+              variant="h6" 
+              component="div" 
+              sx={{ 
+                fontWeight: 'medium',
+                lineHeight: 1.1,
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                mb: '6px',
+                overflow: 'hidden',
+                minWidth: 0,
+              }}
+            >
+              {novel.title}
             </Typography>
-          </Box>
-          
-          {/* Tags */}
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14 }} />
-            <Typography variant="body2" color="text.secondary" noWrap>
-              {preferredSource?.tags && preferredSource.tags.length > 0 ? 
-                `${preferredSource.tags.slice(0, 2).join(', ')}${preferredSource.tags.length > 2 ? '...' : ''}` 
-                : 'Unknown'}
-            </Typography>
-          </Box>
-          
-          {/* Rating */}
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Rating 
-              value={novel.avg_rating || 0} 
-              precision={0.5} 
-              readOnly 
-              size="small" 
-            />
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, overflow: 'hidden', height: '1.2em' }}>
-              {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
-              {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
-            </Typography>
-          </Box>
-          
-          {/* Metadata chips */}
-          <Box 
-            sx={{ 
-              mt: 'auto',
-              display: 'flex',
-              gap: 0.5,
-              flexWrap: 'wrap',
-              '& .MuiChip-root': { 
-                height: '20px',
-                '& .MuiChip-label': { 
-                  px: 0.5, 
-                  fontSize: '0.8rem',
-                },
-                '& .MuiChip-icon': { 
-                  ml: 0.25,
-                  mr: -0.25
-                }
-              } 
-            }}
-          >
-            <Tooltip title="Total Chapters">
-              <Chip 
-                icon={<MenuBookIcon />}
-                label={preferredSource?.chapters_count ? formatCount(preferredSource.chapters_count) : '?'}
-                size="small"
-                variant="outlined"
-              />
-            </Tooltip>
-
-            <Tooltip title="Views">
-              <Chip 
-                icon={<VisibilityIcon />}
-                label={novel.total_views !== undefined ? formatCount(novel.total_views) : '?'}
-                size="small"
-                variant="outlined"
-              />
-            </Tooltip>
             
-            <Tooltip title="Last Updated">
-              <Chip 
-                icon={<UpdateIcon />}
-                label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update)) : '?'}
+            {/* Author */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, minWidth: 0 }}>
+              <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14, flexShrink: 0 }} />
+              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                {preferredSource?.authors && preferredSource.authors.length > 0 
+                  ? preferredSource.authors.join(', ')
+                  : 'Unknown'}
+              </Typography>
+            </Box>
+            
+            {/* Tags */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, minWidth: 0 }}>
+              <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14, flexShrink: 0 }} />
+              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+                {preferredSource?.tags && preferredSource.tags.length > 0 ? 
+                  `${preferredSource.tags.join(', ')}` 
+                  : 'Unknown'}
+              </Typography>
+            </Box>
+            
+            {/* Rating */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, minWidth: 0 }}>
+              <Rating 
+                value={novel.avg_rating || 0} 
+                precision={0.5} 
+                readOnly 
                 size="small"
-                variant="outlined"
+                sx={{ flexShrink: 0 }}
               />
-            </Tooltip>
-          </Box>
-        </CardContent>
-      </CardActionArea>
+              <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, overflow: 'hidden', height: '1.2em', minWidth: 0 }}>
+                {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
+                {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
+              </Typography>
+            </Box>
+            
+            {/* Metadata chips */}
+            <Box 
+              sx={{ 
+                mt: 'auto',
+                display: 'flex',
+                gap: 0.5,
+                flexWrap: 'wrap',
+                minWidth: 0,
+                '& .MuiChip-root': { 
+                  height: '20px',
+                  flexShrink: 0,
+                  '& .MuiChip-label': { 
+                    px: 0.5, 
+                    fontSize: '0.8rem',
+                  },
+                  '& .MuiChip-icon': { 
+                    ml: 0.25,
+                    mr: -0.25
+                  }
+                } 
+              }}
+            >
+              <Tooltip title="Total Chapters">
+                <Chip 
+                  icon={<MenuBookIcon />}
+                  label={preferredSource?.chapters_count ? formatCount(preferredSource.chapters_count) : '?'}
+                  size="small"
+                  variant="outlined"
+                />
+              </Tooltip>
+
+              <Tooltip title="Views">
+                <Chip 
+                  icon={<VisibilityIcon />}
+                  label={novel.total_views !== undefined ? formatCount(novel.total_views) : '?'}
+                  size="small"
+                  variant="outlined"
+                />
+              </Tooltip>
+              
+              <Tooltip title="Last Updated">
+                <Chip 
+                  icon={<UpdateIcon />}
+                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update)) : '?'}
+                  size="small"
+                  variant="outlined"
+                />
+              </Tooltip>
+            </Box>
+          </CardContent>
+        </CardActionArea>
+      )}
 
       {/* Note Section */}
       {note && (
         <Box 
           sx={{ 
-            flex: 2,
+            flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            borderLeft: '1px solid',
+            borderLeft: isMobile ? 'none' : '1px solid',
             borderColor: 'divider',
-            minWidth: 0, // Allows text truncation
+            minWidth: 0,
+            maxWidth: isMobile ? 'none' : '300px',
           }}
         >
           <CardContent sx={{ 
@@ -379,8 +397,31 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             flexDirection: 'column',
             py: 1,
             px: 2,
-            '&:last-child': { pb: 2 }
+            '&:last-child': { pb: 2 },
+            minWidth: 0,
+            overflow: 'hidden',
           }}>
+            {/* Show title on mobile */}
+            {isMobile && (
+              <Typography 
+                variant="h6" 
+                component="div" 
+                sx={{ 
+                  fontWeight: 'medium',
+                  lineHeight: 1.1,
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  mb: 1,
+                  overflow: 'hidden',
+                  minWidth: 0,
+                }}
+              >
+                {novel.title}
+              </Typography>
+            )}
+            
             <Typography 
               variant="body2" 
               sx={{ 
@@ -389,7 +430,8 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 mb: 0.5,
                 fontWeight: 'medium',
                 textTransform: 'uppercase',
-                letterSpacing: '0.5px'
+                letterSpacing: '0.5px',
+                flexShrink: 0,
               }}
             >
               Note
@@ -403,6 +445,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
+                minWidth: 0,
               }}
             >
               <Typography 
@@ -419,6 +462,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                   wordBreak: 'break-word',
                   whiteSpace: 'pre-wrap',
                   flex: 1,
+                  minWidth: 0,
                 }}
               >
                 {note}
@@ -433,6 +477,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                     minHeight: 'auto',
                     py: 0,
                     px: 1,
+                    flexShrink: 0,
                   }}
                 >
                   See more
