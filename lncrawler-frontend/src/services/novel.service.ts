@@ -99,6 +99,7 @@ export const novelService = {
     page?: number;
     page_size?: number;
     tag?: string[];
+    exclude_tag?: string[];
     author?: string[];
     status?: string;
     language?: string;
@@ -120,6 +121,10 @@ export const novelService = {
     
     if (params.tag && params.tag.length) {
       params.tag.forEach(tag => queryParams.append('tag', tag));
+    }
+    
+    if (params.exclude_tag && params.exclude_tag.length) {
+      params.exclude_tag.forEach(tag => queryParams.append('exclude_tag', tag));
     }
     
     if (params.author && params.author.length) {

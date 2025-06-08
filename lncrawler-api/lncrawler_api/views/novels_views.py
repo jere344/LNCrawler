@@ -116,6 +116,7 @@ def search_novels(request):
 
     # Get filter parameters
     tags = request.GET.getlist("tag", [])
+    exclude_tags = request.GET.getlist("exclude_tag", [])
     authors = request.GET.getlist("author", [])
     status = request.GET.get("status", "")
     language = request.GET.get("language", "")
@@ -137,6 +138,10 @@ def search_novels(request):
     # Filter by tags
     if tags:
         novels_query = novels_query.filter(sources__tags__name__in=tags).distinct()
+
+    # Exclude novels with certain tags
+    if exclude_tags:
+        novels_query = novels_query.exclude(sources__tags__name__in=exclude_tags).distinct()
 
     # Filter by authors
     if authors:

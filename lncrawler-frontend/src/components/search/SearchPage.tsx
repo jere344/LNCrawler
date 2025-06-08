@@ -58,6 +58,7 @@ const SearchPage: React.FC = () => {
   // State for current filters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
   const [selectedTags, setSelectedTags] = useState<string[]>(searchParams.getAll('tag'));
+  const [excludedTags, setExcludedTags] = useState<string[]>(searchParams.getAll('exclude_tag'));
   const [selectedAuthors, setSelectedAuthors] = useState<string[]>(searchParams.getAll('author'));
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedLanguage, setSelectedLanguage] = useState(searchParams.get('language') || '');
@@ -73,6 +74,7 @@ const SearchPage: React.FC = () => {
   
   // State for autocomplete input values
   const [tagInput, setTagInput] = useState('');
+  const [excludeTagInput, setExcludeTagInput] = useState('');
   const [authorInput, setAuthorInput] = useState('');
   
   // State for loading suggestions
@@ -139,6 +141,7 @@ const SearchPage: React.FC = () => {
           page,
           page_size: ITEMS_PER_PAGE,
           tag: searchParams.getAll('tag'),
+          exclude_tag: searchParams.getAll('exclude_tag'),
           author: searchParams.getAll('author'),
           status: searchParams.get('status') || undefined,
           language: searchParams.get('language') || undefined,
@@ -222,6 +225,7 @@ const SearchPage: React.FC = () => {
   const handleClearFilters = () => {
     setSearchQuery('');
     setSelectedTags([]);
+    setExcludedTags([]);
     setSelectedAuthors([]);
     setSelectedStatus('');
     setSelectedLanguage('');
@@ -238,6 +242,7 @@ const SearchPage: React.FC = () => {
     updateSearchParams({
       query: searchQuery,
       tag: selectedTags,
+      exclude_tag: excludedTags,
       author: selectedAuthors,
       status: selectedStatus,
       language: selectedLanguage,
@@ -397,8 +402,8 @@ const SearchPage: React.FC = () => {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Tags"
-                    placeholder="Type to search tags..."
+                    label="Include Tags"
+                    placeholder="Type to search tags to include..."
                     InputProps={{
                       ...params.InputProps,
                       endAdornment: (
@@ -408,7 +413,6 @@ const SearchPage: React.FC = () => {
                         </React.Fragment>
                       ),
                     }}
-                    helperText="Type at least 3 characters to search"
                   />
                 )}
                 renderOption={(props, option) => (
@@ -420,6 +424,75 @@ const SearchPage: React.FC = () => {
                   </li>
                 )}
                 filterOptions={(x) => x} // Don't filter options client-side
+                noOptionsText="No tags found"
+                loading={loadingTags}
+                loadingText="Loading..."
+              />
+            </Grid>
+            
+            {/* Excluded Tags - Autocomplete */}
+            <Grid size={{ xs: 12, md: 6 }}> 
+              <Autocomplete
+                multiple
+                options={tagSuggestions}
+                value={excludedTags}
+                inputValue={excludeTagInput}
+                onInputChange={(_, newInputValue) => {
+                  setExcludeTagInput(newInputValue);
+                  fetchTagSuggestions(newInputValue);
+                }}
+                onChange={(_, newValue) => {
+                  setExcludedTags(newValue.map(item => typeof item === 'string' ? item : item.name));
+                }}
+                getOptionLabel={(option) => {
+                  if (typeof option === 'string') {
+                    return option;
+                  }
+                  return `${option.name} (${option.count})`;
+                }}
+                isOptionEqualToValue={(option, value) => {
+                  const optionName = typeof option === 'string' ? option : option.name;
+                  const valueName = typeof value === 'string' ? value : value.name;
+                  return optionName === valueName;
+                }}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => {
+                    const tagName = typeof option === 'string' ? option : option.name;
+                    return (
+                      <Chip
+                        label={tagName}
+                        color="error"
+                        variant="outlined"
+                        {...getTagProps({ index })}
+                      />
+                    );
+                  })
+                }
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Exclude Tags"
+                    placeholder="Type to search tags to exclude..."
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <React.Fragment>
+                          {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </React.Fragment>
+                      ),
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    {typeof option === 'string' ? 
+                      option : 
+                      `${option.name} (${option.count})`
+                    }
+                  </li>
+                )}
+                filterOptions={(x) => x}
                 noOptionsText="No tags found"
                 loading={loadingTags}
                 loadingText="Loading..."
@@ -476,7 +549,6 @@ const SearchPage: React.FC = () => {
                         </React.Fragment>
                       ),
                     }}
-                    helperText="Type at least 3 characters to search"
                   />
                 )}
                 renderOption={(props, option) => (
@@ -605,7 +677,7 @@ const SearchPage: React.FC = () => {
       )}
       
       {/* Active Filters Display */}
-      {(selectedTags.length > 0 || 
+      {(selectedTags.length > 0 || excludedTags.length > 0 ||
        selectedAuthors.length > 0 || selectedStatus || selectedLanguage || 
        minRating || sortBy !== 'title' || sortOrder !== 'asc') && (
         <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -613,10 +685,26 @@ const SearchPage: React.FC = () => {
             <Chip 
               key={`tag-${tag}`} 
               label={`Tag: ${tag}`}
+              color="primary"
               onDelete={() => {
                 setSelectedTags(selectedTags.filter(t => t !== tag));
                 updateSearchParams({ 
                   tag: selectedTags.filter(t => t !== tag)
+                });
+              }}
+            />
+          ))}
+          
+          {excludedTags.map(tag => (
+            <Chip 
+              key={`exclude-tag-${tag}`} 
+              label={`Exclude: ${tag}`}
+              color="error"
+              variant="outlined"
+              onDelete={() => {
+                setExcludedTags(excludedTags.filter(t => t !== tag));
+                updateSearchParams({ 
+                  exclude_tag: excludedTags.filter(t => t !== tag)
                 });
               }}
             />
