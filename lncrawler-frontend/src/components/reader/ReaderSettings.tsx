@@ -397,6 +397,7 @@ const ReaderSettings = ({
   return (
     <>
       <Drawer 
+        className="reader-settings-drawer"
         anchor={isMobile ? "bottom" : "right"} 
         open={open} 
         onClose={onClose}

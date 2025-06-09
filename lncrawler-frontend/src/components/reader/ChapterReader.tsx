@@ -31,6 +31,7 @@ import { useAuth } from '@context/AuthContext';
 import ReaderToolbar from './controls/ReaderToolbar';
 import ReaderViewport from './viewport/ReaderViewport';
 import ReaderContent from './content/ReaderContent';
+import PagedContent from './content/PagedContent';
 import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
 import { getChapterNameWithNumber } from '@utils/Misc';
@@ -68,6 +69,7 @@ const ChapterReader = () => {
   const [error, setError] = useState<string | null>(null);
   const [markingAsRead, setMarkingAsRead] = useState(false);
   const [markReadSuccess, setMarkReadSuccess] = useState(false);
+  const [isScrollLocked, setIsScrollLocked] = useState(false);
   
   // Get authentication state to check if the user is logged in
   const { isAuthenticated } = useAuth();
@@ -82,6 +84,12 @@ const ChapterReader = () => {
   // Create a ref to store our chapter cache that persists through renders
   const chapterCacheRef = useRef<ChapterCache>({});
   const contentRef = useRef<HTMLDivElement>(null);
+  const pagedContentRef = useRef<{
+    goToNextPage: () => boolean;
+    goToPrevPage: () => boolean;
+    goToPage: (page: number) => void;
+    currentPage: number;
+  }>(null);
   
   // Use state for scroll positions loaded from localStorage
   const [scrollPositions, setScrollPositions] = useState<ScrollPositions>({});
@@ -201,9 +209,17 @@ const ChapterReader = () => {
       return;
     }
     lastScrollSaveRef.current = now;
-    
-    const scrollPercentage = calculateScrollPercentage();
-    const updatedPositions = { ...scrollPositions, [currentChapterKey]: scrollPercentage };
+
+    let updatedPositions: ScrollPositions;
+    // if we are in page mode we save the page number
+    if (readerSettings.pageMode && pagedContentRef.current) {
+      const currentPage = pagedContentRef.current.currentPage;
+      updatedPositions = { ...scrollPositions, [currentChapterKey]: currentPage };
+    }
+    else {
+      const scrollPercentage = calculateScrollPercentage();
+      updatedPositions = { ...scrollPositions, [currentChapterKey]: scrollPercentage };
+    }
     
     // Prune old entries if we have too many
     const keys = Object.keys(updatedPositions);
@@ -233,8 +249,15 @@ const ChapterReader = () => {
     
     const savedPercentage = scrollPositions[currentChapterKey];
     if (savedPercentage !== undefined) {
+      
+
       // Use requestAnimationFrame to avoid layout thrashing
       requestAnimationFrame(() => {
+        // If in page mode, restore to the correct page (we simply stored the page number)  
+        if (readerSettings.pageMode && pagedContentRef.current) {
+        pagedContentRef.current.goToPage(savedPercentage); // This is actually the page number
+        return;
+      }
         // Read scroll dimensions
         const scrollHeight = document.documentElement.scrollHeight;
         const clientHeight = document.documentElement.clientHeight;
@@ -381,6 +404,38 @@ const ChapterReader = () => {
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${targetChapter}`);
   };
 
+  const nonDefiniteHandleNextChapter = () => {
+    // Handle page mode navigation
+    if (readerSettings.pageMode && pagedContentRef.current) {
+      const movedToNextPage = pagedContentRef.current.goToNextPage();
+      if (movedToNextPage) {
+        return; // Successfully moved to next page
+      }
+      // If we're on the last page, fall through to next chapter
+    }
+    
+    // Original chapter navigation
+    if (chapter?.next_chapter) {
+      handleChapterNavigation('next');
+    }
+  }
+
+  const nonDefiniteHandlePrevChapter = () => {
+    // Handle page mode navigation
+    if (readerSettings.pageMode && pagedContentRef.current) {
+      const movedToPrevPage = pagedContentRef.current.goToPrevPage();
+      if (movedToPrevPage) {
+        return; // Successfully moved to previous page
+      }
+      // If we're on the first page, fall through to previous chapter
+    }
+    
+    // Original chapter navigation
+    if (chapter?.prev_chapter) {
+      handleChapterNavigation('prev');
+    }
+  }
+
   // Update the navigation handlers to use the new function
   const handleNextChapter = () => {
     if (chapter?.next_chapter) {
@@ -428,10 +483,10 @@ const ChapterReader = () => {
         break;
       case 'chapter':
         // Navigate to previous or next chapter
-        if (edge === 'left' && chapter?.prev_chapter) {
-          handlePrevChapter();
-        } else if (edge === 'right' && chapter?.next_chapter) {
-          handleNextChapter();
+        if (edge === 'left') {
+          nonDefiniteHandlePrevChapter();
+        } else if (edge === 'right') {
+          nonDefiniteHandleNextChapter();
         }
         break;
     }
@@ -452,44 +507,6 @@ const ChapterReader = () => {
       return;
     }
 
-    // Page mode handling
-    if (readerSettings.pageMode && isMobile) {
-      const containerWidth = e.currentTarget.clientWidth;
-      const tapX = e.nativeEvent.offsetX;
-      const centerWidth = containerWidth * 0.4; // 40% center area
-      const leftEdge = (containerWidth - centerWidth) / 2;
-      const rightEdge = leftEdge + centerWidth;
-
-      // Check current scroll position
-      const currentScroll = window.scrollY;
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      const isAtTop = currentScroll <= 0;
-      const isAtBottom = currentScroll >= maxScroll - 5; // Small buffer for precision
-
-      if (tapX < leftEdge) {
-        // Left tap - previous page
-        if (!isAtTop) {
-          scrollByViewport('up');
-        } else if (chapter?.prev_chapter) {
-          handlePrevChapter();
-        }
-      } else if (tapX > rightEdge) {
-        // Right tap - next page
-        if (!isAtBottom) {
-          scrollByViewport('down');
-        } else if (chapter?.next_chapter) {
-          handleNextChapter();
-        }
-      } else {
-        // Center tap - toggle controls if enabled
-        if (readerSettings.centerTapToOpenSettings) {
-          setControlsVisible(!controlsVisible);
-        }
-      }
-      return;
-    }
-
-    // Original behavior for non-page mode
     // Handle edge taps
     const containerWidth = e.currentTarget.clientWidth;
     const tapX = e.nativeEvent.offsetX;
@@ -591,6 +608,11 @@ const ChapterReader = () => {
     readerSettings.paragraphSpacing
   ]);
 
+  // Handler for scroll lock changes
+  const handleScrollLockChange = (locked: boolean) => {
+    setIsScrollLocked(locked);
+  };
+
   // Add these variables to generate navigation URLs
   const prevUrl = chapter?.prev_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}` : undefined;
   const nextUrl = chapter?.next_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}` : undefined;
@@ -598,60 +620,47 @@ const ChapterReader = () => {
   const chapterListUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}/chapterlist` : undefined;
 
   // Handle swipe gestures
-  const handleGesture = (direction: 'left' | 'right') => {
-    if (!isMobile) return;
-    if (!chapter) return;
-    
-    // If controls are visible, don't handle swipes
-    if (controlsVisible) return;
-    
-    // Page mode handling
-    if (readerSettings.pageMode) {
-      // Check current scroll position
-      const currentScroll = window.scrollY;
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      const isAtTop = currentScroll <= 0;
-      const isAtBottom = currentScroll >= maxScroll - 5; // Small buffer for precision
-
-      if (direction === 'left') {
-        // Swipe left - next page
-        if (!isAtBottom) {
-          scrollByViewport('down');
-        } else if (chapter?.next_chapter) {
-          handleNextChapter();
-        }
-      } else {
-        // Swipe right - previous page
-        if (!isAtTop) {
-          scrollByViewport('up');
-        } else if (chapter?.prev_chapter) {
-          handlePrevChapter();
-        }
-      }
-      return;
-    }
-    
-    // Original behavior for non-page mode
-    // Get gesture setting
-    const gesture = direction === 'left' 
-      ? readerSettings.swipeLeftGesture
-      : readerSettings.swipeRightGesture;
-      
+  const handleSwipeLeft = () => {
+    const gesture = readerSettings.swipeLeftGesture;
     switch (gesture) {
-      case 'prevChapter':
-        if (chapter.prev_chapter) {
-          handlePrevChapter();
+      case 'nextChapter':
+        if (chapter?.next_chapter) {
+          nonDefiniteHandleNextChapter();
         }
         break;
-      case 'nextChapter':
-        if (chapter.next_chapter) {
-          handleNextChapter();
-        }
+      case 'prevChapter':
+        nonDefiniteHandlePrevChapter();
         break;
       case 'none':
       default:
         // Do nothing
         break;
+    }
+  };
+
+  const handleSwipeRight = () => {
+    const gesture = readerSettings.swipeRightGesture;
+    switch (gesture) {
+      case 'prevChapter':
+        nonDefiniteHandlePrevChapter();
+        break;
+      case 'nextChapter':
+        nonDefiniteHandleNextChapter();
+        break;
+      case 'none':
+      default:
+        // Do nothing
+        break;
+    }
+  };
+
+  // Handle swipe gestures - simplified for non-page mode
+  const handleGesture = (direction: 'left' | 'right') => {
+    if (!isMobile || !chapter || controlsVisible) return;
+    if (direction === 'left') {
+      handleSwipeLeft();
+    } else {
+      handleSwipeRight();
     }
   };
   
@@ -666,108 +675,6 @@ const ChapterReader = () => {
     swipeDuration: 500,
   });
 
-  // Add state for page mode tracking
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  
-  // Add effect to disable scrolling when page mode is enabled and we are on not in the comments
-  useEffect(() => {
-    if (readerSettings.pageMode && isMobile && activeTab === 0) {
-      // Disable scroll
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-      // Add class to hide footer
-      document.body.classList.add('page-mode-active');
-    } else {
-      // Re-enable scroll
-      document.body.style.overflow = 'auto';
-      document.documentElement.style.overflow = 'auto';
-      // Remove class to show footer
-      document.body.classList.remove('page-mode-active');
-    }
-
-    return () => {
-      // Cleanup on unmount
-      document.body.style.overflow = 'auto';
-      document.documentElement.style.overflow = 'auto';
-      document.body.classList.remove('page-mode-active');
-    };
-  }, [readerSettings.pageMode, isMobile, activeTab]);
-
-  // Add effect to calculate total pages when page mode is enabled
-  useEffect(() => {
-    if (readerSettings.pageMode && isMobile && !loading && chapter) {
-      const calculatePages = () => {
-        const viewportHeight = window.innerHeight * 0.95; // We scroll by 95% of viewport height
-        const scrollHeight = document.documentElement.scrollHeight;
-        const clientHeight = window.innerHeight;
-        
-        // Only calculate pages if there's scrollable content
-        if (scrollHeight <= clientHeight) {
-          setTotalPages(1);
-          setCurrentPage(1);
-          return;
-        }
-        
-        // Calculate total pages based on scrollable height
-        const scrollableHeight = scrollHeight - clientHeight;
-        const pages = Math.ceil(scrollableHeight / viewportHeight) + 1; // +1 for the first page
-        setTotalPages(pages);
-        
-        // Calculate current page based on scroll position
-        const currentScroll = window.scrollY;
-        let currentPageNum;
-        
-        if (currentScroll <= 0) {
-          currentPageNum = 1;
-        } else if (currentScroll >= scrollableHeight) {
-          currentPageNum = pages;
-        } else {
-          currentPageNum = Math.floor(currentScroll / viewportHeight) + 2; // +2 because we start from page 1 and add one more for partial pages
-        }
-        
-        // Ensure current page is within valid range
-        currentPageNum = Math.max(1, Math.min(currentPageNum, pages));
-        setCurrentPage(currentPageNum);
-      };
-      
-      // Calculate immediately
-      calculatePages();
-      
-      // Also recalculate when content is fully loaded with a small delay
-      const timer = setTimeout(() => {
-        calculatePages();
-      }, 100);
-      
-      window.addEventListener('resize', calculatePages);
-      
-      return () => {
-        window.removeEventListener('resize', calculatePages);
-        clearTimeout(timer);
-      };
-    }
-  }, [readerSettings.pageMode, loading, chapter]);
-
-  // Function to scroll by one viewport
-  const scrollByViewport = (direction: 'up' | 'down') => {
-    const viewportHeight = window.innerHeight * 0.95;
-    const currentScroll = window.scrollY;
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    
-    let newScroll;
-    if (direction === 'down') {
-      newScroll = Math.min(currentScroll + viewportHeight, maxScroll);
-      setCurrentPage(prev => Math.min(prev + 1, totalPages));
-    } else {
-      newScroll = Math.max(currentScroll - viewportHeight, 0);
-      setCurrentPage(prev => Math.max(prev - 1, 1));
-    }
-    
-    window.scrollTo({
-      top: newScroll,
-      behavior: 'instant'
-    });
-  };
 
   if (loading) {
     return (
@@ -932,14 +839,25 @@ const ChapterReader = () => {
               onContentClick={handleContentClick}
             >
               {memoizedChapterContent.chapter && (
-                <ReaderContent 
-                  chapter={memoizedChapterContent.chapter} 
-                  settings={memoizedChapterContent.settings} 
-                />
+                readerSettings.pageMode ? (
+                  <PagedContent
+                    ref={pagedContentRef}
+                    chapter={memoizedChapterContent.chapter}
+                    settings={memoizedChapterContent.settings}
+                    isScrollLocked={isScrollLocked}
+                    onScrollLockChange={handleScrollLockChange}
+                    saveScrollPosition={saveScrollPosition}
+                  />
+                ) : (
+                  <ReaderContent 
+                    chapter={memoizedChapterContent.chapter} 
+                    settings={memoizedChapterContent.settings}
+                  />
+                )
               )}
             </ReaderViewport>
           </Box>
-          
+
           {/* Comments Tab */}
           <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
             {chapterDataForComments && activeTab === 1 && (
@@ -977,40 +895,6 @@ const ChapterReader = () => {
             </Alert>
           </Snackbar>
         </Paper>
-
-                    
-        {/* Page mode indicator, absolute center bottom */}
-        {readerSettings.pageMode && isMobile && readerSettings.showPages && (
-          <Typography 
-            variant="body2"
-            sx={{ 
-              position: 'fixed', 
-              bottom: 8, 
-              left: '50%', 
-              transform: 'translateX(-50%)', 
-              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
-              color: 'white', 
-              padding: '4px 8px', 
-              borderRadius: '4px',
-              zIndex: 1000
-            }}
-          >
-            {currentPage}/{totalPages}
-          </Typography>
-        )}
-        {readerSettings.pageMode && isMobile && readerSettings.showPages && (
-        <Box 
-          sx={{ 
-              position: 'fixed', 
-              left: 0,
-              bottom: 0, 
-              width: '100%', 
-              height: '3%',
-              backgroundColor: readerSettings.backgroundColor || theme.palette.background.paper,
-              zIndex: 999
-            }}
-        />
-        )}
       </Container>
 
       {/* Settings Drawer */}
@@ -1035,8 +919,8 @@ const ChapterReader = () => {
       {/* Add keyboard navigation handler */}
       <ReaderKeyboardNavigation 
         enabled={readerSettings.keyboardNavigation}
-        onNextChapter={handleNextChapter}
-        onPrevChapter={handlePrevChapter}
+        onNextChapter={nonDefiniteHandleNextChapter}
+        onPrevChapter={nonDefiniteHandlePrevChapter}
         controlsVisible={controlsVisible}
       />
     </>
