@@ -1,5 +1,5 @@
 import api from './api';
-import { Novel, NovelListResponse, ReadingHistory } from '@models/novels_types';
+import { NovelListResponse, ReadingHistory } from '@models/novels_types';
 
 const userService = {
   // Bookmark a novel

@@ -12,9 +12,12 @@ import { Link as RouterLink } from 'react-router-dom';
 import { ReadingList } from '@models/readinglist_types';
 import ReadingListCard from '../readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
+import ReadingStatisticsCard from '../profile/ReadingStatisticsCard';
 
 const ProfilePage: React.FC = () => {
   const { user, updateProfile, refreshUser } = useAuth();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -49,20 +52,33 @@ const ProfilePage: React.FC = () => {
   const [readingListsPage, setReadingListsPage] = useState(1);
   const [totalReadingListsPages, setTotalReadingListsPages] = useState(1);
 
+  // Fetch profile data
   useEffect(() => {
-    if (user) {
-      setUsername(user.username || '');
-      setEmail(user.email || '');
-      if (user.profile_pic) {
-        setPreviewUrl(user.profile_pic);
+    const fetchProfileData = async () => {
+      setProfileLoading(true);
+      try {
+        const data = await authService.getProfile();
+        setProfileData(data);
+        // Set form data with fresh profile data
+        setUsername(data.username || '');
+        setEmail(data.email || '');
+        if (data.profile_pic) {
+          setPreviewUrl(data.profile_pic);
+        }
+      } catch (err) {
+        console.error('Error fetching profile data:', err);
+        setError('Failed to load profile data. Please try again.');
+      } finally {
+        setProfileLoading(false);
       }
-      
-      // Fetch user reviews when component mounts
-      fetchUserReviews(1);
-      // Fetch user reading lists when component mounts
-      fetchUserReadingLists(1);
-    }
-  }, [user]);
+    };
+
+    fetchProfileData();
+    
+    // Fetch user reviews and reading lists
+    fetchUserReviews(1);
+    fetchUserReadingLists(1);
+  }, []);
 
   const fetchUserReviews = async (page = 1) => {
     if (!user) return;
@@ -138,7 +154,11 @@ const ProfilePage: React.FC = () => {
       });
       setSuccess('Profile updated successfully!');
       setIsEditing(false);
-      refreshUser(); // Refresh user data after update
+      
+      // Fetch updated profile data
+      const updatedProfile = await authService.getProfile();
+      setProfileData(updatedProfile);
+      refreshUser();
     } catch (err) {
       setError('Failed to update profile. Please try again.');
       console.error('Error updating profile:', err);
@@ -148,12 +168,12 @@ const ProfilePage: React.FC = () => {
   };
 
   const cancelEdit = () => {
-    // Reset form values to current user data
-    if (user) {
-      setUsername(user.username || '');
-      setEmail(user.email || '');
+    // Reset form values to current profile data
+    if (profileData) {
+      setUsername(profileData.username || '');
+      setEmail(profileData.email || '');
       setProfilePic(null);
-      setPreviewUrl(user.profile_pic || null);
+      setPreviewUrl(profileData.profile_pic || null);
     }
     setIsEditing(false);
     setError(null);
@@ -180,6 +200,16 @@ const ProfilePage: React.FC = () => {
       setPasswordLoading(false);
     }
   };
+
+  if (profileLoading) {
+    return (
+      <Container maxWidth="md">
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '70vh' }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="md">
@@ -290,7 +320,7 @@ const ProfilePage: React.FC = () => {
                 Member Since
               </Typography>
               <Typography variant="body1">
-                {user?.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A'}
+                {profileData?.date_joined ? new Date(profileData.date_joined).toLocaleDateString() : 'N/A'}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -298,7 +328,7 @@ const ProfilePage: React.FC = () => {
                 Last Login
               </Typography>
               <Typography variant="body1">
-                {user?.last_login ? new Date(user.last_login).toLocaleDateString() : 'N/A'}
+                {profileData?.last_login ? new Date(profileData.last_login).toLocaleDateString() : 'N/A'}
               </Typography>
             </Grid>
           </Grid>
@@ -372,6 +402,11 @@ const ProfilePage: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
+
+        <Divider sx={{ my: 3 }} />
+        
+        {/* Reading Statistics Card - moved here after the security section */}
+        <ReadingStatisticsCard profileData={profileData} />
 
         <Divider sx={{ my: 4 }} />
         {/* User Reading Lists Section */}

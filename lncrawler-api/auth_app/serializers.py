@@ -2,6 +2,8 @@ from django.conf import settings
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db.models import Sum, Count
+from lncrawler_api.models import NovelBookmark, ReadingHistory, Chapter
 
 User = get_user_model()
 
@@ -9,11 +11,44 @@ class UserSerializer(serializers.ModelSerializer):
     profile_pic = serializers.ImageField(required=False, allow_null=True)
     date_joined = serializers.DateTimeField(read_only=True)
     last_login = serializers.DateTimeField(read_only=True)
+    word_read = serializers.IntegerField(read_only=True)
+    chapters_read_count = serializers.SerializerMethodField()
+    chapters_not_read_yet_count = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'profile_pic', 'date_joined', 'last_login')
-        read_only_fields = ('id', 'date_joined', 'last_login')
+        fields = ('id', 'username', 'email', 'profile_pic', 'date_joined', 'last_login', 
+                 'word_read', 'chapters_read_count', 'chapters_not_read_yet_count')
+        read_only_fields = ('id', 'date_joined', 'last_login', 'word_read', 
+                           'chapters_read_count', 'chapters_not_read_yet_count')
+    
+    def get_chapters_read_count(self, obj):
+        # Check if we've already calculated this
+        if hasattr(self, '_chapters_read_count'):
+            return self._chapters_read_count
+            
+        # Calculate and cache the result
+        self._chapters_read_count = ReadingHistory.objects.filter(
+            user=obj,
+            novel__in=NovelBookmark.objects.filter(user=obj).values('novel'),
+            last_read_chapter__isnull=False
+        ).aggregate(
+            total=Sum('last_read_chapter__chapter_id')
+        ).get('total') or 0
+        
+        return self._chapters_read_count
+    
+    def get_chapters_not_read_yet_count(self, obj):
+        # Get the total chapters count for bookmarked novels
+        bookmarked_novels = NovelBookmark.objects.filter(user=obj).values('novel')
+        total_chapters = Chapter.objects.filter(
+            novel_from_source__novel__in=bookmarked_novels,
+            has_content=True
+        ).count()
+        
+        # Subtract the chapters already read
+        chapters_read = self.get_chapters_read_count(obj)
+        return max(0, total_chapters - chapters_read)
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
