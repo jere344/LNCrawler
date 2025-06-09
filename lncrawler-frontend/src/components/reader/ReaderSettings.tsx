@@ -58,6 +58,7 @@ export interface ReaderSettings {
   centerTapToOpenSettings: boolean;
   pageMode: boolean;
   showPages: boolean;
+  showPageSlider: boolean;
   nightMode: boolean;
   nightModeStrength: number;
   nightModeScheduleEnabled: boolean;
@@ -91,6 +92,7 @@ export const defaultSettings: ReaderSettings = {
   centerTapToOpenSettings: true,
   pageMode: false,
   showPages: true,
+  showPageSlider: true,
   nightMode: false,
   nightModeStrength: 50,
   nightModeScheduleEnabled: false,
@@ -308,6 +310,12 @@ const ReaderSettings = ({
     const newSettings = { ...settings, showPages: show };
     onSettingChange(newSettings);
     saveSetting('showPages', show);
+  };
+
+  const handleShowPageSliderChange = (show: boolean) => {
+    const newSettings = { ...settings, showPageSlider: show };
+    onSettingChange(newSettings);
+    saveSetting('showPageSlider', show);
   };
 
   const resetDefaults = () => {
@@ -559,8 +567,10 @@ const ReaderSettings = ({
           <PageSettings 
             pageMode={settings.pageMode}
             showPages={settings.showPages}
+            showPageSlider={settings.showPageSlider}
             onPageModeChange={handlePageModeChange}
             onShowPagesChange={handleShowPagesChange}
+            onShowPageSliderChange={handleShowPageSliderChange}
           />
         </SettingsSection>
 

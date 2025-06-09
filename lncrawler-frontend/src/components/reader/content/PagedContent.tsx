@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Box, IconButton, Typography } from '@mui/material';
+import { Box, IconButton, Typography, Slider } from '@mui/material';
 import { KeyboardArrowLeft, KeyboardArrowRight, Lock, LockOpen } from '@mui/icons-material';
 import { ChapterContent } from '@models/novels_types';
 import { ReaderSettings } from '../ReaderSettings';
@@ -279,22 +279,21 @@ const PagedContent: React.FC<PagedContentProps> = ({
   useEffect(() => {
     // Scroll to ensure the container is visible
     if (containerRef.current) {
-    // Calculate container's position relative to the viewport
-    const containerRect = containerRef.current.getBoundingClientRect();
-    
-    // If the container is not fully in view, scroll to it
-    if (containerRect.top < 0 || containerRect.bottom > window.innerHeight) {
-        // Custom scrolling to account for 20px fixed header
-        const scrollPosition = window.pageYOffset + containerRect.top - 20; // Subtract 20px for the header
-        window.scrollTo({
-        top: scrollPosition,
-        behavior: 'instant'
-        });
-        return;
+        // Calculate container's position relative to the viewport
+        const containerRect = containerRef.current.getBoundingClientRect();
+        
+        // If the container is not fully in view, scroll to it
+        if (containerRect.top < 0 || containerRect.bottom > window.innerHeight) {
+            // Custom scrolling to account for 20px fixed header
+            const scrollPosition = window.pageYOffset + containerRect.top - 20; // Subtract 20px for the header
+            window.scrollTo({
+            top: scrollPosition,
+            behavior: 'instant'
+            });
+            return;
+        }
     }
-    }
-  }
-  , [currentPage, pages]);
+  }, [currentPage, pages]);
 
   return (
     <Box ref={containerRef} sx={{ position: 'relative', minHeight: '60vh' }}>
@@ -341,7 +340,8 @@ const PagedContent: React.FC<PagedContentProps> = ({
         alignItems: 'center',
         mt: 2,
         opacity: settings.showPages ? 1 : 0,
-        transition: 'opacity 0.3s ease'
+        transition: 'opacity 0.3s ease',
+        gap: 2
       }}>
         <IconButton 
           onClick={(e) => {
@@ -357,7 +357,51 @@ const PagedContent: React.FC<PagedContentProps> = ({
           <KeyboardArrowLeft />
         </IconButton>
 
-        {settings.showPages && (
+        {settings.showPages && pages.length > 1 && settings.showPageSlider && (
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2, 
+            flex: 1,
+            maxWidth: 300
+          }}>
+            <Slider
+              value={currentPage + 1}
+              min={1}
+              max={pages.length}
+              step={1}
+              onChange={(_, value) => {
+                goToPage((value as number) - 1);
+              }}
+              sx={{
+                color: settings.fontColor || 'primary.main',
+                '& .MuiSlider-thumb': {
+                  backgroundColor: settings.fontColor || 'primary.main',
+                },
+                '& .MuiSlider-track': {
+                  backgroundColor: settings.fontColor || 'primary.main',
+                },
+                '& .MuiSlider-rail': {
+                  backgroundColor: settings.fontColor ? `${settings.fontColor}30` : 'rgba(0,0,0,0.2)',
+                }
+              }}
+              size="small"
+            />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: settings.fontColor || 'text.secondary',
+                userSelect: 'none',
+                minWidth: 'fit-content',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {currentPage + 1} / {pages.length}
+            </Typography>
+          </Box>
+        )}
+
+        {settings.showPages && (pages.length === 1 || !settings.showPageSlider) && (
           <Typography 
             variant="body2" 
             sx={{ 

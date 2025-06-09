@@ -148,16 +148,31 @@ const ChapterReader = () => {
       const newSettings = { ...defaultSettings };
       let hasChanges = false;
 
-      Object.keys(defaultSettings).forEach(key => {
+      Object.keys(defaultSettings).forEach(keyStr => {
+        const key = keyStr as keyof IReaderSettings; // Use keyof for type safety
         const cookieValue = Cookies.get(COOKIE_PREFIX + key);
+
         if (cookieValue !== undefined) {
           try {
             const parsedValue = JSON.parse(cookieValue);
-            // @ts-ignore
-            newSettings[key] = parsedValue;
-            hasChanges = true;
+            
+            // Check if the parsed value's type matches the default setting's type
+            if (typeof parsedValue === typeof defaultSettings[key]) {
+              // @ts-ignore TypeScript might complain about assigning to newSettings[key] directly
+              // but this is safe due to the type check and keyof IReaderSettings.
+              newSettings[key] = parsedValue;
+              hasChanges = true;
+            } else {
+              // Log a warning if types don't match, and use the default value
+              console.warn(
+                `Cookie for ${key} has incorrect type. Expected ${typeof defaultSettings[key]}, got ${typeof parsedValue}. Using default.`
+              );
+              // newSettings[key] already holds the default value from the initial spread
+            }
           } catch (e) {
-            console.error(`Error parsing cookie value for ${key}`, e);
+            // Log an error if parsing fails, and use the default value
+            console.error(`Error parsing cookie value for ${key}. Using default.`, e);
+            // newSettings[key] already holds the default value
           }
         }
       });
@@ -605,7 +620,9 @@ const ChapterReader = () => {
     readerSettings.textSelectable,
     readerSettings.hideScrollbar,
     readerSettings.paragraphIndent,
-    readerSettings.paragraphSpacing
+    readerSettings.paragraphSpacing,
+    readerSettings.showPages,
+    readerSettings.showPageSlider,
   ]);
 
   // Handler for scroll lock changes
