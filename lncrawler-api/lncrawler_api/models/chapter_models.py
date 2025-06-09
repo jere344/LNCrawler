@@ -32,6 +32,7 @@ class Chapter(models.Model):
     volume_title = models.CharField(max_length=500, blank=True, null=True)
     images = models.JSONField(default=list)  # store only image filenames
     has_content = models.BooleanField(default=False)  # New field to track content availability
+    word_count = models.IntegerField(default=0)  # New field to track word count
     
     class Meta:
         unique_together = ('novel_from_source', 'chapter_id')
@@ -45,7 +46,12 @@ class Chapter(models.Model):
         """Read the chapter body from the file"""
         parsed_chapter = chapter_utils.get_chapter(self.novel_from_source.absolute_source_path, self.chapter_id)
         if parsed_chapter:
-            return parsed_chapter.get('body', None)
+            body = parsed_chapter.get('body', None)
+            # if we don't have the word count yet, calculate it
+            if self.word_count == 0:
+                self.word_count = body.count(' ') if body else 0
+                self.save(update_fields=['word_count'])
+            return body
 
         return None
     

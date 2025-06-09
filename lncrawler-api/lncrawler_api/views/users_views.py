@@ -185,6 +185,10 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
             'last_read_chapter': chapter
         }
     )
+
+    # we also update the user word_read count
+    request.user.word_read += chapter.word_count
+    request.user.save(update_fields=['word_read'])
     
     serializer = DetailedReadingHistorySerializer(reading_history)
     

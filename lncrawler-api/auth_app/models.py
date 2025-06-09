@@ -7,6 +7,7 @@ from datetime import timedelta
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     profile_pic = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    word_read = models.IntegerField(default=0)  # Total words read by the user
 
     def __str__(self):
         return self.username
