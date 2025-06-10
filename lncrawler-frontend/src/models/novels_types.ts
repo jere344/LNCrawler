@@ -13,7 +13,7 @@ export interface Novel {
   languages: string[];
   is_bookmarked?: boolean | null;
   comment_count: number;
-  reading_history?: ReadingHistory | null;
+  reading_history?: DetailedReadingHistory | null;
   similar_novels?: SimilarNovel[];
 }
 
@@ -69,7 +69,7 @@ export interface NovelDetail {
   prefered_source: NovelFromSource | null;
   is_bookmarked?: boolean | null;
   comment_count: number;
-  reading_history?: ReadingHistory | null;
+  reading_history?: DetailedReadingHistory | null;
   similar_novels?: SimilarNovel[];
   reading_lists?: ReadingList[];
 }
@@ -126,8 +126,15 @@ export interface ChapterListResponse {
 export interface ReadingHistory {
   id: string;
   last_read_chapter : Chapter;
-  next_chapter?: Chapter;
   last_read_at: string;
+}
+
+export interface DetailedReadingHistory {
+  id: string;
+  last_read_chapter : Chapter;
+  last_read_at: string;
+  next_chapter?: Chapter;
   source_slug?: string;
   novel_slug?: string;
+  source_latest_chapter?: Chapter;
 }

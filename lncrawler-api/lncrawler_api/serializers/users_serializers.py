@@ -22,11 +22,12 @@ class DetailedReadingHistorySerializer(serializers.ModelSerializer):
     next_chapter = serializers.SerializerMethodField()
     novel_slug = serializers.SerializerMethodField()
     source_slug = serializers.SerializerMethodField()
+    source_latest_chapter = serializers.SerializerMethodField()
 
     class Meta:
         model = ReadingHistory
-        fields = ['id', 'novel_slug', 'source_slug', 'last_read_chapter', 'last_read_at', 'next_chapter']
-        read_only_fields = ['id',  'last_read_at', 'next_chapter']
+        fields = ['id', 'novel_slug', 'source_slug', 'last_read_chapter', 'last_read_at', 'next_chapter', 'source_latest_chapter']
+        read_only_fields = ['id',  'last_read_at', 'next_chapter', 'source_latest_chapter']
     
     def get_novel_slug(self, obj):
         return obj.novel.slug
@@ -42,5 +43,14 @@ class DetailedReadingHistorySerializer(serializers.ModelSerializer):
                 has_content=True
             )
             return ChapterSerializer(next_chapter).data if next_chapter else None
+        except Chapter.DoesNotExist:
+            return None
+    
+    def get_source_latest_chapter(self, obj):
+        try:
+            latest_chapter = Chapter.objects.filter(
+                novel_from_source=obj.source
+            ).order_by('-chapter_id').first()
+            return ChapterSerializer(latest_chapter).data if latest_chapter else None
         except Chapter.DoesNotExist:
             return None

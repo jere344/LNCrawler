@@ -15,6 +15,7 @@ import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName }
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
+import MarkAsReadButton from '@components/common/MarkAsReadButton';
 import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
 
 export interface BaseNovelCardProps {
@@ -41,17 +42,25 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
 }) => {
   const preferredSource = novel.prefered_source;
   const { isAuthenticated } = useAuth();
-  
-  let unreadChapters = null;
-  if (novel.reading_history && preferredSource?.latest_available_chapter) {
-    const latestChapterId = preferredSource.latest_available_chapter.chapter_id;
-    const lastReadChapterId = novel.reading_history.last_read_chapter.chapter_id;
-    
-    const unread = latestChapterId - lastReadChapterId;
-    if (unread > 0) {
-      unreadChapters = unread;
+  const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => {
+    if (novel.reading_history) {
+      const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
+      const lastReadChapterId = novel.reading_history.last_read_chapter.chapter_id;
+      
+      const unread = latestChapterId - lastReadChapterId;
+      return unread > 0 ? unread : null;
     }
-  }
+    else if (novel.is_bookmarked && novel.prefered_source?.latest_available_chapter) {
+      return novel.prefered_source.latest_available_chapter.chapter_id;
+    }
+    return null;
+  });
+  
+  const unreadChapters = localUnreadChapters;
+
+  const handleMarkAsRead = () => {
+    setLocalUnreadChapters(null);
+  };
 
   let tooltip = "";
   if (unreadChapters) {
@@ -96,6 +105,13 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   const bookmarkButtonSx = {
     position: 'absolute',
     right: 8,
+    top: 'calc(50%)',
+    zIndex: 10
+  };
+  
+  const markAsReadButtonSx = {
+    position: 'absolute',
+    right: '88px',
     top: 'calc(50%)',
     zIndex: 10
   };
@@ -149,6 +165,11 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             isBookmarked={novel.is_bookmarked || false}
             slug={novel.slug}
             customSx={bookmarkButtonSx}
+          />
+          <MarkAsReadButton
+            novel={novel}
+            onMarkAsRead={handleMarkAsRead}
+            customSx={markAsReadButtonSx}
           />
           <CompactAddToListButton
             novelId={novel.id}

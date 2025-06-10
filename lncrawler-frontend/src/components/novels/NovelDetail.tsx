@@ -556,14 +556,14 @@ const NovelDetail = () => {
                     mb: 1
                   }}></Box>
 
-                  {continue_chapter && novel.prefered_source && (
+                  {continue_chapter && novel.prefered_source && novel.reading_history && (
                     <ActionButton
                       title="Continue Reading"
                       subtitle={getChapterNameWithNumber(continue_chapter.title, continue_chapter.chapter_id)}
                       startIcon={<BookmarkIcon />}
                       backgroundIcon={<BookIcon />}
                       color="warning"
-                      to={`/novels/${novelSlug}/${novel.prefered_source.source_slug}/chapter/${continue_chapter.chapter_id}`}
+                      to={`/novels/${novelSlug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}`}
                       tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
                       tooltipPlacement="top"
                     />

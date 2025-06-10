@@ -4,8 +4,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
-from collections import Counter
 
 from ..models.users_models import NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelSimilarity
@@ -13,7 +11,6 @@ from ..models.sources_models import NovelFromSource, Chapter
 from ..serializers.novels_serializers import BasicNovelSerializer
 from ..serializers.users_serializers import DetailedReadingHistorySerializer
 from ..models.novels_models import NovelViewCount
-from django.db.models import Case, When, IntegerField
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
