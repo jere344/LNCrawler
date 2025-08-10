@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:17
+    restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -17,6 +18,7 @@ services:
 
   api:
     build: ./lncrawler-api
+    restart: unless-stopped
     volumes:
       - ./lncrawler-api:/app/lncrawler-api
       - ./Lightnovels:/app/Lightnovels
@@ -57,11 +59,13 @@ services:
       context: ./lncrawler-frontend
       args:
         - VITE_API_BASE_URL=http://api.localhost # Your website API URL
+    restart: unless-stopped
     depends_on:
       - api
     
   nginx-proxy:
     build: ./nginx-proxy
+    restart: unless-stopped
     ports:
       - "80:80"  # The main entry point
     volumes:

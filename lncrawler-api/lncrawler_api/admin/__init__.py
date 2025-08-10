@@ -6,6 +6,7 @@ from . import (
     downloader_admin,
     novel_admin,
     review_admin,
+    scheduler_admin,
     source_admin,
     user_admin,
 )
