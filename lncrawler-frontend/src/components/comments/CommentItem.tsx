@@ -29,7 +29,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import CommentForm from './CommentForm';
 import { commentService } from '../../services/api';
 import { Comment as IComment } from '@models/comments_types';
-import { getChapterNameWithNumber } from '@utils/Misc';
+import { getChapterLabel } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
 
 interface CommentItemProps {
@@ -219,7 +219,7 @@ const CommentItem = ({
               <Chip size="small" label="Board Comment" color="secondary" variant="outlined" />
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Chip size="small" label={getChapterNameWithNumber(comment.chapter_title, comment.chapter_id)} color="secondary" variant="outlined" />
+                <Chip size="small" label={getChapterLabel(comment.chapter_title, comment.chapter_id)} color="secondary" variant="outlined" />
                 <Typography variant="body2" color="text.secondary">
                   from {comment.source_name}
                 </Typography>

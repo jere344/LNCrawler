@@ -1,0 +1,89 @@
+# -*- coding: utf-8 -*-
+import logging
+from lncrawl.core.crawler import Crawler
+
+logger = logging.getLogger(__name__)
+search_url = "https://wondernovels.com/?s=%s&post_type=wp-manga"
+
+
+class WonderNovels(Crawler):
+    base_url = "https://wondernovels.com/"
+
+    def search_novel(self, query):
+        query = query.lower().replace(" ", "+")
+        soup = self.get_soup(search_url % query)
+
+        results = []
+        for tab in soup.select(".c-tabs-item__content"):
+            a = tab.select_one(".post-title h3 a")
+            if not a:
+                continue
+            latest = tab.select_one(".latest-chap .chapter a")
+            votes = tab.select_one(".rating .total_votes")
+            results.append(
+                {
+                    "title": a.text.strip(),
+                    "url": self.absolute_url(a["href"]),
+                    "info": " | ".join(
+                        x.text.strip() for x in (latest, votes) if x
+                    ),
+                }
+            )
+
+        return results
+
+    def read_novel_info(self):
+        logger.debug("Visiting %s", self.novel_url)
+        soup = self.get_soup(self.novel_url)
+
+        possible_title = soup.select_one(".post-title h1")
+        for span in possible_title.select("span"):
+            span.extract()
+        self.novel_title = possible_title.text.strip()
+        logger.info("Novel title: %s", self.novel_title)
+
+        self.novel_cover = self.absolute_url(
+            soup.select_one(".summary_image a img")["data-src"]
+        )
+        logger.info("Novel cover: %s", self.novel_cover)
+
+        self.novel_author = " ".join(
+            [
+                a.text.strip()
+                for a in soup.select('.author-content a[href*="translator"]')
+            ]
+        )
+        logger.info("%s", self.novel_author)
+
+        synopsis_tag = soup.select_one(".summary__content")
+        if synopsis_tag:
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis_tag)
+        logger.info("Novel synopsis: %s", self.novel_synopsis)
+
+        clean_novel_url = self.novel_url.split("?")[0].rstrip("/")
+        response = self.submit_form(
+            f"{clean_novel_url}/ajax/chapters/",
+            headers={
+                "x-requested-with": "XMLHttpRequest",
+                "referer": self.novel_url,
+            },
+        )
+        soup = self.make_soup(response)
+        for a in reversed(soup.select(".wp-manga-chapter a")):
+            chap_id = len(self.chapters) + 1
+            vol_id = 1 + len(self.chapters) // 100
+            if chap_id % 100 == 1:
+                self.volumes.append({"id": vol_id})
+            self.chapters.append(
+                {
+                    "id": chap_id,
+                    "volume": vol_id,
+                    "title": a.text.strip(),
+                    "url": self.absolute_url(a["href"]),
+                }
+            )
+
+    def download_chapter_body(self, chapter):
+        soup = self.get_soup(chapter["url"])
+        contents = soup.select(".reading-content p")
+        return "".join([str(p) for p in contents])

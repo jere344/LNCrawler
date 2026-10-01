@@ -42,12 +42,12 @@ export const getChapterName = (title: string): string => {
     return latestChapterTitle || "";
 };
 
-export const getChapterNameWithNumber = (title?: string, chapterNumber?: number): string => {
-    if (!chapterNumber) {
-        return "";
+export const getChapterLabel = (title?: string | null, chapterId?: number | null): string => {
+    const trimmed = title?.trim();
+    if (trimmed) {
+        return trimmed;
     }
-    title = getChapterName(title || "");
-    return "Chapter " + chapterNumber + (title ? " - " + title : "");
+    return chapterId != null ? `Chapter ${chapterId}` : "";
 }
 
 

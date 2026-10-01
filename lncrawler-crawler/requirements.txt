@@ -1,0 +1,10 @@
+# lncrawler-crawler runtime dependencies.
+# These are installed inside the lncrawler-api image (the crawler runs in-process).
+curl_cffi>=0.7
+playwright>=1.44
+beautifulsoup4>=4.12
+lxml>=5.0
+lxml_html_clean>=0.4
+pillow>=10.0
+python-slugify>=8.0
+tenacity>=8.2

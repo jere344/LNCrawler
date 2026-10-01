@@ -128,29 +128,49 @@ class DatabaseScheduler:
 # Get the singleton scheduler instance
 scheduler = DatabaseScheduler()
 
-# Task to calculate novel similarities daily
-@scheduler.register_task(interval=86400, name="calculate_similarities")  # 86400 seconds = 24 hours
+# Rebuild novel recommendations weekly (heavy O(N^2)-ish sweep; weekly is plenty).
+@scheduler.register_task(interval=604800, name="calculate_similarities")  # 604800 seconds = 7 days
 def calculate_novel_similarities():
-    """Run the calculate_similarities command to update novel recommendations daily."""
-    logger.info("Starting daily novel similarity calculation...")
+    """Run the calculate_similarities command to update novel recommendations weekly."""
+    logger.info("Starting weekly novel similarity calculation...")
     try:
         call_command('calculate_similarities')
-        logger.info("Daily novel similarity calculation completed successfully")
+        logger.info("Weekly novel similarity calculation completed successfully")
     except Exception as e:
-        logger.error(f"Error in daily novel similarity calculation: {str(e)}", exc_info=True)
+        logger.error(f"Error in weekly novel similarity calculation: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
-# Task to compress low traffic novels daily
-# @scheduler.register_task(interval=86400, name="compress_low_traffic")  # 86400 seconds = 24 hours
-# def compress_low_traffic_novels():
-#     """Run the compress_low_traffic_novels command to compress novels with low weekly views."""
-#     logger.info("Starting daily compression of low traffic novels...")
-#     try:
-#         call_command('compress_low_traffic_novels')
-#         logger.info("Daily compression of low traffic novels completed successfully")
-#     except Exception as e:
-#         logger.error(f"Error in daily compression task: {str(e)}", exc_info=True)
-#         raise  # Re-raise to mark task as failed
+# Task to compress low traffic novels weekly.
+# Guardrails live in the command itself: single-threaded 7z (-mmt=1), low CPU
+# priority (nice), a pause between sources, and an id-batched scan. It targets
+# cold novels only and is allowed to run for a long time.
+@scheduler.register_task(interval=604800, name="compress_low_traffic")  # 604800 seconds = 7 days
+def compress_low_traffic_novels():
+    """Run the compress_low_traffic_novels command to compress novels with low weekly views."""
+    logger.info("Starting compression of low traffic novels...")
+    try:
+        # Bound each run so a cold catalogue can never turn the first execution
+        # into a multi-day job; leftovers are picked up on the next weekly run.
+        call_command('compress_low_traffic_novels', max_sources=500)
+        logger.info("Compression of low traffic novels completed successfully")
+    except Exception as e:
+        logger.error(f"Error in compression task: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Progressively prune orphan novels, empty sources and dead-source duplicates.
+# Bounded --limit per run so a 40k-novel first pass spreads over many runs.
+@scheduler.register_task(interval=600, name="prune_library")
+def prune_library_task():
+    import os
+    if os.getenv("LNCRAWL_PRUNE_APPLY", "1").lower() in ("0", "false", "no"):
+        return
+    logger.info("Pruning library (bounded batch)...")
+    try:
+        call_command('prune_library', apply=True, limit=200)
+        logger.info("Library prune batch completed")
+    except Exception as e:
+        logger.error(f"Error pruning library: {str(e)}", exc_info=True)
+        raise
 
 def start_scheduler():
     """Start the scheduler if it's not already running."""

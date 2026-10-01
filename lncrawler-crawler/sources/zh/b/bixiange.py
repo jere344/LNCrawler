@@ -1,0 +1,66 @@
+# -*- coding: utf-8 -*-
+import logging
+import re
+
+from lncrawl.core.crawler import Crawler
+
+logger = logging.getLogger(__name__)
+
+
+class BiXianGeCrawler(Crawler):
+    base_url = "https://www.bixiange.top/"
+    language = "zh"
+
+    def search_novel(self, query):
+        soup = self.submit_form_for_soup(
+            self.absolute_url("/e/search/indexpage.php"),
+            data={
+                "keyboard": query.encode("gb2312", "ignore"),
+                "show": "title",
+                "classid": "0",
+            },
+            headers={"Referer": self.home_url},
+            encoding="gb18030",
+        )
+        results = []
+        seen = set()
+        for a in soup.select("a[href]"):
+            href = a.get("href", "")
+            title = a.get_text(strip=True)
+            if not title or href in seen:
+                continue
+            if not re.match(r"^/[a-z0-9]+/\d+$", href):
+                continue
+            seen.add(href)
+            results.append({"title": title, "url": self.absolute_url(href)})
+        return results
+
+    def read_novel_info(self):
+        soup = self.get_soup(self.novel_url, encoding="gb18030")
+
+        h1 = soup.select_one("h1")
+        self.novel_title = re.sub(r"[（(].*?[)）]\s*$", "", h1.get_text(strip=True)).strip()
+        logger.info("Novel title: %s", self.novel_title)
+
+        author = re.search(r"作者[:：]\s*([^_|，,]+)", soup.title.get_text(strip=True))
+        if author:
+            self.novel_author = author.group(1).strip()
+        logger.info("Novel author: %s", self.novel_author)
+
+        for a in soup.select("a[href]"):
+            href = a["href"]
+            if not re.search(r"/index/\d+\.html$", href):
+                continue
+            self.chapters.append(
+                {
+                    "id": len(self.chapters) + 1,
+                    "title": a.get_text(strip=True),
+                    "url": self.absolute_url(href),
+                }
+            )
+
+    def download_chapter_body(self, chapter):
+        soup = self.get_soup(chapter["url"], encoding="gb18030")
+        contents = soup.select_one("#mycontent") or soup.select_one(".content")
+        self.cleaner.clean_contents(contents)
+        return str(contents)

@@ -31,7 +31,7 @@ import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
-import { getChapterNameWithNumber } from '@utils/Misc';
+import { getChapterLabel } from '@utils/Misc';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
@@ -268,14 +268,19 @@ const ChapterList = () => {
           volumes.map(volume => {
             if (!filteredVolumes[volume] || filteredVolumes[volume].length === 0) return null;
             
-            const volumeTitle = filteredVolumes[volume][0].volume_title || `Volume ${volume === 0 ? 'Unknown' : volume}`;
+            const volumeTitle = filteredVolumes[volume][0].volume_title || `Volume ${volume}`;
+            const showHeader = volume !== 0 || !!filteredVolumes[volume][0].volume_title;
             
             return (
               <Box key={volume} sx={{ mb: 4 }}>
-                <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
-                  {volumeTitle}
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
+                {showHeader && (
+                  <>
+                    <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
+                      {volumeTitle}
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                  </>
+                )}
                 
                 <List disablePadding>
                   {filteredVolumes[volume].map((chapter) => (
@@ -292,7 +297,7 @@ const ChapterList = () => {
                         }}
                       >
                         <ListItemText 
-                          primary={getChapterNameWithNumber(chapter.title, chapter.chapter_id)}
+                          primary={getChapterLabel(chapter.title, chapter.chapter_id)}
                           secondary={!chapter.has_content ? 'Content unavailable' : null}
                         />
                       </ListItemButton>

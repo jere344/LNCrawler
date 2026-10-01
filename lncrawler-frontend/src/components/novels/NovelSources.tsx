@@ -259,7 +259,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                                   Chapters
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                                  {source.latest_available_chapter?.chapter_id || 0}
+                                  {source.chapters_count || 0}
                                 </Typography>
                               </Box>
                               {getChapterName(source.latest_available_chapter?.title || '') !== '' && (

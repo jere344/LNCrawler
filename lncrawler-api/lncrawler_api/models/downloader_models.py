@@ -27,10 +27,23 @@ class Job(models.Model):
         (STATUS_FAILED, 'Failed'),
     ]
     
+    # Job type choices
+    JOB_TYPE_SEARCH = 'search'
+    JOB_TYPE_DOWNLOAD = 'download'
+    
+    JOB_TYPE_CHOICES = [
+        (JOB_TYPE_SEARCH, 'Search'),
+        (JOB_TYPE_DOWNLOAD, 'Download'),
+    ]
+    
     # Primary fields
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_CREATED)
+    job_type = models.CharField(
+        max_length=20, choices=JOB_TYPE_CHOICES, default=JOB_TYPE_SEARCH
+    )
     query = models.CharField(max_length=255, blank=True, null=True)
+    target_url = models.CharField(max_length=512, blank=True, null=True)
     
     # Timestamps
     created_at = models.DateTimeField(default=timezone.now)
@@ -39,6 +52,7 @@ class Job(models.Model):
     # Tracking progress
     progress = models.IntegerField(default=0)
     total_items = models.IntegerField(default=0)
+    progress_unit = models.CharField(max_length=20, default='chapters')
     
     # Storing results and state
     search_results = models.JSONField(default=dict, blank=True, null=True)
@@ -76,13 +90,18 @@ class Job(models.Model):
             
         self.save(update_fields=['status', 'error_message', 'updated_at'])
     
-    def update_progress(self, progress, total_items=None):
+    def update_progress(self, progress, total_items=None, unit=None):
         """Update the job progress"""
         self.progress = progress
+        update_fields = ['progress', 'updated_at']
         if total_items is not None:
             self.total_items = total_items
-            
-        self.save(update_fields=['progress', 'total_items', 'updated_at'])
+            update_fields.append('total_items')
+        if unit is not None:
+            self.progress_unit = unit
+            update_fields.append('progress_unit')
+
+        self.save(update_fields=update_fields)
     
     def update_download_results(self, output_path, output_files):
         """Update the download results"""
@@ -96,11 +115,13 @@ class Job(models.Model):
             'id': str(self.id),
             'status': self.status,
             'status_display': self.get_status_display(),
+            'job_type': self.job_type,
             'query': self.query,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
             'progress': self.progress,
             'total_items': self.total_items,
+            'progress_unit': self.progress_unit,
             'progress_percentage': self.get_progress_percentage(),
             'search_results': self.search_results,
             'selected_novel': self.selected_novel,

@@ -119,7 +119,7 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
           />
           <Typography variant="caption">
             {downloadStatus.progress_percentage !== undefined ? `${downloadStatus.progress_percentage}%` : 'Processing...'}
-            {downloadStatus.total_chapters > 0 && ` (${downloadStatus.progress} / ${downloadStatus.total_chapters} chapters)`}
+            {downloadStatus.total_chapters > 0 && ` (${downloadStatus.progress} / ${downloadStatus.total_chapters} ${downloadStatus.progress_unit || 'chapters'})`}
           </Typography>
         </Box>
       )}

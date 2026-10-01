@@ -234,10 +234,6 @@ LOGGING = {
             'format': '[DJANGO] {levelname} {asctime} {module} {message}',
             'style': '{',
         },
-        'apibot_formatter': {
-            'format': '[APIBOT] {levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
         'lncrawler_api_formatter': {
             'format': '[LNCrawlerAPI] {levelname} {asctime} {module} {message}',
             'style': '{',
@@ -260,12 +256,6 @@ LOGGING = {
             'formatter': 'django_formatter',
             'encoding': 'utf-8',
         },
-        'apibot_file': { 
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'apibot.log'),
-            'formatter': 'apibot_formatter',
-            'encoding': 'utf-8',
-        },
         'lncrawler_api_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'lncrawler_api.log'),
@@ -285,8 +275,8 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
-        'apibot': {  # Separate logger for PythonApiBot - file only, no console
-            'handlers': ['apibot_file'], 
+        'lncrawl': {  # The lncrawler-crawler library
+            'handlers': ['lncrawler_api_console', 'lncrawler_api_file'],
             'level': 'DEBUG',
             'propagate': False,
         },

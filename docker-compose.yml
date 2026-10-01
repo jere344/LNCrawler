@@ -5,13 +5,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      # Database credentials
-      # Replace with your own values
-      - POSTGRES_DB=lncrawler
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=biyoo
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,50 +17,71 @@ services:
   api:
     build: ./lncrawler-api
     restart: unless-stopped
-    volumes:
+    volumes: &api-volumes
       - ./lncrawler-api:/app/lncrawler-api
       - ./Lightnovels:/app/Lightnovels
       - ./imports:/app/imports
       - ./lncrawler-api/logs:/app/lncrawler-api/logs
-      - ./dipudb-lncrawler-jere344-patches:/app/dipudb-lncrawler-jere344-patches
-    environment:
-      - SITE_URL=http://localhost # Your website frontend URL
-      - SITE_API_URL=http://api.localhost # Your website API URL
-      - SECRET_KEY=django-insecure-h=mhg#$sm-l4o240a+m#f=98$)+m0_3p0*%v%_*w)bi(d3f1u_ # Your Django secret key. You can generate one using `django-admin startproject --generate-secret-key`
-      - DEBUG=False # Set to False in production
-      - CORS_ALLOW_ALL_ORIGINS=False # Set to False in production
-
-      # Django Admin credentials. Can be changed at runtime from the admin panel
-      - DJANGO_SUPERUSER_USERNAME=admin
-      - DJANGO_SUPERUSER_EMAIL=jeremy.guerin34@yahoo.com
-      - DJANGO_SUPERUSER_PASSWORD=admin
-
-      # Database credentials. Replace with the values used above for the db service
-      - POSTGRES_DB=lncrawler
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=biyoo
-
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-
-      # Brevo email service credentials (for password reset emails)
-      - BREVO_API_KEY= # Your Brevo API key
-      - DEFAULT_FROM_EMAIL=no-reply@lncrawler.monster # Your Brevo sender email
-      - EMAIL_SENDER_NAME=LNCrawler # Your Brevo sender name
+      - ./lncrawler-crawler:/app/lncrawler-crawler
+    environment: &api-env
+      - SITE_URL=${SITE_URL}
+      - SITE_API_URL=${SITE_API_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG}
+      - CORS_ALLOW_ALL_ORIGINS=${CORS_ALLOW_ALL_ORIGINS}
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - BREVO_API_KEY=${BREVO_API_KEY}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
+      - EMAIL_SENDER_NAME=${EMAIL_SENDER_NAME}
     depends_on:
       db:
         condition: service_healthy
     command: ["sh", "/app/lncrawler-api/start.sh"]
-  
+
+  crawler:
+    build: ./lncrawler-api
+    restart: unless-stopped
+    volumes: *api-volumes
+    environment: *api-env
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: ["sh", "/app/lncrawler-api/start_crawler.sh"]
+
+  scheduler:
+    build: ./lncrawler-api
+    restart: unless-stopped
+    volumes: *api-volumes
+    environment: *api-env
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: ["sh", "/app/lncrawler-api/start_scheduler.sh"]
+
   frontend:
     build:
       context: ./lncrawler-frontend
       args:
-        - VITE_API_BASE_URL=http://api.localhost # Your website API URL
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL}
     restart: unless-stopped
     depends_on:
       - api
-    
+
   nginx-proxy:
     build: ./nginx-proxy
     restart: unless-stopped
@@ -73,8 +92,8 @@ services:
       - ./lncrawler-api/media:/media
       - ./Lightnovels:/lightnovels
     environment:
-      - API_HOST=api.localhost # Your API host
-      - FRONTEND_HOST=localhost # Your frontend host
+      - API_HOST=${API_HOST}
+      - FRONTEND_HOST=${FRONTEND_HOST}
     depends_on:
       - api
       - frontend

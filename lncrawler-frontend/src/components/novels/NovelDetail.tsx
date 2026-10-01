@@ -33,7 +33,7 @@ import NovelSynopsis from './common/NovelSynopsis.tsx';
 import NovelRating from './common/NovelRating.tsx';
 import NovelTags from './common/NovelTags';
 import BreadcrumbNav from '../common/BreadcrumbNav';
-import { getChapterNameWithNumber, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
+import { getChapterLabel, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
 import ActionButton from '../common/ActionButton';
 import NovelRecommendation from '../common/NovelRecommendation';
 import SectionContainer from '@components/common/SectionContainer.tsx';
@@ -542,7 +542,7 @@ const NovelDetail = () => {
                       variant="body2" 
                       sx={{ color: theme.palette.common.white, fontWeight: 700 }}
                     >
-                      {Math.max(...novel.sources.map(source => source.latest_available_chapter?.chapter_id || 0))} Chapters
+                      {Math.max(...novel.sources.map(source => source.chapters_count || 0))} Chapters
                     </Typography>
                   </Box>
                 </Box>
@@ -559,25 +559,25 @@ const NovelDetail = () => {
                   {continue_chapter && novel.prefered_source && novel.reading_history && (
                     <ActionButton
                       title="Continue Reading"
-                      subtitle={getChapterNameWithNumber(continue_chapter.title, continue_chapter.chapter_id)}
+                      subtitle={getChapterLabel(continue_chapter.title, continue_chapter.chapter_id)}
                       startIcon={<BookmarkIcon />}
                       backgroundIcon={<BookIcon />}
                       color="warning"
                       to={`/novels/${novelSlug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}`}
-                      tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
+                      tooltip={`Continue from ${getChapterLabel(continue_chapter.title, continue_chapter.chapter_id)}`}
                       tooltipPlacement="top"
                     />
                   )}
                   
                   <ActionButton
                     title="Start Reading"
-                    subtitle="From Chapter 1"
+                    subtitle="From the beginning"
                     startIcon={<PlayArrowIcon />}
                     backgroundIcon={<BookIcon />}
                     color="success"
-                    to={`/novels/${novelSlug}/${novel.prefered_source.source_slug}/chapter/1`}
-                    disabled={novel.prefered_source?.latest_available_chapter?.chapter_id === 0}
-                    tooltip="Start reading from chapter 1"
+                    to={`/novels/${novelSlug}/${novel.prefered_source.source_slug}/chapter/${novel.prefered_source.first_available_chapter?.chapter_id}`}
+                    disabled={!novel.prefered_source?.first_available_chapter}
+                    tooltip="Start reading from the first chapter"
                     tooltipPlacement="top"
                   />
 

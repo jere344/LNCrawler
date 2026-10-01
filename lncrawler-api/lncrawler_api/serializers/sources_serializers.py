@@ -22,6 +22,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     cover_min_url = serializers.SerializerMethodField()
     overview_url = serializers.SerializerMethodField()
     latest_available_chapter = serializers.SerializerMethodField()
+    first_available_chapter = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     
@@ -32,7 +33,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
             'authors', 'tags', 'language', 'synopsis', 'cover_min_url',
             'chapters_count', 'volumes_count', 'last_chapter_update', 'upvotes', 'downvotes',
             'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
-            'latest_available_chapter', 'reading_history', 'overview_url',
+            'latest_available_chapter', 'first_available_chapter', 'reading_history', 'overview_url',
         ]
 
     def get_cover_url(self, obj: NovelFromSource):
@@ -88,6 +89,13 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         latest_chapter = obj.chapters.filter(has_content=True).order_by('-chapter_id').first()
         if latest_chapter:
             return ChapterSerializer(latest_chapter).data
+        return None
+
+    def get_first_available_chapter(self, obj: NovelFromSource):
+        """Return the first available chapter with content"""
+        first_chapter = obj.chapters.filter(has_content=True).order_by('chapter_id').first()
+        if first_chapter:
+            return ChapterSerializer(first_chapter).data
         return None
     
     def get_reading_history(self, obj: NovelFromSource):

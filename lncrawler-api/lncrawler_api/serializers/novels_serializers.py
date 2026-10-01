@@ -183,30 +183,30 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
         return None
         
     def get_similar_novels(self, obj):
-        # Get the top 12 similar novels
-        similar_novels = obj.similar_to.select_related('to_novel').order_by('-similarity')[:10]
-        
-        # If we don't have enough similar novels, get most viewed novels
-        if similar_novels.count() < 12:
-            # Get IDs of novels we already have
-            existing_ids = list(similar_novels.values_list('to_novel_id', flat=True))
+        # Get the top 12 similar novels (list() so len() is accurate; a sliced
+        # queryset's .count() caps at the slice and made the fallback always fire)
+        similar_novels = list(
+            obj.similar_to.select_related('to_novel').order_by('-similarity')[:12]
+        )
+
+        # If we don't have enough similar novels, top up with most viewed novels
+        if len(similar_novels) < 12:
+            existing_ids = [item.to_novel_id for item in similar_novels]
             needed_count = 12 - len(existing_ids)
-            
+
             # Get the most viewed novels not already in our list
             most_viewed = NovelViewCount.objects.exclude(
                 novel_id=obj.id
             ).exclude(
                 novel_id__in=existing_ids
             ).order_by('-views')[:needed_count]
-            
+
             # Combine the results
-            result = list(similar_novels)
             for view_count in most_viewed:
-                result.append({
+                similar_novels.append({
                     'to_novel': view_count.novel,
                     'similarity': 0.0
                 })
-            similar_novels = result
         
         # Serialize the novels
         result = []

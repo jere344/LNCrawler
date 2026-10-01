@@ -1,5 +1,5 @@
 import { ChapterContent } from '@models/novels_types';
-import { getChapterNameWithNumber } from '@utils/Misc';
+import { getChapterLabel } from '@utils/Misc';
 
 interface ChapterSEOProps {
   chapter: ChapterContent | null;
@@ -10,17 +10,18 @@ const DEFAULT_OG_IMAGE = '/og-image.jpg';
 const ChapterSEO = ({ chapter }: ChapterSEOProps) => {
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
+  const chapterLabel = chapter ? getChapterLabel(chapter.title, chapter.chapter_id) : "";
 
   const metaTitle = chapter 
-    ? `Read ${getChapterNameWithNumber(chapter.title, chapter.chapter_id)} - ${chapter.novel_title} | ${siteName}` 
+    ? `Read ${chapterLabel} - ${chapter.novel_title} | ${siteName}` 
     : `Loading Chapter | ${siteName}`;
   
   const metaDescription = chapter 
-    ? `Read Chapter ${chapter.chapter_id}: ${chapter.title} of the light novel ${chapter.novel_title}. ${chapter.body ? chapter.body.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : `Continue reading ${chapter.novel_title} on ${siteName}.`}`
+    ? `Read ${chapterLabel} of the light novel ${chapter.novel_title}. ${chapter.body ? chapter.body.substring(0, 150).replace(/<[^>]+>/g, '') + '...' : `Continue reading ${chapter.novel_title} on ${siteName}.`}`
     : `Loading chapter content. Read light novels online on ${siteName}.`;
   
   const metaKeywords = chapter 
-    ? `${chapter.novel_title}, ${chapter.source_name}, chapter ${chapter.chapter_id}, ${chapter.title}, read light novel, online reader, web novel`
+    ? `${chapter.novel_title}, ${chapter.source_name}, ${chapterLabel}, read light novel, online reader, web novel`
     : "light novel, web novel, chapter reader, online reading";
   
   const ogImage = chapter?.source_overview_image_url 

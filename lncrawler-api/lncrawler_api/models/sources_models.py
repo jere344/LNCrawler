@@ -168,33 +168,42 @@ class NovelFromSource(models.Model):
             source_name=source_name
         )
         
-        # Create or update the NovelFromSource
-        source_url = novel_data.get('url', '')
+        # Create or update the NovelFromSource.
+        # Identity is the canonical external source, not the exact URL, so the
+        # same novel fetched from a mirror domain updates the existing row
+        # instead of creating a duplicate.
+        source_url = truncate(novel_data.get('url', ''))
         source_slug = slugify(source_name)
-        
-        novel_from_source, created = cls.objects.update_or_create(
-            novel=novel,
-            source_url=source_url,
-            defaults={
-                'title': truncate(title),
-                'external_source': external_source,
-                'source_slug': truncate(source_slug, 100),
-                'source_path': truncate(source_path),
-                'cover_path': truncate(cover_path) if cover_path else None,
-                'cover_url': truncate(novel_data.get('cover_url', '')),
-                'language': novel_data.get('language', 'en'),
-                'status': novel_data.get('status', 'Unknown'),
-                'synopsis': novel_data.get('synopsis', ''),
-                'is_rtl': novel_data.get('is_rtl', False),
-                'has_manga': novel_data.get('has_manga'),
-                'has_mtl': novel_data.get('has_mtl'),
-                'original_publisher': truncate(novel_data.get('original_publisher', '')),
-                'english_publisher': truncate(novel_data.get('english_publisher', '')),
-                'novelupdates_url': truncate(novel_data.get('novelupdates_url', '')),
-                'meta_file_path': meta_json_path,
-                'last_chapter_update': timezone.now(),
-            }
-        )
+
+        novel_from_source = cls.objects.filter(novel=novel, external_source=external_source).first()
+        if novel_from_source is None:
+            novel_from_source = cls.objects.filter(novel=novel, source_url=source_url).first()
+        if novel_from_source is None:
+            novel_from_source = cls(novel=novel)
+        else:
+            # Drop a legacy duplicate alias row that would violate (novel, source_url).
+            cls.objects.filter(novel=novel, source_url=source_url).exclude(pk=novel_from_source.pk).delete()
+
+        novel_from_source.novel = novel
+        novel_from_source.source_url = source_url
+        novel_from_source.external_source = external_source
+        novel_from_source.title = truncate(title)
+        novel_from_source.source_slug = truncate(source_slug, 100)
+        novel_from_source.source_path = truncate(source_path)
+        novel_from_source.cover_path = truncate(cover_path) if cover_path else None
+        novel_from_source.cover_url = truncate(novel_data.get('cover_url', ''))
+        novel_from_source.language = novel_data.get('language', 'en')
+        novel_from_source.status = novel_data.get('status', 'Unknown')
+        novel_from_source.synopsis = novel_data.get('synopsis', '')
+        novel_from_source.is_rtl = novel_data.get('is_rtl', False)
+        novel_from_source.has_manga = novel_data.get('has_manga')
+        novel_from_source.has_mtl = novel_data.get('has_mtl')
+        novel_from_source.original_publisher = truncate(novel_data.get('original_publisher', ''))
+        novel_from_source.english_publisher = truncate(novel_data.get('english_publisher', ''))
+        novel_from_source.novelupdates_url = truncate(novel_data.get('novelupdates_url', ''))
+        novel_from_source.meta_file_path = meta_json_path
+        novel_from_source.last_chapter_update = timezone.now()
+        novel_from_source.save()
         
         # Handle authors (list of strings)
         authors_list = novel_data.get('authors', [])
@@ -247,51 +256,66 @@ class NovelFromSource(models.Model):
         
         # Process chapters - using bulk create/update for better performance
         if 'chapters' in novel_data:
-            # Get existing chapters for this source to avoid duplicates
-            existing_chapters = {
-                ch.chapter_id: ch for ch in Chapter.objects.filter(novel_from_source=novel_from_source)
-            }
-            
+            # Match an existing chapter by its stable url first (so a re-import
+            # updates the same row even if its chapter_id moved), then by id.
+            existing_list = list(
+                Chapter.objects.filter(novel_from_source=novel_from_source)
+            )
+            existing_by_url = {ch.url: ch for ch in existing_list if ch.url}
+            existing_by_id = {ch.chapter_id: ch for ch in existing_list}
+
             new_chapters = []
             chapters_to_update = []
-            
+            used_pks = set()
+
             for chapter_data in novel_data['chapters']:
                 chapter_id = chapter_data.get('id')
-                
+
                 # Extract only the image filenames (keys) from the images dictionary
                 images_dict = chapter_data.get('images', {})
                 image_filenames = list(images_dict.keys()) if images_dict else []
-    
+
                 # Prepare chapter data
                 chapter_dict = {
-                    'url': truncate(chapter_data.get('url', '')),
+                    'url': truncate(chapter_data.get('url') or ''),
                     'title': truncate(chapter_data.get('title', f'Chapter {chapter_id}')),
                     'volume': chapter_data.get('volume', 0),
                     'volume_title': truncate(chapter_data.get('volume_title', '')),
                     'images': image_filenames,
                     'has_content': chapter_utils.check_chapter_has_content(source_absolute_path=source_dir, chapter_number=chapter_id)
                 }
-                
-                # If chapter exists, update it, otherwise create new
-                if chapter_id in existing_chapters:
-                    chapter = existing_chapters[chapter_id]
+
+                existing = None
+                url = chapter_dict['url']
+                if url:
+                    candidate = existing_by_url.get(url)
+                    if candidate is not None and candidate.pk not in used_pks:
+                        existing = candidate
+                if existing is None:
+                    candidate = existing_by_id.get(chapter_id)
+                    if candidate is not None and candidate.pk not in used_pks:
+                        existing = candidate
+
+                if existing is not None:
+                    used_pks.add(existing.pk)
+                    existing.chapter_id = chapter_id
                     for key, value in chapter_dict.items():
-                        setattr(chapter, key, value)
-                    chapters_to_update.append(chapter)
+                        setattr(existing, key, value)
+                    chapters_to_update.append(existing)
                 else:
                     new_chapters.append(Chapter(
                         novel_from_source=novel_from_source,
                         chapter_id=chapter_id,
                         **chapter_dict
                     ))
-            
+
             # Bulk create new chapters
             if new_chapters:
                 Chapter.objects.bulk_create(new_chapters)
-            
+
             # Bulk update existing chapters
             if chapters_to_update:
-                fields_to_update = ['url', 'title', 'volume', 'volume_title', 'images', 'has_content']
+                fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content']
                 Chapter.objects.bulk_update(chapters_to_update, fields_to_update)
             
             # Update last_chapter_update timestamp

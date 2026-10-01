@@ -121,7 +121,9 @@ class ScheduledTask(models.Model):
             name=name,
             defaults={
                 'interval_seconds': interval_seconds,
-                'next_run_at': timezone.now() + timedelta(seconds=interval_seconds),
+                # Due immediately so a new task (or a scheduler that was down)
+                # runs on the next poll instead of waiting a full interval.
+                'next_run_at': timezone.now(),
                 'status': 'pending'
             }
         )

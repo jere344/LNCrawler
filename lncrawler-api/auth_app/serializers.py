@@ -2,7 +2,6 @@ from django.conf import settings
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.db.models import Sum, Count
 from lncrawler_api.models import NovelBookmark, ReadingHistory, Chapter
 
 User = get_user_model()
@@ -26,16 +25,22 @@ class UserSerializer(serializers.ModelSerializer):
         # Check if we've already calculated this
         if hasattr(self, '_chapters_read_count'):
             return self._chapters_read_count
-            
-        # Calculate and cache the result
-        self._chapters_read_count = ReadingHistory.objects.filter(
+
+        histories = ReadingHistory.objects.filter(
             user=obj,
             novel__in=NovelBookmark.objects.filter(user=obj).values('novel'),
             last_read_chapter__isnull=False
-        ).aggregate(
-            total=Sum('last_read_chapter__chapter_id')
-        ).get('total') or 0
-        
+        ).select_related('source', 'last_read_chapter')
+
+        total = 0
+        for history in histories:
+            total += Chapter.objects.filter(
+                novel_from_source=history.source,
+                has_content=True,
+                chapter_id__lte=history.last_read_chapter.chapter_id
+            ).count()
+
+        self._chapters_read_count = total
         return self._chapters_read_count
     
     def get_chapters_not_read_yet_count(self, obj):

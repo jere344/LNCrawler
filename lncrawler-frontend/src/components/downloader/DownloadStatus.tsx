@@ -119,7 +119,7 @@ const DownloadStatus = () => {
               {results.selected_novel.title}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {results.selected_novel.chapters} chapters in {results.selected_novel.volumes} volumes
+              {results.selected_novel.chapters} chapters
             </Typography>
           </Box>
           
@@ -177,7 +177,7 @@ const DownloadStatus = () => {
             sx={{ height: 10, borderRadius: 1 }}
           />
           <Typography variant="body2" sx={{ mt: 1 }} textAlign="right">
-            {status?.progress || 0} / {status?.total_chapters || 0} chapters
+            {status?.progress || 0} / {status?.total_chapters || 0} {status?.progress_unit || 'chapters'}
           </Typography>
         </Box>
         

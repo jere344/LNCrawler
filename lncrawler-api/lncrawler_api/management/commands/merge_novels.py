@@ -145,7 +145,7 @@ class Command(BaseCommand):
 
 
                     source.save()
-                    self.stdout.write(self.style.SUCCESS(f"Moved source '{source.source_name}' to target novel"))
+                    self.stdout.write(self.style.SUCCESS(f"Moved source '{source.external_source.source_name}' to target novel"))
 
                 # Move physical files if requested
                 if move_files and source_novel.novel_path and target_novel.novel_path:

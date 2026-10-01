@@ -37,11 +37,11 @@ class DetailedReadingHistorySerializer(serializers.ModelSerializer):
 
     def get_next_chapter(self, obj):
         try:
-            next_chapter = Chapter.objects.get(
+            next_chapter = Chapter.objects.filter(
                 novel_from_source=obj.source,
-                chapter_id=obj.last_read_chapter.chapter_id + 1,
+                chapter_id__gt=obj.last_read_chapter.chapter_id,
                 has_content=True
-            )
+            ).order_by('chapter_id').first()
             return ChapterSerializer(next_chapter).data if next_chapter else None
         except Chapter.DoesNotExist:
             return None

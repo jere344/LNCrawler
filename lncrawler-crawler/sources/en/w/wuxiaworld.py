@@ -1,0 +1,90 @@
+# -*- coding: utf-8 -*-
+import logging
+from urllib.parse import urlparse
+
+from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
+
+logger = logging.getLogger(__name__)
+
+
+class WuxiaworldCrawler(Crawler):
+    base_url = [
+        "https://lite.wuxiaworld.com/",
+        "https://www.wuxiaworld.com/",
+    ]
+    language = "en"
+
+    def _lite(self, url: str) -> str:
+        parsed = urlparse(url)
+        return "https://lite.wuxiaworld.com" + parsed.path
+
+    def search_novel(self, query):
+        soup = self.get_soup(
+            "https://lite.wuxiaworld.com/novels?q=" + query.replace(" ", "+")
+        )
+        results = []
+        for cell in soup.select("td.novel-cell")[:10]:
+            a = cell.select_one("p.title a[href]")
+            if not a:
+                continue
+            info = cell.select_one("p.tag")
+            results.append(
+                SearchResult(
+                    title=a.get_text(strip=True),
+                    url=self.absolute_url(a["href"]),
+                    info=info.get_text(strip=True) if info else "",
+                )
+            )
+        return results
+
+    def read_novel_info(self):
+        soup = self.get_soup(self._lite(self.novel_url))
+
+        self.novel_title = soup.select_one("h1").get_text(strip=True)
+
+        head = soup.select_one(".novel-head")
+        if head:
+            text = head.get_text(" ", strip=True)
+            if "Author:" in text:
+                self.novel_author = text.split("Author:", 1)[1].split("·")[0].strip()
+
+        syn = soup.find("h2", string="Synopsis")
+        if syn:
+            nxt = syn.find_next_sibling()
+            while nxt and nxt.name == "br":
+                nxt = nxt.find_next_sibling()
+            if nxt:
+                self.novel_synopsis = self.cleaner.extract_contents(nxt)
+
+        novel_slug = urlparse(self.novel_url).path.strip("/")
+        base = "https://lite.wuxiaworld.com/" + novel_slug
+        page = 1
+        seen = set()
+        while True:
+            toc = self.get_soup(f"{base}?toc={page}")
+            links = toc.select("ul.toc li a[href]")
+            for a in links:
+                url = self.absolute_url(a["href"])
+                if url in seen:
+                    continue
+                seen.add(url)
+                self.chapters.append(
+                    {
+                        "id": len(self.chapters) + 1,
+                        "title": a.get_text(strip=True),
+                        "url": url,
+                    }
+                )
+            if not toc.select_one(".pager a.next"):
+                break
+            page += 1
+
+    def download_chapter_body(self, chapter):
+        soup = self.get_soup(chapter["url"])
+        body = soup.select_one("#chapter-body") or soup.select_one(".chapter-body")
+        for p in body.select("p"):
+            if p.get_text(strip=True) in ("Previous Chapter", "Next Chapter"):
+                p.decompose()
+        self.cleaner.clean_contents(body)
+        return str(body)

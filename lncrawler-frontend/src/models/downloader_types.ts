@@ -58,6 +58,7 @@ export interface DownloadStatus {
   download_completed: boolean;
   progress: number;
   total_chapters: number;
+  progress_unit?: string;
   progress_percentage: number;
   selected_novel: {
     title: string;

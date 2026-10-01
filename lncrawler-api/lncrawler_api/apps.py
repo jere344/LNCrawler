@@ -1,9 +1,4 @@
 from django.apps import AppConfig
-import logging
-import os
-import sys
-
-logger = logging.getLogger('lncrawler_api')
 
 
 class LncrawlerApiConfig(AppConfig):
@@ -11,23 +6,10 @@ class LncrawlerApiConfig(AppConfig):
     name = "lncrawler_api"
 
     def ready(self):
-        """
-        Initialize any app-specific tasks when Django starts.
-        This is where we start our scheduler.
-        """
-        # Only start scheduler in production/development servers, not during migrations or other commands
-        if (os.environ.get('RUN_MAIN') or 
-            'runserver' not in sys.argv and 
-            'migrate' not in sys.argv and 
-            'makemigrations' not in sys.argv and
-            'collectstatic' not in sys.argv):
-            
-            # Import here to avoid AppRegistryNotReady exception
-            from .scheduler import start_scheduler
-
-            try:
-                # Start the scheduler
-                start_scheduler()
-                logger.info("Scheduler initialization completed")
-            except Exception as e:
-                logger.error(f"Failed to start scheduler: {str(e)}", exc_info=True)
+        # The database scheduler used to auto-start in every process that
+        # imported the app (all gunicorn workers + the crawler worker), which
+        # meant several scheduler threads competed for the same locks and the
+        # tasks were effectively never executed. It now runs in exactly one
+        # place: the dedicated `scheduler` service via
+        # `manage.py run_scheduler` (see start_scheduler.sh).
+        pass

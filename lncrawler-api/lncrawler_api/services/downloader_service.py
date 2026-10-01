@@ -1,13 +1,12 @@
-# filepath: c:\Users\Jeremy\Desktop\lncrawler-reborn\lncrawler-api\lncrawler_api\services\downloader_service.py
 import os
 import sys
 import threading
 import time
 import logging
-import importlib.util
-import threading
+from datetime import timedelta
 from pathlib import Path
 import django
+from django.utils import timezone
 from ..utils import lncrawler_paths
 from ..utils import chapter_utils
 
@@ -16,10 +15,67 @@ from django.conf import settings
 # Configure logger
 logger = logging.getLogger('lncrawler_api')
 
+# Set once the crawler package has been added to sys.path.
+_crawler_package_loaded = False
+
+
+def _load_app():
+    """Add the lncrawler-crawler package to sys.path and return its App class."""
+    global _crawler_package_loaded
+    crawler_dir = Path(settings.BASE_DIR).parent / "lncrawler-crawler"
+    for path in (crawler_dir.parent, crawler_dir):
+        p = str(path)
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    if not _crawler_package_loaded:
+        if not (crawler_dir / "lncrawl" / "core" / "app.py").exists():
+            raise ImportError(f"Could not find lncrawler-crawler package at {crawler_dir}")
+        _crawler_package_loaded = True
+    from lncrawl.core.app import App
+    return App
+
+
+def _poll_download_progress(job, app, phase, total_chapters):
+    """Push one progress reading from the crawler/app onto the job.
+
+    Before the chapter list exists the crawler reports its own TOC progress in
+    ``progress_unit`` (volumes for EPUB sources); afterwards progress is the
+    number of downloaded chapters. ``phase`` is a mutable ``{"chapters": bool}``
+    flipped once ``get_novel_info()`` has run.
+    """
+    if phase.get("chapters"):
+        job.update_progress(app.progress, total_chapters, "chapters")
+    else:
+        crawler = app.crawler
+        job.update_progress(
+            getattr(crawler, "progress", 0),
+            getattr(crawler, "progress_total", 0),
+            getattr(crawler, "progress_unit", "chapters"),
+        )
+
+
+def _format_search_results(app):
+    """Convert App.search_results into the shape stored on Job.search_results."""
+    results = []
+    for novel_index, novel in enumerate(app.search_results):
+        sources = []
+        for source_index, source in enumerate(novel.get("novels", [])):
+            entry = {"index": source_index, "url": source.get("url", "")}
+            if source.get("info"):
+                entry["info"] = source["info"]
+            sources.append(entry)
+        results.append({
+            "index": novel_index,
+            "title": novel.get("title", ""),
+            "sources": sources,
+        })
+    return results
+
+
 class DownloaderService:
     """
-    Service that interfaces with the PythonApiBot to handle novel search and download.
-    Uses Django's Job model to persist state across requests.
+    Service that drives the lncrawler-crawler library to handle novel search and
+    download. Uses Django's Job model to persist state across requests.
     """
 
     @staticmethod
@@ -32,64 +88,7 @@ class DownloaderService:
         except Exception as e:
             logger.error(f"Failed to setup Django in subprocess: {str(e)}")
             raise
-    
-    @staticmethod
-    def _configure_apibot_logger():
-        """Configure a separate logger for the PythonApiBot"""
-        return logging.getLogger('apibot')
-    
-    @staticmethod
-    def _import_python_api_bot():
-        """Import the PythonApiBot class from the lightnovel crawler package"""
-        try:
-            # Configure apibot logger
-            apibot_logger = DownloaderService._configure_apibot_logger()
-            
-            # Find the parent directory path
-            base_dir = Path(settings.BASE_DIR).parent
-            lncrawl_dir = base_dir / "dipudb-lncrawler-jere344-patches"
-            bot_path = lncrawl_dir / "lncrawl" / "bots" / "python_api" / "__init__.py"
-            
-            if not bot_path.exists():
-                apibot_logger.error(f"Could not find PythonApiBot module at {bot_path}")
-                raise ImportError(f"Could not find PythonApiBot module at {bot_path}")
-            
-            # Add the directory to Python path so imports work properly
-            lncrawl_parent = str(lncrawl_dir.parent)
-            if lncrawl_parent not in sys.path:
-                sys.path.insert(0, lncrawl_parent)
-        
-            # Also add the actual package directory
-            crawler_pkg_dir = str(lncrawl_dir)
-            if crawler_pkg_dir not in sys.path:
-                sys.path.insert(0, crawler_pkg_dir)
-                
-            # Set the working directory to the crawler package directory
-            os.chdir(crawler_pkg_dir)
-            
-            # Dynamically import the module
-            spec = importlib.util.spec_from_file_location("python_api", bot_path)
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[spec.name] = module
-            spec.loader.exec_module(module)
-            
-            # Get the PythonApiBot class
-            PythonApiBot = module.PythonApiBot
-            
-            # Inject the logger into the PythonApiBot class
-            original_init = PythonApiBot.__init__
-            
-            def new_init(self, *args, **kwargs):
-                original_init(self, *args, **kwargs)
-                self.logger = apibot_logger
-            
-            PythonApiBot.__init__ = new_init
-            
-            return PythonApiBot
-        except Exception as e:
-            apibot_logger.error(f"Failed to import PythonApiBot: {str(e)}")
-            raise ImportError(f"Could not import PythonApiBot: {str(e)}")
-    
+
     @staticmethod
     def refresh_connection():
         """
@@ -106,122 +105,126 @@ class DownloaderService:
             logger.error(f"Failed to refresh database connection: {str(e)}")
             raise
 
+    @classmethod
+    def _inject_existing_chapters(cls, app, novel_url):
+        """Hand the crawler the chapters/metadata already stored for this source.
+
+        Sources with an expensive table of contents (EPUB volumes) use this to
+        rebuild their chapter list without re-fetching archives that have
+        already been downloaded; only new volumes are fetched.
+        """
+        from ..models import NovelFromSource
+        try:
+            novel_source = (
+                NovelFromSource.objects.filter(source_url=novel_url).first()
+                or NovelFromSource.objects.filter(
+                    source_url=novel_url.rstrip("/")
+                ).first()
+            )
+            if novel_source is None:
+                return
+            app.crawler.existing_chapters = [
+                {"id": ch.chapter_id, "url": ch.url, "title": ch.title}
+                for ch in novel_source.chapters.order_by("chapter_id")
+            ]
+            app.crawler.existing_meta = {
+                "title": novel_source.title,
+                "authors": ", ".join(a.name for a in novel_source.authors.all()),
+                "language": novel_source.language,
+                "cover_url": novel_source.cover_url,
+                "synopsis": novel_source.synopsis,
+                "novelupdates_url": novel_source.novelupdates_url,
+            }
+            logger.debug(
+                "Injected %s existing chapters for %s",
+                len(app.crawler.existing_chapters),
+                novel_url,
+            )
+        except Exception as e:
+            logger.debug("Could not load previous chapters for %s: %s", novel_url, e)
+
     @staticmethod
     def _run_search_process(job_id, query):
         """
-        Run novel search in a separate process
-        This is executed in a new process to avoid blocking the main thread
+        Run novel search in a background thread
         """
+        job = None
+        app = None
         try:
-            # Get the base directory for the crawler package
-            base_dir = Path(settings.BASE_DIR).parent
-            lncrawl_dir = base_dir / "dipudb-lncrawler-jere344-patches"
-            
-            # Set the working directory to the crawler package directory
-            os.chdir(str(lncrawl_dir))
-            
-            # Add to Python path
-            sys.path.insert(0, str(lncrawl_dir.parent))
-            sys.path.insert(0, str(lncrawl_dir))
-            
-            # Setup Django in the subprocess
+            App = _load_app()
             DownloaderService._setup_django()
-            
-            # Import the Job model here to avoid circular imports
+
             from ..models import Job
-            
-            # Get the job
             job = Job.objects.get(id=job_id)
             job.update_status(Job.STATUS_SEARCHING)
-            # Import bot class
-            PythonApiBot = DownloaderService._import_python_api_bot()
-            # Create bot instance
-            bot = PythonApiBot()
-            bot.logger = DownloaderService._configure_apibot_logger()
-            response = bot.start()
-            
-            if response["status"] != "ready":
-                job.update_status(Job.STATUS_FAILED, f"Failed to start bot: {response.get('message', 'Unknown error')}")
-                return
-            
-            # Initialize app session
-            response = bot.init_app()
-            if response["status"] != "success":
-                job.update_status(Job.STATUS_FAILED, f"Failed to initialize app: {response.get('message', 'Unknown error')}")
-                return
-            
-            # Start a background thread to periodically update progress
-            stop_monitoring = threading.Event()
-            
-            def monitor_search_progress():
-                while not stop_monitoring.is_set():
-                    try:
-                        status = bot.get_search_status()
-                        if status["status"] == "success":
-                            progress = status.get("progress", 0)
-                            total = status.get("total_items", job.total_items or 1)
-                            job.update_progress(progress, total)
-                            
-                            # Check if search completed
-                            if status.get("search_completed", False) and not status.get("search_in_progress", False):
-                                break
-                    except Exception as e:
-                        logger.error(f"Error monitoring search progress: {str(e)}")
-                    time.sleep(2)
-                job.update_progress(0, 0) # Reset progress when done
 
-            # Start monitoring thread before starting search
-            monitor_thread = threading.Thread(target=monitor_search_progress)
+            app = App()
+            app.user_input = query
+            app.prepare_search()
+
+            # A direct novel URL needs no search.
+            if app.crawler is not None:
+                job.update_search_results({
+                    "status": "success",
+                    "direct_novel": True,
+                    "novel_url": app.crawler.novel_url,
+                })
+                job.update_status(Job.STATUS_SEARCH_COMPLETED)
+                return
+
+            total = len(app.crawler_links) or 1
+            job.update_progress(0, total)
+
+            stop_monitoring = threading.Event()
+
+            def monitor_progress():
+                try:
+                    while not stop_monitoring.is_set():
+                        job.update_progress(app.progress, total)
+                        time.sleep(2)
+                finally:
+                    # Threads get their own DB connection; close it so a
+                    # long-lived worker does not accumulate Postgres sessions.
+                    from django.db import connection
+                    connection.close()
+
+            monitor_thread = threading.Thread(target=monitor_progress)
             monitor_thread.daemon = True
             monitor_thread.start()
-            
-            # Start search
-            response = bot.start_search(query)
-            if response["status"] != "success":
-                job.update_status(Job.STATUS_FAILED, f"Search failed: {response.get('message', 'Unknown error')}")
-                stop_monitoring.set()
-                return
-            
+
             try:
-                # Wait for search to complete (monitoring thread will detect completion)
-                monitor_thread.join(timeout=300)  # 5 minute timeout
-                
-                if not stop_monitoring.is_set():
-                    stop_monitoring.set()
-                
-                # Get search results
-                results = bot.get_search_results()
-                if results["status"] != "success":
-                    job.update_status(Job.STATUS_FAILED, f"Failed to get search results: {results.get('message', 'Unknown error')}")
-                    return
-                
-                # Update job with search results
-                job.update_search_results(results)
-                job.update_status(Job.STATUS_SEARCH_COMPLETED)
-                
+                app.search_novel()
             finally:
-                # Ensure monitoring thread is stopped
-                if not stop_monitoring.is_set():
-                    stop_monitoring.set()
-                    monitor_thread.join(timeout=5.0)
-                
-                # Clean up
-                try:
-                    bot.destroy_app()
-                except Exception as e:
-                    logger.error(f"Error destroying bot: {str(e)}")
-        
+                stop_monitoring.set()
+                monitor_thread.join(timeout=5.0)
+
+            # Respect a cancel request that arrived while searching.
+            if Job.objects.filter(pk=job.id, status=Job.STATUS_FAILED).exists():
+                return
+
+            job.update_search_results({
+                "status": "success",
+                "results": _format_search_results(app),
+            })
+            job.update_progress(0, 0)
+            job.update_status(Job.STATUS_SEARCH_COMPLETED)
+
         except Exception as e:
             logger.exception(f"Error in search process: {str(e)}")
             try:
-                # Setup Django again to ensure we can access the models
                 DownloaderService._setup_django()
                 from ..models import Job
                 job = Job.objects.get(id=job_id)
                 job.update_status(Job.STATUS_FAILED, f"Search process error: {str(e)}")
             except Exception:
                 pass
-    
+        finally:
+            if app is not None:
+                try:
+                    app.destroy()
+                except Exception:
+                    pass
+
     @staticmethod
     def _import_novel_to_database(output_path, job):
         """
@@ -233,259 +236,235 @@ class DownloaderService:
             if not os.path.exists(meta_json_path):
                 logger.error(f"meta.json file not found at {meta_json_path}")
                 return False, "meta.json file not found in the output directory"
-            
+
             # Import the model
             from ..models import NovelFromSource
-            
+
             # Use the NovelFromSource's method to import from meta.json
             novel = NovelFromSource.from_meta_json(meta_json_path)
-            
+
             if novel:
                 job.output_slug = novel.novel.slug + "/" + novel.source_slug
                 job.save(update_fields=['output_slug', 'updated_at'])
-                
+
                 logger.info(f"Successfully imported novel: {novel.title} from {novel.external_source.source_name}")
                 return True, f"Successfully imported novel: {novel.title} from {novel.external_source.source_name}"
             else:
                 return False, "Failed to import novel from meta.json"
-        
+
         except Exception as e:
             logger.exception(f"Error importing novel to database: {str(e)}")
             return False, f"Error importing novel to database: {str(e)}"
-    
+
     @staticmethod
     def _run_download_process(job_id, novel_url):
         """
-        Run novel download in a separate process
-        This is executed in a new process to avoid blocking the main thread
+        Run novel download in a background thread
         """
         logger.debug(f"Running download process for job ID: {job_id}")
+        app = None
         try:
-            # Get the base directory for the crawler package
-            base_dir = Path(settings.BASE_DIR).parent
-            lncrawl_dir = base_dir / "dipudb-lncrawler-jere344-patches"
-            
-            # Set the working directory to the crawler package directory
-            os.chdir(str(lncrawl_dir))
-            
-            # Add to Python path
-            sys.path.insert(0, str(lncrawl_dir.parent))
-            sys.path.insert(0, str(lncrawl_dir))
-            
-            # Setup Django in the subprocess
-            logger.debug("Setting up Django in subprocess")
+            App = _load_app()
             DownloaderService._setup_django()
-            logger.debug("Django setup complete")
-            
-            # Import the Job model here to avoid circular imports
+
             from ..models import Job
-            
-            # Get the job
             job = Job.objects.get(id=job_id)
-            logger.debug(f"Job found: {job}")
             job.update_status(Job.STATUS_DOWNLOADING)
-            
-            # Import bot class
-            PythonApiBot = DownloaderService._import_python_api_bot()
-            
-            # Create bot instance
-            bot = PythonApiBot()
-            bot.logger = DownloaderService._configure_apibot_logger()
-            logger.debug("PythonApiBot instance created")
-            response = bot.start()
-            logger.debug(f"Bot started: {response}")
-            
-            if response["status"] != "ready":
-                job.update_status(Job.STATUS_FAILED, f"Failed to start bot: {response.get('message', 'Unknown error')}")
-                return
-            
-            # Initialize app session
-            response = bot.init_app()
-            if response["status"] != "success":
-                job.update_status(Job.STATUS_FAILED, f"Failed to initialize app: {response.get('message', 'Unknown error')}")
-                return
-            
-            # Set the novel URL directly
-            logger.debug(f"Setting novel URL: {novel_url}")
-            response = bot.set_novel_url(novel_url)
-            if response["status"] != "success":
-                job.update_status(Job.STATUS_FAILED, f"Failed to set novel URL: {response.get('message', 'Unknown error')}")
-                return
-        
-            # Store selected novel info
-            job.selected_novel = {
-                "title": response.get("novel_title", "Unknown title"),
-                "volumes": response.get("volumes", 0),
-                "chapters": response.get("chapters", 0),
-                "url": response.get("novel_url", "")
-            }
-            job.save(update_fields=['selected_novel', 'updated_at'])
-            
-            # Set custom output path
-            custom_output_path = lncrawler_paths.get_novel_output_path(
-                source=job.selected_novel["url"].split("/")[2],
-                novel=job.selected_novel["title"]
-            )
 
-            # If the path exist and is compressed, decompress it
-            if os.path.exists(custom_output_path):
-                potential_compressed_path = os.path.join(custom_output_path, "json.7z")
-                if os.path.exists(potential_compressed_path):
-                    chapter_utils.extract_tar_7zip_folder(tar_file_path=Path(potential_compressed_path))
+            app = App()
+            app.user_input = novel_url
+            app.prepare_search()
 
-            
-            output_path_response = bot.set_output_path(custom_output_path)
-            if output_path_response["status"] != "success":
-                job.update_status(Job.STATUS_FAILED, f"Failed to set output path: {output_path_response.get('message', 'Unknown error')}")
+            if app.crawler is None:
+                job.update_status(Job.STATUS_FAILED, f"No crawler found for URL: {novel_url}")
                 return
-            
-            # Select all chapters
-            logger.debug("Selecting all chapters")
-            response = bot.select_chapters("all")
 
-            if response["status"] != "success":
-                job.update_status(Job.STATUS_FAILED, f"Failed to select chapters: {response.get('message', 'Unknown error')}")
-                return
-            
-            # Set total chapters
-            total_chapters = response.get("chapters_selected", 0)
-            job.update_progress(0, total_chapters)
-            logger.debug(f"Selected {total_chapters} chapters")
-            
-            # Start a background thread to periodically update progress
+            # Give the crawler the previous chapter list/metadata (if any) so
+            # sources with expensive tables of contents (EPUB volumes) can
+            # reuse them instead of re-fetching every archive on update.
+            DownloaderService._inject_existing_chapters(app, novel_url)
+
+            # Monitor both phases: the crawler's TOC/volume phase (before
+            # get_novel_info returns, when chapters are not known yet) and the
+            # chapter download phase afterwards.
+            phase = {"chapters": False}
+            total_chapters = 0
             stop_monitoring = threading.Event()
-            
+
             def monitor_progress():
-                while not stop_monitoring.is_set():
-                    try:
-                        status = bot.get_download_status()
-                        logger.debug(f"Download status: {status}")
-                        if status["status"] == "success":
-                            progress = status.get("progress", 0)
-                            total = status.get("total_chapters", job.total_items or 1)
-                            job.update_progress(progress, total)
-                            
-                            # Check if download completed
-                            if status.get("download_completed", False):
-                                logger.debug("Download completed")
-                                break
-                        
-                    except Exception as e:
-                        logger.error(f"Error monitoring download progress: {str(e)}")
-                    time.sleep(2)
-            
-            # Start monitoring thread before starting download
+                try:
+                    while not stop_monitoring.is_set():
+                        _poll_download_progress(job, app, phase, total_chapters)
+                        time.sleep(2)
+                finally:
+                    # Threads get their own DB connection; close it so a
+                    # long-lived worker does not accumulate Postgres sessions.
+                    from django.db import connection
+                    connection.close()
+
             monitor_thread = threading.Thread(target=monitor_progress)
             monitor_thread.daemon = True
             monitor_thread.start()
-            
-            try:
-                # Start download - always use JSON format
-                logger.debug("Starting download in apibot")
-                response = bot.start_download(["json"], pack_by_volume=False)
-                logger.debug(f"Download response: {response}")
 
-                if response["status"] != "success":
-                    job.update_status(Job.STATUS_FAILED, f"Download failed: {response.get('message', 'Unknown error')}")
-                    stop_monitoring.set()
-                    return
-                
-                logger.debug("Download initiated successfully")
-                
-                # Wait for download to complete (monitoring thread will detect completion)
-                monitor_thread.join(timeout=1800)  # 30 minute timeout
-                
-                if monitor_thread.is_alive():
-                    logger.warning("Download monitor thread timed out")
-                    stop_monitoring.set()
-                
-                # Check final status
-                status = bot.get_download_status()
-                logger.debug(f"Final download status: {status}")
-                
-                if not status.get("download_completed", False):
-                    job.update_status(Job.STATUS_FAILED, "Download did not complete within the timeout period")
-                    return
-                
-                # Get download results
-                results = bot.get_download_results()
-                logger.debug(f"Download results: {results}")
-                if results["status"] != "success":
-                    job.update_status(Job.STATUS_FAILED, f"Failed to get download results: {results.get('message', 'Unknown error')}")
-                    return
-                
-                # Update job with download results
-                output_path = results.get("output_path", "")
-                output_files = results.get("archived_outputs", [])
-                
-                job.update_download_results(
-                    output_path=output_path,
-                    output_files=output_files
+            try:
+                # Fetch novel info (title, chapters, volumes). This is slow for
+                # EPUB sources that must fetch every volume archive.
+                app.get_novel_info()
+
+                job.selected_novel = {
+                    "title": app.crawler.novel_title or "Unknown title",
+                    "volumes": len(app.crawler.volumes),
+                    "chapters": len(app.crawler.chapters),
+                    "url": app.crawler.novel_url,
+                }
+                job.save(update_fields=['selected_novel', 'updated_at'])
+
+                # Set custom output path. Use the crawler's canonical source name so
+                # mirror domains handled by the same crawler share one directory.
+                source_host = (
+                    getattr(app.crawler, "source_name", "")
+                    or job.selected_novel["url"].split("/")[2]
                 )
-                
-                # Auto-import the novel to the database
-                logger.debug(f"Attempting to import novel from {output_path}")
-                success, message = DownloaderService._import_novel_to_database(output_path, job)
-                
-                if success:
-                    job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
-                    # Add the import success message to the job
-                    job.import_message = message
-                    job.save(update_fields=['import_message'])
-                else:
-                    # Still mark the download as complete but include error about import
-                    job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
-                    job.import_message = f"Download completed but import failed: {message}"
-                    job.save(update_fields=['import_message'])
-                
-                logger.debug(f"Download process completed successfully for job {job_id}")
-                
+                custom_output_path = lncrawler_paths.get_novel_output_path(
+                    source=source_host,
+                    novel=job.selected_novel["title"]
+                )
+
+                # If the path exists and is compressed, decompress it
+                if os.path.exists(custom_output_path):
+                    potential_compressed_path = os.path.join(custom_output_path, "json.7z")
+                    if os.path.exists(potential_compressed_path):
+                        chapter_utils.extract_tar_7zip_folder(tar_file_path=Path(potential_compressed_path))
+
+                os.makedirs(custom_output_path, exist_ok=True)
+                app.output_path = custom_output_path
+
+                # Chapter list is known now; switch the monitor to chapters.
+                total_chapters = len(app.chapters)
+                phase["chapters"] = True
+                job.update_progress(0, total_chapters, "chapters")
+                logger.debug(f"Selected {total_chapters} chapters")
+
+                # Download all chapters (JSON format only)
+                app.start_download()
             finally:
-                # Ensure monitoring thread is stopped
-                if not stop_monitoring.is_set():
-                    stop_monitoring.set()
-                    monitor_thread.join(timeout=5.0)
-                
-                # Clean up
-                try:
-                    bot.destroy_app()
-                except Exception as e:
-                    logger.error(f"Error destroying bot: {str(e)}")
-                
+                stop_monitoring.set()
+                monitor_thread.join(timeout=5.0)
+
+            output_path = app.output_path
+
+            job.update_download_results(output_path=output_path, output_files=[])
+
+            # Auto-import the novel to the database
+            logger.debug(f"Attempting to import novel from {output_path}")
+            success, message = DownloaderService._import_novel_to_database(output_path, job)
+
+            # Respect a cancel request that arrived while downloading.
+            if Job.objects.filter(pk=job.id, status=Job.STATUS_FAILED).exists():
+                return
+
+            job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
+            if not success:
+                message = f"Download completed but import failed: {message}"
+            job.import_message = message
+            job.save(update_fields=['import_message'])
+
+            logger.debug(f"Download process completed successfully for job {job_id}")
+
         except Exception as e:
             logger.exception(f"Error in download process: {str(e)}")
             try:
-                # Setup Django again to ensure we can access the models
                 DownloaderService._setup_django()
                 from ..models import Job
                 job = Job.objects.get(id=job_id)
                 job.update_status(Job.STATUS_FAILED, f"Download process error: {str(e)}")
             except Exception:
                 pass
-    
+        finally:
+            if app is not None:
+                try:
+                    app.destroy()
+                except Exception:
+                    pass
+
     @classmethod
     def start_search(cls, query):
         """
-        Start a search for novels with the given query
-        Returns a job object that can be used to track progress
+        Queue a search for novels with the given query.
+        The dedicated crawler worker picks it up and runs it.
+        Returns a job object that can be used to track progress.
         """
-        # Create a new job
         from ..models import Job
         job = Job.objects.create(
             status=Job.STATUS_CREATED,
-            query=query
+            job_type=Job.JOB_TYPE_SEARCH,
+            query=query,
         )
-        
-        # Start search process
-        thread = threading.Thread(
-            target=cls._run_search_process,
-            args=(job.id, query)
-        )
-        thread.daemon = True
-        thread.start()
-        
         return job
-    
+
+    @classmethod
+    def claim_next_job(cls):
+        """
+        Atomically claim the oldest queued job for this worker process.
+        Returns (job_id, job_type, payload) or None when the queue is empty.
+        """
+        from ..models import Job
+
+        while True:
+            job = (
+                Job.objects.filter(status=Job.STATUS_CREATED)
+                .order_by('created_at')
+                .first()
+            )
+            if job is None:
+                return None
+
+            running_status = (
+                Job.STATUS_SEARCHING
+                if job.job_type == Job.JOB_TYPE_SEARCH
+                else Job.STATUS_DOWNLOADING
+            )
+            claimed = Job.objects.filter(
+                pk=job.pk, status=Job.STATUS_CREATED
+            ).update(status=running_status, updated_at=timezone.now())
+            if not claimed:
+                # Lost the race to another worker; try the next job.
+                continue
+
+            payload = (
+                job.target_url
+                if job.job_type == Job.JOB_TYPE_DOWNLOAD
+                else job.query
+            )
+            return str(job.id), job.job_type, payload
+
+    @classmethod
+    def run_job(cls, job_id, job_type, payload):
+        """Execute a claimed job synchronously."""
+        from ..models import Job
+
+        if job_type == Job.JOB_TYPE_DOWNLOAD:
+            cls._run_download_process(job_id, payload)
+        else:
+            cls._run_search_process(job_id, payload)
+
+    @classmethod
+    def requeue_stale_jobs(cls, minutes=10):
+        """
+        Reset jobs stuck in a running status (worker crashed / was restarted)
+        back to the queue so they get retried.
+        """
+        from ..models import Job
+
+        cutoff = timezone.now() - timedelta(minutes=minutes)
+        count = Job.objects.filter(
+            status__in=[Job.STATUS_SEARCHING, Job.STATUS_DOWNLOADING],
+            updated_at__lt=cutoff,
+        ).update(status=Job.STATUS_CREATED, updated_at=timezone.now())
+        if count:
+            logger.warning(f"Requeued {count} stale job(s) stuck in a running state")
+        return count
+
     @classmethod
     def get_search_status(cls, job_id):
         """Get the current status of the search"""
@@ -508,7 +487,7 @@ class DownloaderService:
                 'status': 'error',
                 'message': f'Job with ID {job_id} not found',
             }
-    
+
     @classmethod
     def get_search_results(cls, job_id):
         """Get the results of the search"""
@@ -516,29 +495,29 @@ class DownloaderService:
 
         try:
             job = Job.objects.get(id=job_id)
-            
+
             if job.status == Job.STATUS_FAILED:
                 return {
                     'status': 'error',
                     'message': job.error_message or 'Search failed',
                 }
-            
+
             if job.status != Job.STATUS_SEARCH_COMPLETED:
                 return {
                     'status': 'error',
                     'message': 'Search not completed',
                     'current_status': job.get_status_display(),
                 }
-            
+
             # Return the search results
             return job.search_results
-            
+
         except Job.DoesNotExist:
             return {
                 'status': 'error',
                 'message': f'Job with ID {job_id} not found',
             }
-    
+
     @classmethod
     def start_direct_download(cls, novel_url, job=None):
         if not novel_url:
@@ -546,26 +525,28 @@ class DownloaderService:
                 'status': 'error',
                 'message': 'Could not determine novel URL',
             }
-        
+
+        from ..models import Job
         if not job:
-            from ..models import Job
             job = Job.objects.create(
-                status=Job.STATUS_SEARCH_COMPLETED,
-                query="Direct Download"
+                status=Job.STATUS_CREATED,
+                job_type=Job.JOB_TYPE_DOWNLOAD,
+                query="Direct Download",
             )
 
-        # Start download process with the direct URL
-        thread = threading.Thread(
-            target=cls._run_download_process,
-            args=(job.id, novel_url)
-        )
-        thread.daemon = True
-        logger.debug(f"Using novel URL: {novel_url}")
-        thread.start()
-        
+        # Queue the download; the dedicated crawler worker runs it.
+        job.status = Job.STATUS_CREATED
+        job.job_type = Job.JOB_TYPE_DOWNLOAD
+        job.target_url = novel_url
+        job.error_message = None
+        job.save(update_fields=[
+            'status', 'job_type', 'target_url', 'error_message', 'updated_at',
+        ])
+        logger.debug(f"Queued novel URL: {novel_url}")
+
         return {
             'status': 'success',
-            'message': 'Download started',
+            'message': 'Download queued',
             'job_id': str(job.id)
         }
 
@@ -573,26 +554,26 @@ class DownloaderService:
     def start_download(cls, job_id, novel_index=0, source_index=0):
         """
         Start downloading a novel
-        
+
         Args:
             job_id: The ID of the job with search results
             novel_index: Index of the novel from search results to download
             source_index: Index of the source for the selected novel
-            
+
         Returns:
             Updated job object
         """
-        from ..models import Job  
+        from ..models import Job
         try:
             job = Job.objects.get(id=job_id)
-            
+
             if job.status != Job.STATUS_SEARCH_COMPLETED:
                 return {
                     'status': 'error',
                     'message': 'Cannot start download: search not completed',
                     'current_status': job.get_status_display(),
                 }
-            
+
             # if no direct url passed, get the selected novel URL
             novel_url = ""
             try:
@@ -602,21 +583,20 @@ class DownloaderService:
                     'status': 'error',
                     'message': 'Invalid novel or source index',
                 }
-            
+
             if not novel_url:
                 return {
                     'status': 'error',
                     'message': 'Could not determine novel URL',
                 }
-            print(f"Novel URL: {novel_url}")
             return cls.start_direct_download(novel_url, job)
-            
+
         except Job.DoesNotExist:
             return {
                 'status': 'error',
                 'message': f'Job with ID {job_id} not found',
             }
-    
+
     @classmethod
     def get_download_status(cls, job_id):
         """Get the current status of the download"""
@@ -624,13 +604,13 @@ class DownloaderService:
 
         try:
             job = Job.objects.get(id=job_id)
-            
+
             if job.status == Job.STATUS_FAILED:
                 return {
                     'status': 'error',
                     'message': job.error_message or 'Download failed',
                 }
-            
+
             return {
                 'status': 'success',
                 'job_status': job.status,
@@ -638,16 +618,17 @@ class DownloaderService:
                 'download_completed': job.status == Job.STATUS_DOWNLOAD_COMPLETED,
                 'progress': job.progress,
                 'total_chapters': job.total_items,
+                'progress_unit': job.progress_unit,
                 'progress_percentage': job.get_progress_percentage(),
                 'selected_novel': job.selected_novel,
             }
-            
+
         except Job.DoesNotExist:
             return {
                 'status': 'error',
                 'message': f'Job with ID {job_id} not found',
             }
-    
+
     @classmethod
     def get_download_results(cls, job_id):
         """Get the results of the download"""
@@ -655,20 +636,20 @@ class DownloaderService:
 
         try:
             job = Job.objects.get(id=job_id)
-            
+
             if job.status == Job.STATUS_FAILED:
                 return {
                     'status': 'error',
                     'message': job.error_message or 'Download failed',
                 }
-            
+
             if job.status != Job.STATUS_DOWNLOAD_COMPLETED:
                 return {
                     'status': 'error',
                     'message': 'Download not completed',
                     'current_status': job.get_status_display(),
                 }
-            
+
             result = {
                 'status': 'success',
                 'output_path': job.output_path,
@@ -676,42 +657,42 @@ class DownloaderService:
                 'selected_novel': job.selected_novel,
                 'output_slug': job.output_slug
             }
-            
+
             # Include import message if available
             if hasattr(job, 'import_message') and job.import_message:
                 result['import_message'] = job.import_message
-                
+
             return result
-            
+
         except Job.DoesNotExist:
             return {
                 'status': 'error',
                 'message': f'Job with ID {job_id} not found',
             }
-    
+
     @classmethod
     def cancel_job(cls, job_id):
-        """Cancel a running job"""
+        """Cancel a job (queued or running)."""
         from ..models import Job
 
         try:
             job = Job.objects.get(id=job_id)
-            
-            # Try to terminate the process if it exists
-            if job.job_pid:
-                try:
-                    os.kill(job.job_pid, 9)  # SIGKILL
-                except OSError:
-                    # Process might not exist anymore
-                    pass
-            
+
+            if job.status == Job.STATUS_DOWNLOAD_COMPLETED:
+                return {
+                    'status': 'error',
+                    'message': 'Job already completed',
+                }
+
+            # Mark it failed; a running worker checks this flag before
+            # publishing results, and a queued job will never be claimed.
             job.update_status(Job.STATUS_FAILED, "Job cancelled by user")
-            
+
             return {
                 'status': 'success',
                 'message': 'Job cancelled',
             }
-            
+
         except Job.DoesNotExist:
             return {
                 'status': 'error',

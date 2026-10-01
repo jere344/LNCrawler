@@ -18,6 +18,11 @@ WORKDIR /app/lncrawler-api
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install the Chromium browser used by the crawler's Playwright backend.
+# Native (curl_cffi) crawling works without it; the browser is the antibot fallback.
+RUN playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy the startup script
 COPY start.sh /app/lncrawler-api/
 RUN chmod +x /app/lncrawler-api/start.sh

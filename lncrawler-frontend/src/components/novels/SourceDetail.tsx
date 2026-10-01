@@ -37,7 +37,7 @@ import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
-import { getChapterNameWithNumber, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
+import { getChapterLabel, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import ActionButton from '../common/ActionButton';
@@ -632,7 +632,7 @@ const SourceDetail = () => {
                           Chapters
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {source.latest_available_chapter?.chapter_id || 0}
+                          {source.chapters_count || 0}
                         </Typography>
                       </Box>
                     </Box>
@@ -737,7 +737,7 @@ const SourceDetail = () => {
                   {continue_chapter && (
                     <ActionButton
                       title="Continue Reading"
-                      subtitle={getChapterNameWithNumber(
+                      subtitle={getChapterLabel(
                         continue_chapter.title,
                         continue_chapter.chapter_id
                       )}
@@ -745,7 +745,7 @@ const SourceDetail = () => {
                       color="warning"
                       // onClick={handleContinueReading}
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`}
-                      tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
+                      tooltip={`Continue from ${getChapterLabel(continue_chapter.title, continue_chapter.chapter_id)}`}
                       sx={{ mb: 1 }}
                     />
                   )}
@@ -763,7 +763,7 @@ const SourceDetail = () => {
                       backgroundIcon={<ListAltIcon />}
                       color="info"
                       to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
-                      disabled={source?.latest_available_chapter?.chapter_id === 0}
+                      disabled={!source?.latest_available_chapter}
                       tooltip="Browse all chapters"
                     />
 
@@ -778,17 +778,17 @@ const SourceDetail = () => {
 
                     <ActionButton
                       title="Start Reading"
-                      subtitle="From Chapter 1"
+                      subtitle="From the beginning"
                       startIcon={<PlayArrowIcon />}
                       color="success"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/1`}
-                      disabled={source?.latest_available_chapter?.chapter_id === 0}
-                      tooltip="Start reading from chapter 1"
+                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.first_available_chapter?.chapter_id}`}
+                      disabled={!source?.first_available_chapter}
+                      tooltip="Start reading from the first chapter"
                     />
 
                     <ActionButton
                       title="Latest Chapter"
-                      subtitle={`Chapter ${source?.latest_available_chapter?.chapter_id || 0}`}
+                      subtitle={getChapterLabel(source?.latest_available_chapter?.title, source?.latest_available_chapter?.chapter_id)}
                       startIcon={<SkipNextIcon />}
                       color="primary"
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}

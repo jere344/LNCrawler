@@ -7,21 +7,28 @@ COMPRESSION_LEVEL = 3
 COMPRESSION_ALGORITHM = "LZMA2"
 
 
-def compress_folder_to_tar_7zip(source_absolute_path: Path, json_folder: str, tarfile_path: Path):
+def compress_folder_to_tar_7zip(
+    source_absolute_path: Path,
+    json_folder: str,
+    tarfile_path: Path,
+    nice_level: int = 19,
+):
     try:
-        # result = subprocess.run(["7z", "a", tarfile_path, json_folder], cwd=source_folder)
-        result = subprocess.run(
-            [
-                "7z",
-                "a",
-                tarfile_path,
-                json_folder,
-                f"-mx={COMPRESSION_LEVEL}",
-                f"-m0={COMPRESSION_ALGORITHM}",
-                "-bso0",
-            ],
-            cwd=source_absolute_path,
-        )
+        command = [
+            "7z",
+            "a",
+            tarfile_path,
+            json_folder,
+            f"-mx={COMPRESSION_LEVEL}",
+            f"-m0={COMPRESSION_ALGORITHM}",
+            "-bso0",
+            # Single-threaded: 7z otherwise grabs every core and hogs the box.
+            "-mmt=1",
+        ]
+        # Run at low CPU priority so compression never starves web/crawler work.
+        if nice_level and shutil.which("nice"):
+            command = ["nice", "-n", str(nice_level)] + command
+        result = subprocess.run(command, cwd=source_absolute_path)
         if result.returncode == 0:
             print(f"Compression successful. Deleting {source_absolute_path}/{json_folder}")
             shutil.rmtree(f"{source_absolute_path}/{json_folder}")

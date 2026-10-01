@@ -27,6 +27,7 @@ import BreadcrumbNav from '../common/BreadcrumbNav';
 import LanguageIcon from '@mui/icons-material/Language';
 import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
+import { getChapterLabel } from '@utils/Misc';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
@@ -344,7 +345,7 @@ const ImageGallery = () => {
                     >
                       <img
                         src={image.image_url}
-                        alt={`Chapter ${image.chapter_id}: ${image.image_name}`}
+                        alt={`${getChapterLabel(image.chapter_title, image.chapter_id)}: ${image.image_name}`}
                         loading="lazy"
                         style={{ borderRadius: 8 }}
                       />
@@ -361,7 +362,7 @@ const ImageGallery = () => {
                         }}
                       >
                         <Typography variant="caption">
-                          Chapter {image.chapter_id}
+                          {getChapterLabel(image.chapter_title, image.chapter_id)}
                         </Typography>
                       </Box>
                     </ImageListItem>
@@ -430,7 +431,7 @@ const ImageGallery = () => {
         {selectedImage && (
           <Box sx={{ textAlign: 'center', p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="subtitle1" sx={{ color: 'white', mb: 2 }}>
-              Chapter {selectedImage.chapter_id}: {selectedImage.chapter_title}
+              {getChapterLabel(selectedImage.chapter_title, selectedImage.chapter_id)}
             </Typography>
 
             <Box sx={{ 
