@@ -27,6 +27,7 @@ import { Review, ReviewsResponse } from '@services/review.service';
 import ReviewReactions from '../common/reviews/ReviewReactions';
 import ReviewForm from '../common/reviews/ReviewForm';
 import { useAuth } from '@context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import ReadOnlyMDXEditor from '../common/reviews/ReadOnlyMDXEditor';
 
 interface ReviewsProps {
@@ -41,6 +42,7 @@ const Reviews: React.FC<ReviewsProps> = ({
   showAddReview = true 
 }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [reviews, setReviews] = useState<Review[]>(initialReviews || []);
   const [loading, setLoading] = useState(!initialReviews);
   const [error, setError] = useState<string | null>(null);
@@ -146,14 +148,18 @@ const Reviews: React.FC<ReviewsProps> = ({
       )}
 
       {/* Add Review Section */}
-      {showAddReview && user && !showReviewForm && (
+      {showAddReview && !showReviewForm && (user || reviews.length > 0) && (
         <Box sx={{ mb: 3 }}>
           <Button
             variant="contained"
-            onClick={() => setShowReviewForm(true)}
+            onClick={() =>
+              user
+                ? setShowReviewForm(true)
+                : navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))
+            }
             sx={{ borderRadius: 2 }}
           >
-            Write a Review
+            {user ? 'Write a Review' : 'Login to leave a review'}
           </Button>
         </Box>
       )}
@@ -184,6 +190,15 @@ const Reviews: React.FC<ReviewsProps> = ({
           <Typography variant="body1" color="text.secondary">
             No reviews yet. Be the first to review this novel!
           </Typography>
+          {showAddReview && !user && (
+            <Button
+              variant="contained"
+              onClick={() => navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))}
+              sx={{ borderRadius: 2, mt: 2 }}
+            >
+              Login to leave a review
+            </Button>
+          )}
         </Paper>
       ) : (
         <Box>

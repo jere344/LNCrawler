@@ -52,6 +52,17 @@ class NovelOkuCrawler(Crawler):
         if isinstance(desc, Tag):
             self.novel_synopsis = desc.get("content") or ""
 
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select("a[href*='/genres/']")
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+
+        alt = soup.select_one(".nk-series-detail-alt-title")
+        if isinstance(alt, Tag):
+            self.alternative_titles = [alt.get_text(strip=True)]
+
         seen = set()
         entries = []
         for row in soup.select("a.nk-chapter-row[href]"):

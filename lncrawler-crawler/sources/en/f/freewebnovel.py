@@ -81,7 +81,11 @@ class FreeWebNovelCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
             return self.absolute_url(tag["src"])
 
     def parse_authors(self, soup: BeautifulSoup):
-        for a in soup.select(".m-imgtxt a[href*='/authors/']"):
+        for a in soup.select(".m-imgtxt .txt a[href*='/author/']"):
+            yield a.text.strip()
+
+    def parse_genres(self, soup: BeautifulSoup):
+        for a in soup.select(".m-imgtxt .txt a[href*='/genre/']"):
             yield a.text.strip()
 
     def select_chapter_tags(self, soup: BeautifulSoup):

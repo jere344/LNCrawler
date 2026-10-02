@@ -71,6 +71,13 @@ class IxdzsCrawler(Crawler):
         if possible_synopsis:
             self.novel_synopsis = possible_synopsis.get_text()
 
+        tags = [a.get_text(strip=True) for a in soup.select("div.tags a")]
+        nsort = metadata.select_one("a.nsort")
+        if nsort:
+            tags.append(nsort.get_text(strip=True))
+        if tags:
+            self.novel_tags = [t for t in tags if t]
+
         logger.info("Getting chapters...")
 
         last_chap_a = soup.select_one("ul.u-chapter > li:nth-child(1) > a")

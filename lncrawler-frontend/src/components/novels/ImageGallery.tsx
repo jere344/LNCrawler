@@ -252,7 +252,6 @@ const ImageGallery = () => {
           items={[
             {
               label: gallery.novel_title,
-              link: `/novels/${novelSlug}`,
               icon: <BookIcon fontSize="inherit" />
             },
             {

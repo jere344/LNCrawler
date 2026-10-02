@@ -1,0 +1,107 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block extrahead %}{{ block.super }}{{ form.media }}{{ choose_form.media }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_novel_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {% trans 'Split novel' %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if choose_form %}
+  <h1>{% trans 'Split novel' %}</h1>
+  <p>{% trans "Pick the novel whose sources you want to separate." %}</p>
+  <form method="post">{% csrf_token %}
+    {{ choose_form.as_p }}
+    <div class="submit-row">
+      <input type="submit" name="choose" value="{% trans 'Choose' %}">
+    </div>
+  </form>
+{% else %}
+  <h1>Split &ldquo;{{ novel.title }}&rdquo;</h1>
+  <p>
+    Move sources out into their own novel. A moved source takes its chapter files
+    with it, so future updates stay with the new novel instead of re-joining the
+    original.
+  </p>
+
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="novel" value="{{ novel.pk }}">
+    {{ form.as_p }}
+
+    {% if preview %}
+      <h2>{% trans 'Preview' %}</h2>
+      {% if plan.creates_novel %}
+        <p>
+          New novel:
+          <strong>{{ plan.new_title }}</strong> ({{ plan.new_slug }})
+        </p>
+      {% else %}
+        <p>
+          Target novel:
+          <strong>{{ plan.target_novel.title }}</strong> ({{ plan.target_novel.slug }})
+        </p>
+      {% endif %}
+      {% if plan.rename_title %}
+        <p>{% blocktrans with title=plan.rename_title %}Original novel renamed to <strong>{{ title }}</strong>{% endblocktrans %}</p>
+      {% endif %}
+
+      <h3>{% trans 'Sources' %}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>{% trans 'External source' %}</th>
+            <th>{% trans 'Title' %}</th>
+            <th>{% trans 'Action' %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for source in plan.moves %}
+            <tr>
+              <td>{{ source.external_source.source_name }}</td>
+              <td>{{ source.title }}</td>
+              <td>{% trans 'move' %}</td>
+            </tr>
+          {% endfor %}
+          {% for source, duplicate, winner in plan.dedupes %}
+            <tr>
+              <td>{{ source.external_source.source_name }}</td>
+              <td>{{ source.title }}</td>
+              <td>{% blocktrans with kept=winner.title %}dedupe (keep {{ kept }}){% endblocktrans %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p>{% blocktrans with count=plan.reading_history %}Reading-history rows affected: {{ count }}{% endblocktrans %}</p>
+
+      {% if plan.removed_aliases %}
+        <h3>{% trans 'Redirects removed' %}</h3>
+        <ul>
+          {% for slug in plan.removed_aliases %}<li>{{ slug }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if plan.warnings %}
+        <ul class="errorlist">
+          {% for warning in plan.warnings %}<li>{{ warning }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+
+      <div class="submit-row">
+        <input type="submit" name="confirm" value="{% trans 'Confirm' %}">
+        <a href="{% url 'admin:lncrawler_api_novel_split' %}?novel={{ novel.pk }}" class="button cancel-link">{% trans 'Cancel' %}</a>
+      </div>
+    {% else %}
+      <div class="submit-row">
+        <input type="submit" value="{% trans 'Preview' %}">
+      </div>
+    {% endif %}
+  </form>
+{% endif %}
+{% endblock %}

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,25 @@ logger = logging.getLogger(__name__)
 class TapasCrawler(Crawler):
     base_url = "https://tapas.io/"
     language = "en"
+
+    def search_novel(self, query: str):
+        soup = self.get_soup(
+            "%ssearch?q=%s&t=NOVELS" % (self.home_url, quote_plus(query))
+        )
+        results = []
+        for item in soup.select("li.search-item-wrap"):
+            a = item.select_one(".title a[href^='/series/']") or item.select_one(
+                "a[href^='/series/']"
+            )
+            if not a:
+                continue
+            results.append(
+                SearchResult(
+                    title=a.get_text(" ", strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results
 
     def read_novel_info(self):
         path = urlparse(self.novel_url).path.rstrip("/")

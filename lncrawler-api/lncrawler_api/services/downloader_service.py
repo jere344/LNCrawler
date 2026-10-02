@@ -112,6 +112,9 @@ class DownloaderService:
         Sources with an expensive table of contents (EPUB volumes) use this to
         rebuild their chapter list without re-fetching archives that have
         already been downloaded; only new volumes are fetched.
+
+        Returns the matched ``NovelFromSource`` (or ``None``) so the caller can
+        keep writing to the directory that source already lives in.
         """
         from ..models import NovelFromSource
         try:
@@ -122,7 +125,7 @@ class DownloaderService:
                 ).first()
             )
             if novel_source is None:
-                return
+                return None
             app.crawler.existing_chapters = [
                 {"id": ch.chapter_id, "url": ch.url, "title": ch.title}
                 for ch in novel_source.chapters.order_by("chapter_id")
@@ -140,8 +143,10 @@ class DownloaderService:
                 len(app.crawler.existing_chapters),
                 novel_url,
             )
+            return novel_source
         except Exception as e:
             logger.debug("Could not load previous chapters for %s: %s", novel_url, e)
+            return None
 
     @staticmethod
     def _run_search_process(job_id, query):
@@ -282,7 +287,7 @@ class DownloaderService:
             # Give the crawler the previous chapter list/metadata (if any) so
             # sources with expensive tables of contents (EPUB volumes) can
             # reuse them instead of re-fetching every archive on update.
-            DownloaderService._inject_existing_chapters(app, novel_url)
+            existing_source = DownloaderService._inject_existing_chapters(app, novel_url)
 
             # Monitor both phases: the crawler's TOC/volume phase (before
             # get_novel_info returns, when chapters are not known yet) and the
@@ -319,16 +324,27 @@ class DownloaderService:
                 }
                 job.save(update_fields=['selected_novel', 'updated_at'])
 
-                # Set custom output path. Use the crawler's canonical source name so
-                # mirror domains handled by the same crawler share one directory.
-                source_host = (
-                    getattr(app.crawler, "source_name", "")
-                    or job.selected_novel["url"].split("/")[2]
+                # Set custom output path. An existing source keeps writing to
+                # the folder it already lives in (important after a merge, so
+                # an update does not re-split it into the old name). Otherwise
+                # derive it from the crawler's canonical source name so mirror
+                # domains handled by the same crawler share one directory.
+                existing_path = (
+                    existing_source.absolute_source_path
+                    if existing_source is not None
+                    else None
                 )
-                custom_output_path = lncrawler_paths.get_novel_output_path(
-                    source=source_host,
-                    novel=job.selected_novel["title"]
-                )
+                if existing_path and os.path.isdir(existing_path):
+                    custom_output_path = existing_path
+                else:
+                    source_host = (
+                        getattr(app.crawler, "source_name", "")
+                        or job.selected_novel["url"].split("/")[2]
+                    )
+                    custom_output_path = lncrawler_paths.get_novel_output_path(
+                        source=source_host,
+                        novel=job.selected_novel["title"]
+                    )
 
                 # If the path exists and is compressed, decompress it
                 if os.path.exists(custom_output_path):
@@ -407,6 +423,9 @@ class DownloaderService:
         """
         Atomically claim the oldest queued job for this worker process.
         Returns (job_id, job_type, payload) or None when the queue is empty.
+
+        Safe to run from several worker replicas at once: the claim is an
+        atomic conditional UPDATE, so each job goes to exactly one worker.
         """
         from ..models import Job
 

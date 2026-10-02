@@ -39,7 +39,9 @@ class LiteroticaCrawler(Crawler):
 
             author = soup.select_one('a[href*="/authors/"]')
             if author:
-                self.novel_author = author.get_text(" ", strip=True)
+                self.novel_author = (
+                    author.get("title") or author.get_text(" ", strip=True)
+                ).strip()
 
             for item in soup.select('a[href*="/s/"]'):
                 title = item.get_text(" ", strip=True)
@@ -54,13 +56,21 @@ class LiteroticaCrawler(Crawler):
 
             author = soup.select_one('a[href*="/authors/"]')
             if author:
-                self.novel_author = author.get_text(" ", strip=True)
+                self.novel_author = (
+                    author.get("title") or author.get_text(" ", strip=True)
+                ).strip()
 
             synopsis = soup.select_one('div[class*="_widget__info_"]')
             if synopsis:
                 self.novel_synopsis = synopsis.get_text(" ", strip=True)
 
             self.chapters.append(dict(id=1, title=self.novel_title, url=self.novel_url))
+
+        self.novel_tags = [
+            a.get_text(" ", strip=True)
+            for a in soup.select('[class*="_tag_link_"]')
+            if a.get_text(" ", strip=True)
+        ]
 
     def download_chapter_body(self, chapter: Chapter) -> str:
         soup = self.get_soup(chapter["url"], timeout=50, verify=False)

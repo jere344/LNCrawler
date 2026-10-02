@@ -35,6 +35,17 @@ class Virlyce(Crawler):
         self.novel_author = "Virlyce"
         logger.info("Novel author: %s", self.novel_author)
 
+        for p in soup.select("div.entry-content p"):
+            text = p.get_text(" ", strip=True)
+            if text.startswith("Categories:"):
+                self.novel_tags = [
+                    tag.strip()
+                    for tag in text.split(":", 1)[1].split(",")
+                    if tag.strip()
+                ]
+                break
+        logger.info("Novel tags: %s", self.novel_tags)
+
         # Extract volume-wise chapter entries
         # Stops external links being selected as chapters
         chapters = soup.select('div.entry-content p [href*="virlyce.com/"]')

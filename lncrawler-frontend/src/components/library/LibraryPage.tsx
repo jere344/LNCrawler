@@ -18,6 +18,7 @@ import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import NovelRecommendation from '@components/common/NovelRecommendation';
+import { getNovelSourcePath } from '@utils/Misc';
 
 const LibraryPage: React.FC = () => {
   const [bookmarkedNovels, setBookmarkedNovels] = useState<Novel[]>([]);
@@ -141,7 +142,7 @@ const LibraryPage: React.FC = () => {
                     <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
                       <BaseNovelCard 
                         novel={novel} 
-                        to={`/novels/${novel.slug}`}
+                        to={getNovelSourcePath(novel)}
                       />
                     </Grid>
                   ))}

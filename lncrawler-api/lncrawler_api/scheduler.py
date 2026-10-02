@@ -157,6 +157,20 @@ def compress_low_traffic_novels():
         logger.error(f"Error in compression task: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
+# Roll daily view buckets older than the retention window into weekly buckets.
+# Daily granularity only matters for the rolling 7-day display; older history
+# is kept as one row per ISO week so the table doesn't grow forever.
+@scheduler.register_task(interval=604800, name="consolidate_novel_views")  # 604800 seconds = 7 days
+def consolidate_novel_views():
+    """Run the consolidate_novel_views command to roll old daily views into weekly buckets."""
+    logger.info("Starting consolidation of old daily view buckets...")
+    try:
+        call_command('consolidate_novel_views')
+        logger.info("Daily view bucket consolidation completed successfully")
+    except Exception as e:
+        logger.error(f"Error consolidating daily view buckets: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
 # Progressively prune orphan novels, empty sources and dead-source duplicates.
 # Bounded --limit per run so a 40k-novel first pass spreads over many runs.
 @scheduler.register_task(interval=600, name="prune_library")

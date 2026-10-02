@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 import logging
+from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter
+from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +11,24 @@ logger = logging.getLogger(__name__)
 class HoneyfeedCrawler(Crawler):
     base_url = "https://www.honeyfeed.fm/"
     language = "multi"
+
+    def search_novel(self, query: str):
+        soup = self.get_soup(
+            "%ssearch/novel_title?k=%s" % (self.home_url, quote_plus(query))
+        )
+        results = []
+        for item in soup.select(".novel-unit-type-h"):
+            a = item.select_one('a[href^="/novels/"]')
+            if not a:
+                continue
+            title = item.select_one(".novel-name")
+            results.append(
+                SearchResult(
+                    title=(title or a).get_text(" ", strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results
 
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)

@@ -16,7 +16,7 @@ import { novelService } from '../../services/api';
 import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
 import { debounce } from 'lodash';
 import { Novel } from '@models/novels_types';
-import { languageCodeToFlag, availableLanguages, languageCodeToName } from '@utils/Misc';
+import { languageCodeToFlag, availableLanguages, languageCodeToName, getNovelSourcePath } from '@utils/Misc';
 import { useTheme } from '@theme/ThemeContext';
 
 
@@ -809,7 +809,7 @@ const SearchPage: React.FC = () => {
             <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
               <BaseNovelCard 
                 novel={novel} 
-                to={`/novels/${novel.slug}`}
+                to={getNovelSourcePath(novel)}
               />
             </Grid>
           ))}

@@ -67,6 +67,13 @@ class NovelBinCrawler(Crawler):
         self.novel_synopsis = book.get("description", "")
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        self.genres = book.get("genre") or [
+            a.get_text(strip=True)
+            for a in soup.select(".almanac-facet-link")
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+
         slug = self.novel_url.rstrip("/").rsplit("/", 1)[-1]
         data = self.get_json(
             f"{self.home_url.rstrip('/')}/ajax/chapter-list?slug={quote(slug)}"

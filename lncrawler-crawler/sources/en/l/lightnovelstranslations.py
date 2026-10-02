@@ -59,6 +59,27 @@ class LightNovelsTranslationsCrawler(Crawler):
             self.novel_title = soup.title.get_text(strip=True).split(" | ")[0].strip()
         logger.info("Novel title: %s", self.novel_title)
 
+        self.novel_tags = [
+            span.get_text(" ", strip=True)
+            for span in soup.select(".novel_tags_item span")
+            if span.get_text(" ", strip=True)
+        ]
+        logger.info("Novel tags: %s", self.novel_tags)
+
+        for li in soup.select(".novel_detail_info li"):
+            label = li.select_one("span")
+            if label and label.get_text(strip=True).startswith("Author"):
+                self.novel_author = li.get_text(" ", strip=True).split(":", 1)[-1].strip()
+                break
+        logger.info("Novel author: %s", self.novel_author)
+
+        cover = soup.select_one(".novel-image img")
+        if cover:
+            self.novel_cover = self.absolute_url(
+                cover.get("data-src") or cover.get("src")
+            )
+        logger.info("Novel cover: %s", self.novel_cover)
+
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
         contents = (

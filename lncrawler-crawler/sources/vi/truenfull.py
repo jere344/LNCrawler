@@ -67,6 +67,13 @@ class TruenFull(Crawler):
         self.novel_author = ", ".join([x.text for x in authors if isinstance(x, Tag)])
         logger.info("Novel author: %s", self.novel_author)
 
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select('.info a[itemprop="genre"]')
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+
         synopsis_tag = soup.select_one(".desc-text") or soup.select_one("div.desc")
         if synopsis_tag:
             self.novel_synopsis = synopsis_tag.get_text("\n", strip=True)

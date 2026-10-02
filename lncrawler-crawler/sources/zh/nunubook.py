@@ -62,6 +62,14 @@ class NunuBookCrawler(Crawler):
         if isinstance(desc, Tag):
             self.novel_synopsis = desc.get_text("\n", strip=True)
 
+        categories = [
+            a.get_text(strip=True)
+            for a in soup.select(".detail-book-classify-etc a")
+            if a.get_text(strip=True)
+        ]
+        if categories:
+            self.novel_tags = categories
+
         book_id_tag = soup.select_one("[data-bookid]")
         book_id = book_id_tag.get("data-bookid") if isinstance(book_id_tag, Tag) else None
         if not book_id:

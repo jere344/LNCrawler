@@ -59,6 +59,29 @@ class ExiledRebelsCrawler(Crawler):
 
         contents = soup.select_one(".entry-content")
         seen = set()
+        for p in contents.select("p"):
+            text = p.get_text(" ", strip=True)
+            if re.match(r"^by\s", text, re.I):
+                if not self.novel_author:
+                    self.novel_author = re.sub(r"^by\s+", "", text, flags=re.I).strip()
+                continue
+            if re.match(r"^Genre\s*:", text, re.I):
+                self.novel_tags = [
+                    tag.strip()
+                    for tag in text.split(":", 1)[1].split(",")
+                    if tag.strip()
+                ]
+                continue
+            if re.match(r"^SUMMARY\s*:", text, re.I):
+                summary = []
+                for sib in p.find_next_siblings():
+                    body = sib.get_text(" ", strip=True)
+                    if not body:
+                        break
+                    summary.append(body)
+                self.novel_synopsis = "\n".join(summary)
+                break
+
         for a in contents.select("a[href]"):
             href = a["href"]
             text = a.get_text(strip=True)

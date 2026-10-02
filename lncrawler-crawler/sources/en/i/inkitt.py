@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-import json
 import logging
+import re
 from typing import List
 from urllib.parse import quote
 
@@ -32,18 +32,29 @@ class InkittCrawler(Crawler):
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
-        id_tag = soup.select_one("#reading-lists-block-container")
+        match = re.search(r"storyId\s*=\s*(\d+)", str(soup))
 
-        if not isinstance(id_tag, Tag):
+        if not match:
             raise LNException("Novel id not found")
 
-        self.novel_id = json.loads(id_tag["props"])["storyId"]
+        self.novel_id = int(match.group(1))
 
         book_data = self.get_json(f"{self.home_url}api/stories/{self.novel_id}")
 
         self.novel_title = book_data["title"]
         self.novel_cover = book_data["vertical_cover"]["url"]
         self.novel_author = book_data["user"]["name"]
+
+        genres = [
+            g.get("name")
+            for g in (book_data.get("story_genres") or [])
+            if isinstance(g, dict)
+        ]
+        for key in ("category_one", "category_two"):
+            category = book_data.get(key)
+            if category:
+                genres.append(str(category).replace("_", " ").title())
+        self.novel_tags = [g for g in genres if g]
 
         description_tag = soup.select_one(
             'meta[property="og:description"], meta[name="description"]'

@@ -55,9 +55,19 @@ class FanMTLCrawler(ChapterOnlyBrowserTemplate):
         if possible_author:
             yield possible_author.text.strip()
 
+    def parse_genres(self, soup: BeautifulSoup) -> Generator[str, None, None]:
+        alt = soup.select_one(".novel-info h2.alternative-title")
+        if alt:
+            self.alternative_titles = [alt.get_text(strip=True)]
+        for a in soup.select(".novel-info .categories ul li a"):
+            yield a.get_text(strip=True)
+
     def select_chapter_tags(self, soup: BeautifulSoup) -> Generator[Tag, None, None]:
-        last_page = soup.select('.pagination a[data-ajax-update="#chpagedlist"]')[-1]
-        last_page_url = self.absolute_url(last_page["href"])
+        pages = soup.select('.pagination a[data-ajax-update="#chpagedlist"]')
+        if not pages:
+            yield from soup.select("ul.chapter-list li a")
+            return
+        last_page_url = self.absolute_url(pages[-1]["href"])
         common_page_url = last_page_url.split("?")[0]
         params = parse_qs(urlparse(last_page_url).query)
         page_count = int(params["page"][0]) + 1

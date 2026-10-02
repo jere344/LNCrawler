@@ -63,6 +63,18 @@ class BooknetCrawler(Crawler):
         if possible_synopsis:
             self.novel_synopsis = self.cleaner.extract_contents(possible_synopsis)
 
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select(".bn_book__header-genre")
+            if a.get_text(strip=True)
+        ]
+        self.tags = [
+            a.get_text(strip=True)
+            for a in soup.select(".bn_book__tags a")
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel tags: %s", self.genres + self.tags)
+
         for item in soup.select(".bn_book__chapters-item"):
             link = item.select_one("a.bn_book__chapters-item-link[href]")
             if not link:

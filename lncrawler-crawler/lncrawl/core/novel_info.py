@@ -83,11 +83,42 @@ def __format_chapters(crawler: Crawler, vol_id_map: Dict[int, int]) -> None:
         item.title = re.sub(r"\s+", " ", str(item.title or f"#{item.id}")).strip()
 
 
+def __split_values(value, separators: str) -> list:
+    """Normalize a str-or-list field into a de-duplicated list of strings."""
+    if not value:
+        return []
+    parts = value if not isinstance(value, str) else re.split(separators, value)
+    result = []
+    for item in parts:
+        text = str(item).strip()
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
+def __format_tags(crawler: Crawler) -> None:
+    """Expose genres as tags: merge novel_tags + genres + tags into one list."""
+    merged = []
+    for value in (
+        getattr(crawler, "novel_tags", None),
+        getattr(crawler, "genres", None),
+        getattr(crawler, "tags", None),
+    ):
+        for tag in __split_values(value, r"[,;/|\n]+"):
+            if tag not in merged:
+                merged.append(tag)
+    crawler.novel_tags = merged
+
+
 def format_novel(crawler: Crawler) -> None:
     crawler.novel_title = __format_title(crawler.novel_title)
     crawler.novel_author = __format_title(crawler.novel_author)
     if not crawler.novel_synopsis:
         crawler.novel_synopsis = __synopsis_fallback(crawler)
+    __format_tags(crawler)
+    crawler.alternative_titles = __split_values(
+        getattr(crawler, "alternative_titles", None), r"[\n;]+"
+    )
     vol_id_map: Dict[int, int] = {}
     __format_volume(crawler, vol_id_map)
     __format_chapters(crawler, vol_id_map)
@@ -110,6 +141,7 @@ def save_metadata(app, completed: bool = False) -> None:
             synopsis=crawler.novel_synopsis,
             language=crawler.language,
             novel_tags=crawler.novel_tags,
+            alternative_titles=getattr(crawler, "alternative_titles", None) or [],
             volumes=crawler.volumes,
             chapters=[Chapter.without_body(chap) for chap in crawler.chapters],
             is_rtl=crawler.is_rtl,

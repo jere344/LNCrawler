@@ -15,6 +15,12 @@ class XenForoMixinSB:
     _thread_re = re.compile(r"/threads/([^/?#]+?)(?:\.(\d+))?(?:/|$)")
     _post_re = re.compile(r"/posts/(\d+)")
 
+    def _forum_base(self) -> str:
+        base = self.base_url
+        if isinstance(base, (list, tuple)):
+            base = base[0]
+        return str(base).rstrip("/")
+
     def _thread_base(self, url: str) -> str:
         match = self._thread_re.search(url)
         if not match:
@@ -22,7 +28,7 @@ class XenForoMixinSB:
         slug = match.group(1)
         if match.group(2):
             slug += "." + match.group(2)
-        return "%s/threads/%s/" % (self.home_url.rstrip("/"), slug)
+        return "%s/threads/%s/" % (self._forum_base(), slug)
 
     def _max_page(self, soup) -> int:
         pages = []
@@ -33,9 +39,16 @@ class XenForoMixinSB:
         return max(pages) if pages else 1
 
     def search_novel(self, query):
-        soup = self.get_soup(
-            "%s/search/search?keywords=%s" % (self.home_url.rstrip("/"), quote(query))
-        )
+        # The XenForo search endpoint sits behind a Cloudflare challenge that
+        # rejects the plain HTTP client, but tag pages are served openly.
+        try:
+            soup = self.get_soup(
+                "%s/search/search?keywords=%s" % (self._forum_base(), quote(query))
+            )
+        except Exception:
+            soup = self.get_soup(
+                "%s/tags/%s/" % (self._forum_base(), quote(query).replace("%20", "-"))
+            )
         results = []
         seen = set()
         for row in soup.select(".contentRow"):
@@ -82,7 +95,10 @@ class XenForoMixinSB:
             url = "%sthreadmarks" % base
             if page > 1:
                 url += "?page=%d" % page
-            soup = self.get_soup(url)
+            try:
+                soup = self.get_soup(url)
+            except Exception:
+                break
             found = False
             for a in soup.select("a[href*='#post-']"):
                 href = a["href"]
@@ -98,7 +114,7 @@ class XenForoMixinSB:
                     {
                         "id": len(self.chapters) + 1,
                         "title": a.get_text(strip=True) or ("Post " + post_id),
-                        "url": "%s/posts/%s/" % (self.home_url.rstrip("/"), post_id),
+                        "url": "%s/posts/%s/" % (self._forum_base(), post_id),
                     }
                 )
             if not found or page >= self._max_page(soup):
@@ -112,7 +128,11 @@ class XenForoMixinSB:
             url = "%sreader/" % base
             if page > 1:
                 url += "?page=%d" % page
-            soup = self.get_soup(url)
+            try:
+                soup = self.get_soup(url)
+            except Exception:
+                self._parse_posts(base)
+                return
             arts = soup.select("article.message[data-content^='post-']")
             if not arts:
                 break
@@ -127,7 +147,38 @@ class XenForoMixinSB:
                         "id": len(self.chapters) + 1,
                         "title": (label.get_text(strip=True) if label else "")
                         or ("Post " + post_id),
-                        "url": "%s/posts/%s/" % (self.home_url.rstrip("/"), post_id),
+                        "url": "%s/posts/%s/" % (self._forum_base(), post_id),
+                    }
+                )
+            if page >= self._max_page(soup):
+                break
+            page += 1
+
+    def _parse_posts(self, base):
+        """Fall back to every post on the thread when no threadmark page exists."""
+        page = 1
+        seen = set()
+        while True:
+            url = base
+            if page > 1:
+                url += "page-%d" % page
+            try:
+                soup = self.get_soup(url)
+            except Exception:
+                break
+            arts = soup.select("article.message[data-content^='post-']")
+            if not arts:
+                break
+            for art in arts:
+                post_id = art["data-content"].split("-", 1)[1]
+                if post_id in seen:
+                    continue
+                seen.add(post_id)
+                self.chapters.append(
+                    {
+                        "id": len(self.chapters) + 1,
+                        "title": "Post " + post_id,
+                        "url": "%s/posts/%s/" % (self._forum_base(), post_id),
                     }
                 )
             if page >= self._max_page(soup):

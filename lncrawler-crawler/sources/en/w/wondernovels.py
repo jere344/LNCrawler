@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 from lncrawl.core.crawler import Crawler
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,50 @@ class WonderNovels(Crawler):
                 for a in soup.select('.author-content a[href*="translator"]')
             ]
         )
-        logger.info("%s", self.novel_author)
+        if not self.novel_author:
+            author = soup.select_one('.post-content_item h5:-soup-contains("Author")')
+            if author:
+                content = author.find_next_sibling()
+                if content:
+                    self.novel_author = content.get_text(strip=True)
+            else:
+                match = re.search(
+                    r'"author"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"',
+                    str(soup),
+                )
+                if match:
+                    self.novel_author = match.group(1)
+        logger.info("Novel author: %s", self.novel_author)
+
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select(".genres-content a[rel='tag']")
+            if a.get_text(strip=True)
+        ]
+        self.tags = [
+            a.get_text(strip=True)
+            for a in soup.select(".tags-content a[rel='tag']")
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+        logger.info("Novel tags: %s", self.tags)
+
+        item = None
+        for node in soup.select(".post-content_item"):
+            heading = node.select_one(".summary-heading h5")
+            content = node.select_one(".summary-content")
+            if not heading or not content:
+                continue
+            if "alternative" in heading.get_text(strip=True).lower():
+                item = content
+                break
+        if item:
+            self.alternative_titles = [
+                part.strip()
+                for part in re.split(r"\n|,", item.get_text(" ", strip=True))
+                if part.strip()
+            ]
+        logger.info("Alternative titles: %s", self.alternative_titles)
 
         synopsis_tag = soup.select_one(".summary__content")
         if synopsis_tag:

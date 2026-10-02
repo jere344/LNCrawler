@@ -16,7 +16,7 @@ import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, getChapterName } from '@utils/Misc';
+import { formatTimeAgo, getChapterName, getNovelSourcePath } from '@utils/Misc';
 
 interface ReadingHistoryCardProps {
   novel: Novel;
@@ -70,7 +70,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           borderBottomLeftRadius: 4,
         }}
         component={Link}
-        to={`/novels/${novel.slug}`}
+        to={getNovelSourcePath(novel) || ''}
         className="clickable"
       />
 
@@ -80,7 +80,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           <Typography 
             variant="h6" 
             component={Link}
-            to={`/novels/${novel.slug}`}
+            to={getNovelSourcePath(novel) || ''}
             sx={{ 
               fontWeight: 'bold',
               cursor: 'pointer',
@@ -144,7 +144,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             variant="outlined"
             startIcon={<InfoIcon />}
             component={Link}
-            to={`/novels/${novel.slug}`}
+            to={getNovelSourcePath(novel) || ''}
           >
             Details
           </Button>

@@ -54,6 +54,13 @@ class NovelFireCrawler(Crawler):
             self.novel_synopsis = self.cleaner.extract_contents(summary)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select(".categories a.property-item[href*='/genre-']")
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+
         chapters_url = self.novel_url.rstrip("/") + "/chapters"
         soup = self.get_soup(chapters_url)
         pages = [int(p) for p in re.findall(r"chapters\?page=(\d+)", str(soup))]

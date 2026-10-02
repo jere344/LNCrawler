@@ -52,6 +52,14 @@ class ZonghengCrawler(Crawler):
         self.novel_cover = self.absolute_url(meta("og:image") or "")
         self.novel_synopsis = meta("og:description") or ""
 
+        tags = [
+            span.get_text(strip=True)
+            for span in soup.select(".book-info--tags span:not(.vip):not(.serialStatus)")
+            if span.get_text(strip=True)
+        ]
+        if tags:
+            self.novel_tags = tags
+
         match = re.search(r"/(\d+)", self.novel_url)
         assert match, "No book id"
         book_id = match.group(1)

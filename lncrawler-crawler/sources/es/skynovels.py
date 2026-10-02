@@ -43,6 +43,19 @@ class SkyNovelsCrawler(Crawler):
         self.novel_title = novel["nvl_title"].strip()
         logger.info("Novel title: %s", self.novel_title)
 
+        soup = self.get_soup(self.novel_url)
+        alt = soup.select_one(".nvl-hero__alt-title")
+        if alt:
+            self.alternative_titles = [
+                t.strip() for t in alt.get_text().split(",") if t.strip()
+            ]
+        self.genres = [
+            g.get_text(strip=True)
+            for g in soup.select(".nvl-genre-chip")
+            if g.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+
         self.novel_author = novel.get("nvl_writer") or ""
         logger.info("Novel author: %s", self.novel_author)
 

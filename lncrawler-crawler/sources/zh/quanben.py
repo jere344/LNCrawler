@@ -45,6 +45,10 @@ class QuanbenCrawler(Crawler):
         self.novel_cover = self.absolute_url(meta("og:image") or "")
         self.novel_synopsis = meta("og:description") or ""
 
+        category = meta("og:novel:category")
+        if category:
+            self.novel_tags = [category]
+
         path = urlparse(self.novel_url).path.strip("/")
         list_url = f"{self.home_url}amp/{path}/list.html"
         list_soup = self.get_soup(list_url)

@@ -11,6 +11,7 @@ from ..models.sources_models import NovelFromSource, Chapter
 from ..serializers.novels_serializers import BasicNovelSerializer
 from ..serializers.users_serializers import DetailedReadingHistorySerializer
 from ..models.novels_models import NovelViewCount
+from ..utils import resolve_novel_slug
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -18,7 +19,7 @@ def add_novel_bookmark(request, novel_slug):
     """
     Bookmark a novel for the authenticated user.
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     bookmark, created = NovelBookmark.objects.get_or_create(user=request.user, novel=novel)
 
     if created:
@@ -33,7 +34,7 @@ def remove_novel_bookmark(request, novel_slug):
     """
     Remove a novel bookmark for the authenticated user.
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     try:
         bookmark = NovelBookmark.objects.get(user=request.user, novel=novel)
         bookmark.delete()
@@ -169,7 +170,7 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
     Updates or creates a reading history entry.
     """
     # Get the novel, source, and chapter
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(NovelFromSource, novel=novel, source_slug=source_slug)
     chapter = get_object_or_404(Chapter, novel_from_source=source, chapter_id=chapter_number)
     
@@ -184,7 +185,8 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
     )
 
     # we also update the user word_read count
-    request.user.word_read += chapter.word_count
+    body = chapter.body
+    request.user.word_read += body.count(' ') if body else 0
     request.user.save(update_fields=['word_read'])
     
     serializer = DetailedReadingHistorySerializer(reading_history)

@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     'auth_app',
     'django.contrib.sitemaps',
     'rest_framework.authtoken',
+    'django.contrib.postgres',
 ]
 
 MIDDLEWARE = [

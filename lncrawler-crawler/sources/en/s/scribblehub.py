@@ -11,7 +11,7 @@ from lncrawl.models import Chapter, SearchResult, Volume
 from lncrawl.templates.browser.searchable import SearchableBrowserTemplate
 from lncrawl.core.exeptions import FallbackToBrowser, LNException
 
-from urllib.parse import urljoin
+from urllib.parse import urljoin, quote_plus
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,11 @@ class ScribbleHubCrawler(SearchableBrowserTemplate):
         raise LNException("Browser Search not supported")
 
     def select_search_items(self, query: str) -> Generator[Tag, None, None]:
-        raise FallbackToBrowser()
+        soup = self.get_soup(
+            f"{self.home_url}series-finder/?sf=1&sh={quote_plus(query)}"
+        )
+        for a in soup.select(".search_main_box .search_title a[href]"):
+            yield a
 
     def parse_search_item(self, tag: Tag) -> SearchResult:
         return SearchResult(

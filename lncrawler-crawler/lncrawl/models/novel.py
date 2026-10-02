@@ -26,6 +26,7 @@ class Novel(Model):
         synopsis: Optional[str] = None,
         language: Optional[str] = None,
         novel_tags: Optional[List[str]] = None,
+        alternative_titles: Optional[List[str]] = None,
         has_manga: Optional[bool] = None,
         has_mtl: Optional[bool] = None,
         language_code: Optional[List[str]] = None,
@@ -51,6 +52,7 @@ class Novel(Model):
         self.synopsis = synopsis
         self.language = language
         self.novel_tags = novel_tags if novel_tags is not None else []
+        self.alternative_titles = alternative_titles if alternative_titles is not None else []
         self.has_manga = has_manga
         self.has_mtl = has_mtl
         self.language_code = language_code if language_code is not None else []

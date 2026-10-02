@@ -1,8 +1,8 @@
 from django.core.management.base import BaseCommand
+from django.db.models import Sum
 from lncrawler_api.models import Novel, WeeklyNovelView
 from lncrawler_api.utils import chapter_utils
 from pathlib import Path
-from datetime import datetime
 import time
 
 # Process novels in small id-batches so a huge catalogue never loads at once.
@@ -10,7 +10,7 @@ CHUNK_SIZE = 200
 
 
 class Command(BaseCommand):
-    help = 'Compresses novels with less than 10 views this week to save disk space'
+    help = 'Compresses novels with less than 10 views in the last 7 days to save disk space'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -50,20 +50,27 @@ class Command(BaseCommand):
         pause = max(options['sleep'], 0.0)
         max_sources = options['max_sources']
 
-        # Get current ISO year and week number
-        current_date = datetime.now()
-        current_year_week = f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
+        window_start = WeeklyNovelView.window_start()
 
         self.stdout.write(
-            self.style.SUCCESS(f'Finding novels with less than {min_views} views in week {current_year_week}')
+            self.style.SUCCESS(
+                f'Finding novels with less than {min_views} views in the last '
+                f'{WeeklyNovelView.WINDOW_DAYS} days'
+            )
         )
 
-        # Novels with >= min_views this week are excluded; anything without a row
-        # (or below the threshold) counts as low-traffic. Done as a subquery so we
-        # never materialize a list of high-traffic ids.
-        popular_ids = WeeklyNovelView.objects.filter(
-            year_week=current_year_week, views__gte=min_views
-        ).values('novel_id')
+        # Novels whose rolling 7-day total meets the threshold are excluded;
+        # anything without a row (or below the threshold) counts as low-traffic.
+        # Done as a subquery so we never materialize a list of high-traffic ids.
+        popular_ids = (
+            WeeklyNovelView.objects.filter(
+                granularity=WeeklyNovelView.DAY, day__gte=window_start
+            )
+            .values('novel_id')
+            .annotate(total_views=Sum('views'))
+            .filter(total_views__gte=min_views)
+            .values('novel_id')
+        )
 
         base_qs = (
             Novel.objects.filter(sources__isnull=False)
@@ -154,6 +161,6 @@ class Command(BaseCommand):
                 f'Compression completed in {elapsed:.1f} seconds.\n'
                 f'Successfully compressed: {compressed_count} sources\n'
                 f'Failed compressions: {failed_count} sources\n'
-                f'Scanned {seen_count} low-traffic novels (< {min_views} views this week)'
+                f'Scanned {seen_count} low-traffic novels (< {min_views} views in the last 7 days)'
             )
         )

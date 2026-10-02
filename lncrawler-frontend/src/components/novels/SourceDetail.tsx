@@ -30,18 +30,25 @@ import SkipNextIcon from '@mui/icons-material/SkipNext';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import defaultCover from '@assets/default-cover.jpg';
 import CommentSection from '../comments/CommentSection';
-import { NovelFromSource as ISourceDetail } from '@models/novels_types';
+import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail } from '@models/novels_types';
 import NovelSynopsis from './common/NovelSynopsis';
 import NovelRating from './common/NovelRating';
 import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { getChapterLabel, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import ActionButton from '../common/ActionButton';
 import SectionContainer from '@components/common/SectionContainer.tsx';
+import NovelSources from './NovelSources';
+import NovelRecommendation from '../common/NovelRecommendation';
+import Reviews from './Reviews';
+import ReadingListCard from '../readinglist/ReadingListCard';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
@@ -49,6 +56,7 @@ const SourceDetail = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const theme = useTheme();
   const [source, setSource] = useState<ISourceDetail | null>(null);
+  const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
@@ -67,8 +75,9 @@ const SourceDetail = () => {
         const data = await novelService.getSourceDetail(novelSlug, sourceSlug);
         setSource(data);
         
-        // Get novel details to fetch rating
+        // Get novel details to fetch rating, sources and novel-level sections
         const novelDetails = await novelService.getNovelDetail(novelSlug);
+        setNovel(novelDetails);
         setNovelRating({
           avg_rating: novelDetails.avg_rating,
           rating_count: novelDetails.rating_count,
@@ -332,8 +341,8 @@ const SourceDetail = () => {
   if (error || !source) {
     return (
       <Container>
-        <Button startIcon={<ArrowBackIcon />} component={Link} to={`/novels/${novelSlug}`} variant="outlined" sx={{ mt: 2 }}>
-          Back to Novel
+        <Button startIcon={<ArrowBackIcon />} component={Link} to="/" variant="outlined" sx={{ mt: 2 }}>
+          Back to Home
         </Button>
         <Paper 
           elevation={3} 
@@ -352,10 +361,10 @@ const SourceDetail = () => {
             variant="contained" 
             color="primary" 
             component={Link}
-            to={`/novels/${novelSlug}`}
+            to="/"
             sx={{ mt: 2 }}
           >
-            Return to Novel
+            Return to Home
           </Button>
         </Paper>
       </Container>
@@ -388,7 +397,6 @@ const SourceDetail = () => {
             items={[
               {
                 label: source.novel_title,
-                link: `/novels/${novelSlug}`,
                 icon: <BookIcon fontSize="inherit" />
               },
               {
@@ -403,14 +411,14 @@ const SourceDetail = () => {
           <Button 
             startIcon={<ArrowBackIcon />}
             component={Link}
-            to={`/novels/${novelSlug}`}
+            to="/"
             variant="outlined"
             sx={{ 
               borderRadius: '20px',
               px: 2,
             }}
           >
-            Back to Novel
+            Back to Home
           </Button>
         </Box>
 
@@ -662,7 +670,14 @@ const SourceDetail = () => {
                     </Box>
                   </Grid>
                 </Grid>
-                
+
+                {/* Tags */}
+                {source.tags.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <NovelTags tags={source.tags} chipSize="small" />
+                  </Box>
+                )}
+
                 {/* Source vote actions*/}
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.8), mb: 1 }}>
@@ -818,22 +833,45 @@ const SourceDetail = () => {
           </Paper>
         )}
 
-        {source.tags.length > 0 && (
-          <SectionContainer title="Tags" icon={<BookmarkIcon />}>
-            <NovelTags 
-              tags={source.tags} 
-              chipSize="medium" 
-            />
-          </SectionContainer>
-        )}
-        
         {source.synopsis && (
           <SectionContainer title="Synopsis" icon={<BookmarkIcon />}>
             <NovelSynopsis synopsis={source.synopsis} />
           </SectionContainer>
         )}
 
-        
+        {novel && novel.sources.length > 1 && (
+          <SectionContainer title="Other Sources" icon={<LanguageIcon />}>
+            <NovelSources
+              novel={{ ...novel, slug: novelSlug }}
+              currentSourceSlug={sourceSlug}
+            />
+          </SectionContainer>
+        )}
+
+        {novel?.similar_novels && novel.similar_novels.length > 0 && (
+          <SectionContainer title="Similar Novels" icon={<TrendingUpIcon />}>
+            <NovelRecommendation similarNovels={novel.similar_novels} />
+          </SectionContainer>
+        )}
+
+        {novel?.reading_lists && novel.reading_lists.length > 0 && (
+          <SectionContainer title="In Reading Lists" icon={<PlaylistAddIcon />}>
+            <Grid container spacing={2}>
+              {novel.reading_lists.map((list) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={list.id}>
+                  <ReadingListCard list={list} />
+                </Grid>
+              ))}
+            </Grid>
+          </SectionContainer>
+        )}
+
+        {novelSlug && (
+          <SectionContainer title="Reviews" icon={<MenuBookIcon />}>
+            <Reviews novelSlug={novelSlug} showAddReview={true} />
+          </SectionContainer>
+        )}
+
         {novelSlug && (
           <SectionContainer title="Comments" icon={<CommentIcon />}>
             <CommentSection 

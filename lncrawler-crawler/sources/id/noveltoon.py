@@ -4,6 +4,7 @@ import re
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = "https://noveltoon.mobi/en/search?word=%s&source=&lock="
@@ -28,19 +29,18 @@ class NovelsRockCrawler(Crawler):
         soup = self.get_soup(search_url % query)
 
         results = []
-        for a in soup.select(".search-main a")[:10]:
+        for item in soup.select(".novel-result .recommend-item")[:10]:
+            a = item.select_one("a[href]")
+            if not a:
+                continue
+            title = item.select_one(".recommend-comics-title")
+            info = item.select_one(".comics-type")
             results.append(
-                {
-                    "url": self.absolute_url(a["href"]),
-                    "title": a.select_one(".search-item-title").text.strip(),
-                    "info": ", ".join(
-                        [
-                            e.text.strip()
-                            for e in a.select(".search-label-text")
-                            if e and e.text.strip()
-                        ]
-                    ),
-                }
+                SearchResult(
+                    url=self.absolute_url(a["href"]),
+                    title=title.text.strip() if title else a.get_text(strip=True),
+                    info=info.text.strip() if info else "",
+                )
             )
 
         return results
@@ -89,5 +89,14 @@ class NovelsRockCrawler(Crawler):
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
-        contents = soup.select_one(".watch-chapter-detail")
-        return self.cleaner.extract_contents(contents)
+        contents = soup.select_one(".watch-chapter-content")
+        if contents is None:
+            return ""
+        # Chat-style layout: each line is a `.content_text` node; join them into
+        # paragraphs and drop the avatars/author labels.
+        body = soup.new_tag("div")
+        for node in contents.select(".content_text"):
+            p = soup.new_tag("p")
+            p.string = node.get_text(strip=True)
+            body.append(p)
+        return self.cleaner.extract_contents(body)

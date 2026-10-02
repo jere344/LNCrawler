@@ -4,6 +4,7 @@ import BaseNovelCard from './novelcardtypes/BaseNovelCard';
 import { Carousel } from 'react-responsive-carousel';
 import { Box, Typography, Skeleton, useTheme, useMediaQuery, alpha } from '@mui/material';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
+import { getNovelSourcePath } from '@utils/Misc';
 
 interface NovelRecommendationProps {
   similarNovels?: SimilarNovel[];
@@ -139,7 +140,7 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
               <Box key={novel.id} sx={{ flex: 1, maxWidth: `${80/itemsPerSlide}%`, marginTop: 1 }}>
                 <BaseNovelCard 
                   novel={novel}
-                  to={`/novels/${novel.slug}`}
+                  to={getNovelSourcePath(novel)}
                 />
               </Box>
             ))}

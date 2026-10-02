@@ -60,6 +60,19 @@ class WuxiaDreamsCrawler(Crawler):
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select('a[href^="/genre/"]')
+            if a.get_text(strip=True)
+        ]
+        self.tags = [
+            a.get_text(strip=True)
+            for a in soup.select('a[href^="/tag/"]')
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+        logger.info("Novel tags: %s", self.tags)
+
         last_page = 1
         for a in soup.select('a[href*="page="]'):
             match = re.search(r"page=(\d+)", a.get("href", ""))

@@ -18,7 +18,10 @@ class XenForoMixinAH:
     _post_re = re.compile(r"/posts/(\d+)")
 
     def _forum_base(self) -> str:
-        return self.home_url.rstrip("/") + self.base_path
+        base = self.base_url
+        if isinstance(base, (list, tuple)):
+            base = base[0]
+        return str(base).rstrip("/")
 
     def _thread_base(self, url: str) -> str:
         match = self._thread_re.search(url)
@@ -87,7 +90,10 @@ class XenForoMixinAH:
             url = "%sthreadmarks" % base
             if page > 1:
                 url += "?page=%d" % page
-            soup = self.get_soup(url)
+            try:
+                soup = self.get_soup(url)
+            except Exception:
+                break
             found = False
             for a in soup.select("a[href*='#post-']"):
                 href = a["href"]
@@ -117,7 +123,11 @@ class XenForoMixinAH:
             url = "%sreader/" % base
             if page > 1:
                 url += "?page=%d" % page
-            soup = self.get_soup(url)
+            try:
+                soup = self.get_soup(url)
+            except Exception:
+                self._parse_posts(base)
+                return
             arts = soup.select("article.message[data-content^='post-']")
             if not arts:
                 break
@@ -132,6 +142,37 @@ class XenForoMixinAH:
                         "id": len(self.chapters) + 1,
                         "title": (label.get_text(strip=True) if label else "")
                         or ("Post " + post_id),
+                        "url": "%s/posts/%s/" % (self._forum_base(), post_id),
+                    }
+                )
+            if page >= self._max_page(soup):
+                break
+            page += 1
+
+    def _parse_posts(self, base):
+        """Fall back to every post on the thread when no threadmark page exists."""
+        page = 1
+        seen = set()
+        while True:
+            url = base
+            if page > 1:
+                url += "page-%d" % page
+            try:
+                soup = self.get_soup(url)
+            except Exception:
+                break
+            arts = soup.select("article.message[data-content^='post-']")
+            if not arts:
+                break
+            for art in arts:
+                post_id = art["data-content"].split("-", 1)[1]
+                if post_id in seen:
+                    continue
+                seen.add(post_id)
+                self.chapters.append(
+                    {
+                        "id": len(self.chapters) + 1,
+                        "title": "Post " + post_id,
                         "url": "%s/posts/%s/" % (self._forum_base(), post_id),
                     }
                 )

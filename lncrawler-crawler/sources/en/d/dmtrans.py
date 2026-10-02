@@ -49,8 +49,25 @@ class DMTranslations(Crawler):
         self.novel_author = "Translated by DM Translations"
         logger.info("Novel author: %s", self.novel_author)
 
+        content = soup.find("div", {"class": "entry-content"})
+        synopsis = []
+        if content:
+            marker = content.find("strong", string=lambda t: t and "Synopsis" in t)
+            node = marker.parent if marker else None
+            if node:
+                for sib in node.find_next_siblings():
+                    if sib.name != "p":
+                        continue
+                    if sib.find("strong"):
+                        break
+                    text = sib.get_text(" ", strip=True)
+                    if text:
+                        synopsis.append(text)
+        self.novel_synopsis = "\n".join(synopsis)
+        logger.info("Novel synopsis: %s", self.novel_synopsis)
+
         # Extract volume-wise chapter entries
-        chapters = soup.find("div", {"class": "entry-content"}).findAll("a")
+        chapters = content.findAll("a") if content else []
 
         for a in chapters:
             chap_id = len(self.chapters) + 1

@@ -96,6 +96,18 @@ class BabelNovelCrawler(Crawler):
         self.novel_synopsis = data['data'].get('synopsis') or ''
         logger.info('Novel synopsis: %s', self.novel_synopsis)
 
+        self.genres = [
+            g['engName'] for g in data['data'].get('genres') or [] if g.get('engName')
+        ]
+        self.novel_tags = [
+            tag for tag in (data['data'].get('tag') or '').split('|') if tag
+        ]
+        logger.info('Novel tags: %s', self.novel_tags)
+
+        cn_name = data['data'].get('cnName')
+        if cn_name and cn_name != self.novel_title:
+            self.alternative_titles = [cn_name]
+
         chapter_count = int(data['data']['releasedChapterCount'])
         self.get_list_of_chapters(chapter_count)
 

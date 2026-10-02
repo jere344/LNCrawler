@@ -3,31 +3,9 @@ import logging
 import re
 from bs4 import Tag
 from lncrawl.core.crawler import Crawler
-import urllib.parse
-
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:101.0) Gecko/20100101 Firefox/101.0",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,"
-    "application/signed-exchange;v=b3;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Accept-Language": "en-US,en;q=0.9,de-CH;q=0.8,de;q=0.7",
-    "Cache-Control": "no-cache",
-    "Content-Type": "application/x-www-form-urlencoded",
-    "Origin": "https://www.69shu.pro",
-    "DNT": "1",
-    "Referer": "https://www.69shu.pro/modules/article/search.php",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Opera GX";v="106"',
-    "Sec-Ch-Ua-Platform": "Windows",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-User": "?1",
-}
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
-search_url = "https://www.69shuba.com/modules/article/search.php"
 
 
 class sixnineshu(Crawler):
@@ -45,25 +23,31 @@ class sixnineshu(Crawler):
         self.init_executor(ratelimit=20)
 
     def search_novel(self, query):
-        query = urllib.parse.quote(query.encode("gbk"))
-        data = f"searchkey={query}&submit=Search"
-        soup = self.post_soup(
-            search_url,
-            headers=headers,
-            data=data,
-            encoding="gbk",
-            # cookies=self.cookies2,
-        )
+        # The real search.php endpoint is gated by a Cloudflare Turnstile
+        # challenge that curl_cffi cannot solve. `/all.html` is the complete
+        # novel index (unchallenged) so filter it locally instead.
+        soup = self.get_soup(self.base_url[0] + "all.html", encoding="gbk")
 
+        query = query.lower()
         results = []
-        for novel in soup.select("div.newbox ul li"):
+        seen = set()
+        for a in soup.select("a[href*='/book/']"):
+            title = a.text.strip()
+            href = a["href"]
+            if not title or href in seen:
+                continue
+            if query not in title.lower():
+                continue
+            seen.add(href)
             results.append(
-                {
-                    "title": novel.select_one("h3 a:not([imgbox])").text.title(),
-                    "url": self.absolute_url(novel.select_one("a")["href"]),
-                    "info": "Latest: %s" % novel.select_one("div.zxzj p").text,
-                }
+                SearchResult(
+                    title=title,
+                    url=self.absolute_url(href),
+                    info="Latest: %s" % title,
+                )
             )
+            if len(results) >= 10:
+                break
 
         return results
 

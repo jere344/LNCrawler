@@ -20,6 +20,7 @@ class WitchCultTranslationsCrawler(Crawler):
         soup = self.get_soup(TOC_URL)
 
         self.novel_title = "Re:Zero - Starting Life in Another World"
+        self.novel_author = "Tappei Nagatsuki"
         self.novel_cover = None
         self.novel_synopsis = ""
 

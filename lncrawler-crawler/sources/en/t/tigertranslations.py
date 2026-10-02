@@ -31,6 +31,14 @@ class TigerTranslations(Crawler):
                     # Use synopsis to refer to translator / source -> not sure if ok to do
                     self.novel_synopsis = "Translated by TigerTranslations.org"
                     break  # no need to continue after finding author
+            first = content.find("p")
+            if first:
+                titles = []
+                for bit in first.strings:
+                    text = str(bit).strip()
+                    if text and text != self.novel_title and text not in titles:
+                        titles.append(text)
+                self.alternative_titles = titles
 
         logger.info("Novel title: %s", self.novel_title)
         logger.info("Novel author: %s", self.novel_author)

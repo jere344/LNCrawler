@@ -57,6 +57,14 @@ class MangaBuddyCrawler(Crawler):
 
         self.novel_synopsis = manga.get("summary") or ""
 
+        self.novel_tags = [g["name"].strip() for g in manga.get("genres") or []]
+
+        self.alternative_titles = [
+            a["name"].strip()
+            for a in manga.get("altNames") or []
+            if a.get("name") and a["name"].strip() != self.novel_title
+        ]
+
         chapters = manga.get("chapters") or []
         if manga.get("id"):
             api_url = page.get("siteConfig", {}).get("apiUrl")

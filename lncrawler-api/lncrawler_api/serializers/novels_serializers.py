@@ -4,7 +4,7 @@ from ..models import (
     NovelViewCount, WeeklyNovelView,
     NovelBookmark
 )
-from django.db.models import Avg, F, ExpressionWrapper, IntegerField, Subquery, OuterRef
+from django.db.models import Avg, F, ExpressionWrapper, IntegerField, Subquery, OuterRef, Sum
 from .sources_serializers import NovelSourceSerializer
 from .users_serializers import DetailedReadingHistorySerializer
 from ..utils import get_client_ip
@@ -54,15 +54,12 @@ class BasicNovelSerializer(serializers.ModelSerializer):
         return view_count.views if view_count else 0
     
     def get_weekly_views(self, obj):
-        from datetime import datetime
-        current_date = datetime.now()
-        current_year_week = f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
-        
-        weekly_view = WeeklyNovelView.objects.filter(
+        total = WeeklyNovelView.objects.filter(
             novel=obj,
-            year_week=current_year_week
-        ).first()
-        return weekly_view.views if weekly_view else 0
+            granularity=WeeklyNovelView.DAY,
+            day__gte=WeeklyNovelView.window_start(),
+        ).aggregate(total=Sum('views'))['total']
+        return total or 0
     
     def get_languages(self, obj):
         """
@@ -117,7 +114,7 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
         return NovelSourceSerializer(
             obj.sources.all(),
             many=True,
-            context=self.context
+            context={**self.context, 'include_synopsis': True}
         ).data
             
     
@@ -128,7 +125,9 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
         ).order_by('-calc_score', '-upvotes', 'title').first()
         
         if prefered_source:
-            return NovelSourceSerializer(prefered_source, context=self.context).data
+            return NovelSourceSerializer(
+                prefered_source, context={**self.context, 'include_synopsis': True}
+            ).data
         return None
     
     def get_avg_rating(self, obj):
@@ -158,15 +157,12 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
         return view_count.views if view_count else 0
     
     def get_weekly_views(self, obj):
-        from datetime import datetime
-        current_date = datetime.now()
-        current_year_week = f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
-        
-        weekly_view = WeeklyNovelView.objects.filter(
+        total = WeeklyNovelView.objects.filter(
             novel=obj,
-            year_week=current_year_week
-        ).first()
-        return weekly_view.views if weekly_view else 0
+            granularity=WeeklyNovelView.DAY,
+            day__gte=WeeklyNovelView.window_start(),
+        ).aggregate(total=Sum('views'))['total']
+        return total or 0
 
     def get_is_bookmarked(self, obj):
         request = self.context.get('request')

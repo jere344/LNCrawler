@@ -52,6 +52,11 @@ class AuthorTodayCrawler(Crawler):
         if synopsis:
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
+        tags = [span.get_text(strip=True) for span in soup.select(".nav-two-col a span")]
+        tags += [a.get_text(strip=True) for a in soup.select(".tags a")]
+        if tags:
+            self.novel_tags = [t for t in tags if t]
+
         for a in soup.select("ul.table-of-content li a[href]"):
             self.chapters.append(
                 Chapter(

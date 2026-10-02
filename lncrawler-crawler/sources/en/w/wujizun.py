@@ -4,6 +4,7 @@ import logging
 from bs4.element import Tag
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class Wujizun(Crawler):
         )
 
     def search_novel(self, query):
-        soup = self.get_soup(self.base_url[0])
+        soup = self.get_soup(self.base_url)
         query = query.lower()
         results = []
         for a in soup.select("#primary-menu a[href]"):
@@ -26,7 +27,7 @@ class Wujizun(Crawler):
             if not title or "/about/" in href:
                 continue
             if query in title.lower():
-                results.append({"title": title, "url": self.absolute_url(href)})
+                results.append(SearchResult(title=title, url=self.absolute_url(href)))
         return results[:10]
 
     def read_novel_info(self):

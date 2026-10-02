@@ -43,10 +43,31 @@ class RanobesComCrawler(Crawler):
             self.novel_author = ", ".join(authors)
         logger.info("Novel author: %s", self.novel_author)
 
+        cover = soup.select_one('meta[property="og:image"]')
+        if cover:
+            self.novel_cover = cover.get("content", "")
+        logger.info("Novel cover: %s", self.novel_cover)
+
         synopsis = soup.select_one('meta[property="og:description"]')
         if synopsis:
             self.novel_synopsis = synopsis.get("content", "")
         logger.info("Novel synopsis: %s", self.novel_synopsis)
+
+        genres = [
+            a.get_text(strip=True)
+            for a in soup.select("#mc-fs-genre .links a")
+            if a.get_text(strip=True)
+        ]
+        if genres:
+            self.novel_tags = genres
+
+        subtitle = soup.select_one(".title .subtitle")
+        if subtitle:
+            self.alternative_titles = [
+                t.strip()
+                for t in re.split(r"[•]+", subtitle.get_text(strip=True))
+                if t.strip()
+            ]
 
         toc_url = None
         for a in soup.select("a[href]"):

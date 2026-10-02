@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import re
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup, Tag
@@ -61,6 +62,15 @@ class SnowyCodexCrawler(ChapterOnlyBrowserTemplate):
         tag = soup.find("strong", string="Author:")
         assert isinstance(tag, Tag)
         yield tag.next_sibling.text.strip()
+
+    def parse_genres(self, soup: BeautifulSoup):
+        tag = soup.find("strong", string=re.compile(r"^Tags"))
+        if not isinstance(tag, Tag) or not isinstance(tag.parent, Tag):
+            return
+        value = tag.parent.get_text(" ", strip=True).split(":", 1)[-1]
+        for part in re.split(r"[,;]+", value):
+            if part.strip():
+                yield part.strip()
 
     def select_chapter_tags(self, soup: BeautifulSoup):
         yield from soup.select(".entry-content a[href*='/chapter']")

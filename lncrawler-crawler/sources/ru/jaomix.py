@@ -40,9 +40,15 @@ class JaomixCrawler(Crawler):
             text = p.text.strip()
             if "Автор" in text:
                 self.novel_author = text.split(":")[1].strip()
-                break
+            elif "Жанр" in text:
+                self.genres = [
+                    g.strip() for g in text.split(":")[1].split(",") if g.strip()
+                ]
+            elif "Название" in text:
+                self.alternative_titles = [text.split(":", 1)[1].strip()]
 
         logger.info("Novel author: %s", self.novel_author)
+        logger.info("Novel genres: %s", self.genres)
 
         possible_synopsis = soup.select_one("div#desc-tab")
         if possible_synopsis:

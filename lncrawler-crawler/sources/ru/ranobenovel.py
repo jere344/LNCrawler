@@ -51,7 +51,9 @@ class RanobeNovel(Crawler):
         self.novel_title = possible_title.text.strip()
         logger.info("Novel title: %s", self.novel_title)
 
-        possible_image = soup.select_one("picture.category-img img")
+        possible_image = soup.select_one("img.category-img") or soup.select_one(
+            'img[itemprop="image"]'
+        )
         if isinstance(possible_image, Tag):
             self.novel_cover = self.absolute_url(possible_image["src"])
         logger.info("Novel cover: %s", self.novel_cover)

@@ -20,9 +20,9 @@ export const novelService = {
   },
   
   // Get chapters by novel and source slugs with pagination
-  getNovelChapters: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 100) => {
+  getNovelChapters: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 100, search = '') => {
     const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`, {
-      params: { page, page_size: pageSize }
+      params: { page, page_size: pageSize, search }
     });
     return response.data;
   },

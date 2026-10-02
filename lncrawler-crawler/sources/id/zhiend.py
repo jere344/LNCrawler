@@ -4,6 +4,7 @@ import re
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +19,18 @@ class ZhiEnd(Crawler):
         soup = self.get_soup(
             f"{self.home_url}search?q={quote_plus(query)}&max-results=20"
         )
-        # Blogger has no novel-level search; drop chapter/volume posts and
-        # keep the remaining index posts.
-        chapter_markers = re.compile(
+        # Blogger has no novel-level search; drop chapter/volume posts, song
+        # lyrics and reviews, and keep the remaining novel index posts.
+        skip_markers = re.compile(
             r"(?i)chapter|volume|\bvol\b|\bbab\b|\barc\b|\bpart\b|catatan|prolog|epilog"
+            r"|lirik|review|anime|ost|opening|ending|soundtrack"
         )
         results = []
         for a in soup.select("h3.post-title a[href], h2.post-title a[href]"):
             title = a.text.strip()
-            if not title or chapter_markers.search(title):
+            if not title or skip_markers.search(title):
                 continue
-            results.append({"title": title, "url": self.absolute_url(a["href"])})
+            results.append(SearchResult(title=title, url=self.absolute_url(a["href"])))
         return results[:10]
 
     def read_novel_info(self):
@@ -48,10 +50,18 @@ class ZhiEnd(Crawler):
         self.novel_author = "Translated by Zhi End"
         logger.info("Novel author: %s", self.novel_author)
 
-        # Extract volume-wise chapter entries
-        chapters = soup.select('div.entry-content div [href*="zhi-end.blogspot"]')
+        # Extract chapter entries (links to sibling posts).
+        chapters = soup.select('div.entry-content [href*="zhi-end.blogspot"]')
 
+        seen = set()
         for a in chapters:
+            url = self.absolute_url(a["href"])
+            title = a.text.strip()
+            if not url or url in seen:
+                continue
+            if not title:
+                continue
+            seen.add(url)
             chap_id = len(self.chapters) + 1
             vol_id = 1 + len(self.chapters) // 100
             if len(self.volumes) < vol_id:
@@ -60,8 +70,8 @@ class ZhiEnd(Crawler):
                 {
                     "id": chap_id,
                     "volume": vol_id,
-                    "url": self.absolute_url(a["href"]),
-                    "title": a.text.strip() or ("Chapter %d" % chap_id),
+                    "url": url,
+                    "title": title,
                 }
             )
 

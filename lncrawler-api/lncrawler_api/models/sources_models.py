@@ -1,5 +1,4 @@
 from django.db import models
-import uuid
 import os
 import json
 import shutil
@@ -7,9 +6,9 @@ from django.conf import settings
 from django.utils.text import slugify
 from django.utils import timezone
 
-from .novels_models import Novel, Author, Editor, Translator, Tag
+from .novels_models import Novel, NovelAlias, Author, Editor, Translator, Tag
 from .chapter_models import Volume, Chapter
-from ..utils import chapter_utils
+from ..utils import chapter_utils, lncrawler_paths
 
 def truncate(value, max_length=500):
     if value and len(value) > max_length:
@@ -48,7 +47,7 @@ class NovelFromSource(models.Model):
         ('Cancelled', 'Cancelled'),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.BigAutoField(primary_key=True)
     novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='sources')
     
     # Basic metadata
@@ -124,6 +123,42 @@ class NovelFromSource(models.Model):
     def vote_score(self):
         return self.upvotes - self.downvotes
     
+    @staticmethod
+    def _consolidate_source_directory(source_dir, output_path, novel, existing_source):
+        """
+        Return the canonical ``(source_dir, source_path, meta_json_path,
+        cover_path)`` for a source, relocating its files when needed.
+
+        Destination preference:
+          1. where the existing ``NovelFromSource`` row already lives, so
+             updates stay anchored to the canonical folder,
+          2. the canonical novel folder plus the source folder name, used for a
+             brand-new source whose old folder name was merged away.
+        """
+        target_abs = None
+        if existing_source is not None and existing_source.source_path:
+            target_abs = os.path.join(output_path, existing_source.source_path)
+        else:
+            # ``slug`` is the folder identity ``from_meta_json`` derives, so use
+            # it when ``novel_path`` was never recorded.
+            canonical_dir = novel.novel_path or novel.slug
+            if canonical_dir:
+                target_abs = os.path.join(
+                    output_path, canonical_dir, os.path.basename(source_dir)
+                )
+
+        old_novel_dir = os.path.dirname(source_dir)
+        if target_abs and os.path.abspath(target_abs) != os.path.abspath(source_dir):
+            lncrawler_paths.move_and_merge_directory(source_dir, target_abs)
+            source_dir = target_abs
+            # Remove the old novel folder if this was its only source.
+            lncrawler_paths.remove_empty_directory(old_novel_dir)
+
+        source_path = os.path.relpath(source_dir, settings.LNCRAWL_OUTPUT_PATH)
+        meta_json_path = os.path.join(source_dir, 'meta.json')
+        cover_path = os.path.join(source_path, 'cover.jpg')
+        return source_dir, source_path, meta_json_path, cover_path
+
     @classmethod
     def from_meta_json(cls, meta_json_path):
         """
@@ -149,18 +184,22 @@ class NovelFromSource(models.Model):
             output_path += os.path.sep
             
         novel_path = os.path.relpath(novel_dir, output_path)
-        source_path = os.path.relpath(source_dir, output_path)
-        cover_path = os.path.join(source_path, 'cover.jpg')
         
-        # Create or get novel based on the novel_path
+        # Resolve the canonical novel. An alias (created when a duplicate was
+        # merged) wins over the folder-derived slug, so crawling an old name
+        # reattaches to the surviving novel instead of recreating a duplicate.
         novel_slug = slugify(os.path.basename(novel_path))
-        novel, created = Novel.objects.get_or_create(
-            slug=novel_slug,
-            defaults={
-                'title': title,
-                'novel_path': novel_path
-            }
-        )
+        alias = NovelAlias.objects.filter(slug=novel_slug).select_related('novel').first()
+        if alias is not None:
+            novel = alias.novel
+        else:
+            novel, created = Novel.objects.get_or_create(
+                slug=novel_slug,
+                defaults={
+                    'title': title,
+                    'novel_path': novel_path
+                }
+            )
         
         # Create or get the external source
         source_name = os.path.basename(source_dir)
@@ -178,11 +217,21 @@ class NovelFromSource(models.Model):
         novel_from_source = cls.objects.filter(novel=novel, external_source=external_source).first()
         if novel_from_source is None:
             novel_from_source = cls.objects.filter(novel=novel, source_url=source_url).first()
+        existing_source = novel_from_source
         if novel_from_source is None:
             novel_from_source = cls(novel=novel)
         else:
             # Drop a legacy duplicate alias row that would violate (novel, source_url).
             cls.objects.filter(novel=novel, source_url=source_url).exclude(pk=novel_from_source.pk).delete()
+
+        # Store files under the canonical novel folder (and keep an update in
+        # the folder it already lives in).
+        source_dir, source_path, meta_json_path, cover_path = cls._consolidate_source_directory(
+            source_dir=source_dir,
+            output_path=output_path,
+            novel=novel,
+            existing_source=existing_source,
+        )
 
         novel_from_source.novel = novel
         novel_from_source.source_url = source_url

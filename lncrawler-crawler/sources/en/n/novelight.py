@@ -55,6 +55,22 @@ class NoveLightCrawler(Crawler):
         for tag in novel_tags:
             self.novel_tags.append(tag.get_text().strip())
 
+        for item in soup.select(".mini-info .item"):
+            header = item.select_one(".sub-header")
+            if not header:
+                continue
+            label = header.get_text(strip=True).lower()
+            if label == "genres":
+                self.genres = [
+                    a.get_text(strip=True) for a in item.select(".info a")
+                ]
+            elif label == "alternative":
+                self.alternative_titles = [
+                    d.get_text(strip=True)
+                    for d in item.select(".info div")
+                    if d.get_text(strip=True)
+                ]
+
         novel_author = soup.select_one(".mini-info a[href^='/character/'] div.info")
         if isinstance(novel_author, Tag) and novel_author.get_text():
             self.novel_author = novel_author.get_text().strip()

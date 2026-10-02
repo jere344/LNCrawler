@@ -36,9 +36,9 @@ class NovelCool(Crawler):
         self.novel_title = possible_title.text.strip()
         logger.info("Novel title: %s", self.novel_title)
 
-        self.novel_author = soup.select_one(
-            "span", {"itemprop": "creator"}
-        ).text.strip()
+        creator = soup.select_one(".bookinfo-author span[itemprop='creator']")
+        if creator:
+            self.novel_author = creator.get_text(strip=True)
         logger.info("Novel author: %s", self.novel_author)
 
         possible_image = soup.select_one("div.bookinfo-pic img")
@@ -51,6 +51,20 @@ class NovelCool(Crawler):
         if synopsis_tag:
             self.novel_synopsis = synopsis_tag.get_text("\n", strip=True)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
+
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select(
+                ".bookinfo-category-list span[itemprop='keywords'] a[href^='/category/']"
+            )
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+
+        alternative = soup.select_one("span[itemprop='alternateName']")
+        if alternative and alternative.get_text(strip=True):
+            self.alternative_titles = [alternative.get_text(strip=True)]
+        logger.info("Alternative titles: %s", self.alternative_titles)
 
         chapters = soup.select(".chapter-item-list a")
         chapters.reverse()

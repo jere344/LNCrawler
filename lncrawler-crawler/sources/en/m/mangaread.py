@@ -65,6 +65,25 @@ class MangaReadCrawler(Crawler):
             self.novel_synopsis = self.cleaner.extract_contents(synopsis_tag)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        self.novel_tags = [
+            a.get_text(" ", strip=True)
+            for a in soup.select(".genres-content a")
+            if a.get_text(" ", strip=True)
+        ]
+        logger.info("Novel tags: %s", self.novel_tags)
+
+        for item in soup.select(".post-content_item"):
+            heading = item.select_one(".summary-heading")
+            content = item.select_one(".summary-content")
+            if not (heading and content):
+                continue
+            if heading.get_text(strip=True) == "Alternative":
+                self.alternative_titles = [
+                    name.strip()
+                    for name in content.get_text(" ", strip=True).split(",")
+                    if name.strip()
+                ]
+
         clean_novel_url = self.novel_url.split("?")[0].strip("/")
         response = self.submit_form(f"{clean_novel_url}/ajax/chapters/")
 

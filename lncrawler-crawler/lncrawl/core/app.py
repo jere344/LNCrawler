@@ -23,6 +23,14 @@ from .sources import get_search_crawlers, prepare_crawler
 logger = logging.getLogger(__name__)
 
 
+def _safe_folder_name(slug: str, limit: int = 180) -> str:
+    """Bound a slug so long titles cannot exceed filesystem name limits."""
+    if len(slug) <= limit:
+        return slug
+    cut = slug[:limit].rsplit("-", 1)[0].strip("-")
+    return cut or slug[:limit]
+
+
 class App:
     def __init__(self) -> None:
         self.initialize()
@@ -81,7 +89,7 @@ class App:
                 pass
 
         self.chapters = self.crawler.chapters[:]
-        self.good_file_name = slugify(self.crawler.novel_title or "unknown")
+        self.good_file_name = _safe_folder_name(slugify(self.crawler.novel_title or "unknown"))
 
         if not self.output_path:
             host = urlparse(self.crawler.novel_url).netloc or "unknown"

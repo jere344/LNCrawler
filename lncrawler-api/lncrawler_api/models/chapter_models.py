@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.postgres.fields import ArrayField
 from ..utils import chapter_utils
 
 
@@ -6,7 +7,7 @@ class Volume(models.Model):
     """
     Represents a volume within a novel from a specific source
     """
-    novel_from_source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='volumes')
+    novel_from_source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='volumes', db_index=False)
     volume_id = models.IntegerField()
     title = models.CharField(max_length=500)
     start_chapter = models.IntegerField(null=True, blank=True)
@@ -24,15 +25,14 @@ class Chapter(models.Model):
     """
     Represents a chapter within a novel from a specific source
     """
-    novel_from_source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='chapters')
+    novel_from_source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='chapters', db_index=False)
     chapter_id = models.IntegerField()
     url = models.URLField(max_length=500)
     title = models.CharField(max_length=500)
     volume = models.IntegerField(default=0)
     volume_title = models.CharField(max_length=500, blank=True, null=True)
-    images = models.JSONField(default=list)  # store only image filenames
+    images = ArrayField(models.CharField(max_length=500), default=list)  # store only image filenames
     has_content = models.BooleanField(default=False)  # New field to track content availability
-    word_count = models.IntegerField(default=0)  # New field to track word count
     
     class Meta:
         unique_together = ('novel_from_source', 'chapter_id')
@@ -46,12 +46,7 @@ class Chapter(models.Model):
         """Read the chapter body from the file"""
         parsed_chapter = chapter_utils.get_chapter(self.novel_from_source.absolute_source_path, self.chapter_id)
         if parsed_chapter:
-            body = parsed_chapter.get('body', None)
-            # if we don't have the word count yet, calculate it
-            if self.word_count == 0:
-                self.word_count = body.count(' ') if body else 0
-                self.save(update_fields=['word_count'])
-            return body
+            return parsed_chapter.get('body', None)
 
         return None
     

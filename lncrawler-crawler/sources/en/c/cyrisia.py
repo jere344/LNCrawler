@@ -212,6 +212,38 @@ class CyrisiaCrawler(EpubCrawler):
             if isinstance(meta, Tag) and meta.get("content"):
                 self.novel_synopsis = meta["content"].strip()
 
+    def _parse_series_catalog(self, series_name: str) -> None:
+        """Enrich tags/alternate titles from the site's metadata catalog."""
+        try:
+            catalog = self.get_json(f"{self.home_url}api/metadata-all") or {}
+        except Exception as e:
+            logger.debug("cyrisia metadata fetch failed: %s", e)
+            return
+        meta = catalog.get(series_name)
+        if not isinstance(meta, dict):
+            return
+
+        tags: List[str] = []
+        for key in ("genres", "tags"):
+            for value in meta.get(key) or []:
+                text = str(value).strip()
+                if text and text not in tags:
+                    tags.append(text)
+        self.novel_tags = tags
+
+        titles: List[str] = []
+        for key in ("title_en", "title_ja", "romaji", "synonyms", "aliases"):
+            value = meta.get(key)
+            if key in ("synonyms", "aliases") and isinstance(value, str):
+                value = value.split(",")
+            if isinstance(value, str):
+                value = [value]
+            for item in value or []:
+                text = str(item).strip()
+                if text and text != self.novel_title and text not in titles:
+                    titles.append(text)
+        self.alternative_titles = titles
+
     def _parse_volumes(self, soup) -> List[Tuple[str, str]]:
         # ``data-epub-url`` sits on the download <button>, not on the reader
         # <a>, and the same volume is repeated in the list and grid views.
@@ -325,6 +357,7 @@ class CyrisiaCrawler(EpubCrawler):
 
         soup = self.get_soup(f"{self.home_url}series/{quote(series_name, safe='')}")
         self._parse_series_meta(soup)
+        self._parse_series_catalog(series_name)
         self.apply_existing_meta()
         volumes = self._parse_volumes(soup) or self._volumes_from_catalog(series_name)
         volumes = self._dedupe_volumes(volumes)

@@ -42,6 +42,17 @@ export const getChapterName = (title: string): string => {
     return latestChapterTitle || "";
 };
 
+export interface NovelSourceTarget {
+    slug: string;
+    prefered_source?: { source_slug?: string | null } | null;
+    reading_history?: { source_slug?: string | null } | null;
+}
+
+export const getNovelSourcePath = (novel: NovelSourceTarget): string | undefined => {
+    const sourceSlug = novel.reading_history?.source_slug || novel.prefered_source?.source_slug;
+    return sourceSlug ? `/novels/${novel.slug}/${sourceSlug}` : undefined;
+};
+
 export const getChapterLabel = (title?: string | null, chapterId?: number | null): string => {
     const trimmed = title?.trim();
     if (trimmed) {

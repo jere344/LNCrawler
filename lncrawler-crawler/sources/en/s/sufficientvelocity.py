@@ -64,6 +64,12 @@ class XenForoMixin:
         if cover:
             self.novel_cover = cover.get("content")
 
+        self.novel_tags = [
+            a.get_text(" ", strip=True)
+            for a in soup.select(".tagList a")
+            if a.get_text(" ", strip=True)
+        ]
+
         first = soup.select_one("article.message")
         if first:
             self.novel_author = first.get("data-author", "")

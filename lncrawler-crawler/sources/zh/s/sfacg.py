@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
+from urllib.parse import quote_plus
 
 from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +14,22 @@ logger = logging.getLogger(__name__)
 class SfacgCrawler(Crawler):
     base_url = "https://book.sfacg.com/"
     has_mtl = False
+
+    def search_novel(self, query: str):
+        soup = self.get_soup("http://s.sfacg.com/?Key=%s&S=1&SS=0" % quote_plus(query))
+        results = []
+        seen = set()
+        for a in soup.select("a[href*='book.sfacg.com/Novel/']"):
+            href = a.get("href") or ""
+            if not re.search(r"/Novel/\d+/?$", href):
+                continue
+            url = self.absolute_url(href)
+            title = a.get_text(" ", strip=True)
+            if not title or url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results
 
     def read_novel_info(self):
         match = re.search(r"(https?://[^/]+/Novel/\d+)/?", self.novel_url)

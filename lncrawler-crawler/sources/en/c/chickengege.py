@@ -6,6 +6,7 @@ from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +25,9 @@ class ChickenGegeCrawler(Crawler):
         if response.status_code != 200:
             return []
         return [
-            {"title": item["name"], "url": item["link"]}
+            SearchResult(title=item["name"], url=item["link"], info=f"{item['count']} chapters")
             for item in response.json()
-            if query in item["name"].lower()
+            if query in item["name"].lower() and item.get("count", 0) > 0
         ][:10]
 
     def read_novel_info(self):
@@ -55,7 +56,9 @@ class ChickenGegeCrawler(Crawler):
         ]
         logger.info("Novel tags: %s", self.novel_tags)
 
-        for a in soup.select("ul#novelList a, ul#extraList a, table#novelList a"):
+        # The chapter table is server-rendered for novels that have translated
+        # chapters (empty otherwise). Extra/audio entries also live here.
+        for a in soup.select("table#novelList a, ul#novelList a, ul#extraList a"):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 from urllib.parse import quote_plus
 
 from bs4 import element
@@ -57,6 +58,8 @@ class SyosetuAdultCrawler(Crawler):
                 author_tag.get_text(strip=True).replace("作者：", "").strip()
             )
 
+        self._parse_infotop()
+
         synopsis_tag = soup.select_one(".p-novel__summary") or soup.select_one(
             "#novel_ex"
         )
@@ -93,6 +96,22 @@ class SyosetuAdultCrawler(Crawler):
                             "url": self.absolute_url(link["href"]),
                         }
                     )
+
+    def _parse_infotop(self):
+        match = re.search(r"/(n[a-z0-9]+)/?$", self.novel_url.rstrip("/"))
+        if not match:
+            return
+        info_url = self.absolute_url(
+            f"/novelview/infotop/ncode/{match.group(1)}/"
+        )
+        info = self.get_soup(info_url)
+        for dt in info.select(".p-infotop-data__title"):
+            if "キーワード" not in dt.get_text():
+                continue
+            dd = dt.find_next_sibling("dd")
+            if dd:
+                self.tags = [x for x in dd.get_text(" ", strip=True).split() if x]
+            break
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])

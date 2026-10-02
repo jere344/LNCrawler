@@ -52,7 +52,12 @@ class Scraper(TaskManager, SoupMaker):
         workers: Optional[int] = None,
         parser: Optional[str] = None,
     ) -> None:
-        self.home_url = origin
+        # Sources concatenate paths directly onto home_url (f"{home_url}search"),
+        # and _register() strips the trailing slash from base_url, so normalize
+        # it back here or those requests hit hosts like "site.comsearch".
+        self.home_url = str(origin or "")
+        if self.home_url and not self.home_url.endswith("/"):
+            self.home_url += "/"
         self.last_soup_url = ""
         self.last_soup = None
         self.use_proxy = os.getenv("use_proxy")

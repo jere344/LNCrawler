@@ -42,6 +42,10 @@ class FujossyCrawler(Crawler):
         if synopsis:
             self.novel_synopsis = synopsis.get("content", "").strip()
 
+        self.tags = self._parse_description_tags(
+            synopsis.get("content", "") if synopsis else ""
+        )
+
         author = soup.select_one(".book-side-author__name")
         if author:
             self.novel_author = author.get_text(strip=True)
@@ -71,3 +75,14 @@ class FujossyCrawler(Crawler):
         if isinstance(body, Tag):
             return self.cleaner.extract_contents(body)
         return ""
+
+    def _parse_description_tags(self, description):
+        # fujossy appends the work's tags to the description after an ellipsis:
+        # "<synopsis>... タグ1・タグ2  無料BL小説です"
+        if not description or "..." not in description:
+            return []
+        tail = description.rsplit("...", 1)[-1]
+        tail = tail.split("無料")[0].strip(" \u3000")
+        if not tail:
+            return []
+        return [t for t in tail.split("・") if t.strip()]

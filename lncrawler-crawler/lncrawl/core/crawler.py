@@ -47,6 +47,9 @@ class Crawler(Scraper):
         self.is_rtl: bool = False
         self.novel_synopsis: str = ""
         self.novel_tags: List[str] = []
+        # Alternative/alternate titles exposed by some sources. Written to
+        # meta.json; not yet consumed by the DB importer.
+        self.alternative_titles: List[str] = []
         self.volumes: List[Volume] = []
         self.chapters: List[Chapter] = []
 

@@ -41,6 +41,29 @@ class InfiniteNovelTranslationsCrawler(Crawler):
             self.novel_synopsis = desc.get("content", "")
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        cover = soup.select_one(
+            ".bs-card-box.padding-20 img[data-orig-file]"
+        ) or soup.select_one(".bs-card-box.padding-20 img")
+        if cover:
+            self.novel_cover = self.absolute_url(
+                cover.get("data-orig-file") or cover.get("data-src") or cover.get("src")
+            )
+        logger.info("Novel cover: %s", self.novel_cover)
+
+        author = soup.find("strong", string="Author")
+        if author and author.next_sibling:
+            self.novel_author = (
+                str(author.next_sibling).strip().lstrip(":：").strip()
+            )
+        logger.info("Novel author: %s", self.novel_author)
+
+        japanese = soup.find("strong", string="Japanese Title")
+        if japanese and japanese.next_sibling:
+            self.alternative_titles = [
+                str(japanese.next_sibling).strip().strip(" :|：").strip()
+            ]
+        logger.info("Alternative titles: %s", self.alternative_titles)
+
         seen = set()
         for a in soup.select("a[href]"):
             href = a["href"].replace("http://", "https://")

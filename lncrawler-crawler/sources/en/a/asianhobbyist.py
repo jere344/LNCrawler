@@ -35,7 +35,7 @@ class AsianHobbyistCrawler(Crawler):
             self.novel_title = title.get_text(strip=True)
         logger.info("Novel title: %s", self.novel_title)
 
-        cover = soup.select_one(".entry-content img")
+        cover = soup.select_one(".thumb img") or soup.select_one(".background img")
         if cover:
             self.novel_cover = self.absolute_url(
                 cover.get("data-src") or cover.get("src")
@@ -48,6 +48,18 @@ class AsianHobbyistCrawler(Crawler):
             if author:
                 self.novel_author = author.group(1).strip()
             self.novel_synopsis = self.cleaner.extract_contents(description)
+
+            text = description.get_text(" ", strip=True)
+            genres = re.search(r"Genres:\s*(.*?)\s*(?:Synopsis:|Tags:|$)", text)
+            if genres:
+                self.genres = [
+                    tag.strip() for tag in genres.group(1).split(",") if tag.strip()
+                ]
+            tags = re.search(r"Tags:\s*(.*)$", text)
+            if tags:
+                self.novel_tags = [
+                    tag.strip() for tag in tags.group(1).split(",") if tag.strip()
+                ]
         logger.info("Novel author: %s", self.novel_author)
 
         slug = self.novel_url.rstrip("/").split("/")[-1]

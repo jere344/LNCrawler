@@ -211,22 +211,18 @@ const CommentItem = ({
           </Box>
         </Box>
         
-        {comment.type && (
+        {comment.type === 'board' ? (
           <Box sx={{ mb: 1 }}>
-            {comment.type === 'novel' ? (
-              <Chip size="small" label="Novel Comment" color="primary" variant="outlined" />
-            ) : comment.type === 'board' ? (
-              <Chip size="small" label="Board Comment" color="secondary" variant="outlined" />
-            ) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Chip size="small" label={getChapterLabel(comment.chapter_title, comment.chapter_id)} color="secondary" variant="outlined" />
-                <Typography variant="body2" color="text.secondary">
-                  from {comment.source_name}
-                </Typography>
-              </Box>
-            )}
+            <Chip size="small" label="Board Comment" color="secondary" variant="outlined" />
           </Box>
-        )}
+        ) : comment.type && comment.type !== 'novel' ? (
+          <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip size="small" label={`Comment posted at ${getChapterLabel(comment.chapter_title, comment.chapter_id)}`} color="secondary" variant="outlined" />
+            <Typography variant="body2" color="text.secondary">
+              from {comment.source_name}
+            </Typography>
+          </Box>
+        ) : null}
 
         {/* Comment content section - normal view or edit view */}
         {isEditing ? (

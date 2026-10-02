@@ -80,6 +80,13 @@ class LnoriCrawler(Crawler):
         self.novel_synopsis = data.get("description") or ""
         self.novel_cover = data.get("image") or None
 
+        genres = data.get("genre")
+        if genres:
+            self.novel_tags = [
+                tag.strip() for tag in genres.split(",") if tag.strip()
+            ]
+            logger.info("Novel tags: %s", self.novel_tags)
+
         parts = data.get("hasPart") or []
         if any(str(p.get("url", "")).startswith("http") for p in parts):
             for book in parts:

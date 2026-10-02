@@ -57,6 +57,19 @@ class WanderingInnCrawler(Crawler):
         if desc:
             self.novel_synopsis = desc.get("content", "")
 
+        # The site tags its story posts; drop one-off noise tags.
+        try:
+            tags = self.get_json(
+                "%swp-json/wp/v2/tags?per_page=100&orderby=count&order=desc"
+                "&_fields=name,count" % self.home_url
+            )
+            self.novel_tags = [
+                tag["name"] for tag in tags if tag.get("count", 0) >= 10
+            ]
+        except Exception as e:
+            logger.debug("wanderinginn tags fetch failed: %s", e)
+        logger.info("Novel tags: %s", self.novel_tags)
+
         page = 1
         while True:
             response = self.get_response(

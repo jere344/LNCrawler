@@ -53,16 +53,14 @@ class AlphapolisCrawler(Crawler):
 
     def search_novel(self, query: str):
         soup = self.get_soup(
-            "https://www.alphapolis.co.jp/novel/index?keyword=" + quote_plus(query)
+            "https://www.alphapolis.co.jp/search?query=" + quote_plus(query)
         )
         results = []
-        for card in soup.select("section.p-content.is-novel")[:10]:
-            a = card.select_one("h2.p-content__title a") or card.select_one(
-                'a.c-link[href^="/novel/"]'
-            )
+        for card in soup.select("div.section.novels.content-block")[:10]:
+            a = card.select_one("h2.title a")
             if not a:
                 continue
-            author = card.select_one('a[href*="/author/detail/"]')
+            author = card.select_one(".author a")
             results.append(
                 SearchResult(
                     title=a.get_text(" ", strip=True),

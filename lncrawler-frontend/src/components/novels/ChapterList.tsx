@@ -48,12 +48,21 @@ const ChapterList = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(100);
   
   // Organize chapters by volume
   const [volumeChapters, setVolumeChapters] = useState<{ [key: number]: Chapter[] }>({});
   const [volumes, setVolumes] = useState<number[]>([]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchTerm]);
   
   useEffect(() => {
     const fetchChapters = async () => {
@@ -61,7 +70,7 @@ const ChapterList = () => {
       
       setLoading(true);
       try {
-        const response = await novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize);
+        const response = await novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize, debouncedSearch);
         setChapterData(response as IExtendedChapterListResponse);
         
         // Organize chapters by volume
@@ -90,7 +99,7 @@ const ChapterList = () => {
     };
 
     fetchChapters();
-  }, [novelSlug, sourceSlug, page, pageSize]);
+  }, [novelSlug, sourceSlug, page, pageSize, debouncedSearch]);
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
@@ -101,18 +110,7 @@ const ChapterList = () => {
     setPage(1);
   };
 
-  const filteredVolumes = Object.entries(volumeChapters).reduce((acc: { [key: number]: Chapter[] }, [volume, chapters]) => {
-    const filteredChapters = chapters.filter(chapter => 
-      chapter.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      chapter.chapter_id.toString().includes(searchTerm)
-    );
-    
-    if (filteredChapters.length > 0) {
-      acc[Number(volume)] = filteredChapters;
-    }
-    
-    return acc;
-  }, {});
+  const filteredVolumes = volumeChapters;
 
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
@@ -174,7 +172,6 @@ const ChapterList = () => {
           items={[
             {
               label: chapterData.novel_title,
-              link: `/novels/${novelSlug}`,
               icon: <BookIcon fontSize="inherit" />
             },
             {

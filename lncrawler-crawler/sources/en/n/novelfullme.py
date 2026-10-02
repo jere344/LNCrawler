@@ -50,6 +50,20 @@ class NovelFullMeCrawler(Crawler):
         )
         logger.info("Novel author: %s", self.novel_author)
 
+        self.genres = [
+            g["name"].strip() for g in manga.get("genres") or [] if g.get("name")
+        ]
+        self.tags = [
+            t["name"].strip() for t in manga.get("tags") or [] if t.get("name")
+        ]
+        self.alternative_titles = [
+            a["name"].strip()
+            for a in manga.get("altNames") or []
+            if a.get("name")
+            and a["name"].strip().lower() != self.novel_title.lower()
+        ]
+        logger.info("Novel genres: %s", self.genres)
+
         self.novel_synopsis = manga.get("summary") or ""
 
         chapters = manga.get("chapters") or []

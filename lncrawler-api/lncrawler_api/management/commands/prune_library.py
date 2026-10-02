@@ -21,7 +21,7 @@ import re
 import shutil
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import urlparse
@@ -30,6 +30,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Count, Q
+from django.utils import timezone
 
 from lncrawler_api.models import (
     Comment,
@@ -45,6 +46,10 @@ from lncrawler_api.utils.lncrawler_paths import sanitize
 logger = logging.getLogger("lncrawler_api")
 
 FAIL_MESSAGE = "Failed to download chapter body"
+
+# A novel is never pruned before it has had time to settle, so a fresh crawl
+# (or a bad first import) cannot be wiped before it is even reviewed.
+MIN_NOVEL_AGE = timedelta(days=7)
 
 
 def normalize_source_name(name: str) -> str:
@@ -145,6 +150,7 @@ class Command(BaseCommand):
 
         self.root = settings.LNCRAWL_OUTPUT_PATH
         self.trash_root = os.path.join(self.root, ".prune_trash")
+        self.age_cutoff = timezone.now() - MIN_NOVEL_AGE
         self.deleted = 0
         self.kept_phase3 = 0
 
@@ -235,7 +241,9 @@ class Command(BaseCommand):
 
     def _phase_orphan_novels(self):
         self.stdout.write("Phase 1: orphan novels")
-        orphans = Novel.objects.annotate(_n=Count("sources")).filter(_n=0)
+        orphans = Novel.objects.annotate(_n=Count("sources")).filter(
+            _n=0, created_at__lt=self.age_cutoff
+        )
         for novel in orphans.iterator():
             if self._stopped():
                 return
@@ -262,8 +270,10 @@ class Command(BaseCommand):
     def _phase_empty_sources(self):
         self.stdout.write("Phase 2: empty sources")
         with_content = NovelFromSource.objects.filter(chapters__has_content=True).values("pk")
-        empties = NovelFromSource.objects.exclude(pk__in=with_content).select_related(
-            "novel", "external_source"
+        empties = (
+            NovelFromSource.objects.exclude(pk__in=with_content)
+            .filter(novel__created_at__lt=self.age_cutoff)
+            .select_related("novel", "external_source")
         )
         for source in empties.iterator():
             if self._stopped():
@@ -327,6 +337,7 @@ class Command(BaseCommand):
 
         dead_qs = (
             NovelFromSource.objects.filter(external_source_id__in=dead_ids)
+            .filter(novel__created_at__lt=self.age_cutoff)
             .select_related("novel", "external_source")
             .order_by("id")
         )

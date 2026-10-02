@@ -44,6 +44,18 @@ class TruyenHoanCrawler(Crawler):
         if author:
             self.novel_author = author.get_text(strip=True)
 
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select('.info a[itemprop="genre"]')
+            if a.get_text(strip=True)
+        ]
+        self.tags = [
+            a.get_text(strip=True)
+            for a in soup.select('.info a[href*="/tag/"]')
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel tags: %s", self.genres + self.tags)
+
         synopsis = soup.select_one(".desc")
         if synopsis:
             self.novel_synopsis = synopsis.get_text(" ", strip=True)

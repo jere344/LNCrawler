@@ -46,6 +46,20 @@ class NovelismCrawler(Crawler):
         if author:
             self.novel_author = author.get_text(strip=True)
 
+        cover = soup.select_one('meta[property="og:image"], meta[name="og:image"]')
+        if cover and cover.get("content"):
+            self.novel_cover = cover["content"]
+
+        genres = [
+            a.get_text(strip=True)
+            for a in soup.select("a[href*='/novel/genre/']")
+        ]
+        tags = [
+            a.get_text(strip=True)
+            for a in soup.select("a[href*='/novel/keyword/tag/']")
+        ]
+        self.novel_tags = list(dict.fromkeys(genres + tags))
+
         self.volumes.append({"id": 0})
         seen = set()
         for a in soup.select("a[href*='/article/']"):

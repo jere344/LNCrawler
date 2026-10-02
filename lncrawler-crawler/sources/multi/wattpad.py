@@ -19,12 +19,14 @@ class WattpadCrawler(Crawler):
         self.home_url = "https://www.wattpad.com/"
 
     def search_novel(self, query):
-        # The API intermittently returns an empty body; retry before giving up.
+        # The API returns a serialized PHP array instead of JSON when the
+        # request carries the JSON Accept header, so force a plain one.
         for _ in range(3):
             try:
                 data = self.get_json(
                     f"{self.home_url}api/v3/stories?fields=stories(id,title,url)"
-                    f"&query={quote_plus(query)}&limit=10"
+                    f"&query={quote_plus(query)}&limit=10",
+                    headers={"Accept": "*/*"},
                 )
                 return [
                     {"title": s["title"], "url": s["url"]}

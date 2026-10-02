@@ -111,6 +111,18 @@ class WebnovelCrawler(BasicBrowserTemplate):
         # To get the chapter list catalog
         soup = self.get_soup(f"{self.novel_url.strip('/')}/catalog")
         self.parse_chapter_catalog(soup)
+
+        tag_meta = soup.select_one('meta[property="og:tag"]')
+        if not (tag_meta and tag_meta.get("content")):
+            tag_meta = self.get_soup(self.novel_url).select_one('meta[property="og:tag"]')
+        if tag_meta and tag_meta.get("content"):
+            self.novel_tags = [
+                tag.strip()
+                for tag in tag_meta["content"].split(",")
+                if tag.strip()
+            ]
+        logger.info("Novel tags: %s", self.novel_tags)
+
         if not self.chapters:
             raise FallbackToBrowser()
 

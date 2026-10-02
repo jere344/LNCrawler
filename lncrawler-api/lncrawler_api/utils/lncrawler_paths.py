@@ -1,5 +1,6 @@
 from django.conf import settings
 import os
+import shutil
 import unicodedata
 import re
 
@@ -63,6 +64,18 @@ def sanitize(text: str) -> str:
     return text
 
 
+def truncate_component(text: str, max_bytes: int = 180) -> str:
+    """Bound a single path component so long names cannot exceed the fs limit."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    # Cut on a byte boundary without splitting a multibyte character.
+    cut = encoded[:max_bytes].decode("utf-8", "ignore")
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.strip() or text[: max_bytes // 4]
+
+
 def get_novel_output_path(source, novel) -> str:
     """
     Get the output path for a novel based on its source and name.
@@ -75,8 +88,8 @@ def get_novel_output_path(source, novel) -> str:
         os.makedirs(BASE_DIR)
     
     # Normalize the source and novel names
-    source = sanitize(source).lower()
-    novel = sanitize(novel).lower()
+    source = truncate_component(sanitize(source).lower())
+    novel = truncate_component(sanitize(novel).lower())
     
     # Default names if empty after sanitization
     if not source:
@@ -98,3 +111,61 @@ def get_novel_output_path(source, novel) -> str:
         os.makedirs(source_dir)
     
     return source_dir
+
+
+def move_and_merge_directory(source_dir: str, target_dir: str) -> None:
+    """
+    Move the contents of ``source_dir`` into ``target_dir``, overwriting
+    same-named files and recursively merging subdirectories. ``source_dir`` is
+    removed once empty.
+
+    Used to consolidate a crawled/imported source folder into the canonical
+    novel folder after a merge alias has been resolved. A plain ``shutil.move``
+    would nest the source under the target when the latter already exists,
+    which is not what we want here.
+    """
+    if os.path.abspath(source_dir) == os.path.abspath(target_dir):
+        return
+
+    os.makedirs(target_dir, exist_ok=True)
+    for entry in os.listdir(source_dir):
+        src = os.path.join(source_dir, entry)
+        dst = os.path.join(target_dir, entry)
+        if os.path.isdir(src):
+            if os.path.exists(dst):
+                move_and_merge_directory(src, dst)
+            else:
+                shutil.move(src, dst)
+        else:
+            if os.path.exists(dst):
+                os.remove(dst)
+            shutil.move(src, dst)
+
+    try:
+        os.rmdir(source_dir)
+    except OSError:
+        # Source still holds something we could not move; leave it in place
+        # rather than risk deleting data.
+        pass
+
+
+def remove_empty_directory(path: str) -> None:
+    """Remove ``path`` if it exists and is empty. No-op otherwise."""
+    try:
+        os.rmdir(path)
+    except OSError:
+        pass
+
+
+def rebase_path(path: str, old_prefix: str, new_prefix: str) -> str:
+    """
+    Replace the leading ``old_prefix`` component of a relative path with
+    ``new_prefix``. Paths outside ``old_prefix`` are returned unchanged.
+    """
+    if not path or not old_prefix:
+        return path
+    if path == old_prefix:
+        return new_prefix
+    if path.startswith(old_prefix + os.sep):
+        return new_prefix + path[len(old_prefix):]
+    return path

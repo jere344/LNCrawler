@@ -30,9 +30,10 @@ import { novelService } from '../../services/api';
 
 interface NovelSourcesProps {
   novel: any;
+  currentSourceSlug?: string;
 }
 
-const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
+const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug }) => {
   const theme = useTheme();
   const [sources, setSources] = useState<any[]>(novel.sources);
   const [votingInProgress, setVotingInProgress] = useState<{ [key: string]: boolean }>({});
@@ -93,14 +94,16 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                 overflow: 'visible',
               }}
             >
-              {index === 0 && (
+              {(index === 0 || source.source_slug === currentSourceSlug) && (
                 <Box
                   sx={{
                     position: 'absolute',
                     top: -12,
                     right: 20,
                     zIndex: 2,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    background: source.source_slug === currentSourceSlug
+                      ? `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`
+                      : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                     color: 'white',
                     px: 2,
                     py: 0.5,
@@ -113,7 +116,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                   }}
                 >
                   <PriorityHighIcon fontSize="small" sx={{ mr: 0.5, fontSize: '1rem' }} />
-                  PRIMARY
+                  {source.source_slug === currentSourceSlug ? 'CURRENT' : 'PRIMARY'}
                 </Box>
               )}
 

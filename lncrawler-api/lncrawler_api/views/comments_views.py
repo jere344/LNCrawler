@@ -4,7 +4,7 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from ..models import Novel, Chapter
 from ..models.comments_models import Comment, CommentVote
-from ..utils import get_client_ip
+from ..utils import get_client_ip, resolve_novel_slug
 from ..serializers.comments_serializers import NovelCommentSerializer, ChapterCommentSerializer
 from ..serializers.boards_serializers import BoardCommentSerializer
 
@@ -14,18 +14,15 @@ def novel_comments(request, novel_slug):
     """
     Get comments for a specific novel and its chapters
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     
     # Get top-level comments directly on the novel (no parent)
     novel_comments = novel.comments.filter(parent=None)
     
-    # Get chapter IDs for comments on chapters
-    chapter_ids = []
-    for source in novel.sources.all():
-        chapter_ids.extend(source.chapters.values_list('id', flat=True))
-    
-    # Get top-level comments on chapters (no parent)
-    chapter_comments = Comment.objects.filter(chapter_id__in=chapter_ids, parent=None)
+    # Get top-level comments on any chapter of this novel (no parent)
+    chapter_comments = Comment.objects.filter(
+        chapter__novel_from_source__novel=novel, parent=None
+    ).select_related('chapter__novel_from_source__external_source')
     
     # Process novel comments with their replies
     novel_comments_serializer = NovelCommentSerializer(novel_comments, many=True, context={'request': request})
@@ -75,7 +72,7 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
         )
 
     client_ip = get_client_ip(request)
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
 
     # If we are replying to a comment, use the parent comment data
     if parent_id:
@@ -152,7 +149,7 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     """
     Get comments for a specific chapter across all sources of the novel
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
     chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
     

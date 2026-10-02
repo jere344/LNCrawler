@@ -53,10 +53,11 @@ class Command(BaseCommand):
         signal.signal(signal.SIGINT, _stop)
 
         DownloaderService.requeue_stale_jobs(minutes=options['stale_minutes'])
-        logger.info("Crawler worker started (poll=%ss)", options['poll'])
 
         requeue_every = options['requeue_every']
         last_requeue = time.monotonic()
+
+        logger.info("Crawler worker started (poll=%ss)", options['poll'])
 
         while state['running']:
             close_old_connections()

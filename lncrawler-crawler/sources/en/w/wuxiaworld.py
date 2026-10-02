@@ -49,6 +49,25 @@ class WuxiaworldCrawler(Crawler):
             if "Author:" in text:
                 self.novel_author = text.split("Author:", 1)[1].split("·")[0].strip()
 
+        cover = soup.select_one(".novel-head .cover img")
+        if cover:
+            self.novel_cover = self.absolute_url(cover.get("src"))
+        logger.info("Novel cover: %s", self.novel_cover)
+
+        # The lite theme omits genres; the main site lists them as genre links.
+        path = urlparse(self.novel_url).path
+        try:
+            meta_soup = self.get_soup("https://www.wuxiaworld.com" + path)
+        except Exception as e:
+            logger.debug("wuxiaworld genre fetch failed: %s", e)
+            meta_soup = soup
+        self.novel_tags = [
+            a.get_text(strip=True)
+            for a in meta_soup.select('a[href*="/novels/?genre="]')
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel tags: %s", self.novel_tags)
+
         syn = soup.find("h2", string="Synopsis")
         if syn:
             nxt = syn.find_next_sibling()

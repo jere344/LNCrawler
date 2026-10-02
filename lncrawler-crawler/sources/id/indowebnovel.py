@@ -41,11 +41,24 @@ class IndowebnovelCrawler(Crawler):
 
         possible_title = soup.select_one("div.series-title")
         assert possible_title, "No novel title"
-        self.novel_title = possible_title.get_text(" ")
+        h2 = possible_title.select_one("h2")
+        self.novel_title = (h2 or possible_title).get_text(strip=True)
         logger.info("Novel title: %s", self.novel_title)
 
         self.novel_author = "Translated by Indowebnovel"
         logger.info("Novel author: %s", self.novel_author)
+
+        self.genres = [
+            a.get_text(strip=True)
+            for a in soup.select("div.series-genres a[href*='/genre/']")
+            if a.get_text(strip=True)
+        ]
+        self.tags = [
+            a.get_text(strip=True)
+            for a in soup.select("ul.series-infolist a[href*='/tag/']")
+            if a.get_text(strip=True)
+        ]
+        logger.info("Novel tags: %s", self.genres + self.tags)
 
         possible_image = soup.select_one("div.series-thumb img")
         if possible_image:

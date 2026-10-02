@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
+from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +12,25 @@ logger = logging.getLogger(__name__)
 class FanficEsCrawler(Crawler):
     base_url = ["https://fanfic.es/"]
     language = "es"
+
+    def search_novel(self, query: str):
+        soup = self.get_soup(
+            "%ssearch_fanfics?query=%s" % (self.home_url, quote_plus(query))
+        )
+        results = []
+        for article in soup.select("article.fanfic-inline"):
+            a = article.select_one("a.visit-link")
+            if not a:
+                continue
+            author = article.select_one(".author a")
+            results.append(
+                SearchResult(
+                    title=a.get_text(" ", strip=True),
+                    url=self.absolute_url(a["href"]),
+                    info=author.get_text(" ", strip=True) if author else None,
+                )
+            )
+        return results
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

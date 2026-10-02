@@ -20,7 +20,7 @@ class RenovelsCrawler(Crawler):
 
     def search_novel(self, query):
         data = self.get_json(
-            f"{api_base}/search/catalog/?query={quote_plus(query)}&count=10"
+            f"{api_base}/search/?query={quote_plus(query)}&count=10"
         )
         results, seen = [], set()
         for item in data.get("content", []):
@@ -57,6 +57,19 @@ class RenovelsCrawler(Crawler):
         if cover:
             self.novel_cover = self.base_url[0].rstrip("/") + cover
         logger.info("Novel cover: %s", self.novel_cover)
+
+        self.alternative_titles = [
+            name.strip()
+            for name in (content.get("another_name") or "").split("/")
+            if name.strip()
+        ]
+
+        self.novel_tags = [
+            genre["name"]
+            for genre in (content.get("genres") or [])
+            + (content.get("categories") or [])
+            if isinstance(genre, dict) and genre.get("name")
+        ]
 
         branches = content.get("branches") or []
         assert branches, "No branches found"

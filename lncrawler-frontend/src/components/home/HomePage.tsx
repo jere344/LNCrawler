@@ -21,6 +21,7 @@ import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
+import { getNovelSourcePath } from '@utils/Misc';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
@@ -145,7 +146,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 6, sm: 3 }} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
-                  to={`/novels/${novel.slug}`}
+                  to={getNovelSourcePath(novel)}
                   rank={index + 1}
                 />
               </Grid>
@@ -180,7 +181,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
                 <NovelItemCard 
                   novel={novel} 
-                  to={`/novels/${novel.slug}`}
+                  to={getNovelSourcePath(novel)}
                   rank={rank + 1}
                 />
               </Grid>
@@ -231,7 +232,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={`/novels/${novel.slug}`}
+                    to={getNovelSourcePath(novel)}
                     showClicks
                   />
                 </Grid>
@@ -262,7 +263,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={`/novels/${novel.slug}`}
+                    to={getNovelSourcePath(novel)}
                     showTrends
                   />
                 </Grid>
@@ -293,7 +294,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={`/novels/${novel.slug}`}
+                    to={getNovelSourcePath(novel)}
                     showRating
                   />
                 </Grid>
@@ -320,10 +321,7 @@ const HomePage: React.FC = () => {
         ) : homeData?.featured_novel ? (
           <FeaturedNovelCard 
             source={homeData.featured_novel.novel.prefered_source}
-            to={homeData.featured_novel.novel.prefered_source?.novel_slug && homeData.featured_novel.novel.prefered_source?.source_slug ? 
-              `/novels/${homeData.featured_novel.novel.prefered_source.novel_slug}/${homeData.featured_novel.novel.prefered_source.source_slug}` : 
-              homeData.featured_novel.novel.prefered_source?.novel_slug ? 
-                `/novels/${homeData.featured_novel.novel.prefered_source.novel_slug}` : undefined}
+            to={getNovelSourcePath(homeData.featured_novel.novel)}
           />
         ) : (
           <Typography variant="body1" align="center">No featured novel available</Typography>

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
+
 from lncrawl.core.crawler import Crawler
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,16 @@ class MyDramaNovel(Crawler):
         soup = self.submit_task(self.get_soup, url).result()
         query = query.lower()
         results = []
+        seen = set()
         for a in soup.select(".td_block_categories_tags a.td-ct-item[href]"):
             name = a.select_one(".td-ct-item-name")
             title = name.text.strip() if name else a.text.strip()
             if query in title.lower():
-                results.append(
-                    {"title": title, "url": self.absolute_url(a["href"])}
-                )
+                link = self.absolute_url(a["href"])
+                if link in seen:
+                    continue
+                seen.add(link)
+                results.append({"title": title, "url": link})
         return results[:10]
 
     def read_novel_info(self):

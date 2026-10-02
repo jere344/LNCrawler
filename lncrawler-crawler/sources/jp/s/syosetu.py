@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 from urllib.parse import quote_plus
 from lncrawl.core.crawler import Crawler
 from concurrent.futures import ThreadPoolExecutor
@@ -45,9 +46,13 @@ class SyosetuCrawler(Crawler):
 
         # No novel cover.
 
-        author_tag = soup.select_one(".novel_writername a")
+        author_tag = soup.select_one(".p-novel__author") or soup.select_one(
+            ".novel_writername a"
+        )
         if author_tag:
-            self.novel_author = author_tag.text.strip()
+            self.novel_author = author_tag.get_text(strip=True).replace("作者：", "").strip()
+
+        self._parse_infotop()
 
         synopsis_tag = soup.select_one(".p-novel__summary") or soup.select_one("#novel_ex")
         if synopsis_tag:
@@ -98,3 +103,21 @@ class SyosetuCrawler(Crawler):
         contents = soup.select_one(".p-novel__body")
         contents = self.cleaner.extract_contents(contents)
         return contents
+
+    def _parse_infotop(self):
+        match = re.search(r"/(n[a-z0-9]+)/?$", self.novel_url.rstrip("/"))
+        if not match:
+            return
+        info_url = self.absolute_url(
+            f"/novelview/infotop/ncode/{match.group(1)}/"
+        )
+        info = self.get_soup(info_url)
+        for dt in info.select(".p-infotop-data__title"):
+            label = dt.get_text(strip=True)
+            dd = dt.find_next_sibling("dd")
+            if dd is None:
+                continue
+            if "キーワード" in label:
+                self.tags = [x for x in dd.get_text(" ", strip=True).split() if x]
+            elif "ジャンル" in label:
+                self.genres = [dd.get_text(strip=True)]

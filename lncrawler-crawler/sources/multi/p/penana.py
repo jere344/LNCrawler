@@ -46,6 +46,12 @@ class PenanaCrawler(Crawler):
         if synopsis:
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
+        self.novel_tags = [
+            a.get_text(" ", strip=True)
+            for a in soup.select(".tags_outerwrap .story_tag a")
+            if a.get_text(" ", strip=True)
+        ]
+
         for a in soup.select(".toclist a[href]"):
             title_tag = a.select_one(".toc1")
             self.chapters.append(

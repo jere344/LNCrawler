@@ -47,6 +47,18 @@ class PoWanJuanCrawler(Crawler):
             self.novel_author = author.group(1).strip()
         logger.info("Novel author: %s", self.novel_author)
 
+        synopsis = soup.select_one(".descInfo")
+        if synopsis:
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
+
+        categories = [
+            a.get_text(strip=True)
+            for a in soup.select(".sNav a")
+            if re.match(r"^/[a-z0-9]+/$", a.get("href", ""))
+        ]
+        if categories:
+            self.novel_tags = categories
+
         for a in soup.select("a[href]"):
             href = a["href"]
             if not re.search(r"/view/\d+-\d+-\d+\.html$", href):

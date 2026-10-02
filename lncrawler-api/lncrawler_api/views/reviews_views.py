@@ -10,13 +10,14 @@ from ..serializers.reviews_serializers import (
     ReviewListSerializer, ReviewCreateSerializer, ReactionCreateSerializer
 )
 from ..utils.ip_utils import get_client_ip
+from ..utils import resolve_novel_slug
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def novel_reviews(request, novel_slug):
     """Get all reviews for a novel with pagination"""
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     reviews = Review.objects.filter(novel=novel).select_related('user', 'novel').prefetch_related('reactions__user')
     
     # Pagination
@@ -44,7 +45,7 @@ def novel_reviews(request, novel_slug):
 @permission_classes([IsAuthenticated])
 def add_review(request, novel_slug):
     """Add a new review for a novel"""
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     
     # Check if user already reviewed this novel
     if Review.objects.filter(novel=novel, user=request.user).exists():

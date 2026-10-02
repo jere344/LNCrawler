@@ -46,7 +46,9 @@ class WuxiaSiteCrawler(Crawler):
 
         possible_image = soup.select_one(".summary_image a img")
         if isinstance(possible_image, Tag):
-            self.novel_cover = self.absolute_url(possible_image["src"])
+            self.novel_cover = self.absolute_url(
+                possible_image.get("data-src") or possible_image["src"]
+            )
         logger.info("Novel cover: %s", self.novel_cover)
 
         authors = soup.select(".author-content a")
@@ -55,6 +57,9 @@ class WuxiaSiteCrawler(Crawler):
         elif len(authors) == 1:
             self.novel_author = authors[0].text
         logger.info("Novel author: %s", self.novel_author)
+
+        self.novel_tags = [tag.text.strip() for tag in soup.select(".genres-content a")]
+        logger.info("Novel tags: %s", self.novel_tags)
 
         synopsis_tag = soup.select_one(".summary__content")
         if synopsis_tag:

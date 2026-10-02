@@ -759,7 +759,6 @@ const ChapterReader = () => {
             items={[
               {
                 label: chapter.novel_title,
-                link: `/novels/${novelSlug}`,
                 icon: <BookIcon fontSize="inherit" />
               },
               {

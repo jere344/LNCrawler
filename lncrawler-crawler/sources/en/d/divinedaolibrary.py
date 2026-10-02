@@ -38,6 +38,24 @@ class DivineDaoLibraryCrawler(Crawler):
             self.novel_author = author.get_text(strip=True)
         logger.info("Novel author: %s", self.novel_author)
 
+        cover = soup.select_one("img.story__thumbnail-image")
+        if cover:
+            self.novel_cover = self.absolute_url(cover.get("src"))
+        logger.info("Novel cover: %s", self.novel_cover)
+
+        self.genres = [
+            tag.get_text(strip=True)
+            for tag in soup.select(".story__taxonomies .tag-pill")
+            if tag.get_text(strip=True)
+        ]
+        self.tags = [
+            tag.get_text(strip=True)
+            for tag in soup.select(".story__tags-and-warnings .tag-pill")
+            if tag.get_text(strip=True)
+        ]
+        logger.info("Novel genres: %s", self.genres)
+        logger.info("Novel tags: %s", self.tags)
+
         desc = soup.select_one('meta[property="og:description"]')
         if desc:
             self.novel_synopsis = desc.get("content", "")

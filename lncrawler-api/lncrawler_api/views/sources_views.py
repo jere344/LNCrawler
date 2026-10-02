@@ -12,7 +12,7 @@ from ..serializers import NovelSourceSerializer, ChapterSerializer, ChapterConte
 from ..serializers.sources_serializers import GalleryImageSerializer
 from django.db.models import F, Avg, Q, Count, Value, Max, Min
 from django.db.models.functions import Coalesce
-from ..utils import get_client_ip
+from ..utils import get_client_ip, resolve_novel_slug
 from django.conf import settings
 
 
@@ -21,10 +21,10 @@ def source_detail(request, novel_slug, source_slug):
     """
     Get details for a specific novel source
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
-    serializer = NovelSourceSerializer(source, context={"request": request})
+    serializer = NovelSourceSerializer(source, context={"request": request, "include_synopsis": True})
     # Add novel info to the response
     data = serializer.data
     data.update(
@@ -50,7 +50,7 @@ def vote_source(request, novel_slug, source_slug):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
     client_ip = get_client_ip(request)
 
@@ -84,10 +84,16 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     """
     Get all chapters for a specific novel source using slugs with pagination
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
     chapters = source.chapters.all().order_by("chapter_id")
+
+    search = request.GET.get("search", "").strip()
+    if search:
+        chapters = chapters.filter(
+            Q(title__icontains=search) | Q(chapter_id__icontains=search)
+        )
 
     # Pagination parameters
     page_number = request.GET.get("page", 1)
@@ -126,7 +132,7 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     """
     Get content for a specific chapter by its number
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
     chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
 
@@ -151,11 +157,11 @@ def source_image_gallery(request, novel_slug, source_slug):
     """
     Get all images from a specific source for gallery display
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
     # Get chapters with images
-    chapters_with_images = source.chapters.filter(images__isnull=False)
+    chapters_with_images = source.chapters.exclude(images=[])
 
     # Check if there are any images available
     has_overview = source.overview_picture_path and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path))

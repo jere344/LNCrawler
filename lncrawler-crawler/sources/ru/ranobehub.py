@@ -2,6 +2,7 @@
 import logging
 import re
 from typing import Generator
+from urllib.parse import unquote
 
 from bs4 import BeautifulSoup, Tag
 
@@ -43,9 +44,26 @@ class RanobeHubCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
 
     def parse_cover(self, soup: BeautifulSoup) -> str:
         tag = soup.select_one('meta[property="og:image"]')
-        if isinstance(tag, Tag):
+        if isinstance(tag, Tag) and tag.get("content"):
             return tag["content"]
+        img = soup.select_one(".book-cover-image")
+        if isinstance(img, Tag):
+            src = str(img.get("src") or "")
+            match = re.search(r"[?&]url=([^&]+)", src)
+            if match:
+                return self.absolute_url(unquote(match.group(1)))
+            if src:
+                return self.absolute_url(src)
         return ""
+
+    def read_novel_info(self) -> None:
+        super().read_novel_info()
+        soup = self.last_soup
+        original = soup.select_one(".book-original-title") if soup else None
+        if isinstance(original, Tag):
+            title = original.get_text(strip=True)
+            if title:
+                self.alternative_titles = [title]
 
     def parse_authors(self, soup: BeautifulSoup):
         for a in soup.select("a[href^='/author/']"):

@@ -70,6 +70,20 @@ class TwkanCrawler(Crawler):
             self.novel_author = author.group(1).strip()
         logger.info("Novel author: %s", self.novel_author)
 
+        synopsis = soup.select_one(".navtxt p")
+        if isinstance(synopsis, Tag):
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
+
+        tags = []
+        sort_name = re.search(r"sortName:\s*'([^']*)'", html)
+        if sort_name:
+            tags.append(sort_name.group(1).strip())
+        extra_tags = re.search(r"tags:\s*'([^']*)'", html)
+        if extra_tags:
+            tags.extend(t for t in extra_tags.group(1).split(",") if t.strip())
+        if tags:
+            self.novel_tags = tags
+
         cover = soup.select_one(".bookimg2 img")
         if isinstance(cover, Tag):
             self.novel_cover = self.absolute_url(

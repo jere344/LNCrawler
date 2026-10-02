@@ -32,6 +32,31 @@ class Novel(models.Model):
         # Refresh from database to get the latest values
         self.refresh_from_db()
 
+
+class NovelAlias(models.Model):
+    """
+    Redirect from an obsolete novel slug to the canonical novel it was merged
+    into.
+
+    ``NovelFromSource.from_meta_json`` identifies a novel by the slugified name
+    of its output folder. When two folders hold the same story and are merged,
+    a future crawl of the old folder name would otherwise recreate a fresh
+    ``Novel`` and undo the merge. Recording the old slug here makes that future
+    crawl attach to the surviving novel instead.
+    """
+    slug = models.SlugField(max_length=255, unique=True)
+    novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='aliases')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Novel alias'
+        verbose_name_plural = 'Novel aliases'
+        ordering = ['slug']
+
+    def __str__(self):
+        return f"{self.slug} -> {self.novel.slug}"
+
+
 class Person(models.Model):
     """Base model for people involved with novels (authors, editors, translators)"""
     name = models.CharField(max_length=255)
@@ -116,42 +141,60 @@ class NovelViewCount(models.Model):
 
 class WeeklyNovelView(models.Model):
     """
-    Tracks weekly view counts for novels
-    The year_week field stores the ISO year and week number (YYYYWW format)
+    Tracks novel views as time buckets. Recent views are stored one row per day
+    (granularity='day', day = the calendar day); buckets older than the
+    consolidation window are rolled up by ``consolidate_novel_views`` into one
+    row per ISO week (granularity='week', day = that week's Monday).
+
+    The trailing WINDOW_DAYS days of daily buckets are summed to produce the
+    rolling "weekly views" shown in the UI, so the number slides day by day
+    instead of resetting at the start of each calendar week.
     """
+    WINDOW_DAYS = 7
+    CONSOLIDATION_DAYS = 30  # Keep daily buckets this long before rolling up
+
+    DAY = 'day'
+    WEEK = 'week'
+    GRANULARITY_CHOICES = [(DAY, 'day'), (WEEK, 'week')]
+
     novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='weekly_views')
-    year_week = models.CharField(max_length=6)  # Format: YYYYWW
+    day = models.DateField()  # Day for daily rows, Monday for weekly rows
+    granularity = models.CharField(max_length=4, choices=GRANULARITY_CHOICES, default=DAY)
     views = models.PositiveIntegerField(default=0)
     
     class Meta:
-        unique_together = ('novel', 'year_week')
+        unique_together = ('novel', 'granularity', 'day')
     
     def __str__(self):
-        return f"{self.novel.title}: {self.views} views in week {self.year_week}"
+        period = self.day if self.granularity == self.DAY else f"week of {self.day}"
+        return f"{self.novel.title}: {self.views} views ({period})"
+
+    @classmethod
+    def window_start(cls):
+        """First day included in the trailing window (today inclusive)."""
+        from datetime import date, timedelta
+        return date.today() - timedelta(days=cls.WINDOW_DAYS - 1)
 
     @classmethod
     def increment_for_novel(cls, novel):
         """
-        Increment the weekly view count for a novel
+        Increment today's view count for a novel
         """
-        from datetime import datetime
-        # Get current ISO year and week number
-        current_date = datetime.now()
-        year_week = f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
-        
-        # Get or create the weekly record
-        weekly_view, created = cls.objects.get_or_create(
+        from datetime import date
+        today = date.today()
+        daily_view, _ = cls.objects.get_or_create(
             novel=novel,
-            year_week=year_week,
+            granularity=cls.DAY,
+            day=today,
             defaults={'views': 0}
         )
-        
-        cls.objects.filter(pk=weekly_view.pk).update(views=F('views') + 1)
-        
+
+        cls.objects.filter(pk=daily_view.pk).update(views=F('views') + 1)
+
         # Refresh from database to get the latest values
-        weekly_view.refresh_from_db()
-        
-        return weekly_view
+        daily_view.refresh_from_db()
+
+        return daily_view
 
 
 class FeaturedNovel(models.Model):

@@ -47,6 +47,22 @@ class BiXianGeCrawler(Crawler):
             self.novel_author = author.group(1).strip()
         logger.info("Novel author: %s", self.novel_author)
 
+        cover = soup.select_one(".info-left .cover img")
+        if cover:
+            self.novel_cover = self.absolute_url(cover.get("src") or "")
+
+        synopsis = soup.select_one(".descInfo")
+        if synopsis:
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
+
+        categories = [
+            a.get_text(strip=True)
+            for a in soup.select(".sNav a")
+            if re.match(r"^/[a-z0-9]+/$", a.get("href", ""))
+        ]
+        if categories:
+            self.novel_tags = categories
+
         for a in soup.select("a[href]"):
             href = a["href"]
             if not re.search(r"/index/\d+\.html$", href):

@@ -56,6 +56,14 @@ class SpiritFanficsCrawler(Crawler):
         if synopsis:
             self.novel_synopsis = synopsis["content"].strip()
 
+        keywords = soup.select_one('meta[name="keywords"]')
+        if keywords:
+            self.tags = [
+                k.strip()
+                for k in keywords.get("content", "").split(",")
+                if k.strip()
+            ]
+
         for a in soup.select('a[href*="/capitulos/"]'):
             self.chapters.append(
                 {

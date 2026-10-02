@@ -25,6 +25,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     first_available_chapter = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
+    synopsis = serializers.SerializerMethodField()
     
     class Meta:
         model = NovelFromSource
@@ -35,6 +36,13 @@ class NovelSourceSerializer(serializers.ModelSerializer):
             'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
             'latest_available_chapter', 'first_available_chapter', 'reading_history', 'overview_url',
         ]
+
+    def get_synopsis(self, obj: NovelFromSource):
+        # Synopsis is a large text field; only load it for detail views (opt-in
+        # via context) so list endpoints don't pull every source's synopsis.
+        if self.context.get('include_synopsis'):
+            return obj.synopsis
+        return None
 
     def get_cover_url(self, obj: NovelFromSource):
         if obj.cover_path:

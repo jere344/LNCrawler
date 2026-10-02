@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from django.db.models import F, Avg, Q, Count, Value, Max, Min
+from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum
 from django.db.models.functions import Coalesce
 from ..models import (
     Novel,
@@ -13,10 +13,10 @@ from ..models import (
     Author,
     FeaturedNovel,
     NovelFromSource,
+    WeeklyNovelView,
 )
 from ..models.reviews_models import Review
-from ..utils import get_client_ip
-from datetime import datetime
+from ..utils import get_client_ip, resolve_novel_slug
 from ..serializers import (
     BasicNovelSerializer,
     DetailedNovelSerializer,
@@ -54,7 +54,7 @@ def novel_detail_by_slug(request, novel_slug):
     """
     Get details for a specific novel using its slug
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     serializer = DetailedNovelSerializer(novel, context={"request": request})
     return Response(serializer.data)
 
@@ -77,7 +77,7 @@ def rate_novel(request, novel_slug):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     client_ip = get_client_ip(request)
 
     if not client_ip:
@@ -166,11 +166,8 @@ def search_novels(request):
         ).filter(avg_rating__gte=min_rating_val)
         novels_query = novels_query.filter(id__in=novels_with_min_rating)
 
-    # Get current ISO year and week for trending
-    current_date = datetime.now()
-    current_year_week = (
-        f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
-    )
+    # Rolling 7-day window start for trending
+    window_start = WeeklyNovelView.window_start()
 
     # Apply sorting
     if sort_by == "rating":
@@ -194,14 +191,17 @@ def search_novels(request):
         order_field = "-total_views" if sort_order == "desc" else "total_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "trending":
-        # Use weekly view count for trending
+        # Use the rolling 7-day view count for trending
         novels_query = novels_query.annotate(
             week_views=Coalesce(
-                Avg(
+                Sum(
                     "weekly_views__views",
-                    filter=Q(weekly_views__year_week=current_year_week),
+                    filter=Q(
+                        weekly_views__granularity=WeeklyNovelView.DAY,
+                        weekly_views__day__gte=window_start,
+                    ),
                 ),
-                Value(0.0),
+                Value(0),
             )
         )
         order_field = "-week_views" if sort_order == "desc" else "week_views"
@@ -331,13 +331,8 @@ def home_page(request):
     """
     Get all data needed for the home page in a single request
     """
-    from datetime import datetime
-    
-    # Get current ISO year and week for trending
-    current_date = datetime.now()
-    current_year_week = (
-        f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
-    )
+    # Rolling 7-day window start for trending
+    window_start = WeeklyNovelView.window_start()
     
     # Base queryset with common annotations
     base_queryset = Novel.objects.select_related().prefetch_related(
@@ -352,15 +347,18 @@ def home_page(request):
         .order_by('-total_views', 'title')[:12]
     )
     
-    # Trending novels (weekly views)
+    # Trending novels (rolling 7-day views)
     trending_novels = (
         base_queryset.annotate(
             week_views=Coalesce(
-                Avg(
+                Sum(
                     "weekly_views__views",
-                    filter=Q(weekly_views__year_week=current_year_week),
+                    filter=Q(
+                        weekly_views__granularity=WeeklyNovelView.DAY,
+                        weekly_views__day__gte=window_start,
+                    ),
                 ),
-                Value(0.0),
+                Value(0),
             )
         )
         .order_by('-week_views', 'title')[:12]

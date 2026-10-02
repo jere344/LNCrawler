@@ -28,9 +28,13 @@ class IsotlsCrawler(Crawler):
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
 
-        possible_cover = soup.select_one('meta[property="og:image"]')
+        possible_cover = soup.select_one('img.novel-cover') or soup.select_one(
+            'meta[property="og:image"]'
+        )
         if possible_cover:
-            self.novel_cover = self.absolute_url(possible_cover['content'])
+            self.novel_cover = self.absolute_url(
+                possible_cover.get('src') or possible_cover.get('content')
+            )
 
         possible_title = soup.select_one('meta[property="og:title"]')
         assert possible_title, 'No novel title'
@@ -39,6 +43,10 @@ class IsotlsCrawler(Crawler):
         possible_novel_author = soup.select_one('meta[name="twitter:data1"]')
         if possible_novel_author:
             self.novel_author = possible_novel_author['content']
+
+        synopsis = soup.select_one('#synopsis .flow-md') or soup.select_one('#synopsis')
+        if synopsis:
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
         for a in soup.select('main section:nth-child(3) nav ul li a'):
             chap_id = len(self.chapters) + 1

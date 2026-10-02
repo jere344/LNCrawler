@@ -35,7 +35,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ShareIcon from '@mui/icons-material/Share';
 import ReadingListCard from '@components/common/novelcardtypes/ReadingListItemCard';
-import { formatTimeAgo } from '@utils/Misc';
+import { formatTimeAgo, getNovelSourcePath } from '@utils/Misc';
 
 // Sortable novel item component
 const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: { 
@@ -107,7 +107,7 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
       }}>
         <ReadingListCard 
           novel={item.novel} 
-          to={`/novels/${item.novel.slug}`} 
+          to={getNovelSourcePath(item.novel)} 
           note={item.note}
           isOwner={isOwner}
           onEditNote={onEditNote}

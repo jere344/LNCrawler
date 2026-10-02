@@ -12,7 +12,9 @@ class FanfictionsFrCrawler(Crawler):
 
     def search_novel(self, query):
         data = self.submit_form_json(
-            "https://www.fanfictions.fr/ajax/search", data={"term": query}
+            "https://www.fanfictions.fr/ajax/search",
+            data={"term": query},
+            headers={"X-Requested-With": "XMLHttpRequest"},
         )
         results = []
         for item in data.get("data") or []:

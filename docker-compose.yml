@@ -2,6 +2,17 @@ services:
   db:
     image: postgres:17
     restart: unless-stopped
+    shm_size: 256mb
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - work_mem=8MB
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -45,13 +56,17 @@ services:
         condition: service_healthy
     command: ["sh", "/app/lncrawler-api/start.sh"]
 
+  # Job workers: identical any-job workers that atomically claim from the DB
+  # queue. Scale with usage: set CRAWLER_REPLICAS in .env, or run
+  #   docker compose up -d --scale crawler=N
   crawler:
     build: ./lncrawler-api
     restart: unless-stopped
+    deploy:
+      replicas: ${CRAWLER_REPLICAS:-1}
     volumes: *api-volumes
     environment: *api-env
-    env_file:
-      - .env
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
@@ -64,8 +79,7 @@ services:
     restart: unless-stopped
     volumes: *api-volumes
     environment: *api-env
-    env_file:
-      - .env
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy

@@ -95,6 +95,7 @@ const Header = () => {
         }
         if (location.pathname.startsWith("/reading-lists")) return "/reading-lists";
         if (location.pathname.startsWith("/boards")) return "/boards";
+        if (location.pathname.startsWith("/novels/search")) return "/novels/search";
         if (location.pathname.startsWith("/novels")) return "/";
         if (location.pathname === "/") return "/";
         return "/";
@@ -210,22 +211,22 @@ const Header = () => {
                         {isAuthenticated && <Tab label="History" value="/history" component={RouterLink} to="/history" />}
                         <Tab label="Lists" value="/reading-lists" component={RouterLink} to="/reading-lists" />
                         <Tab label="Chat" value="/boards" component={RouterLink} to="/boards" />
-                        <Tab label="Add Novel" value="/download" component={RouterLink} to="/download" />
+                        <Tab label="Search" value="/novels/search" component={RouterLink} to="/novels/search" />
                     </Tabs>
                 )}
 
                 {/* Actions section */}
                 <Box sx={{ display: "flex", alignItems: "center" }}>
-                    {/* Search Button */}
-                    <IconButton
+                    {/* Add Novel */}
+                    <Button
+                        variant="outlined"
+                        size="small"
                         component={RouterLink}
-                        to="/novels/search"
-                        color="inherit"
-                        aria-label="Search"
-                        sx={{ padding: isTablet ? 0.5 : 1 }}
+                        to="/download"
+                        sx={{ mr: 1, px: isTablet ? 1 : 2, whiteSpace: "nowrap" }}
                     >
-                        <SearchIcon sx={{ fontSize: isTablet ? "1.25rem" : "1.5rem" }} />
-                    </IconButton>
+                        Add Novel
+                    </Button>
 
                     {/* Discord Link - Hide on tablet */}
                     {!isTablet && (
@@ -412,8 +413,11 @@ const Header = () => {
                                     </ListItemIcon>
                                     <ListItemText primary="Chat" />
                                 </MenuItem>
-                                <MenuItem component={RouterLink} to="/download" onClick={handleMenuClose}>
-                                    Add Novel
+                                <MenuItem component={RouterLink} to="/novels/search" onClick={handleMenuClose}>
+                                    <ListItemIcon>
+                                        <SearchIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Search" />
                                 </MenuItem>
                             </Menu>
                         </>
