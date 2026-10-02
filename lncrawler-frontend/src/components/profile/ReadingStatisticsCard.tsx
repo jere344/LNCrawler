@@ -32,13 +32,24 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <ImportContactsIcon /> Reading Statistics
       </Typography>
-      
+
       <Grid container spacing={3}>
         {/* Reading Progress */}
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Paper elevation={1} sx={{ p: 2, bgcolor: 'background.paper' }}>
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  color: "text.secondary",
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5
+                }}>
                 Reading Progress
                 <Tooltip title="Only include bookmarked novels">
                     <InfoIcon fontSize="small" color="action" sx={{ opacity: 0.6, fontSize: '1rem' }} />
@@ -62,7 +73,9 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
                   mb: 1
                 }}
               />
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 {calculateReadingProgress().toFixed(1)}% complete
               </Typography>
             </Box>
@@ -70,19 +83,29 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
         </Grid>
         
         {/* Word Count */}
-        <Grid item xs={12} md={6}>
+        <Grid
+          size={{
+            xs: 12,
+            md: 6
+          }}>
           <Paper elevation={1} sx={{ p: 2, bgcolor: 'background.paper' }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography variant="subtitle2" sx={{
+                color: "text.secondary"
+              }}>
                 Total Words Read
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <MenuBookIcon color="primary" />
-                <Typography variant="h4" fontWeight="bold">
+                <Typography variant="h4" sx={{
+                  fontWeight: "bold"
+                }}>
                   {formatNumber(profileData?.word_read || 0)}
                 </Typography>
               </Box>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 Approximately {Math.round((profileData?.word_read || 0) / 250)} pages
               </Typography>
             </Box>

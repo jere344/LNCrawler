@@ -35,7 +35,7 @@ const PagedContent: React.FC<PagedContentProps> = ({
   const [pages, setPages] = useState<string[]>([]);
   const [internalScrollLock, setInternalScrollLock] = useState(isScrollLocked);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync internal state with prop
   useEffect(() => {

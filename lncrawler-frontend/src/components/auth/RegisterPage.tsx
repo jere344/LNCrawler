@@ -29,8 +29,8 @@ const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [usernameDebounceTimer, setUsernameDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  const [emailDebounceTimer, setEmailDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const [usernameDebounceTimer, setUsernameDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [emailDebounceTimer, setEmailDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -217,18 +217,20 @@ const RegisterPage: React.FC = () => {
             error={!!errors.password}
             helperText={errors.password}
             disabled={loading}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }
             }}
           />
           
@@ -265,7 +267,9 @@ const RegisterPage: React.FC = () => {
           <Divider sx={{ my: 2 }} />
           
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
+            <Typography variant="body2" gutterBottom sx={{
+              color: "text.secondary"
+            }}>
               Already have an account?
             </Typography>
             <Button

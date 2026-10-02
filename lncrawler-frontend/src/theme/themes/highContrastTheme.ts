@@ -122,21 +122,29 @@ export const getHighContrastTheme = () =>
                         fontSize: "1rem",
                         fontWeight: 700,
                     },
-                    containedPrimary: {
-                        boxShadow: "0 4px 12px rgba(255, 255, 0, 0.5)",
-                        backgroundColor: "#ffff00",
-                        color: "#000000",
-                        "&:hover": {
-                            boxShadow: "0 6px 16px rgba(255, 255, 0, 0.6)",
-                            backgroundColor: "#cccc00",
+                },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                boxShadow: "0 4px 12px rgba(255, 255, 0, 0.5)",
+                                backgroundColor: "#ffff00",
+                                color: "#000000",
+                                "&:hover": {
+                                    boxShadow: "0 6px 16px rgba(255, 255, 0, 0.6)",
+                                    backgroundColor: "#cccc00",
+                                },
                         },
                     },
-                    outlinedPrimary: {
-                        borderWidth: 3,
-                        borderColor: "#ffff00",
-                        color: "#ffff00",
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 3,
+                                borderColor: "#ffff00",
+                                color: "#ffff00",
+                        },
                     },
-                },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

@@ -104,17 +104,25 @@ export const getWindows98Theme = () =>
                             boxShadow: "inset -1px -1px #ffffff, inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px grey",
                         },
                     },
-                    containedPrimary: {
-                        backgroundColor: "#c0c0c0",
-                        color: "#000000",
-                        "&:hover": {
-                            backgroundColor: "#d0d0d0",
+                },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                backgroundColor: "#c0c0c0",
+                                color: "#000000",
+                                "&:hover": {
+                                    backgroundColor: "#d0d0d0",
+                                },
                         },
                     },
-                    outlinedPrimary: {
-                        borderWidth: 1,
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 1,
+                        },
                     },
-                },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

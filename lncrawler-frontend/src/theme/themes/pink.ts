@@ -122,21 +122,29 @@ export const getPinkTheme = () =>
                             boxShadow: "0 8px 20px rgba(255, 77, 141, 0.4)",
                         },
                     },
-                    containedPrimary: {
-                        background: "linear-gradient(45deg, #ff4d8d 30%, #ff80ab 90%)",
-                        boxShadow: "0 4px 12px rgba(255, 77, 141, 0.3)",
-                        "&:hover": {
-                            background: "linear-gradient(45deg, #ff3d7d 30%, #ff70a1 90%)",
-                        },
-                    },
-                    outlinedPrimary: {
-                        borderWidth: 2,
-                        "&:hover": {
-                            borderWidth: 2,
-                            background: "rgba(255, 128, 171, 0.1)",
-                        },
-                    },
                 },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                background: "linear-gradient(45deg, #ff4d8d 30%, #ff80ab 90%)",
+                                boxShadow: "0 4px 12px rgba(255, 77, 141, 0.3)",
+                                "&:hover": {
+                                    background: "linear-gradient(45deg, #ff3d7d 30%, #ff70a1 90%)",
+                                },
+                        },
+                    },
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 2,
+                                "&:hover": {
+                                    borderWidth: 2,
+                                    background: "rgba(255, 128, 171, 0.1)",
+                                },
+                        },
+                    },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

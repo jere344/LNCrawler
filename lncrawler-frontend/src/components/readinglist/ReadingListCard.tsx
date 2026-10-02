@@ -127,16 +127,15 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                     {list.description && (
                         <Typography
                             variant="body2"
-                            color="text.secondary"
                             sx={{
+                                color: "text.secondary",
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 display: "-webkit-box",
                                 WebkitLineClamp: 2,
                                 WebkitBoxOrient: "vertical",
-                                mb: 1,
-                            }}
-                        >
+                                mb: 1
+                            }}>
                             {list.description}
                         </Typography>
                     )}
@@ -167,13 +166,17 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                         >
                             {list.user.username[0].toUpperCase()}
                         </Avatar>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                        }}>
                             {list.user.username}
                         </Typography>
                     </Box>
 
                     {/* Update time */}
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                    }}>
                         {formatTimeAgo(new Date(list.updated_at))}
                     </Typography>
                 </Box>

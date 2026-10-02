@@ -112,37 +112,51 @@ export const getTransTheme = () =>
                         fontWeight: 600,
                         transition: "all 0.2s ease-in-out",
                     },
-                    containedPrimary: {
-                        background: "linear-gradient(135deg, #F5A9B8 0%, #D1899D 100%)",
-                        "&:hover": {
-                            background: "linear-gradient(135deg, #D1899D 0%, #F5A9B8 100%)",
-                            transform: "translateY(-2px)",
-                            boxShadow: "0 6px 10px rgba(245, 169, 184, 0.3)",
-                        },
-                    },
-                    containedSecondary: {
-                        background: "linear-gradient(135deg, #5BCEFA 0%, #36A6D1 100%)",
-                        "&:hover": {
-                            background: "linear-gradient(135deg, #36A6D1 0%, #5BCEFA 100%)",
-                            transform: "translateY(-2px)",
-                            boxShadow: "0 6px 10px rgba(91, 206, 250, 0.3)",
-                        },
-                    },
-                    outlinedPrimary: {
-                        borderWidth: 2,
-                        "&:hover": {
-                            borderWidth: 2,
-                            boxShadow: "0 4px 8px rgba(245, 169, 184, 0.2)",
-                        },
-                    },
-                    outlinedSecondary: {
-                        borderWidth: 2,
-                        "&:hover": {
-                            borderWidth: 2,
-                            boxShadow: "0 4px 8px rgba(91, 206, 250, 0.2)",
-                        },
-                    },
                 },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                background: "linear-gradient(135deg, #F5A9B8 0%, #D1899D 100%)",
+                                "&:hover": {
+                                    background: "linear-gradient(135deg, #D1899D 0%, #F5A9B8 100%)",
+                                    transform: "translateY(-2px)",
+                                    boxShadow: "0 6px 10px rgba(245, 169, 184, 0.3)",
+                                },
+                        },
+                    },
+                    {
+                        props: { variant: "contained", color: "secondary" },
+                        style: {
+                                background: "linear-gradient(135deg, #5BCEFA 0%, #36A6D1 100%)",
+                                "&:hover": {
+                                    background: "linear-gradient(135deg, #36A6D1 0%, #5BCEFA 100%)",
+                                    transform: "translateY(-2px)",
+                                    boxShadow: "0 6px 10px rgba(91, 206, 250, 0.3)",
+                                },
+                        },
+                    },
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 2,
+                                "&:hover": {
+                                    borderWidth: 2,
+                                    boxShadow: "0 4px 8px rgba(245, 169, 184, 0.2)",
+                                },
+                        },
+                    },
+                    {
+                        props: { variant: "outlined", color: "secondary" },
+                        style: {
+                                borderWidth: 2,
+                                "&:hover": {
+                                    borderWidth: 2,
+                                    boxShadow: "0 4px 8px rgba(91, 206, 250, 0.2)",
+                                },
+                        },
+                    },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

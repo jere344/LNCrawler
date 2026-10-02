@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -111,24 +111,31 @@ const BoardDetail = () => {
         
         {/* Description */}
         {board.description && (
-          <Typography 
-            variant="body1" 
-            color="text.secondary" 
-            sx={{ mb: 2 }}
-          >
+          <Typography
+            variant="body1"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             {board.description}
           </Typography>
         )}
         
         {/* Simple metadata */}
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {board.comment_count} comments
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             •
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Created {new Date(board.created_at).toLocaleDateString()}
           </Typography>
         </Box>
@@ -139,7 +146,7 @@ const BoardDetail = () => {
         boardSlug={boardSlug}
         title="Discussion"
       />
-      
+
       {/* Discord Invitation */}
       <Card sx={{ mt: 5, mb: 3, backgroundColor: '#5865F2', color: 'white', borderRadius: 2 }}>
         <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -5,7 +5,7 @@ import {
   Button,
   IconButton,
   Popover,
-  Grid2 as Grid,
+  Grid as Grid,
   useTheme,
   Switch,
   FormControlLabel,
@@ -330,15 +330,17 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                     type="time"
                     value={nightModeStartTime}
                     onChange={handleStartTimeChange}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    inputProps={{
-                      step: 300, // 5 min
-                    }}
                     size="small"
                     fullWidth
-                  />
+                    slotProps={{
+                      htmlInput: {
+                        step: 300, // 5 min
+                      },
+
+                      inputLabel: {
+                        shrink: true,
+                      }
+                    }} />
                 </Grid>
                 <Grid size={6}>
                   <TextField
@@ -346,15 +348,17 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                     type="time"
                     value={nightModeEndTime}
                     onChange={handleEndTimeChange}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    inputProps={{
-                      step: 300, // 5 min
-                    }}
                     size="small"
                     fullWidth
-                  />
+                    slotProps={{
+                      htmlInput: {
+                        step: 300, // 5 min
+                      },
+
+                      inputLabel: {
+                        shrink: true,
+                      }
+                    }} />
                 </Grid>
               </Grid>
             )}

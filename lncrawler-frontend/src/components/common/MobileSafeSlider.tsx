@@ -1,25 +1,15 @@
 import React from "react";
-import { Slider, SliderProps, useMediaQuery, useTheme } from "@mui/material";
+import { Slider, SliderProps } from "@mui/material";
 import { styled } from "@mui/material/styles";
 
-const isMobileDevice = () => {
-    const theme = useTheme();
-    return useMediaQuery(theme.breakpoints.down("md"));
-};
-
-const StyledSlider = styled(Slider)(() => {
-    if (isMobileDevice()) {
-        return {
-            "&.MuiSlider-root": {
-                pointerEvents: "none",
-            },
-            "& .MuiSlider-thumb": {
-                pointerEvents: "all",
-            },
-        };
-    }
-    return {};
-});
+const StyledSlider = styled(Slider)(({ theme }) => ({
+    [theme.breakpoints.down("md")]: {
+        pointerEvents: "none",
+        "& .MuiSlider-thumb": {
+            pointerEvents: "all",
+        },
+    },
+}));
 
 /**
  * A slider component that prevents accidental changes on mobile

@@ -135,13 +135,20 @@ const SearchResults = () => {
             />
             
             {status?.progress !== undefined && status?.total_items !== undefined && (
-              <Typography variant="body2" sx={{ mt: 1 }} textAlign="right">
+              <Typography
+                variant="body2"
+                sx={{
+                  textAlign: "right",
+                  mt: 1
+                }}>
                 {status.progress} / {status.total_items} items
               </Typography>
             )}
           </Box>
           
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Please wait while we search for your novel. This may take a few moments.
           </Typography>
           

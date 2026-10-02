@@ -94,8 +94,16 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           
           {novel.reading_history && continue_chapter && (
             <Box sx={{ mt: 1 }}>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                <Typography variant="body2" color="text.secondary">
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: "center",
+                  mb: 1
+                }}>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Last read:
                 </Typography>
                 <Chip 
@@ -118,7 +126,13 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
                 </Typography>
               )}
               
-              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  color: "text.secondary",
+                  mt: 1
+                }}>
                 {new Date(novel.reading_history.last_read_at).toLocaleString()}
               </Typography>
             </Box>

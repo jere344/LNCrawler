@@ -105,18 +105,26 @@ export const getSepiaToneTheme = () =>
                         fontSize: "0.875rem",
                         fontWeight: 600,
                     },
-                    containedPrimary: {
-                        boxShadow: "0 2px 8px rgba(139, 90, 43, 0.3)",
-                        background: "linear-gradient(135deg, #8b5a2b 0%, #a67c52 100%)",
-                        "&:hover": {
-                            boxShadow: "0 4px 12px rgba(139, 90, 43, 0.4)",
-                            background: "linear-gradient(135deg, #8b5a2b 10%, #9a6e44 100%)",
+                },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                boxShadow: "0 2px 8px rgba(139, 90, 43, 0.3)",
+                                background: "linear-gradient(135deg, #8b5a2b 0%, #a67c52 100%)",
+                                "&:hover": {
+                                    boxShadow: "0 4px 12px rgba(139, 90, 43, 0.4)",
+                                    background: "linear-gradient(135deg, #8b5a2b 10%, #9a6e44 100%)",
+                                },
                         },
                     },
-                    outlinedPrimary: {
-                        borderWidth: 2,
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 2,
+                        },
                     },
-                },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

@@ -7,14 +7,14 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@assets': path.resolve(__dirname, './src/assets'),
-      '@components': path.resolve(__dirname, './src/components'),
-      '@models': path.resolve(__dirname, './src/models'),
-      '@services': path.resolve(__dirname, './src/services'),
-      '@theme': path.resolve(__dirname, './src/theme'),
-      '@config': path.resolve(__dirname, './src/config'),
-      '@utils': path.resolve(__dirname, './src/utils'),
-      '@context': path.resolve(__dirname, './src/context'),
+      '@assets': path.resolve(import.meta.dirname, './src/assets'),
+      '@components': path.resolve(import.meta.dirname, './src/components'),
+      '@models': path.resolve(import.meta.dirname, './src/models'),
+      '@services': path.resolve(import.meta.dirname, './src/services'),
+      '@theme': path.resolve(import.meta.dirname, './src/theme'),
+      '@config': path.resolve(import.meta.dirname, './src/config'),
+      '@utils': path.resolve(import.meta.dirname, './src/utils'),
+      '@context': path.resolve(import.meta.dirname, './src/context'),
     }
   },
   build: {
@@ -24,8 +24,8 @@ export default defineConfig({
     // Ensure JavaScript files are properly emitted with correct types
     assetsDir: 'assets',
     
-    // Configure rollup options
-    rollupOptions: {
+    // Configure rolldown options (Vite 8 uses Rolldown instead of Rollup)
+    rolldownOptions: {
       output: {
         // Ensure proper file extensions and MIME types
         entryFileNames: 'assets/[name]-[hash].js',

@@ -9,7 +9,7 @@ import {
   Paper,
   Tabs,
   Tab,
-  Grid2 as Grid
+  Grid as Grid
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { novelService } from '@services/api';
@@ -108,10 +108,14 @@ const HomePage: React.FC = () => {
           borderRadius: 2,
           mb: 4
         }}>
-          <Typography paragraph>
+          <Typography sx={{
+            marginBottom: "16px"
+          }}>
             Looking for a great place to read Light Novels?
           </Typography>
-          <Typography paragraph>
+          <Typography sx={{
+            marginBottom: "16px"
+          }}>
             LNCrawler is a very special platform where you can read the translated versions of world famous Asian light novels from hundreds of differents sources in multiple languages. 
           </Typography>
           <Typography>
@@ -123,7 +127,9 @@ const HomePage: React.FC = () => {
       {/* Weekly Trending Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
             This Week's Hottest Novels 🔥
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=trending&sort_order=desc" variant="text">
@@ -158,7 +164,9 @@ const HomePage: React.FC = () => {
       {/* Best of All Time Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
             Best of all time
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
@@ -193,7 +201,9 @@ const HomePage: React.FC = () => {
       {/* Ranking Section with Tabs */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
             Ranking
           </Typography>
           <Button component={Link} to="/novels/search" variant="text">
@@ -307,7 +317,9 @@ const HomePage: React.FC = () => {
       {/* Featured Novel Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
             Featured
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
@@ -331,7 +343,9 @@ const HomePage: React.FC = () => {
       {/* Recent Reviews Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
             Latest Reviews
           </Typography>
           <Button component={Link} to="/reviews" variant="text">
@@ -350,7 +364,9 @@ const HomePage: React.FC = () => {
       {/* Recently Added Chapters Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
             Recently Updated Novels
           </Typography>
         </Box>

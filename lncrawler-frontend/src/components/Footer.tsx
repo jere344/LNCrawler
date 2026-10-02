@@ -23,21 +23,52 @@ const Footer = () => {
             }}
         >
             <Container maxWidth="lg">
-                <Grid container spacing={4} justifyContent="space-between">
-                    <Grid item xs={12} sm={6} md={4}>
-                        <Typography variant="h6" color="text.primary" gutterBottom fontWeight="bold">
+                <Grid container spacing={4} sx={{
+                    justifyContent: "space-between"
+                }}>
+                    <Grid
+                        size={{
+                            xs: 12,
+                            sm: 6,
+                            md: 4
+                        }}>
+                        <Typography
+                            variant="h6"
+                            gutterBottom
+                            sx={{
+                                color: "text.primary",
+                                fontWeight: "bold"
+                            }}>
                             LNCrawler
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                color: "text.secondary",
+                                mb: 2
+                            }}>
                             Read Asian Light Novels from 300+ Sources
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                        }}>
                             MIT License © {currentYear} LNCrawler.
                         </Typography>
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={4}>
-                        <Typography variant="subtitle1" color="text.primary" gutterBottom fontWeight="bold">
+                    <Grid
+                        size={{
+                            xs: 12,
+                            sm: 6,
+                            md: 4
+                        }}>
+                        <Typography
+                            variant="subtitle1"
+                            gutterBottom
+                            sx={{
+                                color: "text.primary",
+                                fontWeight: "bold"
+                            }}>
                             Links
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -72,8 +103,19 @@ const Footer = () => {
                         </Box>
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={4}>
-                        <Typography variant="subtitle1" color="text.primary" gutterBottom fontWeight="bold">
+                    <Grid
+                        size={{
+                            xs: 12,
+                            sm: 6,
+                            md: 4
+                        }}>
+                        <Typography
+                            variant="subtitle1"
+                            gutterBottom
+                            sx={{
+                                color: "text.primary",
+                                fontWeight: "bold"
+                            }}>
                             Developed by jere344
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -104,7 +146,9 @@ const Footer = () => {
                 <Divider sx={{ mt: 4, mb: 3 }} />
 
                 <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                    }}>
                         LNCrawler is not affiliated with any of the sources. All content belongs to their respective owners.
                         We are not responsible for the content of external sites and will do our best to remove infringing content upon request.
                     </Typography>

@@ -110,7 +110,13 @@ const BoardList = () => {
           <ForumIcon sx={{ mr: 1, fontSize: 32 }} /> Chat Boards
         </Typography>
         
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2, maxWidth: '800px' }}>
+        <Typography
+          variant="body1"
+          sx={{
+            color: "text.secondary",
+            mb: 2,
+            maxWidth: '800px'
+          }}>
           Join discussions in our community boards. Share your thoughts, ask questions, and connect with other readers.
         </Typography>
       </Paper>
@@ -119,7 +125,13 @@ const BoardList = () => {
         {boards.map((board) => {
           const boardColor = getBoardColor(board.name);
           return (
-            <Grid item xs={12} sm={6} md={4} key={board.id}>
+            <Grid
+              key={board.id}
+              size={{
+                xs: 12,
+                sm: 6,
+                md: 4
+              }}>
               <Card 
                 component={Link}
                 to={`/boards/${board.slug}`}
@@ -169,11 +181,14 @@ const BoardList = () => {
                     </Typography>
                   </Box>
                   
-                  <Typography 
-                    variant="body2" 
-                    color="text.secondary" 
-                    sx={{ mb: 2, minHeight: '2.5em', lineHeight: 1.4 }}
-                  >
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mb: 2,
+                      minHeight: '2.5em',
+                      lineHeight: 1.4
+                    }}>
                     {board.description || 'No description available'}
                   </Typography>
                 </CardContent>
@@ -190,15 +205,18 @@ const BoardList = () => {
                         color: boardColor
                       }} 
                     />
-                    <Typography 
-                      variant="body2" 
-                      fontWeight={500} 
-                      sx={{ color: boardColor }}
-                    >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 500,
+                        color: boardColor
+                      }}>
                       {board.comment_count}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>
                     {new Date(board.created_at).toLocaleDateString(undefined, { 
                       month: 'short', 
                       day: 'numeric', 
@@ -224,10 +242,14 @@ const BoardList = () => {
           }}
         >
           <ForumIcon sx={{ fontSize: 60, color: alpha(theme.palette.text.secondary, 0.5), mb: 2 }} />
-          <Typography variant="h6" color="text.secondary" gutterBottom>
+          <Typography variant="h6" gutterBottom sx={{
+            color: "text.secondary"
+          }}>
             No boards available
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             There are currently no discussion boards. Please check back later.
           </Typography>
         </Paper>

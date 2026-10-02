@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Typography, 
   Box, 
-  Grid2 as Grid, 
+  Grid as Grid, 
   Avatar, 
   Rating, 
   Card, 
@@ -94,10 +94,14 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                       {review.user.username.charAt(0).toUpperCase()}
                     </Avatar>
                     <Box sx={{ ml: 1 }}>
-                      <Typography variant="body2" fontWeight="bold">
+                      <Typography variant="body2" sx={{
+                        fontWeight: "bold"
+                      }}>
                         {review.user.username}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {formatTimeAgo(new Date(review.created_at))}
                       </Typography>
                     </Box>
@@ -111,13 +115,20 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                   </Box>
                 </Box>
                 
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                <Typography variant="subtitle1" gutterBottom sx={{
+                  fontWeight: "bold"
+                }}>
                   {review.title}
                 </Typography>
                 
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Rating value={review.rating} readOnly size="small" />
-                  <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      ml: 1
+                    }}>
                     {review.rating} stars
                   </Typography>
                 </Box>

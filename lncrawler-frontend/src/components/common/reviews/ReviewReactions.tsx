@@ -60,7 +60,7 @@ const ReviewReactions: React.FC<ReviewReactionsProps> = ({
   }, {} as Record<string, number>);
 
   // Sort reaction types by count (descending), then alphabetically
-  const sortedReactionEntries = Object.entries(REACTION_EMOJIS).sort(([keyA, _], [keyB, __]) => {
+  const sortedReactionEntries = Object.entries(REACTION_EMOJIS).sort(([keyA], [keyB]) => {
     const countA = reactionCounts[keyA] || 0;
     const countB = reactionCounts[keyB] || 0;
     
@@ -99,7 +99,7 @@ const ReviewReactions: React.FC<ReviewReactionsProps> = ({
         };
         
         // Remove previous reaction if it exists
-        let updatedReactions = previousReaction 
+        const updatedReactions = previousReaction 
           ? reactions.filter(r => r.id !== previousReaction.id)
           : [...reactions];
         

@@ -9,17 +9,21 @@ const DownloaderHome = () => {
                 <Typography variant="h1" component="h1" gutterBottom>
                     Add a novel
                 </Typography>
-                <Typography variant="subtitle1" color="text.primary" component="h2" gutterBottom>
+                <Typography variant="subtitle1" component="h2" gutterBottom sx={{
+                    color: "text.primary"
+                }}>
                     Automatically and easily add your favorite novels to our library.
                 </Typography>
-                <Typography variant="body1" color="text.primary" component="p" gutterBottom>
+                <Typography variant="body1" component="p" gutterBottom sx={{
+                    color: "text.primary"
+                }}>
                     Use the search form below and we will search through our 300+ supported sources to find the novel you want, and add it to our library for anyone to read.
                     You can also enter the URL to the novel from any of our supported sources to skip the search process.
                 </Typography>
             </Box>
-            
+
             <DownloadStepper activeStep="search" />
-            
+
             <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <SearchForm />
             </Paper>

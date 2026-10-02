@@ -114,18 +114,26 @@ export const getDarkTheme = () =>
                         fontSize: "0.875rem",
                         fontWeight: 600,
                     },
-                    containedPrimary: {
-                        boxShadow: "0 4px 12px rgba(200, 164, 255, 0.3)",
-                        background: "linear-gradient(135deg, #9c78cc 0%, #c8a4ff 100%)",
-                        "&:hover": {
-                            boxShadow: "0 6px 16px rgba(200, 164, 255, 0.4)",
-                            background: "linear-gradient(135deg, #9c78cc 10%, #b290e3 100%)",
+                },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                boxShadow: "0 4px 12px rgba(200, 164, 255, 0.3)",
+                                background: "linear-gradient(135deg, #9c78cc 0%, #c8a4ff 100%)",
+                                "&:hover": {
+                                    boxShadow: "0 6px 16px rgba(200, 164, 255, 0.4)",
+                                    background: "linear-gradient(135deg, #9c78cc 10%, #b290e3 100%)",
+                                },
                         },
                     },
-                    outlinedPrimary: {
-                        borderWidth: 2,
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 2,
+                        },
                     },
-                },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

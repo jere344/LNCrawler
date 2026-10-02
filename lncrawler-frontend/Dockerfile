@@ -1,5 +1,5 @@
 # Stage 1: Build the application
-FROM node:20-alpine as build
+FROM node:24-alpine as build
 
 # Set environment variables
 # Because Vite is used, we can't pass the variables directly to the build command

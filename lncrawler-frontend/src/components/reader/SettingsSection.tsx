@@ -19,7 +19,9 @@ const SettingsSection = ({ title, icon, children, defaultExpanded = false }: Set
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {icon}
-          <Typography variant="subtitle1" fontWeight="medium">{title}</Typography>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: "medium"
+          }}>{title}</Typography>
         </Box>
       </AccordionSummary>
       <AccordionDetails sx={{ pt: 0 }}>

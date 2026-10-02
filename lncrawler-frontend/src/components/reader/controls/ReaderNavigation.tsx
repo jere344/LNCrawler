@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Button, Typography, Grid2 as Grid } from '@mui/material';
+import { Box, Button, Typography, Grid as Grid } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import HomeIcon from '@mui/icons-material/Home';

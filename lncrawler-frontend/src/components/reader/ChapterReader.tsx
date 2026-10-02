@@ -158,9 +158,8 @@ const ChapterReader = () => {
             
             // Check if the parsed value's type matches the default setting's type
             if (typeof parsedValue === typeof defaultSettings[key]) {
-              // @ts-ignore TypeScript might complain about assigning to newSettings[key] directly
-              // but this is safe due to the type check and keyof IReaderSettings.
-              newSettings[key] = parsedValue;
+              // Safe due to the runtime type check above.
+              (newSettings as Record<string, unknown>)[key] = parsedValue;
               hasChanges = true;
             } else {
               // Log a warning if types don't match, and use the default value

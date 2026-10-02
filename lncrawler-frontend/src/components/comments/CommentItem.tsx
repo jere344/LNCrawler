@@ -176,7 +176,9 @@ const CommentItem = ({
                 {displayName ? displayName.charAt(0).toUpperCase() : '?'}
               </Avatar>
             )}
-            <Typography variant="subtitle1" fontWeight="bold">
+            <Typography variant="subtitle1" sx={{
+              fontWeight: "bold"
+            }}>
               {displayName}
             </Typography>
             
@@ -192,10 +194,18 @@ const CommentItem = ({
           </Box>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {formatDate(comment.created_at)}
               {comment.edited && (
-                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                <Typography
+                  component="span"
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 1
+                  }}>
                   (edited)
                 </Typography>
               )}
@@ -218,7 +228,9 @@ const CommentItem = ({
         ) : comment.type && comment.type !== 'novel' ? (
           <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
             <Chip size="small" label={`Comment posted at ${getChapterLabel(comment.chapter_title, comment.chapter_id)}`} color="secondary" variant="outlined" />
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               from {comment.source_name}
             </Typography>
           </Box>
@@ -293,11 +305,14 @@ const CommentItem = ({
                 {comment.message}
               </Typography>
               {!isSpoilerRevealed && (
-                <Typography 
-                  variant="caption" 
-                  color="warning.main" 
-                  sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}
-                >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "warning.main",
+                    display: 'block',
+                    mt: 0.5,
+                    fontStyle: 'italic'
+                  }}>
                   (spoiler)
                 </Typography>
               )}
@@ -349,14 +364,16 @@ const CommentItem = ({
                 {isReplying ? 'Cancel Reply' : 'Reply'}
               </Button>
             ) : (
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 Replies disabled
               </Typography>
             )}
           </Box>
         )}
       </Paper>
-      
+
       {/* Reply form */}
       {isReplying && (
         <Box sx={{ ml: 4, mt: 1, mb: 2 }}>
@@ -368,7 +385,7 @@ const CommentItem = ({
           />
         </Box>
       )}
-      
+
       {/* Render replies if not collapsed */}
       {hasReplies && !isCollapsed && (
         <Box sx={{ mt: 1, ml: 4 }}>
@@ -383,7 +400,7 @@ const CommentItem = ({
           ))}
         </Box>
       )}
-      
+
       {/* Show collapsed replies indicator */}
       {hasReplies && isCollapsed && (
         <Button 

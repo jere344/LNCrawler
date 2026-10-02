@@ -60,7 +60,9 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
   if (!similarNovels.length) {
     return (
       <Box sx={{ px: 2, py: 1 }}>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" sx={{
+          color: "text.secondary"
+        }}>
           No recommendations available for this novel.
         </Typography>
       </Box>

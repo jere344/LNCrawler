@@ -129,18 +129,20 @@ const LoginPage: React.FC = () => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={loading}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }
             }}
           />
           
@@ -157,7 +159,9 @@ const LoginPage: React.FC = () => {
           <Divider sx={{ my: 2 }} />
           
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
+            <Typography variant="body2" gutterBottom sx={{
+              color: "text.secondary"
+            }}>
               Don't have an account?
             </Typography>
             <Button
@@ -170,7 +174,12 @@ const LoginPage: React.FC = () => {
               Create Account
             </Button>
             
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mt: 2
+              }}>
               <Button
                 variant="text"
                 size="small"
@@ -189,17 +198,26 @@ const LoginPage: React.FC = () => {
           <DialogContent>
             {forgotSuccess ? (
               <Box sx={{ textAlign: 'center', py: 2 }}>
-                <Typography variant="h6" color="success.main" gutterBottom>
+                <Typography variant="h6" gutterBottom sx={{
+                  color: "success.main"
+                }}>
                   Email Sent!
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Check your email for password reset instructions.
                 </Typography>
               </Box>
             ) : (
               <>
                 {forgotError && <Alert severity="error" sx={{ mb: 2 }}>{forgotError}</Alert>}
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    mb: 2
+                  }}>
                   Enter your email address and we'll send you a link to reset your password.
                 </Typography>
                 <TextField

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
-  Grid2 as Grid,
+  Grid as Grid,
   Pagination,
   Alert,
   CircularProgress,
@@ -116,10 +116,14 @@ const ReadingHistoryPage: React.FC = () => {
         <Typography variant="h5" component="h1" gutterBottom>
           Reading History
         </Typography>
-        <Typography variant="body1" color="text.secondary" align="center">
+        <Typography variant="body1" align="center" sx={{
+          color: "text.secondary"
+        }}>
           You need to be logged in to access your reading history.
         </Typography>
-        <Typography variant="body2" color="text.secondary" align="center">
+        <Typography variant="body2" align="center" sx={{
+          color: "text.secondary"
+        }}>
           Please log in to view your recently read novels.
         </Typography>
       </Paper>
@@ -140,7 +144,7 @@ const ReadingHistoryPage: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         Reading History
       </Typography>
-      
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress />
@@ -161,10 +165,14 @@ const ReadingHistoryPage: React.FC = () => {
             my: 4
           }}
         >
-          <Typography variant="h6" color="text.secondary" align="center">
+          <Typography variant="h6" align="center" sx={{
+            color: "text.secondary"
+          }}>
             Your reading history is empty
           </Typography>
-          <Typography variant="body2" color="text.secondary" align="center">
+          <Typography variant="body2" align="center" sx={{
+            color: "text.secondary"
+          }}>
             Start reading novels to track your progress.
           </Typography>
         </Paper>

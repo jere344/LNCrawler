@@ -6,7 +6,6 @@ import {
   Select,
   MenuItem,
   SelectChangeEvent,
-  FormHelperText,
 } from '@mui/material';
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';

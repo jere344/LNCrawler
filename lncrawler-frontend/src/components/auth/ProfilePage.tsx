@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Pagination, Link } from '@mui/material';
+import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Pagination } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -223,7 +223,12 @@ const ProfilePage: React.FC = () => {
 
         <form onSubmit={handleSubmit}>
           <Grid container spacing={3}>
-            <Grid item xs={12} md={4} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Grid
+              sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+              size={{
+                xs: 12,
+                md: 4
+              }}>
               <Avatar
                 src={previewUrl || undefined}
                 alt={username}
@@ -250,7 +255,11 @@ const ProfilePage: React.FC = () => {
               )}
             </Grid>
 
-            <Grid item xs={12} md={8}>
+            <Grid
+              size={{
+                xs: 12,
+                md: 8
+              }}>
               <Box sx={{ mb: 2 }}>
                 <TextField
                   label="Username"
@@ -315,16 +324,28 @@ const ProfilePage: React.FC = () => {
             Account Information
           </Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="subtitle2" color="text.secondary">
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
+              <Typography variant="subtitle2" sx={{
+                color: "text.secondary"
+              }}>
                 Member Since
               </Typography>
               <Typography variant="body1">
                 {profileData?.date_joined ? new Date(profileData.date_joined).toLocaleDateString() : 'N/A'}
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <Typography variant="subtitle2" color="text.secondary">
+            <Grid
+              size={{
+                xs: 12,
+                sm: 6
+              }}>
+              <Typography variant="subtitle2" sx={{
+                color: "text.secondary"
+              }}>
                 Last Login
               </Typography>
               <Typography variant="body1">
@@ -429,7 +450,12 @@ const ProfilePage: React.FC = () => {
             <>
               <Grid container spacing={2}>
                 {userReadingLists.map((list) => (
-                  <Grid item xs={12} sm={6} key={list.id}>
+                  <Grid
+                    key={list.id}
+                    size={{
+                      xs: 12,
+                      sm: 6
+                    }}>
                     <ReadingListCard list={list} />
                   </Grid>
                 ))}
@@ -448,7 +474,9 @@ const ProfilePage: React.FC = () => {
             </>
           ) : (
             <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper' }}>
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" sx={{
+                color: "text.secondary"
+              }}>
                 You haven't created any reading lists yet.
               </Typography>
               <Button 
@@ -501,7 +529,9 @@ const ProfilePage: React.FC = () => {
             </>
           ) : (
             <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper' }}>
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" sx={{
+                color: "text.secondary"
+              }}>
                 You haven't written any reviews yet.
               </Typography>
             </Paper>

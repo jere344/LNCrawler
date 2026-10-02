@@ -16,7 +16,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
 import { formatCount } from './BaseNovelCard';
@@ -54,11 +54,6 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
   const [isNoteTruncated, setIsNoteTruncated] = useState(false);
   const noteRef = useRef<HTMLDivElement>(null);
 
-  let tooltip = "";
-  if (novel.reading_history?.next_chapter) {
-    tooltip += `. Next : ${getChapterName(novel.reading_history.next_chapter.title)}`;
-  }
-  
   const handleMenuOpen = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     e.preventDefault();
@@ -293,7 +288,13 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             {/* Author */}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, minWidth: 0 }}>
               <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14, flexShrink: 0 }} />
-              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                noWrap
+                sx={{
+                  color: "text.secondary",
+                  minWidth: 0
+                }}>
                 {preferredSource?.authors && preferredSource.authors.length > 0 
                   ? preferredSource.authors.join(', ')
                   : 'Unknown'}
@@ -303,7 +304,13 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             {/* Tags */}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, minWidth: 0 }}>
               <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14, flexShrink: 0 }} />
-              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                noWrap
+                sx={{
+                  color: "text.secondary",
+                  minWidth: 0
+                }}>
                 {preferredSource?.tags && preferredSource.tags.length > 0 ? 
                   `${preferredSource.tags.join(', ')}` 
                   : 'Unknown'}
@@ -319,7 +326,15 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 size="small"
                 sx={{ flexShrink: 0 }}
               />
-              <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, overflow: 'hidden', height: '1.2em', minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  ml: 0.5,
+                  overflow: 'hidden',
+                  height: '1.2em',
+                  minWidth: 0
+                }}>
                 {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
                 {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
               </Typography>
@@ -517,7 +532,9 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
       >
         <DialogTitle>
           <Typography variant="h6">Note</Typography>
-          <Typography variant="subtitle2" color="text.secondary">
+          <Typography variant="subtitle2" sx={{
+            color: "text.secondary"
+          }}>
             {novel.title}
           </Typography>
         </DialogTitle>

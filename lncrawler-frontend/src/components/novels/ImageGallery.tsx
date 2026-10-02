@@ -266,7 +266,7 @@ const ImageGallery = () => {
           ]}
         />
       )}
-      
+
       <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
         <Button 
           startIcon={<ArrowBackIcon />} 
@@ -296,7 +296,9 @@ const ImageGallery = () => {
         <Typography variant="h4" gutterBottom>
           Image Gallery
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+        <Typography variant="subtitle1" gutterBottom sx={{
+          color: "text.secondary"
+        }}>
           {gallery?.count} images from {gallery?.novel_title}
         </Typography>
 
@@ -396,23 +398,25 @@ const ImageGallery = () => {
           </Box>
         )}
       </Paper>
-      
+
       {/* Lightbox Modal */}
       <Dialog
         open={lightboxOpen}
         onClose={closeLightbox}
         maxWidth="xl"
         fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: 'rgba(0,0,0,0.9)',
-            boxShadow: 'none',
-            height: '100%',
-            m: 0,
-            borderRadius: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'rgba(0,0,0,0.9)',
+              boxShadow: 'none',
+              height: '100%',
+              m: 0,
+              borderRadius: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+            }
           }
         }}
       >

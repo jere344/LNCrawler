@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
-  Grid2 as Grid,
+  Grid as Grid,
   Pagination,
   Alert,
   CircularProgress,
@@ -79,10 +79,14 @@ const LibraryPage: React.FC = () => {
         <Typography variant="h5" component="h1" gutterBottom>
           Your Library
         </Typography>
-        <Typography variant="body1" color="text.secondary" align="center">
+        <Typography variant="body1" align="center" sx={{
+          color: "text.secondary"
+        }}>
           You need to be logged in to access your library.
         </Typography>
-        <Typography variant="body2" color="text.secondary" align="center">
+        <Typography variant="body2" align="center" sx={{
+          color: "text.secondary"
+        }}>
           Please log in to view your bookmarked novels.
         </Typography>
       </Paper>
@@ -103,7 +107,7 @@ const LibraryPage: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         Your Library
       </Typography>
-      
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress />
@@ -126,10 +130,14 @@ const LibraryPage: React.FC = () => {
                 my: 4
               }}
             >
-              <Typography variant="h6" color="text.secondary" align="center">
+              <Typography variant="h6" align="center" sx={{
+                color: "text.secondary"
+              }}>
                 Your library is empty
               </Typography>
-              <Typography variant="body2" color="text.secondary" align="center">
+              <Typography variant="body2" align="center" sx={{
+                color: "text.secondary"
+              }}>
                 Bookmark novels to add them to your library.
               </Typography>
             </Paper>

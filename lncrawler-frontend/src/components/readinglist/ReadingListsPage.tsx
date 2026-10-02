@@ -92,7 +92,7 @@ const ReadingListsPage = () => {
           </Button>
         )}
       </Box>
-      
+
       {/* Search Bar */}
       <Box sx={{ mb: 3 }}>
         <TextField
@@ -101,12 +101,14 @@ const ReadingListsPage = () => {
           variant="outlined"
           value={searchQuery}
           onChange={handleSearchChange}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }
           }}
         />
       </Box>
@@ -147,7 +149,12 @@ const ReadingListsPage = () => {
         <>
           <Grid container spacing={3}>
             {readingLists.map((list) => (
-              <Grid item xs={12} sm={6} key={list.id}>
+              <Grid
+                key={list.id}
+                size={{
+                  xs: 12,
+                  sm: 6
+                }}>
                 <ReadingListCard list={list} />
               </Grid>
             ))}

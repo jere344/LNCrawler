@@ -3,8 +3,8 @@ import { Button, Box, LinearProgress, Typography, Alert } from '@mui/material';
 import { downloadService } from '../../../services/api';
 import { DownloadStatus } from '@models/downloader_types';
 import UpdateIcon from '@mui/icons-material/Update';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 
 interface NovelUpdateButtonProps {
   sourceUrl: string;
@@ -71,7 +71,7 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
   }, [updateJobId]);
 
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
     if (isPolling && updateJobId) {
       pollDownloadStatus(); // Initial call
       intervalId = setInterval(pollDownloadStatus, 3000); // Poll every 3 seconds

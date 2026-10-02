@@ -27,7 +27,9 @@ const CommentList = ({
   if (comments.length === 0) {
     return (
       <Box sx={{ py: 2, textAlign: 'center' }}>
-        <Typography color="text.secondary">
+        <Typography sx={{
+          color: "text.secondary"
+        }}>
           {emptyMessage}
         </Typography>
       </Box>

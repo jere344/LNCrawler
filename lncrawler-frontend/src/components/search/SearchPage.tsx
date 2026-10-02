@@ -5,7 +5,7 @@ import {
   Chip, Button, FormGroup,
   FormControlLabel, Rating, IconButton, InputAdornment,
   CircularProgress, Pagination, Stack, Autocomplete,
-  Grid2 as Grid,
+  Grid as Grid,
 } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
@@ -295,7 +295,7 @@ const SearchPage: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         Search Novels
       </Typography>
-      
+
       {/* Search Box */}
       <Paper 
         component="form" 
@@ -308,25 +308,27 @@ const SearchPage: React.FC = () => {
           placeholder="Search by title, author, or keywords..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-            endAdornment: searchQuery && (
-              <InputAdornment position="end">
-                <IconButton 
-                  size="small"
-                  onClick={() => {
-                    setSearchQuery('');
-                    updateSearchParams({ query: null });
-                  }}
-                >
-                  <CloseIcon />
-                </IconButton>
-              </InputAdornment>
-            )
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton 
+                    size="small"
+                    onClick={() => {
+                      setSearchQuery('');
+                      updateSearchParams({ query: null });
+                    }}
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }
           }}
         />
         <Button 
@@ -347,7 +349,7 @@ const SearchPage: React.FC = () => {
           Filters
         </Button>
       </Paper>
-      
+
       {/* Filters */}
       {showFilters && (
         <Paper sx={{ p: 3, mb: 3 }}>
@@ -365,7 +367,7 @@ const SearchPage: React.FC = () => {
           <Grid container spacing={3}>
             {/* Tags - Autocomplete */}
             <Grid size={{ xs: 12, md: 6 }}> 
-              <Autocomplete
+              <Autocomplete<string | Suggestion, true>
                 multiple
                 options={tagSuggestions}
                 value={selectedTags}
@@ -388,13 +390,13 @@ const SearchPage: React.FC = () => {
                   const valueName = typeof value === 'string' ? value : value.name;
                   return optionName === valueName;
                 }}
-                renderTags={(value, getTagProps) =>
+                renderValue={(value, getItemProps) =>
                   value.map((option, index) => {
                     const tagName = typeof option === 'string' ? option : option.name;
                     return (
                       <Chip
                         label={tagName}
-                        {...getTagProps({ index })}
+                        {...getItemProps({ index })}
                       />
                     );
                   })
@@ -404,14 +406,18 @@ const SearchPage: React.FC = () => {
                     {...params}
                     label="Include Tags"
                     placeholder="Type to search tags to include..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <React.Fragment>
-                          {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </React.Fragment>
-                      ),
+                    slotProps={{
+                      ...params.slotProps,
+
+                      input: {
+                        ...params.slotProps.input,
+                        endAdornment: (
+                          <React.Fragment>
+                            {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.slotProps.input.endAdornment}
+                          </React.Fragment>
+                        ),
+                      }
                     }}
                   />
                 )}
@@ -432,7 +438,7 @@ const SearchPage: React.FC = () => {
             
             {/* Excluded Tags - Autocomplete */}
             <Grid size={{ xs: 12, md: 6 }}> 
-              <Autocomplete
+              <Autocomplete<string | Suggestion, true>
                 multiple
                 options={tagSuggestions}
                 value={excludedTags}
@@ -455,7 +461,7 @@ const SearchPage: React.FC = () => {
                   const valueName = typeof value === 'string' ? value : value.name;
                   return optionName === valueName;
                 }}
-                renderTags={(value, getTagProps) =>
+                renderValue={(value, getItemProps) =>
                   value.map((option, index) => {
                     const tagName = typeof option === 'string' ? option : option.name;
                     return (
@@ -463,7 +469,7 @@ const SearchPage: React.FC = () => {
                         label={tagName}
                         color="error"
                         variant="outlined"
-                        {...getTagProps({ index })}
+                        {...getItemProps({ index })}
                       />
                     );
                   })
@@ -473,14 +479,18 @@ const SearchPage: React.FC = () => {
                     {...params}
                     label="Exclude Tags"
                     placeholder="Type to search tags to exclude..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <React.Fragment>
-                          {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </React.Fragment>
-                      ),
+                    slotProps={{
+                      ...params.slotProps,
+
+                      input: {
+                        ...params.slotProps.input,
+                        endAdornment: (
+                          <React.Fragment>
+                            {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.slotProps.input.endAdornment}
+                          </React.Fragment>
+                        ),
+                      }
                     }}
                   />
                 )}
@@ -501,7 +511,7 @@ const SearchPage: React.FC = () => {
             
             {/* Authors - Autocomplete */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <Autocomplete
+              <Autocomplete<string | Suggestion, true>
                 multiple
                 options={authorSuggestions}
                 value={selectedAuthors}
@@ -524,13 +534,13 @@ const SearchPage: React.FC = () => {
                   const valueName = typeof value === 'string' ? value : value.name;
                   return optionName === valueName;
                 }}
-                renderTags={(value, getTagProps) =>
+                renderValue={(value, getItemProps) =>
                   value.map((option, index) => {
                     const tagName = typeof option === 'string' ? option : option.name;
                     return (
                       <Chip
                         label={tagName}
-                        {...getTagProps({ index })}
+                        {...getItemProps({ index })}
                       />
                     );
                   })
@@ -540,14 +550,18 @@ const SearchPage: React.FC = () => {
                     {...params}
                     label="Authors"
                     placeholder="Type to search authors..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <React.Fragment>
-                          {loadingAuthors ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </React.Fragment>
-                      ),
+                    slotProps={{
+                      ...params.slotProps,
+
+                      input: {
+                        ...params.slotProps.input,
+                        endAdornment: (
+                          <React.Fragment>
+                            {loadingAuthors ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.slotProps.input.endAdornment}
+                          </React.Fragment>
+                        ),
+                      }
                     }}
                   />
                 )}
@@ -675,7 +689,7 @@ const SearchPage: React.FC = () => {
           </Grid>
         </Paper>
       )}
-      
+
       {/* Active Filters Display */}
       {(selectedTags.length > 0 || excludedTags.length > 0 ||
        selectedAuthors.length > 0 || selectedStatus || selectedLanguage || 
@@ -785,7 +799,7 @@ const SearchPage: React.FC = () => {
           )}
         </Box>
       )}
-      
+
       {/* Results Count */}
       <Typography variant="subtitle1" sx={{ mb: 2 }}>
         {loading ? 'Searching...' : (
@@ -794,14 +808,14 @@ const SearchPage: React.FC = () => {
             'No novels found'
         )}
       </Typography>
-      
+
       {/* Loading indicator */}
       {loading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress />
         </Box>
       )}
-      
+
       {/* Novel Grid */}
       {!loading && novels.length > 0 && (
         <Grid container spacing={3}>
@@ -815,7 +829,7 @@ const SearchPage: React.FC = () => {
           ))}
         </Grid>
       )}
-      
+
       {/* No Results */}
       {!loading && novels.length === 0 && (
         <Box sx={{ textAlign: 'center', my: 5 }}>
@@ -825,7 +839,7 @@ const SearchPage: React.FC = () => {
           </Typography>
         </Box>
       )}
-      
+
       {/* Pagination */}
       {totalPages > 1 && (
         <Stack spacing={2} sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>

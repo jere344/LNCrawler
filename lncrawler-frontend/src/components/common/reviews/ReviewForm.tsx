@@ -12,7 +12,6 @@ import {
 import EditableMDXEditor from './EditableMDXEditor';
 import { reviewService } from '@services/api';
 import { CreateReviewData } from '@services/review.service';
-import { useTheme } from '@mui/material';
 
 interface ReviewFormProps {
   novelSlug: string;
@@ -27,7 +26,6 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
   onCancel,
   editingReview 
 }) => {
-  const theme = useTheme();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [rating, setRating] = useState<number | null>(null);

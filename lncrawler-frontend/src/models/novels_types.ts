@@ -52,7 +52,7 @@ export interface NovelFromSource {
   overview_url: string | null;
   latest_available_chapter: Chapter | null;
   first_available_chapter: Chapter | null;
-  reading_history?: ReadingHistory | null;
+  reading_history?: DetailedReadingHistory | null;
 }
 
 export interface NovelDetail {

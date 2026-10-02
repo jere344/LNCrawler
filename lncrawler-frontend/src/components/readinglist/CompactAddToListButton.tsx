@@ -250,9 +250,11 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
                         <ListItemText 
                           primary={list.title} 
                           secondary={`${list.items_count || 0} novels`}
-                          primaryTypographyProps={{
-                            style: {
-                              fontWeight: alreadyInList ? 'bold' : 'normal',
+                          slotProps={{
+                            primary: {
+                              style: {
+                                fontWeight: alreadyInList ? 'bold' : 'normal',
+                              }
                             }
                           }}
                         />

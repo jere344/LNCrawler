@@ -14,7 +14,7 @@ import {
   Tooltip,
   alpha,
   useTheme,
-  Grid2 as Grid,
+  Grid as Grid,
   CardMedia,
 } from '@mui/material';
 import { Link } from 'react-router-dom';

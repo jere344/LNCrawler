@@ -187,7 +187,9 @@ const Reviews: React.FC<ReviewsProps> = ({
       {/* Reviews List */}
       {reviews.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
             No reviews yet. Be the first to review this novel!
           </Typography>
           {showAddReview && !user && (
@@ -224,10 +226,14 @@ const Reviews: React.FC<ReviewsProps> = ({
                     {review.user.username.charAt(0).toUpperCase()}
                   </Avatar>
                   <Box>
-                    <Typography variant="subtitle1" fontWeight="bold">
+                    <Typography variant="subtitle1" sx={{
+                      fontWeight: "bold"
+                    }}>
                       {review.user.username}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {formatTimeAgo(new Date(review.created_at))}
                     </Typography>
                   </Box>
@@ -249,7 +255,12 @@ const Reviews: React.FC<ReviewsProps> = ({
 
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Rating value={review.rating} readOnly size="small" />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 1
+                  }}>
                   {review.rating} stars
                 </Typography>
               </Box>

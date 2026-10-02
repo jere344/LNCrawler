@@ -83,7 +83,7 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
       }}
       id="reader-content"
       className={settings.paragraphIndent ? 'paragraph-indent' : ''}
-      dangerouslySetInnerHTML= {{ __html: bodyStyles + chapter.body.replace(/src=\"images\//g, `src="${chapter.images_path}/`) }}
+      dangerouslySetInnerHTML= {{ __html: bodyStyles + chapter.body.replace(/src="images\//g, `src="${chapter.images_path}/`) }}
     />
   );
 };

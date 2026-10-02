@@ -336,21 +336,39 @@ const ReadingListDetail = () => {
                 >
                     {readingList?.user.username[0].toUpperCase()}
                 </Avatar>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                     {readingList?.user.username}
                 </Typography>
               </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mx: 1 }}>•</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mx: 1
+                }}>•</Typography>
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {readingList && formatTimeAgo(new Date(readingList.updated_at))}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mx: 1 }}>•</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mx: 1
+                }}>•</Typography>
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {readingList?.items?.length || 0} novels
               </Typography>
             </Box>
             {readingList?.description && (
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" sx={{
+                color: "text.secondary"
+              }}>
                 {readingList.description}
               </Typography>
             )}
@@ -425,7 +443,9 @@ const ReadingListDetail = () => {
           <Typography variant="h6" gutterBottom>
             This reading list is empty
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {isOwner() ? 
               "Start adding novels by clicking the 'Add to Reading List' button on any novel page." :
               "No novels have been added to this list yet."}

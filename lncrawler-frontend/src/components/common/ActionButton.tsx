@@ -91,21 +91,20 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     fullWidth,
     startIcon,
     disabled,
-    component: to ? Link : undefined,
-    to: to || undefined,
-    onClick: to ? undefined : onClick,
-    sx: {
-      borderRadius: '12px',
-      p: 1.5,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      display: 'flex',
-      justifyContent: 'flex-start',
-      alignItems: 'center',
-      textAlign: 'left',
-      position: 'relative',
-      overflow: 'hidden',
-      ...sx
-    }
+    sx: [
+      {
+        borderRadius: '12px',
+        p: 1.5,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        display: 'flex',
+        justifyContent: 'flex-start',
+        alignItems: 'center',
+        textAlign: 'left',
+        position: 'relative',
+        overflow: 'hidden',
+      },
+      sx,
+    ] as SxProps<Theme>,
   };
 
   const buttonContent = (
@@ -120,7 +119,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
           </Typography>
         )}
       </Box>
-      {React.cloneElement((backgroundIcon || startIcon) as React.ReactElement, { 
+      {React.cloneElement((backgroundIcon || startIcon) as React.ReactElement<{ sx?: SxProps<Theme> }>, { 
         sx: { 
           position: 'absolute', 
           right: '5px', 
@@ -132,7 +131,15 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     </>
   );
 
-  const button = <Button {...buttonProps}>{buttonContent}</Button>;
+  const button = to ? (
+    <Button {...buttonProps} component={Link} to={to}>
+      {buttonContent}
+    </Button>
+  ) : (
+    <Button {...buttonProps} onClick={onClick}>
+      {buttonContent}
+    </Button>
+  );
 
   if (tooltip) {
     return (

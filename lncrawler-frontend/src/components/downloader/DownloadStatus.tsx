@@ -115,10 +115,14 @@ const DownloadStatus = () => {
           </Typography>
           
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" fontWeight="bold">
+            <Typography variant="subtitle1" sx={{
+              fontWeight: "bold"
+            }}>
               {results.selected_novel.title}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {results.selected_novel.chapters} chapters
             </Typography>
           </Box>
@@ -158,10 +162,14 @@ const DownloadStatus = () => {
         
         {status?.selected_novel && (
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" fontWeight="bold">
+            <Typography variant="subtitle1" sx={{
+              fontWeight: "bold"
+            }}>
               {status.selected_novel.title}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {status.selected_novel.chapters} chapters
             </Typography>
           </Box>
@@ -176,12 +184,19 @@ const DownloadStatus = () => {
             value={status?.progress_percentage || 0} 
             sx={{ height: 10, borderRadius: 1 }}
           />
-          <Typography variant="body2" sx={{ mt: 1 }} textAlign="right">
+          <Typography
+            variant="body2"
+            sx={{
+              textAlign: "right",
+              mt: 1
+            }}>
             {status?.progress || 0} / {status?.total_chapters || 0} {status?.progress_unit || 'chapters'}
           </Typography>
         </Box>
         
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           You can close the page if you do not wish to monitor the progress, the download will continue in the background.
         </Typography>
       </Paper>

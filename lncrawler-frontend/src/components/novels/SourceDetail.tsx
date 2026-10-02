@@ -13,7 +13,7 @@ import {
   alpha,
   Skeleton,
   Zoom,
-  Grid2 as Grid,
+  Grid as Grid,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';

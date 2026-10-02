@@ -409,18 +409,20 @@ const ReaderSettings = ({
         anchor={isMobile ? "bottom" : "right"} 
         open={open} 
         onClose={onClose}
-        PaperProps={{
-          sx: {
-            width: isMobile ? '100%' : '350px',
-            maxHeight: isMobile ? '60vh' : '100%',
-            borderTopLeftRadius: isMobile ? '16px' : 0,
-            borderTopRightRadius: isMobile ? '16px' : 0,
-            padding: 2,
-            paddingRight: 3,
-            overflow: 'auto',
-            zIndex: theme.zIndex.drawer,
-            boxShadow: 3,
-            backgroundColor: theme.palette.background.default,
+        slotProps={{
+          paper: {
+            sx: {
+              width: isMobile ? '100%' : '350px',
+              maxHeight: isMobile ? '60vh' : '100%',
+              borderTopLeftRadius: isMobile ? '16px' : 0,
+              borderTopRightRadius: isMobile ? '16px' : 0,
+              padding: 2,
+              paddingRight: 3,
+              overflow: 'auto',
+              zIndex: theme.zIndex.drawer,
+              boxShadow: 3,
+              backgroundColor: theme.palette.background.default,
+            }
           }
         }}
       >

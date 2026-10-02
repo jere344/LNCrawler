@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
   Typography, Box, Rating, Chip, Skeleton, Tooltip,
-  Grid2 as Grid
+  Grid as Grid
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -269,7 +269,9 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             <Tooltip title="Authors">
               <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 16, height: 16 }} />
             </Tooltip>
-            <Typography variant="body2" color="text.secondary" noWrap>
+            <Typography variant="body2" noWrap sx={{
+              color: "text.secondary"
+            }}>
               {preferredSource?.authors && preferredSource.authors.length > 0 
                 ? preferredSource.authors.join(', ') 
                 : 'Unknown'}
@@ -281,7 +283,9 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             <Tooltip title="Tags">
               <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 16, height: 16 }} />
             </Tooltip>
-            <Typography variant="body2" color="text.secondary" noWrap>
+            <Typography variant="body2" noWrap sx={{
+              color: "text.secondary"
+            }}>
               {preferredSource?.tags && preferredSource.tags.length > 0 ? 
                 `${preferredSource.tags.slice(0, 3).join(', ')}${preferredSource.tags.length > 3 ? '...' : ''}` 
                 : 'Unknown'}
@@ -296,13 +300,15 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               readOnly 
               size="small" 
             />
-            <Typography variant="body2" color="text.secondary" 
-            sx={{ 
-              ml: 0.25,
-              fontSize: '0.875rem',
-              overflow: 'hidden',
-              height: '1.2em'
-            }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                ml: 0.25,
+                fontSize: '0.875rem',
+                overflow: 'hidden',
+                height: '1.2em'
+              }}>
               {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
               {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
             </Typography>

@@ -21,7 +21,7 @@ import {
   MenuItem,
   Stack,
   SelectChangeEvent,
-  Grid2 as Grid,
+  Grid as Grid,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -125,7 +125,7 @@ const ChapterList = () => {
     ? `${chapterData.novel_title}, ${chapterData.source_name}, chapter list, all chapters, light novel chapters, web novel`
     : "chapter list, light novel, web novel";
   const ogImage = chapterData?.source_overview_image_url || DEFAULT_OG_IMAGE;
-  if (loading) {
+  if (loading && !chapterData) {
     return (
       <Container>
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
@@ -186,7 +186,7 @@ const ChapterList = () => {
           ]}
         />
       )}
-      
+
       <Button component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} startIcon={<ArrowBackIcon />} sx={{ mt: 2 }}>
         Back to Source
       </Button>
@@ -196,7 +196,9 @@ const ChapterList = () => {
           {chapterData.novel_title}
         </Typography>
         
-        <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+        <Typography variant="subtitle1" gutterBottom sx={{
+          color: "text.secondary"
+        }}>
           Source: {chapterData.source_name}
         </Typography>
         
@@ -207,25 +209,35 @@ const ChapterList = () => {
             variant="outlined"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }
             }}
           />
         </Box>
 
         <Box sx={{ mt: 3, mb: 3 }}>
-          <Grid container spacing={2} alignItems="center">
+          <Grid container spacing={2} sx={{
+            alignItems: "center"
+          }}>
             <Grid>
               <Typography variant="subtitle1">
                 {chapterData.count} Total Chapters
               </Typography>
             </Grid>
             <Grid size="grow">
-              <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
+              <Stack
+                direction="row"
+                spacing={2}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "flex-end"
+                }}>
                 <Typography variant="body2">
                   Page {chapterData.current_page} of {chapterData.total_pages}
                 </Typography>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, Typography, useMediaQuery, useTheme, ButtonBase, Skeleton, Grid2 as Grid } from '@mui/material'; 
+import { Box, Card, Typography, useMediaQuery, useTheme, ButtonBase, Skeleton, Grid as Grid } from '@mui/material'; 
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CommentIcon from '@mui/icons-material/Comment';
 import StarIcon from '@mui/icons-material/Star';

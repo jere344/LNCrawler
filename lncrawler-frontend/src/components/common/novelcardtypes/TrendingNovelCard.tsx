@@ -98,7 +98,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
           #{rank}
         </Box>
       )}
-      
+
       <CardActionArea 
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
         onClick={onClick}
@@ -119,7 +119,12 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
 
             }}>
               <WhatshotIcon sx={{ fontSize: '0.9rem' }} />
-              <Typography variant="caption" fontWeight="bold" fontSize="0.7rem">
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: "bold",
+                  fontSize: "0.7rem"
+                }}>
                 HOT
               </Typography>
             </Box>
@@ -177,12 +182,14 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
           {/* Trending statistics */}
           <Box sx={{ display: 'flex', alignItems: 'center', mt: 'auto' }}>
             <TrendingUpIcon color="error" sx={{ fontSize: '1rem' }} />
-            <Typography 
-              variant="body2" 
-              color="error.main" 
-              fontWeight="bold" 
-              sx={{ ml: 0.5, fontSize: '0.85rem' }}
-            >
+            <Typography
+              variant="body2"
+              sx={{
+                color: "error.main",
+                fontWeight: "bold",
+                ml: 0.5,
+                fontSize: '0.85rem'
+              }}>
               {formatCount(novel.weekly_views || 0)} views this week
             </Typography>
           </Box>

@@ -172,7 +172,12 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
           }
           label="Paragraph Indent"
         />
-        <Typography variant="caption" color="text.secondary" display="block">
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            display: "block"
+          }}>
           Add indentation to the first line of each paragraph
         </Typography>
       </Box>
@@ -188,7 +193,12 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
           }
           label="Hide Scrollbar"
         />
-        <Typography variant="caption" color="text.secondary" display="block">
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            display: "block"
+          }}>
           Hide browser scrollbar for a cleaner reading experience
         </Typography>
       </Box>
