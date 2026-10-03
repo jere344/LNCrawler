@@ -171,6 +171,21 @@ def consolidate_source_views():
         logger.error(f"Error consolidating daily view buckets: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
+# Top up the popular-source refresh queue. Runs often but queues at most one job
+# per tick and skips sources refreshed in the last 6 days, so each source ends up
+# updated about weekly while the batch always stays on a single crawler thread
+# (even with several crawler replicas).
+@scheduler.register_task(interval=3600, name="update_popular_sources")  # hourly
+def update_popular_sources():
+    """Queue the next update for the most popular sources."""
+    logger.info("Queueing next popular source update...")
+    try:
+        call_command('update_popular_sources', top=20)
+        logger.info("Popular source update queue check completed")
+    except Exception as e:
+        logger.error(f"Error queueing popular source update: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
 # Progressively prune orphan novels, empty sources and dead-source duplicates.
 # Bounded --limit per run so a 40k-novel first pass spreads over many runs.
 @scheduler.register_task(interval=600, name="prune_library")

@@ -10,12 +10,14 @@ from django.core.cache import cache
 from django.db.models import Sum
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import (
     Chapter,
     Comment,
     ExternalSource,
     FeaturedNovel,
+    Job,
     Novel,
     NovelAlias,
     NovelBookmark,
@@ -745,6 +747,87 @@ class ConsolidateSourceViewsTests(TestCase):
             source=self.source, granularity=WeeklySourceView.WEEK, day=monday
         )
         self.assertEqual(weekly.views, 3)
+
+
+class UpdatePopularSourcesTests(TestCase):
+    def _make_source(self, novel_title, slug, source_name, url, views, updated=None):
+        novel = Novel.objects.create(title=novel_title, slug=slug, novel_path=slug)
+        external = ExternalSource.objects.create(source_name=source_name)
+        return NovelFromSource.objects.create(
+            novel=novel,
+            external_source=external,
+            title=novel_title,
+            source_url=url,
+            source_path=f"{slug}/{source_name}",
+            source_slug=source_name,
+            total_views=views,
+            last_chapter_update=updated,
+        )
+
+    def test_queues_next_most_popular_stale_source(self):
+        popular = self._make_source("Popular", "popular", "src-a", "http://a/1", 100)
+        self._make_source("Unpopular", "unpopular", "src-b", "http://b/1", 1)
+
+        call_command("update_popular_sources", top=1)
+
+        job = Job.objects.get()
+        self.assertEqual(job.job_type, Job.JOB_TYPE_DOWNLOAD)
+        self.assertEqual(job.status, Job.STATUS_CREATED)
+        self.assertEqual(job.target_url, popular.source_url)
+
+    def test_queues_only_one_job_per_run(self):
+        self._make_source("A", "a", "src-a", "http://a/1", 100)
+        self._make_source("B", "b", "src-b", "http://b/1", 50)
+
+        call_command("update_popular_sources", top=20)
+
+        self.assertEqual(Job.objects.count(), 1)
+
+    def test_skips_sources_updated_in_the_last_6_days(self):
+        self._make_source(
+            "Fresh", "fresh", "src-a", "http://a/1", 100,
+            updated=timezone.now() - timedelta(days=2),
+        )
+        stale = self._make_source(
+            "Stale", "stale", "src-b", "http://b/1", 50,
+            updated=timezone.now() - timedelta(days=8),
+        )
+
+        call_command("update_popular_sources", top=20)
+
+        job = Job.objects.get()
+        self.assertEqual(job.target_url, stale.source_url)
+
+    def test_waits_while_an_update_is_in_flight(self):
+        # A second stale source exists, but the command must not queue it while
+        # the first update is still running (single-thread guarantee).
+        self._make_source("A", "a", "src-a", "http://a/1", 100)
+        self._make_source("B", "b", "src-b", "http://b/1", 50)
+        Job.objects.create(
+            job_type=Job.JOB_TYPE_DOWNLOAD,
+            query="Weekly popular source update",
+            target_url="http://a/1",
+            status=Job.STATUS_DOWNLOADING,
+        )
+
+        call_command("update_popular_sources", top=20)
+
+        self.assertEqual(Job.objects.count(), 1)
+
+    def test_skips_source_whose_last_job_failed(self):
+        failed = self._make_source("Failed", "failed", "src-a", "http://a/1", 100)
+        works = self._make_source("Works", "works", "src-b", "http://b/1", 50)
+        Job.objects.create(
+            job_type=Job.JOB_TYPE_DOWNLOAD,
+            query="Weekly popular source update",
+            target_url=failed.source_url,
+            status=Job.STATUS_FAILED,
+        )
+
+        call_command("update_popular_sources", top=20)
+
+        queued = Job.objects.get(status=Job.STATUS_CREATED)
+        self.assertEqual(queued.target_url, works.source_url)
 
 
 class LanguageHelperTests(TestCase):
