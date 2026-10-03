@@ -1,36 +1,51 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
-import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Pagination } from '@mui/material';
+import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import LockIcon from '@mui/icons-material/Lock';
 import { authService } from '../../services/auth.service';
-import { reviewService } from '../../services/review.service';
-import type { Review } from '../../services/review.service';
-import { readingListService } from '../../services/readinglist.service';
 import type { ApiError } from '../../services/api';
-import { Link as RouterLink } from 'react-router-dom';
-import { ReadingList } from '@models/readinglist_types';
-import ReadingListCard from '../readinglist/ReadingListCard';
-import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
-import ReadingStatisticsCard from '../profile/ReadingStatisticsCard';
 import LanguagePreferences from '../profile/LanguagePreferences';
+import PrivacySettings from '../profile/PrivacySettings';
+import PinnedNovelsPicker from '../profile/PinnedNovelsPicker';
+import type { Novel } from '@models/novels_types';
 
 interface ProfileData {
   username: string;
   email: string;
   profile_pic: string | null;
+  banner?: string | null;
+  bio?: string;
+  social_links?: Record<string, string>;
   date_joined: string;
   last_login: string | null;
   word_read?: number;
   chapters_read_count?: number;
   chapters_not_read_yet_count?: number;
+  pinned_novels?: Novel[];
 }
 
-const ProfilePage: React.FC = () => {
-  const { user, updateProfile, refreshUser } = useAuth();
+const SOCIAL_KEYS = ['mal', 'anilist', 'novelupdates', 'discord', 'x', 'website'] as const;
+
+// Flatten a DRF error payload ({field: [msg], non_field_errors: [msg]}) into a
+// readable string so the user sees the real validation message.
+const formatApiError = (data: unknown): string | null => {
+  if (!data) return null;
+  if (typeof data === 'string') return data;
+  if (typeof data !== 'object') return null;
+  const parts: string[] = [];
+  for (const [field, messages] of Object.entries(data as Record<string, unknown>)) {
+    const text = Array.isArray(messages) ? messages.join(' ') : String(messages);
+    parts.push(field === 'non_field_errors' || field === 'detail' ? text : `${field}: ${text}`);
+  }
+  return parts.length ? parts.join('\n') : null;
+};
+
+const SettingsPage: React.FC = () => {
+  const { updateProfile, refreshUser } = useAuth();
   const { t } = useTranslation();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -39,6 +54,12 @@ const ProfilePage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [profilePic, setProfilePic] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bio, setBio] = useState('');
+  const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
+  const [pinnedNovels, setPinnedNovels] = useState<Novel[]>([]);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -54,20 +75,6 @@ const ProfilePage: React.FC = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // User reviews state
-  const [userReviews, setUserReviews] = useState<Review[]>([]);
-  const [reviewsLoading, setReviewsLoading] = useState(false);
-  const [reviewsError, setReviewsError] = useState<string | null>(null);
-  const [reviewsPage, setReviewsPage] = useState(1);
-  const [totalReviewPages, setTotalReviewPages] = useState(1);
-
-  // User reading lists state
-  const [userReadingLists, setUserReadingLists] = useState<ReadingList[]>([]);
-  const [readingListsLoading, setReadingListsLoading] = useState(false);
-  const [readingListsError, setReadingListsError] = useState<string | null>(null);
-  const [readingListsPage, setReadingListsPage] = useState(1);
-  const [totalReadingListsPages, setTotalReadingListsPages] = useState(1);
-
   // Fetch profile data
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -78,8 +85,14 @@ const ProfilePage: React.FC = () => {
         // Set form data with fresh profile data
         setUsername(data.username || '');
         setEmail(data.email || '');
+        setBio(data.bio || '');
+        setSocialLinks(data.social_links || {});
+        setPinnedNovels(data.pinned_novels || []);
         if (data.profile_pic) {
           setPreviewUrl(data.profile_pic);
+        }
+        if (data.banner) {
+          setBannerPreview(data.banner);
         }
       } catch (err) {
         console.error('Error fetching profile data:', err);
@@ -90,58 +103,8 @@ const ProfilePage: React.FC = () => {
     };
 
     fetchProfileData();
-    
-    // Fetch user reviews and reading lists
-    fetchUserReviews(1);
-    fetchUserReadingLists(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
   }, []);
-
-  const fetchUserReviews = async (page = 1) => {
-    if (!user) return;
-    
-    setReviewsLoading(true);
-    setReviewsError(null);
-    
-    try {
-      const response = await reviewService.getUserReviews(page);
-      setUserReviews(response.reviews);
-      setReviewsPage(response.pagination.current_page);
-      setTotalReviewPages(response.pagination.total_pages);
-    } catch (err) {
-      console.error('Error loading user reviews:', err);
-      setReviewsError(t('profile.failedLoadReviews'));
-    } finally {
-      setReviewsLoading(false);
-    }
-  };
-
-  const fetchUserReadingLists = async (page = 1) => {
-    if (!user) return;
-    
-    setReadingListsLoading(true);
-    setReadingListsError(null);
-    
-    try {
-      const response = await readingListService.getUserReadingLists(page);
-      setUserReadingLists(response.results);
-      setReadingListsPage(response.current_page || page);
-      setTotalReadingListsPages(response.total_pages || 1);
-    } catch (err) {
-      console.error('Error loading user reading lists:', err);
-      setReadingListsError(t('profile.failedLoadLists'));
-    } finally {
-      setReadingListsLoading(false);
-    }
-  };
-
-  const handleReviewPageChange = (_: React.ChangeEvent<unknown>, page: number) => {
-    fetchUserReviews(page);
-  };
-
-  const handleReadingListPageChange = (_: React.ChangeEvent<unknown>, page: number) => {
-    fetchUserReadingLists(page);
-  };
 
   const handleProfilePicChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -157,6 +120,16 @@ const ProfilePage: React.FC = () => {
     }
   };
 
+  const handleBannerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      setBannerFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setBannerPreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -168,6 +141,9 @@ const ProfilePage: React.FC = () => {
         username,
         email,
         profile_pic: profilePic || undefined,
+        banner: bannerFile || undefined,
+        bio,
+        social_links: socialLinks,
       });
       setSuccess(t('profile.updatedSuccess'));
       setIsEditing(false);
@@ -177,7 +153,8 @@ const ProfilePage: React.FC = () => {
       setProfileData(updatedProfile);
       refreshUser();
     } catch (err) {
-      setError(t('profile.updateFailed'));
+      const apiErr = err as ApiError;
+      setError(formatApiError(apiErr.response?.data) || t('profile.updateFailed'));
       console.error('Error updating profile:', err);
     } finally {
       setIsLoading(false);
@@ -191,6 +168,10 @@ const ProfilePage: React.FC = () => {
       setEmail(profileData.email || '');
       setProfilePic(null);
       setPreviewUrl(profileData.profile_pic || null);
+      setBannerFile(null);
+      setBannerPreview(profileData.banner || null);
+      setBio(profileData.bio || '');
+      setSocialLinks(profileData.social_links || {});
     }
     setIsEditing(false);
     setError(null);
@@ -233,10 +214,10 @@ const ProfilePage: React.FC = () => {
     <Container maxWidth="md">
       <Paper elevation={3} sx={{ p: 4, mt: 4, mb: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          {t('profile.heading')}
+          {t('header.settings')}
         </Typography>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-line' }}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         <form onSubmit={handleSubmit}>
@@ -271,6 +252,19 @@ const ProfilePage: React.FC = () => {
                   </Button>
                 </Box>
               )}
+              {bannerPreview && (
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: 80,
+                    mt: 2,
+                    borderRadius: 1,
+                    backgroundImage: `url(${bannerPreview})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }}
+                />
+              )}
             </Grid>
 
             <Grid
@@ -298,6 +292,41 @@ const ProfilePage: React.FC = () => {
                   disabled={!isEditing}
                   required
                 />
+                <TextField
+                  label={t('profile.bio')}
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  fullWidth
+                  margin="normal"
+                  multiline
+                  minRows={2}
+                  disabled={!isEditing}
+                />
+                {SOCIAL_KEYS.map((key) => (
+                  <TextField
+                    key={key}
+                    label={t(`profile.social.${key}`)}
+                    value={socialLinks[key] || ''}
+                    onChange={(e) => setSocialLinks((prev) => ({ ...prev, [key]: e.target.value }))}
+                    fullWidth
+                    margin="normal"
+                    disabled={!isEditing}
+                  />
+                ))}
+                {isEditing && (
+                  <Box sx={{ mt: 1 }}>
+                    <input
+                      type="file"
+                      ref={bannerInputRef}
+                      style={{ display: 'none' }}
+                      accept="image/*"
+                      onChange={handleBannerChange}
+                    />
+                    <Button variant="outlined" onClick={() => bannerInputRef.current?.click()}>
+                      {t('profile.changeBanner')}
+                    </Button>
+                  </Box>
+                )}
               </Box>
 
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
@@ -447,121 +476,15 @@ const ProfilePage: React.FC = () => {
         </Dialog>
 
         <Divider sx={{ my: 3 }} />
-        
-        {/* Reading Statistics Card - moved here after the security section */}
-        <ReadingStatisticsCard profileData={profileData} />
 
-        <Divider sx={{ my: 4 }} />
-        {/* User Reading Lists Section */}
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            {t('profile.myReadingLists')}
-          </Typography>
+        <PinnedNovelsPicker pinnedNovels={pinnedNovels} onChange={setPinnedNovels} />
 
-          {readingListsError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {readingListsError}
-            </Alert>
-          )}
+        <Divider sx={{ my: 3 }} />
 
-          {readingListsLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : userReadingLists.length > 0 ? (
-            <>
-              <Grid container spacing={2}>
-                {userReadingLists.map((list) => (
-                  <Grid
-                    key={list.id}
-                    size={{
-                      xs: 12,
-                      sm: 6
-                    }}>
-                    <ReadingListCard list={list} />
-                  </Grid>
-                ))}
-              </Grid>
-              
-              {totalReadingListsPages > 1 && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                  <Pagination
-                    count={totalReadingListsPages}
-                    page={readingListsPage}
-                    onChange={handleReadingListPageChange}
-                    color="primary"
-                  />
-                </Box>
-              )}
-            </>
-          ) : (
-            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper' }}>
-              <Typography variant="body1" sx={{
-                color: "text.secondary"
-              }}>
-                {t('profile.noReadingLists')}
-              </Typography>
-              <Button 
-                component={RouterLink} 
-                to="/reading-lists" 
-                variant="contained" 
-                sx={{ mt: 2 }}
-              >
-                {t('profile.browseReadingLists')}
-              </Button>
-            </Paper>
-          )}
-        </Box>
-
-        <Divider sx={{ my: 4 }} />
-        {/* User Reviews Section */}
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            {t('profile.myReviews')}
-          </Typography>
-
-          {reviewsError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {reviewsError}
-            </Alert>
-          )}
-
-          {reviewsLoading && userReviews.length === 0 ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : userReviews.length > 0 ? (
-            <>
-              <OverviewReviewsSection 
-                reviews={userReviews}
-                isLoading={reviewsLoading}
-                maxItems={userReviews.length}
-              />
-              
-              {totalReviewPages > 1 && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                  <Pagination
-                    count={totalReviewPages}
-                    page={reviewsPage}
-                    onChange={handleReviewPageChange}
-                    color="primary"
-                  />
-                </Box>
-              )}
-            </>
-          ) : (
-            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'background.paper' }}>
-              <Typography variant="body1" sx={{
-                color: "text.secondary"
-              }}>
-                {t('profile.noReviews')}
-              </Typography>
-            </Paper>
-          )}
-        </Box>
+        <PrivacySettings />
       </Paper>
     </Container>
   );
 };
 
-export default ProfilePage;
+export default SettingsPage;

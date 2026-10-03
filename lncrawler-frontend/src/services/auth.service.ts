@@ -72,17 +72,23 @@ export const authService = {
     username?: string;
     email?: string;
     profile_pic?: File;
+    banner?: File;
+    bio?: string;
+    social_links?: Record<string, string>;
+    privacy_settings?: Record<string, string>;
     preferred_ui_language?: string;
     preferred_languages?: string[];
     language_filter_enabled?: boolean;
   }) => {
-    // Use FormData if there's a profile image upload
-    if (profileData.profile_pic) {
+    // Use FormData if there's an image upload (profile_pic or banner)
+    if (profileData.profile_pic || profileData.banner) {
       const formData = new FormData();
       
       Object.entries(profileData).forEach(([key, value]) => {
         if (value === undefined) return;
-        if (Array.isArray(value)) {
+        if (value instanceof File) {
+          formData.append(key, value);
+        } else if (typeof value === 'object' && value !== null) {
           formData.append(key, JSON.stringify(value));
         } else {
           formData.append(key, String(value));

@@ -6,6 +6,7 @@ import LockIcon from "@mui/icons-material/Lock";
 import PublicIcon from "@mui/icons-material/Public";
 import { formatTimeAgo } from "@utils/Misc";
 import { useTranslation } from "react-i18next";
+import UserLink from "@components/profile/UserLink";
 
 interface ReadingListCardProps {
     list: ReadingList;
@@ -189,7 +190,7 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                         <Typography variant="body2" sx={{
                             color: "text.secondary"
                         }}>
-                            {list.user.username}
+                            <UserLink username={list.user.username} />
                         </Typography>
                     </Box>
 

@@ -26,6 +26,7 @@ export interface BaseNovelCardProps {
   isLoading?: boolean;
   to?: To;
   state?: unknown;
+  hideUserState?: boolean;
 }
 
 export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({ 
@@ -33,7 +34,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   onClick, 
   isLoading = false,
   to,
-  state
+  state,
+  hideUserState = false
 }) => {
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
@@ -134,7 +136,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         overflow: 'visible',
       }}
     >
-      {unreadChapters && (
+      {unreadChapters && !hideUserState && (
         <Tooltip title={tooltip} arrow>
           <Box
             sx={{
@@ -155,7 +157,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         </Tooltip>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && !hideUserState && (
         <>
           <BookmarkButton 
             isBookmarked={novel.is_bookmarked || false}

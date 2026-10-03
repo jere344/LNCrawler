@@ -4,24 +4,77 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from lncrawler_api.models import NovelBookmark, ReadingHistory, Chapter
 from lncrawler_api.languages import normalize_language, is_supported_language, parse_languages
+from .models import PRIVACY_SECTIONS, PRIVACY_CHOICES
 
 User = get_user_model()
 
+# Allowlisted social profile keys. Kept small so we never render arbitrary
+# user-controlled keys on the public profile.
+SOCIAL_LINK_KEYS = ('mal', 'anilist', 'novelupdates', 'discord', 'x', 'website')
+
+
+def absolute_media_url(url, context=None):
+    """Turn a stored MEDIA path into an absolute URL for API responses."""
+    if not url or url.startswith('http'):
+        return url
+    request = (context or {}).get('request')
+    if request:
+        return request.build_absolute_uri(url)
+    formatted_url = url if url.startswith('/') else f'/{url}'
+    return f"{settings.SITE_API_URL}{formatted_url}"
+
+
 class UserSerializer(serializers.ModelSerializer):
     profile_pic = serializers.ImageField(required=False, allow_null=True)
+    banner = serializers.ImageField(required=False, allow_null=True)
     date_joined = serializers.DateTimeField(read_only=True)
     last_login = serializers.DateTimeField(read_only=True)
     word_read = serializers.IntegerField(read_only=True)
     chapters_read_count = serializers.SerializerMethodField()
     chapters_not_read_yet_count = serializers.SerializerMethodField()
+    pinned_novels = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'profile_pic', 'date_joined', 'last_login', 
+        fields = ('id', 'username', 'email', 'profile_pic', 'banner', 'bio',
+                 'social_links', 'privacy_settings', 'date_joined', 'last_login', 
                  'word_read', 'chapters_read_count', 'chapters_not_read_yet_count',
-                 'preferred_ui_language', 'preferred_languages', 'language_filter_enabled')
+                 'preferred_ui_language', 'preferred_languages', 'language_filter_enabled',
+                 'pinned_novels')
         read_only_fields = ('id', 'date_joined', 'last_login', 'word_read', 
                            'chapters_read_count', 'chapters_not_read_yet_count')
+
+    def validate_social_links(self, value):
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Provide an object of social links.")
+        cleaned = {}
+        for key, handle in value.items():
+            if key not in SOCIAL_LINK_KEYS:
+                raise serializers.ValidationError(f"Unknown social link '{key}'.")
+            if handle in (None, ''):
+                continue
+            if not isinstance(handle, str) or len(handle) > 100:
+                raise serializers.ValidationError(f"Invalid value for '{key}'.")
+            cleaned[key] = handle
+        return cleaned
+
+    def validate_privacy_settings(self, value):
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Provide an object of privacy settings.")
+        cleaned = {}
+        for section, visibility in value.items():
+            if section not in PRIVACY_SECTIONS:
+                raise serializers.ValidationError(f"Unknown privacy section '{section}'.")
+            if visibility not in PRIVACY_CHOICES:
+                raise serializers.ValidationError(
+                    f"Visibility for '{section}' must be one of {PRIVACY_CHOICES}."
+                )
+            cleaned[section] = visibility
+        return cleaned
 
     def validate_preferred_ui_language(self, value):
         if value in (None, ''):
@@ -47,6 +100,12 @@ class UserSerializer(serializers.ModelSerializer):
             )
         return codes
     
+    def get_pinned_novels(self, obj):
+        from lncrawler_api.serializers import BasicNovelSerializer
+        from lncrawler_api.models import ProfilePinnedNovel
+        pinned = ProfilePinnedNovel.objects.filter(user=obj).select_related('novel').order_by('position', 'created_at')
+        return BasicNovelSerializer([p.novel for p in pinned], many=True, context=self.context).data
+
     def get_chapters_read_count(self, obj):
         # Check if we've already calculated this
         if hasattr(self, '_chapters_read_count'):
@@ -83,20 +142,9 @@ class UserSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        
-        profile_pic_url = representation.get('profile_pic')
-
-        if profile_pic_url and not profile_pic_url.startswith('http'):
-            request = self.context.get('request')
-            if request:
-                representation['profile_pic'] = request.build_absolute_uri(profile_pic_url)
-            else:
-                formatted_url = profile_pic_url if profile_pic_url.startswith('/') else f'/{profile_pic_url}'
-                representation['profile_pic'] = f"{settings.SITE_API_URL}{formatted_url}"
-
-        # If profile_pic_url is None or already absolute (starts with 'http'), 
-        # it remains as is from super(), which is correct.
-            
+        for field in ('profile_pic', 'banner'):
+            if field in representation:
+                representation[field] = absolute_media_url(representation.get(field), self.context)
         return representation
 
 class OtherUserSerializer(serializers.ModelSerializer):

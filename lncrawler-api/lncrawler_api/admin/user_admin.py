@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from ..models import Comment, Review
+from ..models import Comment, Review, Friendship, ProfilePinnedNovel
 from django.conf import settings
 from django.contrib.auth import get_user_model
 CustomUser = get_user_model()
@@ -77,3 +77,18 @@ class CustomUserAdmin(UserAdmin):
 
 # Unregister the default User admin and register our custom one
 admin.site.register(CustomUser, CustomUserAdmin)
+
+
+@admin.register(Friendship)
+class FriendshipAdmin(admin.ModelAdmin):
+    list_display = ('requester', 'addressee', 'status', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('requester__username', 'addressee__username')
+    raw_id_fields = ('requester', 'addressee')
+
+
+@admin.register(ProfilePinnedNovel)
+class ProfilePinnedNovelAdmin(admin.ModelAdmin):
+    list_display = ('user', 'novel', 'position', 'created_at')
+    search_fields = ('user__username', 'novel__title')
+    raw_id_fields = ('user', 'novel')

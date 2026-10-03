@@ -13,6 +13,7 @@ import {
   Skeleton
 } from '@mui/material';
 import { Link } from 'react-router-dom';
+import UserLink from '@components/profile/UserLink';
 import { Review } from '@services/review.service';
 import ReadOnlyMDXEditor from '@components/common/reviews/ReadOnlyMDXEditor';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -99,7 +100,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                       <Typography variant="body2" sx={{
                         fontWeight: "bold"
                       }}>
-                        {review.user.username}
+                        <UserLink username={review.user.username} />
                       </Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"

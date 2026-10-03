@@ -23,7 +23,8 @@ const SearchPage = lazy(() => import('@components/search/SearchPage'));
 const HomePage = lazy(() => import('@components/home/HomePage'));
 const LoginPage = lazy(() => import('@components/auth/LoginPage'));
 const RegisterPage = lazy(() => import('@components/auth/RegisterPage'));
-const ProfilePage = lazy(() => import('@components/auth/ProfilePage'));
+const SettingsPage = lazy(() => import('@components/auth/SettingsPage'));
+const PublicProfilePage = lazy(() => import('@components/profile/PublicProfilePage'));
 const ResetPasswordPage = lazy(() => import('@components/auth/ResetPasswordPage'));
 const LibraryPage = lazy(() => import('@components/library/LibraryPage'));
 const ReadingHistoryPage = lazy(() => import('@components/history/ReadingHistoryPage'));
@@ -91,7 +92,8 @@ function AppWithTheme() {
                             {/* Authentication routes */}
                             <Route path="/login" element={<LoginPage />} />
                             <Route path="/register" element={<RegisterPage />} />
-                            <Route path="/profile" element={<ProfilePage />} />
+                            <Route path="/settings" element={<SettingsPage />} />
+                            <Route path="/u/:username" element={<PublicProfilePage />} />
                             <Route path="/reset-password" element={<ResetPasswordPage />} />
                             
                             {/* Library and History routes */}

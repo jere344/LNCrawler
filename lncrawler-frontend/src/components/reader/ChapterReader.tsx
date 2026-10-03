@@ -617,6 +617,7 @@ const ChapterReader = () => {
   const memoizedChapterContent = useMemo(() => ({
     chapter,
     settings: readerSettings
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tracks primitive fields so the memo stays stable across scroll
   }), [
     chapter?.body,
     chapter?.images_path,
@@ -632,7 +633,6 @@ const ChapterReader = () => {
     readerSettings.paragraphSpacing,
     readerSettings.showPages,
     readerSettings.showPageSlider,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tracks primitive fields so the memo stays stable across scroll
   ]);
 
   // Persist the outgoing mode's position before toggling page mode so the

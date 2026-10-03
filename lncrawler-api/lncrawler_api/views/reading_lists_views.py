@@ -27,7 +27,10 @@ def _forbidden(detail):
 
 def _paginated_response(request, query_set, serializer_class):
     page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 20)
+    try:
+        page_size = min(int(request.GET.get("page_size", 20)), 100)
+    except (TypeError, ValueError):
+        page_size = 20
     paginator = Paginator(query_set, page_size)
     page_obj = paginator.get_page(page_number)
     serializer = serializer_class(page_obj, many=True, context={"request": request})

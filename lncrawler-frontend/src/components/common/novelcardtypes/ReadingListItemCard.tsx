@@ -20,7 +20,6 @@ import { formatTimeAgo, formatCount, languageCodeToFlag, languageCodeToName } fr
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
-import { formatCount } from './BaseNovelCard';
 import BookmarkButton from '@components/common/BookmarkButton';
 import { useTranslation } from 'react-i18next';
 

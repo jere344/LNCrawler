@@ -23,6 +23,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import LoginIcon from "@mui/icons-material/Login";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonIcon from "@mui/icons-material/Person";
+import SettingsIcon from "@mui/icons-material/Settings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
 import HistoryIcon from "@mui/icons-material/History";
@@ -346,11 +347,17 @@ const Header = () => {
                                     horizontal: "right",
                                 }}
                             >
-                                <MenuItem component={RouterLink} to="/profile" onClick={handleAccountMenuClose}>
+                                <MenuItem component={RouterLink} to={user ? `/u/${encodeURIComponent(user.username)}` : "/"} onClick={handleAccountMenuClose}>
                                     <ListItemIcon>
                                         <PersonIcon fontSize="small" />
                                     </ListItemIcon>
                                     <ListItemText primary={t('header.profile')} />
+                                </MenuItem>
+                                <MenuItem component={RouterLink} to="/settings" onClick={handleAccountMenuClose}>
+                                    <ListItemIcon>
+                                        <SettingsIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary={t('header.settings')} />
                                 </MenuItem>
                                 <MenuItem onClick={handleLogout}>
                                     <ListItemIcon>

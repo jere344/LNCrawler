@@ -21,6 +21,12 @@ export interface Comment {
   user: User;
   user_vote?: 'up' | 'down';
   edited: boolean;
+  target_type?: 'novel' | 'chapter' | 'board';
+  target_title?: string;
+  target_slug?: string;
+  target_novel_slug?: string;
+  target_source_slug?: string;
+  target_chapter_number?: number;
 }
 
 export interface CommentFormData {

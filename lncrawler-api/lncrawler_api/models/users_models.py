@@ -85,6 +85,56 @@ class ReadingListCollaborator(models.Model):
         return f"{self.user.username} ({self.role}) on {self.reading_list.title}"
 
 
+class ProfilePinnedNovel(models.Model):
+    """
+    A novel the user chose to pin on their public profile.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='pinned_novels')
+    novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='pinned_by_users')
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'novel')
+        ordering = ['position', 'created_at']
+
+    def __str__(self):
+        return f"{self.user.username} pinned {self.novel.title}"
+
+
+class Friendship(models.Model):
+    """
+    A friendship request between two users. Accepted rows are the friend graph;
+    a declined/cancelled request is deleted (no stale status to leak).
+    """
+    PENDING = 'pending'
+    ACCEPTED = 'accepted'
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (ACCEPTED, 'Accepted'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    requester = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='friend_requests_sent')
+    addressee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='friend_requests_received')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('requester', 'addressee')
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(requester=models.F('addressee')),
+                name='friendship_no_self',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.requester.username} -> {self.addressee.username} ({self.status})"
+
+
 class ReadingListItem(models.Model):
     """
     An item in a reading list with optional note

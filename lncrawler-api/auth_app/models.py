@@ -4,9 +4,29 @@ import uuid
 from django.utils import timezone
 from datetime import timedelta
 
+# Sections of a profile whose visibility is user-controlled.
+PRIVACY_SECTIONS = [
+    'library',
+    'reading_lists',
+    'reviews',
+    'comments',
+    'stats',
+    'reading_history',
+    'friends',
+]
+PRIVACY_CHOICES = ['public', 'friends', 'private']
+DEFAULT_PRIVACY = {section: 'private' for section in PRIVACY_SECTIONS}
+
+
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     profile_pic = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
+    banner = models.ImageField(upload_to='profile_banners/', blank=True, null=True)
+    bio = models.TextField(blank=True, default='')
+    # {mal: url, anilist: url, ...}; keys validated against SOCIAL_LINK_KEYS.
+    social_links = models.JSONField(default=dict, blank=True)
+    # {section: public|friends|private}; missing sections fall back to DEFAULT_PRIVACY.
+    privacy_settings = models.JSONField(default=dict, blank=True)
     word_read = models.IntegerField(default=0)  # Total words read by the user
     # Interface language; empty means "detect from the browser".
     preferred_ui_language = models.CharField(max_length=10, blank=True, default='')
@@ -14,6 +34,14 @@ class CustomUser(AbstractUser):
     preferred_languages = models.JSONField(default=list, blank=True)
     # When False, the home page ignores preferred_languages and mixes everything.
     language_filter_enabled = models.BooleanField(default=True)
+
+    def visibility(self, section):
+        """Effective visibility of a profile section for this user."""
+        stored = self.privacy_settings if isinstance(self.privacy_settings, dict) else {}
+        value = stored.get(section)
+        if value in PRIVACY_CHOICES:
+            return value
+        return DEFAULT_PRIVACY.get(section, 'private')
 
     def __str__(self):
         return self.username

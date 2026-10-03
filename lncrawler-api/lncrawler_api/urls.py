@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views, reading_lists_views
+from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views, reading_lists_views, profile_views, friends_views
 from .views.csrf import get_csrf_token
 from django.contrib.sitemaps.views import sitemap, index
 from django.views.decorators.cache import cache_page
@@ -124,4 +124,20 @@ urlpatterns = [
     path('reading-lists/<uuid:list_id>/collaborators/<uuid:collaborator_id>/', reading_lists_views.collaborator_detail, name='collaborator_detail'),
     path('users/reading-lists/', reading_lists_views.get_user_reading_lists, name='get_user_reading_lists'),
     path('users/search/', users_views.search_users, name='search_users'),
+
+    # Public profiles
+    path('users/profile/pinned/<uuid:novel_id>/', profile_views.pinned_novel, name='pinned_novel'),
+    path('users/profile/<str:username>/', profile_views.user_public_profile, name='user_public_profile'),
+    path('users/profile/<str:username>/library/', profile_views.user_library, name='user_library'),
+    path('users/profile/<str:username>/reviews/', profile_views.user_reviews, name='profile_user_reviews'),
+    path('users/profile/<str:username>/comments/', profile_views.user_comments, name='profile_user_comments'),
+    path('users/profile/<str:username>/reading-lists/', profile_views.user_reading_lists, name='profile_user_reading_lists'),
+    path('users/profile/<str:username>/friends/', profile_views.user_friends, name='user_friends'),
+
+    # Friends
+    path('friends/', friends_views.list_friends, name='list_friends'),
+    path('friends/requests/', friends_views.list_friend_requests, name='list_friend_requests'),
+    path('friends/requests/<str:username>/send/', friends_views.send_friend_request, name='send_friend_request'),
+    path('friends/requests/<uuid:friendship_id>/respond/', friends_views.respond_friend_request, name='respond_friend_request'),
+    path('friends/<str:username>/remove/', friends_views.remove_friend, name='remove_friend'),
 ]
