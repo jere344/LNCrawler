@@ -1,16 +1,120 @@
 from rest_framework import serializers
 from ..models import (
     Novel, Author, Tag,
-    NovelViewCount, WeeklyNovelView,
+    WeeklySourceView,
     NovelBookmark
 )
-from django.db.models import Avg, F, ExpressionWrapper, IntegerField, Subquery, OuterRef, Sum
+from django.db.models import Avg, Sum
 from .sources_serializers import NovelSourceSerializer
 from .users_serializers import DetailedReadingHistorySerializer
 from ..utils import get_client_ip
 
 
-class BasicNovelSerializer(serializers.ModelSerializer):
+class NovelAggregatesMixin:
+    """Computes the read-only counters shared by the list and detail
+    serializers. When the queryset was built with `apply_novel_prefetches`
+    everything is served from the prefetch cache (zero extra queries);
+    otherwise it falls back to the original per-object queries."""
+
+    # Detail views opt into the heavier nested source payload (synopsis etc.).
+    source_detail_context = False
+
+    def _prefetched(self, obj, name):
+        return name in getattr(obj, '_prefetched_objects_cache', {})
+
+    def get_prefered_source(self, obj):
+        # Restrict to the languages the request was filtered by (when any), so
+        # a language-filtered list links to a source in that language; fall
+        # back to all sources if none match.
+        sources = list(obj.sources.all())
+        languages = self.context.get('languages') or []
+        if languages:
+            localized = [s for s in sources if s.language in languages]
+            if localized:
+                sources = localized
+
+        if not sources:
+            return None
+
+        # Highest vote score, then most upvotes, then title.
+        prefered = min(
+            sources,
+            key=lambda s: (-(s.upvotes - s.downvotes), -s.upvotes, s.title or ''),
+        )
+        context = self.context
+        if self.source_detail_context:
+            context = {**context, 'include_synopsis': True}
+        return NovelSourceSerializer(prefered, context=context).data
+
+    def get_avg_rating(self, obj):
+        if self._prefetched(obj, 'ratings'):
+            ratings = [rating.rating for rating in obj.ratings.all()]
+            return round(sum(ratings) / len(ratings), 1) if ratings else None
+        avg = obj.ratings.all().aggregate(Avg('rating'))['rating__avg']
+        return round(avg, 1) if avg else None
+
+    def get_rating_count(self, obj):
+        if self._prefetched(obj, 'ratings'):
+            return len(obj.ratings.all())
+        return obj.ratings.count()
+
+    def get_total_views(self, obj):
+        if self._prefetched(obj, 'sources'):
+            return sum(source.total_views for source in obj.sources.all())
+        return obj.sources.aggregate(total=Sum('total_views'))['total'] or 0
+
+    def get_weekly_views(self, obj):
+        sources = obj.sources.all()
+        if self._prefetched(obj, 'sources') and all(
+            self._prefetched(source, 'weekly_views') for source in sources
+        ):
+            return sum(
+                view.views for source in sources for view in source.weekly_views.all()
+            )
+        total = WeeklySourceView.objects.filter(
+            source__novel=obj,
+            granularity=WeeklySourceView.DAY,
+            day__gte=WeeklySourceView.window_start(),
+        ).aggregate(total=Sum('views'))['total']
+        return total or 0
+
+    def get_is_bookmarked(self, obj):
+        if hasattr(obj, 'user_bookmarks'):
+            return bool(obj.user_bookmarks)
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return NovelBookmark.objects.filter(novel=obj, user=request.user).exists()
+        return None
+
+    def _get_reading_history(self, obj):
+        if hasattr(obj, 'user_histories'):
+            return obj.user_histories[0] if obj.user_histories else None
+        cache = getattr(self, '_history_cache', None)
+        if cache is None:
+            cache = self._history_cache = {}
+        if obj.pk not in cache:
+            request = self.context.get('request')
+            history = None
+            if request and request.user.is_authenticated:
+                history = obj.reading_histories.select_related('source').filter(user=request.user).first()
+            cache[obj.pk] = history
+        return cache[obj.pk]
+
+    def get_reading_history(self, obj):
+        history = self._get_reading_history(obj)
+        return DetailedReadingHistorySerializer(history).data if history else None
+
+    def get_reading_source(self, obj):
+        history = self._get_reading_history(obj)
+        if history and history.source:
+            context = self.context
+            if self.source_detail_context:
+                context = {**context, 'include_synopsis': True}
+            return NovelSourceSerializer(history.source, context=context).data
+        return None
+
+
+class BasicNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
     """
     Serializes basic novel information for list views
     """
@@ -22,6 +126,7 @@ class BasicNovelSerializer(serializers.ModelSerializer):
     languages = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
+    reading_source = serializers.SerializerMethodField()
     
     class Meta:
         model = Novel
@@ -29,38 +134,9 @@ class BasicNovelSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'sources_count',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
-            'reading_history'
+            'reading_history', 'reading_source'
         ]
-    
-    def get_prefered_source(self, obj):
-        # Calculate vote score as upvotes - downvotes using annotate
-        prefered_source = obj.sources.annotate(
-            calc_score=ExpressionWrapper(F('upvotes') - F('downvotes'), output_field=IntegerField())
-        ).order_by('-calc_score', '-upvotes', 'title').first()
-        
-        if prefered_source:
-            return NovelSourceSerializer(prefered_source, context=self.context).data
-        return None
-    
-    def get_avg_rating(self, obj):
-        avg = obj.ratings.all().aggregate(Avg('rating'))['rating__avg']
-        return round(avg, 1) if avg else None
-    
-    def get_rating_count(self, obj):
-        return obj.ratings.count()
-    
-    def get_total_views(self, obj):
-        view_count = NovelViewCount.objects.filter(novel=obj).first()
-        return view_count.views if view_count else 0
-    
-    def get_weekly_views(self, obj):
-        total = WeeklyNovelView.objects.filter(
-            novel=obj,
-            granularity=WeeklyNovelView.DAY,
-            day__gte=WeeklyNovelView.window_start(),
-        ).aggregate(total=Sum('views'))['total']
-        return total or 0
-    
+
     def get_languages(self, obj):
         """
         Returns a list of languages for the sources of the novel
@@ -71,24 +147,13 @@ class BasicNovelSerializer(serializers.ModelSerializer):
                 languages.add(source.language)
         return list(languages)
 
-    def get_is_bookmarked(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return NovelBookmark.objects.filter(novel=obj, user=request.user).exists()
-        return None
-    
-    def get_reading_history(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            history = obj.reading_histories.filter(user=request.user).first()
-            if history:
-                return DetailedReadingHistorySerializer(history).data
-        return None
 
-class DetailedNovelSerializer(serializers.ModelSerializer):
+class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
     """
     Serializes detailed novel information including sources
     """
+    source_detail_context = True
+
     sources = serializers.SerializerMethodField()
     avg_rating = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
@@ -98,6 +163,7 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
     prefered_source = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
+    reading_source = serializers.SerializerMethodField()
     similar_novels = serializers.SerializerMethodField()
     reading_lists = serializers.SerializerMethodField()
     
@@ -107,7 +173,7 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
             'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history',
-            'similar_novels', 'reading_lists'
+            'reading_source', 'similar_novels', 'reading_lists'
         ]
     
     def get_sources(self, obj):
@@ -116,27 +182,7 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             many=True,
             context={**self.context, 'include_synopsis': True}
         ).data
-            
-    
-    def get_prefered_source(self, obj):
-        # Calculate vote score as upvotes - downvotes using annotate
-        prefered_source = obj.sources.annotate(
-            calc_score=ExpressionWrapper(F('upvotes') - F('downvotes'), output_field=IntegerField())
-        ).order_by('-calc_score', '-upvotes', 'title').first()
-        
-        if prefered_source:
-            return NovelSourceSerializer(
-                prefered_source, context={**self.context, 'include_synopsis': True}
-            ).data
-        return None
-    
-    def get_avg_rating(self, obj):
-        avg = obj.ratings.all().aggregate(Avg('rating'))['rating__avg']
-        return round(avg, 1) if avg else None
-    
-    def get_rating_count(self, obj):
-        return obj.ratings.count()
-    
+
     def get_user_rating(self, obj):
         request = self.context.get('request')
         if not request:
@@ -151,38 +197,16 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             return rating.rating if rating else None
         except:
             return None
-    
-    def get_total_views(self, obj):
-        view_count = NovelViewCount.objects.filter(novel=obj).first()
-        return view_count.views if view_count else 0
-    
-    def get_weekly_views(self, obj):
-        total = WeeklyNovelView.objects.filter(
-            novel=obj,
-            granularity=WeeklyNovelView.DAY,
-            day__gte=WeeklyNovelView.window_start(),
-        ).aggregate(total=Sum('views'))['total']
-        return total or 0
 
-    def get_is_bookmarked(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return NovelBookmark.objects.filter(novel=obj, user=request.user).exists()
-        return None
-
-    def get_reading_history(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            history = obj.reading_histories.filter(user=request.user).first()
-            if history:
-                return DetailedReadingHistorySerializer(history).data
-        return None
-        
     def get_similar_novels(self, obj):
+        from ..utils.query_helpers import apply_novel_prefetches, novel_prefetch_objects
+
         # Get the top 12 similar novels (list() so len() is accurate; a sliced
         # queryset's .count() caps at the slice and made the fallback always fire)
         similar_novels = list(
-            obj.similar_to.select_related('to_novel').order_by('-similarity')[:12]
+            obj.similar_to.select_related('to_novel')
+            .prefetch_related(*novel_prefetch_objects(prefix='to_novel__'))
+            .order_by('-similarity')[:12]
         )
 
         # If we don't have enough similar novels, top up with most viewed novels
@@ -191,16 +215,18 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
             needed_count = 12 - len(existing_ids)
 
             # Get the most viewed novels not already in our list
-            most_viewed = NovelViewCount.objects.exclude(
-                novel_id=obj.id
-            ).exclude(
-                novel_id__in=existing_ids
-            ).order_by('-views')[:needed_count]
+            most_viewed = apply_novel_prefetches(
+                Novel.objects.exclude(id=obj.id)
+                .exclude(id__in=existing_ids)
+                .annotate(total_views=Sum('sources__total_views'))
+                .order_by('-total_views'),
+                getattr(self.context.get('request'), 'user', None),
+            )[:needed_count]
 
             # Combine the results
-            for view_count in most_viewed:
+            for novel in most_viewed:
                 similar_novels.append({
-                    'to_novel': view_count.novel,
+                    'to_novel': novel,
                     'similarity': 0.0
                 })
         
@@ -222,12 +248,19 @@ class DetailedNovelSerializer(serializers.ModelSerializer):
     
     def get_reading_lists(self, obj):
         from .reading_lists_serializers import ReadingListSerializer
-        
-        # Get all reading lists that contain this novel
-        reading_lists = obj.in_reading_lists.values_list('reading_list', flat=True)
         from ..models.users_models import ReadingList
-        lists = ReadingList.objects.filter(id__in=reading_lists)
-        
+        from django.db.models import Q
+
+        # Only expose public lists, plus private ones the caller owns or helps on.
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        visibility = Q(is_public=True)
+        if user is not None and user.is_authenticated:
+            visibility |= Q(user=user) | Q(collaborators__user=user)
+
+        reading_lists = obj.in_reading_lists.values_list('reading_list', flat=True)
+        lists = ReadingList.objects.filter(id__in=reading_lists).filter(visibility).distinct()
+
         return ReadingListSerializer(lists, many=True, context=self.context).data
 
 

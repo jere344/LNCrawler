@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Box, Typography, Paper, Grid, LinearProgress, Tooltip } from '@mui/material';
 import ImportContactsIcon from '@mui/icons-material/ImportContacts';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -15,6 +16,7 @@ interface ReadingStatisticsCardProps {
 }
 
 const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileData }) => {
+  const { t } = useTranslation();
   // Format large numbers with commas
   const formatNumber = (num: number): string => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -30,7 +32,7 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
   return (
     <Box sx={{ mt: 4 }}>
       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <ImportContactsIcon /> Reading Statistics
+        <ImportContactsIcon /> {t('readingStats.heading')}
       </Typography>
 
       <Grid container spacing={3}>
@@ -50,18 +52,18 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
                   alignItems: 'center',
                   gap: 0.5
                 }}>
-                Reading Progress
-                <Tooltip title="Only include bookmarked novels">
+                {t('readingStats.progress')}
+                <Tooltip title={t('readingStats.onlyBookmarked')}>
                     <InfoIcon fontSize="small" color="action" sx={{ opacity: 0.6, fontSize: '1rem' }} />
                 </Tooltip>
               </Typography>
               
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                 <Typography variant="body2">
-                  Chapters Read: <strong>{profileData?.chapters_read_count || 0}</strong>
+                  {t('readingStats.chaptersRead')} <strong>{profileData?.chapters_read_count || 0}</strong>
                 </Typography>
                 <Typography variant="body2">
-                  Chapters Left: <strong>{profileData?.chapters_not_read_yet_count || 0}</strong>
+                  {t('readingStats.chaptersLeft')} <strong>{profileData?.chapters_not_read_yet_count || 0}</strong>
                 </Typography>
               </Box>
               <LinearProgress 
@@ -76,7 +78,7 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
               <Typography variant="caption" sx={{
                 color: "text.secondary"
               }}>
-                {calculateReadingProgress().toFixed(1)}% complete
+                {t('readingStats.percentComplete', { percent: calculateReadingProgress().toFixed(1) })}
               </Typography>
             </Box>
           </Paper>
@@ -93,7 +95,7 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
               <Typography variant="subtitle2" sx={{
                 color: "text.secondary"
               }}>
-                Total Words Read
+                {t('readingStats.totalWordsRead')}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <MenuBookIcon color="primary" />
@@ -106,7 +108,7 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
               <Typography variant="caption" sx={{
                 color: "text.secondary"
               }}>
-                Approximately {Math.round((profileData?.word_read || 0) / 250)} pages
+                {t('readingStats.approxPages', { count: Math.round((profileData?.word_read || 0) / 250) })}
               </Typography>
             </Box>
           </Paper>

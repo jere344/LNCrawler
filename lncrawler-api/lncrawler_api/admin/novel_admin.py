@@ -3,8 +3,7 @@ from ..models import (
     NovelAlias,
     NovelFromSource,
     NovelRating,
-    NovelViewCount,
-    WeeklyNovelView,
+    WeeklySourceView,
     FeaturedNovel,
     NovelSimilarity,
     Comment,
@@ -21,6 +20,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import Sum
 from django.shortcuts import redirect, render
 from django.utils.html import format_html
 from django.utils.text import slugify
@@ -39,12 +39,12 @@ class NovelFromSourceInline(admin.TabularInline):
     extra = 0
     fields = (
         "link_to_source",
-        "external_source__source_name",
+        "source_name",
         "status",
         "chapters_count",
         "last_chapter_update",
     )
-    readonly_fields = ("link_to_source", "chapters_count", "last_chapter_update")
+    readonly_fields = ("link_to_source", "source_name", "chapters_count", "last_chapter_update")
     show_change_link = True
     can_delete = False
 
@@ -53,6 +53,11 @@ class NovelFromSourceInline(admin.TabularInline):
         return format_html('<a href="{}">{}</a>', url, obj.title)
 
     link_to_source.short_description = "Title"
+
+    def source_name(self, obj):
+        return obj.external_source.source_name
+
+    source_name.short_description = "Source"
 
 
 # Inline for showing comments in Novel admin
@@ -418,10 +423,7 @@ class NovelAdmin(admin.ModelAdmin):
         )
 
     def view_count_display(self, obj):
-        try:
-            return obj.view_count.views
-        except NovelViewCount.DoesNotExist:
-            return 0
+        return obj.sources.aggregate(total=Sum('total_views'))['total'] or 0
 
     view_count_display.short_description = "Views"
 
@@ -435,20 +437,12 @@ class NovelRatingAdmin(admin.ModelAdmin):
     raw_id_fields = ("novel",)
 
 
-@admin.register(NovelViewCount)
-class NovelViewCountAdmin(admin.ModelAdmin):
-    list_display = ("novel", "views", "last_updated")
-    search_fields = ("novel__title",)
-    readonly_fields = ("last_updated",)
-    raw_id_fields = ("novel",)
-
-
-@admin.register(WeeklyNovelView)
-class WeeklyNovelViewAdmin(admin.ModelAdmin):
-    list_display = ("novel", "granularity", "day", "views")
+@admin.register(WeeklySourceView)
+class WeeklySourceViewAdmin(admin.ModelAdmin):
+    list_display = ("source", "granularity", "day", "views")
     list_filter = ("granularity", "day")
-    search_fields = ("novel__title", "day")
-    raw_id_fields = ("novel",)
+    search_fields = ("source__title", "source__novel__title", "day")
+    raw_id_fields = ("source",)
 
 
 @admin.register(FeaturedNovel)

@@ -1,16 +1,27 @@
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
+from django.contrib.admin.widgets import AutocompleteSelect
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import redirect, render
+from django.urls import path, reverse
 from ..models import (
     NovelFromSource,
     Author,
     Editor,
     Translator,
     Tag,
+    TagAlias,
     ExternalSource,
     SourceVote,
     Volume,
 )
+from ..services.merge_service import MergeError, merge_similar_tags, merge_tags
 from django.utils.html import format_html
-from django.urls import reverse
+
+
+# ``Tag`` has no FK to itself, so borrow the FK-to-Tag field from ``TagAlias``
+# to power an autocomplete widget for picking tags.
+TAG_AUTOCOMPLETE_FIELD = TagAlias._meta.get_field("tag")
 
 
 # Register all novel-related models
@@ -37,11 +48,136 @@ class TagAdmin(admin.ModelAdmin):
     list_display = ("name", "source_count")
     search_fields = ("name",)
     ordering = ("name",)
+    change_list_template = "admin/lncrawler_api/tag/change_list.html"
 
     def source_count(self, obj):
         return obj.novels.count()
 
     source_count.short_description = "Novel From Source Count"
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        if self.has_change_permission(request):
+            extra_context["merge_button"] = {
+                "url": reverse("admin:lncrawler_api_tag_merge"),
+                "label": "Merge tags",
+            }
+            extra_context["auto_merge_button"] = {
+                "url": reverse("admin:lncrawler_api_tag_merge_similar"),
+                "label": "Merge similar tags",
+            }
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def get_urls(self):
+        # Inserted before the defaults so "merge/" is not swallowed by the
+        # "<path:object_id>/" change view.
+        custom = [
+            path(
+                "merge/",
+                self.admin_site.admin_view(self.merge_view),
+                name="lncrawler_api_tag_merge",
+            ),
+            path(
+                "merge-similar/",
+                self.admin_site.admin_view(self.merge_similar_view),
+                name="lncrawler_api_tag_merge_similar",
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def merge_view(self, request):
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Merge tags",
+            "opts": self.model._meta,
+        }
+
+        if request.method == "POST":
+            form = MergeTagForm(request.POST)
+            if form.is_valid():
+                source = form.cleaned_data["source_tag"]
+                target = form.cleaned_data["target_tag"]
+
+                if "confirm" in request.POST:
+                    try:
+                        merge_tags(source, target)
+                    except MergeError as e:
+                        messages.error(request, str(e))
+                    else:
+                        messages.success(
+                            request,
+                            f"Merged tag '{source.name}' into '{target.name}'.",
+                        )
+                        return redirect(
+                            reverse("admin:lncrawler_api_tag_changelist")
+                        )
+                else:
+                    context["source"] = source
+                    context["target"] = target
+                    context["preview"] = True
+        else:
+            form = MergeTagForm()
+
+        context["form"] = form
+        return render(request, "admin/lncrawler_api/tag/merge.html", context)
+
+    def merge_similar_view(self, request):
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Merge similar tags",
+            "opts": self.model._meta,
+        }
+
+        if request.method == "POST" and "confirm" in request.POST:
+            results = merge_similar_tags()
+            if results:
+                messages.success(
+                    request,
+                    f"Merged {sum(len(d) for _, d in results)} tag(s) "
+                    f"into {len(results)} canonical tag(s).",
+                )
+            else:
+                messages.info(request, "No similar tags found.")
+            return redirect(reverse("admin:lncrawler_api_tag_changelist"))
+
+        context["results"] = merge_similar_tags(dry_run=True)
+        return render(request, "admin/lncrawler_api/tag/merge_similar.html", context)
+
+
+class MergeTagForm(forms.Form):
+    """Pick the duplicate tag and the canonical one to merge it into."""
+
+    source_tag = forms.ModelChoiceField(
+        queryset=Tag.objects.all(),
+        label="Duplicate tag (deleted after merge)",
+        widget=AutocompleteSelect(TAG_AUTOCOMPLETE_FIELD, admin.site),
+    )
+    target_tag = forms.ModelChoiceField(
+        queryset=Tag.objects.all(),
+        label="Canonical tag (kept)",
+        widget=AutocompleteSelect(TAG_AUTOCOMPLETE_FIELD, admin.site),
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        source = cleaned.get("source_tag")
+        target = cleaned.get("target_tag")
+        if source and target and source.pk == target.pk:
+            raise forms.ValidationError("A tag cannot be merged into itself.")
+        return cleaned
+
+
+@admin.register(TagAlias)
+class TagAliasAdmin(admin.ModelAdmin):
+    list_display = ("name", "tag", "created_at")
+    search_fields = ("name", "tag__name")
+    raw_id_fields = ("tag",)
 
 
 # Add inline for showing votes in NovelFromSource admin

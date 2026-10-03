@@ -3,6 +3,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from lncrawler_api.models import NovelBookmark, ReadingHistory, Chapter
+from lncrawler_api.languages import normalize_language, is_supported_language, parse_languages
 
 User = get_user_model()
 
@@ -17,9 +18,28 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'profile_pic', 'date_joined', 'last_login', 
-                 'word_read', 'chapters_read_count', 'chapters_not_read_yet_count')
+                 'word_read', 'chapters_read_count', 'chapters_not_read_yet_count',
+                 'preferred_ui_language', 'preferred_languages', 'language_filter_enabled')
         read_only_fields = ('id', 'date_joined', 'last_login', 'word_read', 
                            'chapters_read_count', 'chapters_not_read_yet_count')
+
+    def validate_preferred_ui_language(self, value):
+        if value in (None, ''):
+            return ''
+        code = normalize_language(value)
+        if not is_supported_language(code):
+            raise serializers.ValidationError("Unsupported language code.")
+        return code
+
+    def validate_preferred_languages(self, value):
+        if value in (None, ''):
+            return []
+        codes = parse_languages(value)
+        if not codes:
+            raise serializers.ValidationError(
+                "Provide at least one supported language code."
+            )
+        return codes
     
     def get_chapters_read_count(self, obj):
         # Check if we've already calculated this

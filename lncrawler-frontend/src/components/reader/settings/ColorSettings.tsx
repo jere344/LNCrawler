@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { ChromePicker, ColorResult } from 'react-color';
 import ClearIcon from '@mui/icons-material/Clear';
+import { useTranslation } from 'react-i18next';
 import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface ColorSettingsProps {
@@ -56,6 +57,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
   onNightModeStartTimeChange,
   onNightModeEndTimeChange,
 }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const [showFontColorPicker, setShowFontColorPicker] = useState(false);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
@@ -128,7 +130,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
 
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" gutterBottom>Colors</Typography>
+      <Typography variant="subtitle1" gutterBottom>{t('colorSettings.heading')}</Typography>
       <Grid container spacing={2}>
         <Grid size={6}>
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -145,7 +147,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                 pr: fontColor ? 5 : 2,
               }}
             >
-              Text Color
+              {t('colorSettings.textColor')}
             </Button>
             {fontColor && (
               <IconButton 
@@ -206,7 +208,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                 pr: backgroundColor ? 5 : 2,
               }}
             >
-              Background
+              {t('colorSettings.background')}
             </Button>
             {backgroundColor && (
               <IconButton 
@@ -256,7 +258,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
 
       {/* Dim Level Slider */}
       <Box sx={{ mt: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Screen Dim: {dimLevel}%</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('colorSettings.screenDim', { level: dimLevel })}</Typography>
         <MobileSafeSlider
           value={dimLevel}
           onChange={handleDimLevelChange}
@@ -284,14 +286,14 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               color="primary"
             />
           }
-          label="Night Mode (Blue Light Filter)"
+          label={t('colorSettings.nightMode')}
         />
         
         {nightMode && (
           <Box sx={{ mt: 2, pl: 2 }}>
             {/* Night Mode Strength */}
             <Typography variant="subtitle2" gutterBottom>
-              Filter Strength: {nightModeStrength}%
+              {t('colorSettings.filterStrength', { strength: nightModeStrength })}
             </Typography>
             <MobileSafeSlider
               value={nightModeStrength}
@@ -317,7 +319,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                   color="primary"
                 />
               }
-              label="Enable Schedule"
+              label={t('colorSettings.enableSchedule')}
               sx={{ mb: 2 }}
             />
             
@@ -326,7 +328,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               <Grid container spacing={2}>
                 <Grid size={6}>
                   <TextField
-                    label="Start Time"
+                    label={t('colorSettings.startTime')}
                     type="time"
                     value={nightModeStartTime}
                     onChange={handleStartTimeChange}
@@ -344,7 +346,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                 </Grid>
                 <Grid size={6}>
                   <TextField
-                    label="End Time"
+                    label={t('colorSettings.endTime')}
                     type="time"
                     value={nightModeEndTime}
                     onChange={handleEndTimeChange}

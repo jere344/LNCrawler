@@ -18,9 +18,11 @@ import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import NovelRecommendation from '@components/common/NovelRecommendation';
-import { getNovelSourcePath } from '@utils/Misc';
+import { getNovelSourceLink } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
 
 const LibraryPage: React.FC = () => {
+  const { t } = useTranslation();
   const [bookmarkedNovels, setBookmarkedNovels] = useState<Novel[]>([]);
   const [recommendations, setRecommendations] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ const LibraryPage: React.FC = () => {
       setPage(response.current_page);
     } catch (err) {
       console.error('Error fetching bookmarks:', err);
-      setError('Failed to load your bookmarked novels. Please try again later.');
+      setError(t('library.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -77,17 +79,17 @@ const LibraryPage: React.FC = () => {
       >
         <LibraryBooksIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
         <Typography variant="h5" component="h1" gutterBottom>
-          Your Library
+          {t('library.headingLoggedOut')}
         </Typography>
         <Typography variant="body1" align="center" sx={{
           color: "text.secondary"
         }}>
-          You need to be logged in to access your library.
+          {t('library.needLogin')}
         </Typography>
         <Typography variant="body2" align="center" sx={{
           color: "text.secondary"
         }}>
-          Please log in to view your bookmarked novels.
+          {t('library.loginPrompt')}
         </Typography>
       </Paper>
     );
@@ -98,14 +100,14 @@ const LibraryPage: React.FC = () => {
       <BreadcrumbNav
         items={[
           {
-            label: "Library",
+            label: t('header.library'),
             icon: <LibraryBooksIcon fontSize="inherit" />
           }
         ]}
       />
 
       <Typography variant="h4" component="h1" gutterBottom>
-        Your Library
+        {t('library.yourLibrary')}
       </Typography>
 
       {loading ? (
@@ -133,24 +135,24 @@ const LibraryPage: React.FC = () => {
               <Typography variant="h6" align="center" sx={{
                 color: "text.secondary"
               }}>
-                Your library is empty
+                {t('library.empty')}
               </Typography>
               <Typography variant="body2" align="center" sx={{
                 color: "text.secondary"
               }}>
-                Bookmark novels to add them to your library.
+                {t('library.emptyHint')}
               </Typography>
             </Paper>
           ) : (
             <>
               <Box sx={{ mt: 2, mb: 4 }}>
-                <Typography variant="h5" sx={{ mb: 2 }}>Your Bookmarks</Typography>
+                <Typography variant="h5" sx={{ mb: 2 }}>{t('library.bookmarks')}</Typography>
                 <Grid container spacing={3}>
                   {bookmarkedNovels.map((novel) => (
                     <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
                       <BaseNovelCard 
                         novel={novel} 
-                        to={getNovelSourcePath(novel)}
+                        {...getNovelSourceLink(novel)}
                       />
                     </Grid>
                   ))}
@@ -176,7 +178,7 @@ const LibraryPage: React.FC = () => {
           {/* Display recommendations if available */}
           {recommendations.length > 0 && (
             <Box sx={{ mt: 4 }}>
-              <Typography variant="h5" sx={{ mb: 2 }}>Recommended for You</Typography>
+              <Typography variant="h5" sx={{ mb: 2 }}>{t('library.recommended')}</Typography>
             </Box>
           )}
           {recommendations.length > 0 && (

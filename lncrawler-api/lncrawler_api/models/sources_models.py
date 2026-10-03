@@ -88,7 +88,13 @@ class NovelFromSource(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_chapter_update = models.DateTimeField(null=True, blank=True)
-    
+
+    # All-time view count for this source. A rebuildable projection of
+    # WeeklySourceView rows (incremented alongside the daily bucket on read),
+    # kept as a column so lifetime totals are O(1) to read instead of a full
+    # aggregation over the event table.
+    total_views = models.BigIntegerField(default=0)
+
     # File paths
     meta_file_path = models.CharField(max_length=500, null=True, blank=True)
     
@@ -98,6 +104,11 @@ class NovelFromSource(models.Model):
     
     class Meta:
         unique_together = ('novel', 'source_url')
+        indexes = [
+            models.Index(fields=['-last_chapter_update'], name='nfs_last_chapter_upd_idx'),
+            models.Index(fields=['language'], name='nfs_language_idx'),
+            models.Index(fields=['-total_views'], name='nfs_total_views_idx'),
+        ]
     
     def __str__(self):
         return f"{self.title} ({self.external_source.source_name})"
@@ -286,8 +297,7 @@ class NovelFromSource(models.Model):
         novel_from_source.tags.clear()
         for tag_name in tags_list:
             if tag_name:
-                tag, _ = Tag.objects.get_or_create(name=tag_name)
-                novel_from_source.tags.add(tag)
+                novel_from_source.tags.add(Tag.resolve(tag_name))
         
         # Process volumes if they exist
         if 'volumes' in novel_data:

@@ -13,7 +13,9 @@ performed by ``novel_operations`` so the crawler keeps finding chapters.
 """
 import logging
 import os
+import unicodedata
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Optional
 
 from django.db import transaction
@@ -29,11 +31,11 @@ from ..models import (
     NovelFromSource,
     NovelRating,
     NovelSimilarity,
-    NovelViewCount,
     ReadingHistory,
     ReadingListItem,
     Review,
-    WeeklyNovelView,
+    Tag,
+    TagAlias,
 )
 from .novel_operations import (
     dedupe_source,
@@ -112,8 +114,8 @@ def build_merge_plan(source_novel, target_novel, move_files=True):
 
     plan.related_counts = {
         "ratings": NovelRating.objects.filter(novel=source_novel).count(),
-        "views": NovelViewCount.objects.filter(novel=source_novel).count(),
-        "weekly_views": WeeklyNovelView.objects.filter(novel=source_novel).count(),
+        # Views live on sources now; they follow the sources as they are moved
+        # or deduped, so there is nothing to migrate at the novel level.
         "comments": Comment.objects.filter(novel=source_novel).count(),
         "reviews": Review.objects.filter(novel=source_novel).count(),
         "bookmarks": NovelBookmark.objects.filter(novel=source_novel).count(),
@@ -146,34 +148,6 @@ def _merge_novel_ratings(source, target):
         ip_address__in=target_ips
     ).update(novel=target)
     NovelRating.objects.filter(novel=source).delete()
-
-
-def _merge_view_counts(source, target):
-    source_view = NovelViewCount.objects.filter(novel=source).first()
-    if source_view is None:
-        return
-    target_view = NovelViewCount.objects.filter(novel=target).first()
-    if target_view is None:
-        source_view.novel = target
-        source_view.save(update_fields=["novel", "last_updated"])
-    else:
-        target_view.views += source_view.views
-        target_view.save(update_fields=["views", "last_updated"])
-        source_view.delete()
-
-
-def _merge_weekly_views(source, target):
-    for view in WeeklyNovelView.objects.filter(novel=source):
-        existing = WeeklyNovelView.objects.filter(
-            novel=target, granularity=view.granularity, day=view.day
-        ).first()
-        if existing is None:
-            view.novel = target
-            view.save(update_fields=["novel"])
-        else:
-            existing.views += view.views
-            existing.save(update_fields=["views"])
-            view.delete()
 
 
 def _merge_featured(source, target):
@@ -251,8 +225,6 @@ def merge_novels(source_novel, target_novel, move_files=True):
                 dedupe_source(source, duplicate, move_files)
 
         _merge_novel_ratings(source_novel, target_novel)
-        _merge_view_counts(source_novel, target_novel)
-        _merge_weekly_views(source_novel, target_novel)
         _merge_featured(source_novel, target_novel)
         _merge_similarities(source_novel, target_novel)
 
@@ -272,3 +244,146 @@ def merge_novels(source_novel, target_novel, move_files=True):
         source_novel.title, source_novel.slug, target_novel.title, target_novel.slug,
     )
     return target_novel
+
+
+def merge_tags(source_tag, target_tag):
+    """Fold ``source_tag`` into ``target_tag`` and remember the old name.
+
+    Every source tagged with the duplicate is retagged, and a ``TagAlias``
+    records the discarded name so a future import of it resolves to the target
+    instead of recreating the duplicate.
+    """
+    if source_tag.pk == target_tag.pk:
+        raise MergeError("A tag cannot be merged into itself.")
+
+    name = source_tag.name
+
+    with transaction.atomic():
+        TagAlias.objects.filter(tag=source_tag).update(tag=target_tag)
+        for novel_source in source_tag.novels.all():
+            target_tag.novels.add(novel_source)
+        source_tag.delete()
+        TagAlias.objects.update_or_create(name=name, defaults={"tag": target_tag})
+
+    logger.info("Merged tag '%s' into '%s'", name, target_tag.name)
+    return target_tag
+
+
+# Tags closer than this are treated as the same. High enough to catch
+# case/plural/singular ("isekai"/"Isekai", "action"/"actions") but not distinct
+# tags ("isekai" vs "isekaijoucho", "action" vs "romance").
+AUTO_MERGE_TAG_RATIO = 0.9
+
+
+def _levenshtein(a, b):
+    """Edit distance; small strings so the O(len*len) DP is fine."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    previous = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        current = [i]
+        for j, cb in enumerate(b, 1):
+            current.append(min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + (ca != cb),
+            ))
+        previous = current
+    return previous[-1]
+
+
+def _word_matches(a, b):
+    """Whether two words are the same bar case or a plural "s".
+
+    ``a`` and ``b`` are already casefolded. Arbitrary single-letter swaps are
+    NOT accepted: that is what wrongly collapses "Eastern"/"Western" or
+    "Male"/"Female".
+    """
+    if a == b:
+        return True
+    if a.rstrip("s") == b.rstrip("s"):
+        return True
+    return False
+
+
+def _tag_similarity(a, b):
+    """Conservative similarity, case-insensitive and phrase-aware.
+
+    Multi-word tags must match word for word (plural/case tolerant); a word
+    swapped for a different one ("Female Protagonist" vs "Male Protagonist")
+    or a one-letter stem change ("Manhua" vs "Manhwa") is treated as distinct.
+    Single-word tags get a small typo allowance (edit distance 1) on top of the
+    exact and plural forms. Accents are folded ('Réincarnation' == 'reincarnation').
+    """
+    def normalize(name):
+        decomposed = unicodedata.normalize("NFKD", name)
+        stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+        return " ".join(stripped.casefold().split())
+
+    a, b = normalize(a), normalize(b)
+    if a == b:
+        return 1.0
+
+    a_words, b_words = a.split(" "), b.split(" ")
+    if len(a_words) != len(b_words):
+        return 0.0
+    if not all(_word_matches(wa, wb) for wa, wb in zip(a_words, b_words)):
+        return 0.0
+
+    if len(a_words) == 1 and _levenshtein(a, b) <= 1:
+        return 1.0
+
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def merge_similar_tags(threshold=AUTO_MERGE_TAG_RATIO, dry_run=False):
+    """Merge tags that differ only trivially (case, plural, near-typo).
+
+    Groups tags whose names are at least ``threshold`` similar, then merges each
+    group into one survivor. The survivor is the tag with the most tagged
+    sources, so the canonical spelling with real data wins. Returns the list of
+    ``(survivor_name, [merged_names])`` pairs.
+    """
+    tags = list(Tag.objects.all())
+    # A union-find over near-identical pairs; tiny tag counts make the O(n^2)
+    # scan irrelevant. ponytail: O(n^2) compare, bucket by prefix if it ever bites.
+    parent = {tag.pk: tag.pk for tag in tags}
+
+    def find(pk):
+        while parent[pk] != pk:
+            parent[pk] = parent[parent[pk]]
+            pk = parent[pk]
+        return pk
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for i, a in enumerate(tags):
+        for b in tags[i + 1:]:
+            if _tag_similarity(a.name, b.name) >= threshold:
+                union(a.pk, b.pk)
+
+    groups = {}
+    for tag in tags:
+        groups.setdefault(find(tag.pk), []).append(tag)
+
+    merged = []
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        group.sort(key=lambda t: (-t.novels.count(), t.name))
+        survivor, duplicates = group[0], group[1:]
+        if dry_run:
+            merged.append((survivor.name, [d.name for d in duplicates]))
+            continue
+        for duplicate in duplicates:
+            merge_tags(duplicate, survivor)
+        merged.append((survivor.name, [d.name for d in duplicates]))
+
+    return merged

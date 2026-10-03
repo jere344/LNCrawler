@@ -9,13 +9,16 @@ import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { formatCount } from './BaseNovelCard';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface TrendingNovelCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
   rank?: number;
-  to?: string;
+  to?: To;
+  state?: unknown;
 }
 
 const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({ 
@@ -23,8 +26,10 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
   onClick, 
   rank,
   isLoading = false,
-  to
+  to,
+  state
 }) => {
+  const { t } = useTranslation();
   if (isLoading) {
     return (
       <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
@@ -57,7 +62,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
     );
   }
 
-  const preferredSource = novel.prefered_source;
+  const preferredSource = novel.reading_source ?? novel.prefered_source;
   
   return (
     <Card 
@@ -104,6 +109,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         onClick={onClick}
         component={to ? Link : 'div'}
         to={to}
+        state={to ? state : undefined}
       >
         <Badge
           badgeContent={
@@ -125,7 +131,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
                   fontWeight: "bold",
                   fontSize: "0.7rem"
                 }}>
-                HOT
+                {t('cards.hot')}
               </Typography>
             </Box>
           }
@@ -190,7 +196,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
                 ml: 0.5,
                 fontSize: '0.85rem'
               }}>
-              {formatCount(novel.weekly_views || 0)} views this week
+              {t('cards.viewsThisWeek', { count: formatCount(novel.weekly_views || 0) })}
             </Typography>
           </Box>
         </CardContent>

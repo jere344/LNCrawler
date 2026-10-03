@@ -12,6 +12,7 @@ import { Button } from '@mui/material';
 import { readingListService } from '@services/api';
 import { ReadingList } from '@models/readinglist_types';
 import { useAuth } from '@context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 interface CompactAddToListButtonProps {
@@ -31,13 +32,16 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
   const [newListTitle, setNewListTitle] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const { isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const fetchUserLists = async () => {
     try {
       setLoading(true);
       const response = await readingListService.getUserReadingLists();
-      setUserLists(response.results);
+      setUserLists(response.results.filter(
+        (list) => !list.user_role || list.user_role === 'owner' || list.user_role === 'editor'
+      ));
     } catch (error) {
       console.error('Error fetching user reading lists:', error);
     }
@@ -158,7 +162,7 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
       </Box>
 
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
-        <DialogTitle>Add "{novelTitle}" to Reading List</DialogTitle>
+        <DialogTitle>{t('addToList.dialogTitle', { title: novelTitle })}</DialogTitle>
         
         <DialogContent dividers>
           {loading ? (
@@ -170,7 +174,7 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
               <TextField
                 autoFocus
                 fullWidth
-                label="New List Title"
+                label={t('addToList.newListTitle')}
                 value={newListTitle}
                 onChange={(e) => setNewListTitle(e.target.value)}
                 variant="outlined"
@@ -181,21 +185,21 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
                   onClick={() => setShowCreateForm(false)} 
                   sx={{ mr: 1 }}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button 
                   variant="contained" 
                   onClick={handleCreateList}
                   disabled={!newListTitle.trim()}
                 >
-                  Create & Add
+                  {t('addToList.createAndAdd')}
                 </Button>
               </Box>
             </Box>
           ) : userLists.length === 0 ? (
             <Box sx={{ p: 2, textAlign: 'center' }}>
               <Typography variant="body1" gutterBottom>
-                You don't have any reading lists yet.
+                {t('addToList.noLists')}
               </Typography>
               <Button 
                 variant="contained" 
@@ -203,7 +207,7 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
                 onClick={() => setShowCreateForm(true)}
                 sx={{ mt: 1 }}
               >
-                Create Your First List
+                {t('addToList.createFirst')}
               </Button>
             </Box>
           ) : (
@@ -217,7 +221,7 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
                       key={list.id}
                       secondaryAction={
                         alreadyInList && (
-                          <Tooltip title="Click to remove from this list">
+                          <Tooltip title={t('addToList.removeTooltip')}>
                             <IconButton 
                               edge="end" 
                               onClick={(e) => handleRemoveFromList(e, list.id)}
@@ -249,7 +253,7 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
                         </ListItemAvatar>
                         <ListItemText 
                           primary={list.title} 
-                          secondary={`${list.items_count || 0} novels`}
+                          secondary={t('addToList.novelsCount', { count: list.items_count || 0 })}
                           slotProps={{
                             primary: {
                               style: {
@@ -269,7 +273,7 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
                   onClick={() => setShowCreateForm(true)} 
                   startIcon={<AddIcon />}
                 >
-                  Create New List
+                  {t('addToList.createNewList')}
                 </Button>
               </Box>
             </>
@@ -277,7 +281,7 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
         </DialogContent>
         
         <DialogActions>
-          <Button onClick={handleClose}>Close</Button>
+          <Button onClick={handleClose}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
     </>

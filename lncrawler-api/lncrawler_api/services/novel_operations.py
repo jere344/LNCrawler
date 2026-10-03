@@ -10,6 +10,7 @@ import logging
 import os
 
 from django.conf import settings
+from django.db.models import F
 
 from ..utils import lncrawler_paths
 
@@ -111,7 +112,25 @@ def recount_source_votes(source):
 
 def dedupe_source(loser, winner, move_files):
     """Fold a duplicate source into the winner, then remove the loser."""
-    from ..models import ReadingHistory, SourceVote
+    from ..models import ReadingHistory, SourceVote, WeeklySourceView, NovelFromSource
+
+    # Views belong to the story, not to one mirror: carry the loser's all-time
+    # projection over and re-point its buckets so deleting it loses nothing.
+    if loser.total_views:
+        NovelFromSource.objects.filter(pk=winner.pk).update(
+            total_views=F('total_views') + loser.total_views
+        )
+    for bucket in WeeklySourceView.objects.filter(source=loser):
+        existing = WeeklySourceView.objects.filter(
+            source=winner, granularity=bucket.granularity, day=bucket.day
+        ).first()
+        if existing is None:
+            WeeklySourceView.objects.filter(pk=bucket.pk).update(source=winner)
+        else:
+            WeeklySourceView.objects.filter(pk=existing.pk).update(
+                views=F('views') + bucket.views
+            )
+            bucket.delete()
 
     # Votes and reading history cascade with the source: move them first, and
     # drop votes that would collide on (source, ip_address).

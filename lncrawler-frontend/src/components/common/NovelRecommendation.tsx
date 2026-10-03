@@ -4,7 +4,8 @@ import BaseNovelCard from './novelcardtypes/BaseNovelCard';
 import { Carousel } from 'react-responsive-carousel';
 import { Box, Typography, Skeleton, useTheme, useMediaQuery, alpha } from '@mui/material';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
-import { getNovelSourcePath } from '@utils/Misc';
+import { getNovelSourceLink } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
 
 interface NovelRecommendationProps {
   similarNovels?: SimilarNovel[];
@@ -16,6 +17,7 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
   loading = false 
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
   const isDesktop = useMediaQuery(theme.breakpoints.between('md', 'lg'));
@@ -63,7 +65,7 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
         <Typography variant="body1" sx={{
           color: "text.secondary"
         }}>
-          No recommendations available for this novel.
+          {t('recommendation.empty')}
         </Typography>
       </Box>
     );
@@ -142,7 +144,7 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
               <Box key={novel.id} sx={{ flex: 1, maxWidth: `${80/itemsPerSlide}%`, marginTop: 1 }}>
                 <BaseNovelCard 
                   novel={novel}
-                  to={getNovelSourcePath(novel)}
+                  {...getNovelSourceLink(novel)}
                 />
               </Box>
             ))}

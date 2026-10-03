@@ -24,6 +24,8 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     latest_available_chapter = serializers.SerializerMethodField()
     first_available_chapter = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
+    chapters_count = serializers.SerializerMethodField()
+    volumes_count = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     synopsis = serializers.SerializerMethodField()
     
@@ -66,6 +68,10 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         return [tag.name for tag in obj.tags.all()]
     
     def get_user_vote(self, obj: NovelFromSource):
+        # Only detail views show the current user's vote; skipping the lookup
+        # in list contexts removes one query per source.
+        if not self.context.get('include_synopsis'):
+            return None
         request = self.context.get('request')
         if not request:
             return None
@@ -94,6 +100,20 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     
     def get_latest_available_chapter(self, obj: NovelFromSource):
         """Return the latest available chapter with content"""
+        # List querysets annotate this so the whole page resolves in one query.
+        if 'latest_chapter_id' in obj.__dict__:
+            chapter_id = obj.latest_chapter_id
+            if chapter_id is None:
+                return None
+            return {
+                'id': None,
+                'chapter_id': chapter_id,
+                'title': obj.latest_chapter_title,
+                'url': obj.latest_chapter_url,
+                'volume': 0,
+                'volume_title': None,
+                'has_content': True,
+            }
         latest_chapter = obj.chapters.filter(has_content=True).order_by('-chapter_id').first()
         if latest_chapter:
             return ChapterSerializer(latest_chapter).data
@@ -101,6 +121,9 @@ class NovelSourceSerializer(serializers.ModelSerializer):
 
     def get_first_available_chapter(self, obj: NovelFromSource):
         """Return the first available chapter with content"""
+        # Only detail views render this; lists skip the extra query.
+        if not self.context.get('include_synopsis'):
+            return None
         first_chapter = obj.chapters.filter(has_content=True).order_by('chapter_id').first()
         if first_chapter:
             return ChapterSerializer(first_chapter).data
@@ -110,12 +133,25 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         """
         Return the reading history for the current user
         """
+        # Card views use the novel-level reading_source instead.
+        if not self.context.get('include_synopsis'):
+            return None
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             history = obj.read_by_users.filter(user=request.user).first()
             if history:
                 return ReadingHistorySerializer(history).data
         return None
+
+    def get_chapters_count(self, obj: NovelFromSource):
+        if 'annotated_chapters_count' in obj.__dict__:
+            return obj.annotated_chapters_count or 0
+        return obj.chapters_count
+
+    def get_volumes_count(self, obj: NovelFromSource):
+        if 'annotated_volumes_count' in obj.__dict__:
+            return obj.annotated_volumes_count or 0
+        return obj.volumes_count
 
 
 class GalleryImageSerializer(serializers.Serializer):

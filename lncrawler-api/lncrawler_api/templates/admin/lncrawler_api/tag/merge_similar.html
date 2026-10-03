@@ -1,0 +1,48 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_tag_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {% trans 'Merge similar tags' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Merge similar tags</h1>
+<p>
+  Tags that differ only by case, plural/singular or a near-typo are merged into
+  the spelling with the most tagged sources. Review the groups below, then
+  confirm to apply the merge.
+</p>
+
+{% if results %}
+  <table>
+    <thead>
+      <tr>
+        <th>{% trans 'Kept' %}</th>
+        <th>{% trans 'Merged away' %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for survivor, duplicates in results %}
+        <tr>
+          <td><strong>{{ survivor }}</strong></td>
+          <td>{{ duplicates|join:", " }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <form method="post">{% csrf_token %}
+    <div class="submit-row">
+      <input type="submit" name="confirm" value="{% trans 'Confirm merge' %}">
+      <a href="{% url 'admin:lncrawler_api_tag_changelist' %}" class="button cancel-link">{% trans 'Cancel' %}</a>
+    </div>
+  </form>
+{% else %}
+  <p>{% trans 'No similar tags found.' %}</p>
+  <a href="{% url 'admin:lncrawler_api_tag_changelist' %}" class="button">{% trans 'Back' %}</a>
+{% endif %}
+{% endblock %}

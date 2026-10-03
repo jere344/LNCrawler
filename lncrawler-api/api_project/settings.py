@@ -133,7 +133,13 @@ DATABASES = {
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'postgres'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-        'ATOMIC_REQUESTS': True,
+        # Read-heavy public API: most requests are pure reads, so we avoid
+        # wrapping every request in a transaction. Write views rely on
+        # ATOMIC_REQUESTS-off semantics; keep transactions explicit where needed.
+        'ATOMIC_REQUESTS': False,
+        # Reuse the connection between requests instead of reconnecting each time.
+        'CONN_MAX_AGE': 60,
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 
@@ -210,7 +216,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'auth_app.CustomUser'
 
+# Short-lived in-process cache for the anonymous home page (the heavy
+# ranking aggregations). Per-worker LocMemCache; a few seconds of staleness
+# for rankings is invisible to users. Not a substitute for Redis: each
+# worker keeps its own copy, so it only helps repeated hits on one worker.
+HOME_PAGE_CACHE_SECONDS = int(os.environ.get("HOME_PAGE_CACHE_SECONDS", "30"))
+
 import logging
+
+# DEBUG logging in production is expensive (record creation, formatting, I/O)
+# and the crawler libraries are noisy. Default to INFO unless overridden.
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
 
 # Define a custom UTF-8 stream handler
 class UTF8StreamHandler(logging.StreamHandler):
@@ -244,41 +260,47 @@ LOGGING = {
         'django_console': {
             'class': 'api_project.settings.UTF8StreamHandler',
             'formatter': 'django_formatter',
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
         },
         'lncrawler_api_console': {
             'class': 'api_project.settings.UTF8StreamHandler',
             'formatter': 'lncrawler_api_formatter',
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
         },
         'django_file': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
             'formatter': 'django_formatter',
             'encoding': 'utf-8',
+            'level': LOG_LEVEL,
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
         },
         'lncrawler_api_file': {
-            'class': 'logging.FileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'lncrawler_api.log'),
             'formatter': 'lncrawler_api_formatter',
             'encoding': 'utf-8',
+            'level': LOG_LEVEL,
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
         },
     },
     'loggers': {
         'django': {  # Django's built-in logger
             'handlers': ['django_console', 'django_file'],
-            'level': 'INFO',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'lncrawler_api': { 
             'handlers': ['lncrawler_api_console', 'lncrawler_api_file'],
 
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'lncrawl': {  # The lncrawler-crawler library
             'handlers': ['lncrawler_api_console', 'lncrawler_api_file'],
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
     },

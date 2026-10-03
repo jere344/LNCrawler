@@ -8,6 +8,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { reviewService, ReviewReaction } from '@services/review.service';
+import { useTranslation } from 'react-i18next';
 
 interface ReviewReactionsProps {
   reviewId: string;
@@ -27,14 +28,14 @@ const REACTION_EMOJIS: Record<string, string> = {
 };
 
 const REACTION_LABELS: Record<string, string> = {
-  sparkle: 'Nice',
-  heart: 'Love it',
-  laugh: 'Funny',
-  eyebrow: 'Confusing',
-  lightbulb: 'Informative',
-  write: 'Well written',
-  paint: 'Creative',
-  sick: 'Disgusting',
+  sparkle: 'nice',
+  heart: 'love',
+  laugh: 'funny',
+  eyebrow: 'confusing',
+  lightbulb: 'informative',
+  write: 'wellWritten',
+  paint: 'creative',
+  sick: 'disgusting',
 };
 
 const ReviewReactions: React.FC<ReviewReactionsProps> = ({
@@ -43,6 +44,7 @@ const ReviewReactions: React.FC<ReviewReactionsProps> = ({
   currentUserReaction: initialUserReaction
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState<string | null>(null);
   const [reactions, setReactions] = useState<ReviewReaction[]>(initialReactions);
   const [currentUserReaction, setCurrentUserReaction] = useState<ReviewReaction | null>(initialUserReaction);
@@ -127,7 +129,7 @@ const ReviewReactions: React.FC<ReviewReactionsProps> = ({
   return (
     <Box sx={{ mt: 2 }}>
       <Typography variant="subtitle2" gutterBottom>
-        Reactions
+        {t('reactions.heading')}
       </Typography>
       
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
@@ -136,7 +138,7 @@ const ReviewReactions: React.FC<ReviewReactionsProps> = ({
           const isActive = currentUserReaction?.reaction === key;
           
           return (
-            <Tooltip key={key} title={REACTION_LABELS[key]}>
+            <Tooltip key={key} title={t(`reactions.${REACTION_LABELS[key]}`)}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <IconButton
                   size="small"

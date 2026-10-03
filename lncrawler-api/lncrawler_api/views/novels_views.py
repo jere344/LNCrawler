@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.cache import cache
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,13 +11,20 @@ from ..models import (
     Novel,
     NovelRating,
     Tag,
+    TagAlias,
     Author,
     FeaturedNovel,
     NovelFromSource,
-    WeeklyNovelView,
+    WeeklySourceView,
 )
+from ..languages import parse_languages
 from ..models.reviews_models import Review
 from ..utils import get_client_ip, resolve_novel_slug
+from ..utils.query_helpers import (
+    apply_novel_prefetches,
+    novel_prefetch_objects,
+    sources_queryset,
+)
 from ..serializers import (
     BasicNovelSerializer,
     DetailedNovelSerializer,
@@ -30,7 +38,9 @@ def list_novels(request):
     """
     List all novels with pagination
     """
-    novels = Novel.objects.all().order_by("title")
+    novels = apply_novel_prefetches(
+        Novel.objects.all().order_by("title"), request.user
+    )
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 20)
 
@@ -55,6 +65,9 @@ def novel_detail_by_slug(request, novel_slug):
     Get details for a specific novel using its slug
     """
     novel = resolve_novel_slug(novel_slug)
+    novel = apply_novel_prefetches(
+        Novel.objects.filter(pk=novel.pk), request.user
+    ).get()
     serializer = DetailedNovelSerializer(novel, context={"request": request})
     return Response(serializer.data)
 
@@ -119,7 +132,11 @@ def search_novels(request):
     exclude_tags = request.GET.getlist("exclude_tag", [])
     authors = request.GET.getlist("author", [])
     status = request.GET.get("status", "")
-    language = request.GET.get("language", "")
+    # Accept either the multi-value "languages" (repeated or comma-separated) or
+    # the legacy single "language" parameter.
+    languages = parse_languages(
+        request.GET.getlist("languages") + request.GET.getlist("language")
+    )
     min_rating = request.GET.get("min_rating", None)
     sort_by = request.GET.get("sort_by", "title")
     sort_order = request.GET.get("sort_order", "asc")
@@ -153,9 +170,9 @@ def search_novels(request):
     if status:
         novels_query = novels_query.filter(sources__status=status).distinct()
         
-    # Filter by language
-    if language:
-        novels_query = novels_query.filter(sources__language=language).distinct()
+    # Filter by language(s)
+    if languages:
+        novels_query = novels_query.filter(sources__language__in=languages).distinct()
 
     # Filter by minimum rating
     if min_rating and min_rating.isdigit():
@@ -167,7 +184,7 @@ def search_novels(request):
         novels_query = novels_query.filter(id__in=novels_with_min_rating)
 
     # Rolling 7-day window start for trending
-    window_start = WeeklyNovelView.window_start()
+    window_start = WeeklySourceView.window_start()
 
     # Apply sorting
     if sort_by == "rating":
@@ -184,21 +201,21 @@ def search_novels(request):
         order_field = "-created_at" if sort_order == "desc" else "created_at"
         novels_query = novels_query.order_by(order_field)
     elif sort_by == "popularity":
-        # Use total view count for popularity
+        # Use total view count for popularity (summed over sources)
         novels_query = novels_query.annotate(
-            total_views=Coalesce(F('view_count__views'), Value(0))
+            total_views=Coalesce(Sum('sources__total_views'), Value(0))
         )
         order_field = "-total_views" if sort_order == "desc" else "total_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "trending":
-        # Use the rolling 7-day view count for trending
+        # Use the rolling 7-day view count for trending (summed over sources)
         novels_query = novels_query.annotate(
             week_views=Coalesce(
                 Sum(
-                    "weekly_views__views",
+                    "sources__weekly_views__views",
                     filter=Q(
-                        weekly_views__granularity=WeeklyNovelView.DAY,
-                        weekly_views__day__gte=window_start,
+                        sources__weekly_views__granularity=WeeklySourceView.DAY,
+                        sources__weekly_views__day__gte=window_start,
                     ),
                 ),
                 Value(0),
@@ -223,6 +240,9 @@ def search_novels(request):
     else:
         # Default sorting by title
         novels_query = novels_query.order_by("title")
+
+    # Resolve everything the serializer needs up front, then paginate.
+    novels_query = apply_novel_prefetches(novels_query, request.user)
 
     # Pagination
     paginator = Paginator(novels_query, page_size)
@@ -262,16 +282,39 @@ def autocomplete_suggestion(request):
         return Response([])
 
     if search_type == "tag":
-        # Count novels for each tag
+        # Canonical tags matching the query.
         tag_counts = (
             Tag.objects.filter(name__icontains=query)
             .annotate(novel_count=Count("novels", distinct=True))
-            .order_by("-novel_count")[:limit]
+            .order_by("-novel_count")
         )
+        suggestions = {
+            tag.name: {"name": tag.name, "count": tag.novel_count}
+            for tag in tag_counts
+        }
 
-        suggestions = [
-            {"name": tag.name, "count": tag.novel_count} for tag in tag_counts
-        ]
+        # Merged-away names: surface their canonical tag so old searches still
+        # find it. Display-only, the canonical name stays the selected value.
+        alias_matches = (
+            TagAlias.objects.filter(name__icontains=query)
+            .select_related("tag")
+            .annotate(novel_count=Count("tag__novels", distinct=True))
+            .order_by("-novel_count")
+        )
+        for alias in alias_matches:
+            entry = suggestions.get(alias.tag.name)
+            if entry is None:
+                suggestions[alias.tag.name] = {
+                    "name": alias.tag.name,
+                    "count": alias.novel_count,
+                    "alias": alias.name,
+                }
+            else:
+                entry.setdefault("alias", alias.name)
+
+        suggestions = sorted(
+            suggestions.values(), key=lambda s: (-s["count"], s["name"])
+        )[:limit]
 
     elif search_type == "author":
         # Count novels for each author
@@ -312,7 +355,9 @@ def random_featured_novel(request):
         )
 
     random_index = random.randint(0, featured_count - 1)
-    featured = FeaturedNovel.objects.all()[random_index]
+    featured = FeaturedNovel.objects.select_related('novel').prefetch_related(
+        *novel_prefetch_objects(user=request.user, prefix='novel__')
+    )[random_index]
     
     # Get the novel and serialize it
     novel = featured.novel
@@ -329,34 +374,63 @@ def random_featured_novel(request):
 @api_view(["GET"])
 def home_page(request):
     """
-    Get all data needed for the home page in a single request
+    Get all data needed for the home page in a single request.
+
+    When the ``languages`` query parameter is present (and non-empty) every
+    section is restricted to novels available in those content languages; the
+    rankings merge the selected languages together. The frontend omits the
+    parameter when the user disabled language segregation.
     """
     # Rolling 7-day window start for trending
-    window_start = WeeklyNovelView.window_start()
-    
-    # Base queryset with common annotations
-    base_queryset = Novel.objects.select_related().prefetch_related(
-        'sources', 'ratings', 'view_count', 'weekly_views'
-    )
-    
-    # Top novels (most popular)
+    window_start = WeeklySourceView.window_start()
+
+    # Selected content languages (empty list = no segregation)
+    languages = parse_languages(request.GET.getlist("languages"))
+    serializer_context = {"request": request, "languages": languages}
+
+    # Anonymous responses are identical for everyone with the same language
+    # filter, so serve them from the per-process cache for a short window.
+    # Authenticated responses embed user state (bookmarks/reading history) and
+    # are never cached.
+    cache_key = None
+    if not request.user.is_authenticated:
+        cache_key = "home_page:%s" % (",".join(sorted(languages)) if languages else "all")
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
+    # Base queryset, optionally restricted to novels with a source in the
+    # selected languages.
+    base_queryset = apply_novel_prefetches(Novel.objects.all(), request.user)
+    if languages:
+        base_queryset = base_queryset.filter(
+            sources__language__in=languages
+        ).distinct()
+
+    # Restrict the source-based view aggregations to the selected languages so
+    # the ranking reflects readership within those languages.
+    views_filter = Q()
+    if languages:
+        views_filter = Q(sources__language__in=languages)
+
+    # Top novels (most popular, summed over sources)
     top_novels = (
         base_queryset.annotate(
-            total_views=Coalesce(F('view_count__views'), Value(0))
+            total_views=Coalesce(Sum('sources__total_views'), Value(0))
         )
         .order_by('-total_views', 'title')[:12]
     )
     
-    # Trending novels (rolling 7-day views)
+    # Trending novels (rolling 7-day views, summed over sources)
     trending_novels = (
         base_queryset.annotate(
             week_views=Coalesce(
                 Sum(
-                    "weekly_views__views",
+                    "sources__weekly_views__views",
                     filter=Q(
-                        weekly_views__granularity=WeeklyNovelView.DAY,
-                        weekly_views__day__gte=window_start,
-                    ),
+                        sources__weekly_views__granularity=WeeklySourceView.DAY,
+                        sources__weekly_views__day__gte=window_start,
+                    ) & views_filter,
                 ),
                 Value(0),
             )
@@ -372,33 +446,47 @@ def home_page(request):
         .order_by('-avg_rating', 'title')[:12]
     )
     
-    # Get featured novel
+    # Get featured novel (restricted to one available in the selected languages)
     featured_novel_data = None
-    featured_count = FeaturedNovel.objects.count()
+    featured_qs = FeaturedNovel.objects.select_related('novel').prefetch_related(
+        *novel_prefetch_objects(user=request.user, prefix='novel__')
+    )
+    if languages:
+        featured_qs = featured_qs.filter(novel__sources__language__in=languages).distinct()
+    featured_count = featured_qs.count()
     if featured_count > 0:
         import random
         random_index = random.randint(0, featured_count - 1)
-        featured = FeaturedNovel.objects.select_related('novel').all()[random_index]
+        featured = featured_qs[random_index]
         featured_novel_data = {
-            'novel': DetailedNovelSerializer(featured.novel, context={"request": request}).data,
+            'novel': DetailedNovelSerializer(featured.novel, context=serializer_context).data,
             'description': featured.description,
             'featured_since': featured.created_at,
         }
     
     # for the recently updated it's a list of NovelFromSource insead of Novel that we want
-    recently_updated = NovelFromSource.objects.order_by('-last_chapter_update')[:12]
+    recently_updated_qs = sources_queryset().order_by('-last_chapter_update')
+    if languages:
+        recently_updated_qs = recently_updated_qs.filter(language__in=languages)
+    recently_updated = recently_updated_qs[:12]
     
-    # Get recent reviews (4 most recent instead of 5)
-    recent_reviews = Review.objects.select_related('user', 'novel').prefetch_related('reactions__user').order_by('-created_at')[:4]
+    # Get recent reviews (restricted to novels in the selected languages)
+    recent_reviews_qs = Review.objects.select_related('user', 'novel').prefetch_related('reactions__user').order_by('-created_at')
+    if languages:
+        recent_reviews_qs = recent_reviews_qs.filter(novel__sources__language__in=languages).distinct()
+    recent_reviews = recent_reviews_qs[:4]
     
     # Serialize all the data
     response_data = {
-        'top_novels': BasicNovelSerializer(top_novels, many=True, context={"request": request}).data,
-        'trending_novels': BasicNovelSerializer(trending_novels, many=True, context={"request": request}).data,
-        'top_rated_novels': BasicNovelSerializer(top_rated_novels, many=True, context={"request": request}).data,
-        'recently_updated': NovelSourceSerializer(recently_updated, many=True, context={"request": request}).data,
+        'top_novels': BasicNovelSerializer(top_novels, many=True, context=serializer_context).data,
+        'trending_novels': BasicNovelSerializer(trending_novels, many=True, context=serializer_context).data,
+        'top_rated_novels': BasicNovelSerializer(top_rated_novels, many=True, context=serializer_context).data,
+        'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context).data,
         'featured_novel': featured_novel_data,
-        'recent_reviews': ReviewListSerializer(recent_reviews, many=True, context={"request": request}).data,
+        'recent_reviews': ReviewListSerializer(recent_reviews, many=True, context=serializer_context).data,
     }
+    
+    if cache_key is not None:
+        cache.set(cache_key, response_data, timeout=settings.HOME_PAGE_CACHE_SECONDS)
     
     return Response(response_data)

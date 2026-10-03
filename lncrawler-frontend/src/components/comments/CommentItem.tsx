@@ -31,6 +31,7 @@ import { commentService } from '../../services/api';
 import { Comment as IComment } from '@models/comments_types';
 import { getChapterLabel } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface CommentItemProps {
   comment: IComment;
@@ -46,6 +47,7 @@ const CommentItem = ({
   fromOtherSource = false,
 }: CommentItemProps) => {
   const { isAuthenticated, user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [isSpoilerRevealed, setSpoilerRevealed] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
@@ -74,7 +76,7 @@ const CommentItem = ({
   // Format date to readable format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
+    return new Intl.DateTimeFormat(i18n.language, { 
       year: 'numeric', 
       month: 'short', 
       day: 'numeric',
@@ -123,7 +125,7 @@ const CommentItem = ({
 
   const handleEditSave = async () => {
     if (!editMessage.trim()) {
-      setEditError('Comment cannot be empty');
+      setEditError(t('comments.empty'));
       return;
     }
 
@@ -144,7 +146,7 @@ const CommentItem = ({
       setIsEditing(false);
     } catch (error: any) {
       console.error('Failed to edit comment:', error);
-      setEditError(error?.response?.data?.error || 'Failed to edit comment. Please try again.');
+      setEditError(error?.response?.data?.error || t('comments.editFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -206,13 +208,13 @@ const CommentItem = ({
                     color: "text.secondary",
                     ml: 1
                   }}>
-                  (edited)
+                  {t('comments.edited')}
                 </Typography>
               )}
             </Typography>
             
             {canEdit && !isEditing && (
-              <Tooltip title="Edit comment">
+              <Tooltip title={t('comments.editTooltip')}>
                 <IconButton size="small" onClick={handleEditStart}>
                   <EditIcon fontSize="small" />
                 </IconButton>
@@ -223,15 +225,15 @@ const CommentItem = ({
         
         {comment.type === 'board' ? (
           <Box sx={{ mb: 1 }}>
-            <Chip size="small" label="Board Comment" color="secondary" variant="outlined" />
+            <Chip size="small" label={t('comments.boardComment')} color="secondary" variant="outlined" />
           </Box>
         ) : comment.type && comment.type !== 'novel' ? (
           <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip size="small" label={`Comment posted at ${getChapterLabel(comment.chapter_title, comment.chapter_id)}`} color="secondary" variant="outlined" />
+            <Chip size="small" label={t('comments.postedAt', { chapter: getChapterLabel(t, comment.chapter_title, comment.chapter_id) })} color="secondary" variant="outlined" />
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              from {comment.source_name}
+              {t('comments.fromSource', { source: comment.source_name })}
             </Typography>
           </Box>
         ) : null}
@@ -247,7 +249,7 @@ const CommentItem = ({
             
             <TextField
               fullWidth
-              label="Edit your comment"
+              label={t('comments.editPlaceholder')}
               multiline
               rows={4}
               value={editMessage}
@@ -263,7 +265,7 @@ const CommentItem = ({
                   color="primary"
                 />
               }
-              label="This comment contains spoilers"
+              label={t('comments.containsSpoilers')}
               sx={{ mt: 1 }}
             />
             
@@ -275,7 +277,7 @@ const CommentItem = ({
                 onClick={handleEditSave}
                 disabled={isSubmitting}
               >
-                Save
+                {t('common.save')}
               </Button>
               <Button
                 variant="outlined"
@@ -283,7 +285,7 @@ const CommentItem = ({
                 onClick={handleEditCancel}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </Box>
           </Box>
@@ -313,7 +315,7 @@ const CommentItem = ({
                     mt: 0.5,
                     fontStyle: 'italic'
                   }}>
-                  (spoiler)
+                  {t('comments.spoiler')}
                 </Typography>
               )}
             </Box>
@@ -327,7 +329,7 @@ const CommentItem = ({
         {!isEditing && (
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Tooltip title="Upvote">
+              <Tooltip title={t('novelSources.upvote')}>
                 <IconButton 
                   size="small" 
                   onClick={() => handleVote('up')} 
@@ -339,7 +341,7 @@ const CommentItem = ({
               </Tooltip>
               <Typography variant="body2">{votes.upvotes}</Typography>
               
-              <Tooltip title="Downvote">
+              <Tooltip title={t('novelSources.downvote')}>
                 <IconButton 
                   size="small" 
                   onClick={() => handleVote('down')} 
@@ -361,13 +363,13 @@ const CommentItem = ({
                 color="primary"
                 sx={{ borderRadius: 2 }}
               >
-                {isReplying ? 'Cancel Reply' : 'Reply'}
+                {isReplying ? t('comments.cancelReply') : t('comments.reply')}
               </Button>
             ) : (
               <Typography variant="caption" sx={{
                 color: "text.secondary"
               }}>
-                Replies disabled
+                {t('comments.repliesDisabled')}
               </Typography>
             )}
           </Box>
@@ -410,7 +412,7 @@ const CommentItem = ({
           color="primary"
           size="small"
         >
-          Show {comment.replies!.length} {comment.replies!.length === 1 ? 'reply' : 'replies'}
+          {t('comments.showReplies', { count: comment.replies!.length })}
         </Button>
       )}
     </Box>

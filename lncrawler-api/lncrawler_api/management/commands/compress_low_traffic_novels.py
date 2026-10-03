@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
-from lncrawler_api.models import Novel, WeeklyNovelView
+from lncrawler_api.models import Novel, WeeklySourceView
 from lncrawler_api.utils import chapter_utils
 from pathlib import Path
 import time
@@ -50,12 +50,12 @@ class Command(BaseCommand):
         pause = max(options['sleep'], 0.0)
         max_sources = options['max_sources']
 
-        window_start = WeeklyNovelView.window_start()
+        window_start = WeeklySourceView.window_start()
 
         self.stdout.write(
             self.style.SUCCESS(
                 f'Finding novels with less than {min_views} views in the last '
-                f'{WeeklyNovelView.WINDOW_DAYS} days'
+                f'{WeeklySourceView.WINDOW_DAYS} days'
             )
         )
 
@@ -63,13 +63,13 @@ class Command(BaseCommand):
         # anything without a row (or below the threshold) counts as low-traffic.
         # Done as a subquery so we never materialize a list of high-traffic ids.
         popular_ids = (
-            WeeklyNovelView.objects.filter(
-                granularity=WeeklyNovelView.DAY, day__gte=window_start
+            WeeklySourceView.objects.filter(
+                granularity=WeeklySourceView.DAY, day__gte=window_start
             )
-            .values('novel_id')
+            .values('source__novel_id')
             .annotate(total_views=Sum('views'))
             .filter(total_views__gte=min_views)
-            .values('novel_id')
+            .values('source__novel_id')
         )
 
         base_qs = (

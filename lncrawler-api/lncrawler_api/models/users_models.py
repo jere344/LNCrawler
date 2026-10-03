@@ -48,6 +48,7 @@ class ReadingList(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
+    is_public = models.BooleanField(default=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reading_lists')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -57,6 +58,31 @@ class ReadingList(models.Model):
     
     def __str__(self):
         return f"{self.title} by {self.user.username}"
+
+
+class ReadingListCollaborator(models.Model):
+    """
+    Grants a user editor or reader access to a reading list.
+    """
+    EDITOR = 'editor'
+    READER = 'reader'
+    ROLE_CHOICES = [
+        (EDITOR, 'Editor'),
+        (READER, 'Reader'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    reading_list = models.ForeignKey(ReadingList, on_delete=models.CASCADE, related_name='collaborators')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reading_list_collaborations')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=EDITOR)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('reading_list', 'user')
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"{self.user.username} ({self.role}) on {self.reading_list.title}"
 
 
 class ReadingListItem(models.Model):

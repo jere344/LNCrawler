@@ -16,7 +16,8 @@ import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, getChapterName, getNovelSourcePath } from '@utils/Misc';
+import { formatTimeAgo, getChapterName, getNovelSourceLink } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
 
 interface ReadingHistoryCardProps {
   novel: Novel;
@@ -24,7 +25,10 @@ interface ReadingHistoryCardProps {
 }
 
 const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete }) => {
+  const { t, i18n } = useTranslation();
   const continue_chapter = novel.reading_history?.next_chapter || novel.reading_history?.last_read_chapter;
+  const displaySource = novel.reading_source ?? novel.prefered_source;
+  const sourceLink = getNovelSourceLink(novel);
 
   return (
     <Card 
@@ -40,7 +44,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
       }}
     >
       {/* Delete button positioned absolutely in the top right */}
-      <Tooltip title="Remove from history">
+      <Tooltip title={t('cards.removeFromHistory')}>
         <IconButton 
           size="medium" 
           onClick={() => onDelete(novel.id)}
@@ -61,8 +65,8 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           width: 120,
           minWidth: 120,
           height: '100%',
-          backgroundImage: novel.prefered_source?.cover_min_url 
-            ? `url(${novel.prefered_source.cover_min_url})` 
+          backgroundImage: displaySource?.cover_min_url 
+            ? `url(${displaySource.cover_min_url})` 
             : 'linear-gradient(to bottom right, #6a11cb, #2575fc)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
@@ -70,7 +74,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           borderBottomLeftRadius: 4,
         }}
         component={Link}
-        to={getNovelSourcePath(novel) || ''}
+        to={sourceLink.to ?? ''} state={sourceLink.state}
         className="clickable"
       />
 
@@ -80,7 +84,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           <Typography 
             variant="h6" 
             component={Link}
-            to={getNovelSourcePath(novel) || ''}
+            to={sourceLink.to ?? ''} state={sourceLink.state}
             sx={{ 
               fontWeight: 'bold',
               cursor: 'pointer',
@@ -104,25 +108,25 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  Last read:
+                  {t('cards.lastRead')}
                 </Typography>
                 <Chip 
                   size="small" 
-                  label={formatTimeAgo(new Date(novel.reading_history.last_read_at))}
+                  label={formatTimeAgo(new Date(novel.reading_history.last_read_at), t)}
                   color="primary" 
                   variant="outlined"
                 />
               </Stack>
               
               <Typography variant="body2" gutterBottom>
-                <strong>Chapter:</strong> {novel.reading_history.last_read_chapter.chapter_id} 
+                <strong>{t('cards.chapterLabel')}</strong> {novel.reading_history.last_read_chapter.chapter_id} 
                 {getChapterName(novel.reading_history.last_read_chapter.title) != '' ? ' - ' : ''}
                 {getChapterName(novel.reading_history.last_read_chapter.title)}
               </Typography>
               
               {novel.reading_history.last_read_chapter.volume_title && (
                 <Typography variant="body2" gutterBottom>
-                  <strong>Volume:</strong> {novel.reading_history.last_read_chapter.volume_title}
+                  <strong>{t('cards.volumeLabel')}</strong> {novel.reading_history.last_read_chapter.volume_title}
                 </Typography>
               )}
               
@@ -133,7 +137,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
                   color: "text.secondary",
                   mt: 1
                 }}>
-                {new Date(novel.reading_history.last_read_at).toLocaleString()}
+                {new Date(novel.reading_history.last_read_at).toLocaleString(i18n.language)}
               </Typography>
             </Box>
           )}
@@ -150,7 +154,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             component={Link}
             to={novel.reading_history && continue_chapter ? `/novels/${novel.reading_history.novel_slug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}` : ''}
           >
-            Continue
+            {t('cards.continue')}
           </Button>
           <Button
             size="small"
@@ -158,9 +162,9 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             variant="outlined"
             startIcon={<InfoIcon />}
             component={Link}
-            to={getNovelSourcePath(novel) || ''}
+            to={sourceLink.to ?? ''} state={sourceLink.state}
           >
-            Details
+            {t('cards.details')}
           </Button>
         </CardActions>
       </Box>

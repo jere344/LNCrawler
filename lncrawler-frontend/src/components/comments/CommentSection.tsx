@@ -4,6 +4,7 @@ import CommentForm from './CommentForm';
 import CommentList from './CommentList';
 import { novelService } from '../../services/api';
 import { boardService } from '../../services/board.service';
+import { useTranslation } from 'react-i18next';
 
 interface CommentSectionProps {
   novelSlug?: string;
@@ -17,6 +18,7 @@ interface CommentSectionProps {
 }
 
 const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSectionProps) => {
+  const { t } = useTranslation();
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSec
         setComments(fetchedComments);
       } catch (err) {
         console.error('Failed to fetch comments:', err);
-        setError('Failed to load comments. Please try refreshing the page.');
+        setError(t('comments.loadFailed'));
       } finally {
         setLoading(false);
       }

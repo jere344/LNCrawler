@@ -6,6 +6,8 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.cache import cache
+from django.db.models import Sum
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -20,13 +22,15 @@ from .models import (
     NovelFromSource,
     NovelRating,
     NovelSimilarity,
-    NovelViewCount,
     ReadingHistory,
     ReadingList,
+    ReadingListCollaborator,
     ReadingListItem,
     Review,
     SourceVote,
-    WeeklyNovelView,
+    Tag,
+    TagAlias,
+    WeeklySourceView,
 )
 from .services import (
     MergeError,
@@ -34,6 +38,8 @@ from .services import (
     build_merge_plan,
     move_sources,
     merge_novels,
+    merge_similar_tags,
+    merge_tags,
     split_novel,
 )
 from .utils import resolve_novel_slug
@@ -122,9 +128,13 @@ class MergeNovelsTests(MergeTestCase):
         NovelRating.objects.create(
             novel=self.duplicate, ip_address="1.1.1.1", rating=4
         )
-        NovelViewCount.objects.create(novel=self.duplicate, views=5)
-        WeeklyNovelView.objects.create(
-            novel=self.duplicate, day=date.today(), views=3
+        self.dup_source.total_views = 5
+        self.dup_source.save(update_fields=["total_views"])
+        WeeklySourceView.objects.create(
+            source=self.dup_source,
+            granularity=WeeklySourceView.DAY,
+            day=date.today(),
+            views=3,
         )
         FeaturedNovel.objects.create(novel=self.duplicate, description="featured")
         other = Novel.objects.create(title="Other", slug="other", novel_path="other")
@@ -163,8 +173,16 @@ class MergeNovelsTests(MergeTestCase):
         self.assertEqual(self.dup_source.source_path, os.path.join("lotm", "novelbin"))
 
         self.assertEqual(self.target.ratings.count(), 1)
-        self.assertEqual(self.target.view_count.views, 5)
-        self.assertEqual(self.target.weekly_views.get(day=date.today()).views, 3)
+        # Views from the discarded duplicate source followed its story.
+        self.assertEqual(
+            sum(s.total_views for s in self.target.sources.all()), 5
+        )
+        self.assertEqual(
+            WeeklySourceView.objects.filter(source__novel=self.target).aggregate(
+                total=Sum("views")
+            )["total"],
+            3,
+        )
         self.assertTrue(FeaturedNovel.objects.filter(novel=self.target).exists())
         self.assertEqual(
             NovelSimilarity.objects.get(similarity=0.9).from_novel, self.target
@@ -376,7 +394,8 @@ class SplitNovelTests(MergeTestCase):
     def test_split_creates_new_novel_and_survives_updates(self):
         user = get_user_model().objects.create_user(username="reader", password="x")
         NovelRating.objects.create(novel=self.novel, ip_address="1.1.1.1", rating=5)
-        NovelViewCount.objects.create(novel=self.novel, views=7)
+        self.web_source.total_views = 7
+        self.web_source.save(update_fields=["total_views"])
         Comment.objects.create(
             novel=self.novel, author_name="anon", message="novel comment"
         )
@@ -422,7 +441,8 @@ class SplitNovelTests(MergeTestCase):
 
         # Novel-level data stays on the original novel.
         self.assertEqual(NovelRating.objects.get(ip_address="1.1.1.1").novel, self.novel)
-        self.assertEqual(self.novel.view_count.views, 7)
+        # Views travel with the source that was split off.
+        self.assertEqual(new.sources.get(pk=self.web_source.pk).total_views, 7)
         self.assertEqual(Comment.objects.filter(novel=self.novel).count(), 1)
         self.assertEqual(self.novel.comment_count, 1)
         self.assertEqual(new.comment_count, 1)
@@ -627,53 +647,544 @@ class SplitAdminTests(MergeTestCase):
         self.assertEqual(self.novel.sources.count(), 1)
 
 
-class ConsolidateNovelViewsTests(TestCase):
-    def test_old_daily_views_roll_into_weekly_buckets(self):
+class PruneLibraryPortTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.novel = Novel.objects.create(
+            title="Story", slug="story", novel_path="story"
+        )
+        dead_ext = ExternalSource.objects.create(source_name="deadsite")
+        live_ext = ExternalSource.objects.create(source_name="livesite")
+        self.dead = self.make_source(
+            self.novel, dead_ext, "S", "http://dead/s", "story", "deadsite", 2
+        )
+        self.keeper = self.make_source(
+            self.novel, live_ext, "S", "http://live/s", "story", "livesite", 3
+        )
+        self.dead_chapter = self.dead.chapters.order_by("chapter_id").first()
+        self.keeper_chapter = self.keeper.chapters.order_by("chapter_id").first()
+
+    def test_port_user_data_moves_comments_history_and_votes(self):
+        from .management.commands.prune_library import Command
+
+        user = get_user_model().objects.create_user(username="reader", password="x")
+        comment = Comment.objects.create(
+            chapter=self.dead_chapter, author_name="anon", message="hi"
+        )
+        ReadingHistory.objects.create(user=user, novel=self.novel, source=self.dead)
+        SourceVote.objects.create(source=self.dead, ip_address="1.1.1.1", vote_type="up")
+        # Same voter already voted on the keeper: the duplicate must be dropped.
+        SourceVote.objects.create(
+            source=self.keeper, ip_address="1.1.1.1", vote_type="down"
+        )
+
+        Command()._port_user_data(self.dead, self.keeper)
+
+        comment.refresh_from_db()
+        self.assertEqual(comment.chapter, self.keeper_chapter)
+        self.assertEqual(ReadingHistory.objects.get(user=user).source, self.keeper)
+        self.assertEqual(self.keeper.votes.count(), 1)
+        self.keeper.refresh_from_db()
+        self.assertEqual((self.keeper.upvotes, self.keeper.downvotes), (0, 1))
+        self.novel.refresh_from_db()
+        self.assertEqual(self.novel.comment_count, 1)
+
+
+class ConsolidateSourceViewsTests(TestCase):
+    def setUp(self):
         novel = Novel.objects.create(title="Old", slug="old", novel_path="old")
+        ext = ExternalSource.objects.create(source_name="site")
+        self.source = NovelFromSource.objects.create(
+            novel=novel, external_source=ext, title="Old", source_url="http://x/old"
+        )
+
+    def test_old_daily_views_roll_into_weekly_buckets(self):
         today = date.today()
         monday = today - timedelta(days=today.isoweekday() - 1) - timedelta(weeks=5)
 
-        WeeklyNovelView.objects.create(
-            novel=novel, granularity=WeeklyNovelView.DAY, day=monday, views=3
+        WeeklySourceView.objects.create(
+            source=self.source, granularity=WeeklySourceView.DAY, day=monday, views=3
         )
-        WeeklyNovelView.objects.create(
-            novel=novel,
-            granularity=WeeklyNovelView.DAY,
+        WeeklySourceView.objects.create(
+            source=self.source,
+            granularity=WeeklySourceView.DAY,
             day=monday + timedelta(days=1),
             views=4,
         )
-        recent = WeeklyNovelView.objects.create(
-            novel=novel, granularity=WeeklyNovelView.DAY, day=today, views=5
+        recent = WeeklySourceView.objects.create(
+            source=self.source, granularity=WeeklySourceView.DAY, day=today, views=5
         )
 
-        call_command("consolidate_novel_views")
+        call_command("consolidate_source_views")
 
-        weekly = WeeklyNovelView.objects.get(
-            novel=novel, granularity=WeeklyNovelView.WEEK, day=monday
+        weekly = WeeklySourceView.objects.get(
+            source=self.source, granularity=WeeklySourceView.WEEK, day=monday
         )
         self.assertEqual(weekly.views, 7)
         self.assertFalse(
-            WeeklyNovelView.objects.filter(
-                novel=novel,
-                granularity=WeeklyNovelView.DAY,
-                day__lt=today - timedelta(days=WeeklyNovelView.CONSOLIDATION_DAYS),
+            WeeklySourceView.objects.filter(
+                source=self.source,
+                granularity=WeeklySourceView.DAY,
+                day__lt=today - timedelta(days=WeeklySourceView.CONSOLIDATION_DAYS),
             ).exists()
         )
         recent.refresh_from_db()
         self.assertEqual(recent.views, 5)
 
     def test_consolidation_is_idempotent(self):
-        novel = Novel.objects.create(title="Old2", slug="old2", novel_path="old2")
         today = date.today()
         monday = today - timedelta(days=today.isoweekday() - 1) - timedelta(weeks=5)
-        WeeklyNovelView.objects.create(
-            novel=novel, granularity=WeeklyNovelView.DAY, day=monday, views=3
+        WeeklySourceView.objects.create(
+            source=self.source, granularity=WeeklySourceView.DAY, day=monday, views=3
         )
 
-        call_command("consolidate_novel_views")
-        call_command("consolidate_novel_views")
+        call_command("consolidate_source_views")
+        call_command("consolidate_source_views")
 
-        weekly = WeeklyNovelView.objects.get(
-            novel=novel, granularity=WeeklyNovelView.WEEK, day=monday
+        weekly = WeeklySourceView.objects.get(
+            source=self.source, granularity=WeeklySourceView.WEEK, day=monday
         )
         self.assertEqual(weekly.views, 3)
+
+
+class LanguageHelperTests(TestCase):
+    def test_parse_languages_splits_dedupes_and_filters(self):
+        from .languages import parse_languages
+
+        self.assertEqual(
+            parse_languages(["fr,en", "fr", "xx", "", None]), ["fr", "en"]
+        )
+        self.assertEqual(parse_languages(None), [])
+        self.assertEqual(parse_languages("JA,ja"), ["ja"])
+
+
+class LanguageAwareSourceTestCase(TestCase):
+    """Shared fixtures: one novel with an English and a French source."""
+
+    def setUp(self):
+        cache.clear()
+        self.novel = Novel.objects.create(title="Bilingue", slug="bilingue", novel_path="b")
+        self.en_source = NovelFromSource.objects.create(
+            novel=self.novel,
+            external_source=ExternalSource.objects.create(source_name="en-site"),
+            title="English",
+            source_url="http://en/1",
+            language="en",
+            upvotes=0,
+            downvotes=5,
+        )
+        self.fr_source = NovelFromSource.objects.create(
+            novel=self.novel,
+            external_source=ExternalSource.objects.create(source_name="fr-site"),
+            title="Français",
+            source_url="http://fr/1",
+            language="fr",
+            upvotes=3,
+            downvotes=0,
+        )
+
+    def _source_titles(self, response):
+        return [n["title"] for n in response.data["top_novels"]]
+
+
+class HomeLanguageFilterTests(LanguageAwareSourceTestCase):
+    def test_no_languages_param_returns_all_novels(self):
+        response = self.client.get(reverse("home_page"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._source_titles(response), ["Bilingue"])
+
+    def test_filtering_by_language_excludes_other_language_novels(self):
+        other = Novel.objects.create(title="Only Japanese", slug="jp", novel_path="j")
+        NovelFromSource.objects.create(
+            novel=other,
+            external_source=ExternalSource.objects.create(source_name="jp-site"),
+            title="日本語",
+            source_url="http://jp/1",
+            language="ja",
+        )
+
+        response = self.client.get(reverse("home_page"), {"languages": "fr,en"})
+        self.assertEqual(response.status_code, 200)
+        titles = self._source_titles(response)
+        self.assertIn("Bilingue", titles)
+        self.assertNotIn("Only Japanese", titles)
+
+    def test_multi_language_merges_novels_without_duplicates(self):
+        # A novel whose source is available in both requested languages must
+        # appear exactly once in the merged ranking.
+        both = Novel.objects.create(title="Both", slug="both", novel_path="bo")
+        for lang, name in (("fr", "fr2"), ("en", "en2")):
+            NovelFromSource.objects.create(
+                novel=both,
+                external_source=ExternalSource.objects.create(source_name=name),
+                title=name,
+                source_url=f"http://{name}/1",
+                language=lang,
+            )
+
+        response = self.client.get(reverse("home_page"), {"languages": ["fr", "en"]})
+        titles = self._source_titles(response)
+        self.assertEqual(titles.count("Both"), 1)
+        self.assertEqual(titles.count("Bilingue"), 1)
+
+    def test_language_filtered_prefered_source_matches_language(self):
+        response = self.client.get(reverse("home_page"), {"languages": "fr"})
+        novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
+        self.assertEqual(novel["prefered_source"]["language"], "fr")
+
+    def test_prefered_source_falls_back_when_language_absent(self):
+        # English source (worst votes) wins only because fr is excluded.
+        response = self.client.get(reverse("home_page"), {"languages": "en"})
+        novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
+        self.assertEqual(novel["prefered_source"]["language"], "en")
+
+
+class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
+    def _novel(self, response):
+        return next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
+
+    def test_reading_source_exposes_history_source_full_metadata(self):
+        # History is on the worst-voted (non-preferred) source: the card must
+        # still receive that source's metadata so it matches the opened page.
+        user = get_user_model().objects.create_user(username="reader", password="x")
+        chapter = Chapter.objects.create(
+            novel_from_source=self.en_source,
+            chapter_id=1,
+            url="http://en/1/1",
+            title="Chapter 1",
+        )
+        ReadingHistory.objects.create(
+            user=user, novel=self.novel, source=self.en_source, last_read_chapter=chapter
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("home_page"))
+        self.assertEqual(response.status_code, 200)
+        novel = self._novel(response)
+        self.assertEqual(novel["prefered_source"]["language"], "fr")
+        self.assertEqual(novel["reading_source"]["language"], "en")
+        self.assertEqual(novel["reading_source"]["title"], "English")
+
+    def test_reading_source_absent_for_anonymous(self):
+        response = self.client.get(reverse("home_page"))
+        self.assertIsNone(self._novel(response)["reading_source"])
+
+
+class SearchLanguageFilterTests(LanguageAwareSourceTestCase):
+    def test_legacy_single_language_param_still_works(self):
+        response = self.client.get(reverse("search_novels"), {"language": "fr"})
+        self.assertEqual(response.status_code, 200)
+        titles = [n["title"] for n in response.data["results"]]
+        self.assertEqual(titles, ["Bilingue"])
+
+    def test_multi_language_param_merges_without_duplicates(self):
+        response = self.client.get(
+            reverse("search_novels"), {"languages": ["fr", "en"]}
+        )
+        self.assertEqual(response.status_code, 200)
+        titles = [n["title"] for n in response.data["results"]]
+        self.assertEqual(titles.count("Bilingue"), 1)
+
+
+class TagAutocompleteAliasTests(TestCase):
+    """A merged-away tag name must still surface its canonical tag."""
+
+    def setUp(self):
+        self.novel = Novel.objects.create(title="Isekai Tale", slug="it", novel_path="it")
+        self.canonical = Tag.objects.create(name="Isekai")
+        source = NovelFromSource.objects.create(
+            novel=self.novel,
+            external_source=ExternalSource.objects.create(source_name="tag-site"),
+            title="Isekai Tale",
+            source_url="http://tag/1",
+        )
+        source.tags.add(self.canonical)
+        TagAlias.objects.create(name="isekai", tag=self.canonical)
+
+    def _suggest(self, query):
+        response = self.client.get(
+            reverse("autocomplete_suggestion"), {"type": "tag", "query": query}
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_alias_query_returns_canonical_tag(self):
+        suggestions = self._suggest("isekai")
+        self.assertEqual(len(suggestions), 1)
+        self.assertEqual(suggestions[0]["name"], "Isekai")
+        self.assertEqual(suggestions[0]["alias"], "isekai")
+        self.assertEqual(suggestions[0]["count"], 1)
+
+    def test_canonical_and_alias_merge_into_one_entry(self):
+        # "Isekai" (canonical) and "isekai" (alias) both match case-insensitively.
+        self.assertEqual(len(self._suggest("sekai")), 1)
+
+
+class TagSimilarityTests(TestCase):
+    """The auto-merge heuristic must catch obvious variants, not real tags."""
+
+    def _sim(self, a, b):
+        from .services.merge_service import _tag_similarity
+
+        return _tag_similarity(a, b)
+
+    def test_case_only_difference_is_similar(self):
+        self.assertGreaterEqual(self._sim("Isekai", "isekai"), 0.9)
+
+    def test_plural_and_singular_are_similar(self):
+        self.assertGreaterEqual(self._sim("action", "actions"), 0.9)
+
+    def test_distinct_tags_are_not_similar(self):
+        self.assertLess(self._sim("action", "romance"), 0.9)
+        self.assertLess(self._sim("Isekai", "Isekaijoucho"), 0.9)
+
+    def test_shared_prefix_words_are_not_similar(self):
+        # Near but distinct sub-genres must survive.
+        self.assertLess(self._sim("Science Fiction", "Science Fantasy"), 0.9)
+
+    def test_direction_swapped_words_are_not_similar(self):
+        # The classic false positives: one word changed, opposite meaning.
+        self.assertLess(self._sim("Western Fantasy", "Eastern Fantasy"), 0.9)
+        self.assertLess(self._sim("Female Protagonist", "Male Protagonist"), 0.9)
+        self.assertLess(self._sim("Adapted to Manhua", "Adapted to Manhwa"), 0.9)
+
+    def test_accents_fold(self):
+        self.assertGreaterEqual(self._sim("Réincarnation", "reincarnation"), 0.9)
+
+
+class MergeSimilarTagsTests(TestCase):
+    def setUp(self):
+        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.source = NovelFromSource.objects.create(
+            novel=self.novel,
+            external_source=ExternalSource.objects.create(source_name="s"),
+            title="N",
+            source_url="http://s/1",
+        )
+
+    def _tag(self, name, count=0):
+        tag = Tag.objects.create(name=name)
+        for _ in range(count):
+            self.source.tags.add(tag)
+        return tag
+
+    def test_auto_merge_keeps_most_used_spelling(self):
+        # "isekai" carries the data, so it wins over the uppercase spare.
+        canonical = self._tag("isekai", count=1)
+        self._tag("Isekai")
+
+        results = merge_similar_tags()
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(Tag.objects.get(name="isekai"), canonical)
+        self.assertFalse(Tag.objects.filter(name="Isekai").exists())
+        self.assertEqual(TagAlias.objects.get(name="Isekai").tag, canonical)
+        self.assertEqual(self.source.tags.count(), 1)
+
+    def test_distinct_tags_are_left_alone(self):
+        self._tag("Action")
+        self._tag("Romance")
+        self.assertEqual(merge_similar_tags(), [])
+        self.assertEqual(Tag.objects.count(), 2)
+
+    def test_dry_run_changes_nothing(self):
+        self._tag("action", count=1)
+        self._tag("actions")
+
+        results = merge_similar_tags(dry_run=True)
+
+        self.assertEqual(results, [("action", ["actions"])])
+        self.assertEqual(Tag.objects.count(), 2)
+
+    def test_aliased_name_resolves_on_reimport(self):
+        # After auto-merge, importing the old spelling must not recreate it.
+        self._tag("Isekai", count=1)
+        self._tag("isekai")
+        merge_similar_tags()
+
+        self.assertEqual(Tag.resolve("isekai"), Tag.objects.get(name="Isekai"))
+        self.assertFalse(Tag.objects.filter(name="isekai").exists())
+
+
+
+
+class ProjectionInvariantTests(TestCase):
+    def test_total_views_projection_matches_summed_buckets(self):
+        novel = Novel.objects.create(title="Proj", slug="proj", novel_path="p")
+        source = NovelFromSource.objects.create(
+            novel=novel,
+            external_source=ExternalSource.objects.create(source_name="p-site"),
+            title="Proj",
+            source_url="http://p/1",
+            language="en",
+        )
+        for _ in range(4):
+            WeeklySourceView.increment_for_source(source)
+
+        source.refresh_from_db()
+        bucket_total = WeeklySourceView.objects.filter(source=source).aggregate(
+            total=Sum("views")
+        )["total"]
+        self.assertEqual(source.total_views, 4)
+        self.assertEqual(bucket_total, 4)
+
+        # Rebuild the projection from the events and confirm it agrees.
+        rebuilt = WeeklySourceView.objects.filter(source=source).aggregate(
+            total=Sum("views")
+        )["total"]
+        NovelFromSource.objects.filter(pk=source.pk).update(total_views=rebuilt)
+        source.refresh_from_db()
+        self.assertEqual(source.total_views, 4)
+
+
+class UserLanguagePreferenceTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="lang", email="lang@example.com", password="pw12345!"
+        )
+        self.client.force_login(self.user)
+
+    def test_defaults_and_round_trip(self):
+        response = self.client.get(reverse("user_profile"))
+        self.assertEqual(response.data["preferred_ui_language"], "")
+        self.assertEqual(response.data["preferred_languages"], [])
+        self.assertTrue(response.data["language_filter_enabled"])
+
+        response = self.client.patch(
+            reverse("user_profile"),
+            data=json.dumps(
+                {
+                    "preferred_ui_language": "FR",
+                    "preferred_languages": ["fr", "en", "xx", "fr"],
+                    "language_filter_enabled": False,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.preferred_ui_language, "fr")
+        self.assertEqual(self.user.preferred_languages, ["fr", "en"])
+        self.assertFalse(self.user.language_filter_enabled)
+
+    def test_invalid_language_rejected(self):
+        response = self.client.patch(
+            reverse("user_profile"),
+            data=json.dumps({"preferred_languages": ["xx"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.patch(
+            reverse("user_profile"),
+            data=json.dumps({"preferred_ui_language": "xx"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class ReadingListVisibilityTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(username="owner", email="owner@example.com", password="pw12345!")
+        self.editor = get_user_model().objects.create_user(username="editor", email="editor@example.com", password="pw12345!")
+        self.reader = get_user_model().objects.create_user(username="reader", email="reader@example.com", password="pw12345!")
+        self.stranger = get_user_model().objects.create_user(username="stranger", email="stranger@example.com", password="pw12345!")
+
+        self.novel = Novel.objects.create(title="Story", slug="story", novel_path="story")
+        self.private = ReadingList.objects.create(title="Private", user=self.owner, is_public=False)
+        self.public = ReadingList.objects.create(title="Public", user=self.owner, is_public=True)
+
+        ReadingListCollaborator.objects.create(
+            reading_list=self.private, user=self.editor, role=ReadingListCollaborator.EDITOR)
+        ReadingListCollaborator.objects.create(
+            reading_list=self.private, user=self.reader, role=ReadingListCollaborator.READER)
+
+    def detail_url(self, reading_list):
+        return reverse("reading_list_detail", kwargs={"list_id": reading_list.id})
+
+    def test_browse_only_shows_public_lists(self):
+        response = self.client.get(reverse("list_all_reading_lists"))
+        self.assertEqual(response.status_code, 200)
+        titles = [item["title"] for item in response.data["results"]]
+        self.assertIn("Public", titles)
+        self.assertNotIn("Private", titles)
+
+    def test_anonymous_cannot_read_private(self):
+        self.assertEqual(self.client.get(self.detail_url(self.private)).status_code, 403)
+
+    def test_anonymous_can_read_public(self):
+        self.assertEqual(self.client.get(self.detail_url(self.public)).status_code, 200)
+
+    def test_reader_can_read_private(self):
+        self.client.force_login(self.reader)
+        response = self.client.get(self.detail_url(self.private))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["user_role"], "reader")
+
+    def test_reader_cannot_add_item(self):
+        self.client.force_login(self.reader)
+        response = self.client.post(
+            reverse("add_novel_to_list", kwargs={"list_id": self.private.id}),
+            {"novel_id": str(self.novel.id)},
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_editor_can_add_item_but_not_delete_or_toggle(self):
+        self.client.force_login(self.editor)
+        add = self.client.post(
+            reverse("add_novel_to_list", kwargs={"list_id": self.private.id}),
+            {"novel_id": str(self.novel.id)},
+        )
+        self.assertEqual(add.status_code, 201, add.data)
+
+        delete = self.client.delete(reverse("delete_reading_list", kwargs={"list_id": self.private.id}))
+        self.assertEqual(delete.status_code, 403)
+
+        toggle = self.client.put(
+            reverse("update_reading_list", kwargs={"list_id": self.private.id}),
+            data=json.dumps({"is_public": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(toggle.status_code, 403)
+
+    def test_owner_can_toggle_visibility(self):
+        self.client.force_login(self.owner)
+        response = self.client.put(
+            reverse("update_reading_list", kwargs={"list_id": self.private.id}),
+            data=json.dumps({"is_public": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.private.refresh_from_db()
+        self.assertTrue(self.private.is_public)
+
+    def test_stranger_cannot_read_private(self):
+        self.client.force_login(self.stranger)
+        self.assertEqual(self.client.get(self.detail_url(self.private)).status_code, 403)
+
+    def test_user_lists_include_owned_and_shared(self):
+        self.client.force_login(self.editor)
+        response = self.client.get(reverse("get_user_reading_lists"))
+        self.assertEqual(response.status_code, 200)
+        ids = {item["id"] for item in response.data["results"]}
+        self.assertIn(str(self.private.id), ids)
+
+    def test_novel_detail_hides_private_list_from_anonymous(self):
+        ReadingListItem.objects.create(reading_list=self.private, novel=self.novel)
+        ReadingListItem.objects.create(reading_list=self.public, novel=self.novel)
+        response = self.client.get(
+            reverse("novel_detail_by_slug", kwargs={"novel_slug": self.novel.slug})
+        )
+        self.assertEqual(response.status_code, 200)
+        titles = [item["title"] for item in response.data["reading_lists"]]
+        self.assertIn("Public", titles)
+        self.assertNotIn("Private", titles)
+
+    def test_novel_detail_shows_private_list_to_owner(self):
+        ReadingListItem.objects.create(reading_list=self.private, novel=self.novel)
+        self.client.force_login(self.owner)
+        response = self.client.get(
+            reverse("novel_detail_by_slug", kwargs={"novel_slug": self.novel.slug})
+        )
+        titles = [item["title"] for item in response.data["reading_lists"]]
+        self.assertIn("Private", titles)

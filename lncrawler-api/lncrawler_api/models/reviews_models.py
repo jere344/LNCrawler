@@ -21,6 +21,9 @@ class Review(models.Model):
     class Meta:
         unique_together = ('novel', 'user')
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['-created_at'], name='review_created_at_idx'),
+        ]
     
     @property
     def get_reaction_count(self):

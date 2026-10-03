@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Container,
   Typography,
@@ -54,6 +55,7 @@ interface GalleryResponse {
 type ImageWithDimensions = GalleryImage & { width?: number; height?: number };
 
 const ImageGallery = () => {
+  const { t } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -83,7 +85,7 @@ const ImageGallery = () => {
         // Dimension loading will be triggered by the effect below watching `gallery`
       } catch (err) {
         console.error('Error fetching gallery:', err);
-        setError('Failed to load images. Please try again later.');
+        setError(t('gallery.loadFailed'));
         setGallery(null);
       } finally {
         setLoading(false);
@@ -174,13 +176,14 @@ const ImageGallery = () => {
   const siteName = "LNCrawler";
 
   const metaTitle = gallery 
-    ? `Image Gallery: ${gallery.novel_title} (${gallery.source_name}) | ${siteName}`
-    : `Loading Image Gallery | ${siteName}`;
+    ? t('gallery.metaTitle', { novel: gallery.novel_title, source: gallery.source_name })
+    : t('gallery.metaLoadingTitle');
   const metaDescription = gallery
-    ? `View image gallery for ${gallery.novel_title} from source ${gallery.source_name} on ${siteName}. ${gallery.count} illustrations and covers.`
-    : `Explore images from light novels on ${siteName}.`;
+    ? t('gallery.metaDescription', { novel: gallery.novel_title, source: gallery.source_name, count: gallery.count })
+    : t('gallery.metaLoadingDescription');
+  // i18n-missing: no catalog key for the gallery fallback keywords
   const metaKeywords = gallery
-    ? `${gallery.novel_title}, ${gallery.source_name}, image gallery, illustrations, light novel art, covers, novel images`
+    ? t('gallery.keywords', { novel: gallery.novel_title, source: gallery.source_name })
     : "image gallery, light novel, illustrations, art";
   const ogImage = (gallery && gallery.images.length > 1) ? gallery.images[1].image_url : gallery?.images[0]?.image_url || DEFAULT_OG_IMAGE;
 
@@ -199,7 +202,7 @@ const ImageGallery = () => {
     return (
       <Container>
         <Button startIcon={<ArrowBackIcon />} component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} sx={{ mt: 2 }}>
-          Back to Source
+          {t('gallery.backToSource')}
         </Button>
         <Paper 
           elevation={3} 
@@ -212,7 +215,7 @@ const ImageGallery = () => {
           }}
         >
           <Typography color="error" variant="h5" gutterBottom>
-            {error || 'No images found for this source'}
+            {error || t('gallery.notFound')}
           </Typography>
           <Button 
             variant="contained" 
@@ -221,7 +224,7 @@ const ImageGallery = () => {
             to={`/novels/${novelSlug}/${sourceSlug}`} // navigation using Link
             sx={{ mt: 2 }}
           >
-            Return to Source
+            {t('gallery.returnToSource')}
           </Button>
         </Paper>
       </Container>
@@ -260,7 +263,7 @@ const ImageGallery = () => {
               icon: <LanguageIcon fontSize="inherit" />
             },
             {
-              label: "Image Gallery",
+              label: t('gallery.heading'),
               icon: <ImageIcon fontSize="inherit" />
             }
           ]}
@@ -278,7 +281,7 @@ const ImageGallery = () => {
             px: 2,
           }}
         >
-          Back to Source
+          {t('gallery.backToSource')}
         </Button>
       </Box>
 
@@ -294,12 +297,12 @@ const ImageGallery = () => {
         }}
       >
         <Typography variant="h4" gutterBottom>
-          Image Gallery
+          {t('gallery.heading')}
         </Typography>
         <Typography variant="subtitle1" gutterBottom sx={{
           color: "text.secondary"
         }}>
-          {gallery?.count} images from {gallery?.novel_title}
+          {t('gallery.countFrom', { count: gallery?.count ?? 0, novel: gallery?.novel_title })}
         </Typography>
 
         <FormControlLabel
@@ -309,7 +312,7 @@ const ImageGallery = () => {
               onChange={(e) => setShowSmallImages(e.target.checked)}
             />
           }
-          label={`Show small images (${imagesWithDimensions.length - filteredImages.length} filtered)`}
+          label={t('gallery.showSmall', { count: imagesWithDimensions.length - filteredImages.length })}
           sx={{ mt: 1, mb: 2, display: 'block' }}
         />
         
@@ -322,7 +325,7 @@ const ImageGallery = () => {
             <Box sx={{ textAlign: 'center', p: 4 }}>
               <CircularProgress size={24} sx={{ mr: 1, verticalAlign: 'middle' }} />
               <Typography variant="body2" component="span" sx={{ verticalAlign: 'middle' }}>
-                Loading image dimensions...
+                {t('gallery.loadingDimensions')}
               </Typography>
             </Box>
           ) : (
@@ -346,7 +349,7 @@ const ImageGallery = () => {
                     >
                       <img
                         src={image.image_url}
-                        alt={`${getChapterLabel(image.chapter_title, image.chapter_id)}: ${image.image_name}`}
+                        alt={t('gallery.imageAlt', { chapter: getChapterLabel(t, image.chapter_title, image.chapter_id), name: image.image_name })}
                         loading="lazy"
                         style={{ borderRadius: 8 }}
                       />
@@ -363,7 +366,7 @@ const ImageGallery = () => {
                         }}
                       >
                         <Typography variant="caption">
-                          {getChapterLabel(image.chapter_title, image.chapter_id)}
+                          {getChapterLabel(t, image.chapter_title, image.chapter_id)}
                         </Typography>
                       </Box>
                     </ImageListItem>
@@ -372,13 +375,13 @@ const ImageGallery = () => {
               ) : (
                 gallery && gallery.images.length > 0 && allDimensionsLoaded && (
                   <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
-                    No images to display with current filter settings.
+                    {t('gallery.noImagesFiltered')}
                   </Typography>
                 )
               )}
               {gallery && gallery.images.length === 0 && allDimensionsLoaded && (
                  <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
-                  No images found in this gallery page.
+                  {t('gallery.noImagesPage')}
                 </Typography>
               )}
             </>
@@ -434,7 +437,7 @@ const ImageGallery = () => {
         {selectedImage && (
           <Box sx={{ textAlign: 'center', p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="subtitle1" sx={{ color: 'white', mb: 2 }}>
-              {getChapterLabel(selectedImage.chapter_title, selectedImage.chapter_id)}
+              {getChapterLabel(t, selectedImage.chapter_title, selectedImage.chapter_id)}
             </Typography>
 
             <Box sx={{ 

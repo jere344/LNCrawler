@@ -1,5 +1,6 @@
 import api from './api';
-import { ReadingList, ReadingListResponse, ReadingListItem } from '@models/readinglist_types';
+import { ReadingList, ReadingListResponse, ReadingListItem, ReadingListCollaborator } from '@models/readinglist_types';
+import { User } from '@models/user_types';
 
 const readingListService = {
   // Get all reading lists with pagination and search
@@ -30,16 +31,17 @@ const readingListService = {
   },
 
   // Create a new reading list
-  createReadingList: async (title: string, description?: string): Promise<ReadingList> => {
+  createReadingList: async (title: string, description?: string, isPublic = true): Promise<ReadingList> => {
     const response = await api.post('/reading-lists/create/', {
       title,
-      description
+      description,
+      is_public: isPublic
     });
     return response.data;
   },
 
   // Update an existing reading list
-  updateReadingList: async (listId: string, data: { title?: string, description?: string }): Promise<ReadingList> => {
+  updateReadingList: async (listId: string, data: { title?: string, description?: string, is_public?: boolean }): Promise<ReadingList> => {
     const response = await api.put(`/reading-lists/${listId}/update/`, data);
     return response.data;
   },
@@ -73,6 +75,29 @@ const readingListService = {
   reorderListItems: async (listId: string, items: { id: string, position: number }[]): Promise<ReadingList> => {
     const response = await api.post(`/reading-lists/${listId}/reorder/`, items);
     return response.data;
+  },
+
+  // Search users by username (for adding collaborators)
+  searchUsers: async (query: string): Promise<User[]> => {
+    const response = await api.get(`/users/search/?q=${encodeURIComponent(query)}`);
+    return response.data;
+  },
+
+  // Add a collaborator to a reading list (owner only)
+  addCollaborator: async (listId: string, data: { username?: string, user_id?: string, role: 'editor' | 'reader' }): Promise<ReadingListCollaborator> => {
+    const response = await api.post(`/reading-lists/${listId}/collaborators/`, data);
+    return response.data;
+  },
+
+  // Change a collaborator's role (owner only)
+  updateCollaborator: async (listId: string, collaboratorId: string, role: 'editor' | 'reader'): Promise<ReadingListCollaborator> => {
+    const response = await api.put(`/reading-lists/${listId}/collaborators/${collaboratorId}/`, { role });
+    return response.data;
+  },
+
+  // Remove a collaborator (owner only)
+  removeCollaborator: async (listId: string, collaboratorId: string): Promise<void> => {
+    await api.delete(`/reading-lists/${listId}/collaborators/${collaboratorId}/`);
   }
 };
 

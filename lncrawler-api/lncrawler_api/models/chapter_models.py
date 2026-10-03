@@ -37,6 +37,13 @@ class Chapter(models.Model):
     class Meta:
         unique_together = ('novel_from_source', 'chapter_id')
         ordering = ['chapter_id']
+        indexes = [
+            models.Index(
+                fields=['novel_from_source', 'chapter_id'],
+                name='chapter_source_chapter_idx',
+                condition=models.Q(has_content=True),
+            ),
+        ]
     
     def __str__(self):
         return f"{self.title} - {self.novel_from_source.title}"

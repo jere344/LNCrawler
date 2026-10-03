@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useLocation, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Container,
   Typography,
@@ -30,7 +31,7 @@ import SkipNextIcon from '@mui/icons-material/SkipNext';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import defaultCover from '@assets/default-cover.jpg';
 import CommentSection from '../comments/CommentSection';
-import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail } from '@models/novels_types';
+import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail, Novel as INovel } from '@models/novels_types';
 import NovelSynopsis from './common/NovelSynopsis';
 import NovelRating from './common/NovelRating';
 import NovelTags from './common/NovelTags';
@@ -53,46 +54,76 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
 const SourceDetail = () => {
+  const { t, i18n } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const theme = useTheme();
-  const [source, setSource] = useState<ISourceDetail | null>(null);
+  const location = useLocation();
+  const linkState = location.state as { novel?: INovel; source?: ISourceDetail | null } | null;
+
+  // Metadata already fetched by the list card that navigated here. Only trust
+  // it when it matches the URL, since the card link may point to the source the
+  // user has a reading history on rather than the preferred source.
+  const getPrefetchedSource = useCallback((): ISourceDetail | null => {
+    if (!novelSlug || !sourceSlug) return null;
+    const s = linkState?.source;
+    if (s && s.source_slug === sourceSlug && s.novel_slug === novelSlug) return s;
+    const n = linkState?.novel;
+    if (n && n.slug === novelSlug) {
+      return [n.reading_source, n.prefered_source].find(
+        (cand) => cand?.source_slug === sourceSlug && cand?.novel_slug === novelSlug
+      ) ?? null;
+    }
+    return null;
+  }, [linkState, novelSlug, sourceSlug]);
+
+  const [source, setSource] = useState<ISourceDetail | null>(getPrefetchedSource);
   const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
-  const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>({
-    avg_rating: null, 
-    rating_count: 0, 
+  const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>(() => ({
+    avg_rating: linkState?.novel?.avg_rating ?? null,
+    rating_count: linkState?.novel?.rating_count ?? 0,
     user_rating: null
-  });
+  }));
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
       if (!novelSlug || !sourceSlug) return;
-      
+
+      const prefetched = getPrefetchedSource();
+      setSource(prefetched);
       setLoading(true);
-      try {
-        const data = await novelService.getSourceDetail(novelSlug, sourceSlug);
-        setSource(data);
-        
-        // Get novel details to fetch rating, sources and novel-level sections
-        const novelDetails = await novelService.getNovelDetail(novelSlug);
-        setNovel(novelDetails);
-        setNovelRating({
-          avg_rating: novelDetails.avg_rating,
-          rating_count: novelDetails.rating_count,
-          user_rating: novelDetails.user_rating
-        });
-      } catch (err) {
-        console.error('Error fetching source details:', err);
-        setError('Failed to load source details. Please try again later.');
-      } finally {
-        setLoading(false);
+      setError(null);
+
+      const [sourceResult, novelResult] = await Promise.allSettled([
+        novelService.getSourceDetail(novelSlug, sourceSlug),
+        novelService.getNovelDetail(novelSlug),
+      ]);
+
+      if (sourceResult.status === 'fulfilled') {
+        setSource(sourceResult.value);
+      } else {
+        console.error('Error fetching source details:', sourceResult.reason);
+        if (!prefetched) {
+          setError(t('sourceDetail.loadFailed'));
+        }
       }
+
+      if (novelResult.status === 'fulfilled') {
+        setNovel(novelResult.value);
+        setNovelRating({
+          avg_rating: novelResult.value.avg_rating,
+          rating_count: novelResult.value.rating_count,
+          user_rating: novelResult.value.user_rating
+        });
+      }
+
+      setLoading(false);
     };
 
     fetchSourceDetail();
-  }, [novelSlug, sourceSlug]);
+  }, [novelSlug, sourceSlug, getPrefetchedSource, t]);
 
   const handleVote = async (voteType: 'up' | 'down') => {
     if (!novelSlug || !sourceSlug || votingInProgress || !source) return;
@@ -119,7 +150,7 @@ const SourceDetail = () => {
   // Format date to readable format
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
+    return new Intl.DateTimeFormat(i18n.language, { 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric' 
@@ -130,18 +161,22 @@ const SourceDetail = () => {
   const siteName = "LNCrawler";
 
   const metaTitle = source 
-    ? `${source.title} (${source.source_name}) - Read on ${siteName}`
-    : `Loading Novel Source | ${siteName}`;
+    ? t('sourceDetail.metaTitle', { title: source.title, source: source.source_name })
+    : t('sourceDetail.metaLoadingTitle');
+  const metaSynopsis = source?.synopsis
+    ? source.synopsis.substring(0, 120).replace(/<[^>]+>/g, '') + '...'
+    : `Discover this light novel on ${siteName}.`; // i18n-missing: no catalog key for the synopsis fallback
   const metaDescription = source
-    ? `Read ${source.title} from ${source.source_name}. Synopsis: ${source.synopsis ? source.synopsis.substring(0, 120).replace(/<[^>]+>/g, '') + '...' : `Discover this light novel on ${siteName}.`} Chapters, ratings, and more.`
-    : `Loading details for this novel source on ${siteName}.`;
+    ? t('sourceDetail.metaDescription', { title: source.title, source: source.source_name, synopsis: metaSynopsis })
+    : t('sourceDetail.metaLoadingDescription');
+  // i18n-missing: no catalog key for the source-detail generic meta keywords
   const metaKeywordsList = source
     ? [source.title, source.source_name, ...source.tags, ...source.authors, "read light novel", "web novel"]
     : ["light novel", "web novel", "source details"];
   const metaKeywords = [...new Set(metaKeywordsList.filter(Boolean))].join(', '); // Unique keywords
   const ogImage = source?.overview_url || source?.cover_url || DEFAULT_OG_IMAGE;
 
-  if (loading) {
+  if (!source && !error) {
     return (
       <Container maxWidth="lg">
         <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
@@ -338,11 +373,11 @@ const SourceDetail = () => {
     );
   }
 
-  if (error || !source) {
+  if (!source) {
     return (
       <Container>
         <Button startIcon={<ArrowBackIcon />} component={Link} to="/" variant="outlined" sx={{ mt: 2 }}>
-          Back to Home
+          {t('sourceDetail.backToHome')}
         </Button>
         <Paper 
           elevation={3} 
@@ -355,7 +390,7 @@ const SourceDetail = () => {
           }}
         >
           <Typography color="error" variant="h5" gutterBottom>
-            {error || 'Source not found'}
+            {error || t('sourceDetail.notFound')}
           </Typography>
           <Button 
             variant="contained" 
@@ -364,7 +399,7 @@ const SourceDetail = () => {
             to="/"
             sx={{ mt: 2 }}
           >
-            Return to Home
+            {t('sourceDetail.returnToHome')}
           </Button>
         </Paper>
       </Container>
@@ -418,7 +453,7 @@ const SourceDetail = () => {
               px: 2,
             }}
           >
-            Back to Home
+            {t('sourceDetail.backToHome')}
           </Button>
         </Box>
 
@@ -504,7 +539,7 @@ const SourceDetail = () => {
                     >
                       <img 
                         src={`/flags/${languageCodeToFlag(source.language)}.svg`} 
-                        alt={languageCodeToName(source.language)}
+                        alt={languageCodeToName(t, source.language)}
                         style={{ 
                           width: '20px',
                           height: '15px',
@@ -543,9 +578,9 @@ const SourceDetail = () => {
                     gap: 1
                   }}
                 >
-                  From: {source.source_name}
+                  {t('sourceDetail.fromPrefix')} {source.source_name}
                   {source.source_url.startsWith('http') && (
-                    <Tooltip title="Visit Source">
+                    <Tooltip title={t('sourceDetail.visitSource')}>
                       <IconButton
                         size="small"
                         href={source.source_url}
@@ -637,7 +672,7 @@ const SourceDetail = () => {
                       <ListAltIcon sx={{ color: alpha('#3498db', 0.9), mr: 1 }} />
                       <Box>
                         <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
-                          Chapters
+                          {t('novelSources.chapters')}
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
                           {source.chapters_count || 0}
@@ -661,7 +696,7 @@ const SourceDetail = () => {
                       <CalendarTodayIcon sx={{ color: alpha('#9b59b6', 0.9), mr: 1 }} />
                       <Box>
                         <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
-                          Last Updated
+                          {t('sourceDetail.lastUpdated')}
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
                           {formatDate(source.last_chapter_update)}
@@ -681,7 +716,7 @@ const SourceDetail = () => {
                 {/* Source vote actions*/}
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.8), mb: 1 }}>
-                    Rate this source:
+                    {t('sourceDetail.rateSource')}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Button
@@ -699,7 +734,7 @@ const SourceDetail = () => {
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        Upvote
+                        {t('sourceDetail.upvote')}
                         <Typography
                           variant="body2"
                           sx={{
@@ -730,7 +765,7 @@ const SourceDetail = () => {
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        Downvote
+                        {t('sourceDetail.downvote')}
                         <Typography
                           variant="body2"
                           sx={{
@@ -751,8 +786,9 @@ const SourceDetail = () => {
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   {continue_chapter && (
                     <ActionButton
-                      title="Continue Reading"
+                      title={t('sourceDetail.continueReading')}
                       subtitle={getChapterLabel(
+                        t,
                         continue_chapter.title,
                         continue_chapter.chapter_id
                       )}
@@ -760,7 +796,7 @@ const SourceDetail = () => {
                       color="warning"
                       // onClick={handleContinueReading}
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`}
-                      tooltip={`Continue from ${getChapterLabel(continue_chapter.title, continue_chapter.chapter_id)}`}
+                      tooltip={t('sourceDetail.continueFrom', { chapter: getChapterLabel(t, continue_chapter.title, continue_chapter.chapter_id) })}
                       sx={{ mb: 1 }}
                     />
                   )}
@@ -772,43 +808,43 @@ const SourceDetail = () => {
                     mb: 1
                   }}>
                     <ActionButton
-                      title="Chapter List"
-                      subtitle={`View all ${source?.chapters_count} chapters`}
+                      title={t('sourceDetail.chapterList')}
+                      subtitle={t('sourceDetail.viewAllChapters', { count: source?.chapters_count })}
                       startIcon={<ViewListIcon />}
                       backgroundIcon={<ListAltIcon />}
                       color="info"
                       to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
                       disabled={!source?.latest_available_chapter}
-                      tooltip="Browse all chapters"
+                      tooltip={t('sourceDetail.browseAllChapters')}
                     />
 
                     <ActionButton
-                      title="Image Gallery"
-                      subtitle="Browse all images"
+                      title={t('sourceDetail.imageGallery')}
+                      subtitle={t('sourceDetail.browseAllImages')}
                       startIcon={<CollectionsIcon />}
                       color="secondary"
                       to={`/novels/${novelSlug}/${sourceSlug}/gallery`}
-                      tooltip="View image gallery"
+                      tooltip={t('sourceDetail.viewImageGallery')}
                     />
 
                     <ActionButton
-                      title="Start Reading"
-                      subtitle="From the beginning"
+                      title={t('sourceDetail.startReading')}
+                      subtitle={t('sourceDetail.fromBeginning')}
                       startIcon={<PlayArrowIcon />}
                       color="success"
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.first_available_chapter?.chapter_id}`}
                       disabled={!source?.first_available_chapter}
-                      tooltip="Start reading from the first chapter"
+                      tooltip={t('sourceDetail.startFromFirst')}
                     />
 
                     <ActionButton
-                      title="Latest Chapter"
-                      subtitle={getChapterLabel(source?.latest_available_chapter?.title, source?.latest_available_chapter?.chapter_id)}
+                      title={t('sourceDetail.latestChapter')}
+                      subtitle={getChapterLabel(t, source?.latest_available_chapter?.title, source?.latest_available_chapter?.chapter_id)}
                       startIcon={<SkipNextIcon />}
                       color="primary"
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
                       disabled={!source?.latest_available_chapter}
-                      tooltip="Jump to the most recent chapter"
+                      tooltip={t('sourceDetail.jumpToLatest')}
                     />
                   </Box>
                 </Box>
@@ -833,14 +869,20 @@ const SourceDetail = () => {
           </Paper>
         )}
 
-        {source.synopsis && (
-          <SectionContainer title="Synopsis" icon={<BookmarkIcon />}>
+        {source.synopsis ? (
+          <SectionContainer title={t('sourceDetail.synopsis')} icon={<BookmarkIcon />}>
             <NovelSynopsis synopsis={source.synopsis} />
           </SectionContainer>
-        )}
+        ) : loading ? (
+          <SectionContainer title={t('sourceDetail.synopsis')} icon={<BookmarkIcon />}>
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} variant="text" width="100%" height={20} sx={{ mb: 1 }} animation="wave" />
+            ))}
+          </SectionContainer>
+        ) : null}
 
         {novel && novel.sources.length > 1 && (
-          <SectionContainer title="Other Sources" icon={<LanguageIcon />}>
+          <SectionContainer title={t('sourceDetail.otherSources')} icon={<LanguageIcon />}>
             <NovelSources
               novel={{ ...novel, slug: novelSlug }}
               currentSourceSlug={sourceSlug}
@@ -849,13 +891,13 @@ const SourceDetail = () => {
         )}
 
         {novel?.similar_novels && novel.similar_novels.length > 0 && (
-          <SectionContainer title="Similar Novels" icon={<TrendingUpIcon />}>
+          <SectionContainer title={t('sourceDetail.similarNovels')} icon={<TrendingUpIcon />}>
             <NovelRecommendation similarNovels={novel.similar_novels} />
           </SectionContainer>
         )}
 
         {novel?.reading_lists && novel.reading_lists.length > 0 && (
-          <SectionContainer title="In Reading Lists" icon={<PlaylistAddIcon />}>
+          <SectionContainer title={t('sourceDetail.inReadingLists')} icon={<PlaylistAddIcon />}>
             <Grid container spacing={2}>
               {novel.reading_lists.map((list) => (
                 <Grid size={{ xs: 12, sm: 6, md: 4 }} key={list.id}>
@@ -867,16 +909,16 @@ const SourceDetail = () => {
         )}
 
         {novelSlug && (
-          <SectionContainer title="Reviews" icon={<MenuBookIcon />}>
+          <SectionContainer title={t('sourceDetail.reviews')} icon={<MenuBookIcon />}>
             <Reviews novelSlug={novelSlug} showAddReview={true} />
           </SectionContainer>
         )}
 
         {novelSlug && (
-          <SectionContainer title="Comments" icon={<CommentIcon />}>
+          <SectionContainer title={t('sourceDetail.comments')} icon={<CommentIcon />}>
             <CommentSection 
               novelSlug={novelSlug}
-              title="Novel Comments" 
+              title={t('sourceDetail.novelComments')} 
             />
           </SectionContainer>
         )}

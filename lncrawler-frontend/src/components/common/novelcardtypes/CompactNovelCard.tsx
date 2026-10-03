@@ -7,6 +7,8 @@ import CommentIcon from '@mui/icons-material/Comment';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface CompactNovelCardProps {
   novel: Novel;
@@ -15,7 +17,8 @@ interface CompactNovelCardProps {
   showClicks?: boolean;
   showTrends?: boolean;
   showRating?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
 }
 
 const CompactNovelCard: React.FC<CompactNovelCardProps> = ({ 
@@ -25,8 +28,10 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   showClicks = false,
   showTrends = false,
   showRating = false,
-  to
+  to,
+  state
 }) => {
+  const { t, i18n } = useTranslation();
   const coverHeight = 90; 
   const coverWidth = coverHeight * 2/3;
 
@@ -59,7 +64,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
     );
   }
 
-  const formatter = Intl.NumberFormat('en', { notation: 'compact' });
+  const formatter = Intl.NumberFormat(i18n.language, { notation: 'compact' });
 
   // Fixed dimensions for 2:3 ratio
   const coverHeightFixed = 90; 
@@ -70,6 +75,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       onClick={onClick}
       component={to ? Link : 'button'}
       to={to}
+      state={to ? state : undefined}
       sx={{
         display: 'flex', 
         justifyContent: 'flex-start', 
@@ -92,7 +98,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       >
         <Box
           component="img"
-          src={novel.prefered_source?.cover_min_url || defaultCover}
+          src={(novel.reading_source ?? novel.prefered_source)?.cover_min_url || defaultCover}
           alt={novel.title}
           sx={{
             width: '100%',
@@ -162,7 +168,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
               }}
             >
               {formatter.format(showTrends ? (novel.weekly_views || 0) : (novel.total_views || 0))}
-              {showTrends ? ' (Weekly)' : ' (All times)'}
+              {showTrends ? ` ${t('cards.weekly')}` : ` ${t('cards.allTimes')}`}
             </Typography>
           </Box>
           {(showClicks || showTrends) && (
@@ -177,7 +183,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
                   textOverflow: 'ellipsis',
                 }}
               >
-                {formatter.format(novel.comment_count)} comments
+                {t('units.comments', { count: novel.comment_count })}
               </Typography>
             </Box>
           )}

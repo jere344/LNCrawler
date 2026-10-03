@@ -5,6 +5,7 @@ import {
   FormControlLabel,
   Switch,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface LayoutSettingsProps {
@@ -44,6 +45,8 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
   onParagraphIndentChange,
   onParagraphSpacingChange,
 }) => {
+  const { t } = useTranslation();
+
   const handleMarginChange = (_event: Event, newValue: number | number[]) => {
     onMarginChange(newValue as number);
   };
@@ -75,7 +78,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
   return (
     <>
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Margin: {margin}%</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('layoutSettings.margin', { margin })}</Typography>
         <MobileSafeSlider
           value={margin}
           onChange={handleMarginChange}
@@ -92,7 +95,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
       </Box>
 
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Line Spacing: {lineSpacing}</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('layoutSettings.lineSpacing', { spacing: lineSpacing })}</Typography>
         <MobileSafeSlider
           value={lineSpacing}
           onChange={handleLineSpacingChange}
@@ -109,7 +112,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
       </Box>
 
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Word Spacing: {wordSpacing}px</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('layoutSettings.wordSpacing', { spacing: wordSpacing })}</Typography>
         <MobileSafeSlider
           value={wordSpacing}
           onChange={handleWordSpacingChange}
@@ -127,7 +130,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
       </Box>
 
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Letter Spacing: {letterSpacing}px</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('layoutSettings.letterSpacing', { spacing: letterSpacing })}</Typography>
         <MobileSafeSlider
           value={letterSpacing}
           onChange={handleLetterSpacingChange}
@@ -145,7 +148,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
       </Box>
 
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Paragraph Spacing: {paragraphSpacing}em</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('layoutSettings.paragraphSpacing', { spacing: paragraphSpacing })}</Typography>
         <MobileSafeSlider
           value={paragraphSpacing}
           onChange={handleParagraphSpacingChange}
@@ -170,7 +173,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
               color="primary"
             />
           }
-          label="Paragraph Indent"
+          label={t('layoutSettings.paragraphIndent')}
         />
         <Typography
           variant="caption"
@@ -178,7 +181,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
             color: "text.secondary",
             display: "block"
           }}>
-          Add indentation to the first line of each paragraph
+          {t('layoutSettings.paragraphIndentHint')}
         </Typography>
       </Box>
 
@@ -191,7 +194,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
               color="primary"
             />
           }
-          label="Hide Scrollbar"
+          label={t('layoutSettings.hideScrollbar')}
         />
         <Typography
           variant="caption"
@@ -199,7 +202,7 @@ const LayoutSettings: React.FC<LayoutSettingsProps> = ({
             color: "text.secondary",
             display: "block"
           }}>
-          Hide browser scrollbar for a cleaner reading experience
+          {t('layoutSettings.hideScrollbarHint')}
         </Typography>
       </Box>
     </>

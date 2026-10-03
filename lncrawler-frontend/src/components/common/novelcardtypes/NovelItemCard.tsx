@@ -6,16 +6,21 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import { Novel } from '@models/novels_types';
 import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface NovelItemCardProps {
   novel: Novel;
   onClick?: () => void;
   rank?: number;
   isLoading?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
 }
 
-const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to }) => {
+const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state }) => {
+  const { t } = useTranslation();
+  const displaySource = novel.reading_source ?? novel.prefered_source;
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', width: '100%' }}>
@@ -39,6 +44,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       onClick={onClick}
       component={to ? Link : 'button'}
       to={to}
+      state={to ? state : undefined}
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -65,7 +71,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       >
         <Box
           component="img"
-          src={novel.prefered_source?.cover_min_url || defaultCover}
+          src={displaySource?.cover_min_url || defaultCover}
           alt={novel.title}
           sx={{
             width: '100%',
@@ -133,7 +139,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
                 textOverflow: 'ellipsis',
               }}
             >
-              Rank {rank || '-'}
+              {t('cards.rank', { rank: rank || '-' })}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -147,7 +153,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
                 textOverflow: 'ellipsis',
               }}
             >
-              {novel.prefered_source?.chapters_count || 0} Chapters
+              {t('cards.chaptersCount', { count: displaySource?.chapters_count || 0 })}
             </Typography>
           </Box>
         </Box>

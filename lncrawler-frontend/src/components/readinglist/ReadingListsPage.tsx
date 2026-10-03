@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useDebounce } from '@utils/useDebounce';
 import { 
   Typography, Box, Grid, Button, 
   Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  Pagination, InputAdornment
+  Pagination, InputAdornment, FormControlLabel, Switch
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { readingListService } from '@services/api';
@@ -11,6 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useAuth } from '@context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import ReadingListCard from './ReadingListCard';
 
 const ReadingListsPage = () => {
@@ -19,23 +21,18 @@ const ReadingListsPage = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
   const [newListDescription, setNewListDescription] = useState('');
+  const [newListIsPublic, setNewListIsPublic] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery);
   const { isAuthenticated } = useAuth();
+  const { t } = useTranslation();
 
-  // Handle search debounce
+  // Reset to page 1 when search changes
   useEffect(() => {
-    const timerId = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-      if (page !== 1) setPage(1); // Reset to page 1 when search changes
-    }, 500);
-
-    return () => {
-      clearTimeout(timerId);
-    };
-  }, [searchQuery]);
+    setPage(1);
+  }, [debouncedSearchQuery]);
 
   useEffect(() => {
     fetchReadingLists();
@@ -58,10 +55,11 @@ const ReadingListsPage = () => {
     if (!newListTitle.trim()) return;
     
     try {
-      await readingListService.createReadingList(newListTitle, newListDescription);
+      await readingListService.createReadingList(newListTitle, newListDescription, newListIsPublic);
       setCreateDialogOpen(false);
       setNewListTitle('');
       setNewListDescription('');
+      setNewListIsPublic(true);
       fetchReadingLists();
     } catch (error) {
       console.error('Error creating reading list:', error);
@@ -80,7 +78,7 @@ const ReadingListsPage = () => {
     <Box sx={{ py: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          Reading Lists
+          {t('readingLists.heading')}
         </Typography>
         {isAuthenticated && (
           <Button 
@@ -88,7 +86,7 @@ const ReadingListsPage = () => {
             startIcon={<AddIcon />}
             onClick={() => setCreateDialogOpen(true)}
           >
-            Create List
+            {t('readingLists.createList')}
           </Button>
         )}
       </Box>
@@ -97,7 +95,7 @@ const ReadingListsPage = () => {
       <Box sx={{ mb: 3 }}>
         <TextField
           fullWidth
-          placeholder="Search reading lists..."
+          placeholder={t('readingLists.searchPlaceholder')}
           variant="outlined"
           value={searchQuery}
           onChange={handleSearchChange}
@@ -121,8 +119,8 @@ const ReadingListsPage = () => {
         <Box sx={{ textAlign: 'center', my: 4 }}>
           <Typography variant="h6">
             {debouncedSearchQuery 
-              ? `No reading lists found matching "${debouncedSearchQuery}"`
-              : "No reading lists found"}
+              ? t('readingLists.noResultsQuery', { query: debouncedSearchQuery })
+              : t('readingLists.noResults')}
           </Typography>
           {isAuthenticated && !debouncedSearchQuery && (
             <Button 
@@ -131,7 +129,7 @@ const ReadingListsPage = () => {
               onClick={() => setCreateDialogOpen(true)}
               sx={{ mt: 2 }}
             >
-              Create Your First List
+              {t('readingLists.createFirst')}
             </Button>
           )}
           {!isAuthenticated && !debouncedSearchQuery && (
@@ -141,7 +139,7 @@ const ReadingListsPage = () => {
               to="/login"
               sx={{ mt: 2 }}
             >
-              Login to Create Lists
+              {t('readingLists.loginToCreate')}
             </Button>
           )}
         </Box>
@@ -180,13 +178,13 @@ const ReadingListsPage = () => {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Create New Reading List</DialogTitle>
+        <DialogTitle>{t('readingLists.createTitle')}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             id="title"
-            label="List Title"
+            label={t('readingLists.listTitle')}
             type="text"
             fullWidth
             variant="outlined"
@@ -198,7 +196,7 @@ const ReadingListsPage = () => {
           <TextField
             margin="dense"
             id="description"
-            label="Description (Optional)"
+            label={t('readingLists.descriptionOptional')}
             type="text"
             fullWidth
             variant="outlined"
@@ -207,15 +205,25 @@ const ReadingListsPage = () => {
             value={newListDescription}
             onChange={(e) => setNewListDescription(e.target.value)}
           />
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={
+              <Switch
+                checked={newListIsPublic}
+                onChange={(e) => setNewListIsPublic(e.target.checked)}
+              />
+            }
+            label={newListIsPublic ? t('readingLists.public') : t('readingLists.private')}
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setCreateDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button 
             onClick={handleCreateList} 
             variant="contained"
             disabled={!newListTitle.trim()}
           >
-            Create
+            {t('readingLists.create')}
           </Button>
         </DialogActions>
       </Dialog>

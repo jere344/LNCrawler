@@ -14,6 +14,7 @@ import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import SettingsIcon from '@mui/icons-material/Settings';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import { useTranslation } from 'react-i18next';
 
 // Import our new components
 import FontSettings from './settings/FontSettings';
@@ -132,6 +133,7 @@ const ReaderSettings = ({
   nextUrl,
   homeUrl,
 }: ReaderSettingsProps) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -392,7 +394,7 @@ const ReaderSettings = ({
           
         } catch (error) {
           console.error('Failed to import settings:', error);
-          alert('Failed to import settings. Please check that the file is a valid settings export.');
+          alert(t('readerSettings.importFailed'));
         }
       };
       
@@ -440,7 +442,7 @@ const ReaderSettings = ({
           zIndex: 2,
           backgroundColor: theme.palette.background.paper,
         }}>
-          <Typography variant="h6">Reader Settings</Typography>
+          <Typography variant="h6">{t('readerSettings.heading')}</Typography>
           <IconButton onClick={onClose}>
             <CloseIcon />
           </IconButton>
@@ -464,7 +466,7 @@ const ReaderSettings = ({
 
         {/* Font Settings */}
         <SettingsSection 
-          title="Font" 
+          title={t('readerSettings.font')} 
           icon={<TextFieldsIcon color="primary" />}
           defaultExpanded
         >
@@ -480,7 +482,7 @@ const ReaderSettings = ({
 
         {/* Color Settings */}
         <SettingsSection 
-          title="Colors" 
+          title={t('readerSettings.colors')} 
           icon={<PaletteIcon color="primary" />}
         >
           <ColorSettings 
@@ -505,7 +507,7 @@ const ReaderSettings = ({
 
         {/* Layout Settings */}
         <SettingsSection 
-          title="Layout" 
+          title={t('readerSettings.layout')} 
           icon={<ViewColumnIcon color="primary" />}
         >
           <LayoutSettings 
@@ -528,7 +530,7 @@ const ReaderSettings = ({
 
         {/* Gesture Settings */}
         <SettingsSection 
-          title="Gestures" 
+          title={t('readerSettings.gestures')} 
           icon={<TouchAppIcon color="primary" />}
         >
           <GestureSettings
@@ -540,7 +542,7 @@ const ReaderSettings = ({
 
         {/* Behavior Settings */}
         <SettingsSection 
-          title="Behavior" 
+          title={t('readerSettings.behavior')} 
           icon={<SettingsIcon color="primary" />}
         >
           <BehaviorSettings 
@@ -563,7 +565,7 @@ const ReaderSettings = ({
 
         {/* Page Mode Settings */}
         <SettingsSection 
-          title="Page Mode" 
+          title={t('readerSettings.pageMode')} 
           icon={<MenuBookIcon color="primary" />}
         >
           <PageSettings 
@@ -585,7 +587,7 @@ const ReaderSettings = ({
               onClick={importSettings}
               sx={{ flex: 1 }}
             >
-              Import
+              {t('readerSettings.import')}
             </Button>
             <Button
               variant="outlined"
@@ -593,7 +595,7 @@ const ReaderSettings = ({
               onClick={exportSettings}
               sx={{ flex: 1 }}
             >
-              Export
+              {t('readerSettings.export')}
             </Button>
           </Stack>
           {/* Reset Button */}
@@ -603,7 +605,7 @@ const ReaderSettings = ({
             fullWidth
             onClick={handleResetClick}
           >
-            Reset to Defaults
+            {t('readerSettings.resetDefaults')}
           </Button>
         </Stack>
       </Drawer>
@@ -616,19 +618,19 @@ const ReaderSettings = ({
         aria-describedby="reset-dialog-description"
       >
         <DialogTitle id="reset-dialog-title">
-          Reset Settings to Defaults?
+          {t('readerSettings.resetTitle')}
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="reset-dialog-description">
-            This will reset all reader settings to their default values. This action cannot be undone.
+            {t('readerSettings.resetBody')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleResetCancel} color="primary">
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={resetDefaults} color="secondary" variant="contained">
-            Reset
+            {t('readerSettings.reset')}
           </Button>
         </DialogActions>
       </Dialog>

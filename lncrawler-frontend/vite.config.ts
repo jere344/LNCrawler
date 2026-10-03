@@ -34,17 +34,12 @@ export default defineConfig({
       },
     },
     
-    // Minify options
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: false, // Keep console logs for debugging
-        drop_debugger: true,
-      },
-    },
+    // Minify with rolldown's native oxc minifier (much faster than terser)
+    minify: 'oxc',
     
-    // Sourcemaps for easier debugging
-    sourcemap: true,
+    // No sourcemaps in production: they double build time and would ship the
+    // full readable source in the served image.
+    sourcemap: false,
   },
   // Server options
   server: {

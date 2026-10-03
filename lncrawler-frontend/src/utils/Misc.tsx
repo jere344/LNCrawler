@@ -1,4 +1,7 @@
-export function formatTimeAgo(date : Date): string {
+import type { TFunction } from 'i18next';
+import type { Novel, NovelFromSource } from '@models/novels_types';
+
+export function formatTimeAgo(date: Date, t: TFunction): string {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -7,17 +10,17 @@ export function formatTimeAgo(date : Date): string {
     const years = Math.floor(months / 12);
 
     if (seconds < 60) {
-        return `${seconds} seconds ago`;
+        return t('units.timeAgo', { count: seconds });
     } else if (minutes < 60) {
-        return `${minutes} minutes ago`;
+        return t('units.timeAgoMinutes', { count: minutes });
     } else if (hours < 24) {
-        return `${hours} hours ago`;
+        return t('units.timeAgoHours', { count: hours });
     } else if (days < 30) {
-        return `${days} days ago`;
+        return t('units.timeAgoDays', { count: days });
     } else if (months < 12) {
-        return `${months} months ago`;
+        return t('units.timeAgoMonths', { count: months });
     } else {
-        return `${years} years ago`;
+        return t('units.timeAgoYears', { count: years });
     }
 }
 
@@ -46,19 +49,38 @@ export interface NovelSourceTarget {
     slug: string;
     prefered_source?: { source_slug?: string | null } | null;
     reading_history?: { source_slug?: string | null } | null;
+    reading_source?: { source_slug?: string | null } | null;
 }
 
 export const getNovelSourcePath = (novel: NovelSourceTarget): string | undefined => {
-    const sourceSlug = novel.reading_history?.source_slug || novel.prefered_source?.source_slug;
+    const sourceSlug = novel.reading_source?.source_slug
+        || novel.reading_history?.source_slug
+        || novel.prefered_source?.source_slug;
     return sourceSlug ? `/novels/${novel.slug}/${sourceSlug}` : undefined;
 };
 
-export const getChapterLabel = (title?: string | null, chapterId?: number | null): string => {
+export interface SourceLinkProps {
+    to?: string;
+    state?: unknown;
+}
+
+export const getNovelSourceLink = (novel: Novel): SourceLinkProps => {
+    const to = getNovelSourcePath(novel);
+    if (!to) return {};
+    return { to, state: { novel, source: novel.reading_source ?? novel.prefered_source ?? null } };
+};
+
+export const getSourceLink = (source: NovelFromSource): SourceLinkProps =>
+    source?.novel_slug && source?.source_slug
+        ? { to: `/novels/${source.novel_slug}/${source.source_slug}`, state: { source } }
+        : {};
+
+export const getChapterLabel = (t: TFunction, title?: string | null, chapterId?: number | null): string => {
     const trimmed = title?.trim();
     if (trimmed) {
         return trimmed;
     }
-    return chapterId != null ? `Chapter ${chapterId}` : "";
+    return chapterId != null ? t('units.chapter', { number: chapterId }) : "";
 }
 
 
@@ -88,30 +110,9 @@ export const languageCodeToFlag = (language: string): string => {
     return languageMap[language.toLowerCase()] || 'unknown';
 }
 
-export const languageCodeToName = (language: string): string => {
-    const languageMap: { [key: string]: string } = {
-        'en': 'English',
-        'fr': 'French',
-        'es': 'Spanish',
-        'de': 'German',
-        'it': 'Italian',
-        'ja': 'Japanese',
-        'ko': 'Korean',
-        'zh': 'Chinese',
-        'pt': 'Portuguese',
-        'ru': 'Russian',
-        'ar': 'Arabic',
-        'hi': 'Hindi',
-        'th': 'Thai',
-        'vi': 'Vietnamese',
-        'id': 'Indonesian',
-        'tr': 'Turkish',
-        'pl': 'Polish',
-        'nl': 'Dutch',
-        'sv': 'Swedish',
-        'unknown': 'Unknown',
-    };
-    return languageMap[language] || '?';
+export const languageCodeToName = (t: TFunction, language: string): string => {
+    const code = (language || '').toLowerCase();
+    return availableLanguages.includes(code) ? t(`languages.${code}`) : t('common.unknown');
 }
 
 export const availableLanguages = [

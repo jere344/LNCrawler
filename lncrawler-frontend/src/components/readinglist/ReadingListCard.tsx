@@ -2,13 +2,17 @@ import { Card, Typography, Box, Chip, Avatar, CardMedia } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { ReadingList } from "@models/readinglist_types";
 import BookIcon from "@mui/icons-material/Book";
+import LockIcon from "@mui/icons-material/Lock";
+import PublicIcon from "@mui/icons-material/Public";
 import { formatTimeAgo } from "@utils/Misc";
+import { useTranslation } from "react-i18next";
 
 interface ReadingListCardProps {
     list: ReadingList;
 }
 
 const ReadingListCard = ({ list }: ReadingListCardProps) => {
+    const { t } = useTranslation();
     const firstItemCover = list.first_item?.novel.prefered_source?.cover_min_url;
     const defaultCoverBg = "linear-gradient(135deg, #0a3d91 0%, #1e88e5 100%)";
     const coverHeight = 160;
@@ -52,7 +56,7 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                             objectFit: "cover",
                         }}
                         image={firstItemCover}
-                        alt={`${list.title} cover`}
+                        alt={t("readingLists.coverAlt", { title: list.title })}
                     />
                 ) : (
                     <Box
@@ -78,6 +82,22 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                         position: "absolute",
                         top: 8,
                         right: 8,
+                        backgroundColor: "rgba(0,0,0,0.6)",
+                        backdropFilter: "blur(4px)",
+                        color: "white",
+                        fontWeight: "bold",
+                        "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
+                    }}
+                />
+                {/* Visibility badge */}
+                <Chip
+                    icon={list.is_public ? <PublicIcon /> : <LockIcon />}
+                    label={list.is_public ? t("readingLists.public") : t("readingLists.private")}
+                    size="small"
+                    sx={{
+                        position: "absolute",
+                        top: 8,
+                        left: 8,
                         backgroundColor: "rgba(0,0,0,0.6)",
                         backdropFilter: "blur(4px)",
                         color: "white",
@@ -177,7 +197,7 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                     <Typography variant="caption" sx={{
                         color: "text.secondary"
                     }}>
-                        {formatTimeAgo(new Date(list.updated_at))}
+                        {t("readingLists.updatedAgo", { time: formatTimeAgo(new Date(list.updated_at), t) })}
                     </Typography>
                 </Box>
             </Box>

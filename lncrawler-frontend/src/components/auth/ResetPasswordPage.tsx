@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Box, 
   Button, 
@@ -13,6 +14,7 @@ import {
 import { authService } from '../../services/auth.service';
 
 const ResetPasswordPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -25,7 +27,7 @@ const ResetPasswordPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid reset link.');
+      setError(t('auth.invalidResetLink'));
     }
   }, [token]);
 
@@ -33,12 +35,12 @@ const ResetPasswordPage: React.FC = () => {
     e.preventDefault();
     
     if (!token) {
-      setError('Invalid reset link.');
+      setError(t('auth.invalidResetLink'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('auth.passwordsNoMatchDot'));
       return;
     }
 
@@ -61,7 +63,7 @@ const ResetPasswordPage: React.FC = () => {
       } else if (err.response?.data?.new_password) {
         setError(err.response.data.new_password[0]);
       } else {
-        setError('Failed to reset password. Please try again.');
+        setError(t('auth.resetFailed'));
       }
     } finally {
       setLoading(false);
@@ -75,7 +77,7 @@ const ResetPasswordPage: React.FC = () => {
           <Typography variant="h4" component="h1" gutterBottom sx={{
             color: "success.main"
           }}>
-            Password Reset Successful!
+            {t('auth.resetSuccessHeading')}
           </Typography>
           <Typography
             variant="body1"
@@ -83,12 +85,12 @@ const ResetPasswordPage: React.FC = () => {
               color: "text.secondary",
               mb: 2
             }}>
-            Your password has been successfully reset.
+            {t('auth.resetSuccessBody')}
           </Typography>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Redirecting to login page...
+            {t('auth.redirecting')}
           </Typography>
           <CircularProgress sx={{ mt: 2 }} />
         </Paper>
@@ -100,7 +102,7 @@ const ResetPasswordPage: React.FC = () => {
     <Container maxWidth="sm">
       <Paper elevation={3} sx={{ mt: 4, p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom align="center">
-          Reset Password
+          {t('auth.resetPassword')}
         </Typography>
         
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -111,7 +113,7 @@ const ResetPasswordPage: React.FC = () => {
             required
             fullWidth
             name="newPassword"
-            label="New Password"
+            label={t('auth.newPassword')}
             type="password"
             id="newPassword"
             value={newPassword}
@@ -123,7 +125,7 @@ const ResetPasswordPage: React.FC = () => {
             required
             fullWidth
             name="confirmPassword"
-            label="Confirm New Password"
+            label={t('auth.confirmNewPassword')}
             type="password"
             id="confirmPassword"
             value={confirmPassword}
@@ -138,7 +140,7 @@ const ResetPasswordPage: React.FC = () => {
             sx={{ mt: 3, mb: 2 }}
             disabled={loading || !token || !newPassword || !confirmPassword}
           >
-            {loading ? <CircularProgress size={24} /> : 'Reset Password'}
+            {loading ? <CircularProgress size={24} /> : t('auth.resetPassword')}
           </Button>
           
           <Box sx={{ textAlign: 'center' }}>
@@ -147,7 +149,7 @@ const ResetPasswordPage: React.FC = () => {
               onClick={() => navigate('/login')}
               disabled={loading}
             >
-              Back to Login
+              {t('auth.backToLogin')}
             </Button>
           </Box>
         </Box>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Paper,
@@ -41,6 +42,7 @@ const Reviews: React.FC<ReviewsProps> = ({
   initialReviews,
   showAddReview = true 
 }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [reviews, setReviews] = useState<Review[]>(initialReviews || []);
@@ -67,7 +69,7 @@ const Reviews: React.FC<ReviewsProps> = ({
       setTotalReviews(response.pagination.total_reviews);
     } catch (err) {
       console.error('Error loading reviews:', err);
-      setError('Failed to load reviews. Please try again.');
+      setError(t('reviews.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -123,7 +125,7 @@ const Reviews: React.FC<ReviewsProps> = ({
       handleMenuClose();
     } catch (error) {
       console.error('Error deleting review:', error);
-      setError('Failed to delete review. Please try again.');
+      setError(t('reviews.deleteFailed'));
     }
   };
 
@@ -159,7 +161,7 @@ const Reviews: React.FC<ReviewsProps> = ({
             }
             sx={{ borderRadius: 2 }}
           >
-            {user ? 'Write a Review' : 'Login to leave a review'}
+            {user ? t('reviews.writeReview') : t('reviews.loginToReview')}
           </Button>
         </Box>
       )}
@@ -180,7 +182,7 @@ const Reviews: React.FC<ReviewsProps> = ({
       {/* Reviews Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Reviews ({totalReviews})
+          {t('reviews.heading', { count: totalReviews })}
         </Typography>
       </Box>
 
@@ -190,7 +192,7 @@ const Reviews: React.FC<ReviewsProps> = ({
           <Typography variant="body1" sx={{
             color: "text.secondary"
           }}>
-            No reviews yet. Be the first to review this novel!
+            {t('reviews.empty')}
           </Typography>
           {showAddReview && !user && (
             <Button
@@ -198,7 +200,7 @@ const Reviews: React.FC<ReviewsProps> = ({
               onClick={() => navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))}
               sx={{ borderRadius: 2, mt: 2 }}
             >
-              Login to leave a review
+              {t('reviews.loginToReview')}
             </Button>
           )}
         </Paper>
@@ -234,7 +236,7 @@ const Reviews: React.FC<ReviewsProps> = ({
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
                     }}>
-                      {formatTimeAgo(new Date(review.created_at))}
+                      {formatTimeAgo(new Date(review.created_at), t)}
                     </Typography>
                   </Box>
                 </Box>
@@ -261,7 +263,7 @@ const Reviews: React.FC<ReviewsProps> = ({
                     color: "text.secondary",
                     ml: 1
                   }}>
-                  {review.rating} stars
+                  {t('units.stars', { count: review.rating })}
                 </Typography>
               </Box>
 
@@ -300,26 +302,26 @@ const Reviews: React.FC<ReviewsProps> = ({
       >
         <MenuItem onClick={handleEditReview}>
           <EditIcon sx={{ mr: 1 }} fontSize="small" />
-          Edit Review
+          {t('reviews.editReview')}
         </MenuItem>
         <MenuItem onClick={() => setDeleteDialogOpen(true)}>
           <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
-          Delete Review
+          {t('reviews.deleteReview')}
         </MenuItem>
       </Menu>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Review</DialogTitle>
+        <DialogTitle>{t('reviews.deleteTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete this review? This action cannot be undone.
+            {t('reviews.deleteBody')}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button onClick={handleDeleteReview} color="error" variant="contained">
-            Delete
+            {t('common.delete')}
           </Button>
         </DialogActions>
       </Dialog>

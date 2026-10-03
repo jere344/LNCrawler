@@ -18,6 +18,7 @@ import ReadOnlyMDXEditor from '@components/common/reviews/ReadOnlyMDXEditor';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { formatTimeAgo } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
 
 interface OverviewReviewsSectionProps {
   reviews?: Review[];
@@ -32,6 +33,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
 }) => {
   const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({});
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const handleExpandToggle = (reviewId: string) => {
     setExpandedReviews(prev => ({
@@ -102,7 +104,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>
-                        {formatTimeAgo(new Date(review.created_at))}
+                        {formatTimeAgo(new Date(review.created_at), t)}
                       </Typography>
                     </Box>
                   </Box>
@@ -129,7 +131,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                       color: "text.secondary",
                       ml: 1
                     }}>
-                    {review.rating} stars
+                    {t('units.stars', { count: review.rating })}
                   </Typography>
                 </Box>
                 
@@ -162,7 +164,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                     variant="text"
                     size="small"
                   >
-                    {isExpanded ? 'Show Less' : 'Show More'}
+                    {isExpanded ? t('common.showLess') : t('common.showMore')}
                   </Button>
                 </Box>
               </CardContent>

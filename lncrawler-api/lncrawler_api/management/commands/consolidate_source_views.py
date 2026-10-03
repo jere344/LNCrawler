@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import F
 
-from lncrawler_api.models import WeeklyNovelView
+from lncrawler_api.models import WeeklySourceView
 
 
 class Command(BaseCommand):
@@ -18,7 +18,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--days',
             type=int,
-            default=WeeklyNovelView.CONSOLIDATION_DAYS,
+            default=WeeklySourceView.CONSOLIDATION_DAYS,
             help='Keep daily buckets for this many days before rolling them up',
         )
         parser.add_argument(
@@ -32,20 +32,20 @@ class Command(BaseCommand):
         dry_run = options['dry_run']
 
         daily_rows = (
-            WeeklyNovelView.objects.filter(
-                granularity=WeeklyNovelView.DAY, day__lt=cutoff
+            WeeklySourceView.objects.filter(
+                granularity=WeeklySourceView.DAY, day__lt=cutoff
             )
-            .order_by('novel_id', 'day')
-            .values_list('novel_id', 'day', 'views')
+            .order_by('source_id', 'day')
+            .values_list('source_id', 'day', 'views')
         )
 
         consumed = 0
         weeks_written = 0
-        novels_seen = 0
+        sources_seen = 0
 
-        # Rows arrive ordered by novel (streamed, never fully materialized), so
-        # each novel's days can be grouped and rolled up on the fly.
-        for novel_id, rows in groupby(
+        # Rows arrive ordered by source (streamed, never fully materialized), so
+        # each source's days can be grouped and rolled up on the fly.
+        for source_id, rows in groupby(
             daily_rows.iterator(chunk_size=2000), key=lambda row: row[0]
         ):
             per_week = {}
@@ -54,30 +54,30 @@ class Command(BaseCommand):
                 per_week[week_start] = per_week.get(week_start, 0) + views
                 consumed += 1
 
-            novels_seen += 1
+            sources_seen += 1
             if dry_run:
                 weeks_written += len(per_week)
                 continue
 
-            # One transaction per novel: an interrupted run never leaves the
+            # One transaction per source: an interrupted run never leaves the
             # weekly bucket written without its daily rows deleted (or vice versa).
             with transaction.atomic():
                 for week_start, views in per_week.items():
-                    weekly, created = WeeklyNovelView.objects.get_or_create(
-                        novel_id=novel_id,
-                        granularity=WeeklyNovelView.WEEK,
+                    weekly, created = WeeklySourceView.objects.get_or_create(
+                        source_id=source_id,
+                        granularity=WeeklySourceView.WEEK,
                         day=week_start,
                         defaults={'views': views},
                     )
                     if not created:
-                        WeeklyNovelView.objects.filter(pk=weekly.pk).update(
+                        WeeklySourceView.objects.filter(pk=weekly.pk).update(
                             views=F('views') + views
                         )
                     weeks_written += 1
 
-                WeeklyNovelView.objects.filter(
-                    novel_id=novel_id,
-                    granularity=WeeklyNovelView.DAY,
+                WeeklySourceView.objects.filter(
+                    source_id=source_id,
+                    granularity=WeeklySourceView.DAY,
                     day__lt=cutoff,
                 ).delete()
 
@@ -85,6 +85,6 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f'{action} {consumed} daily buckets into {weeks_written} weekly '
-                f'buckets across {novels_seen} novels (daily rows before {cutoff})'
+                f'buckets across {sources_seen} sources (daily rows before {cutoff})'
             )
         )

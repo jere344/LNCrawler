@@ -9,11 +9,13 @@ import {
   Alert,
   Container
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { downloadService } from '@services/api';
 import { DownloadParams } from '@models/downloader_types';
 import DownloadStepper from './DownloadStepper';
 
 const DownloadForm = () => {
+  const { t } = useTranslation();
   const { jobId, novelIndex = '0', sourceIndex = '0' } = useParams<{
     jobId: string;
     novelIndex: string;
@@ -43,11 +45,11 @@ const DownloadForm = () => {
       if (response.status === 'success') {
         navigate(`/download/status/${jobId}`);
       } else {
-        setError(response.message || 'Failed to start download');
+        setError(response.message || t('downloader.downloadStartFailed'));
       }
     } catch (err) {
       console.error('Download error:', err);
-      setError('An error occurred while starting download. Please try again.');
+      setError(t('downloader.downloadError'));
     } finally {
       setLoading(false);
     }
@@ -58,14 +60,14 @@ const DownloadForm = () => {
       <DownloadStepper activeStep="download" />
       <Paper sx={{ p: 3, maxWidth: 'md', mx: 'auto', mt: 2 }}>
         <Typography variant="h5" gutterBottom>
-          Download Options
+          {t('downloader.downloadOptions')}
         </Typography>
         
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         
         <Box component="form" onSubmit={handleSubmit}>
           <Typography variant="body1" sx={{ mb: 3 }}>
-            The novel will be downloaded and add to our library.
+            {t('downloader.downloadBody')}
           </Typography>
           
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -74,7 +76,7 @@ const DownloadForm = () => {
               onClick={() => navigate(-1)}
               disabled={loading}
             >
-              Back
+              {t('downloader.back')}
             </Button>
             
             <Button
@@ -85,10 +87,10 @@ const DownloadForm = () => {
               {loading ? (
                 <>
                   <CircularProgress size={24} sx={{ mr: 1 }} />
-                  Starting Download...
+                  {t('downloader.startingDownload')}
                 </>
               ) : (
-                'Start Download'
+                t('downloader.startDownload')
               )}
             </Button>
           </Box>

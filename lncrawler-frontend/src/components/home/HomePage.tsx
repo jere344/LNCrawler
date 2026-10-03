@@ -21,10 +21,14 @@ import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
-import { getNovelSourcePath } from '@utils/Misc';
+import { getNovelSourceLink, getSourceLink } from '@utils/Misc';
+import { useLanguage } from '@context/LanguageContext';
+import { useTranslation } from 'react-i18next';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const { contentLanguages, languageFilterEnabled } = useLanguage();
   
   // State for different novel sections
   const [homeData, setHomeData] = useState<{
@@ -51,19 +55,20 @@ const HomePage: React.FC = () => {
     const fetchHomeData = async () => {
       try {
         setLoading(true);
-        const data = await novelService.getHomePageData();
+        const languages = languageFilterEnabled ? contentLanguages : [];
+        const data = await novelService.getHomePageData(languages);
         setHomeData(data);
         setError(null);
       } catch (error) {
         console.error('Error fetching home page data:', error);
-        setError('Failed to load home page data. Please try again later.');
+        setError(t('home.loadFailed'));
       } finally {
         setLoading(false);
       }
     };
 
     fetchHomeData();
-  }, []);
+  }, [contentLanguages, languageFilterEnabled, t]);
 
   // Helper function for error display
   const renderErrorMessage = (message: string) => (
@@ -111,15 +116,15 @@ const HomePage: React.FC = () => {
           <Typography sx={{
             marginBottom: "16px"
           }}>
-            Looking for a great place to read Light Novels?
+            {t('home.introHeading')}
           </Typography>
           <Typography sx={{
             marginBottom: "16px"
           }}>
-            LNCrawler is a very special platform where you can read the translated versions of world famous Asian light novels from hundreds of differents sources in multiple languages. 
+            {t('home.introBody')}
           </Typography>
           <Typography>
-            If you can't find your novel here, you can instantly and automatically add it to our database from the Add Novel page.
+            {t('home.introAddNovel')}
           </Typography>
         </Box>
       </Box>
@@ -130,10 +135,10 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" sx={{
             fontWeight: "bold"
           }}>
-            This Week's Hottest Novels 🔥
+            {t('home.hottest')}
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=trending&sort_order=desc" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -152,7 +157,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 6, sm: 3 }} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
-                  to={getNovelSourcePath(novel)}
+                  {...getNovelSourceLink(novel)}
                   rank={index + 1}
                 />
               </Grid>
@@ -167,10 +172,10 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" sx={{
             fontWeight: "bold"
           }}>
-            Best of all time
+            {t('home.bestOfAllTime')}
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -189,7 +194,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
                 <NovelItemCard 
                   novel={novel} 
-                  to={getNovelSourcePath(novel)}
+                  {...getNovelSourceLink(novel)}
                   rank={rank + 1}
                 />
               </Grid>
@@ -204,19 +209,19 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" sx={{
             fontWeight: "bold"
           }}>
-            Ranking
+            {t('home.ranking')}
           </Typography>
           <Button component={Link} to="/novels/search" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 1 }} />
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={rankingTab} onChange={handleRankingTabChange} aria-label="novel rankings">
-            <Tab label="Most Read" id="tab-most-read" aria-controls="tabpanel-most-read" />
-            <Tab label="New Trends" id="tab-new-trends" aria-controls="tabpanel-new-trends" />
-            <Tab label="User Rated" id="tab-user-rated" aria-controls="tabpanel-user-rated" />
+          <Tabs value={rankingTab} onChange={handleRankingTabChange} aria-label={t('home.rankingsAria')}>
+            <Tab label={t('home.mostRead')} id="tab-most-read" aria-controls="tabpanel-most-read" />
+            <Tab label={t('home.newTrends')} id="tab-new-trends" aria-controls="tabpanel-new-trends" />
+            <Tab label={t('home.userRated')} id="tab-user-rated" aria-controls="tabpanel-user-rated" />
           </Tabs>
         </Box>
         
@@ -242,7 +247,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={getNovelSourcePath(novel)}
+                    {...getNovelSourceLink(novel)}
                     showClicks
                   />
                 </Grid>
@@ -273,7 +278,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={getNovelSourcePath(novel)}
+                    {...getNovelSourceLink(novel)}
                     showTrends
                   />
                 </Grid>
@@ -304,7 +309,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={getNovelSourcePath(novel)}
+                    {...getNovelSourceLink(novel)}
                     showRating
                   />
                 </Grid>
@@ -320,10 +325,10 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" sx={{
             fontWeight: "bold"
           }}>
-            Featured
+            {t('home.featured')}
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -332,11 +337,11 @@ const HomePage: React.FC = () => {
           <FeaturedNovelCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
         ) : homeData?.featured_novel ? (
           <FeaturedNovelCard 
-            source={homeData.featured_novel.novel.prefered_source}
-            to={getNovelSourcePath(homeData.featured_novel.novel)}
+            source={homeData.featured_novel.novel.reading_source ?? homeData.featured_novel.novel.prefered_source}
+            {...getNovelSourceLink(homeData.featured_novel.novel)}
           />
         ) : (
-          <Typography variant="body1" align="center">No featured novel available</Typography>
+          <Typography variant="body1" align="center">{t('home.noFeatured')}</Typography>
         )}
       </Box>
 
@@ -346,10 +351,10 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" sx={{
             fontWeight: "bold"
           }}>
-            Latest Reviews
+            {t('home.latestReviews')}
           </Typography>
           <Button component={Link} to="/reviews" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -367,7 +372,7 @@ const HomePage: React.FC = () => {
           <Typography variant="h5" component="h2" sx={{
             fontWeight: "bold"
           }}>
-            Recently Updated Novels
+            {t('home.recentlyUpdated')}
           </Typography>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -378,7 +383,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
                 <ChapterCard
                   source={source}
-                  to={source.source_slug ? `/novels/${source.novel_slug}/${source.source_slug}` : undefined}
+                  {...getSourceLink(source)}
                 />
               </Grid>
             ))}

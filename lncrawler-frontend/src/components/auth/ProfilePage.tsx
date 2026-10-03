@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { Box, Button, TextField, Avatar, Typography, Paper, Grid, CircularProgress, Alert, Container, Divider, Dialog, DialogTitle, DialogContent, DialogActions, Pagination } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
@@ -13,9 +14,11 @@ import { ReadingList } from '@models/readinglist_types';
 import ReadingListCard from '../readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 import ReadingStatisticsCard from '../profile/ReadingStatisticsCard';
+import LanguagePreferences from '../profile/LanguagePreferences';
 
 const ProfilePage: React.FC = () => {
   const { user, updateProfile, refreshUser } = useAuth();
+  const { t } = useTranslation();
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -67,7 +70,7 @@ const ProfilePage: React.FC = () => {
         }
       } catch (err) {
         console.error('Error fetching profile data:', err);
-        setError('Failed to load profile data. Please try again.');
+        setError(t('profile.failedLoad'));
       } finally {
         setProfileLoading(false);
       }
@@ -93,7 +96,7 @@ const ProfilePage: React.FC = () => {
       setTotalReviewPages(response.pagination.total_pages);
     } catch (err) {
       console.error('Error loading user reviews:', err);
-      setReviewsError('Failed to load your reviews. Please try again.');
+      setReviewsError(t('profile.failedLoadReviews'));
     } finally {
       setReviewsLoading(false);
     }
@@ -112,7 +115,7 @@ const ProfilePage: React.FC = () => {
       setTotalReadingListsPages(response.total_pages || 1);
     } catch (err) {
       console.error('Error loading user reading lists:', err);
-      setReadingListsError('Failed to load your reading lists. Please try again.');
+      setReadingListsError(t('profile.failedLoadLists'));
     } finally {
       setReadingListsLoading(false);
     }
@@ -152,7 +155,7 @@ const ProfilePage: React.FC = () => {
         email,
         profile_pic: profilePic || undefined,
       });
-      setSuccess('Profile updated successfully!');
+      setSuccess(t('profile.updatedSuccess'));
       setIsEditing(false);
       
       // Fetch updated profile data
@@ -160,7 +163,7 @@ const ProfilePage: React.FC = () => {
       setProfileData(updatedProfile);
       refreshUser();
     } catch (err) {
-      setError('Failed to update profile. Please try again.');
+      setError(t('profile.updateFailed'));
       console.error('Error updating profile:', err);
     } finally {
       setIsLoading(false);
@@ -185,7 +188,7 @@ const ProfilePage: React.FC = () => {
 
     try {
       await authService.changePassword(passwordData);
-      setSuccess('Password changed successfully!');
+      setSuccess(t('profile.passwordChanged'));
       setShowPasswordDialog(false);
       setPasswordData({ old_password: '', new_password: '', new_password2: '' });
     } catch (err: any) {
@@ -194,7 +197,7 @@ const ProfilePage: React.FC = () => {
       } else if (err.response?.data?.new_password) {
         setPasswordError(err.response.data.new_password[0]);
       } else {
-        setPasswordError('Failed to change password. Please try again.');
+        setPasswordError(t('profile.passwordChangeFailed'));
       }
     } finally {
       setPasswordLoading(false);
@@ -215,7 +218,7 @@ const ProfilePage: React.FC = () => {
     <Container maxWidth="md">
       <Paper elevation={3} sx={{ p: 4, mt: 4, mb: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          Profile
+          {t('profile.heading')}
         </Typography>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -249,7 +252,7 @@ const ProfilePage: React.FC = () => {
                     onClick={() => fileInputRef.current?.click()}
                     fullWidth
                   >
-                    Change Photo
+                    {t('profile.changePhoto')}
                   </Button>
                 </Box>
               )}
@@ -262,7 +265,7 @@ const ProfilePage: React.FC = () => {
               }}>
               <Box sx={{ mb: 2 }}>
                 <TextField
-                  label="Username"
+                  label={t('auth.username')}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   fullWidth
@@ -271,7 +274,7 @@ const ProfilePage: React.FC = () => {
                   required
                 />
                 <TextField
-                  label="Email"
+                  label={t('profile.email')}
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -290,7 +293,7 @@ const ProfilePage: React.FC = () => {
                     startIcon={<EditIcon />}
                     onClick={() => setIsEditing(true)}
                   >
-                    Edit Profile
+                    {t('profile.editProfile')}
                   </Button>
                 ) : (
                   <>
@@ -300,7 +303,7 @@ const ProfilePage: React.FC = () => {
                       startIcon={<CancelIcon />}
                       onClick={cancelEdit}
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </Button>
                     <Button 
                       type="submit" 
@@ -309,7 +312,7 @@ const ProfilePage: React.FC = () => {
                       startIcon={<SaveIcon />}
                       disabled={isLoading}
                     >
-                      {isLoading ? <CircularProgress size={24} /> : 'Save Changes'}
+                      {isLoading ? <CircularProgress size={24} /> : t('profile.saveChanges')}
                     </Button>
                   </>
                 )}
@@ -321,7 +324,7 @@ const ProfilePage: React.FC = () => {
         {/* Additional Profile Info Section */}
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
-            Account Information
+            {t('profile.accountInformation')}
           </Typography>
           <Grid container spacing={2}>
             <Grid
@@ -332,10 +335,10 @@ const ProfilePage: React.FC = () => {
               <Typography variant="subtitle2" sx={{
                 color: "text.secondary"
               }}>
-                Member Since
+                {t('profile.memberSince')}
               </Typography>
               <Typography variant="body1">
-                {profileData?.date_joined ? new Date(profileData.date_joined).toLocaleDateString() : 'N/A'}
+                {profileData?.date_joined ? new Date(profileData.date_joined).toLocaleDateString() : t('common.na')}
               </Typography>
             </Grid>
             <Grid
@@ -346,10 +349,10 @@ const ProfilePage: React.FC = () => {
               <Typography variant="subtitle2" sx={{
                 color: "text.secondary"
               }}>
-                Last Login
+                {t('profile.lastLogin')}
               </Typography>
               <Typography variant="body1">
-                {profileData?.last_login ? new Date(profileData.last_login).toLocaleDateString() : 'N/A'}
+                {profileData?.last_login ? new Date(profileData.last_login).toLocaleDateString() : t('common.na')}
               </Typography>
             </Grid>
           </Grid>
@@ -358,26 +361,30 @@ const ProfilePage: React.FC = () => {
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">
-              Security
+              {t('profile.security')}
             </Typography>
             <Button
               variant="outlined"
               startIcon={<LockIcon />}
               onClick={() => setShowPasswordDialog(true)}
             >
-              Change Password
+              {t('profile.changePassword')}
             </Button>
           </Box>
         </Box>
 
+        {/* Language Preferences */}
+        <Divider sx={{ my: 3 }} />
+        <LanguagePreferences />
+
         {/* Password Change Dialog */}
         <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Change Password</DialogTitle>
+          <DialogTitle>{t('profile.changePassword')}</DialogTitle>
           <DialogContent>
             {passwordError && <Alert severity="error" sx={{ mb: 2 }}>{passwordError}</Alert>}
             
             <TextField
-              label="Current Password"
+              label={t('profile.currentPassword')}
               type="password"
               fullWidth
               margin="normal"
@@ -386,7 +393,7 @@ const ProfilePage: React.FC = () => {
               required
             />
             <TextField
-              label="New Password"
+              label={t('auth.newPassword')}
               type="password"
               fullWidth
               margin="normal"
@@ -395,7 +402,7 @@ const ProfilePage: React.FC = () => {
               required
             />
             <TextField
-              label="Confirm New Password"
+              label={t('auth.confirmNewPassword')}
               type="password"
               fullWidth
               margin="normal"
@@ -412,14 +419,14 @@ const ProfilePage: React.FC = () => {
                 setPasswordError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button 
               onClick={handlePasswordChange}
               variant="contained"
               disabled={passwordLoading || !passwordData.old_password || !passwordData.new_password || !passwordData.new_password2}
             >
-              {passwordLoading ? <CircularProgress size={24} /> : 'Change Password'}
+              {passwordLoading ? <CircularProgress size={24} /> : t('profile.changePassword')}
             </Button>
           </DialogActions>
         </Dialog>
@@ -433,7 +440,7 @@ const ProfilePage: React.FC = () => {
         {/* User Reading Lists Section */}
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
-            My Reading Lists
+            {t('profile.myReadingLists')}
           </Typography>
 
           {readingListsError && (
@@ -477,7 +484,7 @@ const ProfilePage: React.FC = () => {
               <Typography variant="body1" sx={{
                 color: "text.secondary"
               }}>
-                You haven't created any reading lists yet.
+                {t('profile.noReadingLists')}
               </Typography>
               <Button 
                 component={RouterLink} 
@@ -485,7 +492,7 @@ const ProfilePage: React.FC = () => {
                 variant="contained" 
                 sx={{ mt: 2 }}
               >
-                Browse Reading Lists
+                {t('profile.browseReadingLists')}
               </Button>
             </Paper>
           )}
@@ -495,7 +502,7 @@ const ProfilePage: React.FC = () => {
         {/* User Reviews Section */}
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
-            My Reviews
+            {t('profile.myReviews')}
           </Typography>
 
           {reviewsError && (
@@ -532,7 +539,7 @@ const ProfilePage: React.FC = () => {
               <Typography variant="body1" sx={{
                 color: "text.secondary"
               }}>
-                You haven't written any reviews yet.
+                {t('profile.noReviews')}
               </Typography>
             </Paper>
           )}

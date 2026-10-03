@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Box, IconButton, Typography, Slider } from '@mui/material';
-import { KeyboardArrowLeft, KeyboardArrowRight, Lock, LockOpen } from '@mui/icons-material';
+import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
+import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
+import Lock from '@mui/icons-material/Lock';
+import LockOpen from '@mui/icons-material/LockOpen';
+import { useTranslation } from 'react-i18next';
 import { ChapterContent } from '@models/novels_types';
 import { ReaderSettings } from '../ReaderSettings';
 import ReaderContent from './ReaderContent';
@@ -31,6 +35,7 @@ const PagedContent: React.FC<PagedContentProps> = ({
     saveScrollPosition,
   ref
 }) => {
+  const { t } = useTranslation();
   const [currentPage, setCurrentPage] = useState(0);
   const [pages, setPages] = useState<string[]>([]);
   const [internalScrollLock, setInternalScrollLock] = useState(isScrollLocked);
@@ -320,7 +325,7 @@ const PagedContent: React.FC<PagedContentProps> = ({
           height: 32
         }}
         size="small"
-        title={internalScrollLock ? "Unlock scrolling" : "Lock scrolling"}
+        title={internalScrollLock ? t('reader.unlockScrolling') : t('reader.lockScrolling')}
       >
         {internalScrollLock ? <Lock fontSize="small" /> : <LockOpen fontSize="small" />}
       </IconButton>
@@ -396,7 +401,7 @@ const PagedContent: React.FC<PagedContentProps> = ({
                 whiteSpace: 'nowrap'
               }}
             >
-              {currentPage + 1} / {pages.length}
+              {t('reader.pageIndicator', { current: currentPage + 1, total: pages.length })}
             </Typography>
           </Box>
         )}
@@ -409,7 +414,7 @@ const PagedContent: React.FC<PagedContentProps> = ({
               userSelect: 'none'
             }}
           >
-            Page {currentPage + 1} of {pages.length}
+            {t('reader.pageOf', { current: currentPage + 1, total: pages.length })}
           </Typography>
         )}
 

@@ -9,16 +9,20 @@ import { NovelFromSource } from '@models/novels_types';
 import { formatTimeAgo, getChapterLabel } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface FeaturedNovelCardProps {
   source: NovelFromSource;
   onClick?: () => void;
   isLoading?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
 }
 
-const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, isLoading = false, to }) => {
+const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, isLoading = false, to, state }) => {
   const theme = useTheme();
+  const { t, i18n } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const coverHeight = isMobile ? 180 : 270;
@@ -53,13 +57,14 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
     );
   }
 
-  const formatter = Intl.NumberFormat('en', { notation: 'compact' });
+  const formatter = Intl.NumberFormat(i18n.language, { notation: 'compact' });
 
   return (
     <ButtonBase 
       onClick={onClick}
       component={to ? Link : 'button'}
       to={to}
+      state={to ? state : undefined}
       sx={{
         width: '100%',
         display: 'block',
@@ -106,7 +111,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 overflow: 'auto',
                 color: 'text.secondary'
               }}
-              dangerouslySetInnerHTML={{ __html: source.synopsis }}
+              dangerouslySetInnerHTML={{ __html: source.synopsis || '' }}
             />
             
             <Grid container spacing={1}>
@@ -114,7 +119,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <VisibilityIcon fontSize="small" />
                   <Typography variant="caption">
-                    {formatter.format(source.novel_id ? 100 : 0)} (All times)
+                    {formatter.format(source.novel_id ? 100 : 0)} {t('cards.allTimes')}
                   </Typography>
                 </Box>
               </Grid>
@@ -123,7 +128,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <VisibilityIcon fontSize="small" />
                   <Typography variant="caption">
-                    {formatter.format(source.novel_id ? 50 : 0)} (This week)
+                    {formatter.format(source.novel_id ? 50 : 0)} {t('cards.thisWeek')}
                   </Typography>
                 </Box>
               </Grid>
@@ -133,7 +138,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <CommentIcon fontSize="small" />
                     <Typography variant="caption">
-                      {formatter.format(0)} comments
+                      {t('units.comments', { count: 0 })}
                     </Typography>
                   </Box>
                 </Grid>
@@ -143,7 +148,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <StarIcon fontSize="small" />
                   <Typography variant="caption">
-                    {source.novel_id ? '4.5' : '0'} (Votes: {formatter.format(source.novel_id ? 42 : 0)})
+                    {source.novel_id ? '4.5' : '0'} {t('cards.votes', { count: formatter.format(source.novel_id ? 42 : 0) })}
                   </Typography>
                 </Box>
               </Grid>
@@ -152,7 +157,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <EditIcon fontSize="small" />
                   <Typography variant="caption">
-                    {source.last_chapter_update ? formatTimeAgo(new Date(source.last_chapter_update)) : 'Unknown'}
+                    {source.last_chapter_update ? formatTimeAgo(new Date(source.last_chapter_update), t) : t('common.unknown')}
                   </Typography>
                 </Box>
               </Grid>
@@ -162,7 +167,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <BookmarkIcon fontSize="small" />
                     <Typography variant="caption">
-                      {getChapterLabel(source.latest_available_chapter?.title, source.latest_available_chapter?.chapter_id)}
+                      {getChapterLabel(t, source.latest_available_chapter?.title, source.latest_available_chapter?.chapter_id)}
                     </Typography>
                   </Box>
                 </Grid>

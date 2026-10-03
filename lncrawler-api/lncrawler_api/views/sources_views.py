@@ -7,7 +7,7 @@ from django.core.paginator import Paginator
 import os
 from urllib.parse import quote
 
-from ..models import Novel, SourceVote, NovelViewCount, WeeklyNovelView
+from ..models import Novel, SourceVote, WeeklySourceView
 from ..serializers import NovelSourceSerializer, ChapterSerializer, ChapterContentSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
 from django.db.models import F, Avg, Q, Count, Value, Max, Min
@@ -141,12 +141,8 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
             {"error": "Chapter content not available"}, status=status.HTTP_404_NOT_FOUND
         )
 
-    # Increment view count for the novel
-    view_count, created = NovelViewCount.objects.get_or_create(novel=novel)
-    view_count.increment()
-
-    # Increment weekly view count
-    WeeklyNovelView.increment_for_novel(novel)
+    # Increment views for the source (also updates its all-time projection)
+    WeeklySourceView.increment_for_source(source)
 
     serializer = ChapterContentSerializer(chapter)
     return Response(serializer.data)

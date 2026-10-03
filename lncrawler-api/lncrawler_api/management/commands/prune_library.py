@@ -5,8 +5,9 @@ the first pass over a large catalogue can be spread over many invocations:
 
 1. orphan novels (no NovelFromSource left)
 2. empty sources (no chapter, or no chapter with content)
-3. dead-source duplicates (source no longer handled by the crawler but a
-   better, live counterpart exists on a sibling or similar novel)
+3. dead sources (no longer handled by the crawler) superseded by a live
+   source of the same novel with more chapters. Comments, reading history and
+   votes attached to the discarded source are ported to the keeper first.
 
 Deleting is destructive, so ``--apply`` is required; the default is a dry run.
 Source folders are moved to ``<LNCRAWL_OUTPUT_PATH>/.prune_trash`` instead of
@@ -29,7 +30,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.utils import timezone
 
 from lncrawler_api.models import (
@@ -37,8 +38,11 @@ from lncrawler_api.models import (
     ExternalSource,
     Novel,
     NovelFromSource,
-    NovelSimilarity,
     ReadingHistory,
+)
+from lncrawler_api.services.novel_operations import (
+    recount_comment_count,
+    recount_source_votes,
 )
 from lncrawler_api.utils import chapter_utils
 from lncrawler_api.utils.lncrawler_paths import sanitize
@@ -62,10 +66,6 @@ def normalize_source_name(name: str) -> str:
     return normalized
 
 
-def normalize_title(title: str) -> str:
-    return "".join(ch for ch in (title or "").lower() if ch.isalnum())
-
-
 def normalize_body(body) -> str:
     if not body:
         return ""
@@ -76,7 +76,7 @@ def normalize_body(body) -> str:
 
 
 class Command(BaseCommand):
-    help = "Progressively prune orphan novels, empty sources and dead-source duplicates."
+    help = "Progressively prune orphan novels, empty sources and superseded dead sources."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -90,11 +90,7 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--threshold", type=float, default=0.90,
-            help="Min mean chapter-content similarity to treat a dead source as a duplicate.",
-        )
-        parser.add_argument(
-            "--meta-threshold", type=float, default=0.60,
-            help="Min NovelSimilarity score to consider a cross-novel keeper.",
+            help="Min mean chapter-content similarity to treat a dead source as superseded.",
         )
         parser.add_argument(
             "--samples", type=int, default=6,
@@ -138,7 +134,6 @@ class Command(BaseCommand):
         self.apply = options["apply"]
         self.limit = options["limit"]
         self.threshold = options["threshold"]
-        self.meta_threshold = options["meta_threshold"]
         self.samples = options["samples"]
         self.max_shift = max(0, options["max_shift"])
         self.min_chapters = options["min_chapters"]
@@ -313,7 +308,7 @@ class Command(BaseCommand):
         return {name for name in handled if name}
 
     def _phase_dead_duplicates(self):
-        self.stdout.write("Phase 3: dead-source duplicates")
+        self.stdout.write("Phase 3: superseded dead sources")
         handled = self._load_handled_sources()
         if not handled:
             self.stdout.write(self.style.WARNING(
@@ -359,42 +354,19 @@ class Command(BaseCommand):
         return name in handled
 
     def _find_keepers(self, dead, handled, ext_names):
+        """Live sources of the same novel that hold more chapters than ``dead``.
+
+        Only siblings are considered: a different novel is a different story,
+        even when metadata similarity says otherwise, so its sources are never
+        used to justify deleting one of this novel's sources.
+        """
         count = dead.chapters_count
-        keepers = []
-
-        for sibling in dead.novel.sources.exclude(pk=dead.pk):
-            if self._is_live(sibling, handled, ext_names) and sibling.chapters_count > count:
-                keepers.append((sibling, False))
-
-        links = NovelSimilarity.objects.filter(
-            Q(from_novel=dead.novel) | Q(to_novel=dead.novel),
-            similarity__gte=self.meta_threshold,
-        ).select_related("from_novel", "to_novel")
-        for link in links:
-            other = link.to_novel if link.from_novel_id == dead.novel_id else link.from_novel
-            for source in other.sources.all():
-                if self._is_live(source, handled, ext_names) and source.chapters_count > count:
-                    keepers.append((source, True))
-
-        seen = set()
-        unique = []
-        for source, cross in keepers:
-            if source.pk in seen:
-                continue
-            seen.add(source.pk)
-            unique.append((source, cross))
-        return unique
-
-    def _same_story(self, dead, keeper) -> bool:
-        dead_title = normalize_title(dead.title)
-        if dead_title and dead_title in (
-            normalize_title(keeper.title),
-            normalize_title(keeper.novel.title),
-        ):
-            return True
-        dead_authors = {a.name.strip().lower() for a in dead.authors.all() if a.name}
-        keeper_authors = {a.name.strip().lower() for a in keeper.authors.all() if a.name}
-        return bool(dead_authors & keeper_authors)
+        return [
+            sibling
+            for sibling in dead.novel.sources.exclude(pk=dead.pk)
+            if self._is_live(sibling, handled, ext_names)
+            and sibling.chapters_count > count
+        ]
 
     def _is_compressed(self, source) -> bool:
         base = source.absolute_source_path
@@ -478,20 +450,19 @@ class Command(BaseCommand):
             )
             return
 
-        for keeper, cross in self._find_keepers(dead, handled, ext_names):
+        for keeper in self._find_keepers(dead, handled, ext_names):
             if not self.include_compressed and (
                 self._is_compressed(dead) or self._is_compressed(keeper)
             ):
-                continue
-            if cross and not self._same_story(dead, keeper):
                 continue
             mean, shift, count = self._content_similarity(dead, keeper)
             if count and mean >= self.threshold:
                 offset = f", shift {shift:+d}" if shift else ""
                 self._delete_source_named(
                     dead,
-                    f"dead duplicate of {keeper.external_source.source_name} "
+                    f"superseded by {keeper.external_source.source_name} "
                     f"(similarity {mean:.3f}{offset})",
+                    keeper=keeper,
                 )
                 return
 
@@ -502,18 +473,55 @@ class Command(BaseCommand):
 
     # -- deletion ------------------------------------------------------- #
 
-    def _delete_source_named(self, source, reason):
+    def _port_user_data(self, loser, keeper):
+        """Hand a discarded source's user data to the keeper before deletion.
+
+        Votes and reading history would otherwise cascade away with the source,
+        and chapter comments with its chapters. Because the keeper is a sibling
+        of the same novel, reading history stays unique per (user, novel).
+        """
+        from lncrawler_api.models import SourceVote
+
+        existing_voters = set(keeper.votes.values_list("ip_address", flat=True))
+        SourceVote.objects.filter(source=loser).exclude(
+            ip_address__in=existing_voters
+        ).update(source=keeper)
+        SourceVote.objects.filter(source=loser).delete()
+        ReadingHistory.objects.filter(source=loser).update(source=keeper)
+
+        keeper_by_id = {c.chapter_id: c for c in keeper.chapters.all()}
+        keeper_by_url = {c.url: c for c in keeper.chapters.all() if c.url}
+        for comment in Comment.objects.filter(
+            chapter__novel_from_source=loser
+        ).select_related("chapter"):
+            target = keeper_by_id.get(comment.chapter.chapter_id) or keeper_by_url.get(
+                comment.chapter.url
+            )
+            if target is None:
+                comment.delete()
+            else:
+                comment.chapter = target
+                comment.save(update_fields=["chapter"])
+
+        keeper.refresh_from_db()
+        recount_source_votes(keeper)
+        recount_comment_count(keeper.novel)
+
+    def _delete_source_named(self, source, reason, keeper=None):
         title = source.title
         source_name = source.external_source.source_name
         source_id = source.id
         if not self.apply:
+            port = " and port user data" if keeper else ""
             self.stdout.write(
                 f"  [DRY-RUN] would delete source {source_id} {title!r} "
-                f"({source_name}): {reason}"
+                f"({source_name}){port}: {reason}"
             )
         else:
             try:
                 with transaction.atomic():
+                    if keeper is not None:
+                        self._port_user_data(source, keeper)
                     trash_path = self._trash_source_folder(source)
                     source.delete()
                     self._audit({
@@ -522,6 +530,7 @@ class Command(BaseCommand):
                         "title": title,
                         "source_name": source_name,
                         "reason": reason,
+                        "keeper_id": keeper.id if keeper else None,
                         "trash_path": trash_path,
                     })
                 self.stdout.write(

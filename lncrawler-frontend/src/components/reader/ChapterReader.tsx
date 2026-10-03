@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useSwipeable } from 'react-swipeable';
 import {
   Container,
@@ -34,7 +35,7 @@ import ReaderContent from './content/ReaderContent';
 import PagedContent from './content/PagedContent';
 import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
-import { getChapterLabel } from '@utils/Misc';
+
 import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
 import ChapterSEO from '@components/reader/ChapterSEO';
 
@@ -60,6 +61,14 @@ const ChapterReader = () => {
     sourceSlug: string; 
     chapterNumber: string 
   }>();
+  const { t } = useTranslation();
+  const getChapterLabel = (title?: string | null, chapterId?: number | null): string => {
+    const trimmed = title?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+    return chapterId != null ? t('units.chapter', { number: chapterId }) : "";
+  };
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -315,7 +324,7 @@ const ChapterReader = () => {
         }
       } catch (err) {
         console.error('Error fetching chapter content:', err);
-        setError('Failed to load chapter content. Please try again later.');
+        setError(t('reader.loadFailed'));
       } finally {
         setLoading(false);
       }
@@ -706,7 +715,7 @@ const ChapterReader = () => {
     return (
       <Container>
         <Box sx={{ p: 3, textAlign: 'center', mt: 3 }}>
-          <Typography color="error">{error || 'Chapter not found'}</Typography>
+          <Typography color="error">{error || t('reader.notFound')}</Typography>
         </Box>
       </Container>
     );
@@ -766,7 +775,7 @@ const ChapterReader = () => {
                 icon: <LanguageIcon fontSize="inherit" />
               },
               {
-                label: "Chapters",
+                label: t('reader.chapters'),
                 link: `/novels/${novelSlug}/${sourceSlug}/chapterlist`,
                 icon: <ListAltIcon fontSize="inherit" />
               },
@@ -808,12 +817,12 @@ const ChapterReader = () => {
             alignItems: 'center',
             justifyContent: 'space-between'
           }}>
-            <Tabs value={activeTab} onChange={handleTabChange} aria-label="chapter tabs">
-              <Tab label="Chapter" id="tab-0" />
+            <Tabs value={activeTab} onChange={handleTabChange} aria-label={t('reader.chapters')}>
+              <Tab label={t('reader.chapterTab')} id="tab-0" />
               <Tab 
                 label={
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    Comments
+                    {t('reader.commentsTab')}
                     <CommentIcon sx={{ ml: 1 }} />
                   </Box>
                 } 
@@ -823,7 +832,7 @@ const ChapterReader = () => {
             
             <IconButton 
               onClick={() => setControlsVisible(true)}
-              aria-label="Open reader settings"
+              aria-label={t('reader.openSettings')}
               sx={{ 
                 color: 'text.secondary',
                 '&:hover': {
@@ -878,7 +887,7 @@ const ChapterReader = () => {
             {chapterDataForComments && activeTab === 1 && (
               <CommentSection 
                 chapterData={chapterDataForComments}
-                title="Chapter Comments"
+                title={t('reader.chapterComments')}
               />
             )}
           </Box>
@@ -906,7 +915,7 @@ const ChapterReader = () => {
             anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
           >
             <Alert onClose={() => setMarkReadSuccess(false)} severity="success" sx={{ width: '100%' }}>
-              Chapter marked as read successfully!
+              {t('reader.markedRead')}
             </Alert>
           </Snackbar>
         </Paper>

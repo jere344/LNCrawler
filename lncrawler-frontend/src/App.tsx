@@ -1,37 +1,37 @@
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
-import { CssBaseline, ThemeProvider as MuiThemeProvider, Container, Box } from "@mui/material";
-import { useLayoutEffect } from "react";
+import { CssBaseline, ThemeProvider as MuiThemeProvider, Container, Box, CircularProgress, createTheme } from "@mui/material";
+import { lazy, Suspense, useLayoutEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import "./App.css";
 import { ThemeProvider, useTheme } from "@theme/ThemeContext";
+import { useLanguage } from "@context/LanguageContext";
+import { getMuiLocale, muiDirection } from "./i18n/muiLocale";
 import Header from '@components/Header';
 import Footer from '@components/Footer';
-import DownloaderHome from '@components/downloader/DownloaderHome';
-import SearchResults from '@components/downloader/SearchResults';
-import DownloadForm from '@components/downloader/DownloadForm';
-import DownloadStatus from '@components/downloader/DownloadStatus';
-import NovelRedirect from '@components/novels/NovelRedirect';
-import SourceDetail from '@components/novels/SourceDetail';
-import ChapterList from '@components/novels/ChapterList';
-import ChapterReader from '@components/reader/ChapterReader';
-import SearchPage from '@components/search/SearchPage';
-import HomePage from '@components/home/HomePage';
-// Import new auth components
-import LoginPage from '@components/auth/LoginPage';
-import RegisterPage from '@components/auth/RegisterPage';
-import ProfilePage from '@components/auth/ProfilePage';
-import ResetPasswordPage from '@components/auth/ResetPasswordPage';
-// Import new library page
-import LibraryPage from '@components/library/LibraryPage';
-// Import reading history page
-import ReadingHistoryPage from '@components/history/ReadingHistoryPage';
-// Import image gallery page
-import ImageGallery from '@components/novels/ImageGallery';
-// Import board components
-import BoardList from '@components/boards/BoardList';
-import BoardDetail from '@components/boards/BoardDetail';
-// Import reading list components
-import ReadingListsPage from '@components/readinglist/ReadingListsPage';
-import ReadingListDetail from '@components/readinglist/ReadingListDetail';
+
+// Route-level code splitting: each page (and everything it alone imports, e.g.
+// the reader or mdxeditor) is fetched on navigation instead of on first paint.
+const DownloaderHome = lazy(() => import('@components/downloader/DownloaderHome'));
+const SearchResults = lazy(() => import('@components/downloader/SearchResults'));
+const DownloadForm = lazy(() => import('@components/downloader/DownloadForm'));
+const DownloadStatus = lazy(() => import('@components/downloader/DownloadStatus'));
+const NovelRedirect = lazy(() => import('@components/novels/NovelRedirect'));
+const SourceDetail = lazy(() => import('@components/novels/SourceDetail'));
+const ChapterList = lazy(() => import('@components/novels/ChapterList'));
+const ChapterReader = lazy(() => import('@components/reader/ChapterReader'));
+const SearchPage = lazy(() => import('@components/search/SearchPage'));
+const HomePage = lazy(() => import('@components/home/HomePage'));
+const LoginPage = lazy(() => import('@components/auth/LoginPage'));
+const RegisterPage = lazy(() => import('@components/auth/RegisterPage'));
+const ProfilePage = lazy(() => import('@components/auth/ProfilePage'));
+const ResetPasswordPage = lazy(() => import('@components/auth/ResetPasswordPage'));
+const LibraryPage = lazy(() => import('@components/library/LibraryPage'));
+const ReadingHistoryPage = lazy(() => import('@components/history/ReadingHistoryPage'));
+const ImageGallery = lazy(() => import('@components/novels/ImageGallery'));
+const BoardList = lazy(() => import('@components/boards/BoardList'));
+const BoardDetail = lazy(() => import('@components/boards/BoardDetail'));
+const ReadingListsPage = lazy(() => import('@components/readinglist/ReadingListsPage'));
+const ReadingListDetail = lazy(() => import('@components/readinglist/ReadingListDetail'));
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -49,9 +49,19 @@ const Wrapper = ({ children }: { children: React.ReactNode }) => {
 // App with theme context
 function AppWithTheme() {
     const { theme } = useTheme();
+    const { i18n } = useTranslation();
+    const { uiLanguage } = useLanguage();
+
+    // Resolve the active code ('' means "browser" -> whatever i18next detected).
+    const activeLanguage = uiLanguage || i18n.resolvedLanguage || 'en';
+
+    const localizedTheme = useMemo(
+        () => createTheme(theme, getMuiLocale(activeLanguage), { direction: muiDirection(activeLanguage) }),
+        [theme, activeLanguage]
+    );
 
     return (
-        <MuiThemeProvider theme={theme}>
+        <MuiThemeProvider theme={localizedTheme}>
             <Wrapper>
                 <Box
                     sx={{
@@ -70,6 +80,13 @@ function AppWithTheme() {
                             flex: '1 0 auto' 
                         }}
                     >
+                        <Suspense
+                            fallback={
+                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                                    <CircularProgress />
+                                </Box>
+                            }
+                        >
                         <Routes>
                             {/* Authentication routes */}
                             <Route path="/login" element={<LoginPage />} />
@@ -111,6 +128,7 @@ function AppWithTheme() {
 
                             
                         </Routes>
+                        </Suspense>
                     </Container>
                     <Footer />
                 </Box>

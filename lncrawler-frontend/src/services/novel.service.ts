@@ -103,6 +103,7 @@ export const novelService = {
     author?: string[];
     status?: string;
     language?: string;
+    languages?: string[];
     min_rating?: number;
     sort_by?: 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated';
     sort_order?: 'asc' | 'desc';
@@ -115,6 +116,9 @@ export const novelService = {
     if (params.page_size) queryParams.append('page_size', params.page_size.toString());
     if (params.status) queryParams.append('status', params.status);
     if (params.language) queryParams.append('language', params.language);
+    if (params.languages && params.languages.length) {
+      params.languages.forEach(language => queryParams.append('languages', language));
+    }
     if (params.min_rating) queryParams.append('min_rating', params.min_rating.toString());
     if (params.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params.sort_order) queryParams.append('sort_order', params.sort_order);
@@ -154,8 +158,13 @@ export const novelService = {
   },
 
   // Get all home page data in a single request
-  getHomePageData: async () => {
-    const response = await api.get('/novels/home/');
+  // `languages` filters every section to those content languages; when the
+  // list is empty no language parameter is sent and the sections stay global.
+  getHomePageData: async (languages: string[] = []) => {
+    const queryParams = new URLSearchParams();
+    languages.forEach((language) => queryParams.append('languages', language));
+    const suffix = queryParams.toString() ? `?${queryParams}` : '';
+    const response = await api.get(`/novels/home/${suffix}`);
     return response.data;
   },
 

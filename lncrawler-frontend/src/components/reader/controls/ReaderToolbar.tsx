@@ -18,6 +18,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom'; // Import RouterLink
+import { useTranslation } from 'react-i18next';
 
 interface ReaderToolbarProps {
   isMobile: boolean;
@@ -69,6 +70,7 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
   homeUrl,
   chapterListUrl,
 }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
 
   // Desktop Toolbar
@@ -123,7 +125,7 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
           </Box>
           
           {isAuthenticated && showMarkReadButton && (
-            <Tooltip title="Mark as read">
+            <Tooltip title={t('markAsRead.tooltip')}>
               <IconButton 
                 color="primary" 
                 onClick={onMarkAsRead} 

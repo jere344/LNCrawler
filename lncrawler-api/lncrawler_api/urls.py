@@ -120,5 +120,8 @@ urlpatterns = [
     path('reading-lists/<uuid:list_id>/reorder/', reading_lists_views.reorder_list_items, name='reorder_list_items'),
     path('reading-lists/<uuid:list_id>/items/<uuid:item_id>/update/', reading_lists_views.update_list_item, name='update_list_item'),
     path('reading-lists/<uuid:list_id>/items/<uuid:item_id>/remove/', reading_lists_views.remove_novel_from_list, name='remove_novel_from_list'),
+    path('reading-lists/<uuid:list_id>/collaborators/', reading_lists_views.manage_collaborators, name='manage_collaborators'),
+    path('reading-lists/<uuid:list_id>/collaborators/<uuid:collaborator_id>/', reading_lists_views.collaborator_detail, name='collaborator_detail'),
     path('users/reading-lists/', reading_lists_views.get_user_reading_lists, name='get_user_reading_lists'),
+    path('users/search/', users_views.search_users, name='search_users'),
 ]

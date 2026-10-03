@@ -22,6 +22,7 @@ import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import HistoryIcon from '@mui/icons-material/History';
 import ReadingHistoryCard from '../common/novelcardtypes/ReadingHistoryCard';
+import { useTranslation } from 'react-i18next';
 
 interface ReadingHistoryResponse {
   count: number;
@@ -31,6 +32,7 @@ interface ReadingHistoryResponse {
 }
 
 const ReadingHistoryPage: React.FC = () => {
+  const { t } = useTranslation();
   const [historyNovels, setHistoryNovels] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,7 @@ const ReadingHistoryPage: React.FC = () => {
       setPage(response.current_page);
     } catch (err) {
       console.error('Error fetching reading history:', err);
-      setError('Failed to load your reading history. Please try again later.');
+      setError(t('history.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -92,7 +94,7 @@ const ReadingHistoryPage: React.FC = () => {
         closeDeleteDialog();
       } catch (err) {
         console.error('Error deleting reading history:', err);
-        setError('Failed to delete reading history entry. Please try again later.');
+        setError(t('history.deleteFailed'));
       }
     }
   };
@@ -114,17 +116,17 @@ const ReadingHistoryPage: React.FC = () => {
       >
         <HistoryIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
         <Typography variant="h5" component="h1" gutterBottom>
-          Reading History
+          {t('history.headingLoggedOut')}
         </Typography>
         <Typography variant="body1" align="center" sx={{
           color: "text.secondary"
         }}>
-          You need to be logged in to access your reading history.
+          {t('history.needLogin')}
         </Typography>
         <Typography variant="body2" align="center" sx={{
           color: "text.secondary"
         }}>
-          Please log in to view your recently read novels.
+          {t('history.loginPrompt')}
         </Typography>
       </Paper>
     );
@@ -135,14 +137,14 @@ const ReadingHistoryPage: React.FC = () => {
       <BreadcrumbNav
         items={[
           {
-            label: "Reading History",
+            label: t('history.heading'),
             icon: <HistoryIcon fontSize="inherit" />
           }
         ]}
       />
 
       <Typography variant="h4" component="h1" gutterBottom>
-        Reading History
+        {t('history.heading')}
       </Typography>
 
       {loading ? (
@@ -168,12 +170,12 @@ const ReadingHistoryPage: React.FC = () => {
           <Typography variant="h6" align="center" sx={{
             color: "text.secondary"
           }}>
-            Your reading history is empty
+            {t('history.empty')}
           </Typography>
           <Typography variant="body2" align="center" sx={{
             color: "text.secondary"
           }}>
-            Start reading novels to track your progress.
+            {t('history.emptyHint')}
           </Typography>
         </Paper>
       ) : (
@@ -210,16 +212,16 @@ const ReadingHistoryPage: React.FC = () => {
         open={deleteDialogOpen}
         onClose={closeDeleteDialog}
       >
-        <DialogTitle>Remove from history?</DialogTitle>
+        <DialogTitle>{t('history.removeTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to remove this novel from your reading history? This action cannot be undone.
+            {t('history.removeBody')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeDeleteDialog}>Cancel</Button>
+          <Button onClick={closeDeleteDialog}>{t('common.cancel')}</Button>
           <Button onClick={confirmDelete} color="error" autoFocus>
-            Delete
+            {t('common.delete')}
           </Button>
         </DialogActions>
       </Dialog>

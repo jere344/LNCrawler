@@ -10,6 +10,7 @@ import {
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import BlockIcon from '@mui/icons-material/Block';
+import { useTranslation } from 'react-i18next';
 import { SwipeGesture } from '../ReaderSettings';
 
 interface GestureSettingsProps {
@@ -20,9 +21,9 @@ interface GestureSettingsProps {
 
 // Swipe gesture options
 export const swipeGestureOptions = [
-  { name: 'Do Nothing', value: 'none', icon: BlockIcon },
-  { name: 'Previous Chapter', value: 'prevChapter', icon: KeyboardArrowLeftIcon },
-  { name: 'Next Chapter', value: 'nextChapter', icon: KeyboardArrowRightIcon },
+  { labelKey: 'gestureSettings.doNothing', value: 'none', icon: BlockIcon },
+  { labelKey: 'gestureSettings.previousChapter', value: 'prevChapter', icon: KeyboardArrowLeftIcon },
+  { labelKey: 'gestureSettings.nextChapter', value: 'nextChapter', icon: KeyboardArrowRightIcon },
 ];
 
 /**
@@ -33,16 +34,18 @@ const GestureSettings: React.FC<GestureSettingsProps> = ({
   swipeRightGesture,
   onSwipeGestureChange,
 }) => {
+  const { t } = useTranslation();
+
   const handleSwipeGestureChange = (direction: 'left' | 'right') => (event: SelectChangeEvent) => {
     onSwipeGestureChange(direction, event.target.value as SwipeGesture);
   };
 
   return (
     <Box>
-      <Typography variant="subtitle1" sx={{ mb: 2 }}>Gesture Settings</Typography>
+      <Typography variant="subtitle1" sx={{ mb: 2 }}>{t('gestureSettings.heading')}</Typography>
       
       {/* Swipe Left Settings */}
-      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>Swipe Left</Typography>
+      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>{t('gestureSettings.swipeLeft')}</Typography>
       <FormControl fullWidth size="small" sx={{ mb: 1 }}>
         <Select
           value={swipeLeftGesture}
@@ -52,7 +55,7 @@ const GestureSettings: React.FC<GestureSettingsProps> = ({
             <MenuItem key={`swipe-left-${option.value}`} value={option.value}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {React.createElement(option.icon, { sx: { mr: 1, fontSize: '1.2rem' } })}
-                {option.name}
+                {t(option.labelKey)}
               </Box>
             </MenuItem>
           ))}
@@ -60,7 +63,7 @@ const GestureSettings: React.FC<GestureSettingsProps> = ({
       </FormControl>
 
       {/* Swipe Right Settings */}
-      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>Swipe Right</Typography>
+      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>{t('gestureSettings.swipeRight')}</Typography>
       <FormControl fullWidth size="small" sx={{ mb: 1 }}>
         <Select
           value={swipeRightGesture}
@@ -70,7 +73,7 @@ const GestureSettings: React.FC<GestureSettingsProps> = ({
             <MenuItem key={`swipe-right-${option.value}`} value={option.value}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {React.createElement(option.icon, { sx: { mr: 1, fontSize: '1.2rem' } })}
-                {option.name}
+                {t(option.labelKey)}
               </Box>
             </MenuItem>
           ))}

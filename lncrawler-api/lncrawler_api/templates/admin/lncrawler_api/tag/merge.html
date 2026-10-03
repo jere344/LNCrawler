@@ -1,0 +1,47 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block extrahead %}{{ block.super }}{{ form.media }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_tag_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {% trans 'Merge tags' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Merge tags</h1>
+<p>
+  Fold a duplicate tag into the canonical one. Tagged sources are retagged and a
+  redirect is recorded so a future import of the old name attaches to the target
+  instead of recreating the duplicate.
+</p>
+
+{% if not preview %}
+  <form method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <div class="submit-row">
+      <input type="submit" value="{% trans 'Preview merge' %}">
+    </div>
+  </form>
+{% else %}
+  <h2>{% trans 'Preview' %}</h2>
+  <p>
+    <strong>{{ source.name }}</strong> ({{ source.novels.count }} sources)
+    &rarr;
+    <strong>{{ target.name }}</strong> ({{ target.novels.count }} sources)
+  </p>
+
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="source_tag" value="{{ source.pk }}">
+    <input type="hidden" name="target_tag" value="{{ target.pk }}">
+    <div class="submit-row">
+      <input type="submit" name="confirm" value="{% trans 'Confirm merge' %}">
+      <a href="{% url 'admin:lncrawler_api_tag_merge' %}" class="button cancel-link">{% trans 'Back' %}</a>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

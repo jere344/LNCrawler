@@ -14,15 +14,18 @@ import { Novel } from '@models/novels_types';
 import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
 import MarkAsReadButton from '@components/common/MarkAsReadButton';
 import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
+import { useTranslation } from 'react-i18next';
 
 export interface BaseNovelCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
 }
 
 export function formatCount(count: number): string {
@@ -38,10 +41,12 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   novel, 
   onClick, 
   isLoading = false,
-  to
+  to,
+  state
 }) => {
-  const preferredSource = novel.prefered_source;
+  const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => {
     if (novel.reading_history) {
       const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
@@ -64,10 +69,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
 
   let tooltip = "";
   if (unreadChapters) {
-    tooltip = `${unreadChapters} unread chapter${unreadChapters > 1 ? 's' : ''}`;
-  }
-  if (novel.reading_history?.next_chapter) {
-    tooltip += `. Next : ${getChapterName(novel.reading_history.next_chapter.title)}`;
+    const unreadLabel = t('units.unreadChapters', { count: unreadChapters });
+    tooltip = novel.reading_history?.next_chapter
+      ? t('cards.unreadTooltip', { unread: unreadLabel, next: getChapterName(novel.reading_history.next_chapter.title) })
+      : unreadLabel;
   }
   
   if (isLoading) {
@@ -184,11 +189,12 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         onClick={onClick}
         component={to ? Link : 'div'}
         to={to}
+        state={to ? state : undefined}
       >
         <Box sx={{ position: 'relative', paddingTop: '150%' }}>
           <CardMedia
             component="img"
-            image={novel.prefered_source?.cover_min_url || defaultCover}
+            image={preferredSource?.cover_min_url || defaultCover}
             alt={novel.title}
             sx={{ 
               position: 'absolute',
@@ -215,10 +221,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           >
             {novel.languages.length > 0 ? (
               novel.languages.map((lang) => (
-                <Tooltip key={lang} title={languageCodeToName(lang)}>
+                <Tooltip key={lang} title={languageCodeToName(t, lang)}>
                   <img 
                     src={`/flags/${languageCodeToFlag(lang)}.svg`} 
-                    alt={languageCodeToName(lang)}
+                    alt={languageCodeToName(t, lang)}
                     style={{ 
                       width: '30px',
                       height: '20px',
@@ -229,7 +235,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
                 </Tooltip>
               ))
             ) : (
-              <Tooltip title="Unknown language">
+              <Tooltip title={t('cards.unknownLanguage')}>
                 <Typography
                   sx={{
                     fontSize: '0.8rem', // Adjusted size for consistency
@@ -266,7 +272,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           
           {/* Author */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <Tooltip title="Authors">
+            <Tooltip title={t('cards.authors')}>
               <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 16, height: 16 }} />
             </Tooltip>
             <Typography variant="body2" noWrap sx={{
@@ -274,13 +280,13 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             }}>
               {preferredSource?.authors && preferredSource.authors.length > 0 
                 ? preferredSource.authors.join(', ') 
-                : 'Unknown'}
+                : t('common.unknown')}
             </Typography>
           </Box>
           
           {/* Tags */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <Tooltip title="Tags">
+            <Tooltip title={t('cards.tags')}>
               <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 16, height: 16 }} />
             </Tooltip>
             <Typography variant="body2" noWrap sx={{
@@ -288,7 +294,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             }}>
               {preferredSource?.tags && preferredSource.tags.length > 0 ? 
                 `${preferredSource.tags.slice(0, 3).join(', ')}${preferredSource.tags.length > 3 ? '...' : ''}` 
-                : 'Unknown'}
+                : t('common.unknown')}
             </Typography>
           </Box>
           
@@ -338,10 +344,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             }}
           >
             <Grid size={6}>
-              <Tooltip title="Total Chapters">
+              <Tooltip title={t('cards.totalChapters')}>
                 <Chip 
                   icon={<MenuBookIcon />}
-                  label={novel.prefered_source?.chapters_count ? formatCount(novel.prefered_source.chapters_count) : 'Unknown'}
+                  label={preferredSource?.chapters_count ? formatCount(preferredSource.chapters_count) : t('common.unknown')}
                   size="small"
                   variant="outlined"
                 />
@@ -349,10 +355,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             </Grid>
 
             <Grid size={6}>
-              <Tooltip title="Views">
+              <Tooltip title={t('cards.views')}>
                 <Chip 
                   icon={<VisibilityIcon />}
-                  label={novel.total_views !== undefined ? formatCount(novel.total_views) : 'Unknown'}
+                  label={novel.total_views !== undefined ? formatCount(novel.total_views) : t('common.unknown')}
                   size="small"
                   variant="outlined"
                 />
@@ -360,10 +366,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             </Grid>
             
             <Grid size={12}>
-              <Tooltip title="Last Updated">
+              <Tooltip title={t('cards.lastUpdated')}>
                 <Chip 
                   icon={<UpdateIcon />}
-                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update)) : 'Unknown'}
+                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update), t) : t('common.unknown')}
                   size="small"
                   variant="outlined"
                 />

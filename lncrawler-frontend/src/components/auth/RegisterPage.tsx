@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Box, 
   Button, 
@@ -14,10 +15,12 @@ import {
   CircularProgress,
   FormHelperText
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { authService } from '../../services/api';
 
 const RegisterPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     username: '',
@@ -63,7 +66,7 @@ const RegisterPage: React.FC = () => {
     try {
       const { username_exists } = await authService.checkUserExists({ username });
       if (username_exists) {
-        setErrors(prev => ({ ...prev, username: 'This username is already taken' }));
+        setErrors(prev => ({ ...prev, username: t('auth.usernameTaken') }));
       }
     } catch (error) {
       console.error('Error checking username:', error);
@@ -74,7 +77,7 @@ const RegisterPage: React.FC = () => {
     try {
       const { email_exists } = await authService.checkUserExists({ email });
       if (email_exists) {
-        setErrors(prev => ({ ...prev, email: 'This email is already registered' }));
+        setErrors(prev => ({ ...prev, email: t('auth.emailRegistered') }));
       }
     } catch (error) {
       console.error('Error checking email:', error);
@@ -85,25 +88,25 @@ const RegisterPage: React.FC = () => {
     const newErrors: Record<string, string> = {};
     
     if (!formData.username.trim()) {
-      newErrors.username = 'Username is required';
+      newErrors.username = t('auth.usernameRequired');
     } else if (formData.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters long';
+      newErrors.username = t('auth.usernameTooShort');
     }
     
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = t('auth.emailRequired');
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = t('auth.emailInvalid');
     }
     
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = t('auth.passwordRequired');
     } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters long';
+      newErrors.password = t('auth.passwordTooShort');
     }
     
     if (formData.password !== formData.password2) {
-      newErrors.password2 = 'Passwords do not match';
+      newErrors.password2 = t('auth.passwordsNoMatch');
     }
     
     setErrors(newErrors);
@@ -142,10 +145,10 @@ const RegisterPage: React.FC = () => {
         if (Object.keys(newErrors).length > 0) {
           setErrors(newErrors);
         } else {
-          setGeneralError('Registration failed. Please try again.');
+          setGeneralError(t('auth.registrationFailed'));
         }
       } else {
-        setGeneralError('Registration failed. Please try again.');
+        setGeneralError(t('auth.registrationFailed'));
       }
       console.error('Registration error:', error);
     } finally {
@@ -166,7 +169,7 @@ const RegisterPage: React.FC = () => {
         }}
       >
         <Typography variant="h4" component="h1" gutterBottom align="center">
-          Create Account
+          {t('auth.createAccount')}
         </Typography>
         
         {generalError && <Alert severity="error" sx={{ mb: 2 }}>{generalError}</Alert>}
@@ -177,7 +180,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             id="username"
-            label="Username"
+            label={t('auth.username')}
             name="username"
             autoComplete="username"
             autoFocus
@@ -193,7 +196,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             id="email"
-            label="Email Address"
+            label={t('auth.emailAddress')}
             name="email"
             autoComplete="email"
             value={formData.email}
@@ -208,7 +211,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             name="password"
-            label="Password"
+            label={t('auth.password')}
             type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="new-password"
@@ -222,7 +225,7 @@ const RegisterPage: React.FC = () => {
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
-                      aria-label="toggle password visibility"
+                      aria-label={t('auth.togglePassword')}
                       onClick={() => setShowPassword(!showPassword)}
                       edge="end"
                     >
@@ -239,7 +242,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             name="password2"
-            label="Confirm Password"
+            label={t('auth.confirmPassword')}
             type={showPassword ? 'text' : 'password'}
             id="password2"
             autoComplete="new-password"
@@ -251,7 +254,7 @@ const RegisterPage: React.FC = () => {
           />
           
           <FormHelperText>
-            Password must be at least 8 characters long
+            {t('auth.passwordTooShort')}
           </FormHelperText>
           
           <Button
@@ -261,7 +264,7 @@ const RegisterPage: React.FC = () => {
             sx={{ mt: 3, mb: 2 }}
             disabled={loading || Object.keys(errors).length > 0}
           >
-            {loading ? <CircularProgress size={24} /> : 'Create Account'}
+            {loading ? <CircularProgress size={24} /> : t('auth.createAccount')}
           </Button>
           
           <Divider sx={{ my: 2 }} />
@@ -270,7 +273,7 @@ const RegisterPage: React.FC = () => {
             <Typography variant="body2" gutterBottom sx={{
               color: "text.secondary"
             }}>
-              Already have an account?
+              {t('auth.alreadyHaveAccount')}
             </Typography>
             <Button
               component={Link}
@@ -278,7 +281,7 @@ const RegisterPage: React.FC = () => {
               variant="outlined"
               disabled={loading}
             >
-              Sign In
+              {t('auth.signIn')}
             </Button>
           </Box>
         </Box>

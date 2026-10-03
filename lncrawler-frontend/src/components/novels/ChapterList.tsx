@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useDebounce } from '@utils/useDebounce';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Container,
   Typography,
@@ -42,13 +44,14 @@ interface IExtendedChapterListResponse extends IChapterListResponse {
 }
 
 const ChapterList = () => {
+  const { t } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   
   const [chapterData, setChapterData] = useState<IExtendedChapterListResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
+  const debouncedSearch = useDebounce(searchTerm);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(100);
   
@@ -57,12 +60,8 @@ const ChapterList = () => {
   const [volumes, setVolumes] = useState<number[]>([]);
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [searchTerm]);
+    setPage(1);
+  }, [debouncedSearch]);
   
   useEffect(() => {
     const fetchChapters = async () => {
@@ -92,7 +91,7 @@ const ChapterList = () => {
         
       } catch (err) {
         console.error('Error fetching chapters:', err);
-        setError('Failed to load chapters. Please try again later.');
+        setError(t('chapterList.loadFailed'));
       } finally {
         setLoading(false);
       }
@@ -116,13 +115,14 @@ const ChapterList = () => {
   const siteName = "LNCrawler";
 
   const metaTitle = chapterData 
-    ? `Chapter List - ${chapterData.novel_title} (${chapterData.source_name}) | ${siteName}` 
-    : `Loading Chapters | ${siteName}`;
+    ? t('chapterList.metaTitle', { novel: chapterData.novel_title, source: chapterData.source_name }) 
+    : t('chapterList.metaLoadingTitle');
   const metaDescription = chapterData 
-    ? `Browse all ${chapterData.count} chapters for ${chapterData.novel_title} from source ${chapterData.source_name} on ${siteName}. Find the chapter you want to read.`
-    : `Loading chapter list. Discover light novels on ${siteName}.`;
+    ? t('chapterList.metaDescription', { count: chapterData.count, novel: chapterData.novel_title, source: chapterData.source_name })
+    : t('chapterList.metaLoadingDescription');
+  // i18n-missing: no catalog key for the chapter-list fallback keywords
   const metaKeywords = chapterData 
-    ? `${chapterData.novel_title}, ${chapterData.source_name}, chapter list, all chapters, light novel chapters, web novel`
+    ? t('chapterList.keywords', { novel: chapterData.novel_title, source: chapterData.source_name })
     : "chapter list, light novel, web novel";
   const ogImage = chapterData?.source_overview_image_url || DEFAULT_OG_IMAGE;
   if (loading && !chapterData) {
@@ -139,10 +139,10 @@ const ChapterList = () => {
     return (
       <Container>
         <Button startIcon={<ArrowBackIcon />} component={Link} to={`/`} sx={{ mt: 2 }}>
-          Back to Novels
+          {t('chapterList.backToNovels')}
         </Button>
         <Paper elevation={3} sx={{ p: 3, textAlign: 'center', mt: 3 }}>
-          <Typography color="error">{error || 'Chapters not found'}</Typography>
+          <Typography color="error">{error || t('chapterList.notFound')}</Typography>
         </Paper>
       </Container>
     );
@@ -180,7 +180,7 @@ const ChapterList = () => {
               icon: <LanguageIcon fontSize="inherit" />
             },
             {
-              label: "Chapters",
+              label: t('chapterList.chapters'),
               icon: <ListAltIcon fontSize="inherit" />
             }
           ]}
@@ -188,7 +188,7 @@ const ChapterList = () => {
       )}
 
       <Button component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} startIcon={<ArrowBackIcon />} sx={{ mt: 2 }}>
-        Back to Source
+        {t('chapterList.backToSource')}
       </Button>
 
       <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
@@ -199,13 +199,13 @@ const ChapterList = () => {
         <Typography variant="subtitle1" gutterBottom sx={{
           color: "text.secondary"
         }}>
-          Source: {chapterData.source_name}
+          {t('chapterList.sourcePrefix')} {chapterData.source_name}
         </Typography>
         
         <Box sx={{ mt: 3, mb: 2 }}>
           <TextField
             fullWidth
-            placeholder="Search chapters..."
+            placeholder={t('chapterList.searchPlaceholder')}
             variant="outlined"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -227,7 +227,7 @@ const ChapterList = () => {
           }}>
             <Grid>
               <Typography variant="subtitle1">
-                {chapterData.count} Total Chapters
+                {t('chapterList.totalChapters', { count: chapterData.count })}
               </Typography>
             </Grid>
             <Grid size="grow">
@@ -239,15 +239,15 @@ const ChapterList = () => {
                   justifyContent: "flex-end"
                 }}>
                 <Typography variant="body2">
-                  Page {chapterData.current_page} of {chapterData.total_pages}
+                  {t('chapterList.pageOf', { current: chapterData.current_page, total: chapterData.total_pages })}
                 </Typography>
                 <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel id="page-size-label">Per Page</InputLabel>
+                  <InputLabel id="page-size-label">{t('chapterList.perPage')}</InputLabel>
                   <Select
                     labelId="page-size-label"
                     value={pageSize}
                     onChange={handlePageSizeChange}
-                    label="Per Page"
+                    label={t('chapterList.perPage')}
                   >
                     <MenuItem value={50}>50</MenuItem>
                     <MenuItem value={100}>100</MenuItem>
@@ -277,7 +277,7 @@ const ChapterList = () => {
           volumes.map(volume => {
             if (!filteredVolumes[volume] || filteredVolumes[volume].length === 0) return null;
             
-            const volumeTitle = filteredVolumes[volume][0].volume_title || `Volume ${volume}`;
+            const volumeTitle = filteredVolumes[volume][0].volume_title || t('chapterList.volume', { volume });
             const showHeader = volume !== 0 || !!filteredVolumes[volume][0].volume_title;
             
             return (
@@ -306,8 +306,8 @@ const ChapterList = () => {
                         }}
                       >
                         <ListItemText 
-                          primary={getChapterLabel(chapter.title, chapter.chapter_id)}
-                          secondary={!chapter.has_content ? 'Content unavailable' : null}
+                          primary={getChapterLabel(t, chapter.title, chapter.chapter_id)}
+                          secondary={!chapter.has_content ? t('chapterList.contentUnavailable') : null}
                         />
                       </ListItemButton>
                     </ListItem>
@@ -318,7 +318,7 @@ const ChapterList = () => {
           })
         ) : (
           <Typography variant="body1" sx={{ textAlign: 'center', py: 4 }}>
-            No chapters available.
+            {t('chapterList.noChapters')}
           </Typography>
         )}
         

@@ -19,6 +19,7 @@ import ChatIcon from '@mui/icons-material/Chat';
 import ForumIcon from '@mui/icons-material/Forum';
 import CommentIcon from '@mui/icons-material/Comment';
 import { boardService } from '../../services/board.service';
+import { useTranslation } from 'react-i18next';
 
 interface Board {
   id: string;
@@ -57,6 +58,7 @@ const getBoardColor = (boardName: string) => {
 
 const BoardList = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +70,7 @@ const BoardList = () => {
         setBoards(fetchedBoards);
       } catch (err) {
         console.error('Failed to fetch boards:', err);
-        setError('Failed to load boards. Please try refreshing the page.');
+        setError(t('boards.loadFailed'));
       } finally {
         setLoading(false);
       }
@@ -107,7 +109,7 @@ const BoardList = () => {
         }}
       >
         <Typography variant="h4" gutterBottom sx={{ mb: 2, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-          <ForumIcon sx={{ mr: 1, fontSize: 32 }} /> Chat Boards
+          <ForumIcon sx={{ mr: 1, fontSize: 32 }} /> {t('boards.listHeading')}
         </Typography>
         
         <Typography
@@ -117,7 +119,7 @@ const BoardList = () => {
             mb: 2,
             maxWidth: '800px'
           }}>
-          Join discussions in our community boards. Share your thoughts, ask questions, and connect with other readers.
+          {t('boards.listDescription')}
         </Typography>
       </Paper>
 
@@ -189,7 +191,7 @@ const BoardList = () => {
                       minHeight: '2.5em',
                       lineHeight: 1.4
                     }}>
-                    {board.description || 'No description available'}
+                    {board.description || t('boards.noDescription')}
                   </Typography>
                 </CardContent>
                 
@@ -245,12 +247,12 @@ const BoardList = () => {
           <Typography variant="h6" gutterBottom sx={{
             color: "text.secondary"
           }}>
-            No boards available
+            {t('boards.noBoards')}
           </Typography>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            There are currently no discussion boards. Please check back later.
+            {t('boards.noBoardsHint')}
           </Typography>
         </Paper>
       )}

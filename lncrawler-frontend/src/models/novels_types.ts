@@ -14,6 +14,7 @@ export interface Novel {
   is_bookmarked?: boolean | null;
   comment_count: number;
   reading_history?: DetailedReadingHistory | null;
+  reading_source?: NovelFromSource | null;
   similar_novels?: SimilarNovel[];
 }
 
@@ -36,7 +37,7 @@ export interface NovelFromSource {
   tags: string[];
   language: string;
   status: string;
-  synopsis: string;
+  synopsis: string | null;
   chapters_count: number;
   volumes_count: number;
   last_chapter_update: string;

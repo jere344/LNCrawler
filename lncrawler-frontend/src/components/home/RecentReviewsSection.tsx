@@ -18,6 +18,7 @@ import ReadOnlyMDXEditor from '@components/common/reviews/ReadOnlyMDXEditor';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { formatTimeAgo } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
 
 interface RecentReviewsSectionProps {
   reviews?: Review[];
@@ -27,6 +28,7 @@ interface RecentReviewsSectionProps {
 const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, isLoading }) => {
   const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({});
     const theme = useTheme();
+    const { t } = useTranslation();
 
   const handleExpandToggle = (reviewId: string) => {
     setExpandedReviews(prev => ({
@@ -41,7 +43,7 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
         <Typography variant="h5" component="h2" sx={{
           fontWeight: "bold"
         }}>
-          Latest Reviews
+          {t('home.latestReviews')}
         </Typography>
       </Box>
       <Divider sx={{ mb: 3 }} />
@@ -100,7 +102,7 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
                           <Typography variant="caption" sx={{
                             color: "text.secondary"
                           }}>
-                            {formatTimeAgo(new Date(review.created_at))}
+                            {formatTimeAgo(new Date(review.created_at), t)}
                           </Typography>
                         </Box>
                       </Box>
@@ -127,7 +129,7 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
                           color: "text.secondary",
                           ml: 1
                         }}>
-                        {review.rating} stars
+                        {t('units.stars', { count: review.rating })}
                       </Typography>
                     </Box>
                     
@@ -160,7 +162,7 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
                         variant="text"
                         size="small"
                       >
-                        {isExpanded ? 'Show Less' : 'Show More'}
+                        {isExpanded ? t('common.showLess') : t('common.showMore')}
                       </Button>
                     </Box>
                   </CardContent>

@@ -19,16 +19,19 @@ import { Novel } from '@models/novels_types';
 import { formatTimeAgo, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
 import { formatCount } from './BaseNovelCard';
 import BookmarkButton from '@components/common/BookmarkButton';
+import { useTranslation } from 'react-i18next';
 
 export interface ReadingListCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
   note?: string;
-  isOwner?: boolean;
+  canEdit?: boolean;
   onEditNote?: (itemId: string, note?: string) => void;
   onRemoveItem?: (itemId: string) => void;
   itemId?: string;
@@ -39,14 +42,16 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
   onClick, 
   isLoading = false,
   to,
+  state,
   note,
-  isOwner = false,
+  canEdit = false,
   onEditNote,
   onRemoveItem,
   itemId
 }) => {
-  const preferredSource = novel.prefered_source;
+  const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -157,7 +162,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             }}
           />
 
-          {isOwner && onEditNote && onRemoveItem && itemId && (
+          {canEdit && onEditNote && onRemoveItem && itemId && (
             <IconButton
               size="small"
               onClick={handleMenuOpen}
@@ -184,6 +189,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           onClick={onClick}
           component={to ? Link : 'div'}
           to={to}
+          state={to ? state : undefined}
         >
           <CardMedia
             component="img"
@@ -208,10 +214,10 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           >
             {novel.languages.length > 0 ? (
               novel.languages.slice(0, 2).map((lang) => (
-                <Tooltip key={lang} title={languageCodeToName(lang)}>
+                <Tooltip key={lang} title={languageCodeToName(t, lang)}>
                   <img 
                     src={`/flags/${languageCodeToFlag(lang)}.svg`} 
-                    alt={languageCodeToName(lang)}
+                    alt={languageCodeToName(t, lang)}
                     style={{ 
                       width: '20px',
                       height: '14px',
@@ -223,7 +229,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 </Tooltip>
               ))
             ) : (
-              <Tooltip title="Unknown language">
+              <Tooltip title={t('cards.unknownLanguage')}>
                 <Box
                   sx={{
                     width: '20px',
@@ -256,6 +262,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           onClick={onClick}
           component={to ? Link : 'div'}
           to={to}
+          state={to ? state : undefined}
         >
           <CardContent sx={{ 
             height: '100%', 
@@ -297,7 +304,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 }}>
                 {preferredSource?.authors && preferredSource.authors.length > 0 
                   ? preferredSource.authors.join(', ')
-                  : 'Unknown'}
+                  : t('common.unknown')}
               </Typography>
             </Box>
             
@@ -313,7 +320,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 }}>
                 {preferredSource?.tags && preferredSource.tags.length > 0 ? 
                   `${preferredSource.tags.join(', ')}` 
-                  : 'Unknown'}
+                  : t('common.unknown')}
               </Typography>
             </Box>
             
@@ -362,7 +369,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 } 
               }}
             >
-              <Tooltip title="Total Chapters">
+              <Tooltip title={t('cards.totalChapters')}>
                 <Chip 
                   icon={<MenuBookIcon />}
                   label={preferredSource?.chapters_count ? formatCount(preferredSource.chapters_count) : '?'}
@@ -371,7 +378,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 />
               </Tooltip>
 
-              <Tooltip title="Views">
+              <Tooltip title={t('cards.views')}>
                 <Chip 
                   icon={<VisibilityIcon />}
                   label={novel.total_views !== undefined ? formatCount(novel.total_views) : '?'}
@@ -380,10 +387,10 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 />
               </Tooltip>
               
-              <Tooltip title="Last Updated">
+              <Tooltip title={t('cards.lastUpdated')}>
                 <Chip 
                   icon={<UpdateIcon />}
-                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update)) : '?'}
+                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update), t) : '?'}
                   size="small"
                   variant="outlined"
                 />
@@ -449,7 +456,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 flexShrink: 0,
               }}
             >
-              Note
+              {t('cards.note')}
             </Typography>
             <Box 
               sx={{ 
@@ -495,7 +502,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                     flexShrink: 0,
                   }}
                 >
-                  See more
+                  {t('common.seeMore')}
                 </Button>
               )}
             </Box>
@@ -513,13 +520,13 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           <ListItemIcon>
             <EditIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary={note ? "Edit Note" : "Add Note"} />
+          <ListItemText primary={note ? t('cards.editNote') : t('cards.addNote')} />
         </MenuItem>
         <MenuItem onClick={handleRemoveItem}>
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="Remove from List" />
+          <ListItemText primary={t('cards.removeFromList')} />
         </MenuItem>
       </Menu>
 
@@ -531,7 +538,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
         fullWidth
       >
         <DialogTitle>
-          <Typography variant="h6">Note</Typography>
+          <Typography variant="h6">{t('cards.note')}</Typography>
           <Typography variant="subtitle2" sx={{
             color: "text.secondary"
           }}>
@@ -551,7 +558,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleNoteModalClose}>Close</Button>
+          <Button onClick={handleNoteModalClose}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
     </Card>

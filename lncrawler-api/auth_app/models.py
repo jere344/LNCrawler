@@ -8,6 +8,12 @@ class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
     profile_pic = models.ImageField(upload_to='profile_pics/', blank=True, null=True)
     word_read = models.IntegerField(default=0)  # Total words read by the user
+    # Interface language; empty means "detect from the browser".
+    preferred_ui_language = models.CharField(max_length=10, blank=True, default='')
+    # Content languages whose novels the user wants to see on the home page.
+    preferred_languages = models.JSONField(default=list, blank=True)
+    # When False, the home page ignores preferred_languages and mixes everything.
+    language_filter_enabled = models.BooleanField(default=True)
 
     def __str__(self):
         return self.username

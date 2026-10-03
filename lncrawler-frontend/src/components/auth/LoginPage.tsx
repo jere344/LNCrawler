@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Box, 
   Button, 
@@ -17,12 +18,14 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth.service';
 
 const LoginPage: React.FC = () => {
   const { login } = useAuth();
+  const { t } = useTranslation();
 
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -52,7 +55,7 @@ const LoginPage: React.FC = () => {
       } else if (error.response?.data?.detail) {
         setError(error.response.data.detail);
       } else {
-        setError('Login failed. Please try again.');
+        setError(t('auth.loginFailed'));
       }
       console.error('Login error:', error);
     } finally {
@@ -71,7 +74,7 @@ const LoginPage: React.FC = () => {
       if (err.response?.data?.email) {
         setForgotError(err.response.data.email[0]);
       } else {
-        setForgotError('Failed to send reset email. Please try again.');
+        setForgotError(t('auth.resetEmailFailed'));
       }
     } finally {
       setForgotLoading(false);
@@ -98,7 +101,7 @@ const LoginPage: React.FC = () => {
         }}
       >
         <Typography variant="h4" component="h1" gutterBottom align="center">
-          Sign In
+          {t('auth.signIn')}
         </Typography>
         
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -109,7 +112,7 @@ const LoginPage: React.FC = () => {
             required
             fullWidth
             id="username"
-            label="Username"
+            label={t('auth.username')}
             name="username"
             autoComplete="username"
             autoFocus
@@ -122,7 +125,7 @@ const LoginPage: React.FC = () => {
             required
             fullWidth
             name="password"
-            label="Password"
+            label={t('auth.password')}
             type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="current-password"
@@ -134,7 +137,7 @@ const LoginPage: React.FC = () => {
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
-                      aria-label="toggle password visibility"
+                      aria-label={t('auth.togglePassword')}
                       onClick={() => setShowPassword(!showPassword)}
                       edge="end"
                     >
@@ -153,7 +156,7 @@ const LoginPage: React.FC = () => {
             sx={{ mt: 3, mb: 2 }}
             disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'Sign In'}
+            {loading ? <CircularProgress size={24} /> : t('auth.signIn')}
           </Button>
           
           <Divider sx={{ my: 2 }} />
@@ -162,7 +165,7 @@ const LoginPage: React.FC = () => {
             <Typography variant="body2" gutterBottom sx={{
               color: "text.secondary"
             }}>
-              Don't have an account?
+              {t('auth.noAccount')}
             </Typography>
             <Button
               component={Link}
@@ -171,7 +174,7 @@ const LoginPage: React.FC = () => {
               disabled={loading}
               sx={{ mb: 2 }}
             >
-              Create Account
+              {t('auth.createAccount')}
             </Button>
             
             <Typography
@@ -186,7 +189,7 @@ const LoginPage: React.FC = () => {
                 onClick={() => setShowForgotPassword(true)}
                 disabled={loading}
               >
-                Forgot Password?
+                {t('auth.forgotPassword')}
               </Button>
             </Typography>
           </Box>
@@ -194,19 +197,19 @@ const LoginPage: React.FC = () => {
 
         {/* Forgot Password Dialog */}
         <Dialog open={showForgotPassword} onClose={resetForgotPasswordForm} maxWidth="sm" fullWidth>
-          <DialogTitle>Reset Password</DialogTitle>
+          <DialogTitle>{t('auth.resetPassword')}</DialogTitle>
           <DialogContent>
             {forgotSuccess ? (
               <Box sx={{ textAlign: 'center', py: 2 }}>
                 <Typography variant="h6" gutterBottom sx={{
                   color: "success.main"
                 }}>
-                  Email Sent!
+                  {t('auth.emailSent')}
                 </Typography>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  Check your email for password reset instructions.
+                  {t('auth.checkEmail')}
                 </Typography>
               </Box>
             ) : (
@@ -218,10 +221,10 @@ const LoginPage: React.FC = () => {
                     color: "text.secondary",
                     mb: 2
                   }}>
-                  Enter your email address and we'll send you a link to reset your password.
+                  {t('auth.enterEmailReset')}
                 </Typography>
                 <TextField
-                  label="Email Address"
+                  label={t('auth.emailAddress')}
                   type="email"
                   fullWidth
                   margin="normal"
@@ -234,7 +237,7 @@ const LoginPage: React.FC = () => {
           </DialogContent>
           <DialogActions>
             <Button onClick={resetForgotPasswordForm}>
-              {forgotSuccess ? 'Close' : 'Cancel'}
+              {forgotSuccess ? t('common.close') : t('common.cancel')}
             </Button>
             {!forgotSuccess && (
               <Button 
@@ -242,7 +245,7 @@ const LoginPage: React.FC = () => {
                 variant="contained"
                 disabled={forgotLoading || !forgotEmail}
               >
-                {forgotLoading ? <CircularProgress size={24} /> : 'Send Reset Link'}
+                {forgotLoading ? <CircularProgress size={24} /> : t('auth.sendResetLink')}
               </Button>
             )}
           </DialogActions>

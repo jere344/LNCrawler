@@ -14,6 +14,7 @@ import BlockIcon from '@mui/icons-material/Block';
 import VerticalAlignTopIcon from '@mui/icons-material/VerticalAlignTop';
 import VerticalAlignBottomIcon from '@mui/icons-material/VerticalAlignBottom';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import { useTranslation } from 'react-i18next';
 import { EdgeTapBehavior, MarkReadBehavior } from '../ReaderSettings';
 
 interface BehaviorSettingsProps {
@@ -35,10 +36,10 @@ interface BehaviorSettingsProps {
 
 // Edge tap options
 export const edgeTapOptions = [
-  { name: 'Do Nothing', value: 'none', icon: BlockIcon },
-  { name: 'Scroll Up', value: 'scrollUp', icon: VerticalAlignTopIcon },
-  { name: 'Scroll Down', value: 'scrollDown', icon: VerticalAlignBottomIcon },
-  { name: 'Change Chapter', value: 'chapter', icon: ChevronRightIcon },
+  { labelKey: 'behaviorSettings.doNothing', value: 'none', icon: BlockIcon },
+  { labelKey: 'behaviorSettings.scrollUp', value: 'scrollUp', icon: VerticalAlignTopIcon },
+  { labelKey: 'behaviorSettings.scrollDown', value: 'scrollDown', icon: VerticalAlignBottomIcon },
+  { labelKey: 'behaviorSettings.changeChapter', value: 'chapter', icon: ChevronRightIcon },
 ];
 
 /**
@@ -60,6 +61,8 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
   onCenterTapToOpenSettingsChange,
   isAuthenticated = false,
 }) => {
+  const { t } = useTranslation();
+
   const handleEdgeTapChange = (edge: 'left' | 'right') => (event: SelectChangeEvent) => {
     onEdgeTapChange(edge, event.target.value as EdgeTapBehavior);
   };
@@ -79,13 +82,13 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
   const getMarkReadExplanation = (behavior: MarkReadBehavior) => {
     switch (behavior) {
       case 'none':
-        return 'Mark as read buttons will be hidden.';
+        return t('behaviorSettings.hidden');
       case 'button':
-        return 'Mark as read buttons will be shown but chapters won\'t be marked automatically.';
+        return t('behaviorSettings.shownNotAuto');
       case 'automatic':
-        return 'Previous chapter will be automatically marked as read when navigating to a new chapter.';
+        return t('behaviorSettings.autoPrev');
       case 'buttonAutomatic':
-        return 'Both manual marking via buttons and automatic marking when changing chapters are enabled.';
+        return t('behaviorSettings.bothEnabled');
       default:
         return '';
     }
@@ -93,10 +96,10 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
 
   return (
     <Box>
-      <Typography variant="subtitle1" sx={{ mb: 2 }}>Behavior Settings</Typography>
+      <Typography variant="subtitle1" sx={{ mb: 2 }}>{t('behaviorSettings.heading')}</Typography>
       
       {/* Edge Tap Settings */}
-      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>Left Edge Tap (Mobile)</Typography>
+      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>{t('behaviorSettings.leftEdgeTap')}</Typography>
       <FormControl fullWidth size="small" sx={{ mb: 2 }}>
         <Select
           value={leftEdgeTapBehavior}
@@ -106,14 +109,14 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
             <MenuItem key={`left-${option.value}`} value={option.value}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {React.createElement(option.icon, { sx: { mr: 1, fontSize: '1.2rem' } })}
-                {option.name}
+                {t(option.labelKey)}
               </Box>
             </MenuItem>
           ))}
         </Select>
       </FormControl>
 
-      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>Right Edge Tap (Mobile)</Typography>
+      <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>{t('behaviorSettings.rightEdgeTap')}</Typography>
       <FormControl fullWidth size="small" sx={{ mb: 2 }}>
         <Select
           value={rightEdgeTapBehavior}
@@ -123,7 +126,7 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
             <MenuItem key={`right-${option.value}`} value={option.value}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {React.createElement(option.icon, { sx: { mr: 1, fontSize: '1.2rem' } })}
-                {option.name}
+                {t(option.labelKey)}
               </Box>
             </MenuItem>
           ))}
@@ -133,16 +136,16 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
       {/* Mark as Read Behavior (only for authenticated users) */}
       {isAuthenticated && (
         <>
-          <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>Mark as Read Behavior</Typography>
+          <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>{t('behaviorSettings.markAsReadBehavior')}</Typography>
           <FormControl fullWidth size="small" sx={{ mb: 1 }}>
             <Select
               value={markReadBehavior}
               onChange={handleMarkReadBehaviorChange}
             >
-              <MenuItem value="none">None</MenuItem>
-              <MenuItem value="button">Button Only</MenuItem>
-              <MenuItem value="automatic">Automatic</MenuItem>
-              <MenuItem value="buttonAutomatic">Button + Automatic</MenuItem>
+              <MenuItem value="none">{t('behaviorSettings.none')}</MenuItem>
+              <MenuItem value="button">{t('behaviorSettings.buttonOnly')}</MenuItem>
+              <MenuItem value="automatic">{t('behaviorSettings.automatic')}</MenuItem>
+              <MenuItem value="buttonAutomatic">{t('behaviorSettings.buttonAndAutomatic')}</MenuItem>
             </Select>
             <FormHelperText>
               {getMarkReadExplanation(markReadBehavior)}
@@ -160,7 +163,7 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
             color="primary"
           />
         }
-        label="Allow Text Selection/Copy"
+        label={t('behaviorSettings.allowSelection')}
         sx={{ mt: 2, mb: 1, display: 'block' }}
       />
       
@@ -172,7 +175,7 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
             color="primary"
           />
         }
-        label="Remember Reading Position"
+        label={t('behaviorSettings.rememberPosition')}
         sx={{ mb: 1, display: 'block' }}
       />
       
@@ -185,9 +188,9 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
               onChange={(e) => onKeyboardNavigationChange(e.target.checked)}
             />
           }
-          label="Keyboard Navigation"
+          label={t('behaviorSettings.keyboardNavigation')}
         />
-        <FormHelperText>Use arrow keys and space for navigation</FormHelperText>
+        <FormHelperText>{t('behaviorSettings.keyboardHint')}</FormHelperText>
       </FormControl>
 
       {/* Center Tap to Open Settings Toggle */}
@@ -199,9 +202,9 @@ const BehaviorSettings: React.FC<BehaviorSettingsProps> = ({
               onChange={(e) => onCenterTapToOpenSettingsChange(e.target.checked)}
             />
           }
-          label="Center Tap to Open Settings"
+          label={t('behaviorSettings.centerTapSettings')}
         />
-        <FormHelperText>Tap center of screen to open settings panel</FormHelperText>
+        <FormHelperText>{t('behaviorSettings.centerTapHint')}</FormHelperText>
       </FormControl>
     </Box>
   );

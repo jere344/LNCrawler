@@ -10,6 +10,7 @@ import {
   Alert,
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface CommentFormProps {
   onSubmit: (commentData: { 
@@ -30,6 +31,7 @@ const CommentForm = ({
   onCancel 
 }: CommentFormProps) => {
   const { isAuthenticated, user } = useAuth(); // Get auth status and user
+  const { t } = useTranslation();
   const [authorName, setAuthorName] = useState('');
   const [message, setMessage] = useState('');
   const [containsSpoiler, setContainsSpoiler] = useState(false);
@@ -52,12 +54,12 @@ const CommentForm = ({
     e.preventDefault();
     
     if (!authorName.trim() && !isAuthenticated) { // Only require if not authenticated
-      setError('Please enter your name');
+      setError(t('comments.enterName'));
       return;
     }
     
     if (!message.trim()) {
-      setError('Please enter a comment');
+      setError(t('comments.enterComment'));
       return;
     }
     
@@ -89,7 +91,7 @@ const CommentForm = ({
       
     } catch (err) {
       console.error('Error submitting comment:', err);
-      setError('Failed to submit comment. Please try again.');
+      setError(t('comments.submitFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -107,7 +109,7 @@ const CommentForm = ({
       }}
     >
       <Typography variant="h6" gutterBottom>
-        {isReply ? `Reply to ${parentAuthor}` : 'Add a Comment'}
+        {isReply ? t('comments.replyTo', { author: parentAuthor }) : t('comments.addComment')}
       </Typography>
       
       {error && (
@@ -118,14 +120,14 @@ const CommentForm = ({
       
       {success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(false)}>
-          {isReply ? 'Reply posted successfully!' : 'Comment posted successfully!'}
+          {isReply ? t('comments.replyPosted') : t('comments.commentPosted')}
         </Alert>
       )}
       
       <Box component="form" onSubmit={handleSubmit} noValidate>
         <TextField
           fullWidth
-          label="Your Name"
+          label={t('comments.yourName')}
           margin="normal"
           value={authorName}
           onChange={(e) => setAuthorName(e.target.value)}
@@ -135,7 +137,7 @@ const CommentForm = ({
         
         <TextField
           fullWidth
-          label={isReply ? "Your Reply" : "Your Comment"}
+          label={isReply ? t('comments.yourReply') : t('comments.yourComment')}
           multiline
           rows={isReply ? 3 : 4}
           margin="normal"
@@ -152,7 +154,7 @@ const CommentForm = ({
               color="primary"
             />
           }
-          label="This comment contains spoilers"
+          label={t('comments.containsSpoilers')}
           sx={{ mt: 1 }}
         />
         
@@ -163,7 +165,7 @@ const CommentForm = ({
             color="primary"
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Posting...' : isReply ? 'Post Reply' : 'Post Comment'}
+            {isSubmitting ? t('comments.posting') : isReply ? t('comments.postReply') : t('comments.postComment')}
           </Button>
           
           {isReply && onCancel && (
@@ -172,7 +174,7 @@ const CommentForm = ({
               onClick={onCancel}
               disabled={isSubmitting}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
           )}
         </Box>

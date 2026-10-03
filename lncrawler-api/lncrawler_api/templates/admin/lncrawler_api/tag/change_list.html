@@ -1,0 +1,16 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+  {% if merge_button %}
+    <li>
+      <a href="{{ merge_button.url }}" class="addlink">{{ merge_button.label }}</a>
+    </li>
+  {% endif %}
+  {% if auto_merge_button %}
+    <li>
+      <a href="{{ auto_merge_button.url }}" class="addlink">{{ auto_merge_button.label }}</a>
+    </li>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

@@ -72,14 +72,20 @@ export const authService = {
     username?: string;
     email?: string;
     profile_pic?: File;
+    preferred_ui_language?: string;
+    preferred_languages?: string[];
+    language_filter_enabled?: boolean;
   }) => {
     // Use FormData if there's a profile image upload
     if (profileData.profile_pic) {
       const formData = new FormData();
       
       Object.entries(profileData).forEach(([key, value]) => {
-        if (value !== undefined) {
-          formData.append(key, value);
+        if (value === undefined) return;
+        if (Array.isArray(value)) {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, String(value));
         }
       });
       

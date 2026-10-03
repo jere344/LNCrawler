@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -5,12 +6,12 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 
+from auth_app.serializers import OtherUserSerializer
 from ..models.users_models import NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelSimilarity
 from ..models.sources_models import NovelFromSource, Chapter
 from ..serializers.novels_serializers import BasicNovelSerializer
 from ..serializers.users_serializers import DetailedReadingHistorySerializer
-from ..models.novels_models import NovelViewCount
 from ..utils import resolve_novel_slug
 
 @api_view(["POST"])
@@ -103,11 +104,13 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
         needed = max_recommendations - len(recommended_ids)
         excluded_ids = bookmarked_ids + recommended_ids
         
-        # Get popular novels IDs in a single query
-        popular_ids = (NovelViewCount.objects
-            .exclude(novel_id__in=excluded_ids)
-            .order_by('-views')
-            .values_list('novel_id', flat=True)[:needed]
+        # Get popular novels IDs in a single query (summed over sources)
+        from django.db.models import Sum
+        popular_ids = (Novel.objects
+            .exclude(id__in=excluded_ids)
+            .annotate(total_views=Sum('sources__total_views'))
+            .order_by('-total_views')
+            .values_list('id', flat=True)[:needed]
         )
         
         recommended_ids.extend(popular_ids)
@@ -195,3 +198,23 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     else:
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def search_users(request):
+    """
+    Search users by username (case-insensitive), for adding list collaborators.
+    """
+    query = request.query_params.get("q", "").strip()
+    if len(query) < 2:
+        return Response([])
+
+    users = (
+        get_user_model().objects
+        .filter(username__icontains=query)
+        .exclude(id=request.user.id)
+        .order_by("username")[:20]
+    )
+    serializer = OtherUserSerializer(users, many=True, context={"request": request})
+    return Response(serializer.data)

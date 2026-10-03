@@ -5,6 +5,7 @@ import {
   FormControlLabel,
   Switch,
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 interface PageSettingsProps {
   pageMode: boolean;
@@ -26,6 +27,8 @@ const PageSettings: React.FC<PageSettingsProps> = ({
   onShowPagesChange,
   onShowPageSliderChange,
 }) => {
+  const { t } = useTranslation();
+
   const handlePageModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     onPageModeChange(event.target.checked);
   };
@@ -49,10 +52,10 @@ const PageSettings: React.FC<PageSettingsProps> = ({
               color="primary"
             />
           }
-          label="Enable Page Mode"
+          label={t('pageSettings.enablePageMode')}
         />
         <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
-          Switch from scroll-based to page-based reading
+          {t('pageSettings.enablePageModeHint')}
         </Typography>
       </Box>
 
@@ -66,10 +69,10 @@ const PageSettings: React.FC<PageSettingsProps> = ({
               disabled={!pageMode}
             />
           }
-          label="Show Page Numbers"
+          label={t('pageSettings.showPageNumbers')}
         />
         <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
-          Display current page and total pages
+          {t('pageSettings.showPageNumbersHint')}
         </Typography>
       </Box>
 
@@ -83,10 +86,10 @@ const PageSettings: React.FC<PageSettingsProps> = ({
               disabled={!pageMode || !showPages}
             />
           }
-          label="Show Page Slider"
+          label={t('pageSettings.showPageSlider')}
         />
         <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
-          Display slider for quickly navigating between pages
+          {t('pageSettings.showPageSliderHint')}
         </Typography>
       </Box>
     </>

@@ -16,6 +16,7 @@ import {
 } from '@mdxeditor/editor';
 import '@mdxeditor/editor/style.css';
 import { createMDXEditorStyles } from '@utils/mdxEditorStyles';
+import { useTranslation } from 'react-i18next';
 
 interface EditableMDXEditorProps {
   content: string;
@@ -27,10 +28,11 @@ interface EditableMDXEditorProps {
 const EditableMDXEditor: React.FC<EditableMDXEditorProps> = ({ 
   content, 
   onChange, 
-  placeholder = "Start writing...",
+  placeholder,
   editorKey = 0
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const editorStyles = createMDXEditorStyles(theme, false);
 
   return (
@@ -68,7 +70,7 @@ const EditableMDXEditor: React.FC<EditableMDXEditorProps> = ({
             )
           })
         ]}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('reviewForm.startWriting')}
       />
     </Box>
   );

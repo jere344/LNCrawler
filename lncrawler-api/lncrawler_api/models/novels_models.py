@@ -15,6 +15,11 @@ class Novel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     comment_count = models.PositiveIntegerField(default=0)
     
+    class Meta:
+        indexes = [
+            models.Index(fields=['-created_at'], name='novel_created_at_idx'),
+        ]
+    
     def __str__(self):
         return self.title
     
@@ -90,6 +95,33 @@ class Tag(models.Model):
     def __str__(self):
         return self.name
 
+    @classmethod
+    def resolve(cls, name):
+        """Return the tag named ``name``, following a merged-away alias first.
+
+        Keeps re-imports from recreating a tag that was merged into another.
+        """
+        alias = TagAlias.objects.filter(name=name).select_related('tag').first()
+        if alias is not None:
+            return alias.tag
+        tag, _ = cls.objects.get_or_create(name=name)
+        return tag
+
+
+class TagAlias(models.Model):
+    """A merged-away tag name pointing at its canonical Tag."""
+    name = models.CharField(max_length=100, unique=True)
+    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name='aliases')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'tag alias'
+        verbose_name_plural = 'tag aliases'
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} -> {self.tag.name}"
+
 
 class NovelRating(models.Model):
     """
@@ -116,35 +148,18 @@ class NovelRating(models.Model):
         return f"Rating {self.rating} for {self.novel.title} by {self.ip_address}"
 
 
-class NovelViewCount(models.Model):
+class WeeklySourceView(models.Model):
     """
-    Tracks the total view count for a novel across all sources
-    """
-    novel = models.OneToOneField(Novel, on_delete=models.CASCADE, related_name='view_count')
-    views = models.BigIntegerField(default=0)
-    last_updated = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"{self.novel.title}: {self.views} views"
+    Views for one source (NovelFromSource) as time buckets. Recent views are
+    stored one row per day (granularity='day', day = the calendar day); buckets
+    older than the consolidation window are rolled up by
+    ``consolidate_source_views`` into one row per ISO week (granularity='week',
+    day = that week's Monday).
 
-    def increment(self):
-        """
-        Increment the all-time view count for the novel
-        """
-        NovelViewCount.objects.filter(pk=self.pk).update(
-            views=F('views') + 1
-        )
-        
-        # Refresh from database to get the latest values
-        self.refresh_from_db()
-
-
-class WeeklyNovelView(models.Model):
-    """
-    Tracks novel views as time buckets. Recent views are stored one row per day
-    (granularity='day', day = the calendar day); buckets older than the
-    consolidation window are rolled up by ``consolidate_novel_views`` into one
-    row per ISO week (granularity='week', day = that week's Monday).
+    Views are tracked per source because a novel can be available in several
+    languages and popularity must be attributable to a language. The all-time
+    total is a rebuildable projection kept on NovelFromSource.total_views, so
+    this table stays the single event record.
 
     The trailing WINDOW_DAYS days of daily buckets are summed to produce the
     rolling "weekly views" shown in the UI, so the number slides day by day
@@ -157,17 +172,23 @@ class WeeklyNovelView(models.Model):
     WEEK = 'week'
     GRANULARITY_CHOICES = [(DAY, 'day'), (WEEK, 'week')]
 
-    novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='weekly_views')
+    source = models.ForeignKey(
+        'NovelFromSource', on_delete=models.CASCADE, related_name='weekly_views'
+    )
     day = models.DateField()  # Day for daily rows, Monday for weekly rows
     granularity = models.CharField(max_length=4, choices=GRANULARITY_CHOICES, default=DAY)
     views = models.PositiveIntegerField(default=0)
-    
+
     class Meta:
-        unique_together = ('novel', 'granularity', 'day')
-    
+        unique_together = ('source', 'granularity', 'day')
+        indexes = [
+            models.Index(fields=['granularity', 'day']),
+            models.Index(fields=['source', 'granularity', 'day']),
+        ]
+
     def __str__(self):
         period = self.day if self.granularity == self.DAY else f"week of {self.day}"
-        return f"{self.novel.title}: {self.views} views ({period})"
+        return f"{self.source.title}: {self.views} views ({period})"
 
     @classmethod
     def window_start(cls):
@@ -176,24 +197,31 @@ class WeeklyNovelView(models.Model):
         return date.today() - timedelta(days=cls.WINDOW_DAYS - 1)
 
     @classmethod
-    def increment_for_novel(cls, novel):
+    def increment_for_source(cls, source):
         """
-        Increment today's view count for a novel
+        Increment today's view count for a source and its all-time projection.
         """
         from datetime import date
-        today = date.today()
-        daily_view, _ = cls.objects.get_or_create(
-            novel=novel,
-            granularity=cls.DAY,
-            day=today,
-            defaults={'views': 0}
-        )
+        from django.db import transaction
 
-        cls.objects.filter(pk=daily_view.pk).update(views=F('views') + 1)
+        from .sources_models import NovelFromSource
+
+        today = date.today()
+        with transaction.atomic():
+            daily_view, _ = cls.objects.get_or_create(
+                source=source,
+                granularity=cls.DAY,
+                day=today,
+                defaults={'views': 0}
+            )
+            cls.objects.filter(pk=daily_view.pk).update(views=F('views') + 1)
+
+            NovelFromSource.objects.filter(pk=source.pk).update(
+                total_views=F('total_views') + 1
+            )
 
         # Refresh from database to get the latest values
         daily_view.refresh_from_db()
-
         return daily_view
 
 

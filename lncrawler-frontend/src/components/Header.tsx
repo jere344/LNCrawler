@@ -32,7 +32,9 @@ import { useTheme as useMuiTheme } from "@mui/material/styles";
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
+import LanguageSwitcher from "./common/LanguageSwitcher";
 
 // Import logos
 import logoLight from "@assets/logo-transparent.png";
@@ -73,6 +75,7 @@ const DiscordIcon = () => (
 // Enhanced Header component with navigation tabs
 const Header = () => {
     const { isDarkMode, currentThemeId, setThemeById, availableThemes } = useTheme();
+    const { t } = useTranslation();
     const { isAuthenticated, user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -177,7 +180,7 @@ const Header = () => {
                         <Box
                             component="img"
                             src={logoSrc}
-                            alt="LNCrawler Logo"
+                            alt={t('header.logoAlt')}
                             sx={{
                                 height: 40,
                                 mr: 1,
@@ -206,12 +209,12 @@ const Header = () => {
                                   },
                         }}
                     >
-                        <Tab label="Home" value="/" component={RouterLink} to="/" />
-                        {isAuthenticated && <Tab label="Library" value="/library" component={RouterLink} to="/library" />}
-                        {isAuthenticated && <Tab label="History" value="/history" component={RouterLink} to="/history" />}
-                        <Tab label="Lists" value="/reading-lists" component={RouterLink} to="/reading-lists" />
-                        <Tab label="Chat" value="/boards" component={RouterLink} to="/boards" />
-                        <Tab label="Search" value="/novels/search" component={RouterLink} to="/novels/search" />
+                        <Tab label={t('header.home')} value="/" component={RouterLink} to="/" />
+                        {isAuthenticated && <Tab label={t('header.library')} value="/library" component={RouterLink} to="/library" />}
+                        {isAuthenticated && <Tab label={t('header.history')} value="/history" component={RouterLink} to="/history" />}
+                        <Tab label={t('header.lists')} value="/reading-lists" component={RouterLink} to="/reading-lists" />
+                        <Tab label={t('header.chat')} value="/boards" component={RouterLink} to="/boards" />
+                        <Tab label={t('header.search')} value="/novels/search" component={RouterLink} to="/novels/search" />
                     </Tabs>
                 )}
 
@@ -225,7 +228,7 @@ const Header = () => {
                         to="/download"
                         sx={{ mr: 1, px: isTablet ? 1 : 2, whiteSpace: "nowrap" }}
                     >
-                        Add Novel
+                        {t('header.addNovel')}
                     </Button>
 
                     {/* Discord Link - Hide on tablet */}
@@ -236,7 +239,7 @@ const Header = () => {
                             target="_blank"
                             rel="noopener noreferrer"
                             color="inherit"
-                            aria-label="Discord"
+                            aria-label={t('header.discord')}
                             sx={{ padding: isTablet ? 0.5 : 1 }}
                         >
                             <DiscordIcon />
@@ -251,18 +254,21 @@ const Header = () => {
                             target="_blank"
                             rel="noopener noreferrer"
                             color="inherit"
-                            aria-label="GitHub"
+                            aria-label={t('header.github')}
                             sx={{ padding: isTablet ? 0.5 : 1 }}
                         >
                             <GitHubIcon sx={{ fontSize: isTablet ? "1.25rem" : "1.5rem" }} />
                         </IconButton>
                     )}
 
+                    {/* Interface Language */}
+                    <LanguageSwitcher />
+
                     {/* Theme Menu */}
                     <IconButton
                         onClick={handleThemeMenuOpen}
                         color="inherit"
-                        aria-label="Change theme"
+                        aria-label={t('header.changeTheme')}
                         aria-controls="theme-menu"
                         aria-haspopup="true"
                         sx={{ padding: isTablet ? 0.5 : 1 }}
@@ -292,7 +298,7 @@ const Header = () => {
                                             <CheckIcon fontSize="small" />
                                         </ListItemIcon>
                                     )}
-                                    <ListItemText inset={currentThemeId !== theme.id} primary={theme.name} />
+                                    <ListItemText inset={currentThemeId !== theme.id} primary={t('themes.' + theme.id)} />
                                 </MenuItem>
                             ))}
                     </Menu>
@@ -322,7 +328,7 @@ const Header = () => {
                                 </Avatar>
                                 {!isMobile && !isTablet && (
                                     <Typography variant="body2" sx={{ ml: 1 }}>
-                                        {user?.username || "User"}
+                                        {user?.username || t('header.userFallback')}
                                     </Typography>
                                 )}
                             </Box>
@@ -344,13 +350,13 @@ const Header = () => {
                                     <ListItemIcon>
                                         <PersonIcon fontSize="small" />
                                     </ListItemIcon>
-                                    <ListItemText primary="Profile" />
+                                    <ListItemText primary={t('header.profile')} />
                                 </MenuItem>
                                 <MenuItem onClick={handleLogout}>
                                     <ListItemIcon>
                                         <LogoutIcon fontSize="small" />
                                     </ListItemIcon>
-                                    <ListItemText primary="Logout" />
+                                    <ListItemText primary={t('header.logout')} />
                                 </MenuItem>
                             </Menu>
                         </>
@@ -364,11 +370,11 @@ const Header = () => {
                                 startIcon={!isTablet && <LoginIcon />}
                                 sx={{ mr: 1, px: isTablet ? 1 : 2 }}
                             >
-                                Login
+                                {t('header.login')}
                             </Button>
                         </Box>
                     ) : (
-                        <IconButton color="inherit" onClick={handleAccountMenuOpen} aria-label="Account">
+                        <IconButton color="inherit" onClick={handleAccountMenuOpen} aria-label={t('header.account')}>
                             <AccountCircleIcon />
                         </IconButton>
                     )}
@@ -376,19 +382,19 @@ const Header = () => {
                     {/* Mobile Menu Button */}
                     {isMobile && (
                         <>
-                            <IconButton edge="end" color="inherit" aria-label="menu" onClick={handleMenuOpen}>
+                            <IconButton edge="end" color="inherit" aria-label={t('header.menu')} onClick={handleMenuOpen}>
                                 <MenuIcon />
                             </IconButton>
                             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
                                 <MenuItem component={RouterLink} to="/" onClick={handleMenuClose}>
-                                    Home
+                                    {t('header.home')}
                                 </MenuItem>
                                 {isAuthenticated && (
                                     <MenuItem component={RouterLink} to="/library" onClick={handleMenuClose}>
                                         <ListItemIcon>
                                             <LibraryBooksIcon fontSize="small" />
                                         </ListItemIcon>
-                                        <ListItemText primary="Library" />
+                                        <ListItemText primary={t('header.library')} />
                                     </MenuItem>
                                 )}
                                 {isAuthenticated && (
@@ -396,7 +402,7 @@ const Header = () => {
                                         <ListItemIcon>
                                             <HistoryIcon fontSize="small" />
                                         </ListItemIcon>
-                                        <ListItemText primary="Reading History" />
+                                        <ListItemText primary={t('header.readingHistory')} />
                                     </MenuItem>
                                 )}
                                 {isAuthenticated && (
@@ -404,20 +410,20 @@ const Header = () => {
                                         <ListItemIcon>
                                             <FormatListBulletedIcon fontSize="small" />
                                         </ListItemIcon>
-                                        <ListItemText primary="Reading Lists" />
+                                        <ListItemText primary={t('header.readingLists')} />
                                     </MenuItem>
                                 )}
                                 <MenuItem component={RouterLink} to="/boards" onClick={handleMenuClose}>
                                     <ListItemIcon>
                                         <ForumIcon fontSize="small" />
                                     </ListItemIcon>
-                                    <ListItemText primary="Chat" />
+                                    <ListItemText primary={t('header.chat')} />
                                 </MenuItem>
                                 <MenuItem component={RouterLink} to="/novels/search" onClick={handleMenuClose}>
                                     <ListItemIcon>
                                         <SearchIcon fontSize="small" />
                                     </ListItemIcon>
-                                    <ListItemText primary="Search" />
+                                    <ListItemText primary={t('header.search')} />
                                 </MenuItem>
                             </Menu>
                         </>
@@ -426,7 +432,7 @@ const Header = () => {
                     {/* Tablet More Menu Button */}
                     {isTablet && (
                         <>
-                            <IconButton edge="end" color="inherit" aria-label="menu" onClick={handleMenuOpen} sx={{ padding: 0.5 }}>
+                            <IconButton edge="end" color="inherit" aria-label={t('header.menu')} onClick={handleMenuOpen} sx={{ padding: 0.5 }}>
                                 <MenuIcon sx={{ fontSize: "1.25rem" }} />
                             </IconButton>
                             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
@@ -440,7 +446,7 @@ const Header = () => {
                                     <ListItemIcon>
                                         <DiscordIcon />
                                     </ListItemIcon>
-                                    <ListItemText primary="Discord" />
+                                    <ListItemText primary={t('header.discord')} />
                                 </MenuItem>
                                 <MenuItem
                                     component={Link}
@@ -452,7 +458,7 @@ const Header = () => {
                                     <ListItemIcon>
                                         <GitHubIcon fontSize="small" />
                                     </ListItemIcon>
-                                    <ListItemText primary="GitHub" />
+                                    <ListItemText primary={t('header.github')} />
                                 </MenuItem>
                             </Menu>
                         </>
@@ -465,13 +471,13 @@ const Header = () => {
                                 <ListItemIcon>
                                     <LoginIcon fontSize="small" />
                                 </ListItemIcon>
-                                <ListItemText primary="Login" />
+                                <ListItemText primary={t('header.login')} />
                             </MenuItem>
                             <MenuItem component={RouterLink} to="/register" onClick={handleAccountMenuClose}>
                                 <ListItemIcon>
                                     <PersonIcon fontSize="small" />
                                 </ListItemIcon>
-                                <ListItemText primary="Register" />
+                                <ListItemText primary={t('header.register')} />
                             </MenuItem>
                         </Menu>
                     )}

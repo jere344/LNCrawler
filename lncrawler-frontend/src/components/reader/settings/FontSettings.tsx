@@ -14,6 +14,7 @@ import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
 import FormatAlignCenterIcon from '@mui/icons-material/FormatAlignCenter';
 import FormatAlignJustifyIcon from '@mui/icons-material/FormatAlignJustify';
 import FormatAlignRightIcon from '@mui/icons-material/ArrowForward';
+import { useTranslation } from 'react-i18next';
 import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface FontSettingsProps {
@@ -27,13 +28,13 @@ interface FontSettingsProps {
 
 // Font options
 export const fontOptions = [
-  { name: 'Default (theme font)', value: null },
-  { name: 'Arial', value: 'Arial, sans-serif' },
-  { name: 'Times New Roman', value: 'Times New Roman, serif' },
-  { name: 'Georgia', value: 'Georgia, serif' },
-  { name: 'Verdana', value: 'Verdana, sans-serif' },
-  { name: 'OpenDyslexic', value: 'OpenDyslexic, cursive' },
-  { name: 'Roboto', value: 'Roboto, sans-serif' },
+  { labelKey: 'fontSettings.defaultThemeFont', value: null },
+  { labelKey: 'fontSettings.arial', value: 'Arial, sans-serif' },
+  { labelKey: 'fontSettings.timesNewRoman', value: 'Times New Roman, serif' },
+  { labelKey: 'fontSettings.georgia', value: 'Georgia, serif' },
+  { labelKey: 'fontSettings.verdana', value: 'Verdana, sans-serif' },
+  { labelKey: 'fontSettings.openDyslexic', value: 'OpenDyslexic, cursive' },
+  { labelKey: 'fontSettings.roboto', value: 'Roboto, sans-serif' },
 ];
 
 /**
@@ -47,6 +48,8 @@ const FontSettings: React.FC<FontSettingsProps> = ({
   onFontFamilyChange,
   onTextAlignChange,
 }) => {
+  const { t } = useTranslation();
+
   const handleFontSizeChange = (_event: Event, newValue: number | number[]) => {
     onFontSizeChange(newValue as number);
   };
@@ -65,7 +68,7 @@ const FontSettings: React.FC<FontSettingsProps> = ({
   return (
     <>
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Font Size: {fontSize}px</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('fontSettings.fontSize', { size: fontSize })}</Typography>
         <MobileSafeSlider
           value={fontSize}
           onChange={handleFontSizeChange}
@@ -83,19 +86,19 @@ const FontSettings: React.FC<FontSettingsProps> = ({
 
       <Box sx={{ mb: 2 }}>
         <FormControl fullWidth variant="outlined" size="small">
-          <InputLabel>Font</InputLabel>
+          <InputLabel>{t('fontSettings.font')}</InputLabel>
           <Select
             value={fontFamily === null ? "null" : fontFamily}
             onChange={handleFontFamilyChange}
-            label="Font"
+            label={t('fontSettings.font')}
           >
             {fontOptions.map((font) => (
               <MenuItem 
-                key={font.name} 
+                key={font.labelKey} 
                 value={font.value === null ? "null" : font.value}
                 style={{ fontFamily: font.value || undefined }}
               >
-                {font.name}
+                {t(font.labelKey)}
               </MenuItem>
             ))}
           </Select>
@@ -103,25 +106,25 @@ const FontSettings: React.FC<FontSettingsProps> = ({
       </Box>
 
       <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Text Alignment</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('fontSettings.textAlignment')}</Typography>
         <ToggleButtonGroup
           value={textAlign}
           exclusive
           onChange={handleTextAlignChange}
-          aria-label="text alignment"
+          aria-label={t('fontSettings.textAlignment')}
           fullWidth
           size="small"
         >
-          <ToggleButton value="left" aria-label="left aligned">
+          <ToggleButton value="left" aria-label={t('fontSettings.alignLeft')}>
             <FormatAlignLeftIcon />
           </ToggleButton>
-          <ToggleButton value="center" aria-label="centered">
+          <ToggleButton value="center" aria-label={t('fontSettings.alignCenter')}>
             <FormatAlignCenterIcon />
           </ToggleButton>
-          <ToggleButton value="justify" aria-label="justified">
+          <ToggleButton value="justify" aria-label={t('fontSettings.alignJustify')}>
             <FormatAlignJustifyIcon />
           </ToggleButton>
-          <ToggleButton value="right" aria-label="right aligned">
+          <ToggleButton value="right" aria-label={t('fontSettings.alignRight')}>
             <FormatAlignRightIcon />
           </ToggleButton>
         </ToggleButtonGroup>
