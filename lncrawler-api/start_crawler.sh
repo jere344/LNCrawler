@@ -12,4 +12,5 @@ until python manage.py migrate --check >/dev/null 2>&1; do
 done
 
 echo "Starting dedicated crawler worker..."
+export SERVICE_NAME=crawler
 exec python manage.py run_crawler_worker

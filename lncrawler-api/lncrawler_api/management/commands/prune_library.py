@@ -30,7 +30,8 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import CharField, Count
+from django.db.models.functions import Cast, MD5, Substr
 from django.utils import timezone
 
 from lncrawler_api.models import (
@@ -127,6 +128,13 @@ class Command(BaseCommand):
             "--source", type=str, default=None,
             help="Limit phase 3 to this ExternalSource name (normalized).",
         )
+        parser.add_argument(
+            "--percent", type=float, default=100.0,
+            help=(
+                "Only examine this share of novels (0-100) for a quick preview. "
+                "Stable id-hash sample, so repeat runs check the same subset."
+            ),
+        )
 
     # -- run ----------------------------------------------------------- #
 
@@ -142,6 +150,10 @@ class Command(BaseCommand):
         self.include_compressed = options["include_compressed"]
         self.force = options["force"]
         self.source_filter = options["source"]
+        self.percent = options["percent"]
+        if not 0 < self.percent <= 100:
+            self.stdout.write(self.style.ERROR("--percent must be between 1 and 100"))
+            return
 
         self.root = settings.LNCRAWL_OUTPUT_PATH
         self.trash_root = os.path.join(self.root, ".prune_trash")
@@ -152,7 +164,8 @@ class Command(BaseCommand):
         mode = "APPLY" if self.apply else "DRY-RUN"
         self.stdout.write(self.style.WARNING(
             f"prune_library ({mode}) limit={self.limit or 'unlimited'} "
-            f"threshold={self.threshold} max-scan={self.max_scan}"
+            f"threshold={self.threshold} max-scan={self.max_scan} "
+            f"percent={self.percent:g}"
         ))
 
         self._phase_orphan_novels()
@@ -171,6 +184,18 @@ class Command(BaseCommand):
 
     def _stopped(self) -> bool:
         return bool(self.limit) and self.deleted >= self.limit
+
+    def _sample(self, queryset, field="id"):
+        """Keep an MD5-bucket slice of the rows, so --percent N examines ~N%.
+
+        Keys are UUIDs, so hash the key to a uniform hex bucket instead of
+        sorting randomly: the subset is stable across runs and index-friendly.
+        """
+        if self.percent >= 100:
+            return queryset
+        bucket = Substr(MD5(Cast(field, CharField())), 1, 2)
+        threshold = format(int(self.percent / 100 * 256), "02x")
+        return queryset.annotate(_bucket=bucket).filter(_bucket__lt=threshold)
 
     # -- user data guards ---------------------------------------------- #
 
@@ -236,8 +261,10 @@ class Command(BaseCommand):
 
     def _phase_orphan_novels(self):
         self.stdout.write("Phase 1: orphan novels")
-        orphans = Novel.objects.annotate(_n=Count("sources")).filter(
-            _n=0, created_at__lt=self.age_cutoff
+        orphans = self._sample(
+            Novel.objects.annotate(_n=Count("sources")).filter(
+                _n=0, created_at__lt=self.age_cutoff
+            )
         )
         for novel in orphans.iterator():
             if self._stopped():
@@ -265,10 +292,11 @@ class Command(BaseCommand):
     def _phase_empty_sources(self):
         self.stdout.write("Phase 2: empty sources")
         with_content = NovelFromSource.objects.filter(chapters__has_content=True).values("pk")
-        empties = (
+        empties = self._sample(
             NovelFromSource.objects.exclude(pk__in=with_content)
             .filter(novel__created_at__lt=self.age_cutoff)
-            .select_related("novel", "external_source")
+            .select_related("novel", "external_source"),
+            field="novel_id",
         )
         for source in empties.iterator():
             if self._stopped():
@@ -330,11 +358,12 @@ class Command(BaseCommand):
             self.stdout.write("  no dead sources to examine")
             return
 
-        dead_qs = (
+        dead_qs = self._sample(
             NovelFromSource.objects.filter(external_source_id__in=dead_ids)
             .filter(novel__created_at__lt=self.age_cutoff)
             .select_related("novel", "external_source")
-            .order_by("id")
+            .order_by("id"),
+            field="novel_id",
         )
         if self.max_scan and self.max_scan > 0:
             dead_qs = dead_qs[: self.max_scan]

@@ -10,10 +10,17 @@ from urllib.parse import quote
 from ..models import Novel, SourceVote, WeeklySourceView
 from ..serializers import NovelSourceSerializer, ChapterSerializer, ChapterContentSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
-from django.db.models import F, Avg, Q, Count, Value, Max, Min
+from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum, Func, IntegerField
 from django.db.models.functions import Coalesce
-from ..utils import get_client_ip, resolve_novel_slug
 from django.conf import settings
+from ..utils import get_client_ip, resolve_novel_slug
+
+
+class ArrayLength(Func):
+    """Postgres array length (Django has no built-in array Length)."""
+    function = 'CARDINALITY'
+    arity = 1
+    output_field = IntegerField()
 
 
 @api_view(["GET"])
@@ -97,7 +104,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
 
     # Pagination parameters
     page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 100)  # Higher default for chapters
+    page_size = min(int(request.GET.get("page_size", 100)), 500)  # Higher default for chapters
 
     paginator = Paginator(chapters, page_size)
     page_obj = paginator.get_page(page_number)
@@ -157,49 +164,64 @@ def source_image_gallery(request, novel_slug, source_slug):
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
     # Get chapters with images
-    chapters_with_images = source.chapters.exclude(images=[])
+    chapters_with_images = (
+        source.chapters.exclude(images=[])
+        .order_by("chapter_id")
+        .values_list("chapter_id", "title", "images")
+    )
 
     # Check if there are any images available
     has_overview = source.overview_picture_path and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path))
-    if not chapters_with_images.exists() and not has_overview:
+    total_images = chapters_with_images.aggregate(total=Sum(ArrayLength("images")))["total"] or 0
+    if has_overview:
+        total_images += 1
+    if total_images == 0:
         return Response({"detail": "No images found for this source"}, status=status.HTTP_404_NOT_FOUND)
 
     # Pagination parameters
-    page_number = int(request.GET.get("page", 1))
-    page_size = int(request.GET.get("page_size", 20))
+    page_size = min(int(request.GET.get("page_size", 20)), 100)
 
-    # Prepare image data
+    # Paginate over the image count only; rows are streamed below, so a source
+    # with tens of thousands of images never lands in memory all at once.
+    paginator = Paginator(range(total_images), page_size)
+    page_obj = paginator.get_page(int(request.GET.get("page", 1)))
+    start = (page_obj.number - 1) * page_size
+    end = start + page_size
+
+    # Prepare image data for the requested page
     image_data = []
-    
+    index = 0
+
     # Add the overview image if it exists
     if has_overview:
-        overview_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
-        image_data.append({
-            "chapter_id": 0,  # Special ID for overview
-            "chapter_title": "Novel Overview",
-            "image_url": quote(overview_image_url, safe=':/'),
-            "image_name": "overview.png"
-        })
-
-    # Add chapter images
-    for chapter in chapters_with_images:
-        base_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}/images/"
-        for image_name in chapter.images:
+        if start <= index < end:
+            overview_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
             image_data.append({
-                "chapter_id": chapter.chapter_id,
-                "chapter_title": chapter.title,
-                "image_url": quote(f"{base_image_url}{image_name}", safe=':/'),
-                "image_name": image_name
+                "chapter_id": 0,  # Special ID for overview
+                "chapter_title": "Novel Overview",
+                "image_url": quote(overview_image_url, safe=':/'),
+                "image_name": "overview.png"
             })
+        index += 1
 
-    # Paginate the results
-    paginator = Paginator(image_data, page_size)
-    page_obj = paginator.get_page(page_number)
-    
-    # Get all images for the current page
-    current_page_images = list(page_obj)
-    
-    serializer = GalleryImageSerializer(current_page_images, many=True)
+    # Add chapter images, expanding only the slice for this page.
+    base_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}/images/"
+    for chapter_id, chapter_title, images in chapters_with_images.iterator(chunk_size=500):
+        for image_name in images:
+            if index >= end:
+                break
+            if index >= start:
+                image_data.append({
+                    "chapter_id": chapter_id,
+                    "chapter_title": chapter_title,
+                    "image_url": quote(f"{base_image_url}{image_name}", safe=':/'),
+                    "image_name": image_name
+                })
+            index += 1
+        if index >= end:
+            break
+
+    serializer = GalleryImageSerializer(image_data, many=True)
 
     return Response({
         "novel_id": str(novel.id),

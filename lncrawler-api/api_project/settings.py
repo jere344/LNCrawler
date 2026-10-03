@@ -228,6 +228,16 @@ import logging
 # and the crawler libraries are noisy. Default to INFO unless overridden.
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
 
+# --- GitHub issue reporting for unexpected errors ---
+# When enabled, every ERROR+ log record (web, crawler, scheduler) opens a
+# GitHub issue, deduplicated by fingerprint. Leave GITHUB_ISSUES_ENABLED=False
+# in development so local errors do not spam the tracker.
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_ISSUES_ENABLED = os.environ.get("GITHUB_ISSUES_ENABLED", "False") == "True"
+# Identifies which container produced an issue: api / crawler / scheduler.
+SERVICE_NAME = os.environ.get("SERVICE_NAME", "api")
+
 # Define a custom UTF-8 stream handler
 class UTF8StreamHandler(logging.StreamHandler):
     def __init__(self):
@@ -285,21 +295,37 @@ LOGGING = {
             'maxBytes': 10 * 1024 * 1024,
             'backupCount': 5,
         },
+        'github_issues': {
+            # Non-blocking: enqueues to a background thread and opens a GitHub
+            # issue for ERROR+ records. No-op unless GITHUB_* settings are set.
+            'class': 'api_project.logging_handlers.GitHubIssueHandler',
+            'level': 'ERROR',
+        },
     },
     'loggers': {
         'django': {  # Django's built-in logger
-            'handlers': ['django_console', 'django_file'],
+            'handlers': ['django_console', 'django_file', 'github_issues'],
             'level': LOG_LEVEL,
             'propagate': False,
         },
         'lncrawler_api': { 
-            'handlers': ['lncrawler_api_console', 'lncrawler_api_file'],
+            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
 
             'level': LOG_LEVEL,
             'propagate': False,
         },
         'lncrawl': {  # The lncrawler-crawler library
-            'handlers': ['lncrawler_api_console', 'lncrawler_api_file'],
+            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'frontend': {  # Errors reported by the browser via /report-error/
+            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'auth_app': {  # Otherwise propagates to a handler-less root logger
+            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
             'level': LOG_LEVEL,
             'propagate': False,
         },

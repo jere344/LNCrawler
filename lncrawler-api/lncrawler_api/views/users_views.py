@@ -52,7 +52,7 @@ def list_bookmarked_novels(request):
     Also provides personalized novel recommendations based on bookmarks.
     """
     page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 20)
+    page_size = min(int(request.GET.get("page_size", 20)), 50)
 
     # Filter novels that are bookmarked by the current user
     bookmarked_novels = Novel.objects.filter(bookmarked_by_users__user=request.user).order_by('title')
@@ -138,7 +138,7 @@ def list_reading_history(request):
     List all novels with reading history for the authenticated user.
     """
     page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 20)
+    page_size = min(int(request.GET.get("page_size", 20)), 50)
 
     # Get novels with reading history for the current user
     novels_with_history = Novel.objects.filter(reading_histories__user=request.user).order_by('-reading_histories__last_read_at')

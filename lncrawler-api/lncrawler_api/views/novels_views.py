@@ -42,7 +42,7 @@ def list_novels(request):
         Novel.objects.all().order_by("title"), request.user
     )
     page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 20)
+    page_size = min(int(request.GET.get("page_size", 20)), 50)
 
     paginator = Paginator(novels, page_size)
     page_obj = paginator.get_page(page_number)
@@ -125,7 +125,7 @@ def search_novels(request):
     # Get search parameters
     query = request.GET.get("query", "").strip()
     page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 20)
+    page_size = min(int(request.GET.get("page_size", 20)), 50)
 
     # Get filter parameters
     tags = request.GET.getlist("tag", [])
@@ -278,7 +278,7 @@ def autocomplete_suggestion(request):
     """
     search_type = request.GET.get("type", "")
     query = request.GET.get("query", "").strip()
-    limit = int(request.GET.get("limit", "10"))
+    limit = min(int(request.GET.get("limit", "10")), 50)
 
     if len(query) < 1:
         return Response([])
@@ -288,7 +288,7 @@ def autocomplete_suggestion(request):
         tag_counts = (
             Tag.objects.filter(name__icontains=query)
             .annotate(novel_count=Count("novels", distinct=True))
-            .order_by("-novel_count")
+            .order_by("-novel_count")[:limit]
         )
         suggestions = {
             tag.name: {"name": tag.name, "count": tag.novel_count}
@@ -301,7 +301,7 @@ def autocomplete_suggestion(request):
             TagAlias.objects.filter(name__icontains=query)
             .select_related("tag")
             .annotate(novel_count=Count("tag__novels", distinct=True))
-            .order_by("-novel_count")
+            .order_by("-novel_count")[:limit]
         )
         for alias in alias_matches:
             entry = suggestions.get(alias.tag.name)

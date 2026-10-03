@@ -691,6 +691,33 @@ class PruneLibraryPortTests(MergeTestCase):
         self.novel.refresh_from_db()
         self.assertEqual(self.novel.comment_count, 1)
 
+    def test_sample_percent_uses_md5_bucket_subset(self):
+        import hashlib
+        import uuid as uuidlib
+
+        from .management.commands.prune_library import Command
+
+        for _ in range(30):
+            Novel.objects.create(
+                title="Sample", slug=uuidlib.uuid4().hex, novel_path="sample"
+            )
+
+        cmd = Command()
+        cmd.percent = 50
+        sampled = set(cmd._sample(Novel.objects.all()).values_list("id", flat=True))
+        all_ids = set(Novel.objects.values_list("id", flat=True))
+
+        threshold = int(50 / 100 * 256)
+        for nid in all_ids:
+            bucket = int(hashlib.md5(str(nid).encode()).hexdigest()[:2], 16)
+            self.assertEqual(nid in sampled, bucket < threshold)
+
+        self.assertTrue(sampled)
+        self.assertLess(len(sampled), len(all_ids))
+
+        cmd.percent = 100
+        self.assertEqual(cmd._sample(Novel.objects.all()).count(), Novel.objects.count())
+
 
 class ConsolidateSourceViewsTests(TestCase):
     def setUp(self):

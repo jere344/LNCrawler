@@ -1,3 +1,5 @@
+import { reportError } from './errorReporter';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
 
 interface RequestConfig {
@@ -83,12 +85,18 @@ const request = async (
     if (qs) fullUrl += (url.includes('?') ? '&' : '?') + qs;
   }
 
-  const response = await fetch(fullUrl, {
-    method: method.toUpperCase(),
-    headers,
-    credentials: 'include',
-    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(fullUrl, {
+      method: method.toUpperCase(),
+      headers,
+      credentials: 'include',
+      body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
+    });
+  } catch (err) {
+    reportError(err, { url: fullUrl, context: `${method.toUpperCase()} ${url}` });
+    throw err;
+  }
 
   const text = await response.text();
   const contentType = response.headers.get('content-type') || '';
@@ -108,6 +116,10 @@ const request = async (
       response: ApiResponse;
     };
     error.response = { data, status: response.status, statusText: response.statusText, headers: response.headers };
+    // 4xx are expected client errors; only unexpected server errors are reported.
+    if (response.status >= 500) {
+      reportError(error, { url: fullUrl, context: `${method.toUpperCase()} ${url}` });
+    }
     throw error;
   }
 

@@ -8,6 +8,7 @@ import { useLanguage } from "@context/LanguageContext";
 import { getMuiLocale, muiDirection } from "./i18n/muiLocale";
 import Header from '@components/Header';
 import Footer from '@components/Footer';
+import ErrorBoundary from '@components/common/ErrorBoundary';
 
 // Route-level code splitting: each page (and everything it alone imports, e.g.
 // the reader or mdxeditor) is fetched on navigation instead of on first paint.
@@ -64,6 +65,7 @@ function AppWithTheme() {
     return (
         <MuiThemeProvider theme={localizedTheme}>
             <Wrapper>
+                <ErrorBoundary>
                 <Box
                     sx={{
                         display: 'flex',
@@ -134,6 +136,7 @@ function AppWithTheme() {
                     </Container>
                     <Footer />
                 </Box>
+                </ErrorBoundary>
             </Wrapper>
         </MuiThemeProvider>
     );

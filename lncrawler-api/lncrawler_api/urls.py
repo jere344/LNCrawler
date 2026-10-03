@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views, reading_lists_views, profile_views, friends_views
 from .views.csrf import get_csrf_token
+from .views.errors_views import report_error
 from django.contrib.sitemaps.views import sitemap, index
 from django.views.decorators.cache import cache_page
 from .views.sitemap import (
@@ -105,6 +106,9 @@ urlpatterns = [
 
     # CSRF token endpoint
     path('csrf-token/', get_csrf_token, name='csrf_token'),
+
+    # Frontend error reporting (browser -> backend -> GitHub issue)
+    path('report-error/', report_error, name='report_error'),
     
     # sitemap - 100h cache
     path('sitemap.xml', cache_page(360000)(index), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.index'),

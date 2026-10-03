@@ -1,131 +1,271 @@
 # LNCrawler
 
-LNCrawler is a web application for reading and managing light novels. It consists of a Django-based API backend and a React-based frontend, containerized using Docker.
-LNCrawler use the lightnovel-crawler project by [dipudb](https://github.com/dipu-bd/lightnovel-crawler) as a base to allow a downloading feature on the website, allowing users to add novels to the website automatically.
-
-The project is a rewrite of the original lightnovel-crawler-website react branch by [jere344](https://github.com/jere344). It is still still in very early stages of development.
+LNCrawler is a self-hosted web application for reading and managing light
+novels. It ships its own crawler engine: users can search supported sources,
+download a novel (with its chapters and metadata) and add it to the site
+library. Everything runs with Docker Compose: a Django REST API, a React
+frontend, PostgreSQL, dedicated background workers and an Nginx reverse proxy.
 
 ## Table of Contents
 
-- [LNCrawler](#lncrawler)
-  - [Table of Contents](#table-of-contents)
-  - [Project Structure](#project-structure)
-  - [Features](#features)
-  - [Technology Stack](#technology-stack)
-  - [Prerequisites](#prerequisites)
-  - [Getting Started](#getting-started)
-    - [Configuration](#configuration)
-    - [Running with Docker Compose](#running-with-docker-compose)
-  - [Accessing the Application](#accessing-the-application)
-  - [Environment Variables](#environment-variables)
-    - [`api` Service:](#api-service)
-    - [`frontend` Service:](#frontend-service)
-    - [`db` Service:](#db-service)
-  - [Contributing](#contributing)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Accessing the Application](#accessing-the-application)
+- [TLS / Public Deployment](#tls--public-deployment)
+- [Scaling](#scaling)
+- [Configuration Reference](#configuration-reference)
+- [Common Operations](#common-operations)
+- [Project Structure](#project-structure)
+- [Contributing](#contributing)
+
+## Architecture
+
+Docker Compose runs six services:
+
+| Service | Role |
+| --- | --- |
+| `db` | PostgreSQL 17, the single source of truth. |
+| `api` | Django + Gunicorn. Serves the REST API, the admin, and static/media/library files. Runs migrations and creates the initial superuser on boot. |
+| `crawler` | Identical, horizontally scalable job workers. Each claims queued search/download jobs from a DB-backed queue (`Job` rows) and runs them in isolation from the web workers. Scale with `CRAWLER_REPLICAS` or `--scale crawler=N`. |
+| `scheduler` | Singleton process running periodic database-backed tasks with DB-level locking so two replicas never run the same task. Keep exactly one running. |
+| `frontend` | React single-page app, built at image build time and served by Nginx. |
+| `nginx-proxy` | The public entry point. Listens on port 80 and routes by `Host` header to the API (`API_HOST`) or the frontend (`FRONTEND_HOST`), and serves `/static`, `/media` and `/lightnovels` directly. |
+
+The library is the crawler engine under `lncrawler-crawler/` (`lncrawl`
+package plus ported `sources/`). The API imports it as a library and drives it
+through `lncrawler-api/lncrawler_api/services/downloader_service.py`.
+
+## Features
+
+- Browse, search and read light novels in the browser.
+- Search supported sources and download novels (chapters, metadata, covers)
+  straight into the library.
+- User accounts: registration, login, password reset (email), profiles.
+- Reader with configurable settings (font, colors, margins, pagination or
+  scroll) and chapter navigation/preloading.
+- Library, reading history with progress resume, and custom reading lists.
+- Reviews, per-chapter comments, boards/forums, and friends.
+- Admin panel for managing novels, sources, jobs and users.
+- Sitemap, robots.txt and i18n (multi-language UI).
+- Optional automatic GitHub issue creation for unexpected errors.
+
+## Technology Stack
+
+- **Backend:** Django 6, Django REST framework, Gunicorn, PostgreSQL 17.
+- **Frontend:** React 19, Vite, TypeScript, Material-UI, i18next.
+- **Crawler:** `lncrawl` engine with `curl_cffi` (native HTTP) and Playwright
+  (Chromium, anti-bot fallback).
+- **Containerization:** Docker, Docker Compose, Nginx.
+
+## Requirements
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/) (the `docker
+  compose` plugin)
+
+## Quick Start
+
+1. **Clone the repository:**
+
+   ```bash
+   git clone https://github.com/jere344/LNCrawler.git
+   cd LNCrawler
+   ```
+
+2. **Create your environment file:**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Open `.env` and set at least `SECRET_KEY`, the `POSTGRES_*` credentials,
+   `SITE_URL`, `SITE_API_URL`, `API_HOST`, `FRONTEND_HOST` and
+   `VITE_API_BASE_URL`. See [Configuration Reference](#configuration-reference).
+
+3. **Build and start everything:**
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+   On first boot the `api` service applies migrations, collects static files
+   and creates the superuser from `DJANGO_SUPERUSER_*` if it does not exist.
+
+4. **Follow the logs if needed:**
+
+   ```bash
+   docker compose logs -f api
+   ```
+
+5. **Stop the stack:**
+
+   ```bash
+   docker compose down
+   ```
+
+   Add `-v` to also remove the database volume (destroys all data).
+
+## Accessing the Application
+
+With the default `.env` (`localhost` / `api.localhost`), the proxy listens on
+port 80:
+
+- **Frontend:** http://localhost
+- **API:** http://api.localhost
+- **Django admin:** http://api.localhost/admin
+  - Default credentials come from `DJANGO_SUPERUSER_*` (`admin` / `admin` in
+    the example). Change them in the admin or in `.env` before the first boot.
+
+The default hostnames resolve to `127.0.0.1` in most browsers/OSes. If yours
+does not resolve `*.localhost`, add entries to `/etc/hosts`:
+
+```
+127.0.0.1  localhost api.localhost
+```
+
+The proxy is the only published port (`80:80`). Change the host side of the
+mapping in `docker-compose.yml` if port 80 is taken.
+
+## TLS / Public Deployment
+
+`nginx-proxy` itself only speaks HTTP. In production, terminate TLS in front of
+it (for example with Caddy) and forward to the proxy's port 80. The proxy reads
+`X-Forwarded-Proto` and passes it to Django, so set:
+
+- `SITE_URL` / `SITE_API_URL` to your public HTTPS URLs.
+- `API_HOST` / `FRONTEND_HOST` to the public hostnames.
+- `VITE_API_BASE_URL` to the public API URL (baked into the frontend at build
+  time — rebuild the frontend after changing it).
+- `DEBUG=False` and `CORS_ALLOW_ALL_ORIGINS=False`.
+
+## Scaling
+
+Crawler workers are independent and safe to replicate:
+
+```bash
+# Set the replica count in .env...
+CRAWLER_REPLICAS=4
+
+# ...or override it for a single run
+docker compose up -d --scale crawler=4
+```
+
+The `scheduler` must stay at one instance. It is designed so that even if a
+second one starts, DB-level locking prevents duplicate task execution.
+
+## Configuration Reference
+
+All variables live in `.env` (loaded by `docker compose`). `.env.example`
+documents the defaults.
+
+### Database
+
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — credentials.
+- `POSTGRES_HOST` (`db`), `POSTGRES_PORT` (`5432`) — point the API at the
+  Compose database service.
+
+### Django
+
+- `SITE_URL` — public frontend URL. Also used to build absolute media and
+  library URLs.
+- `SITE_API_URL` — public API URL.
+- `SECRET_KEY` — Django secret key. **Change it for any real deployment.**
+- `DEBUG` — `True` uses Django's dev server, `False` uses Gunicorn. Use
+  `False` in production.
+- `CORS_ALLOW_ALL_ORIGINS` — `False` in production.
+- `LOG_LEVEL` *(optional)* — defaults to `INFO` (or `DEBUG` when `DEBUG=True`).
+- `HOME_PAGE_CACHE_SECONDS` *(optional)* — per-worker home page cache TTL.
+
+### Superuser
+
+- `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`,
+  `DJANGO_SUPERUSER_PASSWORD` — created on first boot only.
+
+### Email
+
+- `BREVO_API_KEY` — enables password-reset emails through Brevo.
+- `DEFAULT_FROM_EMAIL`, `EMAIL_SENDER_NAME`.
+
+### Frontend build
+
+- `VITE_API_BASE_URL` — API base URL compiled into the frontend. Rebuild the
+  frontend image after changing it.
+
+### Nginx proxy
+
+- `API_HOST` — hostname routed to the API.
+- `FRONTEND_HOST` — hostname routed to the frontend.
+
+### Crawler
+
+- `CRAWLER_REPLICAS` — number of worker replicas (default `1`).
+- `LNCRAWL_<KEY>_USERNAME` / `LNCRAWL_<KEY>_PASSWORD` — credentials for
+  login-gated sources, where `<KEY>` is the source's canonical domain label
+  uppercased (e.g. `LNCRAWL_CYRISIA_USERNAME`).
+
+### Error reporting
+
+- `GITHUB_REPO` — repository to open issues in (`owner/repo`).
+- `GITHUB_TOKEN` — needs `issues:write` (classic PAT) or Issues read/write
+  (fine-grained PAT).
+- `GITHUB_ISSUES_ENABLED` — `True` to open a deduplicated issue for every
+  unexpected error (web, crawler, scheduler).
+
+## Common Operations
+
+Run Django management commands inside the running API container:
+
+```bash
+# Manual migration / shell
+docker compose exec api python manage.py migrate
+docker compose exec api python manage.py shell
+
+# Import novels dropped as files into imports/ (default action: move)
+docker compose exec api python manage.py run_import --action copy
+```
+
+Useful commands: `calculate_similarities`, `compress_low_traffic_novels`,
+`consolidate_source_views`, `generate_cover_min`, `merge_novels`, `merge_tags`,
+`prune_library`, `update_popular_sources`. List them all with:
+
+```bash
+docker compose exec api python manage.py help
+```
 
 ## Project Structure
 
 ```
 lncrawler/
-├── dipudb-lncrawler-jere344-patches/  # The lightnovel-crawler project with minor patches allowing it to work with the current version of LNCrawler
-├── lncrawler-api/                     # Django backend API
-├── lncrawler-frontend/                # React frontend application
-├── docker-compose.yml                 # Docker Compose configuration
-└── README.md                          # This file
+├── docker-compose.yml       # Service definitions and wiring
+├── .env.example             # Documented environment template
+├── nginx-proxy/             # Public reverse proxy (Host-based routing)
+├── lncrawler-api/           # Django REST API + workers + scheduler
+│   ├── api_project/         # Settings, URLs, logging, GitHub reporting
+│   ├── lncrawler_api/       # Models, views, services, management commands
+│   ├── auth_app/            # User model, auth and email
+│   └── start*.sh            # api / crawler / scheduler entrypoints
+├── lncrawler-frontend/      # React + Vite SPA
+├── lncrawler-crawler/       # Crawler engine (lncrawl) and source definitions
+│   ├── lncrawl/             # Core engine, models, browser backends
+│   ├── sources/             # Ported sources, grouped by language
+│   └── tools/               # Source smoke-test / inspection helpers
+├── Lightnovels/             # Downloaded library files (volume)
+├── imports/                 # Drop folder consumed by run_import (volume)
+└── scripts/                 # Standalone EPUB parsing utilities
 ```
-
-## Features
-
-*   Browse and read light novels.
-*   Add novels to the website using the lightnovel-crawler project.
-*   User-configurable reader settings (font size, color, margins, etc.).
-*   Chapter navigation and preloading.
-*   Comment section for chapters.
-*   Admin panel for managing novels and users.
-
-## Technology Stack
-
-*   **Backend:** Django, Django REST framework
-*   **Frontend:** React, Vite, TypeScript, Material-UI
-*   **Database:** PostgreSQL
-*   **Containerization:** Docker, Docker Compose
-
-## Prerequisites
-
-*   [Docker](https://docs.docker.com/get-docker/)
-*   [Docker Compose](https://docs.docker.com/compose/install/) (usually included with Docker Desktop)
-
-## Getting Started
-
-### Configuration
-
-1.  **Clone the repository and submodule (if you haven't already):**
-    ```bash
-    git clone https://github.com/jere344/LNCrawler.git --recurse-submodules
-    cd lncrawler
-    ```
-
-2.  **Review Environment Variables:**
-    Open `docker-compose.yml` and review the environment variables for the `api` and `frontend` services.
-    Key variables to note:
-    *   `SITE_URL`, `SITE_API_URL` (for `api` service)
-    *   `VITE_API_BASE_URL` (for `frontend` service)
-    *   `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` (for `db` and `api` services)
-    *   `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD` (for `api` service)
-    *   `SECRET_KEY` (for `api` service - **important to change for production**)
-
-### Running with Docker Compose
-
-1.  **Build and run the containers:**
-    From the root directory of the project (`lncrawler/`), run:
-    ```bash
-    docker-compose up -d --build
-    ```
-    This command will build the images for the API and frontend services and start all services (database, API, frontend) in detached mode.
-
-2.  **To stop the services:**
-    ```bash
-    docker-compose down
-    ```
-
-## Accessing the Application
-
-Once the services are running:
-
-*   **Frontend Application:** Open your browser and navigate to `http://localhost:8185` (or the adress you configured for `frontend`).
-*   **API:** The API will be accessible at `http://localhost:8186` (or the adress you configured for `api`).
-*   **Django Admin Panel:** Navigate to `http://localhost:8186/admin`.
-    *   Default credentials (from `docker-compose.yml`):
-        *   Username: `admin`
-        *   Password: `admin`
-    *   You can change these credentials via the admin panel after logging in or by modifying the `DJANGO_SUPERUSER_USERNAME` and `DJANGO_SUPERUSER_PASSWORD` environment variables and restarting the `api` service.
-
-## Environment Variables
-
-Key environment variables are defined in the `docker-compose.yml` file for each service.
-
-### `api` Service:
-
-*   `SITE_URL`: Frontend URL (e.g., `http://localhost:8185`)
-*   `SITE_API_URL`: API URL (e.g., `http://localhost:8186`)
-*   `CORS_ORIGIN_WHITELIST`: Comma-separated list of allowed origins for CORS.
-*   `ALLOWED_HOSTS`: Comma-separated list of allowed hostnames for Django.
-*   `SECRET_KEY`: Django secret key. **Change this for any production deployment.**
-*   `DEBUG`: Set to `True` for development, `False` for production.
-*   `CORS_ALLOW_ALL_ORIGINS`: Set to `True` for development, `False` for production (use `CORS_ORIGIN_WHITELIST` instead).
-*   `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD`: Credentials for the initial superuser.
-*   `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT`: Database connection details.
-
-### `frontend` Service:
-
-*   `VITE_API_BASE_URL`: The base URL for the API that the frontend will connect to (e.g., `http://localhost:8186`).
-
-### `db` Service:
-
-*   `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: Database credentials.
-
-**Note:** For production environments, it is highly recommended to use more secure methods for managing secrets and configurations, such as Docker secrets or environment-specific configuration files not committed to the repository.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit pull requests or open issues.
+Contributions are welcome. Please open an issue or a pull request. When adding
+or changing a crawler source, run the source harness first:
+
+```bash
+python lncrawler-crawler/tools/check_source.py --file lncrawler-crawler/sources/en/x/foo.py --url NOVEL_URL
+```
+
+## License
+
+See [LICENSE](LICENSE).

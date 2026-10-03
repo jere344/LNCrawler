@@ -12,4 +12,5 @@ until python manage.py migrate --check >/dev/null 2>&1; do
 done
 
 echo "Starting database scheduler..."
+export SERVICE_NAME=scheduler
 exec python manage.py run_scheduler
