@@ -20,7 +20,7 @@ interface GestureSettingsProps {
 }
 
 // Swipe gesture options
-export const swipeGestureOptions = [
+const swipeGestureOptions = [
   { labelKey: 'gestureSettings.doNothing', value: 'none', icon: BlockIcon },
   { labelKey: 'gestureSettings.previousChapter', value: 'prevChapter', icon: KeyboardArrowLeftIcon },
   { labelKey: 'gestureSettings.nextChapter', value: 'nextChapter', icon: KeyboardArrowRightIcon },

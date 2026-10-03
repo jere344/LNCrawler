@@ -12,6 +12,7 @@ import {
   CircularProgress 
 } from '@mui/material';
 import { authService } from '../../services/auth.service';
+import type { ApiError } from '../../services/api';
 
 const ResetPasswordPage: React.FC = () => {
   const { t } = useTranslation();
@@ -29,6 +30,7 @@ const ResetPasswordPage: React.FC = () => {
     if (!token) {
       setError(t('auth.invalidResetLink'));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; token is the only input
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,11 +59,12 @@ const ResetPasswordPage: React.FC = () => {
       setTimeout(() => {
         navigate('/login');
       }, 3000);
-    } catch (err: any) {
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else if (err.response?.data?.new_password) {
-        setError(err.response.data.new_password[0]);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.response?.data?.error) {
+        setError(apiErr.response.data.error);
+      } else if (apiErr.response?.data?.new_password) {
+        setError(apiErr.response.data.new_password[0]);
       } else {
         setError(t('auth.resetFailed'));
       }

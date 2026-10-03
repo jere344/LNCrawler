@@ -77,6 +77,7 @@ const BoardList = () => {
     };
 
     fetchBoards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
   }, []);
 
   if (loading) {

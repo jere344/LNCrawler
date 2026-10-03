@@ -93,6 +93,7 @@ const ImageGallery = () => {
     };
 
     fetchGallery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
   }, [novelSlug, sourceSlug, page]);
 
   useEffect(() => {

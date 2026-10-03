@@ -4,6 +4,7 @@ import {
   ListItemButton, DialogActions, TextField, CircularProgress, Typography,
   ListItemAvatar, Avatar, Tooltip
 } from '@mui/material';
+import type { SxProps } from '@mui/material';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import AddIcon from '@mui/icons-material/Add';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -18,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 interface CompactAddToListButtonProps {
   novelId: string;
   novelTitle: string;
-  customSx?: React.CSSProperties | Record<string, any>;
+  customSx?: SxProps;
 }
 
 const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({ 

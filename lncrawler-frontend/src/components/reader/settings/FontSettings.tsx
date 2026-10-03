@@ -27,7 +27,7 @@ interface FontSettingsProps {
 }
 
 // Font options
-export const fontOptions = [
+const fontOptions = [
   { labelKey: 'fontSettings.defaultThemeFont', value: null },
   { labelKey: 'fontSettings.arial', value: 'Arial, sans-serif' },
   { labelKey: 'fontSettings.timesNewRoman', value: 'Times New Roman, serif' },

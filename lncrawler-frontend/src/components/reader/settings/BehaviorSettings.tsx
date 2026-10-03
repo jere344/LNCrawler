@@ -35,7 +35,7 @@ interface BehaviorSettingsProps {
 }
 
 // Edge tap options
-export const edgeTapOptions = [
+const edgeTapOptions = [
   { labelKey: 'behaviorSettings.doNothing', value: 'none', icon: BlockIcon },
   { labelKey: 'behaviorSettings.scrollUp', value: 'scrollUp', icon: VerticalAlignTopIcon },
   { labelKey: 'behaviorSettings.scrollDown', value: 'scrollDown', icon: VerticalAlignBottomIcon },

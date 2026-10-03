@@ -512,9 +512,9 @@ const SourceDetail = () => {
                         height: '100%',
                         objectFit: 'cover',
                       }}
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = defaultCover;
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = defaultCover;
                       }}
                     />
                     
@@ -884,7 +884,7 @@ const SourceDetail = () => {
         {novel && novel.sources.length > 1 && (
           <SectionContainer title={t('sourceDetail.otherSources')} icon={<LanguageIcon />}>
             <NovelSources
-              novel={{ ...novel, slug: novelSlug }}
+              novel={{ ...novel, slug: novelSlug ?? novel.slug }}
               currentSourceSlug={sourceSlug}
             />
           </SectionContainer>

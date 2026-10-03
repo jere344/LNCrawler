@@ -25,6 +25,7 @@ import GestureSettings from './settings/GestureSettings';
 import PageSettings from './settings/PageSettings';
 import ReaderNavigation from './controls/ReaderNavigation';
 import SettingsSection from './SettingsSection';
+import { defaultSettings } from './readerDefaults';
 
 // Define constants for cookie names
 const COOKIE_PREFIX = 'lncrawler_reader_';
@@ -67,40 +68,6 @@ export interface ReaderSettings {
   nightModeEndTime: string;
 }
 
-// Default settings
-export const defaultSettings: ReaderSettings = {
-  fontSize: 18,
-  fontFamily: null,
-  textAlign: 'justify',
-  fontColor: null,
-  backgroundColor: null,
-  margin: 0,
-  lineSpacing: 1.6,
-  wordSpacing: 0,
-  letterSpacing: 0,
-  dimLevel: 0,
-  leftEdgeTapBehavior: 'none',
-  rightEdgeTapBehavior: 'none',
-  textSelectable: true,
-  savePosition: true,
-  markReadBehavior: 'buttonAutomatic',
-  keyboardNavigation: true,
-  swipeLeftGesture: 'nextChapter',
-  swipeRightGesture: 'prevChapter',
-  hideScrollbar: false,
-  paragraphIndent: false,
-  paragraphSpacing: 1,
-  centerTapToOpenSettings: true,
-  pageMode: false,
-  showPages: true,
-  showPageSlider: true,
-  nightMode: false,
-  nightModeStrength: 50,
-  nightModeScheduleEnabled: false,
-  nightModeStartTime: '20:00',
-  nightModeEndTime: '06:00',
-};
-
 export interface ChapterInfo {
   title: string;
   novelTitle: string;
@@ -139,7 +106,7 @@ const ReaderSettings = ({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
 
   // Helper function to save setting to cookie
-  const saveSetting = (key: string, value: any) => {
+  const saveSetting = (key: string, value: unknown) => {
     setCookie(COOKIE_PREFIX + key, JSON.stringify(value), COOKIE_EXPIRY);
   };
 

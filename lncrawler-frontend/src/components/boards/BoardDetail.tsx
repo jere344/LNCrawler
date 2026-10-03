@@ -58,6 +58,7 @@ const BoardDetail = () => {
     };
 
     fetchBoard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; boardSlug is the only input
   }, [boardSlug]);
 
   if (loading) {

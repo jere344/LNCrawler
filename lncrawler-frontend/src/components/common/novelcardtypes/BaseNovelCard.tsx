@@ -11,7 +11,7 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, formatCount, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
@@ -26,15 +26,6 @@ export interface BaseNovelCardProps {
   isLoading?: boolean;
   to?: To;
   state?: unknown;
-}
-
-export function formatCount(count: number): string {
-  if (count >= 1000000) {
-    return `${(count / 1000000).toFixed(1)}M`;
-  } else if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}K`;
-  }
-  return `${count}`;
 }
 
 export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({ 

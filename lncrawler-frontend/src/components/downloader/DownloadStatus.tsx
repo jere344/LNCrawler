@@ -63,6 +63,7 @@ const DownloadStatus = () => {
     }, POLLING_INTERVAL);
     
     return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- polling keyed to jobId/completion, not loader identity
   }, [jobId, status?.download_completed]);
 
   if (loading && !status) {

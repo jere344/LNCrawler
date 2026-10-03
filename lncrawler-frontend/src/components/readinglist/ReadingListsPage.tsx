@@ -36,6 +36,7 @@ const ReadingListsPage = () => {
 
   useEffect(() => {
     fetchReadingLists();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; page/search are the inputs
   }, [page, debouncedSearchQuery]);
 
   const fetchReadingLists = async () => {

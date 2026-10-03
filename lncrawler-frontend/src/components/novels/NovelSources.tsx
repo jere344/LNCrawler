@@ -28,16 +28,17 @@ import TranslateIcon from '@mui/icons-material/Translate';
 import ImageIcon from '@mui/icons-material/Image';
 import { getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
 import { novelService } from '../../services/api';
+import { NovelDetail, NovelFromSource } from '@models/novels_types';
 
 interface NovelSourcesProps {
-  novel: any;
+  novel: NovelDetail;
   currentSourceSlug?: string;
 }
 
 const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug }) => {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
-  const [sources, setSources] = useState<any[]>(novel.sources);
+  const [sources, setSources] = useState<NovelFromSource[]>(novel.sources);
   const [votingInProgress, setVotingInProgress] = useState<{ [key: string]: boolean }>({});
 
   const handleVote = async (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => {
@@ -84,7 +85,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
 
   return (
     <Grid container spacing={3}>
-      {sources.sort((a: any, b: any) => b.vote_score - a.vote_score).map((source: any, index: number) => (
+      {sources.sort((a, b) => b.vote_score - a.vote_score).map((source, index) => (
         <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
           <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }}>
             <Card

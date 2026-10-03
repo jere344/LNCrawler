@@ -171,7 +171,7 @@ const SearchPage: React.FC = () => {
           languages: selectedLanguages.length > 0 ? selectedLanguages : undefined,
           min_rating: searchParams.get('min_rating') ? 
             Number(searchParams.get('min_rating')) : undefined,
-          sort_by: (searchParams.get('sort_by') as any) || 'title',
+          sort_by: (searchParams.get('sort_by') as 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated') || 'title',
           sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
         });
         

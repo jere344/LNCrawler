@@ -98,6 +98,7 @@ const ChapterList = () => {
     };
 
     fetchChapters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
   }, [novelSlug, sourceSlug, page, pageSize, debouncedSearch]);
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {

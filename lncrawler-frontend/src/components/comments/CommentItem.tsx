@@ -27,8 +27,8 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 
 import CommentForm from './CommentForm';
-import { commentService } from '../../services/api';
-import { Comment as IComment } from '@models/comments_types';
+import { commentService, type ApiError } from '../../services/api';
+import { Comment as IComment, CommentFormData } from '@models/comments_types';
 import { getChapterLabel } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -36,7 +36,7 @@ import { useTranslation } from 'react-i18next';
 interface CommentItemProps {
   comment: IComment;
   depth?: number;
-  onAddReply?: (commentData: any) => Promise<void>;
+  onAddReply?: (commentData: CommentFormData) => Promise<void>;
   fromOtherSource?: boolean;
 }
 
@@ -85,7 +85,7 @@ const CommentItem = ({
     }).format(date);
   };
   
-  const handleReplySubmit = async (data: any) => {
+  const handleReplySubmit = async (data: CommentFormData) => {
     if (onAddReply) {
       await onAddReply({
         ...data,
@@ -144,9 +144,10 @@ const CommentItem = ({
       comment.edited = true;
       
       setIsEditing(false);
-    } catch (error: any) {
+    } catch (error) {
+      const apiErr = error as ApiError;
       console.error('Failed to edit comment:', error);
-      setEditError(error?.response?.data?.error || t('comments.editFailed'));
+      setEditError(apiErr?.response?.data?.error || t('comments.editFailed'));
     } finally {
       setIsSubmitting(false);
     }

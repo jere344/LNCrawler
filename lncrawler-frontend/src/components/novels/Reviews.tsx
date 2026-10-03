@@ -79,6 +79,7 @@ const Reviews: React.FC<ReviewsProps> = ({
     if (!initialReviews) {
       loadReviews();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; novelSlug/initialReviews are the inputs
   }, [novelSlug, initialReviews]);
 
   const handleReviewAdded = (newReview: Review) => {

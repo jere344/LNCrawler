@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, IconButton } from '@mui/material';
+import type { SxProps } from '@mui/material';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import { userService } from '@services/user.service';
@@ -8,7 +9,7 @@ import { useAuth } from '@context/AuthContext';
 interface BookmarkButtonProps {
   isBookmarked: boolean;
   slug: string;
-  customSx?: React.CSSProperties | Record<string, any>;
+  customSx?: SxProps;
 }
 
 const BookmarkButton: React.FC<BookmarkButtonProps> = ({ 

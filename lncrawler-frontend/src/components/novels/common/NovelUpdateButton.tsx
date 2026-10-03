@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Box, LinearProgress, Typography, Alert } from '@mui/material';
-import { downloadService } from '../../../services/api';
+import { downloadService, type ApiError } from '../../../services/api';
 import { DownloadStatus } from '@models/downloader_types';
 import UpdateIcon from '@mui/icons-material/Update';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
@@ -40,9 +40,10 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
       } else {
         setError(response.message || 'Failed to start update job.');
       }
-    } catch (err: any) {
+    } catch (err) {
+      const apiErr = err as ApiError;
       console.error('Error starting direct download:', err);
-      setError(err.response?.data?.message || err.message || 'An unknown error occurred while starting the update.');
+      setError(apiErr.response?.data?.message || apiErr.message || 'An unknown error occurred while starting the update.');
     } finally {
       setIsLoading(false);
     }
@@ -63,10 +64,11 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
         setIsPolling(false);
         setError(statusData.status_display || 'Update failed or was cancelled.');
       }
-    } catch (err: any) {
+    } catch (err) {
+      const apiErr = err as ApiError;
       console.error('Error fetching download status:', err);
       setIsPolling(false);
-      setError(err.response?.data?.message || err.message || 'Failed to fetch update status.');
+      setError(apiErr.response?.data?.message || apiErr.message || 'Failed to fetch update status.');
     }
   }, [updateJobId]);
 

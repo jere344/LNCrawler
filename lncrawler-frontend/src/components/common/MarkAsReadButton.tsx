@@ -10,6 +10,7 @@ import {
   Button, 
   Typography 
 } from '@mui/material';
+import type { SxProps } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
@@ -19,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 interface MarkAsReadButtonProps {
   novel: Novel;
   onMarkAsRead?: () => void;
-  customSx?: React.CSSProperties | Record<string, any>;
+  customSx?: SxProps;
 }
 
 const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({ 

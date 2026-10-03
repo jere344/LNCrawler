@@ -22,3 +22,10 @@ export interface Comment {
   user_vote?: 'up' | 'down';
   edited: boolean;
 }
+
+export interface CommentFormData {
+  author_name: string;
+  message: string;
+  contains_spoiler: boolean;
+  parent_id?: string;
+}

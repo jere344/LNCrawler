@@ -10,15 +10,15 @@ import {
   CircularProgress,
 } from '@mui/material';
 import EditableMDXEditor from './EditableMDXEditor';
-import { reviewService } from '@services/api';
-import { CreateReviewData } from '@services/review.service';
+import { reviewService, type ApiError } from '@services/api';
+import { CreateReviewData, Review } from '@services/review.service';
 import { useTranslation } from 'react-i18next';
 
 interface ReviewFormProps {
   novelSlug: string;
-  onReviewAdded: (review: any) => void;
+  onReviewAdded: (review: Review) => void;
   onCancel?: () => void;
-  editingReview?: any;
+  editingReview?: Review | null;
 }
 
 const ReviewForm: React.FC<ReviewFormProps> = ({ 
@@ -84,10 +84,11 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
       setTitle('');
       setContent('');
       setRating(null);
-    } catch (err: any) {
+    } catch (err) {
+      const apiErr = err as ApiError;
       console.error('Error saving review:', err);
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
+      if (apiErr.response?.data?.error) {
+        setError(apiErr.response.data.error);
       } else {
         setError(t(editingReview ? 'reviewForm.failedUpdate' : 'reviewForm.failedAdd'));
       }

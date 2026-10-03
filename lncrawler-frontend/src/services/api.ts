@@ -5,13 +5,17 @@ interface RequestConfig {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
-interface ApiResponse {
+export interface ApiResponse {
   // Matches axios's untyped `response.data` contract used across the services.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
   status: number;
   statusText: string;
   headers: Headers;
+}
+
+export interface ApiError extends Error {
+  response?: ApiResponse;
 }
 
 // Kept as a mutable object so callers can set/clear the auth header,

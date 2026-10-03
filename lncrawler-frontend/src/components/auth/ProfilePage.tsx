@@ -8,7 +8,9 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import LockIcon from '@mui/icons-material/Lock';
 import { authService } from '../../services/auth.service';
 import { reviewService } from '../../services/review.service';
+import type { Review } from '../../services/review.service';
 import { readingListService } from '../../services/readinglist.service';
+import type { ApiError } from '../../services/api';
 import { Link as RouterLink } from 'react-router-dom';
 import { ReadingList } from '@models/readinglist_types';
 import ReadingListCard from '../readinglist/ReadingListCard';
@@ -16,10 +18,21 @@ import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSe
 import ReadingStatisticsCard from '../profile/ReadingStatisticsCard';
 import LanguagePreferences from '../profile/LanguagePreferences';
 
+interface ProfileData {
+  username: string;
+  email: string;
+  profile_pic: string | null;
+  date_joined: string;
+  last_login: string | null;
+  word_read?: number;
+  chapters_read_count?: number;
+  chapters_not_read_yet_count?: number;
+}
+
 const ProfilePage: React.FC = () => {
   const { user, updateProfile, refreshUser } = useAuth();
   const { t } = useTranslation();
-  const [profileData, setProfileData] = useState<any>(null);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [username, setUsername] = useState('');
@@ -42,7 +55,7 @@ const ProfilePage: React.FC = () => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // User reviews state
-  const [userReviews, setUserReviews] = useState<any[]>([]);
+  const [userReviews, setUserReviews] = useState<Review[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState<string | null>(null);
   const [reviewsPage, setReviewsPage] = useState(1);
@@ -81,6 +94,7 @@ const ProfilePage: React.FC = () => {
     // Fetch user reviews and reading lists
     fetchUserReviews(1);
     fetchUserReadingLists(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally runs once on mount
   }, []);
 
   const fetchUserReviews = async (page = 1) => {
@@ -191,11 +205,12 @@ const ProfilePage: React.FC = () => {
       setSuccess(t('profile.passwordChanged'));
       setShowPasswordDialog(false);
       setPasswordData({ old_password: '', new_password: '', new_password2: '' });
-    } catch (err: any) {
-      if (err.response?.data?.old_password) {
-        setPasswordError(err.response.data.old_password[0]);
-      } else if (err.response?.data?.new_password) {
-        setPasswordError(err.response.data.new_password[0]);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.response?.data?.old_password) {
+        setPasswordError(apiErr.response.data.old_password[0]);
+      } else if (apiErr.response?.data?.new_password) {
+        setPasswordError(apiErr.response.data.new_password[0]);
       } else {
         setPasswordError(t('profile.passwordChangeFailed'));
       }

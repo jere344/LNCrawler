@@ -192,6 +192,7 @@ const ReadingListDetail = () => {
     if (listId) {
       fetchReadingList();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; listId is the only input
   }, [listId]);
 
   const fetchReadingList = async (silent = false) => {

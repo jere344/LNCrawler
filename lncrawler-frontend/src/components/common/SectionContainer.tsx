@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Typography, Paper, Box, useTheme, alpha } from '@mui/material';
+import type { SxProps } from '@mui/material';
 
 interface SectionContainerProps {
   title: string;
@@ -46,7 +47,7 @@ const SectionContainer: React.FC<SectionContainerProps> = ({ title, icon, childr
           alignItems: 'center',
         }}
       >
-        {React.cloneElement(icon as React.ReactElement<any, any>, { sx: { mr: 1, color: theme.palette.primary.main } })}
+        {React.cloneElement(icon as React.ReactElement<{ sx?: SxProps }>, { sx: { mr: 1, color: theme.palette.primary.main } })}
         {title}
       </Typography>
       

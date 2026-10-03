@@ -38,7 +38,12 @@ export default tseslint.config(
       'react-hooks/gating': 'off',
       'react-refresh/only-export-components': [
         'warn',
-        { allowConstantExport: true },
+        {
+          allowConstantExport: true,
+          // Context files intentionally co-locate their Provider with the
+          // useX() hook; this pattern is not compatible with Fast Refresh.
+          allowExportNames: ['useAuth', 'useLanguage', 'useTheme'],
+        },
       ],
     },
   },

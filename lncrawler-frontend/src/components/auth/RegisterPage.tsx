@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import { authService } from '../../services/api';
+import { authService, type ApiError } from '../../services/api';
 
 const RegisterPage: React.FC = () => {
   const { t } = useTranslation();
@@ -128,10 +128,11 @@ const RegisterPage: React.FC = () => {
         password: formData.password
       });
       navigate('/'); // Redirect to home after successful registration and login
-    } catch (error: any) {
-      if (error.response?.data) {
+    } catch (error) {
+      const apiErr = error as ApiError;
+      if (apiErr.response?.data) {
         // Handle validation errors from the server
-        const serverErrors = error.response.data;
+        const serverErrors = apiErr.response.data;
         const newErrors: Record<string, string> = {};
         
         Object.entries(serverErrors).forEach(([key, value]) => {

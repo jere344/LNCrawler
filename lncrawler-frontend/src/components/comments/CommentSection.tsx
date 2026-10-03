@@ -5,6 +5,7 @@ import CommentList from './CommentList';
 import { novelService } from '../../services/api';
 import { boardService } from '../../services/board.service';
 import { useTranslation } from 'react-i18next';
+import { Comment, CommentFormData } from '@models/comments_types';
 
 interface CommentSectionProps {
   novelSlug?: string;
@@ -19,7 +20,7 @@ interface CommentSectionProps {
 
 const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSectionProps) => {
   const { t } = useTranslation();
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -58,14 +59,10 @@ const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSec
     };
     
     fetchComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
   }, [novelSlug, chapterData, boardSlug, isChapterComments, isBoardComments]);
   
-  const handleAddComment = async (commentData: { 
-    author_name: string; 
-    message: string; 
-    contains_spoiler: boolean; 
-    parent_id?: string;
-  }) => {
+  const handleAddComment = async (commentData: CommentFormData) => {
     try {
       if (isBoardComments && boardSlug) {
         await boardService.addBoardComment(boardSlug, commentData);

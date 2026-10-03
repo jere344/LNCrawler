@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { novelService } from '@services/api';
-import { Novel, NovelFromSource } from '@models/novels_types';
+import { Novel, NovelFromSource, NovelFeaturedResponse } from '@models/novels_types';
 import { Review } from '@services/review.service';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
 import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCard';
@@ -36,7 +36,7 @@ const HomePage: React.FC = () => {
     trending_novels: Novel[];
     top_rated_novels: Novel[];
     recently_updated: NovelFromSource[];
-    featured_novel: any;
+    featured_novel: NovelFeaturedResponse | null;
     recent_reviews: Review[];
   } | null>(null);
   
@@ -337,7 +337,7 @@ const HomePage: React.FC = () => {
           <FeaturedNovelCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
         ) : homeData?.featured_novel ? (
           <FeaturedNovelCard 
-            source={homeData.featured_novel.novel.reading_source ?? homeData.featured_novel.novel.prefered_source}
+            source={(homeData.featured_novel.novel.reading_source ?? homeData.featured_novel.novel.prefered_source) as NovelFromSource}
             {...getNovelSourceLink(homeData.featured_novel.novel)}
           />
         ) : (

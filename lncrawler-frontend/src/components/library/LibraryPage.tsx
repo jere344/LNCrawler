@@ -54,6 +54,7 @@ const LibraryPage: React.FC = () => {
     if (isAuthenticated) {
       fetchBookmarkedNovels(page);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; page/auth are the inputs
   }, [isAuthenticated, page]);
 
   const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {

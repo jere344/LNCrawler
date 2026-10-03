@@ -4,17 +4,12 @@ import {
   Alert,
 } from '@mui/material';
 import CommentItem from './CommentItem';
-import { Comment } from '@models/comments_types';
+import { Comment, CommentFormData } from '@models/comments_types';
 import { useTranslation } from 'react-i18next';
 
 interface CommentListProps {
   comments: Comment[];
-  onAddReply?: (commentData: { 
-    author_name: string; 
-    message: string; 
-    contains_spoiler: boolean;
-    parent_id: string;
-  }) => Promise<void>;
+  onAddReply?: (commentData: CommentFormData) => Promise<void>;
   currentSource?: string;
 }
 

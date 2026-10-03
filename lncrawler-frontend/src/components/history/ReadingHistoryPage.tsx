@@ -64,6 +64,7 @@ const ReadingHistoryPage: React.FC = () => {
     if (isAuthenticated) {
       fetchReadingHistory(page);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; page/auth are the inputs
   }, [isAuthenticated, page]);
 
   const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {

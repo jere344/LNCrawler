@@ -27,7 +27,8 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
-import ReaderSettings, { ReaderSettings as IReaderSettings, defaultSettings, EdgeTapBehavior } from './ReaderSettings';
+import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior } from './ReaderSettings';
+import { defaultSettings } from './readerDefaults';
 import { getCookie } from '@utils/cookies';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
@@ -328,6 +329,7 @@ const ChapterReader = () => {
     };
 
     loadCurrentChapter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t/loader intentionally omitted; route params are the inputs
   }, [novelSlug, sourceSlug, chapterNumber]);
 
   // Restore scroll position when chapter content is loaded
@@ -335,6 +337,7 @@ const ChapterReader = () => {
     if (!loading && chapter) {
       restoreScrollPosition();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only on the listed scroll inputs
   }, [loading, chapter, readerSettings.pageMode]);
 
   // Save scroll position when navigating or every minute
@@ -377,6 +380,7 @@ const ChapterReader = () => {
       window.removeEventListener('scroll', handleScroll);
       saveScrollPosition(true); // Save one last time when component unmounts
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-subscribe only when the listed save inputs change
   }, [chapter, loading, readerSettings.savePosition, currentChapterKey]);
 
   const handleBackToChapters = () => {
@@ -628,6 +632,7 @@ const ChapterReader = () => {
     readerSettings.paragraphSpacing,
     readerSettings.showPages,
     readerSettings.showPageSlider,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tracks primitive fields so the memo stays stable across scroll
   ]);
 
   // Persist the outgoing mode's position before toggling page mode so the

@@ -22,6 +22,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth.service';
+import type { ApiError } from '../../services/api';
 
 const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -49,11 +50,12 @@ const LoginPage: React.FC = () => {
     try {
       await login(username, password);
       navigate('/'); // Redirect to home page after successful login
-    } catch (error: any) {
-      if (error.response?.data?.error) {
-        setError(error.response.data.error);
-      } else if (error.response?.data?.detail) {
-        setError(error.response.data.detail);
+    } catch (error) {
+      const err = error as ApiError;
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
       } else {
         setError(t('auth.loginFailed'));
       }
@@ -70,9 +72,10 @@ const LoginPage: React.FC = () => {
     try {
       await authService.forgotPassword(forgotEmail);
       setForgotSuccess(true);
-    } catch (err: any) {
-      if (err.response?.data?.email) {
-        setForgotError(err.response.data.email[0]);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.response?.data?.email) {
+        setForgotError(apiErr.response.data.email[0]);
       } else {
         setForgotError(t('auth.resetEmailFailed'));
       }

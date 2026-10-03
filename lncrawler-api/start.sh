@@ -29,7 +29,7 @@ if username and password and not U.objects.filter(username=username).exists():
     print('Superuser created.')
 else:
     print('Superuser already exists.')
-"
+" || echo "Superuser creation skipped."
 
 # Collect static files for production
 echo "Collecting static files..."
