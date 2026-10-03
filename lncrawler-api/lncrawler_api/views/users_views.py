@@ -70,7 +70,7 @@ def list_bookmarked_novels(request):
         {
             "count": paginator.count,
             "total_pages": paginator.num_pages,
-            "current_page": int(page_number),
+            "current_page": page_obj.number,
             "results": serializer.data,
             "recommendations": recommendation_serializer.data,
         }
@@ -87,13 +87,18 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
     bookmarked_ids = list(bookmarked_novels.values_list('id', flat=True))
     
     # Get recommendations with counts using a single database query
-    from django.db.models import Count
+    from django.db.models import Count, Max
     similar_novels = (NovelSimilarity.objects
         .filter(from_novel_id__in=bookmarked_ids)
         .exclude(to_novel_id__in=bookmarked_ids)  # Exclude already bookmarked novels
         .values('to_novel')
-        .annotate(recommendation_count=Count('to_novel'))
-        .order_by('-recommendation_count', '-similarity')[:max_recommendations]
+        .annotate(
+            recommendation_count=Count('to_novel'),
+            # Aggregate similarity so it lands in the SELECT, not the GROUP BY;
+            # otherwise each distinct score yields a duplicate to_novel row.
+            best_similarity=Max('similarity'),
+        )
+        .order_by('-recommendation_count', '-best_similarity')[:max_recommendations]
     )
     
     # Get IDs of similar novels
@@ -147,7 +152,7 @@ def list_reading_history(request):
         {
             "count": paginator.count,
             "total_pages": paginator.num_pages,
-            "current_page": int(page_number),
+            "current_page": page_obj.number,
             "results": serializer.data,
         }
     )

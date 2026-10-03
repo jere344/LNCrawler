@@ -60,6 +60,25 @@ const readLocalStorage = <T,>(key: string, fallback: T): T => {
     }
 };
 
+// i18next's detector reads the UI-language key raw, so it is stored as a plain
+// code (not JSON). Tolerate a legacy JSON-encoded value (e.g. '"fr"').
+const readStoredUiLanguage = (): string => {
+    try {
+        const raw = localStorage.getItem(UI_LANGUAGE_KEY);
+        if (!raw) return '';
+        let value = raw;
+        try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'string') value = parsed;
+        } catch {
+            // not JSON, use the raw value
+        }
+        return availableLanguages.includes(value) ? value : '';
+    } catch {
+        return '';
+    }
+};
+
 interface ServerPreference {
     preferred_ui_language?: string;
     preferred_languages?: string[];
@@ -69,7 +88,7 @@ interface ServerPreference {
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     // Anonymous defaults come from the browser; anything already stored wins.
     const [uiLanguage, setUiLanguageState] = useState<string>(() =>
-        readLocalStorage(UI_LANGUAGE_KEY, '')
+        readStoredUiLanguage()
     );
     const [contentLanguages, setContentLanguagesState] = useState<string[]>(() =>
         onlySupported(readLocalStorage(CONTENT_LANGUAGES_KEY, browserLanguages()))
@@ -80,7 +99,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Persist to localStorage on every change
     useEffect(() => {
-        localStorage.setItem(UI_LANGUAGE_KEY, JSON.stringify(uiLanguage));
+        localStorage.setItem(UI_LANGUAGE_KEY, uiLanguage);
     }, [uiLanguage]);
 
     // Drive i18next and document direction from the chosen interface language.
@@ -120,7 +139,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     setLanguageFilterEnabledState(serverFilter);
                 } else {
                     // First login: seed the empty account from what the browser knew
-                    const localUi = readLocalStorage(UI_LANGUAGE_KEY, '');
+                    const localUi = readStoredUiLanguage();
                     const localContent = onlySupported(
                         readLocalStorage(CONTENT_LANGUAGES_KEY, browserLanguages())
                     );

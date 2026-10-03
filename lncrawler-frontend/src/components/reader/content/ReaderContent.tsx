@@ -13,6 +13,17 @@ const bodyStyles = `
   #reader-content img { 
     max-width: 100%; 
     height: auto; 
+    break-inside: avoid;
+  }
+  #reader-content figure,
+  #reader-content table,
+  #reader-content pre {
+    break-inside: avoid;
+  }
+  #reader-content h1,
+  #reader-content h2,
+  #reader-content h3 {
+    break-after: avoid;
   }
   #reader-content a {
     pointer-events: none;

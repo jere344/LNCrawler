@@ -15,6 +15,7 @@ interface ReaderViewportProps {
   nightModeEndTime?: string;
   leftEdgeTapBehavior: EdgeTapBehavior;
   rightEdgeTapBehavior: EdgeTapBehavior;
+  fullscreen?: boolean;
   onContentClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
@@ -30,6 +31,7 @@ const ReaderViewport = forwardRef<HTMLDivElement, ReaderViewportProps>((
     nightModeScheduleEnabled = false,
     nightModeStartTime = '20:00',
     nightModeEndTime = '06:00',
+    fullscreen = false,
     onContentClick
   }, 
   ref
@@ -65,8 +67,9 @@ const ReaderViewport = forwardRef<HTMLDivElement, ReaderViewportProps>((
       ref={ref}
       onClick={onContentClick}
       sx={{
-        minHeight: 'calc(100vh - 64px)',
+        minHeight: fullscreen ? 0 : 'calc(100vh - 64px)',
         position: 'relative',
+        ...(fullscreen ? { flex: 1, minWidth: 0, overflow: 'hidden' } : {}),
         // Display overlay indicators for edge tap zones on mobile
         '&::before, &::after': isMobile ? {
           content: '""',

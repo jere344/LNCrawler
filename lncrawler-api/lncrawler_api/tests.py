@@ -838,6 +838,15 @@ class HomeLanguageFilterTests(LanguageAwareSourceTestCase):
         novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
         self.assertEqual(novel["prefered_source"]["language"], "en")
 
+    def test_language_filter_scopes_view_counts_and_badges(self):
+        NovelFromSource.objects.filter(pk=self.en_source.pk).update(total_views=100)
+        NovelFromSource.objects.filter(pk=self.fr_source.pk).update(total_views=7)
+
+        response = self.client.get(reverse("home_page"), {"languages": "fr"})
+        novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
+        self.assertEqual(novel["total_views"], 7)
+        self.assertEqual(novel["languages"], ["fr"])
+
 
 class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
     def _novel(self, response):
@@ -1081,6 +1090,59 @@ class UserLanguagePreferenceTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_clearing_languages_is_allowed(self):
+        self.user.preferred_languages = ["fr"]
+        self.user.save()
+
+        response = self.client.patch(
+            reverse("user_profile"),
+            data=json.dumps({"preferred_languages": []}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.preferred_languages, [])
+
+    def test_non_list_languages_rejected_not_500(self):
+        response = self.client.patch(
+            reverse("user_profile"),
+            data=json.dumps({"preferred_languages": 123}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class RecommendationDedupTests(TestCase):
+    def test_recommendation_ids_are_unique(self):
+        user = get_user_model().objects.create_user(
+            username="rec", email="rec@example.com", password="pw12345!"
+        )
+        target = Novel.objects.create(title="Target", slug="target", novel_path="t")
+        for i in range(3):
+            source = Novel.objects.create(
+                title=f"Book {i}", slug=f"book-{i}", novel_path=f"b{i}"
+            )
+            NovelBookmark.objects.create(user=user, novel=source)
+            NovelSimilarity.objects.create(
+                from_novel=source, to_novel=target, similarity=0.1 * (i + 1)
+            )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("list_bookmarked_novels"))
+        self.assertEqual(response.status_code, 200)
+        ids = [n["id"] for n in response.data["recommendations"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertIn(str(target.id), ids)
+
+
+class PaginationRobustnessTests(TestCase):
+    def test_bad_page_param_returns_first_page(self):
+        Novel.objects.create(title="Only", slug="only", novel_path="o")
+        for name in ("list_novels", "search_novels", "list_all_reading_lists"):
+            response = self.client.get(reverse(name), {"page": "abc"})
+            self.assertEqual(response.status_code, 200, name)
+            self.assertEqual(response.data["current_page"], 1, name)
 
 
 class ReadingListVisibilityTests(TestCase):

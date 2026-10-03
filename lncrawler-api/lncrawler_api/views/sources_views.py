@@ -114,7 +114,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
             "source_slug": source.source_slug,
             "count": paginator.count,
             "total_pages": paginator.num_pages,
-            "current_page": int(page_number),
+            "current_page": page_obj.number,
             "chapters": serializer.data,
             "source_overview_image_url": (
                 f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
@@ -210,6 +210,6 @@ def source_image_gallery(request, novel_slug, source_slug):
         "source_slug": source.source_slug,
         "count": paginator.count,
         "total_pages": paginator.num_pages,
-        "current_page": int(page_number),
+        "current_page": page_obj.number,
         "images": serializer.data
     })

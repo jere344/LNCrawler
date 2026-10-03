@@ -53,7 +53,7 @@ def list_novels(request):
         {
             "count": paginator.count,
             "total_pages": paginator.num_pages,
-            "current_page": int(page_number),
+            "current_page": page_obj.number,
             "results": serializer.data,
         }
     )
@@ -248,13 +248,15 @@ def search_novels(request):
     paginator = Paginator(novels_query, page_size)
     page_obj = paginator.get_page(page_number)
 
-    serializer = BasicNovelSerializer(page_obj, many=True, context={"request": request})
+    serializer = BasicNovelSerializer(
+        page_obj, many=True, context={"request": request, "languages": languages}
+    )
 
     return Response(
         {
             "count": paginator.count,
             "total_pages": paginator.num_pages,
-            "current_page": int(page_number),
+            "current_page": page_obj.number,
             "results": serializer.data,
             "filters": {
                 "statuses": [

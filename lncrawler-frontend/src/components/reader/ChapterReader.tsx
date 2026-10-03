@@ -15,6 +15,7 @@ import {
   Tabs,
   Tab,
   IconButton,
+  Slider,
 } from '@mui/material';
 import { novelService, userService } from '../../services/api';
 import BookIcon from '@mui/icons-material/Book';
@@ -23,16 +24,18 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import CommentIcon from '@mui/icons-material/Comment';
 import SettingsIcon from '@mui/icons-material/Settings';
+import KeyboardArrowLeft from '@mui/icons-material/KeyboardArrowLeft';
+import KeyboardArrowRight from '@mui/icons-material/KeyboardArrowRight';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, defaultSettings, EdgeTapBehavior } from './ReaderSettings';
-import Cookies from 'js-cookie';
+import { getCookie } from '@utils/cookies';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
 
 import ReaderToolbar from './controls/ReaderToolbar';
 import ReaderViewport from './viewport/ReaderViewport';
 import ReaderContent from './content/ReaderContent';
-import PagedContent from './content/PagedContent';
+import PagedContent, { PagedContentRef } from './content/PagedContent';
 import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
 
@@ -78,7 +81,7 @@ const ChapterReader = () => {
   const [error, setError] = useState<string | null>(null);
   const [markingAsRead, setMarkingAsRead] = useState(false);
   const [markReadSuccess, setMarkReadSuccess] = useState(false);
-  const [isScrollLocked, setIsScrollLocked] = useState(false);
+  const [pageInfo, setPageInfo] = useState({ current: 1, total: 1 });
   
   // Get authentication state to check if the user is logged in
   const { isAuthenticated } = useAuth();
@@ -93,15 +96,12 @@ const ChapterReader = () => {
   // Create a ref to store our chapter cache that persists through renders
   const chapterCacheRef = useRef<ChapterCache>({});
   const contentRef = useRef<HTMLDivElement>(null);
-  const pagedContentRef = useRef<{
-    goToNextPage: () => boolean;
-    goToPrevPage: () => boolean;
-    goToPage: (page: number) => void;
-    currentPage: number;
-  }>(null);
+  const pagedContentRef = useRef<PagedContentRef>(null);
   
   // Use state for scroll positions loaded from localStorage
   const [scrollPositions, setScrollPositions] = useState<ScrollPositions>({});
+  // Mirror of scrollPositions for use inside callbacks/cleanups
+  const scrollPositionsRef = useRef<ScrollPositions>({});
   
   // Current chapter key for scroll position tracking
   const currentChapterKey = `${novelSlug}|${sourceSlug}|${chapterNumber}`;
@@ -159,7 +159,7 @@ const ChapterReader = () => {
 
       Object.keys(defaultSettings).forEach(keyStr => {
         const key = keyStr as keyof IReaderSettings; // Use keyof for type safety
-        const cookieValue = Cookies.get(COOKIE_PREFIX + key);
+        const cookieValue = getCookie(COOKIE_PREFIX + key);
 
         if (cookieValue !== undefined) {
           try {
@@ -198,7 +198,9 @@ const ChapterReader = () => {
     try {
       const savedPositions = localStorage.getItem(SCROLL_POSITION_STORAGE_KEY);
       if (savedPositions) {
-        setScrollPositions(JSON.parse(savedPositions));
+        const parsed = JSON.parse(savedPositions);
+        scrollPositionsRef.current = parsed;
+        setScrollPositions(parsed);
       }
     } catch (error) {
       console.error('Error loading saved scroll positions:', error);
@@ -222,27 +224,27 @@ const ChapterReader = () => {
     return (scrollTop / scrollableHeight) * 100;
   };
 
-  // Save current scroll position to localStorage with throttling
-  const saveScrollPosition = () => {
+  // Save current reading position (percentage of the chapter) with throttling.
+  // Both page mode and text mode store the same metric, so switching between
+  // them or rotating the device restores the same place in the text.
+  const saveScrollPosition = (force = false) => {
     if (!currentChapterKey || !readerSettings.savePosition) return;
     
     const now = Date.now();
-    // Throttle saves to avoid excessive writes
-    if (now - lastScrollSaveRef.current < SCROLL_SAVE_THROTTLE) {
+    // Throttle saves to avoid excessive writes (page turns and unmounts force)
+    if (!force && now - lastScrollSaveRef.current < SCROLL_SAVE_THROTTLE) {
       return;
     }
     lastScrollSaveRef.current = now;
 
-    let updatedPositions: ScrollPositions;
-    // if we are in page mode we save the page number
-    if (readerSettings.pageMode && pagedContentRef.current) {
-      const currentPage = pagedContentRef.current.currentPage;
-      updatedPositions = { ...scrollPositions, [currentChapterKey]: currentPage };
-    }
-    else {
-      const scrollPercentage = calculateScrollPercentage();
-      updatedPositions = { ...scrollPositions, [currentChapterKey]: scrollPercentage };
-    }
+    const percentage = readerSettings.pageMode && pagedContentRef.current
+      ? pagedContentRef.current.getProgress()
+      : calculateScrollPercentage();
+
+    const updatedPositions: ScrollPositions = {
+      ...scrollPositionsRef.current,
+      [currentChapterKey]: percentage,
+    };
     
     // Prune old entries if we have too many
     const keys = Object.keys(updatedPositions);
@@ -255,6 +257,7 @@ const ChapterReader = () => {
     }
     
     // Save to state and localStorage
+    scrollPositionsRef.current = updatedPositions;
     setScrollPositions(updatedPositions);
     try {
       // Use requestAnimationFrame to batch DOM reads/writes
@@ -266,43 +269,37 @@ const ChapterReader = () => {
     }
   };
 
-  // Restore scroll position from percentage using requestAnimationFrame
+  // Restore the text-mode window scroll from the saved percentage.
+  // Page mode restores itself from `initialProgress` via PagedContent.
   const restoreScrollPosition = () => {
-    if (!currentChapterKey || !readerSettings.savePosition) return;
+    if (!currentChapterKey || !readerSettings.savePosition || readerSettings.pageMode) return;
     
-    const savedPercentage = scrollPositions[currentChapterKey];
-    if (savedPercentage !== undefined) {
-      
+    const savedPercentage = scrollPositionsRef.current[currentChapterKey];
+    if (savedPercentage === undefined) return;
 
-      // Use requestAnimationFrame to avoid layout thrashing
-      requestAnimationFrame(() => {
-        // If in page mode, restore to the correct page (we simply stored the page number)  
-        if (readerSettings.pageMode && pagedContentRef.current) {
-        pagedContentRef.current.goToPage(savedPercentage); // This is actually the page number
+    // Use requestAnimationFrame to avoid layout thrashing
+    requestAnimationFrame(() => {
+      // Read scroll dimensions
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = document.documentElement.clientHeight;
+      const scrollableHeight = scrollHeight - clientHeight;
+      
+      if (scrollableHeight <= 0) {
+        // Try again later if content hasn't fully rendered
+        setTimeout(() => restoreScrollPosition(), 100);
         return;
       }
-        // Read scroll dimensions
-        const scrollHeight = document.documentElement.scrollHeight;
-        const clientHeight = document.documentElement.clientHeight;
-        const scrollableHeight = scrollHeight - clientHeight;
-        
-        if (scrollableHeight <= 0) {
-          // Try again later if content hasn't fully rendered
-          setTimeout(() => restoreScrollPosition(), 100);
-          return;
-        }
-        
-        const scrollTop = (savedPercentage / 100) * scrollableHeight;
-        
-        // Write to scroll position in next frame
-        requestAnimationFrame(() => {
-          window.scrollTo({
-            top: scrollTop,
-            behavior: 'auto' // Use 'auto' instead of 'smooth' to avoid animation issues
-          });
+      
+      const scrollTop = (savedPercentage / 100) * scrollableHeight;
+      
+      // Write to scroll position in next frame
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollTop,
+          behavior: 'auto' // Use 'auto' instead of 'smooth' to avoid animation issues
         });
       });
-    }
+    });
   };
 
   useEffect(() => {
@@ -338,7 +335,7 @@ const ChapterReader = () => {
     if (!loading && chapter) {
       restoreScrollPosition();
     }
-  }, [loading, chapter]);
+  }, [loading, chapter, readerSettings.pageMode]);
 
   // Save scroll position when navigating or every minute
   useEffect(() => {
@@ -378,24 +375,24 @@ const ChapterReader = () => {
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('scroll', handleScroll);
-      saveScrollPosition(); // Save one last time when component unmounts
+      saveScrollPosition(true); // Save one last time when component unmounts
     };
   }, [chapter, loading, readerSettings.savePosition, currentChapterKey]);
 
   const handleBackToChapters = () => {
-    saveScrollPosition();
+    saveScrollPosition(true);
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
   };
 
   const handleBackToSource = () => {
-    saveScrollPosition();
+    saveScrollPosition(true);
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
   };
   
   // Add this function to handle automatic marking as read when navigating
   const handleChapterNavigation = async (direction: 'prev' | 'next') => {
     // Save current scroll position
-    saveScrollPosition();
+    saveScrollPosition(true);
     
     // Get the chapter number to navigate to
     const targetChapter = direction === 'next' 
@@ -633,9 +630,22 @@ const ChapterReader = () => {
     readerSettings.showPageSlider,
   ]);
 
-  // Handler for scroll lock changes
-  const handleScrollLockChange = (locked: boolean) => {
-    setIsScrollLocked(locked);
+  // Persist the outgoing mode's position before toggling page mode so the
+  // switch to the other mode restores the same place in the chapter.
+  const handleSettingChange = (newSettings: IReaderSettings) => {
+    if (newSettings.pageMode !== readerSettings.pageMode) {
+      saveScrollPosition(true);
+      if (newSettings.pageMode) {
+        setActiveTab(0);
+      }
+    }
+    setReaderSettings(newSettings);
+  };
+
+  // Called by PagedContent whenever the visible page changes.
+  const handlePageChange = (current: number, total: number) => {
+    setPageInfo({ current, total });
+    saveScrollPosition(true);
   };
 
   // Add these variables to generate navigation URLs
@@ -726,34 +736,157 @@ const ChapterReader = () => {
     (readerSettings.markReadBehavior === 'button' || 
      readerSettings.markReadBehavior === 'buttonAutomatic');
 
+  const toolbarElement = (
+    <ReaderToolbar 
+      isMobile={isMobile}
+      controlsVisible={controlsVisible}
+      title={getChapterLabel(chapter.title, chapter.chapter_id)}
+      prevChapter={chapter.prev_chapter}
+      nextChapter={chapter.next_chapter}
+      isAuthenticated={isAuthenticated}
+      markReadSuccess={markReadSuccess}
+      markingAsRead={markingAsRead}
+      showMarkReadButton={shouldShowMarkReadButton}
+      onMarkAsRead={handleMarkAsRead}
+      onChapterList={handleBackToChapters}
+      onHome={handleBackToSource}
+      onPrevious={handlePrevChapter}
+      onNext={handleNextChapter}
+      onSettings={() => setControlsVisible(true)}
+      onCloseControls={() => setControlsVisible(false)}
+      prevUrl={prevUrl}
+      nextUrl={nextUrl}
+      homeUrl={homeUrl}
+      chapterListUrl={chapterListUrl}
+    />
+  );
+
   return (
     <>
       <ChapterSEO chapter={chapter}></ChapterSEO>
 
-      {/* Reader Toolbar */}
-      <ReaderToolbar 
-        isMobile={isMobile}
-        controlsVisible={controlsVisible}
-        title={getChapterLabel(chapter.title, chapter.chapter_id)}
-        prevChapter={chapter.prev_chapter}
-        nextChapter={chapter.next_chapter}
-        isAuthenticated={isAuthenticated}
-        markReadSuccess={markReadSuccess}
-        markingAsRead={markingAsRead}
-        showMarkReadButton={shouldShowMarkReadButton}
-        onMarkAsRead={handleMarkAsRead}
-        onChapterList={handleBackToChapters}
-        onHome={handleBackToSource}
-        onPrevious={handlePrevChapter}
-        onNext={handleNextChapter}
-        onSettings={() => setControlsVisible(true)}
-        onCloseControls={() => setControlsVisible(false)}
-        prevUrl={prevUrl}
-        nextUrl={nextUrl}
-        homeUrl={homeUrl}
-        chapterListUrl={chapterListUrl}
-      />
-
+      {readerSettings.pageMode ? (
+        <Box
+          {...swipeHandlers}
+          sx={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: theme.zIndex.appBar + 1,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {toolbarElement}
+          <ReaderViewport
+            isMobile={isMobile}
+            controlsVisible={controlsVisible}
+            edgeTapWidthPercentage={EDGE_TAP_WIDTH_PERCENTAGE}
+            dimLevel={readerSettings.dimLevel}
+            nightMode={readerSettings.nightMode}
+            nightModeStrength={readerSettings.nightModeStrength}
+            nightModeScheduleEnabled={readerSettings.nightModeScheduleEnabled}
+            nightModeStartTime={readerSettings.nightModeStartTime}
+            nightModeEndTime={readerSettings.nightModeEndTime}
+            leftEdgeTapBehavior={readerSettings.leftEdgeTapBehavior}
+            rightEdgeTapBehavior={readerSettings.rightEdgeTapBehavior}
+            fullscreen
+            onContentClick={handleContentClick}
+          >
+            {memoizedChapterContent.chapter && (
+              <PagedContent
+                key={chapter.id}
+                ref={pagedContentRef}
+                chapter={memoizedChapterContent.chapter}
+                settings={memoizedChapterContent.settings}
+                initialProgress={scrollPositions[currentChapterKey] ?? 0}
+                onPageChange={handlePageChange}
+              />
+            )}
+            {readerSettings.showPages && (
+              <>
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    pagedContentRef.current?.goToPrevPage();
+                  }}
+                  sx={{
+                    position: 'absolute',
+                    left: 4,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: readerSettings.fontColor || 'text.primary',
+                    visibility: pageInfo.current > 1 ? 'visible' : 'hidden',
+                  }}
+                >
+                  <KeyboardArrowLeft />
+                </IconButton>
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    pagedContentRef.current?.goToNextPage();
+                  }}
+                  sx={{
+                    position: 'absolute',
+                    right: 4,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: readerSettings.fontColor || 'text.primary',
+                    visibility: pageInfo.current < pageInfo.total ? 'visible' : 'hidden',
+                  }}
+                >
+                  <KeyboardArrowRight />
+                </IconButton>
+                <Box
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    px: 1.5,
+                    py: 0.5,
+                    borderRadius: 4,
+                    backgroundColor: 'rgba(0,0,0,0.08)',
+                    backdropFilter: 'blur(4px)',
+                    maxWidth: '80%',
+                  }}
+                >
+                  {readerSettings.showPageSlider && pageInfo.total > 1 && (
+                    <Slider
+                      value={pageInfo.current}
+                      min={1}
+                      max={pageInfo.total}
+                      step={1}
+                      onChange={(_, value) => pagedContentRef.current?.goToPage((value as number) - 1)}
+                      sx={{
+                        width: 160,
+                        color: readerSettings.fontColor || 'primary.main',
+                        '& .MuiSlider-thumb': { backgroundColor: readerSettings.fontColor || 'primary.main' },
+                        '& .MuiSlider-track': { backgroundColor: readerSettings.fontColor || 'primary.main' },
+                        '& .MuiSlider-rail': {
+                          backgroundColor: readerSettings.fontColor ? `${readerSettings.fontColor}30` : 'rgba(0,0,0,0.2)',
+                        },
+                      }}
+                      size="small"
+                    />
+                  )}
+                  <Typography
+                    variant="caption"
+                    sx={{ color: readerSettings.fontColor || 'text.secondary', whiteSpace: 'nowrap', userSelect: 'none' }}
+                  >
+                    {t('reader.pageOf', { current: pageInfo.current, total: pageInfo.total })}
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </ReaderViewport>
+        </Box>
+      ) : (
+      <>
+      {toolbarElement}
       <Container 
         maxWidth="md" 
         sx={{
@@ -863,21 +996,10 @@ const ChapterReader = () => {
               onContentClick={handleContentClick}
             >
               {memoizedChapterContent.chapter && (
-                readerSettings.pageMode ? (
-                  <PagedContent
-                    ref={pagedContentRef}
-                    chapter={memoizedChapterContent.chapter}
-                    settings={memoizedChapterContent.settings}
-                    isScrollLocked={isScrollLocked}
-                    onScrollLockChange={handleScrollLockChange}
-                    saveScrollPosition={saveScrollPosition}
-                  />
-                ) : (
-                  <ReaderContent 
-                    chapter={memoizedChapterContent.chapter} 
-                    settings={memoizedChapterContent.settings}
-                  />
-                )
+                <ReaderContent 
+                  chapter={memoizedChapterContent.chapter} 
+                  settings={memoizedChapterContent.settings}
+                />
               )}
             </ReaderViewport>
           </Box>
@@ -920,13 +1042,15 @@ const ChapterReader = () => {
           </Snackbar>
         </Paper>
       </Container>
+      </>
+      )}
 
       {/* Settings Drawer */}
       <ReaderSettings
         open={controlsVisible}
         onClose={() => setControlsVisible(false)}
         settings={readerSettings}
-        onSettingChange={setReaderSettings}
+        onSettingChange={handleSettingChange}
         chapterInfo={{
           title: getChapterLabel(chapter.title, chapter.chapter_id),
           novelTitle: chapter.novel_title,

@@ -25,10 +25,3 @@
   font-weight: bold;
   font-style: italic;
 }
-
-
-body.reading-scroll-locked header{
-  opacity: 0 !important;
-  pointer-events: none !important;
-
-}

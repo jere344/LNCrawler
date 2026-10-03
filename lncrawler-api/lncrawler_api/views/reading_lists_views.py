@@ -34,7 +34,7 @@ def _paginated_response(request, query_set, serializer_class):
     return Response({
         "count": paginator.count,
         "total_pages": paginator.num_pages,
-        "current_page": int(page_number),
+        "current_page": page_obj.number,
         "results": serializer.data,
     })
 
@@ -287,7 +287,12 @@ def manage_collaborators(request, list_id):
     user_id = request.data.get('user_id')
     username = request.data.get('username')
     if user_id:
-        user = User.objects.filter(id=user_id).first()
+        try:
+            user = User.objects.filter(id=int(user_id)).first()
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "Invalid user_id."}, status=status.HTTP_400_BAD_REQUEST
+            )
     elif username:
         user = User.objects.filter(username=username).first()
     else:

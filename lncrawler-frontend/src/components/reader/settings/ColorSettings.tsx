@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
   Typography,
   Button,
   IconButton,
-  Popover,
   Grid as Grid,
   useTheme,
   Switch,
@@ -12,7 +11,6 @@ import {
   TextField,
   Divider,
 } from '@mui/material';
-import { ChromePicker, ColorResult } from 'react-color';
 import ClearIcon from '@mui/icons-material/Clear';
 import { useTranslation } from 'react-i18next';
 import MobileSafeSlider from '../../common/MobileSafeSlider';
@@ -59,49 +57,15 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const [showFontColorPicker, setShowFontColorPicker] = useState(false);
-  const [showBgColorPicker, setShowBgColorPicker] = useState(false);
-  const [fontColorAnchor, setFontColorAnchor] = useState<HTMLButtonElement | null>(null);
-  const [bgColorAnchor, setBgColorAnchor] = useState<HTMLButtonElement | null>(null);
-
-  const handleFontColorClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setFontColorAnchor(event.currentTarget);
-    setShowFontColorPicker(true);
-  };
-
-  const handleBgColorClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setBgColorAnchor(event.currentTarget);
-    setShowBgColorPicker(true);
-  };
-
-  const closeFontColorPicker = () => {
-    setShowFontColorPicker(false);
-    setFontColorAnchor(null);
-  };
-
-  const closeBgColorPicker = () => {
-    setShowBgColorPicker(false);
-    setBgColorAnchor(null);
-  };
-
-  const handleFontColorChange = (color: ColorResult) => {
-    onFontColorChange(color.hex);
-  };
-
-  const handleBackgroundColorChange = (color: ColorResult) => {
-    onBackgroundColorChange(color.hex);
-  };
 
   const resetFontColor = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onFontColorChange(null);
-    setShowFontColorPicker(false);
   };
 
   const resetBackgroundColor = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onBackgroundColorChange(null);
-    setShowBgColorPicker(false);
   };
 
   const handleDimLevelChange = (_event: Event, newValue: number | number[]) => {
@@ -135,9 +99,9 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
         <Grid size={6}>
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <Button
+              component="label"
               variant="outlined"
               fullWidth
-              onClick={handleFontColorClick}
               sx={{
                 borderColor: fontColor || theme.palette.text.primary,
                 color: fontColor || theme.palette.text.primary,
@@ -148,6 +112,22 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               }}
             >
               {t('colorSettings.textColor')}
+              <Box
+                component="input"
+                type="color"
+                value={fontColor || '#000000'}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onFontColorChange(e.target.value)}
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  border: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                }}
+              />
             </Button>
             {fontColor && (
               <IconButton 
@@ -165,39 +145,13 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               </IconButton>
             )}
           </Box>
-          <Popover
-            open={showFontColorPicker}
-            anchorEl={fontColorAnchor}
-            onClose={closeFontColorPicker}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'center',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'center',
-            }}
-            sx={{ 
-              zIndex: theme.zIndex.drawer + 1,
-              '& .chrome-picker': {
-                boxShadow: 'none !important',
-              }
-            }}
-            disablePortal={false}
-          >
-            <ChromePicker 
-              color={fontColor || theme.palette.text.primary} 
-              onChange={handleFontColorChange}
-              disableAlpha={true}
-            />
-          </Popover>
         </Grid>
         <Grid size={6}>
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <Button
+              component="label"
               variant="outlined"
               fullWidth
-              onClick={handleBgColorClick}
               sx={{
                 borderColor: backgroundColor || theme.palette.background.paper,
                 backgroundColor: backgroundColor || theme.palette.background.paper,
@@ -209,6 +163,22 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               }}
             >
               {t('colorSettings.background')}
+              <Box
+                component="input"
+                type="color"
+                value={backgroundColor || '#ffffff'}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onBackgroundColorChange(e.target.value)}
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  border: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                }}
+              />
             </Button>
             {backgroundColor && (
               <IconButton 
@@ -227,32 +197,6 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               </IconButton>
             )}
           </Box>
-          <Popover
-            open={showBgColorPicker}
-            anchorEl={bgColorAnchor}
-            onClose={closeBgColorPicker}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'center',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'center',
-            }}
-            sx={{ 
-              zIndex: theme.zIndex.drawer + 1,
-              '& .chrome-picker': {
-                boxShadow: 'none !important',
-              }
-            }}
-            disablePortal={false}
-          >
-            <ChromePicker 
-              color={backgroundColor || theme.palette.background.paper} 
-              onChange={handleBackgroundColorChange}
-              disableAlpha={true}
-            />
-          </Popover>
         </Grid>
       </Grid>
 

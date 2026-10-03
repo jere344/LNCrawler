@@ -34,8 +34,14 @@ class UserSerializer(serializers.ModelSerializer):
     def validate_preferred_languages(self, value):
         if value in (None, ''):
             return []
+        if not isinstance(value, (list, tuple, str)):
+            raise serializers.ValidationError(
+                "Provide a language code or a list of language codes."
+            )
         codes = parse_languages(value)
-        if not codes:
+        # An empty list clears the preference; a non-empty input that yields no
+        # supported codes is rejected.
+        if not codes and value:
             raise serializers.ValidationError(
                 "Provide at least one supported language code."
             )

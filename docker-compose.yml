@@ -17,7 +17,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}x
+      - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
@@ -104,6 +104,7 @@ services:
     volumes:
       - ./lncrawler-api/static:/static
       - ./lncrawler-api/media:/media
+      - ./lncrawler-api/logs:/logs
       - ./Lightnovels:/lightnovels
     environment:
       - API_HOST=${API_HOST}

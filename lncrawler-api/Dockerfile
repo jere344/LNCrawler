@@ -23,9 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the startup script
-COPY start.sh /app/lncrawler-api/
-RUN chmod +x /app/lncrawler-api/start.sh
+# Copy the startup scripts
+COPY start.sh start_crawler.sh start_scheduler.sh /app/lncrawler-api/
+RUN chmod +x /app/lncrawler-api/start.sh /app/lncrawler-api/start_crawler.sh /app/lncrawler-api/start_scheduler.sh
 
 # Create logs directory for gunicorn
 RUN mkdir -p /app/lncrawler-api/logs

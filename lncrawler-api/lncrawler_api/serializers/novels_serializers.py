@@ -22,16 +22,20 @@ class NovelAggregatesMixin:
     def _prefetched(self, obj, name):
         return name in getattr(obj, '_prefetched_objects_cache', {})
 
-    def get_prefered_source(self, obj):
-        # Restrict to the languages the request was filtered by (when any), so
-        # a language-filtered list links to a source in that language; fall
-        # back to all sources if none match.
+    def _context_sources(self, obj):
+        # Restrict to the languages the request was filtered by (when any) so
+        # counters, language badges and the preferred source agree with the
+        # filter; fall back to all sources if none match.
         sources = list(obj.sources.all())
         languages = self.context.get('languages') or []
         if languages:
             localized = [s for s in sources if s.language in languages]
             if localized:
                 sources = localized
+        return sources
+
+    def get_prefered_source(self, obj):
+        sources = self._context_sources(obj)
 
         if not sources:
             return None
@@ -59,12 +63,10 @@ class NovelAggregatesMixin:
         return obj.ratings.count()
 
     def get_total_views(self, obj):
-        if self._prefetched(obj, 'sources'):
-            return sum(source.total_views for source in obj.sources.all())
-        return obj.sources.aggregate(total=Sum('total_views'))['total'] or 0
+        return sum(source.total_views for source in self._context_sources(obj))
 
     def get_weekly_views(self, obj):
-        sources = obj.sources.all()
+        sources = self._context_sources(obj)
         if self._prefetched(obj, 'sources') and all(
             self._prefetched(source, 'weekly_views') for source in sources
         ):
@@ -72,7 +74,7 @@ class NovelAggregatesMixin:
                 view.views for source in sources for view in source.weekly_views.all()
             )
         total = WeeklySourceView.objects.filter(
-            source__novel=obj,
+            source_id__in=[source.pk for source in sources],
             granularity=WeeklySourceView.DAY,
             day__gte=WeeklySourceView.window_start(),
         ).aggregate(total=Sum('views'))['total']
@@ -141,10 +143,11 @@ class BasicNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
         """
         Returns a list of languages for the sources of the novel
         """
-        languages = set()
-        for source in obj.sources.all():
-            if source.language:
-                languages.add(source.language)
+        languages = {
+            source.language
+            for source in self._context_sources(obj)
+            if source.language
+        }
         return list(languages)
 
 

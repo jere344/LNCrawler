@@ -4,7 +4,7 @@ import {
   DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
 import { useState } from 'react';
-import Cookies from 'js-cookie';
+import { setCookie } from '@utils/cookies';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
@@ -140,7 +140,7 @@ const ReaderSettings = ({
 
   // Helper function to save setting to cookie
   const saveSetting = (key: string, value: any) => {
-    Cookies.set(COOKIE_PREFIX + key, JSON.stringify(value), { expires: COOKIE_EXPIRY, sameSite: 'Strict' });
+    setCookie(COOKIE_PREFIX + key, JSON.stringify(value), COOKIE_EXPIRY);
   };
 
   // Font Settings Handlers

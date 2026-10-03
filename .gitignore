@@ -3,3 +3,4 @@ imports
 __pycache__
 output
 .env
+logs

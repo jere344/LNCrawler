@@ -1,14 +1,14 @@
 # Stage 1: Build the application
 FROM node:24-alpine as build
 
+# Set working directory
+WORKDIR /app
+
 # Set environment variables
 # Because Vite is used, we can't pass the variables directly to the build command
 # So we need to create a .env.production file with our variables
 ARG VITE_API_BASE_URL
 RUN echo "VITE_API_BASE_URL=$VITE_API_BASE_URL" > .env.production
-
-# Set working directory
-WORKDIR /app
 
 # Copy package.json and package-lock.json
 COPY package*.json ./
