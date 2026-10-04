@@ -14,6 +14,7 @@ import {
   Pagination,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import { DndContext } from '@dnd-kit/core';
 import { profileService } from '@services/profile.service';
 import LibraryNovelCard from '@components/library/LibraryNovelCard';
 import LibraryFolderBar from '@components/library/LibraryFolderBar';
@@ -107,12 +108,14 @@ const PublicLibraryTab: React.FC<PublicLibraryTabProps> = ({ username, showNotes
         </FormControl>
       </Box>
 
-      <LibraryFolderBar
-        folders={folders}
-        totalCount={allCount}
-        selected={folder}
-        onSelect={setFolder}
-      />
+      <DndContext>
+        <LibraryFolderBar
+          folders={folders}
+          totalCount={allCount}
+          selected={folder}
+          onSelect={setFolder}
+        />
+      </DndContext>
 
       <Divider sx={{ mb: 2 }} />
 

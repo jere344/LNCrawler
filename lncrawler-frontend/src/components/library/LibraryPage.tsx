@@ -21,6 +21,9 @@ import {
   DialogActions,
   IconButton,
   Menu,
+  Tooltip,
+  ListItemIcon,
+  ListItemText,
   Fade,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -47,6 +50,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import MenuIcon from '@mui/icons-material/Menu';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import CloseIcon from '@mui/icons-material/Close';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -89,6 +93,7 @@ const LibraryPage: React.FC = () => {
   const [selectMode, setSelectMode] = useState(false);
   const [activeDragIds, setActiveDragIds] = useState<string[]>([]);
   const [bulkMenuAnchor, setBulkMenuAnchor] = useState<null | HTMLElement>(null);
+  const [headerMenuAnchor, setHeaderMenuAnchor] = useState<null | HTMLElement>(null);
 
   const [noteDialog, setNoteDialog] = useState<{ open: boolean; novel: Novel | null; value: string }>({
     open: false,
@@ -120,8 +125,12 @@ const LibraryPage: React.FC = () => {
   const collisionDetection: CollisionDetection = useCallback((args) => {
     const collisions = pointerWithin(args);
     const list = collisions.length ? collisions : closestCenter(args);
-    const folderHit = list.find((c) => String(c.id).startsWith('folder:'));
-    return folderHit ? [folderHit] : list;
+    const folderHits = list.filter((c) => String(c.id).startsWith('folder:'));
+    if (folderHits.length) {
+      const chip = folderHits.find((c) => String(c.id) !== 'folder:zone');
+      return [chip ?? folderHits[0]];
+    }
+    return list;
   }, []);
 
   const fetchLibrary = useCallback(
@@ -343,6 +352,7 @@ const LibraryPage: React.FC = () => {
     const overId = String(over.id);
     if (overId.startsWith('folder:')) {
       const target = overId.slice('folder:'.length);
+      if (target === 'zone') return;
       const toFolderId = target === 'unfiled' || target === 'all' ? null : target;
       await moveItems(dragIds, toFolderId);
       return;
@@ -479,15 +489,29 @@ const LibraryPage: React.FC = () => {
         <Typography variant="h4" component="h1" sx={{ flex: 1 }}>
           {t('library.yourLibrary')}
         </Typography>
-        <Button
+        <Tooltip title={t('library.moreActions')}>
+          <IconButton
+            onClick={(e) => setHeaderMenuAnchor(e.currentTarget)}
+            aria-label={t('library.moreActions')}
+          >
+            <MenuIcon />
+          </IconButton>
+        </Tooltip>
+      </Box>
+      <Menu
+        anchorEl={headerMenuAnchor}
+        open={Boolean(headerMenuAnchor)}
+        onClose={() => setHeaderMenuAnchor(null)}
+      >
+        <MenuItem
           component={RouterLink}
           to="/import"
-          variant="outlined"
-          startIcon={<UploadFileIcon />}
+          onClick={() => setHeaderMenuAnchor(null)}
         >
-          {t('importNu.linkFromLibrary')}
-        </Button>
-      </Box>
+          <ListItemIcon><UploadFileIcon fontSize="small" /></ListItemIcon>
+          <ListItemText>{t('importNu.linkFromLibrary')}</ListItemText>
+        </MenuItem>
+      </Menu>
 
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
         <TextField
@@ -527,20 +551,6 @@ const LibraryPage: React.FC = () => {
         </Button>
       </Box>
 
-      <LibraryFolderBar
-        folders={folders}
-        totalCount={allCount}
-        selected={folder}
-        onSelect={setFolder}
-        editable
-        dragActive={activeDragIds.length > 0}
-        onCreate={() => setFolderDialog({ open: true, folder: null, value: '' })}
-        onRename={(value) => setFolderDialog({ open: true, folder: value, value: value.name })}
-        onDelete={(value) => setDeleteFolder(value)}
-      />
-
-      <Divider sx={{ mb: 2 }} />
-
       {actionError && (
         <Alert severity="error" onClose={() => setActionError(null)} sx={{ mb: 2 }}>
           {actionError}
@@ -557,6 +567,18 @@ const LibraryPage: React.FC = () => {
           setActiveDragIds([]);
         }}
       >
+        <LibraryFolderBar
+          folders={folders}
+          totalCount={allCount}
+          selected={folder}
+          onSelect={setFolder}
+          editable
+          dragActive={activeDragIds.length > 0}
+          onCreate={() => setFolderDialog({ open: true, folder: null, value: '' })}
+          onRename={(value) => setFolderDialog({ open: true, folder: value, value: value.name })}
+          onDelete={(value) => setDeleteFolder(value)}
+        />
+        <Divider sx={{ mb: 2 }} />
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
             <CircularProgress />

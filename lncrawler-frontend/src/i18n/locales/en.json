@@ -308,6 +308,7 @@
     "removeConfirmTitle": "Remove from library?",
     "removeConfirmBody": "{count, plural, one {Remove # novel from your library?} other {Remove # novels from your library?}} This can't be undone.",
     "addNote": "Add a note",
+    "moreActions": "More actions",
     "dragToFolder": "Drag a novel onto a folder to file it",
     "sort": {
       "custom": "Custom order",

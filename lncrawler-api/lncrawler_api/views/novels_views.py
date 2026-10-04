@@ -372,9 +372,12 @@ def home_page(request):
     # selected languages.
     base_queryset = apply_novel_prefetches(Novel.objects.filter(is_dmca=False), request.user)
     if languages:
+        # Match novels having a source in the selected languages without
+        # joining sources: a join forces DISTINCT, so every ranking subquery
+        # runs over the deduplicated set before LIMIT instead of a top-N scan.
         base_queryset = base_queryset.filter(
-            sources__language__in=languages
-        ).distinct()
+            pk__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
+        )
 
     # Top novels (most popular). The language filter above joins sources, so the
     # total is summed over a deduplicated source subquery to avoid inflation,
@@ -437,7 +440,9 @@ def home_page(request):
         novel__is_dmca=False
     ).prefetch_related('reactions__user').order_by('-created_at')
     if languages:
-        recent_reviews_qs = recent_reviews_qs.filter(novel__sources__language__in=languages).distinct()
+        recent_reviews_qs = recent_reviews_qs.filter(
+            novel__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
+        )
     recent_reviews = recent_reviews_qs[:4]
     
     # Serialize all the data

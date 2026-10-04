@@ -308,6 +308,7 @@
     "removeConfirmTitle": "Retirer de la bibliothèque ?",
     "removeConfirmBody": "{count, plural, one {Retirer # roman de votre bibliothèque ?} other {Retirer # romans de votre bibliothèque ?}} Cette action est irréversible.",
     "addNote": "Ajouter une note",
+    "moreActions": "Plus d'actions",
     "dragToFolder": "Glissez un roman sur un dossier pour le classer",
     "sort": {
       "custom": "Ordre personnalisé",

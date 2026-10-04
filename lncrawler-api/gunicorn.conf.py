@@ -2,9 +2,9 @@ import multiprocessing
 
 # Gunicorn configuration for production
 bind = "0.0.0.0:8000"
-workers = 5
+workers = 2
 worker_class = "gthread"
-threads = 2
+threads = 4
 timeout = 120
 keepalive = 5
 max_requests = 1000

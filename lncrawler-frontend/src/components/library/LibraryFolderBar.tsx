@@ -99,6 +99,7 @@ const LibraryFolderBar: React.FC<LibraryFolderBarProps> = ({
   onDelete,
 }) => {
   const { t } = useTranslation();
+  const { setNodeRef: setZoneRef } = useDroppable({ id: 'folder:zone' });
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuFolder, setMenuFolder] = useState<LibraryFolder | null>(null);
 
@@ -111,6 +112,7 @@ const LibraryFolderBar: React.FC<LibraryFolderBarProps> = ({
 
   return (
     <Box
+      ref={setZoneRef}
       sx={{
         display: 'flex',
         alignItems: 'center',

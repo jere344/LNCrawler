@@ -20,7 +20,6 @@ import {
 import { useSortable } from '@dnd-kit/sortable';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import StickyNote2Icon from '@mui/icons-material/StickyNote2';
 import EditNoteIcon from '@mui/icons-material/EditNote';
@@ -210,29 +209,6 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
           />
         )}
 
-        {canDrag && (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 4,
-              color: 'common.white',
-              bgcolor: 'rgba(0,0,0,0.45)',
-              borderRadius: '50%',
-              p: 0.75,
-              display: 'flex',
-              pointerEvents: 'none',
-              opacity: 0,
-              transition: 'opacity 0.15s ease',
-              '.card-root:hover &': { opacity: 1 },
-            }}
-          >
-            <DragIndicatorIcon />
-          </Box>
-        )}
-
         {hasMenu && (
           <IconButton
             className="card-quick"
@@ -312,6 +288,8 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
+                maxHeight: '2.5em',
+                wordBreak: 'break-word',
               }}
             >
               {novel.title}
