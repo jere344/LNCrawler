@@ -3,6 +3,7 @@
 import logging
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,20 @@ class MyDramaNovel(Crawler):
                 seen.add(link)
                 results.append({"title": title, "url": link})
         return results[:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}novels/")
+        results = []
+        seen = set()
+        for a in soup.select(".td_block_categories_tags a.td-ct-item[href]"):
+            name = a.select_one(".td-ct-item-name")
+            title = name.text.strip() if name else a.text.strip()
+            url = self.absolute_url(a["href"])
+            if not title or url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

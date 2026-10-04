@@ -2,6 +2,7 @@
 import logging
 import re
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = "https://wondernovels.com/?s=%s&post_type=wp-manga"
@@ -32,6 +33,33 @@ class WonderNovels(Crawler):
             )
 
         return results
+
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = self.home_url if page == 1 else "%spage/%d/" % (self.home_url, page)
+            try:
+                soup = self.get_soup(url, params={"m_orderby": "views"})
+            except Exception:
+                break
+            items = soup.select(".page-item-detail")
+            if not items:
+                break
+            for tab in items:
+                a = tab.select_one(".post-title h3 a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.text.strip(),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

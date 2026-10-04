@@ -33,6 +33,28 @@ class NovelFullMeCrawler(Crawler):
             for item in (page.get("ssrItems") or [])
         ]
 
+    def browse_novels(self, offset=0, limit=50) -> List[SearchResult]:
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}ranking?page={page}")
+            items = soup.select("article")
+            if not items:
+                break
+            for item in items:
+                for a in item.select("a[href]"):
+                    title = a.get_text(strip=True)
+                    if title:
+                        results.append(
+                            SearchResult(
+                                title=title,
+                                url=self.absolute_url(a["href"]),
+                            )
+                        )
+                        break
+            page += 1
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
         page = self.__next_data(soup)

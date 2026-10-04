@@ -16,6 +16,19 @@ export interface Novel {
   reading_history?: DetailedReadingHistory | null;
   reading_source?: NovelFromSource | null;
   similar_novels?: SimilarNovel[];
+  // Library-only fields (present when serialized as a library item)
+  bookmark_id?: string;
+  note?: string | null;
+  folder?: string | null;
+  folder_name?: string | null;
+  position?: number;
+  user_rating?: number | null;
+}
+
+export interface LibraryFolder {
+  id: string;
+  name: string;
+  count: number;
 }
 
 export interface NovelListResponse {
@@ -24,6 +37,8 @@ export interface NovelListResponse {
   current_page: number;
   results: Novel[];
   recommendations?: Novel[];
+  folders?: LibraryFolder[];
+  sort?: string;
 }
 
 export interface NovelFromSource {
@@ -40,6 +55,7 @@ export interface NovelFromSource {
   synopsis: string | null;
   chapters_count: number;
   volumes_count: number;
+  volumes?: NovelVolume[];
   last_chapter_update: string;
   upvotes: number;
   downvotes: number;
@@ -54,6 +70,20 @@ export interface NovelFromSource {
   latest_available_chapter: Chapter | null;
   first_available_chapter: Chapter | null;
   reading_history?: DetailedReadingHistory | null;
+  novelupdates_url: string | null;
+  editors: string[];
+  translators: string[];
+  alternative_titles: string[];
+  original_publisher: string | null;
+  english_publisher: string | null;
+}
+
+export interface NovelVolume {
+  volume_id: number;
+  title: string;
+  start_chapter: number;
+  final_chapter: number;
+  chapter_count: number;
 }
 
 export interface NovelDetail {

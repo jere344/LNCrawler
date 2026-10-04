@@ -33,6 +33,35 @@ class TapasCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        page = 0
+        headers = {"Origin": "https://tapas.io", "Referer": "https://tapas.io/"}
+        while len(results) < offset + limit:
+            data = self.get_json(
+                "https://story-api.tapas.io/cosmos/api/v1/landing/ranking"
+                "?category_type=NOVEL&page=%d" % page,
+                headers=headers,
+            )
+            items = (data.get("data") or {}).get("items") or []
+            if not items:
+                break
+            for item in items:
+                results.append(
+                    SearchResult(
+                        title=item["title"],
+                        url="%sseries/%s" % (self.home_url, item["seriesId"]),
+                        info=", ".join(item.get("authorList") or []),
+                    )
+                )
+            pagination = (data.get("meta") or {}).get("pagination") or {}
+            if pagination.get("last"):
+                break
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         path = urlparse(self.novel_url).path.rstrip("/")
         if not path.endswith("/info"):

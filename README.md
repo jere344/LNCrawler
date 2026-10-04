@@ -186,8 +186,16 @@ documents the defaults.
 
 ### Email
 
-- `BREVO_API_KEY` — enables password-reset emails through Brevo.
+Password-reset emails go out over standard SMTP, so any provider works and
+switching is a config change only.
+
+- `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS` — SMTP server. Defaults are
+  MailPace (`smtp.mailpace.com:587`, STARTTLS). MailPace uses the domain's
+  API token as **both** `EMAIL_HOST_USER` and `EMAIL_HOST_PASSWORD`.
 - `DEFAULT_FROM_EMAIL`, `EMAIL_SENDER_NAME`.
+
+Without credentials, local development (`DEBUG=True`) prints reset emails to
+the console instead of sending them.
 
 ### Frontend build
 

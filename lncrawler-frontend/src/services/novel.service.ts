@@ -175,4 +175,12 @@ export const novelService = {
     });
     return response.data;
   },
+
+  // URL for downloading a source as EPUB. Pass a volume to get only that
+  // volume; omit it for the full novel. Used as a plain link, not via api.get.
+  getSourceEpubUrl: (novelSlug: string, sourceSlug: string, volume?: number) => {
+    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
+    const query = volume !== undefined ? `?volume=${volume}` : '';
+    return `${base}/novels/${encodeURIComponent(novelSlug)}/${encodeURIComponent(sourceSlug)}/download/${query}`;
+  },
 };

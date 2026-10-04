@@ -35,6 +35,24 @@ class RanobeHubCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
         title = title_tag.get_text(strip=True) if title_tag else a.get_text(" ", strip=True)
         return SearchResult(title=title, url=self.absolute_url(a["href"]))
 
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}ranobe?sort=popular&page={page}")
+            cards = [
+                c
+                for c in soup.select("div.book-card")
+                if c.select_one('a[href^="/ranobe/"]')
+            ]
+            if not cards:
+                break
+            results.extend(self.parse_search_item(card) for card in cards)
+            page += 1
+            if page > 200:
+                break
+        return results[offset : offset + limit]
+
     # -- novel info ---------------------------------------------------- #
 
     def parse_title(self, soup: BeautifulSoup) -> str:

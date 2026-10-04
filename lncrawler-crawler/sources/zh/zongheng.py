@@ -37,6 +37,23 @@ class ZonghengCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        soup = self.get_soup(f"{self.home_url}rank?nav=default")
+        results = []
+        seen = set()
+        for item in soup.select("div.zh-modules-rank-book"):
+            a = item.select_one("a[href*='/detail/']")
+            title = item.select_one(".book-rank--title-text")
+            if not isinstance(a, Tag) or not isinstance(title, Tag):
+                continue
+            url = self.absolute_url(a["href"])
+            text = title.get_text(strip=True)
+            if not text or url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=text, url=url))
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

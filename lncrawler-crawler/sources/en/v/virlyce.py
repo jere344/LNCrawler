@@ -3,6 +3,7 @@ import logging
 from urllib.parse import quote_plus, urlparse
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,20 @@ class Virlyce(Crawler):
             if urlparse(url).path.strip("/").count("/") == 0:
                 results.append({"title": a.text.strip(), "url": url})
         return results[:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}web_novels/")
+        results = [
+            SearchResult(
+                title=a.get_text(strip=True),
+                url=self.absolute_url(a["href"]),
+            )
+            for a in soup.select(
+                "#menu-primary .menu-item-has-children"
+                ":has(> a[href*='web_novels']) .sub-menu a[href]"
+            )
+        ]
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from django.db.models import F, Q
-from django.db import transaction
+from django.db.models import Count, F, Q
+from django.db import IntegrityError, transaction
 
 from ..models.users_models import ReadingList, ReadingListItem, ReadingListCollaborator
 from ..models.novels_models import Novel
@@ -19,6 +19,16 @@ from ..serializers import (
 )
 
 User = get_user_model()
+
+
+def _reading_lists_query_set():
+    """
+    Reading lists with their relations prefetched so serializing a page does
+    not issue per-list queries (owner, collaborators, items and their novels).
+    """
+    return ReadingList.objects.select_related('user').prefetch_related(
+        'collaborators__user', 'items__novel'
+    ).annotate(items_count=Count('items', distinct=True))
 
 
 def _forbidden(detail):
@@ -49,7 +59,7 @@ def list_all_reading_lists(request):
     """
     search = request.GET.get("search", "")
 
-    query_set = ReadingList.objects.filter(is_public=True)
+    query_set = _reading_lists_query_set().filter(is_public=True)
 
     if search:
         query_set = query_set.filter(
@@ -68,7 +78,7 @@ def get_user_reading_lists(request):
     Get all reading lists the current user can edit or read: their own lists
     plus lists shared with them as editor or reader.
     """
-    query_set = ReadingList.objects.filter(
+    query_set = _reading_lists_query_set().filter(
         Q(user=request.user) | Q(collaborators__user=request.user)
     ).distinct().order_by('-updated_at')
 
@@ -81,7 +91,7 @@ def reading_list_detail(request, list_id):
     Get details of a specific reading list including all its items.
     Private lists are only visible to their owner and collaborators.
     """
-    reading_list = get_object_or_404(ReadingList, id=list_id)
+    reading_list = get_object_or_404(_reading_lists_query_set(), id=list_id)
     if not reading_list.is_public and get_reading_list_role(reading_list, request.user) is None:
         return _forbidden("You do not have access to this reading list.")
 
@@ -165,8 +175,20 @@ def add_novel_to_list(request, list_id):
         novel_id = serializer.validated_data['novel_id']
         get_object_or_404(Novel, id=novel_id)
 
+        if ReadingListItem.objects.filter(reading_list=reading_list, novel_id=novel_id).exists():
+            return Response(
+                {"detail": "This novel is already in the reading list."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Create the item
-        item = serializer.save(reading_list=reading_list)
+        try:
+            item = serializer.save(reading_list=reading_list)
+        except IntegrityError:
+            return Response(
+                {"detail": "This novel is already in the reading list."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Return the item with the novel details
         return_serializer = ReadingListItemSerializer(item)
@@ -188,7 +210,14 @@ def update_list_item(request, list_id, item_id):
     if get_reading_list_role(reading_list, request.user) not in ('owner', 'editor'):
         return _forbidden("You do not have permission to modify this reading list.")
 
-    serializer = ReadingListItemSerializer(item, data=request.data, partial=True)
+    # An item's novel is immutable; only note and position can be changed.
+    data = request.data
+    if isinstance(data, dict):
+        data = data.copy()
+        data.pop('novel_id', None)
+        data.pop('novel', None)
+
+    serializer = ReadingListItemSerializer(item, data=data, partial=True)
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
@@ -243,21 +272,53 @@ def reorder_list_items(request, list_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    # Validate every entry and build the reorder plan before touching the DB.
+    items_by_id = {
+        str(item.id): item
+        for item in ReadingListItem.objects.filter(reading_list=reading_list)
+    }
+    seen_ids = set()
+    positions = set()
+    plan = []
+    for item_data in request.data:
+        if not isinstance(item_data, dict):
+            return Response(
+                {"detail": "Each entry must be an object with id and position."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        item_id = item_data.get('id')
+        position = item_data.get('position')
+
+        if not isinstance(item_id, str) or item_id not in items_by_id or item_id in seen_ids:
+            return Response(
+                {"detail": "Every entry must reference a distinct item of this list by a valid id."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if isinstance(position, bool) or not isinstance(position, int) or position < 0 or position in positions:
+            return Response(
+                {"detail": "Positions must be unique non-negative integers."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        seen_ids.add(item_id)
+        positions.add(position)
+        plan.append((items_by_id[item_id], position))
+
+    if len(plan) != len(items_by_id) or positions != set(range(len(items_by_id))):
+        return Response(
+            {"detail": "Positions must be a complete permutation of 0..n-1."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     # Update positions
     with transaction.atomic():
-        for item_data in request.data:
-            if 'id' not in item_data or 'position' not in item_data:
-                continue
-
-            try:
-                item = ReadingListItem.objects.get(id=item_data['id'], reading_list=reading_list)
-                item.position = item_data['position']
-                item.save(update_fields=['position'])
-            except ReadingListItem.DoesNotExist:
-                pass
+        for item, position in plan:
+            item.position = position
+            item.save(update_fields=['position'])
 
     # Return updated list
-    updated_list = get_object_or_404(ReadingList, id=list_id)
+    updated_list = get_object_or_404(_reading_lists_query_set(), id=list_id)
     serializer = DetailedReadingListSerializer(updated_list, context={"request": request})
     return Response(serializer.data)
 

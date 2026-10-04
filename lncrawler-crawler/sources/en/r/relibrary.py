@@ -49,6 +49,17 @@ class ReLibraryCrawler(ChapterOnlyBrowserTemplate):
             if isinstance(item, dict) and item.get("link")
         ]
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        soup = self.get_soup(f"{self.home_url}translations/most-popular/")
+        results = [
+            SearchResult(
+                title=a.get_text(strip=True),
+                url=self.absolute_url(a["href"]),
+            )
+            for a in soup.select("h3 a[href]")
+        ]
+        return results[offset : offset + limit]
+
     def parse_title(self, soup: BeautifulSoup) -> str:
         tag = soup.select_one(".entry-title")
         assert isinstance(tag, Tag)

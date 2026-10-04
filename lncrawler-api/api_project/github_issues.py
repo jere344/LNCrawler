@@ -4,12 +4,17 @@ No-op unless GITHUB_REPO and GITHUB_TOKEN are configured. Every function here
 swallows its own failures: reporting an error must never break the app or raise
 inside a logging handler.
 
+With ISSUE_REPORTS_TO_DISK=True the report is written as one Markdown file per
+fingerprint under ISSUE_REPORTS_DIR instead of opening an issue, so a developer
+gets the same deduplicated reports locally.
+
 Kept in ``api_project`` (not ``lncrawler_api.services``) so the logging config
 can import it before Django apps/models are loaded.
 """
 
 import hashlib
 import logging
+import os
 import threading
 import time
 
@@ -35,12 +40,37 @@ def fingerprint(*parts):
     return hashlib.sha1(raw.encode("utf-8", "replace")).hexdigest()[:12]
 
 
+def _disk_enabled():
+    return bool(getattr(settings, "ISSUE_REPORTS_TO_DISK", False))
+
+
+def _disk_dir():
+    return getattr(settings, "ISSUE_REPORTS_DIR", None) or os.path.join(
+        settings.BASE_DIR, "issue-reports"
+    )
+
+
 def _enabled():
-    return bool(
+    return _disk_enabled() or bool(
         getattr(settings, "GITHUB_ISSUES_ENABLED", False)
         and getattr(settings, "GITHUB_REPO", "")
         and getattr(settings, "GITHUB_TOKEN", "")
     )
+
+
+def _write_report(title, body, fp):
+    """Write one file per fingerprint. The file existing is the dedup, the same
+    way an open GitHub issue carrying the fingerprint is."""
+    directory = _disk_dir()
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, f"{fp}.md")
+    try:
+        # Exclusive create: a concurrent writer (or a previous run) already
+        # reported this fingerprint, so do nothing.
+        with open(path, "x", encoding="utf-8") as fh:
+            fh.write(f"# {title}\n\n{body}\n")
+    except FileExistsError:
+        pass
 
 
 def _headers():
@@ -52,6 +82,8 @@ def _headers():
 
 
 def _open_issue_exists(fp):
+    """True if an open issue carries this fingerprint, False if none, None if
+    the check itself failed (so the caller can retry instead of assuming)."""
     query = f'repo:{settings.GITHUB_REPO} is:issue is:open in:title "{fp}"'
     resp = requests.get(
         f"{_API}/search/issues",
@@ -63,9 +95,15 @@ def _open_issue_exists(fp):
         logger.warning(
             "GitHub issue search failed: %s %s", resp.status_code, resp.text[:200]
         )
-        # Fail "closed": if we cannot check, do not create a possible duplicate.
-        return True
+        # Could not determine: fail "unknown", not "exists", so a transient
+        # GitHub error does not silently drop the report for the whole TTL.
+        return None
     return resp.json().get("total_count", 0) > 0
+
+
+def _mark_recent(fp):
+    with _recent_lock:
+        _recent[fp] = time.monotonic()
 
 
 def create_issue(title, body, fp):
@@ -73,14 +111,24 @@ def create_issue(title, body, fp):
     if not _enabled():
         return
 
+    if _disk_enabled():
+        _write_report(title, body, fp)
+        return
+
     with _recent_lock:
         now = time.monotonic()
-        if now - _recent.get(fp, 0) < _RECENT_TTL:
+        # Drop expired entries so the map cannot grow without bound.
+        for key in [k for k, seen in _recent.items() if now - seen >= _RECENT_TTL]:
+            del _recent[key]
+        if now - _recent.get(fp, 0.0) < _RECENT_TTL:
             return
-        _recent[fp] = now
 
     try:
-        if _open_issue_exists(fp):
+        exists = _open_issue_exists(fp)
+        if exists is not False:
+            # True: an issue is already open. None: we could not check.
+            # Neither is a successful create, so leave the fingerprint unmarked
+            # and let the next tick retry (important for the transient case).
             return
         resp = requests.post(
             f"{_API}/repos/{settings.GITHUB_REPO}/issues",
@@ -94,5 +142,8 @@ def create_issue(title, body, fp):
                 resp.status_code,
                 resp.text[:200],
             )
+            return
+        # Only a successful create suppresses future reports for this TTL.
+        _mark_recent(fp)
     except Exception:
         logger.warning("GitHub issue reporting error", exc_info=True)

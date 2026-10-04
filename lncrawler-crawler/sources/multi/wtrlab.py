@@ -45,6 +45,29 @@ class WtrLab(Crawler):
                 info=" | ".join(f"{k}: {v}" for k, v in meta.items()),
             )
 
+    def browse_novels(self, offset=0, limit=50):
+        base = self.base_url[0].rstrip("/")
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{base}/en/ranking/daily?page={page}")
+            metadata_json = soup.select_one("script#__NEXT_DATA__")
+            if not metadata_json:
+                break
+            data = json.loads(metadata_json.text)["props"]["pageProps"]
+            novels = data.get("list") or []
+            if not novels:
+                break
+            for novel in novels:
+                results.append(
+                    SearchResult(
+                        title=novel["data"]["title"],
+                        url=f"{base}/en/novel/{novel['raw_id']}/{novel['slug']}",
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
         metadata_json = soup.select_one("script#__NEXT_DATA__")

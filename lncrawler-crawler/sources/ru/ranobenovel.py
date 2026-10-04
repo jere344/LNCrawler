@@ -2,6 +2,7 @@
 import logging
 from bs4 import Tag
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 chapter_ajax_url = "https://ranobe-novels.ru/wp-content/themes/ranobe-novels/template-parts/category/chapters-query.php"
@@ -41,6 +42,26 @@ class RanobeNovel(Crawler):
             )
 
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}poisk/?sort=like&paged={page}")
+            cards = soup.select("article.js-bookcard h3.category-title a[href]")
+            if not cards:
+                break
+            for a in cards:
+                results.append(
+                    SearchResult(
+                        title=a.get_text(" ", strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 250:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

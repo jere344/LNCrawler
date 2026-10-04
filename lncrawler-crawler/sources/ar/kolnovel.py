@@ -1,5 +1,6 @@
 import logging
 
+from lncrawl.models import SearchResult
 from lncrawl.templates.mangastream import MangaStreamTemplate
 
 logger = logging.getLogger(__name__)
@@ -9,6 +10,32 @@ class Kolnovel(MangaStreamTemplate):
     has_mtl = False
     has_manga = False
     base_url = ["https://kolnovel.com/"]
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = "https://kolnovel.com/series/?order=popular"
+            if page > 1:
+                url = f"https://kolnovel.com/series/?order=popular&page={page}"
+            soup = self.get_soup(url)
+            items = soup.select(".listupd > article")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one("h2 a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def parse_genres(self, soup):
         for a in soup.select(".sertogenre a[href*='/genre/']"):

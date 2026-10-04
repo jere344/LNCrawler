@@ -30,6 +30,21 @@ class ChickenGegeCrawler(Crawler):
             if query in item["name"].lower() and item.get("count", 0) > 0
         ][:10]
 
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(self.home_url + "?post_type=novels")
+        results = []
+        seen = set()
+        for a in soup.select("a[href*='/novels/']"):
+            url = self.absolute_url(a["href"])
+            if url in seen or url.count("/") != 4:
+                continue
+            title = a.get_text(strip=True)
+            if not title:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
 

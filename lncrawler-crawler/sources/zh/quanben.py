@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 from typing import List
 from urllib.parse import quote, urlparse
 
@@ -31,6 +32,35 @@ class QuanbenCrawler(Crawler):
                 )
             )
         return results
+
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        results = []
+        seen = set()
+        page = 1
+        while len(results) < offset + limit:
+            path = "/c/xuanhuan.html" if page == 1 else f"/c/xuanhuan_{page}.html"
+            soup = self.get_soup(self.absolute_url(path))
+            items = soup.select("a[href]")
+            if not items:
+                break
+            added = False
+            for a in items:
+                href = str(a["href"])
+                m = re.match(r"^/n/([a-z0-9_]+)/?$", href)
+                title = a.get_text(strip=True)
+                if not m or not title or href in seen:
+                    continue
+                seen.add(href)
+                added = True
+                results.append(
+                    SearchResult(title=title, url=self.absolute_url(href))
+                )
+            if not added:
+                break
+            page += 1
+            if page > 100:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)

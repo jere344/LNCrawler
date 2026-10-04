@@ -1,4 +1,4 @@
-from django.db.models import Count, OuterRef, Prefetch, Subquery
+from django.db.models import Count, OuterRef, Prefetch, Subquery, Sum
 
 from ..models import (
     Chapter,
@@ -25,6 +25,44 @@ def _related_count(model, **filters):
     )
 
 
+def sources_total_views_subquery(languages=None):
+    """Sum ``total_views`` over a novel's sources as a correlated subquery.
+
+    Aggregating the ``sources`` relation directly duplicates each source row
+    when the outer queryset already joins sources (tag/author/language
+    filters), inflating the sum. Grouping over the source rows inside a
+    subquery keeps the total correct regardless of the outer joins.
+    """
+    sources = NovelFromSource.objects.filter(novel=OuterRef('pk'))
+    if languages:
+        sources = sources.filter(language__in=languages)
+    return Subquery(
+        sources.values('novel')
+        .annotate(total=Sum('total_views'))
+        .values('total')[:1]
+    )
+
+
+def weekly_views_subquery(languages=None):
+    """Sum the rolling-window daily views over a novel's sources.
+
+    Same join-inflation guard as ``sources_total_views_subquery``; optionally
+    restricted to the selected content languages.
+    """
+    views = WeeklySourceView.objects.filter(
+        source__novel=OuterRef('pk'),
+        granularity=WeeklySourceView.DAY,
+        day__gte=WeeklySourceView.window_start(),
+    )
+    if languages:
+        views = views.filter(source__language__in=languages)
+    return Subquery(
+        views.values('source__novel')
+        .annotate(total=Sum('views'))
+        .values('total')[:1]
+    )
+
+
 def sources_queryset():
     """Sources with everything the list serializers read: external source and
     parent novel joined, authors/tags prefetched, and the latest available
@@ -32,7 +70,7 @@ def sources_queryset():
     latest = _latest_content_chapter()
     return (
         NovelFromSource.objects.select_related('external_source', 'novel')
-        .prefetch_related('authors', 'tags')
+        .prefetch_related('authors', 'editors', 'translators', 'tags', 'alternative_titles')
         .annotate(
             latest_chapter_id=Subquery(latest.values('chapter_id')[:1]),
             latest_chapter_title=Subquery(latest.values('title')[:1]),

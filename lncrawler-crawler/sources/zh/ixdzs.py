@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Volume, Chapter
+from lncrawl.models import Volume, Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = "https://ixdzs8.tw/bsearch?q=%s"
@@ -43,6 +43,26 @@ class IxdzsCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}hot/?page={page}")
+            items = soup.select("li.burl h3.bname a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 100:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         """Get novel title, author, cover etc"""

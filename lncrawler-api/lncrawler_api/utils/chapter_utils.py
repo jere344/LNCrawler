@@ -1,6 +1,9 @@
 import json
+import os
+import re
 import subprocess
 import shutil
+import tempfile
 from pathlib import Path
 
 COMPRESSION_LEVEL = 3
@@ -39,18 +42,78 @@ def compress_folder_to_tar_7zip(
         print(f"Error while compressing {source_absolute_path}/{json_folder} to {tarfile_path}: {e}")
         return False
 
+def _list_archive_members(tar_file_path: Path):
+    """Return the member paths inside a 7z archive, or None if unreadable."""
+    result = subprocess.run(
+        ["7z", "l", "-slt", str(tar_file_path), "-bso0"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    members = []
+    in_files = False
+    for line in result.stdout.splitlines():
+        if line.startswith("----------"):
+            in_files = True
+            continue
+        if in_files and line.startswith("Path = "):
+            members.append(line[len("Path = "):])
+    return members
+
+
+def _is_unsafe_member(name: str) -> bool:
+    """Reject absolute paths and any ``..`` component (zip-slip)."""
+    if not name:
+        return True
+    if name.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", name):
+        return True
+    return ".." in re.split(r"[\\/]+", name)
+
+
 def extract_tar_7zip_folder(tar_file_path: Path):
+    tar_file_path = Path(tar_file_path)
+    temp_dir = None
     try:
-        result = subprocess.run(["7z", "x", tar_file_path, f"-o{tar_file_path.parent}", "-bso0"])
-        if result.returncode == 0:
-            print(f"Extraction successful. Deleting {tar_file_path}")
-            tar_file_path.unlink()
-        else:
+        members = _list_archive_members(tar_file_path)
+        if members is None:
+            print(f"Extraction failed: cannot list {tar_file_path}.")
+            return False
+        if any(_is_unsafe_member(name) for name in members):
+            print(f"Extraction failed: unsafe path in {tar_file_path}.")
+            return False
+
+        # Extract into an isolated directory first so nothing lands outside it.
+        temp_dir = tempfile.mkdtemp(prefix="lncrawler_7z_", dir=str(tar_file_path.parent))
+        result = subprocess.run(
+            ["7z", "x", str(tar_file_path), f"-o{temp_dir}", "-bso0"]
+        )
+        if result.returncode != 0:
             print("Extraction failed. Folder not deleted.")
-        return result.returncode == 0
+            return False
+
+        parent = str(tar_file_path.parent)
+        for child in os.listdir(temp_dir):
+            src = os.path.join(temp_dir, child)
+            dst = os.path.join(parent, child)
+            if os.path.isdir(src) and os.path.isdir(dst):
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+            else:
+                if os.path.isdir(dst):
+                    shutil.rmtree(dst)
+                elif os.path.exists(dst):
+                    os.remove(dst)
+                shutil.move(src, dst)
+
+        print(f"Extraction successful. Deleting {tar_file_path}")
+        tar_file_path.unlink()
+        return True
     except Exception as e:
         print(f"Error while extracting {tar_file_path} to {tar_file_path.parent}: {e}")
         return False
+    finally:
+        if temp_dir:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 def get_chapter(source_absolute_path: str, chapter_number: int) -> dict:
     """

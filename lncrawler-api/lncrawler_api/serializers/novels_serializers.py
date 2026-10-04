@@ -151,6 +151,58 @@ class BasicNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
         return list(languages)
 
 
+class LibraryItemSerializer(BasicNovelSerializer):
+    """A library bookmark: the basic novel payload plus the owner's
+    folder/note/position and the owner's (not the viewer's) star rating.
+
+    Instances are `Novel` objects carrying a `library_bookmark` attribute
+    set by the view. `show_notes`/`show_ratings` context flags blank the
+    note/rating for viewers who may not see them."""
+    bookmark_id = serializers.SerializerMethodField()
+    note = serializers.SerializerMethodField()
+    folder = serializers.SerializerMethodField()
+    folder_name = serializers.SerializerMethodField()
+    position = serializers.SerializerMethodField()
+    user_rating = serializers.SerializerMethodField()
+
+    class Meta(BasicNovelSerializer.Meta):
+        fields = BasicNovelSerializer.Meta.fields + [
+            'bookmark_id', 'note', 'folder', 'folder_name', 'position', 'user_rating',
+        ]
+
+    def _bookmark(self, obj):
+        return getattr(obj, 'library_bookmark', None)
+
+    def get_bookmark_id(self, obj):
+        bookmark = self._bookmark(obj)
+        return str(bookmark.id) if bookmark else None
+
+    def get_note(self, obj):
+        if not self.context.get('show_notes', True):
+            return None
+        bookmark = self._bookmark(obj)
+        return bookmark.note if bookmark else None
+
+    def get_folder(self, obj):
+        bookmark = self._bookmark(obj)
+        return str(bookmark.folder_id) if bookmark and bookmark.folder_id else None
+
+    def get_folder_name(self, obj):
+        bookmark = self._bookmark(obj)
+        return bookmark.folder.name if bookmark and bookmark.folder_id else None
+
+    def get_position(self, obj):
+        bookmark = self._bookmark(obj)
+        return bookmark.position if bookmark else 0
+
+    def get_user_rating(self, obj):
+        if not self.context.get('show_ratings', True):
+            return None
+        bookmark = self._bookmark(obj)
+        return getattr(bookmark, 'owner_rating', None) if bookmark else None
+
+
+
 class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
     """
     Serializes detailed novel information including sources
@@ -190,25 +242,27 @@ class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer)
         request = self.context.get('request')
         if not request:
             return None
-            
-        client_ip = get_client_ip(request)
-        if not client_ip:
-            return None
-            
-        try:
-            rating = obj.ratings.filter(ip_address=client_ip).first()
-            return rating.rating if rating else None
-        except:
-            return None
+
+        if request.user.is_authenticated:
+            rating = obj.ratings.filter(user=request.user).first()
+        else:
+            client_ip = get_client_ip(request)
+            if not client_ip:
+                return None
+            rating = obj.ratings.filter(user__isnull=True, ip_address=client_ip).first()
+        return rating.rating if rating else None
 
     def get_similar_novels(self, obj):
         from ..utils.query_helpers import apply_novel_prefetches, novel_prefetch_objects
 
         # Get the top 12 similar novels (list() so len() is accurate; a sliced
-        # queryset's .count() caps at the slice and made the fallback always fire)
+        # queryset's .count() caps at the slice and made the fallback always fire).
+        # Pass the requesting user so bookmark/history lookups are prefetched
+        # instead of firing a query per similar novel.
+        user = getattr(self.context.get('request'), 'user', None)
         similar_novels = list(
             obj.similar_to.select_related('to_novel')
-            .prefetch_related(*novel_prefetch_objects(prefix='to_novel__'))
+            .prefetch_related(*novel_prefetch_objects(user, prefix='to_novel__'))
             .order_by('-similarity')[:12]
         )
 

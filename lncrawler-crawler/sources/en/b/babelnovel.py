@@ -5,6 +5,7 @@ from concurrent import futures
 from urllib.parse import quote, urlparse
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,6 @@ class BabelNovelCrawler(Crawler):
 
         self.token = data['data']['loginResult']['token']
         self.set_header('token', self.token)
-        logger.debug('Token = %s', self.token)
 
         self.user_id = data['data']['loginResult']['user']['id']
         self.set_header('x-user-id', self.user_id)
@@ -66,6 +66,22 @@ class BabelNovelCrawler(Crawler):
             })
 
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(self.home_url + "ranking")
+        results = []
+        seen = set()
+        for a in soup.select("a[href^='/books/']"):
+            url = self.absolute_url(a["href"])
+            if url in seen:
+                continue
+            img = a.select_one("img[alt]")
+            title = (img.get("alt") if img else "") or a.get_text(" ", strip=True)
+            if not title.strip():
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title.strip(), url=url))
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         # Determine cannonical novel name

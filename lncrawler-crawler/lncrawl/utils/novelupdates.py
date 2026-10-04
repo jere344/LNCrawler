@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 NU_HOME = "https://www.novelupdates.com"
 NU_SERIES = NU_HOME + "/series/"
 _IMPERSONATE = os.getenv("LNCRAWL_IMPERSONATE", "chrome")
+_VERIFY = os.getenv("LNCRAWL_VERIFY", "1").lower() not in ("0", "false", "no")
 
 # Bounded LRU (title -> series url or None) so repeated metadata writes /
 # downloads do not re-hit the network but a long-lived worker never grows
@@ -83,7 +84,7 @@ def _fetch(title: str) -> Optional[str]:
         response = cffi.get(
             f"{NU_HOME}/series-finder/?{query}",
             impersonate=_IMPERSONATE,
-            verify=False,
+            verify=_VERIFY,
             timeout=10,
             allow_redirects=True,
             headers={"Referer": NU_HOME + "/"},

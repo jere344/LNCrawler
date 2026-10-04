@@ -40,6 +40,32 @@ class KakuyomuCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
             title = heading.get_text(" ", strip=True)
         return SearchResult(title=title, url=self.absolute_url(tag["href"]))
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        seen = set()
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url}rankings/all/entire?work_variation=all&page={page}"
+            )
+            added = 0
+            for a in soup.select("h3 a[href*=works]"):
+                href = a.get("href", "")
+                if not re.fullmatch(r"/works/\d+", href):
+                    continue
+                url = self.absolute_url(href)
+                if url in seen:
+                    continue
+                seen.add(url)
+                results.append(
+                    SearchResult(title=a.get_text(" ", strip=True), url=url)
+                )
+                added += 1
+            if not added:
+                break
+            page += 1
+        return results[offset : offset + limit]
+
     # -- novel info ---------------------------------------------------- #
 
     def parse_title(self, soup: BeautifulSoup) -> str:

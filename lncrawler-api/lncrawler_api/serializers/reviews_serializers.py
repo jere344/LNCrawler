@@ -37,17 +37,19 @@ class ReviewListSerializer(serializers.ModelSerializer):
         if not request:
             return None
 
+        # Use the prefetched reactions to avoid a query per review
         if request.user.is_authenticated:
-            reaction = obj.reactions.filter(user=request.user).first()
-            if reaction:
-                return ReactionSerializer(reaction).data
+            for reaction in obj.reactions.all():
+                if reaction.user_id == request.user.id:
+                    return ReactionSerializer(reaction).data
+            return None
 
         # For anonymous users, check by IP address
         ip_address = get_client_ip(request)
-        reaction = obj.reactions.filter(ip_address=ip_address, user__isnull=True).first()
-        if reaction:
-            return ReactionSerializer(reaction).data
-        
+        for reaction in obj.reactions.all():
+            if reaction.user_id is None and reaction.ip_address == ip_address:
+                return ReactionSerializer(reaction).data
+
         return None
 
 

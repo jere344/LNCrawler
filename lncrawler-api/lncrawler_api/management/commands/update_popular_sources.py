@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from django.db.models import OuterRef, Q, Subquery
 from django.utils import timezone
 
@@ -53,59 +54,63 @@ class Command(BaseCommand):
         dry_run = options['dry_run']
 
         # One popular-update job at a time keeps the batch on a single thread
-        # no matter how many crawler workers are running.
-        in_flight = Job.objects.filter(
-            query=UPDATE_QUERY, status__in=_PENDING_STATUSES
-        ).exists()
-        if in_flight:
-            self.stdout.write("A popular source update is already in flight; skipping.")
-            return
+        # no matter how many crawler workers are running. The in-flight check
+        # and the create must be atomic, and the chosen source row is locked
+        # so two concurrent runs serialize instead of both enqueuing (TOCTOU).
+        with transaction.atomic():
+            in_flight = Job.objects.filter(
+                query=UPDATE_QUERY, status__in=_PENDING_STATUSES
+            ).exists()
+            if in_flight:
+                self.stdout.write("A popular source update is already in flight; skipping.")
+                return
 
-        cutoff = timezone.now() - timedelta(days=fresh_days)
+            cutoff = timezone.now() - timedelta(days=fresh_days)
 
-        # Restrict the candidate pool to the most popular sources, then pick the
-        # most popular one that is stale. A NULL last_chapter_update means it was
-        # never updated, so it qualifies.
-        top_ids = list(
-            NovelFromSource.objects.exclude(source_url__isnull=True)
-            .exclude(source_url='')
-            .order_by('-total_views')
-            .values_list('pk', flat=True)[:top]
-        )
-
-        # A source whose most recent job failed is left alone: retrying it every
-        # tick would just loop failures. It becomes eligible again once a newer
-        # attempt (manual or automatic) succeeds.
-        last_job_status = Subquery(
-            Job.objects.filter(target_url=OuterRef('source_url'))
-            .order_by('-updated_at')
-            .values('status')[:1]
-        )
-
-        source = (
-            NovelFromSource.objects.filter(pk__in=top_ids)
-            .filter(Q(last_chapter_update__isnull=True) | Q(last_chapter_update__lt=cutoff))
-            .annotate(last_job_status=last_job_status)
-            .filter(Q(last_job_status__isnull=True) | ~Q(last_job_status=Job.STATUS_FAILED))
-            .order_by('-total_views')
-            .first()
-        )
-
-        if source is None:
-            self.stdout.write(
-                self.style.SUCCESS("No stale popular source to update.")
+            # Restrict the candidate pool to the most popular sources, then pick
+            # the most popular one that is stale. A NULL last_chapter_update means
+            # it was never updated, so it qualifies.
+            top_ids = list(
+                NovelFromSource.objects.exclude(source_url__isnull=True)
+                .exclude(source_url='')
+                .order_by('-total_views')
+                .values_list('pk', flat=True)[:top]
             )
-            return
 
-        label = f"{source.title} ({source.external_source.source_name})"
-        if dry_run:
-            self.stdout.write(self.style.WARNING(f"Would queue update: {label}"))
-            return
+            # A source whose most recent job failed is left alone: retrying it
+            # every tick would just loop failures. It becomes eligible again once
+            # a newer attempt (manual or automatic) succeeds.
+            last_job_status = Subquery(
+                Job.objects.filter(target_url=OuterRef('source_url'))
+                .order_by('-updated_at')
+                .values('status')[:1]
+            )
 
-        Job.objects.create(
-            status=Job.STATUS_CREATED,
-            job_type=Job.JOB_TYPE_DOWNLOAD,
-            query=UPDATE_QUERY,
-            target_url=source.source_url,
-        )
+            source = (
+                NovelFromSource.objects.filter(pk__in=top_ids)
+                .filter(Q(last_chapter_update__isnull=True) | Q(last_chapter_update__lt=cutoff))
+                .annotate(last_job_status=last_job_status)
+                .filter(Q(last_job_status__isnull=True) | ~Q(last_job_status=Job.STATUS_FAILED))
+                .order_by('-total_views')
+                .select_for_update()
+                .first()
+            )
+
+            if source is None:
+                self.stdout.write(
+                    self.style.SUCCESS("No stale popular source to update.")
+                )
+                return
+
+            label = f"{source.title} ({source.external_source.source_name})"
+            if dry_run:
+                self.stdout.write(self.style.WARNING(f"Would queue update: {label}"))
+                return
+
+            Job.objects.create(
+                status=Job.STATUS_CREATED,
+                job_type=Job.JOB_TYPE_DOWNLOAD,
+                query=UPDATE_QUERY,
+                target_url=source.source_url,
+            )
         self.stdout.write(self.style.SUCCESS(f"Queued update: {label}"))

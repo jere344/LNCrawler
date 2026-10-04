@@ -3,6 +3,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,36 @@ class WuxiaDreamsCrawler(Crawler):
             seen.add(url)
             results.append({"title": title, "url": url})
         return results[:20]
+
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        seen = set()
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup("%snovels" % self.home_url, params={"page": page})
+            items = soup.select('a[href^="/novel/"]')
+            if not items:
+                break
+            added = False
+            for a in items:
+                url = self.absolute_url(a["href"])
+                if url in seen:
+                    continue
+                seen.add(url)
+                added = True
+                title = a.select_one("h3")
+                results.append(
+                    SearchResult(
+                        title=title.get_text(strip=True) if title else "",
+                        url=url,
+                    )
+                )
+            if not added:
+                break
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

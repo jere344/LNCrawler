@@ -17,7 +17,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { profileService } from '@services/profile.service';
 import type { PublicProfile } from '@models/user_types';
-import type { Novel } from '@models/novels_types';
 import type { ReadingList } from '@models/readinglist_types';
 import type { Comment } from '@models/comments_types';
 import type { Review } from '@services/review.service';
@@ -28,6 +27,7 @@ import { BaseNovelCard } from '@components/common/novelcardtypes/BaseNovelCard';
 import { getNovelSourceLink } from '@utils/Misc';
 import ReadingListCard from '@components/readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
+import PublicLibraryTab from '@components/library/PublicLibraryTab';
 
 // Social fields hold handles/pseudos, not URLs. Map the ones with a known
 // profile URL shape so the chip links out; others render as plain text.
@@ -166,7 +166,13 @@ const PublicProfilePage: React.FC = () => {
             </Tabs>
 
             {tabs[tab]?.key === 'overview' && <OverviewTab profile={profile} />}
-            {tabs[tab]?.key === 'library' && <LibraryTab username={profile.username} />}
+            {tabs[tab]?.key === 'library' && (
+                <PublicLibraryTab
+                    username={profile.username}
+                    showNotes={canSee('library_notes')}
+                    showRatings={canSee('library_ratings')}
+                />
+            )}
             {tabs[tab]?.key === 'reading_lists' && <ReadingListsTab username={profile.username} />}
             {tabs[tab]?.key === 'reviews' && <ReviewsTab username={profile.username} />}
             {tabs[tab]?.key === 'comments' && <CommentsTab username={profile.username} />}
@@ -261,47 +267,6 @@ const OverviewTab: React.FC<{ profile: PublicProfile }> = ({ profile }) => {
     );
 };
 
-const LibraryTab: React.FC<{ username: string }> = ({ username }) => {
-    const { t } = useTranslation();
-    const [items, setItems] = useState<Novel[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-
-    useEffect(() => {
-        let active = true;
-        setLoading(true);
-        profileService
-            .getUserLibrary(username, page)
-            .then((data) => {
-                if (!active) return;
-                setItems(data.results);
-                setTotalPages(data.total_pages);
-            })
-            .catch((err) => console.error('Error loading library:', err))
-            .finally(() => active && setLoading(false));
-        return () => {
-            active = false;
-        };
-    }, [username, page]);
-
-    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
-    if (items.length === 0) return <Alert severity="info">{t('profile.emptySection')}</Alert>;
-
-    return (
-        <Box>
-            <Grid container spacing={2}>
-                {items.map((novel) => (
-                    <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-                        <BaseNovelCard novel={novel} hideUserState {...getNovelSourceLink(novel)} />
-                    </Grid>
-                ))}
-            </Grid>
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
-        </Box>
-    );
-};
-
 const ReadingListsTab: React.FC<{ username: string }> = ({ username }) => {
     const { t } = useTranslation();
     const [lists, setLists] = useState<ReadingList[]>([]);
@@ -391,6 +356,41 @@ const commentTargetPath = (comment: Comment): string | null => {
     return null;
 };
 
+const CommentMessage: React.FC<{ comment: Comment }> = ({ comment }) => {
+    const { t } = useTranslation();
+    const [revealed, setRevealed] = useState(false);
+
+    if (!comment.contains_spoiler) {
+        return <Typography sx={{ mt: 1 }}>{comment.message}</Typography>;
+    }
+
+    return (
+        <Box sx={{ mt: 1 }}>
+            <Typography
+                onClick={() => setRevealed((value) => !value)}
+                sx={{
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    filter: revealed ? 'none' : 'blur(5px)',
+                    cursor: 'pointer',
+                    transition: 'filter 0.2s',
+                    p: 1,
+                }}
+            >
+                {comment.message}
+            </Typography>
+            {!revealed && (
+                <Typography
+                    variant="caption"
+                    sx={{ color: 'warning.main', display: 'block', mt: 0.5, fontStyle: 'italic' }}
+                >
+                    {t('comments.spoiler')}
+                </Typography>
+            )}
+        </Box>
+    );
+};
+
 const CommentsTab: React.FC<{ username: string }> = ({ username }) => {
     const { t } = useTranslation();
     const [comments, setComments] = useState<Comment[]>([]);
@@ -435,7 +435,7 @@ const CommentsTab: React.FC<{ username: string }> = ({ username }) => {
                                         comment.target_title || t('profile.commentOn')
                                     )}
                                 </Typography>
-                                <Typography sx={{ mt: 1 }}>{comment.message}</Typography>
+                                <CommentMessage comment={comment} />
                             </Paper>
                         </Grid>
                     );

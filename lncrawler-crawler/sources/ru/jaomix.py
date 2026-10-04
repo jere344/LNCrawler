@@ -3,6 +3,7 @@ import logging
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 ajax_url = "https://jaomix.ru/wp-admin/admin-ajax.php"
@@ -26,6 +27,23 @@ class JaomixCrawler(Crawler):
             {"title": a["title"], "url": self.absolute_url(a["href"])}
             for a in soup.select(".img-home a[title][href]")
         ][:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}?sortby=count&gpage={page}")
+            items = soup.select(".img-home a[title][href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(title=a["title"], url=self.absolute_url(a["href"]))
+                )
+            page += 1
+            if page > 500:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

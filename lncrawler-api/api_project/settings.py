@@ -193,6 +193,10 @@ LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR.parent, 'Lightnovels')
 LNCRAWL_URL = "lightnovels/"
 LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 
+# Hours a generated EPUB is reused before being rebuilt even if the source
+# hasn't changed. Also invalidated immediately when the source is updated.
+EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
+
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 
 REST_FRAMEWORK = {
@@ -205,6 +209,13 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
     'COERCE_DECIMAL_TO_STRING': False,
+    # Scoped rates consumed by the throttle classes in auth_app.views.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': os.environ.get('THROTTLE_LOGIN', '10/min'),
+        'register': os.environ.get('THROTTLE_REGISTER', '10/hour'),
+        'password_reset': os.environ.get('THROTTLE_PASSWORD_RESET', '5/hour'),
+        'user_exists': os.environ.get('THROTTLE_USER_EXISTS', '30/min'),
+    },
 }
 
 CORS_URLS_REGEX = r"^/.*$"
@@ -235,6 +246,13 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 GITHUB_ISSUES_ENABLED = os.environ.get("GITHUB_ISSUES_ENABLED", "False") == "True"
+# Development alternative to the GitHub tracker: when set, each unexpected error
+# writes one Markdown file per fingerprint under ISSUE_REPORTS_DIR instead of
+# opening an issue. Dedup is the file already existing.
+ISSUE_REPORTS_TO_DISK = os.environ.get("ISSUE_REPORTS_TO_DISK", "False") == "True"
+ISSUE_REPORTS_DIR = os.environ.get(
+    "ISSUE_REPORTS_DIR", os.path.join(BASE_DIR, "issue-reports")
+)
 # Identifies which container produced an issue: api / crawler / scheduler.
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "api")
 
@@ -336,7 +354,21 @@ LOGGING = {
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 
 
-# Email settings
-BREVO_API_KEY = os.environ.get("BREVO_API_KEY", None)
+# Email settings — standard SMTP, provider-agnostic. Swapping providers is a
+# config change only. MailPace: host smtp.mailpace.com, port 587 (STARTTLS),
+# and the domain's API token as both EMAIL_HOST_USER and EMAIL_HOST_PASSWORD.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.mailpace.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
+# Local dev without credentials: print reset emails to the console instead of
+# failing. Never silently enabled in production.
+if DEBUG and not EMAIL_HOST_USER:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@lncrawler.monster")
 EMAIL_SENDER_NAME = os.environ.get("EMAIL_SENDER_NAME", "LNCrawler")

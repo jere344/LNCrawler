@@ -6,8 +6,10 @@ Writes:
 - <output>/cover.jpg             downloaded or generated cover
 """
 
+import itertools
 import json
 import logging
+from collections import deque
 from pathlib import Path
 
 from ..models.chapter import Chapter
@@ -15,6 +17,10 @@ from ..utils.imgen import generate_cover_image
 from .arguments import get_args
 
 logger = logging.getLogger(__name__)
+
+# Refuse to decode/save anything larger than this (decompression-bomb guard).
+# PIL exposes the size from the header before pixels are decoded.
+MAX_IMAGE_PIXELS = 64_000_000
 
 
 def _chapter_file(chapter: Chapter, output_path: str, pack_by_volume: bool) -> Path:
@@ -98,6 +104,10 @@ def _fetch_content_image(app, url: str, image_file: Path) -> None:
         img = None
         try:
             img = app.crawler.download_image(url)
+            if img.width * img.height > MAX_IMAGE_PIXELS:
+                raise ValueError(
+                    f"Image too large: {img.width}x{img.height} ({url})"
+                )
             image_file.parent.mkdir(parents=True, exist_ok=True)
             if img.mode not in ("L", "RGB", "YCbCr", "RGBX"):
                 if img.mode == "RGBa":
@@ -170,22 +180,43 @@ def _discard_failed_images(app, chapter, failed) -> None:
         logger.debug("Failed to rewrite chapter %s", chapter.id)
 
 
+def _windowed_submit(executor, window, calls):
+    """Submit at most ``window`` calls ahead, yielding futures lazily.
+
+    Images are as numerous as chapters; submitting all of them up front would
+    queue thousands of decoded bodies in memory at once.
+    """
+    queue = deque()
+    for call in calls:
+        queue.append(executor.submit(*call))
+        if len(queue) >= window:
+            yield queue.popleft()
+    while queue:
+        yield queue.popleft()
+
+
 def fetch_chapter_images(app) -> None:
     assert app.crawler is not None
 
     app.progress = 0
-    futures = [app.crawler.executor.submit(_fetch_cover_image, app)]
-
     image_folder = Path(app.output_path) / "images"
     images_to_download = set(
         (filename, url)
         for chapter in app.chapters
         for filename, url in chapter.get("images", {}).items()
     )
-    futures += [
-        app.crawler.executor.submit(_fetch_content_image, app, url, image_folder / filename)
+
+    window = max(app.crawler.workers, 1) * 2
+    image_calls = (
+        (_fetch_content_image, app, url, image_folder / filename)
         for filename, url in images_to_download
-    ]
+    )
+    # Keep the submission lazy: resolve_as_generator blocks on each result, so
+    # the window advances only as images finish.
+    futures = itertools.chain(
+        [app.crawler.executor.submit(_fetch_cover_image, app)],
+        _windowed_submit(app.crawler.executor, window, image_calls),
+    )
 
     failed = []
     try:

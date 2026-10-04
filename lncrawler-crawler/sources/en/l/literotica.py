@@ -23,6 +23,19 @@ class LiteroticaCrawler(Crawler):
             results.append(SearchResult(title=item.text.strip(), url=item["href"]))
         return results
 
+    def browse_novels(self, offset=0, limit=50) -> List[SearchResult]:
+        soup = self.get_soup(f"{self.home_url}top/", timeout=50, verify=False)
+        results = []
+        seen = set()
+        for a in soup.select("article h3 a[href]"):
+            title = a.get_text(" ", strip=True)
+            url = self.absolute_url(a["href"])
+            if not title or url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url, timeout=50, verify=False)
         series_link = soup.select_one('a[href*="/series/se/"]')

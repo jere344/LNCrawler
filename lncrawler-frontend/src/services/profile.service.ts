@@ -1,9 +1,17 @@
 import api from './api';
-import { Novel } from '@models/novels_types';
+import { LibraryFolder, Novel } from '@models/novels_types';
 import { User, PublicProfile } from '@models/user_types';
 import { ReadingListResponse } from '@models/readinglist_types';
 import { Review } from './review.service';
 import type { Comment } from '@models/comments_types';
+
+export interface PublicLibraryQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  folder?: string;
+  sort?: string;
+}
 
 const profileService = {
   // Public profile header (bio, banner, socials, gated stats/genres/reads)
@@ -12,16 +20,24 @@ const profileService = {
     return response.data;
   },
 
-  // A user's public library (bookmarks)
-  getUserLibrary: async (username: string, page = 1, pageSize = 20) => {
+  // A user's public library (bookmarks), read-only mirror
+  getUserLibrary: async (username: string, query: PublicLibraryQuery = {}) => {
     const response = await api.get(`/users/profile/${encodeURIComponent(username)}/library/`, {
-      params: { page, page_size: pageSize },
+      params: {
+        page: query.page ?? 1,
+        page_size: query.pageSize ?? 24,
+        search: query.search || undefined,
+        folder: query.folder || undefined,
+        sort: query.sort || undefined,
+      },
     });
     return response.data as {
       count: number;
       total_pages: number;
       current_page: number;
       results: Novel[];
+      folders?: LibraryFolder[];
+      sort?: string;
     };
   },
 

@@ -34,6 +34,39 @@ class IndowebnovelCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            query = "?s=&advanced-search=1&order=popular"
+            url = f"https://indowebnovel.id/{query}"
+            if page > 1:
+                url = f"https://indowebnovel.id/page/{page}/{query}"
+            soup = self.get_soup(url)
+            items = soup.select("div.flexbox2-item")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one("a[href*='/series/']")
+                if not a:
+                    continue
+                title_tag = item.select_one("div.flexbox2-title span")
+                title = a.get("title") or (
+                    title_tag.get_text(strip=True)
+                    if title_tag
+                    else a.get_text(strip=True)
+                )
+                results.append(
+                    SearchResult(
+                        title=title.strip(),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         # url = self.novel_url.replace('https://yukinovel.me', 'https://yukinovel.id')
         logger.debug("Visiting %s", self.novel_url)

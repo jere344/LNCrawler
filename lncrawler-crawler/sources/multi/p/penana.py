@@ -27,6 +27,29 @@ class PenanaCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}stories?order=trending&page={page}")
+            items = soup.select("a.newBookTitle")
+            if not items:
+                break
+            for a in items:
+                href = a.get("href")
+                if not href or href == "/story/1":
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(" ", strip=True),
+                        url=self.absolute_url(href),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

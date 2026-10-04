@@ -27,6 +27,21 @@ class NovelCool(Crawler):
             )
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}category/popular.html")
+        results = []
+        for item in soup.select("div.book-item"):
+            a = item.select_one("a[title][href]")
+            if not a:
+                continue
+            results.append(
+                SearchResult(
+                    title=(a.get("title") or a.text).strip(),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)
         soup = self.get_soup(self.novel_url)

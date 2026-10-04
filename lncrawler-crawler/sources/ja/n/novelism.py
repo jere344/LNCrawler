@@ -4,6 +4,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,30 @@ class NovelismCrawler(Crawler):
             seen.add(href)
             results.append({"title": title, "url": self.absolute_url(href)})
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        seen = set()
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                "https://novelism.jp/novel/ranking/pt/daily/",
+                params={"novel_length": 50, "page": page},
+            )
+            added = 0
+            for a in soup.select("a.novel-card-title-link"):
+                url = self.absolute_url(a["href"])
+                if url in seen:
+                    continue
+                seen.add(url)
+                results.append(
+                    SearchResult(title=a.get_text(" ", strip=True), url=url)
+                )
+                added += 1
+            if not added:
+                break
+            page += 1
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

@@ -5,6 +5,7 @@ import re
 from bs4 import BeautifulSoup, Tag
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,24 @@ class NovelpiaCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup("https://novelpia.com/top100/novel")
+        results = []
+        seen = set()
+        for card in soup.select("div[onclick*=novel]"):
+            match = re.search(r"/novel/(\d+)", card.get("onclick", ""))
+            title = card.select_one("b")
+            if not match or not title:
+                continue
+            url = f"https://novelpia.com/novel/{match.group(1)}"
+            if url in seen:
+                continue
+            seen.add(url)
+            results.append(
+                SearchResult(title=title.get_text(" ", strip=True), url=url)
+            )
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

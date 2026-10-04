@@ -58,6 +58,8 @@ class PublicUserSerializer(serializers.ModelSerializer):
         return 'none'
 
     def get_friend_count(self, obj):
+        if not can_view(self._viewer(), obj, 'friends'):
+            return None
         return Friendship.objects.filter(status=Friendship.ACCEPTED).filter(
             Q(requester=obj) | Q(addressee=obj)
         ).count()

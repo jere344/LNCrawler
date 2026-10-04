@@ -14,6 +14,8 @@ export type PrivacyValue = 'public' | 'friends' | 'private';
 
 export type PrivacySection =
     | 'library'
+    | 'library_notes'
+    | 'library_ratings'
     | 'reading_lists'
     | 'reviews'
     | 'comments'

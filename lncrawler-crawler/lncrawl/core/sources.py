@@ -125,6 +125,18 @@ def get_search_crawlers() -> List[Type[Crawler]]:
     ]
 
 
+def get_browse_crawlers() -> List[Type[Crawler]]:
+    """Sources that can list novels from a browse/all-novels/ranking section."""
+    load_sources()
+    return [
+        cls
+        for cls in crawler_list
+        if cls.browse_novels is not Crawler.browse_novels
+        and not cls.is_disabled
+        and not cls.disable_reason
+    ]
+
+
 def get_crawler_by_url(url: str) -> Optional[Type[Crawler]]:
     load_sources()
     host = urlparse(url).hostname
@@ -132,10 +144,15 @@ def get_crawler_by_url(url: str) -> Optional[Type[Crawler]]:
         return None
     if host in crawler_map:
         return crawler_map[host]
-    # Fall back to a base_url prefix match (handles subdomains/paths).
-    clean = str(url).strip().lower().rstrip("/")
-    for base, cls in crawler_map.items():
-        if "://" in base and clean.startswith(base):
+    # Fall back to a hostname match that allows subdomains. Never compare the
+    # raw URL prefix: `https://site.com@169.254.169.254/` starts with the
+    # registered base_url but resolves to a different host (SSRF).
+    host = host.lower().lstrip(".")
+    for registered, cls in crawler_map.items():
+        if "://" in registered:
+            continue
+        registered = registered.lower().lstrip(".")
+        if host == registered or host.endswith("." + registered):
             return cls
     return None
 

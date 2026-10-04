@@ -5,12 +5,15 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
+from django.db.models import Count, F, IntegerField, Max, OuterRef, Q, Subquery
+
+import uuid
 
 from auth_app.serializers import OtherUserSerializer
-from ..models.users_models import NovelBookmark, ReadingHistory
-from ..models.novels_models import Novel, NovelSimilarity
+from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
+from ..models.novels_models import Novel, NovelRating, NovelSimilarity
 from ..models.sources_models import NovelFromSource, Chapter
-from ..serializers.novels_serializers import BasicNovelSerializer
+from ..serializers.novels_serializers import BasicNovelSerializer, LibraryItemSerializer
 from ..serializers.users_serializers import DetailedReadingHistorySerializer
 from ..utils import resolve_novel_slug
 
@@ -24,6 +27,13 @@ def add_novel_bookmark(request, novel_slug):
     bookmark, created = NovelBookmark.objects.get_or_create(user=request.user, novel=novel)
 
     if created:
+        last_position = (
+            NovelBookmark.objects.filter(user=request.user)
+            .exclude(pk=bookmark.pk)
+            .aggregate(max_position=Max('position'))['max_position']
+        )
+        bookmark.position = (last_position + 1) if last_position is not None else 0
+        bookmark.save(update_fields=['position'])
         return Response({"status": "bookmarked", "bookmark_id": bookmark.id}, status=status.HTTP_201_CREATED)
     else:
         return Response({"status": "already bookmarked", "bookmark_id": bookmark.id}, status=status.HTTP_200_OK)
@@ -48,33 +58,223 @@ def remove_novel_bookmark(request, novel_slug):
 @permission_classes([IsAuthenticated])
 def list_bookmarked_novels(request):
     """
-    List all novels bookmarked by the authenticated user.
-    Also provides personalized novel recommendations based on bookmarks.
+    List the authenticated user's library (bookmarks) with folders, custom
+    order, notes and the user's own ratings.
     """
-    page_number = request.GET.get("page", 1)
-    page_size = min(int(request.GET.get("page_size", 20)), 50)
-
-    # Filter novels that are bookmarked by the current user
-    bookmarked_novels = Novel.objects.filter(bookmarked_by_users__user=request.user).order_by('title')
-    
-    # Get recommendations based on bookmarked novels
-    recommendations = get_novel_recommendations(request.user, bookmarked_novels, max_recommendations=12)
-    recommendation_serializer = BasicNovelSerializer(recommendations, many=True, context={"request": request})
-    
-    paginator = Paginator(bookmarked_novels, page_size)
-    page_obj = paginator.get_page(page_number)
-
-    serializer = BasicNovelSerializer(page_obj, many=True, context={"request": request})
-
-    return Response(
-        {
-            "count": paginator.count,
-            "total_pages": paginator.num_pages,
-            "current_page": page_obj.number,
-            "results": serializer.data,
-            "recommendations": recommendation_serializer.data,
-        }
+    return _library_response(
+        request.user, request.user, request,
+        show_notes=True, show_ratings=True, include_recommendations=True,
     )
+
+
+def _folder_data(folder):
+    return {
+        "id": str(folder.id),
+        "name": folder.name,
+        "count": getattr(folder, "count", 0),
+    }
+
+
+def _library_response(owner, viewer, request, show_notes, show_ratings, include_recommendations=False):
+    """
+    Build the shared library payload for both the owner's library and the
+    public profile mirror. `owner` owns the bookmarks; `viewer` is who is
+    asking (may be anonymous).
+
+    With sort=custom the whole set is returned unpaginated so drag & drop can
+    reorder it; other sort modes paginate.
+    """
+    search = request.GET.get("search", "").strip()
+    folder_param = request.GET.get("folder", "all")
+    sort = request.GET.get("sort", "custom")
+    page_number = request.GET.get("page", 1)
+    try:
+        page_size = min(int(request.GET.get("page_size", 24)), 100)
+    except (TypeError, ValueError):
+        page_size = 24
+
+    bookmarks = NovelBookmark.objects.filter(user=owner)
+
+    if folder_param == "unfiled":
+        bookmarks = bookmarks.filter(folder__isnull=True)
+    elif folder_param and folder_param != "all":
+        try:
+            bookmarks = bookmarks.filter(folder_id=uuid.UUID(str(folder_param)))
+        except (ValueError, TypeError):
+            bookmarks = bookmarks.none()
+
+    if search:
+        bookmarks = bookmarks.filter(
+            Q(novel__title__icontains=search)
+            | Q(novel__sources__authors__name__icontains=search)
+        ).distinct()
+
+    owner_rating = Subquery(
+        NovelRating.objects.filter(novel=OuterRef("novel_id"), user=owner).values("rating")[:1],
+        output_field=IntegerField(),
+    )
+    bookmarks = (
+        bookmarks.select_related("folder", "novel").annotate(owner_rating=owner_rating)
+    )
+
+    if sort == "title":
+        bookmarks = bookmarks.order_by("novel__title")
+    elif sort == "date_added":
+        bookmarks = bookmarks.order_by("-created_at")
+    elif sort == "rating" and show_ratings:
+        bookmarks = bookmarks.order_by(F("owner_rating").desc(nulls_last=True), "novel__title")
+    else:
+        sort = "custom"
+        bookmarks = bookmarks.order_by("position", "-created_at")
+
+    folders = [
+        _folder_data(folder)
+        for folder in LibraryFolder.objects.filter(user=owner).annotate(count=Count("bookmarks"))
+    ]
+
+    # Resolve the viewer's own bookmark status up front so the serializer's
+    # `is_bookmarked` never runs a query per row.
+    viewer_bookmarked_ids = set()
+    if getattr(viewer, "is_authenticated", False):
+        viewer_bookmarked_ids = set(
+            NovelBookmark.objects.filter(user=viewer).values_list("novel_id", flat=True)
+        )
+
+    if sort == "custom":
+        page_items = list(bookmarks)
+        count = len(page_items)
+        total_pages, current_page = 1, 1
+    else:
+        paginator = Paginator(bookmarks, page_size)
+        page_obj = paginator.get_page(page_number)
+        page_items = list(page_obj)
+        count, total_pages, current_page = paginator.count, paginator.num_pages, page_obj.number
+
+    novels = []
+    for bookmark in page_items:
+        novel = bookmark.novel
+        novel.library_bookmark = bookmark
+        novel.user_bookmarks = [True] if novel.id in viewer_bookmarked_ids else []
+        novels.append(novel)
+
+    serializer = LibraryItemSerializer(
+        novels, many=True,
+        context={"request": request, "show_notes": show_notes, "show_ratings": show_ratings},
+    )
+
+    payload = {
+        "count": count,
+        "total_pages": total_pages,
+        "current_page": current_page,
+        "results": serializer.data,
+        "folders": folders,
+        "sort": sort,
+    }
+    if include_recommendations:
+        recommendations = get_novel_recommendations(
+            owner, Novel.objects.filter(bookmarked_by_users__user=owner)
+        )
+        payload["recommendations"] = BasicNovelSerializer(
+            recommendations, many=True, context={"request": request}
+        ).data
+    return Response(payload)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def library_folders(request):
+    """List or create the authenticated user's library folders."""
+    if request.method == "POST":
+        name = (request.data.get("name") or "").strip()
+        if not name:
+            return Response({"error": "Folder name is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if LibraryFolder.objects.filter(user=request.user, name=name).exists():
+            return Response(
+                {"error": "A folder with this name already exists."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        folder = LibraryFolder.objects.create(user=request.user, name=name)
+        return Response(_folder_data(folder), status=status.HTTP_201_CREATED)
+
+    folders = LibraryFolder.objects.filter(user=request.user).annotate(count=Count("bookmarks"))
+    return Response([_folder_data(folder) for folder in folders])
+
+
+@api_view(["PUT", "DELETE"])
+@permission_classes([IsAuthenticated])
+def library_folder_detail(request, folder_id):
+    """Rename or delete one of the authenticated user's library folders."""
+    folder = get_object_or_404(LibraryFolder, id=folder_id, user=request.user)
+
+    if request.method == "DELETE":
+        folder.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    name = (request.data.get("name") or "").strip()
+    if not name:
+        return Response({"error": "Folder name is required."}, status=status.HTTP_400_BAD_REQUEST)
+    if LibraryFolder.objects.filter(user=request.user, name=name).exclude(pk=folder.pk).exists():
+        return Response(
+            {"error": "A folder with this name already exists."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    folder.name = name
+    folder.save(update_fields=["name"])
+    folder = LibraryFolder.objects.filter(pk=folder.pk).annotate(count=Count("bookmarks")).get()
+    return Response(_folder_data(folder))
+
+
+@api_view(["PATCH", "PUT"])
+@permission_classes([IsAuthenticated])
+def update_library_item(request, bookmark_id):
+    """Update the note and/or folder of one of the user's library items."""
+    bookmark = get_object_or_404(NovelBookmark, id=bookmark_id, user=request.user)
+
+    if "note" in request.data:
+        note = request.data.get("note")
+        bookmark.note = note if note else None
+    if "folder" in request.data:
+        folder_id = request.data.get("folder")
+        if folder_id in (None, "", "null"):
+            bookmark.folder = None
+        else:
+            bookmark.folder = get_object_or_404(LibraryFolder, id=folder_id, user=request.user)
+    bookmark.save()
+
+    return Response({
+        "id": str(bookmark.id),
+        "note": bookmark.note,
+        "folder": str(bookmark.folder_id) if bookmark.folder_id else None,
+        "position": bookmark.position,
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def reorder_library(request):
+    """Persist a global custom order for the user's library items."""
+    items = request.data
+    if not isinstance(items, list):
+        return Response(
+            {"error": "Expected a list of {id, position}."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    by_id = {str(bookmark.id): bookmark for bookmark in NovelBookmark.objects.filter(user=request.user)}
+    updated = []
+    for entry in items:
+        bookmark = by_id.get(str(entry.get("id")))
+        if not bookmark:
+            continue
+        try:
+            bookmark.position = max(0, int(entry.get("position", 0)))
+        except (TypeError, ValueError):
+            continue
+        updated.append(bookmark)
+
+    if updated:
+        NovelBookmark.objects.bulk_update(updated, ["position"])
+    return Response({"status": "reordered", "count": len(updated)})
 
 def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
     """
@@ -183,6 +383,11 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
     chapter = get_object_or_404(Chapter, novel_from_source=source, chapter_id=chapter_number)
     
     # Update or create reading history for this novel
+    previous_chapter_id = (
+        ReadingHistory.objects.filter(user=request.user, novel=novel)
+        .values_list("last_read_chapter_id", flat=True)
+        .first()
+    )
     reading_history, created = ReadingHistory.objects.update_or_create(
         user=request.user,
         novel=novel,
@@ -192,10 +397,15 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
         }
     )
 
-    # we also update the user word_read count
-    body = chapter.body
-    request.user.word_read += body.count(' ') if body else 0
-    request.user.save(update_fields=['word_read'])
+    # Only count words when advancing to a different chapter, so revisiting a
+    # chapter does not inflate the total. F() avoids lost updates under concurrency.
+    if previous_chapter_id != chapter.id:
+        body = chapter.body
+        word_count = body.count(' ') if body else 0
+        if word_count:
+            get_user_model().objects.filter(pk=request.user.pk).update(
+                word_read=F('word_read') + word_count
+            )
     
     serializer = DetailedReadingHistorySerializer(reading_history)
     

@@ -7,6 +7,8 @@ from datetime import timedelta
 # Sections of a profile whose visibility is user-controlled.
 PRIVACY_SECTIONS = [
     'library',
+    'library_notes',
+    'library_ratings',
     'reading_lists',
     'reviews',
     'comments',

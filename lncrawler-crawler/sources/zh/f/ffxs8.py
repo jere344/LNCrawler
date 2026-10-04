@@ -3,6 +3,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,27 @@ class FanFanXiaoShuoCrawler(Crawler):
             seen.add(href)
             results.append({"title": title, "url": self.absolute_url(href)})
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            path = "/sort/" if page == 1 else f"/sort/index_{page}.html"
+            soup = self.get_soup(self.absolute_url(path), encoding="gb18030")
+            items = soup.select(".list li .title a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 100:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url, encoding="gb18030")

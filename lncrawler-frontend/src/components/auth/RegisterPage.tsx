@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -18,10 +18,12 @@ import {
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { authService, type ApiError } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const RegisterPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -32,8 +34,13 @@ const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [usernameDebounceTimer, setUsernameDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [emailDebounceTimer, setEmailDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const usernameDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emailDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (usernameDebounceTimer.current) clearTimeout(usernameDebounceTimer.current);
+    if (emailDebounceTimer.current) clearTimeout(emailDebounceTimer.current);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,15 +57,13 @@ const RegisterPage: React.FC = () => {
     
     // Check username/email availability with debounce
     if (name === 'username' && value.length >= 3) {
-      if (usernameDebounceTimer) clearTimeout(usernameDebounceTimer);
-      const timer = setTimeout(() => checkUsername(value), 500);
-      setUsernameDebounceTimer(timer);
+      if (usernameDebounceTimer.current) clearTimeout(usernameDebounceTimer.current);
+      usernameDebounceTimer.current = setTimeout(() => checkUsername(value), 500);
     }
     
     if (name === 'email' && value.includes('@')) {
-      if (emailDebounceTimer) clearTimeout(emailDebounceTimer);
-      const timer = setTimeout(() => checkEmail(value), 500);
-      setEmailDebounceTimer(timer);
+      if (emailDebounceTimer.current) clearTimeout(emailDebounceTimer.current);
+      emailDebounceTimer.current = setTimeout(() => checkEmail(value), 500);
     }
   };
   
@@ -122,11 +127,9 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
     try {
       await authService.register(formData);
-      // Login automatically after successful registration
-      await authService._login({
-        username: formData.username,
-        password: formData.password
-      });
+      // Login automatically after successful registration; go through the auth
+      // context so the header/UI update immediately.
+      await login(formData.username, formData.password);
       navigate('/'); // Redirect to home after successful registration and login
     } catch (error) {
       const apiErr = error as ApiError;

@@ -54,6 +54,29 @@ class TwkanCrawler(Crawler):
             ]
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        self.get_response(self.home_url)
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url.rstrip('/')}/novels/newhot_0_0_{page}.html"
+            )
+            items = soup.select("div.newnav h3 a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 100:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
         html = str(soup)

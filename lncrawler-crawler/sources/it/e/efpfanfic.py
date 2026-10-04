@@ -3,6 +3,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +11,32 @@ logger = logging.getLogger(__name__)
 class EfpfanficCrawler(Crawler):
     base_url = ["https://www.efpfanfic.net/", "http://www.efpfanfic.net/"]
     language = "it"
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        pos = 0
+        while len(results) < offset + limit:
+            url = "https://www.efpfanfic.net/chosen.php?action=main"
+            if pos:
+                url += f"&offset={pos}"
+            soup = self.get_soup(url)
+            items = soup.select("div.storybloc")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one("div.titlestoria a[href]")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(" ", strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            pos += 15
+            if pos > 3000:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

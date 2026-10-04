@@ -353,9 +353,6 @@ const HomePage: React.FC = () => {
           }}>
             {t('home.latestReviews')}
           </Typography>
-          <Button component={Link} to="/reviews" variant="text">
-            {t('common.viewMore')}
-          </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
         

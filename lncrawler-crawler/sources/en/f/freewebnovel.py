@@ -67,6 +67,29 @@ class FreeWebNovelCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
             url=self.absolute_url(tag["href"]),
         )
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = f"{self.home_url}sort/most-popular"
+            if page > 1:
+                url += f"/{page}"
+            soup = self.get_soup(url)
+            items = soup.select(".col-content .con .txt h3 a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=a.text.strip(),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 200:
+                break
+        return results[offset : offset + limit]
+
     def parse_title(self, soup: BeautifulSoup) -> str:
         tag = soup.select_one(".m-desc h1.tit")
         assert isinstance(tag, Tag)

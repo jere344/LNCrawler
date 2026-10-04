@@ -18,6 +18,7 @@ from .models import (
     ExternalSource,
     FeaturedNovel,
     Job,
+    LibraryFolder,
     Novel,
     NovelAlias,
     NovelBookmark,
@@ -1360,3 +1361,137 @@ class ReadingListVisibilityTests(TestCase):
         )
         titles = [item["title"] for item in response.data["reading_lists"]]
         self.assertIn("Private", titles)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class ForgotPasswordEmailTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="resetuser", email="reset@example.com", password="pw12345!"
+        )
+
+    def test_forgot_password_sends_reset_link(self):
+        from django.core import mail
+
+        from auth_app.models import PasswordResetToken
+
+        response = self.client.post(
+            reverse("forgot_password"),
+            data=json.dumps({"email": self.user.email}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, [self.user.email])
+
+        token = PasswordResetToken.objects.get(user=self.user)
+        self.assertIn(str(token.token), message.body)
+        html = next(content for content, mime in message.alternatives if mime == "text/html")
+        self.assertIn(str(token.token), html)
+
+
+class LibraryReworkTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(
+            username="libowner", email="libowner@example.com", password="pw12345!"
+        )
+        self.viewer = get_user_model().objects.create_user(
+            username="libviewer", email="libviewer@example.com", password="pw12345!"
+        )
+        self.first = Novel.objects.create(title="Alpha", slug="alpha", novel_path="alpha")
+        self.second = Novel.objects.create(title="Beta", slug="beta", novel_path="beta")
+        self.owner.privacy_settings = {
+            "library": "public",
+            "library_notes": "public",
+            "library_ratings": "public",
+        }
+        self.owner.save()
+
+    def _bookmark(self, novel):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("add_novel_bookmark", kwargs={"novel_slug": novel.slug})
+        )
+        return str(response.data["bookmark_id"])
+
+    def test_custom_reorder_persists(self):
+        first_id = self._bookmark(self.first)
+        second_id = self._bookmark(self.second)
+
+        response = self.client.post(
+            reverse("reorder_library"),
+            data=json.dumps(
+                [
+                    {"id": second_id, "position": 0},
+                    {"id": first_id, "position": 1},
+                ]
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        listed = self.client.get(reverse("list_bookmarked_novels"))
+        titles = [item["title"] for item in listed.data["results"]]
+        self.assertEqual(titles, ["Beta", "Alpha"])
+
+    def test_folder_assignment_and_filter(self):
+        self.client.force_login(self.owner)
+        created = self.client.post(
+            reverse("library_folders"),
+            data=json.dumps({"name": "Favorites"}),
+            content_type="application/json",
+        )
+        self.assertEqual(created.status_code, 201, created.data)
+        folder_id = created.data["id"]
+
+        bookmark_id = self._bookmark(self.first)
+        assigned = self.client.patch(
+            reverse("update_library_item", kwargs={"bookmark_id": bookmark_id}),
+            data=json.dumps({"folder": folder_id, "note": "great read"}),
+            content_type="application/json",
+        )
+        self.assertEqual(assigned.status_code, 200, assigned.data)
+
+        filtered = self.client.get(reverse("list_bookmarked_novels"), {"folder": folder_id})
+        self.assertEqual([item["title"] for item in filtered.data["results"]], ["Alpha"])
+        self.assertEqual(filtered.data["results"][0]["note"], "great read")
+        self.assertEqual(filtered.data["folders"][0]["count"], 1)
+
+    def test_public_mirror_shows_owner_rating_not_viewer(self):
+        self._bookmark(self.first)
+        self.client.post(
+            reverse("rate_novel", kwargs={"novel_slug": self.first.slug}),
+            data=json.dumps({"rating": 4}),
+            content_type="application/json",
+        )
+        NovelRating.objects.create(novel=self.first, user=self.viewer, rating=5)
+        NovelRating.objects.create(novel=self.first, ip_address="9.9.9.9", rating=1)
+
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("user_library", kwargs={"username": self.owner.username})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["results"][0]["user_rating"], 4)
+
+    def test_public_mirror_hides_rating_when_private(self):
+        self._bookmark(self.first)
+        self.client.post(
+            reverse("rate_novel", kwargs={"novel_slug": self.first.slug}),
+            data=json.dumps({"rating": 4}),
+            content_type="application/json",
+        )
+        self.owner.privacy_settings = {
+            **self.owner.privacy_settings,
+            "library_ratings": "private",
+        }
+        self.owner.save()
+
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("user_library", kwargs={"username": self.owner.username})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data["results"][0]["user_rating"])

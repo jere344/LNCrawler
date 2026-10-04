@@ -21,6 +21,28 @@ class Webfic(Crawler):
     has_manga = False
     has_mtl = False
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"https://www.webfic.com/rankings?page={page}")
+            metadata_json = soup.select_one("script#__NEXT_DATA__")
+            if not metadata_json:
+                break
+            data = json.loads(metadata_json.text)["props"]["pageProps"]
+            books = data.get("bookList") or []
+            if not books or page > data.get("pages", page):
+                break
+            for book in books:
+                results.append(
+                    SearchResult(
+                        title=book["bookName"],
+                        url=f"https://www.webfic.com/book_info/{book['bookId']}/all/x",
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
 

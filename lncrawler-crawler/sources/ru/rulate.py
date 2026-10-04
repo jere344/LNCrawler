@@ -3,6 +3,7 @@ import logging
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,26 @@ class RulateCrawler(Crawler):
             for a in soup.select(".search-results p.book-tooltip a[href^='/book/']")
             if a.text.strip()
         ][:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}site/top?Book_page={page}")
+            items = soup.select(".search-results p.book-tooltip a[href^='/book/']")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 100:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

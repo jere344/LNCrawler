@@ -47,6 +47,29 @@ class AsiaNovelNetCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
             info=info
         )
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = f"{self.home_url}stories/"
+            if page > 1:
+                url += f"page/{page}/"
+            soup = self.get_soup(url)
+            cards = soup.select(".card__title a[href]")
+            if not cards:
+                break
+            for a in cards:
+                results.append(
+                    SearchResult(
+                        title=a.text.strip(),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 200:
+                break
+        return results[offset : offset + limit]
+
     def parse_title(self, soup: BeautifulSoup) -> str:
         tag = soup.select_one("div.story__identity h1.story__identity-title")
         assert isinstance(tag, Tag)

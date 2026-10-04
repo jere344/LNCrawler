@@ -4,6 +4,7 @@ import json
 import logging
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,26 @@ class MangaBuddyCrawler(Crawler):
             )
 
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}popular?page={page}")
+            items = self.__next_data(soup).get("items") or []
+            if not items:
+                break
+            for item in items:
+                results.append(
+                    SearchResult(
+                        title=item["name"].strip(),
+                        url=self.absolute_url(item["url"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

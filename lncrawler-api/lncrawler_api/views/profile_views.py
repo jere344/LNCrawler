@@ -11,7 +11,6 @@ from ..models.users_models import ProfilePinnedNovel, ReadingList
 from ..models.reviews_models import Review
 from ..models.comments_models import Comment
 from ..privacy import can_view
-from ..serializers.novels_serializers import BasicNovelSerializer
 from ..serializers.reviews_serializers import ReviewListSerializer
 from ..serializers.comments_serializers import CommentSerializer
 from ..serializers.reading_lists_serializers import ReadingListSerializer
@@ -113,14 +112,15 @@ def user_public_profile(request, username):
 @permission_classes([AllowAny])
 def user_library(request, username):
     owner = _target(username)
-    if not can_view(request.user, owner, 'library'):
+    viewer = request.user
+    if not can_view(viewer, owner, 'library'):
         return _forbidden("This user's library is private.")
-    novels = (
-        Novel.objects
-        .filter(bookmarked_by_users__user=owner)
-        .order_by('title')
+    from .users_views import _library_response
+    return _library_response(
+        owner, viewer, request,
+        show_notes=can_view(viewer, owner, 'library_notes'),
+        show_ratings=can_view(viewer, owner, 'library_ratings'),
     )
-    return _paginated_response(request, novels, BasicNovelSerializer)
 
 
 @api_view(["GET"])
@@ -136,7 +136,10 @@ def user_reviews(request, username):
         .prefetch_related('reactions__user')
     )
     page_number = request.GET.get('page', 1)
-    page_size = min(int(request.GET.get('page_size', 20)), 50)
+    try:
+        page_size = max(1, min(int(request.GET.get('page_size', 20)), 50))
+    except (TypeError, ValueError):
+        page_size = 20
     paginator = Paginator(reviews, page_size)
     page_obj = paginator.get_page(page_number)
     serializer = ReviewListSerializer(page_obj, many=True, context={"request": request})
@@ -161,7 +164,8 @@ def user_comments(request, username):
     comments = (
         Comment.objects
         .filter(user=owner)
-        .select_related('user', 'novel', 'chapter', 'board')
+        .select_related('user', 'novel', 'chapter__novel_from_source__novel', 'board')
+        .prefetch_related('replies')
         .order_by('-created_at')
     )
     return _paginated_response(request, comments, ProfileCommentSerializer)
@@ -175,7 +179,11 @@ def user_reading_lists(request, username):
     is_owner = viewer.is_authenticated and viewer.id == owner.id
     if not is_owner and not can_view(viewer, owner, 'reading_lists'):
         return _forbidden("This user's reading lists are private.")
-    query_set = ReadingList.objects.filter(user=owner)
+    query_set = (
+        ReadingList.objects
+        .filter(user=owner)
+        .prefetch_related('items__novel', 'collaborators__user')
+    )
     if not is_owner:
         query_set = query_set.filter(is_public=True)
     return _paginated_response(request, query_set.order_by('-updated_at'), ReadingListSerializer)

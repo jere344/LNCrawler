@@ -28,6 +28,33 @@ class LeafStudioCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset=0, limit=50) -> List[SearchResult]:
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            if page == 1:
+                url = f"{self.home_url}novels?sort=popularity"
+            else:
+                url = f"{self.home_url}novels/page/{page}?sort=popularity"
+            soup = self.get_soup(url)
+            items = soup.select("a.novel-item")
+            if not items:
+                break
+            for item in items:
+                title = item.select_one("p.novel-item-title")
+                if not title:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=title.text.strip(),
+                        url=self.absolute_url(item["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
         self.novel_title = soup.select_one(".title").text

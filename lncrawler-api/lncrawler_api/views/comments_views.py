@@ -9,6 +9,10 @@ from ..serializers.comments_serializers import NovelCommentSerializer, ChapterCo
 from ..serializers.boards_serializers import BoardCommentSerializer
 
 
+MAX_AUTHOR_NAME_LENGTH = 100
+MAX_MESSAGE_LENGTH = 10000
+
+
 @api_view(['GET'])
 def novel_comments(request, novel_slug):
     """
@@ -65,9 +69,26 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
     author_name = request.data.get('author_name')
     contains_spoiler = request.data.get('contains_spoiler', False)
     
+    if isinstance(author_name, str):
+        author_name = author_name.strip()
+    if isinstance(message, str):
+        message = message.strip()
+
     if not author_name or not message:
         return Response(
             {'error': 'Author name (if anonymous) and message are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not isinstance(author_name, str) or len(author_name) > MAX_AUTHOR_NAME_LENGTH:
+        return Response(
+            {'error': f'Author name must be at most {MAX_AUTHOR_NAME_LENGTH} characters'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not isinstance(message, str) or len(message) > MAX_MESSAGE_LENGTH:
+        return Response(
+            {'error': f'Message must be at most {MAX_MESSAGE_LENGTH} characters'},
             status=status.HTTP_400_BAD_REQUEST
         )
 

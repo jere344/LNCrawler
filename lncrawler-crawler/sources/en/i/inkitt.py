@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import logging
 import re
 from typing import List
@@ -29,6 +30,23 @@ class InkittCrawler(Crawler):
             url=self.absolute_url(f"/stories/{story['id']}"),
             info=f"Chapters: {story['chapters_count']}, Status: {story['story_status']}",
         )
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}genres/romance")
+        results = []
+        for script in soup.find_all("script", type="application/json"):
+            text = script.string or ""
+            if "initialStories" not in text:
+                continue
+            for story in json.loads(text)["initialStories"]:
+                results.append(
+                    SearchResult(
+                        title=story["title"].strip(),
+                        url=self.absolute_url(f"/stories/{story['id']}"),
+                    )
+                )
+            break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

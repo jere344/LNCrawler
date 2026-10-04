@@ -3,6 +3,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,18 @@ class RanobesComCrawler(Crawler):
             seen.add(href)
             results.append({"title": a.get_text(strip=True), "url": href})
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}popular.html")
+        results = []
+        for a in soup.select(".poplist-items article.popshort h2.title a[href]"):
+            results.append(
+                SearchResult(
+                    title=a.get_text(strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

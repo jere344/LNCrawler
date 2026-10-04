@@ -1,6 +1,8 @@
 """Tests for GitHub issue reporting of unexpected errors."""
 
 import json
+import os
+import tempfile
 from unittest import mock
 
 from django.test import TestCase, override_settings
@@ -79,6 +81,26 @@ class DisabledTests(TestCase):
     @mock.patch("api_project.github_issues.requests.post")
     def test_noop_when_disabled(self, post, get):
         github_issues.create_issue("title", "body", "abc123")
+
+        get.assert_not_called()
+        post.assert_not_called()
+
+
+@override_settings(ISSUE_REPORTS_TO_DISK=True)
+class DiskReportTests(TestCase):
+    def test_writes_one_file_per_fingerprint(self):
+        with tempfile.TemporaryDirectory() as d:
+            with override_settings(ISSUE_REPORTS_DIR=d):
+                github_issues.create_issue("title", "body", "abc123")
+                github_issues.create_issue("title", "body", "abc123")
+            self.assertEqual(os.listdir(d), ["abc123.md"])
+
+    @mock.patch("api_project.github_issues.requests.post")
+    @mock.patch("api_project.github_issues.requests.get")
+    def test_disk_mode_never_calls_github(self, get, post):
+        with tempfile.TemporaryDirectory() as d:
+            with override_settings(ISSUE_REPORTS_DIR=d):
+                github_issues.create_issue("title", "body", "abc123")
 
         get.assert_not_called()
         post.assert_not_called()

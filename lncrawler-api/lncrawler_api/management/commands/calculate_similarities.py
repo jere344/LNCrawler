@@ -17,6 +17,10 @@ from ...models import (
 
 TOP_K = 12
 
+# Bookmarks are turned into sparse blocks this many at a time, so the raw
+# Python row/col lists never hold more than one chunk.
+BOOKMARK_CHUNK = 100_000
+
 
 class Command(BaseCommand):
     help = 'Calculate similarity scores between novels'
@@ -113,29 +117,60 @@ class Command(BaseCommand):
         """
         Sparse binary novels x users matrix.  Jaccard between novels is derived
         from A @ A.T plus per-row user counts.
+
+        Bookmarks are streamed with ``.iterator()`` and assembled in fixed-width
+        sparse blocks, so the raw row/col Python lists are bounded by
+        ``BOOKMARK_CHUNK`` and peak memory does not scale with the number of
+        bookmarks.  Only the user-index map is kept whole (O(users)).
         """
         index_of = {novel_id: i for i, novel_id in enumerate(novel_ids)}
         user_index = {}
+
+        # First pass: assign a dense column to every user that has a bookmark on
+        # a known novel.  Fixed width is what lets the blocks be vstacked.
+        for novel_id, user_id in (
+            NovelBookmark.objects.values_list('novel_id', 'user_id').iterator()
+        ):
+            if novel_id in index_of and user_id not in user_index:
+                user_index[user_id] = len(user_index)
+
+        if not user_index:
+            return None, None
+
+        user_count = len(user_index)
+        blocks = []
         rows = []
         cols = []
-        for novel_id, user_id in NovelBookmark.objects.values_list('novel_id', 'user_id').iterator():
+
+        def flush():
+            if not rows:
+                return
+            data = np.ones(len(rows), dtype=np.float32)
+            blocks.append(sparse.csr_matrix(
+                (data, (rows, cols)),
+                shape=(len(novel_ids), user_count),
+                dtype=np.float32,
+            ))
+            rows.clear()
+            cols.clear()
+
+        # Second pass: stream bookmarks into fixed-width sparse blocks.
+        for novel_id, user_id in (
+            NovelBookmark.objects.values_list('novel_id', 'user_id').iterator()
+        ):
             row = index_of.get(novel_id)
             if row is None:
                 continue
-            col = user_index.get(user_id)
-            if col is None:
-                col = len(user_index)
-                user_index[user_id] = col
             rows.append(row)
-            cols.append(col)
+            cols.append(user_index[user_id])
+            if len(rows) >= BOOKMARK_CHUNK:
+                flush()
+        flush()
 
-        if not rows:
+        if not blocks:
             return None, None
 
-        data = np.ones(len(rows), dtype=np.float32)
-        matrix = sparse.csr_matrix(
-            (data, (rows, cols)), shape=(len(novel_ids), len(user_index)), dtype=np.float32
-        )
+        matrix = blocks[0] if len(blocks) == 1 else sparse.vstack(blocks, format='csr')
         counts = np.asarray(matrix.sum(axis=1)).ravel().astype(np.float32)
         return matrix, counts
 

@@ -28,6 +28,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkAuthStatus = () => {
     const isLoggedIn = authService.isAuthenticated();
+    // Keep the API auth header in sync (covers cross-tab login/logout).
+    authService.syncAuthHeader();
     setIsAuthenticated(isLoggedIn);
     
     if (isLoggedIn) {
@@ -41,14 +43,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuthStatus();
     
     // Listen for storage events (for when user logs in/out in another tab)
-    window.addEventListener('storage', (event) => {
+    const handleStorage = (event: StorageEvent) => {
       if (event.key === 'authToken' || event.key === 'user') {
         checkAuthStatus();
       }
-    });
+    };
+    window.addEventListener('storage', handleStorage);
     
     return () => {
-      window.removeEventListener('storage', checkAuthStatus);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 

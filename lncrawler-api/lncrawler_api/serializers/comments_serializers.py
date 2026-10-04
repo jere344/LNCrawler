@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from ..models.comments_models import Comment, CommentVote
+from ..utils.ip_utils import get_client_ip
 from auth_app.serializers import OtherUserSerializer
 
 
@@ -32,7 +33,7 @@ class CommentSerializer(serializers.ModelSerializer):
     def get_user_vote(self, obj):
         request = self.context.get('request')
         if request:
-            ip_address = request.META.get('REMOTE_ADDR')
+            ip_address = get_client_ip(request)
             vote = CommentVote.objects.filter(comment=obj, ip_address=ip_address).first()
             if vote:
                 return vote.vote_type

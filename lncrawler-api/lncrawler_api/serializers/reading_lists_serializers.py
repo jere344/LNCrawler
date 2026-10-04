@@ -11,8 +11,10 @@ def get_reading_list_role(reading_list, user):
         return None
     if reading_list.user_id == user.id:
         return 'owner'
-    collaborator = reading_list.collaborators.filter(user=user).first()
-    return collaborator.role if collaborator else None
+    for collaborator in reading_list.collaborators.all():
+        if collaborator.user_id == user.id:
+            return collaborator.role
+    return None
 
 
 class ReadingListItemSerializer(serializers.ModelSerializer):
@@ -54,7 +56,8 @@ class ReadingListSerializer(serializers.ModelSerializer):
         return get_reading_list_role(obj, getattr(request, 'user', None))
     
     def get_items_count(self, obj):
-        return obj.items.count()
+        annotated = getattr(obj, 'items_count', None)
+        return annotated if annotated is not None else obj.items.count()
     
     def get_items_names(self, obj):
         return [item.novel.title for item in obj.items.all() if item.novel]

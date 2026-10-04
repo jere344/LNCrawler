@@ -2,6 +2,7 @@
 import logging
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,36 @@ class FanfictionsFrCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.submit_form_for_soup(
+                "https://www.fanfictions.fr/fanfictions/parcourir.html",
+                data={
+                    "fanfictions_search[page]": page,
+                    "fanfictions_search[sort]": "quality",
+                    "fanfictions_search[size]": 50,
+                },
+            )
+            items = soup.select("div.card.ficitem")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one("h3.card-title a[href]")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(" ", strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 20:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

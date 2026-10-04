@@ -33,6 +33,17 @@ class NovelHiCrawler(Crawler):
             for item in (data.get("data") or {}).get("list", [])
         ]
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        soup = self.get_soup(f"{self.home_url}ranking")
+        results = [
+            SearchResult(
+                title=a.get_text(strip=True),
+                url=self.absolute_url(a["href"]),
+            )
+            for a in soup.select("li.ranking-row a.ranking-title[href]")
+        ]
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

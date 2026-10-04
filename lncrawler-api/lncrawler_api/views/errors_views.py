@@ -13,6 +13,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from api_project.redaction import redact
+
 logger = logging.getLogger("frontend")
 
 _RATE_LIMIT = 30  # requests per IP per window
@@ -44,12 +46,13 @@ def report_error(request):
 
     message = str(payload.get("message", "Unknown frontend error"))[:2000]
     stack = str(payload.get("stack", ""))[:5000]
-    url = str(payload.get("url", ""))[:500]
+    # Drop the query string: it can carry tokens/emails/IDs into the tracker.
+    url = str(payload.get("url", "")).split("?")[0][:500]
     context = str(payload.get("context", ""))[:500]
 
     logger.error(
         "Frontend error: %s",
-        message,
-        extra={"github_details": f"url={url}\ncontext={context}\n\n{stack}"},
+        redact(message),
+        extra={"github_details": redact(f"url={url}\ncontext={context}\n\n{stack}")},
     )
     return JsonResponse({"detail": "ok"})

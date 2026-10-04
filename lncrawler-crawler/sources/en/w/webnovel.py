@@ -65,6 +65,33 @@ class WebnovelCrawler(BasicBrowserTemplate):
                 info=li.find(".g_star_num small").text.strip(),
             )
 
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url}ranking/novel/all_time/popular_rank"
+                + f"?pageIndex={page}"
+            )
+            found = False
+            for a in soup.select('a[href^="/book/"]'):
+                href = a.get("href", "")
+                if not re.match(r"^/book/[^/]+_\d+$", href):
+                    continue
+                title = a.get_text(strip=True)
+                if not title:
+                    continue
+                found = True
+                results.append(
+                    SearchResult(title=title, url=self.absolute_url(href))
+                )
+            if not found:
+                break
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info_in_soup(self):
         self.get_csrf()
         url = self.novel_url

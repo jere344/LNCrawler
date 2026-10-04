@@ -1,5 +1,6 @@
 import logging
 from bs4 import BeautifulSoup, Tag
+from lncrawl.models import SearchResult
 from lncrawl.templates.madara import MadaraTemplate
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,29 @@ class SonicMTLCrawler(MadaraTemplate):
                 ".autors-widget",
             }
         )
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = (
+                f"{self.home_url}?m_orderby=views"
+                if page == 1
+                else f"{self.home_url}page/{page}/?m_orderby=views"
+            )
+            soup = self.get_soup(url)
+            items = soup.select(".page-item-detail .post-title h3 a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
 
     def parse_authors(self, soup: BeautifulSoup):
         for a in soup.select(".author-content a"):

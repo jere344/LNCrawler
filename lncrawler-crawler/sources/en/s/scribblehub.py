@@ -63,6 +63,24 @@ class ScribbleHubCrawler(SearchableBrowserTemplate):
             url=self.absolute_url(tag["href"]),
         )
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}series-ranking/?page={page}")
+            items = soup.select(".search_main_box .search_title a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
+
     def visit_novel_page_in_browser(self) -> BeautifulSoup:
         url_parts = self.novel_url.split("/")
         self.novel_url = f"{url_parts[0]}/{url_parts[2]}/{url_parts[3]}/{url_parts[4]}/"

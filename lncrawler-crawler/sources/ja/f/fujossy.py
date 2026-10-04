@@ -4,6 +4,7 @@ import logging
 from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,38 @@ class FujossyCrawler(Crawler):
                 {"title": title, "url": self.absolute_url(href)}
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        seen = set()
+        page = 1
+        while len(results) < offset + limit:
+            data = self.get_json(
+                "https://fujossy.jp/api/books/ranking.json",
+                params={
+                    "kind": "daily",
+                    "page": page,
+                    "per": 100,
+                    "book_data": "true",
+                },
+            )
+            books = data.get("books", [])
+            if not books:
+                break
+            added = 0
+            for book in books:
+                url = f"https://fujossy.jp/books/{book['id']}"
+                if url in seen:
+                    continue
+                seen.add(url)
+                results.append(
+                    SearchResult(title=(book.get("title") or "").strip(), url=url)
+                )
+                added += 1
+            if not added:
+                break
+            page += 1
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

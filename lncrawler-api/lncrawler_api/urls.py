@@ -65,6 +65,12 @@ urlpatterns = [
     path('users/bookmarks/novels/', users_views.list_bookmarked_novels, name='list_bookmarked_novels'),
     path('users/bookmarks/novels/<slug:novel_slug>/add/', users_views.add_novel_bookmark, name='add_novel_bookmark'),
     path('users/bookmarks/novels/<slug:novel_slug>/remove/', users_views.remove_novel_bookmark, name='remove_novel_bookmark'),
+
+    # Library folders / items / custom order
+    path('users/library/folders/', users_views.library_folders, name='library_folders'),
+    path('users/library/folders/<uuid:folder_id>/', users_views.library_folder_detail, name='library_folder_detail'),
+    path('users/library/items/<uuid:bookmark_id>/', users_views.update_library_item, name='update_library_item'),
+    path('users/library/reorder/', users_views.reorder_library, name='reorder_library'),
     
     # User Reading History
     path('users/reading-history/', users_views.list_reading_history, name='list_reading_history'),
@@ -89,6 +95,7 @@ urlpatterns = [
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapters/', sources_views.novel_chapters_by_source, name='novel_chapters_by_source'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', sources_views.chapter_content_by_number, name='chapter_content_by_number'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/gallery/', sources_views.source_image_gallery, name='source_image_gallery'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/download/', sources_views.download_source_epub, name='download_source_epub'),
 
     # downloader endpoints
     path('downloader/search/start/', views.start_search, name='start_search'),

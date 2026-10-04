@@ -30,6 +30,30 @@ class HoneyfeedCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url}ranking/weekly?page={page}")
+            items = soup.select(".novel-unit-type-h")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one('a[href^="/novels/"]')
+                if not a:
+                    continue
+                title = item.select_one(".novel-name")
+                results.append(
+                    SearchResult(
+                        title=(title or a).get_text(" ", strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

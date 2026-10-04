@@ -42,6 +42,33 @@ class NunuBookCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        soup = self.submit_form_for_soup(
+            f"{self.home_url}e/search/index.php",
+            data={
+                "tbname": "bookname",
+                "show": "title,writer",
+                "tempid": "1",
+                "keyboard": "小说",
+            },
+        )
+        results = []
+        for item in soup.select(".s-nv-list li"):
+            a = item.select_one("a")
+            title = item.select_one(".book-title .title")
+            if not isinstance(a, Tag) or not isinstance(title, Tag):
+                continue
+            text = title.get_text(strip=True)
+            if not text or not re.match(r"^https?://[^/]+/[a-z]+/\d+/?$", a.get("href", "")):
+                continue
+            results.append(
+                SearchResult(
+                    title=text,
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

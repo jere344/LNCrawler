@@ -1,11 +1,10 @@
-from django.conf import settings
-from django.core.cache import cache
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum
+from django.db.models import F, Avg, Q, Count, Value, Max, Min
 from django.db.models.functions import Coalesce
 from ..models import (
     Novel,
@@ -15,7 +14,6 @@ from ..models import (
     Author,
     FeaturedNovel,
     NovelFromSource,
-    WeeklySourceView,
 )
 from ..languages import parse_languages
 from ..models.reviews_models import Review
@@ -24,6 +22,8 @@ from ..utils.query_helpers import (
     apply_novel_prefetches,
     novel_prefetch_objects,
     sources_queryset,
+    sources_total_views_subquery,
+    weekly_views_subquery,
 )
 from ..serializers import (
     BasicNovelSerializer,
@@ -91,18 +91,30 @@ def rate_novel(request, novel_slug):
         )
 
     novel = resolve_novel_slug(novel_slug)
-    client_ip = get_client_ip(request)
 
-    if not client_ip:
-        return Response(
-            {"error": "Could not determine your IP address."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    # Logged-in users are keyed by user; anonymous visitors fall back to IP
+    # (same pattern as comments/reactions).
+    if request.user.is_authenticated:
+        lookup = {"novel": novel, "user": request.user}
+    else:
+        client_ip = get_client_ip(request)
+        if not client_ip:
+            return Response(
+                {"error": "Could not determine your IP address."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        lookup = {"novel": novel, "user": None, "ip_address": client_ip}
 
-    # Create or update the rating
-    rating, created = NovelRating.objects.update_or_create(
-        novel=novel, ip_address=client_ip, defaults={"rating": rating_value}
-    )
+    # A concurrent first-time rating for the same (novel, user/ip) can win the
+    # insert race between our get and create; catch the unique-constraint
+    # violation and fall back to updating the row the other request inserted.
+    try:
+        with transaction.atomic():
+            rating, created = NovelRating.objects.update_or_create(
+                defaults={"rating": rating_value}, **lookup
+            )
+    except IntegrityError:
+        NovelRating.objects.filter(**lookup).update(rating=rating_value)
 
     # Get updated average rating
     avg_rating = novel.ratings.aggregate(avg_rating=Avg("rating"))["avg_rating"]
@@ -150,6 +162,7 @@ def search_novels(request):
             Q(title__icontains=query)
             | Q(sources__synopsis__icontains=query)
             | Q(sources__authors__name__icontains=query)
+            | Q(sources__alternative_titles__name__icontains=query)
         ).distinct()
 
     # Filter by tags
@@ -174,17 +187,18 @@ def search_novels(request):
     if languages:
         novels_query = novels_query.filter(sources__language__in=languages).distinct()
 
-    # Filter by minimum rating
-    if min_rating and min_rating.isdigit():
-        min_rating_val = float(min_rating)
-        # Get novels with average rating >= min_rating
-        novels_with_min_rating = Novel.objects.annotate(
-            avg_rating=Avg("ratings__rating")
-        ).filter(avg_rating__gte=min_rating_val)
-        novels_query = novels_query.filter(id__in=novels_with_min_rating)
-
-    # Rolling 7-day window start for trending
-    window_start = WeeklySourceView.window_start()
+    # Filter by minimum rating (decimals allowed: "4.5")
+    if min_rating:
+        try:
+            min_rating_val = float(min_rating)
+        except (TypeError, ValueError):
+            min_rating_val = None
+        if min_rating_val is not None:
+            # Get novels with average rating >= min_rating
+            novels_with_min_rating = Novel.objects.annotate(
+                avg_rating=Avg("ratings__rating")
+            ).filter(avg_rating__gte=min_rating_val)
+            novels_query = novels_query.filter(id__in=novels_with_min_rating)
 
     # Apply sorting
     if sort_by == "rating":
@@ -201,42 +215,37 @@ def search_novels(request):
         order_field = "-created_at" if sort_order == "desc" else "created_at"
         novels_query = novels_query.order_by(order_field)
     elif sort_by == "popularity":
-        # Use total view count for popularity (summed over sources)
+        # Use total view count for popularity, summed over a deduplicated
+        # subquery so tag/author filters joining sources don't inflate it.
         novels_query = novels_query.annotate(
-            total_views=Coalesce(Sum('sources__total_views'), Value(0))
+            total_views=Coalesce(sources_total_views_subquery(), Value(0))
         )
         order_field = "-total_views" if sort_order == "desc" else "total_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "trending":
-        # Use the rolling 7-day view count for trending (summed over sources)
+        # Use the rolling 7-day view count for trending (deduplicated subquery)
         novels_query = novels_query.annotate(
-            week_views=Coalesce(
-                Sum(
-                    "sources__weekly_views__views",
-                    filter=Q(
-                        sources__weekly_views__granularity=WeeklySourceView.DAY,
-                        sources__weekly_views__day__gte=window_start,
-                    ),
-                ),
-                Value(0),
-            )
+            week_views=Coalesce(weekly_views_subquery(), Value(0))
         )
         order_field = "-week_views" if sort_order == "desc" else "week_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "last_updated":
-        # Annotate with the most recent last_updated date among all sources
+        # Annotate with the most recent last_updated date among all sources.
+        # Never-updated sources (NULL) sort last in both directions.
         if sort_order == "desc":
             novels_query = novels_query.annotate(
                 last_update=Max('sources__last_chapter_update')
             )
-            order_field = "-last_update"
-            novels_query = novels_query.order_by(order_field, "title")
+            novels_query = novels_query.order_by(
+                F("last_update").desc(nulls_last=True), "title"
+            )
         else:
             novels_query = novels_query.annotate(
                 last_update=Min('sources__last_chapter_update')
             )
-            order_field = "last_update"
-            novels_query = novels_query.order_by(order_field, "title")
+            novels_query = novels_query.order_by(
+                F("last_update").asc(nulls_last=True), "title"
+            )
     else:
         # Default sorting by title
         novels_query = novels_query.order_by("title")
@@ -287,7 +296,7 @@ def autocomplete_suggestion(request):
         # Canonical tags matching the query.
         tag_counts = (
             Tag.objects.filter(name__icontains=query)
-            .annotate(novel_count=Count("novels", distinct=True))
+            .annotate(novel_count=Count("novels__novel", distinct=True))
             .order_by("-novel_count")[:limit]
         )
         suggestions = {
@@ -300,7 +309,7 @@ def autocomplete_suggestion(request):
         alias_matches = (
             TagAlias.objects.filter(name__icontains=query)
             .select_related("tag")
-            .annotate(novel_count=Count("tag__novels", distinct=True))
+            .annotate(novel_count=Count("tag__novels__novel", distinct=True))
             .order_by("-novel_count")[:limit]
         )
         for alias in alias_matches:
@@ -322,7 +331,7 @@ def autocomplete_suggestion(request):
         # Count novels for each author
         author_counts = (
             Author.objects.filter(name__icontains=query)
-            .annotate(novel_count=Count("novels", distinct=True))
+            .annotate(novel_count=Count("novels__novel", distinct=True))
             .order_by("-novel_count")[:limit]
         )
 
@@ -383,23 +392,9 @@ def home_page(request):
     rankings merge the selected languages together. The frontend omits the
     parameter when the user disabled language segregation.
     """
-    # Rolling 7-day window start for trending
-    window_start = WeeklySourceView.window_start()
-
     # Selected content languages (empty list = no segregation)
     languages = parse_languages(request.GET.getlist("languages"))
     serializer_context = {"request": request, "languages": languages}
-
-    # Anonymous responses are identical for everyone with the same language
-    # filter, so serve them from the per-process cache for a short window.
-    # Authenticated responses embed user state (bookmarks/reading history) and
-    # are never cached.
-    cache_key = None
-    if not request.user.is_authenticated:
-        cache_key = "home_page:%s" % (",".join(sorted(languages)) if languages else "all")
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return Response(cached)
 
     # Base queryset, optionally restricted to novels with a source in the
     # selected languages.
@@ -409,33 +404,20 @@ def home_page(request):
             sources__language__in=languages
         ).distinct()
 
-    # Restrict the source-based view aggregations to the selected languages so
-    # the ranking reflects readership within those languages.
-    views_filter = Q()
-    if languages:
-        views_filter = Q(sources__language__in=languages)
-
-    # Top novels (most popular, summed over sources)
+    # Top novels (most popular). The language filter above joins sources, so the
+    # total is summed over a deduplicated source subquery to avoid inflation,
+    # restricted to the selected languages so the ranking matches the filter.
     top_novels = (
         base_queryset.annotate(
-            total_views=Coalesce(Sum('sources__total_views'), Value(0))
+            total_views=Coalesce(sources_total_views_subquery(languages), Value(0))
         )
         .order_by('-total_views', 'title')[:12]
     )
     
-    # Trending novels (rolling 7-day views, summed over sources)
+    # Trending novels (rolling 7-day views, same deduplicated language-scoped sum)
     trending_novels = (
         base_queryset.annotate(
-            week_views=Coalesce(
-                Sum(
-                    "sources__weekly_views__views",
-                    filter=Q(
-                        sources__weekly_views__granularity=WeeklySourceView.DAY,
-                        sources__weekly_views__day__gte=window_start,
-                    ) & views_filter,
-                ),
-                Value(0),
-            )
+            week_views=Coalesce(weekly_views_subquery(languages), Value(0))
         )
         .order_by('-week_views', 'title')[:12]
     )
@@ -467,7 +449,11 @@ def home_page(request):
         }
     
     # for the recently updated it's a list of NovelFromSource insead of Novel that we want
-    recently_updated_qs = sources_queryset().order_by('-last_chapter_update')
+    # NULLs sort first on PostgreSQL by default; never-updated sources would top
+    # the strip, so push them to the end.
+    recently_updated_qs = sources_queryset().order_by(
+        F('last_chapter_update').desc(nulls_last=True)
+    )
     if languages:
         recently_updated_qs = recently_updated_qs.filter(language__in=languages)
     recently_updated = recently_updated_qs[:12]
@@ -487,8 +473,5 @@ def home_page(request):
         'featured_novel': featured_novel_data,
         'recent_reviews': ReviewListSerializer(recent_reviews, many=True, context=serializer_context).data,
     }
-    
-    if cache_key is not None:
-        cache.set(cache_key, response_data, timeout=settings.HOME_PAGE_CACHE_SECONDS)
     
     return Response(response_data)

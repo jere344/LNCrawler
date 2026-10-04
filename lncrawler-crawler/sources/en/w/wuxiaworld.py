@@ -38,6 +38,35 @@ class WuxiaworldCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        seen = set()
+        url = "https://lite.wuxiaworld.com/novels"
+        while url and len(results) < offset + limit:
+            soup = self.get_soup(url)
+            cells = soup.select("td.novel-cell")
+            if not cells:
+                break
+            for cell in cells:
+                a = cell.select_one("p.title a[href]")
+                if not a:
+                    continue
+                novel_url = self.absolute_url(a["href"])
+                if novel_url in seen:
+                    continue
+                seen.add(novel_url)
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=novel_url,
+                    )
+                )
+            nxt = soup.select_one(".pager a.next")
+            url = self.absolute_url(nxt["href"]) if nxt else None
+            if len(seen) > 2000:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self._lite(self.novel_url))
 

@@ -3,6 +3,7 @@ import logging
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,25 @@ class SecondLifeTransCrawler(Crawler):
             {"title": item["title"]["rendered"], "url": item["link"]}
             for item in data
         ]
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            data = self.get_json(
+                f"{self.home_url}wp-json/wp/v2/novel?per_page=100&page={page}"
+            )
+            if not isinstance(data, list) or not data:
+                break
+            for item in data:
+                results.append(
+                    SearchResult(
+                        title=item["title"]["rendered"],
+                        url=item["link"],
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

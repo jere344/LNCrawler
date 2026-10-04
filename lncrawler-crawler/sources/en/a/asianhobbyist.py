@@ -3,6 +3,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,21 @@ class AsianHobbyistCrawler(Crawler):
             seen.add(url)
             results.append({"title": title, "url": url})
         return results[:20]
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(self.absolute_url("/ranking/"))
+        results = []
+        seen = set()
+        for a in soup.select("a[href*='/series/']"):
+            title = a.get_text(" ", strip=True)
+            if not title:
+                continue
+            url = self.absolute_url(a["href"])
+            if url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

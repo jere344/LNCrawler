@@ -7,6 +7,7 @@ from urllib.parse import quote, urlencode
 from bs4.element import Tag
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,32 @@ class TruenFull(Crawler):
             )
 
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = "https://truyenfull.live/danh-sach/truyen-hot/"
+            if page > 1:
+                url = f"https://truyenfull.live/danh-sach/truyen-hot/trang-{page}/"
+            soup = self.get_soup(url)
+            items = soup.select(".list-truyen .row")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one(".truyen-title a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

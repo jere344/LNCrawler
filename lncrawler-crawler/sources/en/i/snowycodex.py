@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import Chapter
+from lncrawl.models import Chapter, SearchResult
 from lncrawl.templates.browser.chapter_only import ChapterOnlyBrowserTemplate
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,22 @@ class SnowyCodexCrawler(ChapterOnlyBrowserTemplate):
                     {"title": title, "url": self.absolute_url(a["href"])}
                 )
         return results[:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}novels/")
+        results = []
+        seen = set()
+        for a in soup.select("a[href]"):
+            title = a.text.strip()
+            path = urlparse(a["href"]).path
+            if not title or path.count("/") != 3 or not path.startswith("/novels/"):
+                continue
+            url = self.absolute_url(a["href"])
+            if url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
 
     def parse_title(self, soup: BeautifulSoup) -> str:
         tag = soup.select_one(".entry-content h2")

@@ -2,6 +2,7 @@ from django.contrib.sitemaps import Sitemap
 from django.conf import settings
 from urllib.parse import urlparse
 from django.db import models
+from django.db.models.functions import Coalesce
 
 from ..models import Novel, NovelFromSource, Chapter
 
@@ -52,6 +53,15 @@ class NovelSitemap(BaseSitemap):
     def lastmod(self, obj):
         return obj.updated_at
 
+    def get_latest_lastmod(self):
+        # One indexed query for the sitemap index instead of evaluating every
+        # novel just to take max(updated_at).
+        return (
+            Novel.objects.order_by('-updated_at')
+            .values_list('updated_at', flat=True)
+            .first()
+        )
+
     def location(self, obj):
         return f'/novels/{obj.slug}/'
 
@@ -60,12 +70,23 @@ class SourceSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return NovelFromSource.objects.select_related('novel').only(
+        return NovelFromSource.objects.exclude(
+            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+        ).select_related('novel').only(
             'source_slug', 'updated_at', 'novel__slug'
         ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
         return obj.updated_at
+
+    def get_latest_lastmod(self):
+        return (
+            NovelFromSource.objects.exclude(
+                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+            ).order_by('-updated_at')
+            .values_list('updated_at', flat=True)
+            .first()
+        )
 
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/'
@@ -75,12 +96,24 @@ class ChapterListSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return NovelFromSource.objects.select_related('novel').only(
+        return NovelFromSource.objects.exclude(
+            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+        ).select_related('novel').only(
             'source_slug', 'updated_at', 'last_chapter_update', 'novel__slug'
         ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
         return obj.last_chapter_update or obj.updated_at
+
+    def get_latest_lastmod(self):
+        return (
+            NovelFromSource.objects.exclude(
+                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+            ).annotate(_lastmod=Coalesce('last_chapter_update', 'updated_at'))
+            .order_by('-_lastmod')
+            .values_list('_lastmod', flat=True)
+            .first()
+        )
 
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/chapterlist/'
@@ -134,12 +167,23 @@ class ImageGallerySitemap(BaseSitemap):
     def items(self):
         # Consider only sources that actually have images (e.g., cover or chapter images)
         # For simplicity, linking all sources; frontend can handle empty galleries.
-        return NovelFromSource.objects.select_related('novel').only(
+        return NovelFromSource.objects.exclude(
+            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+        ).select_related('novel').only(
             'source_slug', 'updated_at', 'novel__slug'
         ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
         return obj.updated_at
+
+    def get_latest_lastmod(self):
+        return (
+            NovelFromSource.objects.exclude(
+                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+            ).order_by('-updated_at')
+            .values_list('updated_at', flat=True)
+            .first()
+        )
 
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/gallery/'

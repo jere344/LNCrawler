@@ -41,15 +41,15 @@ class ChapterContentSerializer(serializers.ModelSerializer):
     
     def get_prev_chapter(self, obj):
         previous_chapter = obj.novel_from_source.chapters.filter(
-            chapter_id__lt=obj.chapter_id
+            chapter_id__lt=obj.chapter_id, has_content=True
         ).order_by('-chapter_id').first()
-        return previous_chapter.chapter_id if previous_chapter and previous_chapter.has_content else None
+        return previous_chapter.chapter_id if previous_chapter else None
     
     def get_next_chapter(self, obj):
         next_chapter = obj.novel_from_source.chapters.filter(
-            chapter_id__gt=obj.chapter_id
+            chapter_id__gt=obj.chapter_id, has_content=True
         ).order_by('chapter_id').first()
-        return next_chapter.chapter_id if next_chapter and next_chapter.has_content else None
+        return next_chapter.chapter_id if next_chapter else None
     
     def get_novel_title(self, obj):
         return obj.novel_from_source.novel.title

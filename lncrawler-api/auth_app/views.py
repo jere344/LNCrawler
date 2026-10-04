@@ -1,9 +1,10 @@
-from django.contrib.auth import authenticate, login, logout
-from django.shortcuts import render
+from django.contrib.auth import authenticate
+from django.db import transaction
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import AnonRateThrottle
 from .serializers import (
     UserSerializer, RegisterSerializer, LoginSerializer,
     ChangePasswordSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
@@ -11,16 +12,83 @@ from .serializers import (
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
 from .models import PasswordResetToken
-from .email_service import email_service
+from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
 import logging
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+
+class LoginRateThrottle(AnonRateThrottle):
+    scope = 'login'
+
+
+class RegisterRateThrottle(AnonRateThrottle):
+    scope = 'register'
+
+
+class PasswordResetRateThrottle(AnonRateThrottle):
+    scope = 'password_reset'
+
+
+class UserExistsRateThrottle(AnonRateThrottle):
+    scope = 'user_exists'
+
+
+def send_password_reset_email(user, reset_token):
+    reset_url = f"{settings.SITE_URL}/reset-password?token={reset_token}"
+    subject = "Password Reset Request - LN Crawler"
+
+    text_content = f"""
+    Password Reset Request
+
+    Hello {user.username},
+
+    You have requested to reset your password. Copy and paste this URL into your browser to reset your password:
+
+    {reset_url}
+
+    This link will expire in 24 hours.
+
+    If you didn't request this password reset, please ignore this email.
+
+    Best regards,
+    LN Crawler Team
+    """
+
+    html_content = f"""
+    <html>
+    <body>
+        <h2>Password Reset Request</h2>
+        <p>Hello {user.username},</p>
+        <p>You have requested to reset your password. Click the link below to reset your password:</p>
+        <p><a href="{reset_url}" style="background-color: #4CAF50; color: white; padding: 14px 25px; text-decoration: none; border-radius: 4px;">Reset Password</a></p>
+        <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+        <p>{reset_url}</p>
+        <p>This link will expire in 24 hours.</p>
+        <p>If you didn't request this password reset, please ignore this email.</p>
+        <br>
+        <p>Best regards,<br>LN Crawler Team</p>
+    </body>
+    </html>
+    """
+
+    message = EmailMultiAlternatives(
+        subject,
+        text_content,
+        f"{settings.EMAIL_SENDER_NAME} <{settings.DEFAULT_FROM_EMAIL}>",
+        [user.email],
+    )
+    message.attach_alternative(html_content, "text/html")
+    return message.send() > 0
+
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [RegisterRateThrottle]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -34,6 +102,7 @@ class RegisterView(generics.CreateAPIView):
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -43,7 +112,8 @@ class LoginView(APIView):
             user = authenticate(username=username, password=password)
             
             if user:
-                login(request, user)
+                # Token-only API: no Django session is established, which avoids
+                # login CSRF / session fixation.
                 token, created = Token.objects.get_or_create(user=user)
                 return Response({
                     'token': token.key,
@@ -63,7 +133,6 @@ class LogoutView(APIView):
         except (AttributeError):
             pass
         
-        logout(request)
         return Response({"message": "Successfully logged out."}, status=status.HTTP_200_OK)
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
@@ -75,6 +144,7 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
 class UserExistsView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [UserExistsRateThrottle]
 
     def get(self, request):
         username = request.query_params.get('username', '')
@@ -113,36 +183,35 @@ class ChangePasswordView(APIView):
 
 class ForgotPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
-            user = User.objects.get(email=email)
-            
-            # Create password reset token
-            reset_token = PasswordResetToken.objects.create(user=user)
-            
-            # Send email
-            email_sent = email_service.send_password_reset_email(
-                user_email=user.email,
-                username=user.username,
-                reset_token=reset_token.token
-            )
-            
-            if email_sent:
-                return Response({
-                    'message': 'Password reset email sent successfully.'
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response({
-                    'error': 'Failed to send email. Please try again later.'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            user = User.objects.filter(email=email).first()
+
+            if user:
+                # Only one outstanding reset token per account: retire the
+                # previous ones so an older (possibly leaked) link cannot be used.
+                PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
+                reset_token = PasswordResetToken.objects.create(user=user)
+                try:
+                    send_password_reset_email(user, reset_token.token)
+                except Exception as e:
+                    logger.error(f"Error sending password reset email: {e}")
+
+            # Always return the same response so the endpoint cannot be used to
+            # discover which emails are registered.
+            return Response({
+                'message': 'If that email is registered, a password reset link has been sent.'
+            }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ResetPasswordView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
@@ -150,33 +219,31 @@ class ResetPasswordView(APIView):
             token = serializer.validated_data['token']
             new_password = serializer.validated_data['new_password']
             
-            try:
-                reset_token = PasswordResetToken.objects.get(token=token)
+            with transaction.atomic():
+                reset_token = (
+                    PasswordResetToken.objects
+                    .select_for_update()
+                    .filter(token=token)
+                    .first()
+                )
                 
-                if not reset_token.is_valid():
+                if reset_token is None or not reset_token.is_valid():
                     return Response({
                         'error': 'Invalid or expired reset token.'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                # Reset password
                 user = reset_token.user
                 user.set_password(new_password)
                 user.save()
                 
-                # Mark token as used
-                reset_token.used = True
-                reset_token.save()
+                # Burn every outstanding reset token for this account.
+                PasswordResetToken.objects.filter(user=user).update(used=True)
                 
-                # Invalidate all existing tokens for security
+                # Invalidate all existing auth tokens for security
                 Token.objects.filter(user=user).delete()
                 
                 return Response({
                     'message': 'Password reset successfully.'
                 }, status=status.HTTP_200_OK)
-                
-            except PasswordResetToken.DoesNotExist:
-                return Response({
-                    'error': 'Invalid reset token.'
-                }, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -2,6 +2,7 @@
 import logging
 from urllib.parse import quote_plus
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = (
@@ -30,6 +31,28 @@ class LightNovelHeaven(Crawler):
             )
 
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url}?s=&post_type=wp-manga&m_orderby=views&paged={page}"
+            )
+            items = soup.select(".c-tabs-item__content")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one(".post-title a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(title=a.text.strip(), url=self.absolute_url(a["href"]))
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

@@ -3,6 +3,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,21 @@ SLUG = re.compile(r"'/\s*\+\s*this\.value\s*\+\s*'/([^']+)'")
 class FanFiktionCrawler(Crawler):
     base_url = ["https://www.fanfiktion.de/"]
     language = "de"
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup("https://www.fanfiktion.de/latest")
+        results = []
+        for item in soup.select("div.lateststories-item"):
+            a = item.select_one("div.semibold a[href^='/s/']")
+            if not a:
+                continue
+            results.append(
+                SearchResult(
+                    title=a.get_text(" ", strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)

@@ -112,6 +112,16 @@ const request = async (
   }
 
   if (!response.ok) {
+    // A dead token should not leave the UI looking logged in.
+    if (response.status === 401) {
+      try {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        delete defaults.headers.common['Authorization'];
+      } catch {
+        // storage can be unavailable (private mode); auth state is best-effort
+      }
+    }
     const error = new Error(`Request failed with status code ${response.status}`) as Error & {
       response: ApiResponse;
     };

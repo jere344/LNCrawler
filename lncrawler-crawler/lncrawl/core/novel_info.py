@@ -157,8 +157,6 @@ def save_metadata(app, completed: bool = False) -> None:
             english_publisher=getattr(crawler, "english_publisher", None),
             genres=getattr(crawler, "genres", None) or [],
             tags=getattr(crawler, "tags", None) or [],
-            description=getattr(crawler, "description", None),
-            language_code=getattr(crawler, "language_code", None) or [],
             source=getattr(crawler, "source", None),
         ),
         session=Session(
@@ -169,8 +167,8 @@ def save_metadata(app, completed: bool = False) -> None:
             pack_by_volume=app.pack_by_volume,
             good_file_name=app.good_file_name,
             download_chapters=[chap.id for chap in app.chapters],
-            cookies=app.crawler.cookies,
-            headers=app.crawler.headers,
+            # Never persist crawler cookies/headers: meta.json is written under
+            # the publicly served library root and can hold live login sessions.
             proxies={},
         ),
     )

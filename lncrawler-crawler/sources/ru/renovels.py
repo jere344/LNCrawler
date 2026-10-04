@@ -3,6 +3,7 @@ import logging
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,31 @@ class RenovelsCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            data = self.get_json(f"{api_base}/v2/titles/top/?page={page}")
+            titles = data.get("titles") or []
+            if not titles:
+                break
+            for item in titles:
+                slug = item.get("dir")
+                if not slug:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=item.get("secondary_name")
+                        or item.get("main_name")
+                        or item.get("en_name"),
+                        url=f"{self.home_url}novel/{slug}",
+                    )
+                )
+            page += 1
+            if len(titles) < 20:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         # Site migrated off __NEXT_DATA__; read the public JSON API instead.

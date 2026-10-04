@@ -27,6 +27,13 @@ export interface BaseNovelCardProps {
   to?: To;
   state?: unknown;
   hideUserState?: boolean;
+  // Show the per-user rating instead of the community average (library views).
+  ratingMode?: 'average' | 'user';
+  // When provided, the rating becomes interactive and calls back with the value.
+  onRate?: (value: number | null) => void;
+  ratingLabel?: string;
+  // Hide the rating row entirely (e.g. public mirror when ratings are private).
+  showRating?: boolean;
 }
 
 export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({ 
@@ -35,7 +42,11 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   isLoading = false,
   to,
   state,
-  hideUserState = false
+  hideUserState = false,
+  ratingMode = 'average',
+  onRate,
+  ratingLabel,
+  showRating = true
 }) => {
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
@@ -292,26 +303,54 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           </Box>
           
           {/* Rating */}
+          {showRating && (
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Rating 
-              value={novel.avg_rating || 0} 
-              precision={0.5} 
-              readOnly 
-              size="small" 
-            />
-            <Typography
-              variant="body2"
-              sx={{
-                color: "text.secondary",
-                ml: 0.25,
-                fontSize: '0.875rem',
-                overflow: 'hidden',
-                height: '1.2em'
-              }}>
-              {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
-              {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
-            </Typography>
+            {ratingMode === 'user' ? (
+              <>
+                <Rating
+                  value={novel.user_rating || 0}
+                  readOnly={!onRate}
+                  size="small"
+                  onChange={(_, value) => onRate?.(value)}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 0.25,
+                    fontSize: '0.75rem',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    height: '1.2em'
+                  }}>
+                  {novel.user_rating ? `${novel.user_rating}/5` : (ratingLabel ?? '—')}
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Rating 
+                  value={novel.avg_rating || 0} 
+                  precision={0.5} 
+                  readOnly 
+                  size="small" 
+                />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 0.25,
+                    fontSize: '0.875rem',
+                    overflow: 'hidden',
+                    height: '1.2em'
+                  }}>
+                  {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
+                  {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
+                </Typography>
+              </>
+            )}
           </Box>
+          )}
           
           {/* Metadata grid using a proper Grid for alignment */}
           <Grid 

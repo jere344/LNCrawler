@@ -3,6 +3,7 @@ import re
 import logging
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = "https://www.royalroad.com/fictions/search?keyword=%s"
@@ -26,6 +27,31 @@ class RoyalRoadCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"https://www.royalroad.com/fictions/best-rated?page={page}"
+            )
+            items = soup.select(".fiction-list-item")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one(".fiction-title a") or item.select_one("h2 a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.text.strip(),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

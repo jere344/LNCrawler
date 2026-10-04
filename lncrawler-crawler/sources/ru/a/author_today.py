@@ -33,6 +33,31 @@ class AuthorTodayCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url}work/genre/all?sorting=popular&page={page}"
+            )
+            rows = soup.select(".book-row")
+            if not rows:
+                break
+            for row in rows:
+                a = row.select_one(".book-title a[href]")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(" ", strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 400:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

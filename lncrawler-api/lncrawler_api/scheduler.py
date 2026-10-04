@@ -90,6 +90,21 @@ class DatabaseScheduler:
         
         logger.info(f"Executing task '{task.name}' (worker: {self.worker_id})")
         
+        # Keep extending the lock while the task runs so another worker cannot
+        # reclaim it and run the same task twice concurrently.
+        heartbeat_stop = threading.Event()
+        
+        def _heartbeat_loop():
+            while not heartbeat_stop.wait(300):
+                if not task.heartbeat():
+                    logger.warning(f"Task '{task.name}': lost lock while running, stopping heartbeat")
+                    break
+        
+        heartbeat_thread = threading.Thread(
+            target=_heartbeat_loop, name=f"heartbeat-{task.name}", daemon=True
+        )
+        heartbeat_thread.start()
+        
         try:
             # Execute the task
             task_function()
@@ -102,6 +117,8 @@ class DatabaseScheduler:
             error_msg = f"Task execution failed: {str(e)}"
             logger.error(f"Error executing task '{task.name}': {error_msg}", exc_info=True)
             task.release_lock(success=False, error_message=error_msg)
+        finally:
+            heartbeat_stop.set()
     
     def start(self):
         """Start the scheduler."""

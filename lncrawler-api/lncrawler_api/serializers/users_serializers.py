@@ -36,21 +36,18 @@ class DetailedReadingHistorySerializer(serializers.ModelSerializer):
         return obj.source.source_slug
 
     def get_next_chapter(self, obj):
-        try:
-            next_chapter = Chapter.objects.filter(
-                novel_from_source=obj.source,
-                chapter_id__gt=obj.last_read_chapter.chapter_id,
-                has_content=True
-            ).order_by('chapter_id').first()
-            return ChapterSerializer(next_chapter).data if next_chapter else None
-        except Chapter.DoesNotExist:
+        if not obj.last_read_chapter:
             return None
-    
+        next_chapter = Chapter.objects.filter(
+            novel_from_source=obj.source,
+            chapter_id__gt=obj.last_read_chapter.chapter_id,
+            has_content=True
+        ).order_by('chapter_id').first()
+        return ChapterSerializer(next_chapter).data if next_chapter else None
+
     def get_source_latest_chapter(self, obj):
-        try:
-            latest_chapter = Chapter.objects.filter(
-                novel_from_source=obj.source
-            ).order_by('-chapter_id').first()
-            return ChapterSerializer(latest_chapter).data if latest_chapter else None
-        except Chapter.DoesNotExist:
-            return None
+        latest_chapter = Chapter.objects.filter(
+            novel_from_source=obj.source,
+            has_content=True
+        ).order_by('-chapter_id').first()
+        return ChapterSerializer(latest_chapter).data if latest_chapter else None

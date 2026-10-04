@@ -122,3 +122,18 @@ class TigerTranslations(Crawler):
             )
 
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}novels/")
+        results = []
+        for a in soup.select("#primary-menu > li > a[href]"):
+            title = a.get_text(strip=True)
+            if not title or "donation" in title.lower():
+                continue
+            results.append(
+                SearchResult(
+                    title=title,
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]

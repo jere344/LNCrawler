@@ -40,6 +40,7 @@ from lncrawler_api.models import (
     Novel,
     NovelFromSource,
     ReadingHistory,
+    SourceVote,
 )
 from lncrawler_api.services.novel_operations import (
     recount_comment_count,
@@ -224,6 +225,8 @@ class Command(BaseCommand):
         if Comment.objects.filter(chapter__novel_from_source=source).exists():
             return True
         if ReadingHistory.objects.filter(source=source).exists():
+            return True
+        if SourceVote.objects.filter(source=source).exists():
             return True
         return False
 

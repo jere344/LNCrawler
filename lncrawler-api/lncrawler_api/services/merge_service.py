@@ -8,8 +8,9 @@ reviews and user data are reassigned, duplicate sources are collapsed, and a
 ``NovelAlias`` is recorded so a future crawl of the discarded name attaches to
 the surviving novel instead of recreating the duplicate.
 
-Everything runs inside a single transaction, and the physical file moves are
-performed by ``novel_operations`` so the crawler keeps finding chapters.
+Everything runs inside a single transaction; ``novel_operations`` queues the
+physical file moves/deletes to run only after that transaction commits, so a
+DB failure can never leave files moved with the rows rolled back.
 """
 import logging
 import os
@@ -162,20 +163,31 @@ def _merge_featured(source, target):
 
 
 def _merge_similarities(source, target):
-    """Remap similarities onto target, dropping self-links and duplicates."""
-    NovelSimilarity.objects.filter(from_novel=source).update(from_novel=target)
-    NovelSimilarity.objects.filter(to_novel=source).update(to_novel=target)
-    NovelSimilarity.objects.filter(from_novel=target, to_novel=target).delete()
+    """Remap similarities onto target, dropping self-links and duplicates.
 
-    seen = set()
+    Remapped row by row because a bulk UPDATE can collide with an existing
+    ``(from_novel, to_novel)`` pair on the unique constraint and abort the whole
+    merge. Rows that would duplicate an existing pair are dropped instead.
+    """
+    existing = set(
+        NovelSimilarity.objects.filter(
+            Q(from_novel=target) | Q(to_novel=target)
+        ).values_list("from_novel_id", "to_novel_id")
+    )
+
     for similarity in NovelSimilarity.objects.filter(
-        Q(from_novel=target) | Q(to_novel=target)
-    ).order_by("-similarity", "-id"):
-        key = (similarity.from_novel_id, similarity.to_novel_id)
-        if key in seen:
+        Q(from_novel=source) | Q(to_novel=source)
+    ):
+        remapped = (
+            target.pk if similarity.from_novel_id == source.pk else similarity.from_novel_id,
+            target.pk if similarity.to_novel_id == source.pk else similarity.to_novel_id,
+        )
+        if remapped[0] == remapped[1] or remapped in existing:
             similarity.delete()
-        else:
-            seen.add(key)
+            continue
+        similarity.from_novel_id, similarity.to_novel_id = remapped
+        similarity.save(update_fields=["from_novel", "to_novel"])
+        existing.add(remapped)
 
 
 def _merge_user_scoped(source, target, model):

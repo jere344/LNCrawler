@@ -3,6 +3,7 @@ import json
 import logging
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,16 @@ class LnoriCrawler(Crawler):
                 continue
             results.append({"title": title, "url": self.absolute_url(a["href"])})
         return results[:20]
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}library")
+        results = []
+        for a in soup.select("article.card a.stretched-link"):
+            title = (a.get("aria-label") or a.get_text(strip=True) or "").strip()
+            if not title:
+                continue
+            results.append(SearchResult(title=title, url=self.absolute_url(a["href"])))
+        return results[offset : offset + limit]
 
     def _add_chapters(self, book_url, data, soup):
         for part in data.get("hasPart") or []:

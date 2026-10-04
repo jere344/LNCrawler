@@ -103,6 +103,13 @@ class Command(BaseCommand):
                             # Update meta_file_path to the new location
                             meta_file_path = os.path.join(target_source_path, 'meta.json')
                         
+                        # In copy mode the originals stay in the import folder, so
+                        # import from the copy under the library. Importing the
+                        # original would let _consolidate_source_directory move the
+                        # staging folder away, defeating the copy.
+                        if import_action == 'copy':
+                            meta_file_path = os.path.join(target_source_path, 'meta.json')
+
                         # Import the novel
                         novel_from_source = NovelFromSource.from_meta_json(meta_file_path)
                         

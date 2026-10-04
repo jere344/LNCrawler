@@ -12,7 +12,10 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     Serializes novel source information
     """
     authors = serializers.SerializerMethodField()
+    editors = serializers.SerializerMethodField()
+    translators = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
+    alternative_titles = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     novel_id = serializers.SerializerMethodField()
     novel_slug = serializers.SerializerMethodField()
@@ -26,6 +29,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     reading_history = serializers.SerializerMethodField()
     chapters_count = serializers.SerializerMethodField()
     volumes_count = serializers.SerializerMethodField()
+    volumes = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     synopsis = serializers.SerializerMethodField()
     
@@ -34,9 +38,11 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'source_url', 'source_name', 'source_slug', 
             'authors', 'tags', 'language', 'synopsis', 'cover_min_url',
-            'chapters_count', 'volumes_count', 'last_chapter_update', 'upvotes', 'downvotes',
+            'chapters_count', 'volumes_count', 'volumes', 'last_chapter_update', 'upvotes', 'downvotes',
             'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
             'latest_available_chapter', 'first_available_chapter', 'reading_history', 'overview_url',
+            'novelupdates_url', 'status', 'editors', 'translators', 'alternative_titles',
+            'original_publisher', 'english_publisher',
         ]
 
     def get_synopsis(self, obj: NovelFromSource):
@@ -64,8 +70,17 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     def get_authors(self, obj: NovelFromSource):
         return [author.name for author in obj.authors.all()]
     
+    def get_editors(self, obj: NovelFromSource):
+        return [editor.name for editor in obj.editors.all()]
+    
+    def get_translators(self, obj: NovelFromSource):
+        return [translator.name for translator in obj.translators.all()]
+    
     def get_tags(self, obj: NovelFromSource):
         return [tag.name for tag in obj.tags.all()]
+    
+    def get_alternative_titles(self, obj: NovelFromSource):
+        return [title.name for title in obj.alternative_titles.all()]
     
     def get_user_vote(self, obj: NovelFromSource):
         # Only detail views show the current user's vote; skipping the lookup
@@ -152,6 +167,22 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         if 'annotated_volumes_count' in obj.__dict__:
             return obj.annotated_volumes_count or 0
         return obj.volumes_count
+
+    def get_volumes(self, obj: NovelFromSource):
+        # Volume listing (id/title) is only needed for the download menu on the
+        # detail page; lists skip the extra query.
+        if not self.context.get('include_synopsis'):
+            return None
+        return [
+            {
+                'volume_id': v.volume_id,
+                'title': v.title,
+                'start_chapter': v.start_chapter,
+                'final_chapter': v.final_chapter,
+                'chapter_count': v.chapter_count,
+            }
+            for v in obj.volumes.all().order_by('volume_id')
+        ]
 
 
 class GalleryImageSerializer(serializers.Serializer):

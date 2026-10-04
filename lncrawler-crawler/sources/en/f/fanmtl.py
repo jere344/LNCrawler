@@ -5,7 +5,7 @@ from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import Chapter
+from lncrawl.models import Chapter, SearchResult
 from lncrawl.templates.browser.chapter_only import ChapterOnlyBrowserTemplate
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,28 @@ class FanMTLCrawler(ChapterOnlyBrowserTemplate):
             }
             for a in soup.select("ul.novel-list li.novel-item a[href]")
         ][:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 0
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url}list/all/all-onclick-{page}.html"
+            )
+            items = soup.select("ul.novel-list li.novel-item a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=(a.get("title") or a.text).strip(),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 200:
+                break
+        return results[offset : offset + limit]
 
     def parse_title(self, soup: BeautifulSoup) -> str:
         possible_title = soup.select_one(".novel-info .novel-title")

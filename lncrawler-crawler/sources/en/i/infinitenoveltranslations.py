@@ -4,6 +4,7 @@ import re
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,36 @@ class InfiniteNovelTranslationsCrawler(Crawler):
             seen.add(href)
             results.append({"title": a.get_text(strip=True), "url": href})
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(self.absolute_url("/light-novels/"))
+        results = []
+        seen = set()
+        skip = {
+            "light-novels",
+            "web-novels",
+            "completed",
+            "dropped",
+            "rules-of-conduct",
+            "faq",
+            "contact",
+        }
+        for a in soup.select("a[href]"):
+            href = a["href"].replace("http://", "https://")
+            match = re.match(r"^https://infinitenoveltranslations\.net/([^/]+)/$", href)
+            if not match:
+                continue
+            slug = match.group(1)
+            if slug in skip or "chapter" in slug or "volume" in slug:
+                continue
+            if href in seen:
+                continue
+            title = a.get_text(strip=True)
+            if not title:
+                continue
+            seen.add(href)
+            results.append(SearchResult(title=title, url=href))
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

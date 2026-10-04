@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 import json
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,31 @@ class WuxiaClick(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        cursor = 0
+        while len(results) < offset + limit:
+            data = self.get_json(
+                "%sapi/novels/?limit=50&offset=%d&order=-total_views"
+                % (self.home_url, cursor)
+            )
+            items = data.get("results") or []
+            if not items:
+                break
+            for item in items:
+                results.append(
+                    SearchResult(
+                        title=item["name"],
+                        url="%snovel/%s" % (self.home_url, item["slug"]),
+                    )
+                )
+            cursor += len(items)
+            if not data.get("next"):
+                break
+            if cursor > 2000:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

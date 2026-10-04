@@ -3,6 +3,7 @@ import logging
 import re
 from urllib.parse import quote_plus
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 from concurrent.futures import ThreadPoolExecutor
 from bs4 import element
 
@@ -36,6 +37,29 @@ class SyosetuCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"https://yomou.syosetu.com/rank/list/type/total_total/?p={page}"
+            )
+            items = soup.select(".p-ranklist-item")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one(".p-ranklist-item__title a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         self.init_parser('lxml')

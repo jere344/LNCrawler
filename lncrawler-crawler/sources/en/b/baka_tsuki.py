@@ -46,6 +46,26 @@ class BakaTsukiCrawler(Crawler):
             )
         return results[:10]
 
+    def browse_novels(self, offset=0, limit=50):
+        data = self.get_json(
+            f"{API}?action=query&list=querypage&qppage=Mostlinked"
+            f"&qplimit=500&format=json"
+        )
+        results = []
+        for item in data.get("query", {}).get("querypage", {}).get("results", []):
+            title = item.get("title", "")
+            if item.get("ns") != 0 or ":" in title:
+                continue
+            if any(w in title.lower() for w in _SKIP_WORDS):
+                continue
+            results.append(
+                SearchResult(
+                    title=title,
+                    url=self._page_url(title.replace(" ", "_")),
+                )
+            )
+        return results[offset : offset + limit]
+
     def _page_url(self, page_title: str) -> str:
         return "https://baka-tsuki.org/project/index.php?title=" + page_title
 

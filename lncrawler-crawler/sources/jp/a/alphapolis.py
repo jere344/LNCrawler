@@ -69,3 +69,18 @@ class AlphapolisCrawler(Crawler):
                 )
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup("https://www.alphapolis.co.jp/novel/ranking/hot")
+        results = []
+        for card in soup.select("section.c-content"):
+            a = card.select_one("h2.c-content__title a")
+            if not a:
+                continue
+            results.append(
+                SearchResult(
+                    title=a.get_text(" ", strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]

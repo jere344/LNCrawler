@@ -103,6 +103,17 @@ class Crawler(Scraper):
         """Gets a list of results matching the given query."""
         raise NotImplementedError()
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        """Return up to ``limit`` novels starting at ``offset``.
+
+        Results are in the source's own default order (usually popularity or
+        ranking) taken from its browse/all-novels/ranking section. Sources
+        without such a section leave this unimplemented and are skipped by the
+        harvest tooling. Follow pagination internally until ``offset + limit``
+        items are collected or the source runs out.
+        """
+        raise NotImplementedError()
+
     def read_novel_info(self) -> None:
         """Get novel title, author, cover, volumes and chapters."""
         raise NotImplementedError()

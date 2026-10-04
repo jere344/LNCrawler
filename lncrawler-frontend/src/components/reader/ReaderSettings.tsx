@@ -4,6 +4,7 @@ import {
   DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { setCookie } from '@utils/cookies';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -13,8 +14,6 @@ import PaletteIcon from '@mui/icons-material/Palette';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import SettingsIcon from '@mui/icons-material/Settings';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import { useTranslation } from 'react-i18next';
 
 // Import our new components
 import FontSettings from './settings/FontSettings';
@@ -22,7 +21,6 @@ import ColorSettings from './settings/ColorSettings';
 import LayoutSettings from './settings/LayoutSettings';
 import BehaviorSettings from './settings/BehaviorSettings';
 import GestureSettings from './settings/GestureSettings';
-import PageSettings from './settings/PageSettings';
 import ReaderNavigation from './controls/ReaderNavigation';
 import SettingsSection from './SettingsSection';
 import { defaultSettings } from './readerDefaults';
@@ -58,15 +56,32 @@ export interface ReaderSettings {
   paragraphIndent: boolean;
   paragraphSpacing: number;
   centerTapToOpenSettings: boolean;
-  pageMode: boolean;
-  showPages: boolean;
-  showPageSlider: boolean;
   nightMode: boolean;
   nightModeStrength: number;
   nightModeScheduleEnabled: boolean;
   nightModeStartTime: string;
   nightModeEndTime: string;
 }
+
+const NUMERIC_RANGES: Partial<Record<keyof ReaderSettings, [number, number]>> = {
+  fontSize: [12, 32],
+  margin: [-2, 22],
+  lineSpacing: [1, 3],
+  wordSpacing: [-2, 10],
+  letterSpacing: [-1, 5],
+  paragraphSpacing: [1, 3],
+  dimLevel: [0, 90],
+  nightModeStrength: [10, 90],
+};
+
+const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
+  textAlign: ['left', 'center', 'justify', 'right'],
+  leftEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
+  rightEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
+  markReadBehavior: ['none', 'button', 'automatic', 'buttonAutomatic'],
+  swipeLeftGesture: ['none', 'prevChapter', 'nextChapter'],
+  swipeRightGesture: ['none', 'prevChapter', 'nextChapter'],
+};
 
 export interface ChapterInfo {
   title: string;
@@ -268,25 +283,6 @@ const ReaderSettings = ({
     saveSetting(key, gesture);
   };
 
-  // Page Settings Handlers
-  const handlePageModeChange = (enabled: boolean) => {
-    const newSettings = { ...settings, pageMode: enabled };
-    onSettingChange(newSettings);
-    saveSetting('pageMode', enabled);
-  };
-
-  const handleShowPagesChange = (show: boolean) => {
-    const newSettings = { ...settings, showPages: show };
-    onSettingChange(newSettings);
-    saveSetting('showPages', show);
-  };
-
-  const handleShowPageSliderChange = (show: boolean) => {
-    const newSettings = { ...settings, showPageSlider: show };
-    onSettingChange(newSettings);
-    saveSetting('showPageSlider', show);
-  };
-
   const resetDefaults = () => {
     onSettingChange(defaultSettings);
     Object.entries(defaultSettings).forEach(([key, value]) => {
@@ -340,13 +336,41 @@ const ReaderSettings = ({
         try {
           const importedData = JSON.parse(e.target?.result as string);
           
-          // Validate that the imported data has the expected structure
-          const validKeys = Object.keys(defaultSettings);
+          // Validate/coerce each known key against the default's type and range
           const importedSettings: Partial<ReaderSettings> = {};
+          const setImported = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
+            importedSettings[key] = value;
+          };
           
-          validKeys.forEach(key => {
-            if (key in importedData) {
-              importedSettings[key as keyof ReaderSettings] = importedData[key];
+          (Object.keys(defaultSettings) as (keyof ReaderSettings)[]).forEach(key => {
+            if (!(key in importedData)) return;
+            const value = importedData[key];
+            const def = defaultSettings[key];
+
+            if (def === null) {
+              if (typeof value === 'string' || value === null) setImported(key, value);
+              return;
+            }
+            if (typeof def === 'boolean') {
+              if (typeof value === 'boolean') setImported(key, value);
+              return;
+            }
+            if (typeof def === 'number') {
+              const num = typeof value === 'number' ? value : Number(value);
+              const range = NUMERIC_RANGES[key];
+              if (Number.isFinite(num) && (!range || (num >= range[0] && num <= range[1]))) {
+                setImported(key, num);
+              }
+              return;
+            }
+            if (typeof def === 'string') {
+              if (typeof value !== 'string') return;
+              const allowed = ENUM_VALUES[key];
+              if (allowed) {
+                if (allowed.includes(value)) setImported(key, value);
+              } else if (key === 'nightModeStartTime' || key === 'nightModeEndTime') {
+                if (/^\d{2}:\d{2}$/.test(value)) setImported(key, value);
+              }
             }
           });
           
@@ -527,21 +551,6 @@ const ReaderSettings = ({
             onKeyboardNavigationChange={handleKeyboardNavigationChange}
             onCenterTapToOpenSettingsChange={handleCenterTapToOpenSettingsChange}
             isAuthenticated={isAuthenticated}
-          />
-        </SettingsSection>
-
-        {/* Page Mode Settings */}
-        <SettingsSection 
-          title={t('readerSettings.pageMode')} 
-          icon={<MenuBookIcon color="primary" />}
-        >
-          <PageSettings 
-            pageMode={settings.pageMode}
-            showPages={settings.showPages}
-            showPageSlider={settings.showPageSlider}
-            onPageModeChange={handlePageModeChange}
-            onShowPagesChange={handleShowPagesChange}
-            onShowPageSliderChange={handleShowPageSliderChange}
           />
         </SettingsSection>
 

@@ -6,6 +6,7 @@ from urllib.parse import quote_plus
 from bs4 import element
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,18 @@ class SyosetuAdultCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup("https://noc.syosetu.com/rank/list/type/daily_total/")
+        results = []
+        for a in soup.select("#rank_box a.tl"):
+            results.append(
+                SearchResult(
+                    title=a.get_text(strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

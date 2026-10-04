@@ -40,6 +40,26 @@ class NovelBinCrawler(Crawler):
             for item in (data.get("hits") or [])
         ]
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(f"{self.home_url.rstrip('/')}/allvisit/?page={page}")
+            items = soup.select("a.almanac-book-row[href]")
+            if not items:
+                break
+            for a in items:
+                title = (a.get("title") or "").strip()
+                if not title:
+                    continue
+                results.append(
+                    SearchResult(title=title, url=self.absolute_url(a["href"]))
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
         book = self.__book_json(soup)

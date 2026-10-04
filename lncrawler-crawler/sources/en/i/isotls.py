@@ -2,6 +2,7 @@
 import logging
 import re
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,19 @@ class IsotlsCrawler(Crawler):
             if title and query in title.lower():
                 results.append({"title": title, "url": self.absolute_url(href)})
         return results[:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}novels/")
+        results = []
+        for a in soup.select("a[href]"):
+            href = a["href"].split("?")[0]
+            if not re.match(r"^/novel/[0-9a-f]+/?$", href):
+                continue
+            title = a.text.strip()
+            if not title:
+                continue
+            results.append(SearchResult(title=title, url=self.absolute_url(href)))
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

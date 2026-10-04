@@ -60,7 +60,12 @@ class Command(BaseCommand):
             content_chapters = source.chapters.filter(has_content=True).count()
             content_percentage = (content_chapters / total_chapters) * 100
             
-            if content_percentage < percentage_threshold:
+            # A threshold of 0 means "sources with no content chapter at all".
+            # Using < alone would make the documented default a no-op, since
+            # 0.0 < 0.0 is false.
+            if content_percentage < percentage_threshold or (
+                percentage_threshold == 0 and content_percentage == 0
+            ):
                 sources_to_delete.append({
                     'source': source,
                     'total_chapters': total_chapters,

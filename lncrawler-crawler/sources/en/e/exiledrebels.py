@@ -39,6 +39,21 @@ class ExiledRebelsCrawler(Crawler):
             results.append(SearchResult(title=title, url=url, info="Exiled Rebels"))
         return results[:10]
 
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(self.home_url + "novels/")
+        results = []
+        seen = set()
+        for a in soup.select("a[href*='/novels/']"):
+            url = self.absolute_url(a["href"])
+            if url in seen or not re.search(r"/novels/[^/]+/?$", url):
+                continue
+            title = a.get_text(strip=True)
+            if not title:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
 

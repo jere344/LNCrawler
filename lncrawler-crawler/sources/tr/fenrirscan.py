@@ -3,6 +3,7 @@ import json
 import logging
 import re
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,23 @@ class FenrirScans(Crawler):
                     }
                 )
         return novels
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup("https://fenrirscans.com/rankings/")
+        results = []
+        for item in soup.select(
+            "#rk-panel-weekly li.rk-podium-item, #rk-panel-weekly li.rk-row"
+        ):
+            a = item.select_one(".rk-podium-title a, a.rk-row-title, .rk-row-title a")
+            if not a:
+                continue
+            results.append(
+                SearchResult(
+                    title=a.get_text(strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         """

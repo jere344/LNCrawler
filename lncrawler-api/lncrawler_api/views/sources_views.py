@@ -13,7 +13,9 @@ from ..serializers.sources_serializers import GalleryImageSerializer
 from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum, Func, IntegerField
 from django.db.models.functions import Coalesce
 from django.conf import settings
+from django.http import FileResponse
 from ..utils import get_client_ip, resolve_novel_slug
+from ..services.epub_service import get_or_build_epub
 
 
 class ArrayLength(Func):
@@ -206,11 +208,15 @@ def source_image_gallery(request, novel_slug, source_slug):
 
     # Add chapter images, expanding only the slice for this page.
     base_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}/images/"
+    image_dir = os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.source_path, "images")
     for chapter_id, chapter_title, images in chapters_with_images.iterator(chunk_size=500):
         for image_name in images:
             if index >= end:
                 break
-            if index >= start:
+            # Skip files removed from disk so the gallery never links to a 404.
+            # ponytail: total_images stays DB-derived, so a page can show gaps;
+            # scan the directory if an exact count ever matters.
+            if index >= start and os.path.exists(os.path.join(image_dir, image_name)):
                 image_data.append({
                     "chapter_id": chapter_id,
                     "chapter_title": chapter_title,
@@ -235,3 +241,41 @@ def source_image_gallery(request, novel_slug, source_slug):
         "current_page": page_obj.number,
         "images": serializer.data
     })
+
+
+@api_view(["GET"])
+def download_source_epub(request, novel_slug, source_slug):
+    """
+    Download the source as an EPUB. Pass ?volume=N for a single volume,
+    omit it for the full novel. The book is generated on first request and
+    cached inside the source folder.
+    """
+    novel = resolve_novel_slug(novel_slug)
+    source = get_object_or_404(novel.sources, source_slug=source_slug)
+
+    raw_volume = request.GET.get("volume")
+    if raw_volume in (None, ""):
+        volume = None
+    else:
+        try:
+            volume = int(raw_volume)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Invalid volume."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not source.volumes.filter(volume_id=volume).exists():
+            return Response(
+                {"error": "Volume not found for this source."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    try:
+        path, filename = get_or_build_epub(source, volume)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+    response = FileResponse(
+        open(path, "rb"), content_type="application/epub+zip", as_attachment=True
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response

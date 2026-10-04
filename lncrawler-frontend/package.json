@@ -21,6 +21,7 @@
     "@mdxeditor/editor": "^4.3.2",
     "@mui/icons-material": "^9.4.0",
     "@mui/material": "^9.4.0",
+    "dompurify": "^3.4.16",
     "i18next": "^26.4.2",
     "i18next-browser-languagedetector": "^8.2.1",
     "i18next-icu": "^2.4.4",

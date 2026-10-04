@@ -45,6 +45,31 @@ class NovelsRockCrawler(Crawler):
 
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"https://noveltoon.mobi/en/genre/2/0/0?page={page}"
+            )
+            items = soup.select("a.genre-item-box")
+            if not items:
+                break
+            for item in items:
+                title = item.select_one(".genre-item-title")
+                if not title or not item.get("href"):
+                    continue
+                results.append(
+                    SearchResult(
+                        title=title.get_text(strip=True),
+                        url=self.absolute_url(item["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         self.novel_url = re.sub(
             r"/detail/(\d+)(/\w+)?",

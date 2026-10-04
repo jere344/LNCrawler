@@ -8,13 +8,32 @@ travel with the source) are maintained identically by both operations.
 """
 import logging
 import os
+import shutil
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import F
 
 from ..utils import lncrawler_paths
 
 logger = logging.getLogger('lncrawler_api')
+
+
+def _defer_file_op(call, *args):
+    """Run a physical file operation after the surrounding transaction commits.
+
+    File moves/deletes are not transactional, so doing them mid-transaction
+    leaves the disk out of sync whenever a later DB write rolls back. Queuing
+    them here (immediately, if there is no open transaction) keeps the DB the
+    source of truth. Failures are logged, never raised, so one bad folder does
+    not abort the rest of the merge.
+    """
+    def runner():
+        try:
+            call(*args)
+        except Exception:
+            logger.exception("Post-commit file operation failed: %s%r", call, args)
+    transaction.on_commit(runner)
 
 
 def novel_directory(novel, fallback_source=None):
@@ -53,10 +72,9 @@ def move_source_to_novel(source, target_novel, move_files=True):
         target_abs = os.path.join(
             settings.LNCRAWL_OUTPUT_PATH, target_dir, os.path.basename(source_abs)
         )
-        lncrawler_paths.move_and_merge_directory(source_abs, target_abs)
-        lncrawler_paths.remove_empty_directory(
-            os.path.join(settings.LNCRAWL_OUTPUT_PATH, old_prefix)
-        )
+        old_novel_abs = os.path.join(settings.LNCRAWL_OUTPUT_PATH, old_prefix)
+        _defer_file_op(lncrawler_paths.move_and_merge_directory, source_abs, target_abs)
+        _defer_file_op(lncrawler_paths.remove_empty_directory, old_novel_abs)
         for attr in (
             "source_path",
             "cover_path",
@@ -146,6 +164,9 @@ def dedupe_source(loser, winner, move_files):
     shared_folder = not move_files or (
         loser.source_path and loser.source_path == winner.source_path
     )
+    loser_dir = None
+    if not shared_folder and loser.source_path:
+        loser_dir = os.path.join(settings.LNCRAWL_OUTPUT_PATH, loser.source_path)
     if shared_folder:
         loser.source_path = None
         loser.cover_path = None
@@ -157,6 +178,8 @@ def dedupe_source(loser, winner, move_files):
             ]
         )
     loser.delete()
+    if loser_dir:
+        _defer_file_op(shutil.rmtree, loser_dir, True)
     recount_source_votes(winner)
 
 

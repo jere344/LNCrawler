@@ -4,6 +4,7 @@ import re
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,37 @@ class LightNovelsTranslationsCrawler(Crawler):
                 pass
             results.append({"title": title, "url": root})
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        seen = set()
+        page = 1
+        while len(results) < offset + limit:
+            if page == 1:
+                url = f"{self.home_url}read/"
+            else:
+                url = f"{self.home_url}read/page/{page}/"
+            soup = self.get_soup(url)
+            found = False
+            for a in soup.select('a[href*="/novel/"]'):
+                href = a["href"].split("?")[0]
+                match = re.match(
+                    r"^https?://lightnovelstranslations\.com/novel/([^/]+)/?$", href
+                )
+                if not match:
+                    continue
+                title = a.text.strip()
+                if not title or match.group(1) in seen:
+                    continue
+                seen.add(match.group(1))
+                found = True
+                results.append(SearchResult(title=title, url=href))
+            if not found:
+                break
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)

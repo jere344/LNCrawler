@@ -74,10 +74,19 @@ def send_friend_request(request, username):
 
             friendship = Friendship.objects.create(requester=request.user, addressee=target)
     except IntegrityError:
+        # Lost a concurrent send: the other direction won the unique-pair race.
         existing = Friendship.objects.filter(
             Q(requester=request.user, addressee=target) | Q(requester=target, addressee=request.user)
         ).first()
-        return Response({"status": "request_sent", "friendship_id": existing.id if existing else None})
+        if existing is None:
+            return Response({"status": "request_sent", "friendship_id": None})
+        if existing.status == Friendship.ACCEPTED:
+            return Response({"detail": "Already friends."}, status=status.HTTP_400_BAD_REQUEST)
+        if existing.addressee_id == request.user.id:
+            existing.status = Friendship.ACCEPTED
+            existing.save(update_fields=['status', 'updated_at'])
+            return Response({"status": "accepted", "friendship_id": existing.id})
+        return Response({"status": "request_sent", "friendship_id": existing.id})
 
     return Response({"status": "request_sent", "friendship_id": friendship.id}, status=status.HTTP_201_CREATED)
 

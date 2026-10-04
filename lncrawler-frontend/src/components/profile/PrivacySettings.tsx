@@ -15,6 +15,8 @@ import { PrivacySection, PrivacyValue } from '@models/user_types';
 
 const SECTIONS: PrivacySection[] = [
     'library',
+    'library_notes',
+    'library_ratings',
     'reading_lists',
     'reviews',
     'comments',

@@ -32,7 +32,7 @@ interface ActionButtonProps {
   /**
    * Function to call when the button is clicked
    */
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   
   /**
    * URL to navigate to when button is clicked (alternative to onClick)

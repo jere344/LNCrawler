@@ -1,7 +1,10 @@
 import base64
+import ipaddress
 import logging
 import os
 import random
+import socket
+from functools import lru_cache
 from io import BytesIO
 from typing import Any, Callable, Dict, MutableMapping, Optional, Tuple, Union
 from urllib.parse import ParseResult, urlparse
@@ -30,6 +33,33 @@ except Exception:  # pragma: no cover
 
 # curl_cffi sentence about the browser TLS fingerprint to impersonate.
 DEFAULT_IMPERSONATE = os.getenv("LNCRAWL_IMPERSONATE", "chrome")
+
+
+@lru_cache(maxsize=2048)
+def _host_is_public(host: str) -> bool:
+    """Whether every address ``host`` resolves to is a public IP.
+
+    Blocks blind SSRF: a crawled page can point an image/cover URL at an
+    internal address (loopback/private/link-local/cloud metadata) and make the
+    server fetch it. Cached, so per-request cost is nil; DNS-rebinding is out of
+    scope for this threat model.
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return False
+    return True
 
 
 def merge_headers(
@@ -74,9 +104,9 @@ class Scraper(TaskManager, SoupMaker):
     # ------------------------------------------------------------------ #
 
     def init_scraper(self) -> None:
-        # Many novel sites serve incomplete certificate chains; upstream also
-        # disabled verification (ssl.CERT_NONE). Set LNCRAWL_VERIFY=1 to re-enable.
-        verify = os.getenv("LNCRAWL_VERIFY", "").lower() in ("1", "true", "yes")
+        # Verify TLS by default. Some sources serve incomplete/expired chains and
+        # will now fail; set LNCRAWL_VERIFY=0 to opt back into skipping checks.
+        verify = os.getenv("LNCRAWL_VERIFY", "1").lower() not in ("0", "false", "no")
         for kwargs in (
             {"impersonate": DEFAULT_IMPERSONATE, "verify": verify},
             {"verify": verify},
@@ -131,6 +161,12 @@ class Scraper(TaskManager, SoupMaker):
     ):
         method_call: Callable = getattr(self.scraper, method)
         parsed = urlparse(url)
+
+        if parsed.scheme in ("http", "https"):
+            if not parsed.hostname or not _host_is_public(parsed.hostname):
+                raise LNException(
+                    f"Refusing to fetch non-public host: {parsed.hostname or url!r}"
+                )
 
         kwargs = kwargs or {}
         kwargs.setdefault("allow_redirects", True)

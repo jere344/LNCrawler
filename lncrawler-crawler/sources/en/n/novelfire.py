@@ -27,6 +27,21 @@ class NovelFireCrawler(Crawler):
             for a in soup.select("ul.novel-list li.novel-item > a[href]")
         ]
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        soup = self.get_soup(f"{self.home_url}ranking")
+        results = []
+        for item in soup.select("li.novel-item"):
+            a = item.select_one(".title a") or item.select_one("h2 a")
+            if not a:
+                continue
+            results.append(
+                SearchResult(
+                    title=a.get_text(strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

@@ -5,6 +5,7 @@ import re
 from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,32 @@ class TruyenHoanCrawler(Crawler):
             seen.add(href)
             results.append({"title": title, "url": href})
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = "https://truyenhoan.com/truyen-hot/"
+            if page > 1:
+                url = f"https://truyenhoan.com/truyen-hot/trang-{page}/"
+            soup = self.get_soup(url)
+            items = soup.select(".list-truyen .row")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one("h3.truyen-title a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         match = re.search(r"^(https://truyenhoan\.com/[a-z0-9-]+\.\d+)/?", self.novel_url)

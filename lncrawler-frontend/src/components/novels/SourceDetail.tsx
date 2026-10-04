@@ -15,6 +15,8 @@ import {
   Skeleton,
   Zoom,
   Grid as Grid,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -42,6 +44,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { getChapterLabel, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
+import DownloadIcon from '@mui/icons-material/Download';
 import ActionButton from '../common/ActionButton';
 import SectionContainer from '@components/common/SectionContainer.tsx';
 import NovelSources from './NovelSources';
@@ -50,8 +53,18 @@ import Reviews from './Reviews';
 import ReadingListCard from '../readinglist/ReadingListCard';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import InfoIcon from '@mui/icons-material/Info';
 
 const DEFAULT_OG_IMAGE = '/og-image.jpg';
+
+const DetailRow = ({ label, value }: { label: string; value: string }) => (
+  <Box>
+    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+      {label}
+    </Typography>
+    <Typography variant="body1">{value}</Typography>
+  </Box>
+);
 
 const SourceDetail = () => {
   const { t, i18n } = useTranslation();
@@ -81,6 +94,7 @@ const SourceDetail = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
+  const [downloadAnchor, setDownloadAnchor] = useState<null | HTMLElement>(null);
   const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>(() => ({
     avg_rating: linkState?.novel?.avg_rating ?? null,
     rating_count: linkState?.novel?.rating_count ?? 0,
@@ -566,6 +580,19 @@ const SourceDetail = () => {
                   {source.title}
                 </Typography>
                 
+                {source.alternative_titles?.length > 0 && (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: alpha(theme.palette.common.white, 0.85),
+                      textShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                      mb: 1.5,
+                    }}
+                  >
+                    <strong>{t('sourceDetail.alternativeTitles')}:</strong> {source.alternative_titles.join(', ')}
+                  </Typography>
+                )}
+                
                 <Typography 
                   variant="h6" 
                   sx={{ 
@@ -628,6 +655,31 @@ const SourceDetail = () => {
                           {source.authors.join(', ')}
                         </Typography>
                       </Box>
+                    )}
+                    {source.novelupdates_url && source.novelupdates_url.startsWith('http') && (
+                      <Tooltip title={t('sourceDetail.viewOnNovelUpdates')}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          href={source.novelupdates_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          startIcon={<MenuBookIcon fontSize="small" />}
+                          sx={{
+                            color: alpha(theme.palette.common.white, 0.9),
+                            borderColor: alpha(theme.palette.common.white, 0.5),
+                            textTransform: 'none',
+                            borderRadius: 6,
+                            '&:hover': {
+                              color: theme.palette.common.white,
+                              borderColor: theme.palette.common.white,
+                              bgcolor: alpha(theme.palette.common.white, 0.1),
+                            },
+                          }}
+                        >
+                          {t('sourceDetail.novelUpdates')}
+                        </Button>
+                      </Tooltip>
                     )}
                   </Box>
                   
@@ -828,6 +880,16 @@ const SourceDetail = () => {
                     />
 
                     <ActionButton
+                      title={t('sourceDetail.download')}
+                      subtitle={t('sourceDetail.downloadEpub')}
+                      startIcon={<DownloadIcon />}
+                      color="info"
+                      onClick={(e) => setDownloadAnchor(e.currentTarget)}
+                      disabled={!source?.chapters_count}
+                      tooltip={t('sourceDetail.downloadTooltip')}
+                    />
+
+                    <ActionButton
                       title={t('sourceDetail.startReading')}
                       subtitle={t('sourceDetail.fromBeginning')}
                       startIcon={<PlayArrowIcon />}
@@ -848,6 +910,30 @@ const SourceDetail = () => {
                     />
                   </Box>
                 </Box>
+
+                <Menu
+                  anchorEl={downloadAnchor}
+                  open={Boolean(downloadAnchor)}
+                  onClose={() => setDownloadAnchor(null)}
+                >
+                  <MenuItem
+                    component="a"
+                    href={novelService.getSourceEpubUrl(novelSlug!, sourceSlug!)}
+                    onClick={() => setDownloadAnchor(null)}
+                  >
+                    {t('sourceDetail.downloadFull')}
+                  </MenuItem>
+                  {source?.volumes?.map((v) => (
+                    <MenuItem
+                      key={v.volume_id}
+                      component="a"
+                      href={novelService.getSourceEpubUrl(novelSlug!, sourceSlug!, v.volume_id)}
+                      onClick={() => setDownloadAnchor(null)}
+                    >
+                      {v.title || t('sourceDetail.volumeN', { n: v.volume_id })}
+                    </MenuItem>
+                  ))}
+                </Menu>
               </Grid>
             </Grid>
           </Box>
@@ -880,6 +966,38 @@ const SourceDetail = () => {
             ))}
           </SectionContainer>
         ) : null}
+
+        {((source.status && source.status !== 'Unknown') || source.original_publisher || source.english_publisher || source.editors?.length > 0 || source.translators?.length > 0) && (
+          <SectionContainer title={t('sourceDetail.details')} icon={<InfoIcon />}>
+            <Grid container spacing={2}>
+              {source.status && source.status !== 'Unknown' && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.status')} value={source.status} />
+                </Grid>
+              )}
+              {source.original_publisher && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.originalPublisher')} value={source.original_publisher} />
+                </Grid>
+              )}
+              {source.english_publisher && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.englishPublisher')} value={source.english_publisher} />
+                </Grid>
+              )}
+              {source.editors?.length > 0 && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.editors')} value={source.editors.join(', ')} />
+                </Grid>
+              )}
+              {source.translators?.length > 0 && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.translators')} value={source.translators.join(', ')} />
+                </Grid>
+              )}
+            </Grid>
+          </SectionContainer>
+        )}
 
         {novel && novel.sources.length > 1 && (
           <SectionContainer title={t('sourceDetail.otherSources')} icon={<LanguageIcon />}>

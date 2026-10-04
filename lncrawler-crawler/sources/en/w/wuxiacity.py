@@ -2,6 +2,7 @@
 
 import logging
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,21 @@ class WuxiaCityCrawler(Crawler):
             }
             for e in entries
         ]
+
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        soup = self.get_soup(self.home_url)
+        heading = soup.select_one('h3.title:-soup-contains("Most Viewed")')
+        if not heading:
+            return []
+        listing = heading.find_parent().find_next_sibling("ul")
+        results = [
+            SearchResult(
+                title=a.get_text(strip=True),
+                url=self.absolute_url(a["href"]),
+            )
+            for a in listing.select(".name a")
+        ]
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         soup = self.get_soup(f"{self.novel_url}/table-of-contents")

@@ -50,15 +50,16 @@ export const authService = {
   
   // Logout user
   _logout: async () => {
-    // Clear auth data from storage
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
-    
-    // Remove authorization header
-    delete api.defaults.headers.common['Authorization'];
-    
-    const response = await api.post('/auth/logout/');
-    return response.data;
+    try {
+      // Revoke the token server-side before dropping it locally.
+      const response = await api.post('/auth/logout/');
+      return response.data;
+    } finally {
+      // Clear auth data from storage regardless of the server response.
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      delete api.defaults.headers.common['Authorization'];
+    }
   },
   
   // Get current user profile
@@ -167,9 +168,28 @@ export const authService = {
     return !!localStorage.getItem('authToken');
   },
   
+  // Keep the shared API auth header in sync with localStorage. Needed for
+  // cross-tab login/logout, where the storage event fires but this module's
+  // in-memory `defaults` is stale.
+  syncAuthHeader: () => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      api.defaults.headers.common['Authorization'] = `Token ${token}`;
+    } else {
+      delete api.defaults.headers.common['Authorization'];
+    }
+  },
+  
   // Helper method to get current user
   getCurrentUser: () => {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr) return null;
+    try {
+      return JSON.parse(userStr);
+    } catch {
+      // A corrupted entry must not crash the app; drop it.
+      localStorage.removeItem('user');
+      return null;
+    }
   },
 };

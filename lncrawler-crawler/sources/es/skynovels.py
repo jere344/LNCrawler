@@ -32,6 +32,28 @@ class SkyNovelsCrawler(Crawler):
             for item in data.get("novels", [])
         ]
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            data = self.get_json(f"{API_URL}/novels?page={page}&limit=50&order=views")
+            novels = data.get("novels") or []
+            if not novels:
+                break
+            for item in novels:
+                results.append(
+                    SearchResult(
+                        title=item["nvl_title"].strip(),
+                        url=self.absolute_url(
+                            f"/novelas/{item['id']}/{item['nvl_name']}"
+                        ),
+                    )
+                )
+            if page >= (data.get("totalPages") or page):
+                break
+            page += 1
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         match = re.search(r"/novelas/(\d+)", self.novel_url)
         assert match, "No novel id in url"

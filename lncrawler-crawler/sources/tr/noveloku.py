@@ -31,6 +31,33 @@ class NovelOkuCrawler(Crawler):
             results.append(SearchResult(title=title.strip(), url=self.absolute_url(link)))
         return results
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = "https://noveloku.com/manga/"
+            if page > 1:
+                url = f"https://noveloku.com/manga/page/{page}/"
+            soup = self.get_soup(url)
+            items = soup.select(".nk-series-card")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one("a[href]") or item
+                title = item.select_one("h3")
+                if not title or not a.get("href"):
+                    continue
+                results.append(
+                    SearchResult(
+                        title=title.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
 

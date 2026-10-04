@@ -16,6 +16,7 @@ import traceback
 from django.conf import settings
 
 from .github_issues import create_issue, fingerprint
+from .redaction import redact
 
 _QUEUE_SIZE = 100
 
@@ -39,12 +40,12 @@ class GitHubIssueHandler(logging.Handler):
             self.handleError(record)
 
     def _build(self, record):
-        message = record.getMessage()
+        message = redact(record.getMessage())
         exc_type = "Error"
         tb = ""
         if record.exc_info:
             exc_type = record.exc_info[0].__name__
-            tb = "".join(traceback.format_exception(*record.exc_info))
+            tb = redact("".join(traceback.format_exception(*record.exc_info)))
 
         fp = getattr(record, "github_fingerprint", None) or fingerprint(
             record.name, exc_type, message
@@ -67,7 +68,7 @@ class GitHubIssueHandler(logging.Handler):
         ]
         details = getattr(record, "github_details", None)
         if details:
-            parts += ["", "**Details:**", "```", str(details), "```"]
+            parts += ["", "**Details:**", "```", redact(str(details)), "```"]
         if tb:
             parts += ["", "```python", tb, "```"]
         return title, "\n".join(parts), fp

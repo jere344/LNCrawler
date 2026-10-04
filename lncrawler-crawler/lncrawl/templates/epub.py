@@ -41,9 +41,22 @@ from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, Volume
 
+try:  # optional hardening; not a hard dependency
+    import defusedxml.ElementTree as _DefusedET
+except Exception:
+    _DefusedET = None
+
 logger = logging.getLogger(__name__)
 
 EPUB_SCHEME = "epub://"
+
+# Per-entry decompression caps: EPUBs come from untrusted network sources, so a
+# single zip member must never balloon into GBs (zip bomb / billion laughs).
+MAX_EPUB_ENTRY_SIZE = 32 * 1024 * 1024
+MAX_EPUB_COMPRESSION_RATIO = 1000
+
+# DOCTYPE / ENTITY declarations are the entity-expansion attack vector.
+_XML_ENTITY_RE = re.compile(rb"<!\s*(DOCTYPE|ENTITY)\b", re.IGNORECASE)
 
 # Names / titles that mark front/back matter (skipped when they are not the
 # only content). Kept close to the documented list to limit false positives.
@@ -77,8 +90,34 @@ def _local_name(tag) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+def _safe_read(zf: zipfile.ZipFile, path: str) -> bytes:
+    """Read a zip entry only after checking it cannot be a decompression bomb."""
+    info = zf.getinfo(path)
+    if info.file_size > MAX_EPUB_ENTRY_SIZE:
+        raise ValueError(
+            f"EPUB entry too large: {path} ({info.file_size} bytes)"
+        )
+    if info.compress_size > 0 and (
+        info.file_size / info.compress_size > MAX_EPUB_COMPRESSION_RATIO
+    ):
+        raise ValueError(f"EPUB entry compression ratio too high: {path}")
+    return zf.read(path)
+
+
 def _xml_root(data: bytes):
-    """Parse XML with ElementTree, falling back to lxml's recover parser."""
+    """Parse untrusted XML with entity/DTD expansion disabled.
+
+    Prefers ``defusedxml`` when installed; otherwise rejects any document that
+    declares a DOCTYPE or ENTITY before it ever reaches a parser.
+    """
+    if _DefusedET is not None:
+        try:
+            return _DefusedET.fromstring(data)
+        except Exception:
+            return None
+    if _XML_ENTITY_RE.search(data):
+        logger.debug("Rejected XML with DOCTYPE/ENTITY declarations")
+        return None
     try:
         return ET.fromstring(data)
     except Exception:
@@ -87,7 +126,7 @@ def _xml_root(data: bytes):
         from lxml import etree
 
         parser = etree.XMLParser(
-            recover=True, resolve_entities=False, no_network=True, huge_tree=True
+            recover=True, resolve_entities=False, no_network=True
         )
         root = etree.fromstring(data, parser=parser)
         if root is not None:
@@ -281,7 +320,11 @@ class EpubCrawler(Crawler):
     def _find_opf(self, book: _Epub) -> str:
         container = "META-INF/container.xml"
         if container in book.entries:
-            root = _xml_root(book.zip.read(container))
+            try:
+                root = _xml_root(_safe_read(book.zip, container))
+            except Exception as e:
+                logger.debug("Cannot read %s: %s", container, e)
+                root = None
             for rf in _iter_local(root, "rootfile"):
                 path = _normalize_zip_path("", rf.get("full-path") or "")
                 if path and book.find(path):
@@ -311,7 +354,10 @@ class EpubCrawler(Crawler):
         return book
 
     def _parse_opf(self, book: _Epub) -> None:
-        root = _xml_root(book.zip.read(book.opf_path))
+        try:
+            root = _xml_root(_safe_read(book.zip, book.opf_path))
+        except Exception as e:
+            raise LNException(f"Unable to read OPF package: {e}")
         if root is None:
             raise LNException("Unable to parse OPF package")
 
@@ -405,7 +451,7 @@ class EpubCrawler(Crawler):
         return None
 
     def _titles_from_nav(self, book: _Epub, path: str) -> None:
-        soup = self._doc_soup(book.zip.read(path))
+        soup = self._doc_soup(_safe_read(book.zip, path))
         nav = None
         for node in soup.find_all("nav"):
             kind = (node.get("epub:type") or node.get("role") or "").lower()
@@ -426,7 +472,7 @@ class EpubCrawler(Crawler):
                 book.nav_titles.setdefault(actual, title)
 
     def _titles_from_ncx(self, book: _Epub, path: str) -> None:
-        root = _xml_root(book.zip.read(path))
+        root = _xml_root(_safe_read(book.zip, path))
         if root is None:
             return
         base = posixpath.dirname(path)
@@ -467,7 +513,7 @@ class EpubCrawler(Crawler):
             return actual
         if actual.lower().endswith(_CONTENT_EXT) or "html" in media:
             try:
-                soup = self._doc_soup(book.zip.read(actual))
+                soup = self._doc_soup(_safe_read(book.zip, actual))
                 img = soup.find("img")
                 if isinstance(img, Tag):
                     src = img.get("src")
@@ -500,7 +546,7 @@ class EpubCrawler(Crawler):
 
     def _doc_title(self, book: _Epub, path: str) -> str:
         try:
-            soup = self._doc_soup(book.zip.read(path))
+            soup = self._doc_soup(_safe_read(book.zip, path))
         except Exception:
             return ""
         for tag in ("h1", "h2", "h3", "h4"):
@@ -517,7 +563,7 @@ class EpubCrawler(Crawler):
     def _doc_has_text(self, book: _Epub, path: str) -> bool:
         """True when a document has visible body text (not just images)."""
         try:
-            soup = self._doc_soup(book.zip.read(path))
+            soup = self._doc_soup(_safe_read(book.zip, path))
         except Exception:
             return False
         body = soup.find("body")
@@ -666,7 +712,7 @@ class EpubCrawler(Crawler):
         if book is None:
             return ""
         try:
-            data = book.zip.read(source[1])
+            data = _safe_read(book.zip, source[1])
         except Exception as e:
             logger.debug("Cannot read %s from %s: %s", source[1], source[0], e)
             return ""
@@ -714,7 +760,7 @@ class EpubCrawler(Crawler):
             book = self._ensure_book(source[0])
             if book is None:
                 raise LNException(f"Unknown EPUB archive: {source[0]}")
-            return Image.open(BytesIO(book.zip.read(source[1])))
+            return Image.open(BytesIO(_safe_read(book.zip, source[1])))
         return super().download_image(url, headers=headers, **kwargs)
 
 

@@ -114,18 +114,27 @@ class Browser:
         self._page.set_default_timeout(self.timeout * 1000)
 
     async def _close(self) -> None:
+        # Close each resource in its own try: a failure in one must not skip
+        # the others, or Chromium is left running with refs nulled below.
         try:
             if self._context:
                 await self._context.close()
+        except Exception:
+            logger.debug("Error closing browser context", exc_info=True)
+        try:
             if self._browser:
                 await self._browser.close()
+        except Exception:
+            logger.debug("Error closing browser", exc_info=True)
+        try:
             if self._pw:
                 await self._pw.stop()
-        finally:
-            self._page = None
-            self._context = None
-            self._browser = None
-            self._pw = None
+        except Exception:
+            logger.debug("Error stopping playwright", exc_info=True)
+        self._page = None
+        self._context = None
+        self._browser = None
+        self._pw = None
 
     def close(self) -> None:
         self.active = False

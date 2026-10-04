@@ -5,6 +5,7 @@ from time import sleep, time
 from urllib.parse import quote_plus, urlparse
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,23 @@ class WattpadCrawler(Crawler):
             except Exception:
                 sleep(1)
         return []
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        url = f"{self.home_url}api/v3/stories?fields=stories(id,title,url)&limit=50&filter=hot"
+        page = 0
+        while url and len(results) < offset + limit and page < 40:
+            data = self.get_json(url, headers={"Accept": "*/*"})
+            stories = data.get("stories") or []
+            if not stories:
+                break
+            for story in stories:
+                results.append(
+                    SearchResult(title=story["title"], url=story["url"])
+                )
+            url = data.get("nextUrl")
+            page += 1
+        return results[offset : offset + limit]
 
     def login(self, email: str, password: str) -> None:
         resp = self.submit_form(

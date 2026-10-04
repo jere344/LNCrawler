@@ -1,8 +1,27 @@
 from django.db import models
 import uuid
 from django.conf import settings
+from django.db.models.functions import Least, Greatest
 from .novels_models import Novel
 from .sources_models import NovelFromSource, Chapter
+
+class LibraryFolder(models.Model):
+    """
+    A flat, user-created folder used to organize library bookmarks.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='library_folders')
+    name = models.CharField(max_length=255)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'name')
+        ordering = ['position', 'created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+
 
 class NovelBookmark(models.Model):
     """
@@ -11,11 +30,14 @@ class NovelBookmark(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='novel_bookmarks')
     novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='bookmarked_by_users')
+    folder = models.ForeignKey(LibraryFolder, on_delete=models.SET_NULL, null=True, blank=True, related_name='bookmarks')
+    note = models.TextField(blank=True, null=True)
+    position = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('user', 'novel')
-        ordering = ['-created_at']
+        ordering = ['position', '-created_at']
 
     def __str__(self):
         return f"{self.user.username} bookmarked {self.novel.title}"
@@ -128,6 +150,13 @@ class Friendship(models.Model):
             models.CheckConstraint(
                 condition=~models.Q(requester=models.F('addressee')),
                 name='friendship_no_self',
+            ),
+            # A relationship is unordered: enforce one row per pair so two users
+            # sending to each other concurrently cannot create A->B and B->A.
+            models.UniqueConstraint(
+                Least('requester', 'addressee'),
+                Greatest('requester', 'addressee'),
+                name='friendship_unique_pair',
             ),
         ]
 

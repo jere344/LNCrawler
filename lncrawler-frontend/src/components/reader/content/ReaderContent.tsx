@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { Typography } from '@mui/material';
 import { ReaderSettings } from '../ReaderSettings';
 import { ChapterContent } from '@models/novels_types';
@@ -75,6 +76,14 @@ const arePropsEqual = (prevProps: ReaderContentProps, nextProps: ReaderContentPr
 };
 
 const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
+  const safeBody = React.useMemo(() => {
+    const withImages = (chapter.body || '').replace(
+      /src="images\//g,
+      `src="${chapter.images_path || ''}/`
+    );
+    return DOMPurify.sanitize(withImages, { USE_PROFILES: { html: true } });
+  }, [chapter.body, chapter.images_path]);
+
   return (
     <Typography 
       sx={{ 
@@ -94,7 +103,7 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
       }}
       id="reader-content"
       className={settings.paragraphIndent ? 'paragraph-indent' : ''}
-      dangerouslySetInnerHTML= {{ __html: bodyStyles + chapter.body.replace(/src="images\//g, `src="${chapter.images_path}/`) }}
+      dangerouslySetInnerHTML= {{ __html: bodyStyles + safeBody }}
     />
   );
 };

@@ -1,5 +1,6 @@
 from django.db import models
 import uuid
+from django.conf import settings
 from django.db.models import F
 
 
@@ -123,6 +124,17 @@ class TagAlias(models.Model):
         return f"{self.name} -> {self.tag.name}"
 
 
+class AlternativeTitle(models.Model):
+    """Alternative / native title a novel is known by on a given source."""
+    name = models.CharField(max_length=500, unique=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class NovelRating(models.Model):
     """
     Tracks user ratings for novels (1-5 stars)
@@ -136,16 +148,33 @@ class NovelRating(models.Model):
     ]
     
     novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='ratings')
-    ip_address = models.GenericIPAddressField()
+    # Logged-in users are keyed by user; anonymous visitors fall back to IP.
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        null=True, blank=True, related_name='novel_ratings',
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
     rating = models.IntegerField(choices=RATING_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        unique_together = ('novel', 'ip_address')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['novel', 'user'],
+                condition=models.Q(user__isnull=False),
+                name='unique_rating_per_user',
+            ),
+            models.UniqueConstraint(
+                fields=['novel', 'ip_address'],
+                condition=models.Q(user__isnull=True),
+                name='unique_rating_per_anon_ip',
+            ),
+        ]
         
     def __str__(self):
-        return f"Rating {self.rating} for {self.novel.title} by {self.ip_address}"
+        who = self.user.username if self.user_id else self.ip_address
+        return f"Rating {self.rating} for {self.novel.title} by {who}"
 
 
 class WeeklySourceView(models.Model):

@@ -31,6 +31,22 @@ class SfacgCrawler(Crawler):
             results.append(SearchResult(title=title, url=url))
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(self.absolute_url("/rank/"))
+        results = []
+        seen = set()
+        for a in soup.select(".bd_PHB_list a[href*='/Novel/']"):
+            href = a.get("href") or ""
+            if not re.search(r"/Novel/\d+", href):
+                continue
+            url = self.absolute_url(href)
+            title = a.get_text(" ", strip=True)
+            if not title or url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         match = re.search(r"(https?://[^/]+/Novel/\d+)/?", self.novel_url)
         assert match, "No SF novel id in url"

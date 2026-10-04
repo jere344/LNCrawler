@@ -32,6 +32,21 @@ class FanficEsCrawler(Crawler):
             )
         return results
 
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}popular")
+        results = []
+        for article in soup.select("article.fanfic-inline"):
+            a = article.select_one("a.visit-link")
+            if not a:
+                continue
+            results.append(
+                SearchResult(
+                    title=a.get_text(" ", strip=True),
+                    url=self.absolute_url(a["href"]),
+                )
+            )
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)
         soup = self.get_soup(self.novel_url)

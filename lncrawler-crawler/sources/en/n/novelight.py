@@ -31,6 +31,27 @@ class NoveLightCrawler(Crawler):
             if isinstance(a, Tag)
         ]
 
+    def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url}catalog/?ordering=popularity&page={page}"
+            )
+            items = soup.select(".manga-grid-list a.item[href]")
+            if not items:
+                break
+            for a in items:
+                title = a.select_one(".title") or a
+                results.append(
+                    SearchResult(
+                        title=title.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
+
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
 
@@ -88,7 +109,6 @@ class NoveLightCrawler(Crawler):
         ).group(1)
         if not csrfmiddlewaretoken:
             raise LNException("Could not extract csrfmiddlewaretoken from novel page")
-        logger.debug("csrfmiddlewaretoken: %s", csrfmiddlewaretoken)
 
         headers = {
             "Accept": "*/*",

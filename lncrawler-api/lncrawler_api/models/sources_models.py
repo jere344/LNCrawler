@@ -1,12 +1,13 @@
 from django.db import models
 import os
+import re
 import json
 import shutil
 from django.conf import settings
 from django.utils.text import slugify
 from django.utils import timezone
 
-from .novels_models import Novel, NovelAlias, Author, Editor, Translator, Tag
+from .novels_models import Novel, NovelAlias, Author, Editor, Translator, Tag, AlternativeTitle
 from .chapter_models import Volume, Chapter
 from ..utils import chapter_utils, lncrawler_paths
 
@@ -75,6 +76,7 @@ class NovelFromSource(models.Model):
     
     # Categories (many-to-many)
     tags = models.ManyToManyField(Tag, related_name='novels', blank=True)
+    alternative_titles = models.ManyToManyField(AlternativeTitle, related_name='novels', blank=True)
     
     # Extra metadata fields that may be in the JSON
     is_rtl = models.BooleanField(default=False)
@@ -299,6 +301,16 @@ class NovelFromSource(models.Model):
             if tag_name:
                 novel_from_source.tags.add(Tag.resolve(tag_name))
         
+        # Handle alternative titles (list of strings, tolerating a split string)
+        alt_titles = novel_data.get('alternative_titles', [])
+        if isinstance(alt_titles, str):
+            alt_titles = [alt.strip() for alt in re.split(r'[\n;]+', alt_titles)]
+        novel_from_source.alternative_titles.clear()
+        for alt_title in alt_titles:
+            if alt_title:
+                alt, _ = AlternativeTitle.objects.get_or_create(name=truncate(alt_title))
+                novel_from_source.alternative_titles.add(alt)
+        
         # Process volumes if they exist
         if 'volumes' in novel_data:
             for volume_data in novel_data['volumes']:
@@ -457,33 +469,37 @@ class SourceVote(models.Model):
         return f"{self.get_vote_type_display()} for {self.source.title} by {self.ip_address}"
     
     def save(self, *args, **kwargs):
-        # Check if this is an update to an existing vote
-        is_update = self.pk is not None
+        is_new = self._state.adding
         old_vote_type = None
-        
-        if is_update:
-            old_vote = SourceVote.objects.get(pk=self.pk)
-            old_vote_type = old_vote.vote_type
-        
-        # Save the vote
+
+        if not is_new:
+            try:
+                old_vote_type = SourceVote.objects.get(pk=self.pk).vote_type
+            except SourceVote.DoesNotExist:
+                is_new = True
+
         super().save(*args, **kwargs)
-        
-        # Update the vote counts on the source
-        source = self.source
-        
-        # If this is a new vote
-        if not is_update:
+
+        # Update counts atomically so concurrent votes don't lose increments.
+        source_pk = self.source_id
+
+        if is_new:
             if self.vote_type == 'up':
-                source.upvotes += 1
+                NovelFromSource.objects.filter(pk=source_pk).update(
+                    upvotes=models.F('upvotes') + 1
+                )
             else:
-                source.downvotes += 1
-        # If this is updating an existing vote
-        elif old_vote_type != self.vote_type:
+                NovelFromSource.objects.filter(pk=source_pk).update(
+                    downvotes=models.F('downvotes') + 1
+                )
+        elif old_vote_type and old_vote_type != self.vote_type:
             if self.vote_type == 'up':
-                source.upvotes += 1
-                source.downvotes -= 1
+                NovelFromSource.objects.filter(pk=source_pk).update(
+                    upvotes=models.F('upvotes') + 1,
+                    downvotes=models.F('downvotes') - 1,
+                )
             else:
-                source.downvotes += 1
-                source.upvotes -= 1
-        
-        source.save(update_fields=['upvotes', 'downvotes'])
+                NovelFromSource.objects.filter(pk=source_pk).update(
+                    downvotes=models.F('downvotes') + 1,
+                    upvotes=models.F('upvotes') - 1,
+                )

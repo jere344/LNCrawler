@@ -3,6 +3,7 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,44 @@ class FanfictionPlCrawler(Crawler):
                 }
             )
         return results
+
+    def browse_novels(self, offset=0, limit=50):
+        self.post_soup(
+            "https://www.fanfiction.pl/przegladaj.php",
+            data={
+                "view": "najlepsze",
+                "wyslano": "1",
+                "do": "25",
+                "ile_na_stronie": "25",
+                "display_method": "tytuly",
+                "category": "wszystkie",
+            },
+            encoding=ENCODING,
+        )
+        results = []
+        page = 0
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"https://www.fanfiction.pl/przegladaj.php?strona={page}",
+                encoding=ENCODING,
+            )
+            rows = soup.select("tr[class*='utwor_lista']")
+            if not rows:
+                break
+            for row in rows:
+                a = row.select_one("a[href*='pokaz_utwor.php']")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
 
     def read_novel_info(self):
         logger.debug("Visiting %s", self.novel_url)
