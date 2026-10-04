@@ -323,7 +323,11 @@ const ChapterReader = () => {
       } catch (err) {
         if (requestId !== loadRequestIdRef.current) return;
         console.error('Error fetching chapter content:', err);
-        setError(t('reader.loadFailed'));
+        if ((err as { response?: { status?: number } })?.response?.status === 451) {
+          setError(t('reader.dmcaUnavailable'));
+        } else {
+          setError(t('reader.loadFailed'));
+        }
       } finally {
         if (requestId === loadRequestIdRef.current) {
           setLoading(false);

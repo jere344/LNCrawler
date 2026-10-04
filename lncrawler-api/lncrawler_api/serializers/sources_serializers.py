@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from ..models import NovelFromSource
 from ..utils import build_media_url, get_client_ip
+from ..utils.crawler_registry import has_crawler
 from .users_serializers import ReadingHistorySerializer
 from .chapter_serializers import ChapterSerializer
 
@@ -30,12 +31,13 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     volumes = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     synopsis = serializers.SerializerMethodField()
+    has_crawler = serializers.SerializerMethodField()
     
     class Meta:
         model = NovelFromSource
         fields = [
             'id', 'title', 'source_url', 'source_name', 'source_slug', 
-            'authors', 'tags', 'language', 'synopsis', 'cover_min_url',
+            'authors', 'tags', 'language', 'synopsis', 'has_crawler', 'cover_min_url',
             'chapters_count', 'volumes_count', 'volumes', 'last_chapter_update', 'upvotes', 'downvotes',
             'vote_score', 'user_vote', 'novel_id', 'novel_slug', 'novel_title', 'cover_url',
             'latest_available_chapter', 'first_available_chapter', 'reading_history', 'overview_url',
@@ -46,9 +48,16 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     def get_synopsis(self, obj: NovelFromSource):
         # Synopsis is a large text field; only load it for detail views (opt-in
         # via context) so list endpoints don't pull every source's synopsis.
-        if self.context.get('include_synopsis'):
+        if self.context.get('detailed'):
             return obj.synopsis
         return None
+
+    def get_has_crawler(self, obj: NovelFromSource):
+        # Only detail views show the update button; skip the registry import in
+        # list contexts (which don't render it).
+        if not self.context.get('detailed'):
+            return None
+        return has_crawler(obj.source_url or '')
 
     def get_cover_url(self, obj: NovelFromSource):
         return build_media_url(obj.cover_path)
@@ -77,7 +86,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     def get_user_vote(self, obj: NovelFromSource):
         # Only detail views show the current user's vote; skipping the lookup
         # in list contexts removes one query per source.
-        if not self.context.get('include_synopsis'):
+        if not self.context.get('detailed'):
             return None
         request = self.context.get('request')
         if not request:
@@ -129,7 +138,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     def get_first_available_chapter(self, obj: NovelFromSource):
         """Return the first available chapter with content"""
         # Only detail views render this; lists skip the extra query.
-        if not self.context.get('include_synopsis'):
+        if not self.context.get('detailed'):
             return None
         first_chapter = obj.chapters.filter(has_content=True).order_by('chapter_id').first()
         if first_chapter:
@@ -141,7 +150,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         Return the reading history for the current user
         """
         # Card views use the novel-level reading_source instead.
-        if not self.context.get('include_synopsis'):
+        if not self.context.get('detailed'):
             return None
         request = self.context.get('request')
         if request and request.user.is_authenticated:
@@ -163,7 +172,7 @@ class NovelSourceSerializer(serializers.ModelSerializer):
     def get_volumes(self, obj: NovelFromSource):
         # Volume listing (id/title) is only needed for the download menu on the
         # detail page; lists skip the extra query.
-        if not self.context.get('include_synopsis'):
+        if not self.context.get('detailed'):
             return None
         return [
             {

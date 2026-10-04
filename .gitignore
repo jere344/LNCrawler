@@ -5,3 +5,4 @@ output
 .env
 logs
 issue-reports
+postgres_data

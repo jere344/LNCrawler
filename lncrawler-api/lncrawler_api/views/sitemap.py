@@ -45,7 +45,7 @@ class NovelSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return Novel.objects.only('slug', 'updated_at').order_by('slug')
+        return Novel.objects.filter(is_dmca=False).only('slug', 'updated_at').order_by('slug')
 
     def lastmod(self, obj):
         return obj.updated_at
@@ -54,7 +54,7 @@ class NovelSitemap(BaseSitemap):
         # One indexed query for the sitemap index instead of evaluating every
         # novel just to take max(updated_at).
         return (
-            Novel.objects.order_by('-updated_at')
+            Novel.objects.filter(is_dmca=False).order_by('-updated_at')
             .values_list('updated_at', flat=True)
             .first()
         )
@@ -67,7 +67,7 @@ class SourceSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return NovelFromSource.objects.exclude(
+        return NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
             models.Q(source_slug__isnull=True) | models.Q(source_slug='')
         ).select_related('novel').only(
             'source_slug', 'updated_at', 'novel__slug'
@@ -78,7 +78,7 @@ class SourceSitemap(BaseSitemap):
 
     def get_latest_lastmod(self):
         return (
-            NovelFromSource.objects.exclude(
+            NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
                 models.Q(source_slug__isnull=True) | models.Q(source_slug='')
             ).order_by('-updated_at')
             .values_list('updated_at', flat=True)
@@ -93,7 +93,7 @@ class ChapterListSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return NovelFromSource.objects.exclude(
+        return NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
             models.Q(source_slug__isnull=True) | models.Q(source_slug='')
         ).select_related('novel').only(
             'source_slug', 'updated_at', 'last_chapter_update', 'novel__slug'
@@ -104,7 +104,7 @@ class ChapterListSitemap(BaseSitemap):
 
     def get_latest_lastmod(self):
         return (
-            NovelFromSource.objects.exclude(
+            NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
                 models.Q(source_slug__isnull=True) | models.Q(source_slug='')
             ).annotate(_lastmod=Coalesce('last_chapter_update', 'updated_at'))
             .order_by('-_lastmod')
@@ -164,7 +164,7 @@ class ImageGallerySitemap(BaseSitemap):
     def items(self):
         # Consider only sources that actually have images (e.g., cover or chapter images)
         # For simplicity, linking all sources; frontend can handle empty galleries.
-        return NovelFromSource.objects.exclude(
+        return NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
             models.Q(source_slug__isnull=True) | models.Q(source_slug='')
         ).select_related('novel').only(
             'source_slug', 'updated_at', 'novel__slug'
@@ -175,7 +175,7 @@ class ImageGallerySitemap(BaseSitemap):
 
     def get_latest_lastmod(self):
         return (
-            NovelFromSource.objects.exclude(
+            NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
                 models.Q(source_slug__isnull=True) | models.Q(source_slug='')
             ).order_by('-updated_at')
             .values_list('updated_at', flat=True)

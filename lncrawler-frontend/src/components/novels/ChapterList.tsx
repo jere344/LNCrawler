@@ -24,6 +24,7 @@ import {
   Stack,
   SelectChangeEvent,
   Grid as Grid,
+  Alert,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -181,6 +182,12 @@ const ChapterList = () => {
         {t('chapterList.backToSource')}
       </Button>
 
+      {chapterData.is_dmca && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {t('chapterList.dmcaNotice')}
+        </Alert>
+      )}
+
       <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
         <Typography variant="h4" gutterBottom>
           {chapterData.novel_title}
@@ -289,7 +296,7 @@ const ChapterList = () => {
                         to={`/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.chapter_id}`}
                         disabled={!chapter.has_content}
                         sx={{
-                          opacity: chapter.has_content ? 1 : 0.5,
+                          opacity: chapter.has_content && !chapterData.is_dmca ? 1 : 0.5,
                           '&.Mui-disabled': {
                             opacity: 0.5,
                           }

@@ -17,6 +17,7 @@ import {
   Grid as Grid,
   Menu,
   MenuItem,
+  Alert,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -159,6 +160,8 @@ const SourceDetail = () => {
   };
 
   const continue_chapter = source?.reading_history?.next_chapter || source?.reading_history?.last_read_chapter;
+
+  const isDmca = Boolean(novel?.is_dmca);
 
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
@@ -452,6 +455,12 @@ const SourceDetail = () => {
             {t('sourceDetail.backToHome')}
           </Button>
         </Box>
+
+        {isDmca && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            {t('sourceDetail.dmcaNotice')}
+          </Alert>
+        )}
 
         <Paper 
           elevation={0}
@@ -818,7 +827,7 @@ const SourceDetail = () => {
                 </Box>
                 
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                  {continue_chapter && (
+                  {continue_chapter && !isDmca && (
                     <ActionButton
                       title={t('sourceDetail.continueReading')}
                       subtitle={getChapterLabel(
@@ -867,8 +876,8 @@ const SourceDetail = () => {
                       startIcon={<DownloadIcon />}
                       color="info"
                       onClick={(e) => setDownloadAnchor(e.currentTarget)}
-                      disabled={!source?.chapters_count}
-                      tooltip={t('sourceDetail.downloadTooltip')}
+                      disabled={isDmca || !source?.chapters_count}
+                      tooltip={isDmca ? t('sourceDetail.dmcaNotice') : t('sourceDetail.downloadTooltip')}
                     />
 
                     <ActionButton
@@ -877,7 +886,7 @@ const SourceDetail = () => {
                       startIcon={<PlayArrowIcon />}
                       color="success"
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.first_available_chapter?.chapter_id}`}
-                      disabled={!source?.first_available_chapter}
+                      disabled={isDmca || !source?.first_available_chapter}
                       tooltip={t('sourceDetail.startFromFirst')}
                     />
 
@@ -887,7 +896,7 @@ const SourceDetail = () => {
                       startIcon={<SkipNextIcon />}
                       color="primary"
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
-                      disabled={!source?.latest_available_chapter}
+                      disabled={isDmca || !source?.latest_available_chapter}
                       tooltip={t('sourceDetail.jumpToLatest')}
                     />
                   </Box>
@@ -933,6 +942,7 @@ const SourceDetail = () => {
             <NovelUpdateButton 
               sourceUrl={source.source_url} 
               novelTitle={source.title} 
+              disabled={isDmca || source.has_crawler === false}
             />
           </Paper>
         )}

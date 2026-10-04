@@ -380,6 +380,7 @@
     "volume": "Volume {volume}",
     "contentUnavailable": "Content unavailable",
     "noChapters": "No chapters available.",
+    "dmcaNotice": "This work has been removed following a DMCA takedown request. Chapters are no longer available.",
     "metaTitle": "Chapter List - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Loading Chapters | LNCrawler",
     "metaDescription": "Browse all {count} chapters for {novel} from source {source} on LNCrawler. Read light novels online with a clean reading experience.",
@@ -448,6 +449,7 @@
     "loadFailed": "Failed to load source details. Please try again later.",
     "backToHome": "Back to Home",
     "notFound": "Source not found",
+    "dmcaNotice": "This work has been removed following a DMCA takedown request. Reading and downloads are disabled.",
     "returnToHome": "Return to Home",
     "fromPrefix": "From:",
     "visitSource": "Visit Source",
@@ -510,9 +512,10 @@
     "initiating": "Initiating update...",
     "updatingStatus": "Updating: {status}",
     "processing": "Processing...",
-    "progressOf": "( {progress} / {total} {unit})",
+    "progressOf": "({progress} / {total} {unit})",
     "complete": "Update complete for {title}!",
-    "tryAgain": "Try Update Again"
+    "tryAgain": "Try Update Again",
+    "disabledNoCrawler": "This source is no longer supported, so it cannot be updated."
   },
   "comments": {
     "enterName": "Please enter your name",
@@ -708,6 +711,7 @@
   "reader": {
     "loadFailed": "Failed to load chapter content. Please try again later.",
     "notFound": "Chapter not found",
+    "dmcaUnavailable": "This work is unavailable due to a DMCA takedown request.",
     "chapters": "Chapters",
     "chapterTab": "Chapter",
     "commentsTab": "Comments",

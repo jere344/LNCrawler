@@ -72,11 +72,22 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           backgroundPosition: 'center',
           borderTopLeftRadius: 4,
           borderBottomLeftRadius: 4,
+          opacity: novel.is_dmca ? 0.55 : 1,
+          filter: novel.is_dmca ? 'grayscale(100%)' : 'none',
         }}
         component={Link}
         to={sourceLink.to ?? ''} state={sourceLink.state}
         className="clickable"
       />
+
+      {novel.is_dmca && (
+        <Chip
+          label="DMCA"
+          color="error"
+          size="small"
+          sx={{ position: 'absolute', bottom: 8, left: 8, zIndex: 2, fontWeight: 'bold' }}
+        />
+      )}
 
       {/* Content area */}
       <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, width: '100%' }}>
@@ -149,7 +160,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             color="primary" 
             variant="contained"
             startIcon={<MenuBookIcon />}
-            disabled={!novel.reading_history}
+            disabled={!novel.reading_history || novel.is_dmca}
             sx={{ mr: 1 }}
             component={Link}
             to={novel.reading_history && continue_chapter ? `/novels/${novel.reading_history.novel_slug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}` : ''}

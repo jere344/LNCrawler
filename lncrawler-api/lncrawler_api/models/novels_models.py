@@ -15,6 +15,7 @@ class Novel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     comment_count = models.PositiveIntegerField(default=0)
+    is_dmca = models.BooleanField(default=False, db_index=True)
     
     class Meta:
         indexes = [

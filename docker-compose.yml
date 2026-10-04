@@ -14,7 +14,7 @@ services:
       - -c
       - work_mem=8MB
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -109,7 +109,7 @@ services:
     build: ./nginx-proxy
     restart: unless-stopped
     ports:
-      - "80:80"  # The main entry point
+      - "${NGINX_PORT:-80}:80"  # The main entry point
     volumes:
       - ./lncrawler-api/static:/static
       - ./lncrawler-api/media:/media

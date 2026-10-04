@@ -16,6 +16,7 @@ export interface Novel {
   reading_history?: DetailedReadingHistory | null;
   reading_source?: NovelFromSource | null;
   similar_novels?: SimilarNovel[];
+  is_dmca?: boolean;
   // Library-only fields (present when serialized as a library item)
   bookmark_id?: string;
   note?: string | null;
@@ -47,6 +48,7 @@ export interface NovelFromSource {
   source_url: string;
   source_name: string;
   source_slug: string;
+  has_crawler: boolean | null;
   cover_path: string | null;
   authors: string[];
   tags: string[];
@@ -104,6 +106,7 @@ export interface NovelDetail {
   reading_history?: DetailedReadingHistory | null;
   similar_novels?: SimilarNovel[];
   reading_lists?: ReadingList[];
+  is_dmca?: boolean;
 }
 
 export interface SimilarNovel extends Novel {
@@ -153,6 +156,7 @@ export interface ChapterListResponse {
   source_slug: string;
   chapters: Chapter[];
   source_overview_image_url?: string | null;
+  is_dmca?: boolean;
 }
 
 export interface ReadingHistory {

@@ -198,8 +198,18 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
+              opacity: novel.is_dmca ? 0.55 : 1,
+              filter: novel.is_dmca ? 'grayscale(100%)' : 'none',
             }}
           />
+          {novel.is_dmca && (
+            <Chip
+              label="DMCA"
+              color="error"
+              size="small"
+              sx={{ position: 'absolute', top: 4, left: 4, zIndex: 2, fontWeight: 'bold' }}
+            />
+          )}
           {/* Language flags */}
           <Box
             sx={{

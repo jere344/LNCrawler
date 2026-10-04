@@ -35,7 +35,7 @@ def source_detail(request, novel_slug, source_slug):
     novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
-    serializer = NovelSourceSerializer(source, context={"request": request, "include_synopsis": True})
+    serializer = NovelSourceSerializer(source, context={"request": request, "detailed": True})
     # Add novel info to the response
     data = serializer.data
     data.update(
@@ -123,6 +123,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
             "source_id": str(source.id),
             "source_name": source.external_source.source_name,
             "source_slug": source.source_slug,
+            "is_dmca": novel.is_dmca,
             "count": paginator.count,
             "total_pages": paginator.num_pages,
             "current_page": page_obj.number,
@@ -146,6 +147,12 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
     chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
+
+    if novel.is_dmca:
+        return Response(
+            {"error": "This work is unavailable due to a DMCA takedown request."},
+            status=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
+        )
 
     if not chapter.has_content:
         return Response(
@@ -252,6 +259,12 @@ def download_source_epub(request, novel_slug, source_slug):
     """
     novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
+
+    if novel.is_dmca:
+        return Response(
+            {"error": "This work is unavailable due to a DMCA takedown request."},
+            status=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
+        )
 
     raw_volume = request.GET.get("volume")
     if raw_volume in (None, ""):

@@ -324,7 +324,12 @@ def random_featured_novel(request):
     """
     import random
 
-    featured_count = FeaturedNovel.objects.count()
+    featured_qs = FeaturedNovel.objects.select_related('novel').filter(
+        novel__is_dmca=False
+    ).prefetch_related(
+        *novel_prefetch_objects(user=request.user, prefix='novel__')
+    )
+    featured_count = featured_qs.count()
     if featured_count == 0:
         return Response(
             {
@@ -335,9 +340,7 @@ def random_featured_novel(request):
         )
 
     random_index = random.randint(0, featured_count - 1)
-    featured = FeaturedNovel.objects.select_related('novel').prefetch_related(
-        *novel_prefetch_objects(user=request.user, prefix='novel__')
-    )[random_index]
+    featured = featured_qs[random_index]
     
     # Get the novel and serialize it
     novel = featured.novel
@@ -367,7 +370,7 @@ def home_page(request):
 
     # Base queryset, optionally restricted to novels with a source in the
     # selected languages.
-    base_queryset = apply_novel_prefetches(Novel.objects.all(), request.user)
+    base_queryset = apply_novel_prefetches(Novel.objects.filter(is_dmca=False), request.user)
     if languages:
         base_queryset = base_queryset.filter(
             sources__language__in=languages
@@ -401,7 +404,9 @@ def home_page(request):
     
     # Get featured novel (restricted to one available in the selected languages)
     featured_novel_data = None
-    featured_qs = FeaturedNovel.objects.select_related('novel').prefetch_related(
+    featured_qs = FeaturedNovel.objects.select_related('novel').filter(
+        novel__is_dmca=False
+    ).prefetch_related(
         *novel_prefetch_objects(user=request.user, prefix='novel__')
     )
     if languages:
@@ -420,7 +425,7 @@ def home_page(request):
     # for the recently updated it's a list of NovelFromSource insead of Novel that we want
     # NULLs sort first on PostgreSQL by default; never-updated sources would top
     # the strip, so push them to the end.
-    recently_updated_qs = sources_queryset().order_by(
+    recently_updated_qs = sources_queryset().filter(novel__is_dmca=False).order_by(
         F('last_chapter_update').desc(nulls_last=True)
     )
     if languages:
@@ -428,7 +433,9 @@ def home_page(request):
     recently_updated = recently_updated_qs[:12]
     
     # Get recent reviews (restricted to novels in the selected languages)
-    recent_reviews_qs = Review.objects.select_related('user', 'novel').prefetch_related('reactions__user').order_by('-created_at')
+    recent_reviews_qs = Review.objects.select_related('user', 'novel').filter(
+        novel__is_dmca=False
+    ).prefetch_related('reactions__user').order_by('-created_at')
     if languages:
         recent_reviews_qs = recent_reviews_qs.filter(novel__sources__language__in=languages).distinct()
     recent_reviews = recent_reviews_qs[:4]

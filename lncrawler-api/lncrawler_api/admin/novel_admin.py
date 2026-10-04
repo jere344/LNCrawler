@@ -244,9 +244,12 @@ class NovelAdmin(admin.ModelAdmin):
         "sources_count",
         "comment_count",
         "view_count_display",
+        "is_dmca",
         "created_at",
         "updated_at",
     )
+    list_filter = ("is_dmca",)
+    actions = ("mark_dmca", "unmark_dmca")
     search_fields = ("title", "slug")
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = (
@@ -260,6 +263,16 @@ class NovelAdmin(admin.ModelAdmin):
     inlines = [NovelFromSourceInline, NovelCommentInline, NovelReviewInline]
     change_list_template = "admin/lncrawler_api/novel/change_list.html"
     change_form_template = "admin/lncrawler_api/novel/change_form.html"
+
+    @admin.action(description="Mark selected novels as DMCA takedown")
+    def mark_dmca(self, request, queryset):
+        updated = queryset.update(is_dmca=True)
+        self.message_user(request, f"{updated} novel(s) marked as DMCA.")
+
+    @admin.action(description="Unmark selected novels as DMCA takedown")
+    def unmark_dmca(self, request, queryset):
+        updated = queryset.update(is_dmca=False)
+        self.message_user(request, f"{updated} novel(s) unmarked as DMCA.")
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}

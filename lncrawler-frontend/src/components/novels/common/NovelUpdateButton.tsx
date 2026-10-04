@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Button, Box, LinearProgress, Typography, Alert } from '@mui/material';
+import { Button, Box, LinearProgress, Typography, Alert, Tooltip } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { downloadService, type ApiError } from '../../../services/api';
 import { DownloadStatus } from '@models/downloader_types';
 import UpdateIcon from '@mui/icons-material/Update';
@@ -9,9 +10,11 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 interface NovelUpdateButtonProps {
   sourceUrl: string;
   novelTitle: string; // For context, potentially in messages
+  disabled?: boolean; // No crawler for this source
 }
 
-const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelTitle }) => {
+const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelTitle, disabled = false }) => {
+  const { t } = useTranslation();
   const [updateJobId, setUpdateJobId] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false); // For the initial startDownload call
@@ -38,12 +41,12 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
         setUpdateJobId(response.job_id);
         setIsPolling(true);
       } else {
-        setError(response.message || 'Failed to start update job.');
+        setError(response.message || t('updateButton.startFailed'));
       }
     } catch (err) {
       const apiErr = err as ApiError;
       console.error('Error starting direct download:', err);
-      setError(apiErr.response?.data?.message || apiErr.message || 'An unknown error occurred while starting the update.');
+      setError(apiErr.response?.data?.message || apiErr.message || t('updateButton.unknownError'));
     } finally {
       setIsLoading(false);
     }
@@ -62,15 +65,15 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
         // Optionally, could reset after a delay or keep "Updated" state
       } else if (statusData.job_status === 'FAILED' || statusData.job_status === 'CANCELLED') {
         setIsPolling(false);
-        setError(statusData.status_display || 'Update failed or was cancelled.');
+        setError(statusData.status_display || t('updateButton.updateFailed'));
       }
     } catch (err) {
       const apiErr = err as ApiError;
       console.error('Error fetching download status:', err);
       setIsPolling(false);
-      setError(apiErr.response?.data?.message || apiErr.message || 'Failed to fetch update status.');
+      setError(apiErr.response?.data?.message || apiErr.message || t('updateButton.fetchFailed'));
     }
-  }, [updateJobId]);
+  }, [updateJobId, t]);
 
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -87,6 +90,26 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
 
   const isUpdating = isLoading || isPolling;
 
+  if (disabled) {
+    return (
+      <Box sx={{ width: '100%', mt: 2 }}>
+        <Tooltip title={t('updateButton.disabledNoCrawler')}>
+          <span style={{ display: 'inline-block', width: '100%' }}>
+            <Button
+              variant="contained"
+              color="info"
+              startIcon={<UpdateIcon />}
+              disabled
+              fullWidth
+            >
+              {t('updateButton.updateFrom', { title: novelTitle })}
+            </Button>
+          </span>
+        </Tooltip>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ width: '100%', mt: 2 }}>
       {!isUpdating && !updateComplete && !error && (
@@ -98,21 +121,21 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
           disabled={isLoading}
           fullWidth
         >
-          {isLoading ? 'Starting Update...' : `Update ${novelTitle} from Source`}
+          {isLoading ? t('updateButton.starting') : t('updateButton.updateFrom', { title: novelTitle })}
         </Button>
       )}
 
       {isLoading && !updateJobId && (
         <Box sx={{ display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
           <LinearProgress sx={{ width: '100%', mb: 1 }} />
-          <Typography variant="caption">Initiating update...</Typography>
+          <Typography variant="caption">{t('updateButton.initiating')}</Typography>
         </Box>
       )}
 
       {isPolling && downloadStatus && (
         <Box sx={{ width: '100%' }}>
           <Typography variant="subtitle2" gutterBottom>
-            Updating: {downloadStatus.status_display}
+            {t('updateButton.updatingStatus', { status: downloadStatus.status_display })}
           </Typography>
           <LinearProgress
             variant="determinate"
@@ -120,15 +143,15 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
             sx={{ height: 10, borderRadius: 5, mb: 1 }}
           />
           <Typography variant="caption">
-            {downloadStatus.progress_percentage !== undefined ? `${downloadStatus.progress_percentage}%` : 'Processing...'}
-            {downloadStatus.total_chapters > 0 && ` (${downloadStatus.progress} / ${downloadStatus.total_chapters} ${downloadStatus.progress_unit || 'chapters'})`}
+            {downloadStatus.progress_percentage !== undefined ? `${downloadStatus.progress_percentage}%` : t('updateButton.processing')}
+            {downloadStatus.total_chapters > 0 && ` ${t('updateButton.progressOf', { progress: downloadStatus.progress, total: downloadStatus.total_chapters, unit: downloadStatus.progress_unit || 'chapters' })}`}
           </Typography>
         </Box>
       )}
 
       {updateComplete && downloadStatus && (
         <Alert severity="success" icon={<CheckCircleOutlineIcon fontSize="inherit" />}>
-          Update complete for {novelTitle}!
+          {t('updateButton.complete', { title: novelTitle })}
         </Alert>
       )}
       
@@ -147,7 +170,7 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
           sx={{ mt: 1 }}
           fullWidth
         >
-          Try Update Again
+          {t('updateButton.tryAgain')}
         </Button>
       )}
     </Box>

@@ -47,7 +47,7 @@ class NovelAggregatesMixin:
         )
         context = self.context
         if self.source_detail_context:
-            context = {**context, 'include_synopsis': True}
+            context = {**context, 'detailed': True}
         return NovelSourceSerializer(prefered, context=context).data
 
     def get_avg_rating(self, obj):
@@ -111,7 +111,7 @@ class NovelAggregatesMixin:
         if history and history.source:
             context = self.context
             if self.source_detail_context:
-                context = {**context, 'include_synopsis': True}
+                context = {**context, 'detailed': True}
             return NovelSourceSerializer(history.source, context=context).data
         return None
 
@@ -136,7 +136,7 @@ class BasicNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
             'id', 'title', 'slug', 'sources_count',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source'
+            'reading_history', 'reading_source', 'is_dmca'
         ]
 
     def get_languages(self, obj):
@@ -228,14 +228,14 @@ class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer)
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
             'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history',
-            'reading_source', 'similar_novels', 'reading_lists'
+            'reading_source', 'similar_novels', 'reading_lists', 'is_dmca'
         ]
     
     def get_sources(self, obj):
         return NovelSourceSerializer(
             obj.sources.all(),
             many=True,
-            context={**self.context, 'include_synopsis': True}
+            context={**self.context, 'detailed': True}
         ).data
 
     def get_user_rating(self, obj):
