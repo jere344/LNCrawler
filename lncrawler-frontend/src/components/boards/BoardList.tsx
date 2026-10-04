@@ -20,6 +20,7 @@ import ForumIcon from '@mui/icons-material/Forum';
 import CommentIcon from '@mui/icons-material/Comment';
 import { boardService } from '../../services/board.service';
 import { useTranslation } from 'react-i18next';
+import { formatDate } from '@utils/Misc';
 
 interface Board {
   id: string;
@@ -58,7 +59,7 @@ const getBoardColor = (boardName: string) => {
 
 const BoardList = () => {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -220,11 +221,7 @@ const BoardList = () => {
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
                   }}>
-                    {new Date(board.created_at).toLocaleDateString(undefined, { 
-                      month: 'short', 
-                      day: 'numeric', 
-                      year: 'numeric' 
-                    })}
+                    {formatDate(board.created_at, i18n.language)}
                   </Typography>
                 </Box>
               </Card>

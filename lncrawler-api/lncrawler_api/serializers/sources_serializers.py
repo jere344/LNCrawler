@@ -1,8 +1,6 @@
 from rest_framework import serializers
-from django.conf import settings
 from ..models import NovelFromSource
-from urllib.parse import quote
-from ..utils import get_client_ip
+from ..utils import build_media_url, get_client_ip
 from .users_serializers import ReadingHistorySerializer
 from .chapter_serializers import ChapterSerializer
 
@@ -53,19 +51,13 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         return None
 
     def get_cover_url(self, obj: NovelFromSource):
-        if obj.cover_path:
-            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.cover_path}", safe=':/')
-        return None
+        return build_media_url(obj.cover_path)
 
     def get_cover_min_url(self, obj: NovelFromSource):
-        if obj.cover_min_path:
-            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.cover_min_path}", safe=':/')
-        return None
-    
+        return build_media_url(obj.cover_min_path)
+
     def get_overview_url(self, obj: NovelFromSource):
-        if obj.overview_picture_path:
-            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.overview_picture_path}", safe=':/')
-        return None
+        return build_media_url(obj.overview_picture_path)
     
     def get_authors(self, obj: NovelFromSource):
         return [author.name for author in obj.authors.all()]

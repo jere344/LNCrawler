@@ -14,6 +14,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from api_project.redaction import redact
+from lncrawler_api.utils import get_client_ip
 
 logger = logging.getLogger("frontend")
 
@@ -21,23 +22,23 @@ _RATE_LIMIT = 30  # requests per IP per window
 _RATE_WINDOW = 3600
 
 
-def _client_ip(request):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "unknown")
-
-
 @csrf_exempt
 @require_POST
 def report_error(request):
-    ip = _client_ip(request)
+    ip = get_client_ip(request)
     key = f"report-error:{ip}"
-    count = cache.get(key, 0)
-    if count >= _RATE_LIMIT:
-        return JsonResponse({"detail": "rate limited"}, status=429)
-    # LocMemCache is per-worker; good enough to blunt accidental loops.
-    cache.set(key, count + 1, _RATE_WINDOW)
+    # add() starts the window atomically (only the first request sets it),
+    # incr() then counts without re-arming the TTL. LocMemCache is per-worker;
+    # good enough to blunt accidental loops.
+    if not cache.add(key, 1, _RATE_WINDOW):
+        try:
+            count = cache.incr(key)
+        except ValueError:
+            # Window expired between add and incr: start a fresh one.
+            cache.add(key, 1, _RATE_WINDOW)
+            count = 1
+        if count > _RATE_LIMIT:
+            return JsonResponse({"detail": "rate limited"}, status=429)
 
     try:
         payload = json.loads(request.body or b"{}")

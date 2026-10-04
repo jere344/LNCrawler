@@ -17,7 +17,6 @@ import DoneIcon from '@mui/icons-material/Done';
 import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material/styles';
-import { Link as RouterLink } from 'react-router-dom'; // Import RouterLink
 import { useTranslation } from 'react-i18next';
 
 interface ReaderToolbarProps {
@@ -65,10 +64,6 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
   onNext,
   onSettings,
   onCloseControls,
-  prevUrl,
-  nextUrl,
-  homeUrl,
-  chapterListUrl,
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -82,16 +77,12 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
             edge="start" 
             color="inherit" 
             onClick={onChapterList}
-            component={chapterListUrl ? RouterLink : "a"}
-            to={chapterListUrl}
           >
             <ListIcon />
           </IconButton>
           <IconButton 
             color="inherit" 
             onClick={onHome}
-            component={homeUrl ? RouterLink : "a"}
-            to={homeUrl}
           >
             <HomeIcon />
           </IconButton>
@@ -101,8 +92,6 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
               <IconButton 
                 color="inherit" 
                 onClick={onPrevious}
-                component={prevUrl ? RouterLink : "a"}
-                to={prevUrl}
               >
                 <ArrowBackIcon />
               </IconButton>
@@ -116,8 +105,6 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
               <IconButton 
                 color="inherit" 
                 onClick={onNext}
-                component={nextUrl ? RouterLink : "a"}
-                to={nextUrl}
               >
                 <ArrowForwardIcon />
               </IconButton>
@@ -167,16 +154,12 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
               color="inherit" 
               onClick={onChapterList} 
               sx={{ mr: 1 }}
-              component={chapterListUrl ? RouterLink : "a"}
-              to={chapterListUrl}
             >
               <ListIcon />
             </IconButton>
             <IconButton 
               color="inherit" 
               onClick={onHome}
-              component={homeUrl ? RouterLink : "a"}
-              to={homeUrl}
             >
               <HomeIcon />
             </IconButton>

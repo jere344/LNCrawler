@@ -16,7 +16,7 @@ import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, getChapterName, getNovelSourceLink } from '@utils/Misc';
+import { formatTimeAgo, formatDate, getChapterName, getNovelSourceLink } from '@utils/Misc';
 import { useTranslation } from 'react-i18next';
 
 interface ReadingHistoryCardProps {
@@ -137,7 +137,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
                   color: "text.secondary",
                   mt: 1
                 }}>
-                {new Date(novel.reading_history.last_read_at).toLocaleString(i18n.language)}
+                {formatDate(novel.reading_history.last_read_at, i18n.language)}
               </Typography>
             </Box>
           )}

@@ -47,6 +47,10 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
+# Credentialed CORS with a wildcard origin is unsafe (and browsers reject it).
+# Force credentials off whenever every origin is allowed.
+if CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOW_CREDENTIALS = False
 
 CSRF_TRUSTED_ORIGINS = [
     f"http://{SITE_DOMAIN}",

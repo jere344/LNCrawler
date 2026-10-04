@@ -27,6 +27,7 @@ import { ChapterContent as IChapterContent } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior } from './ReaderSettings';
 import { defaultSettings } from './readerDefaults';
 import { getCookie } from '@utils/cookies';
+import { getChapterLabel } from '@utils/Misc';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
 
@@ -63,13 +64,6 @@ const ChapterReader = () => {
     chapterNumber: string 
   }>();
   const { t } = useTranslation();
-  const getChapterLabel = (title?: string | null, chapterId?: number | null): string => {
-    const trimmed = title?.trim();
-    if (trimmed) {
-      return trimmed;
-    }
-    return chapterId != null ? t('units.chapter', { number: chapterId }) : "";
-  };
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -239,10 +233,12 @@ const ChapterReader = () => {
 
     const percentage = calculateScrollPercentage();
 
-    const updatedPositions: ScrollPositions = {
-      ...scrollPositionsRef.current,
-      [currentChapterKey]: percentage,
-    };
+    // Re-insert the current key last so it is the most recently used; pruning
+    // below then evicts the genuinely least-recently-read chapter, not merely
+    // the one inserted earliest.
+    const updatedPositions: ScrollPositions = { ...scrollPositionsRef.current };
+    delete updatedPositions[currentChapterKey];
+    updatedPositions[currentChapterKey] = percentage;
     
     // Prune old entries if we have too many
     const keys = Object.keys(updatedPositions);
@@ -337,6 +333,11 @@ const ChapterReader = () => {
 
     loadCurrentChapter();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t/loader intentionally omitted; route params are the inputs
+  }, [novelSlug, sourceSlug, chapterNumber]);
+
+  // A previous chapter's "mark as read" success must not bleed into the next.
+  useEffect(() => {
+    setMarkReadSuccess(false);
   }, [novelSlug, sourceSlug, chapterNumber]);
 
   // Restore scroll position when chapter content is loaded
@@ -724,7 +725,7 @@ const ChapterReader = () => {
     <ReaderToolbar 
       isMobile={isMobile}
       controlsVisible={controlsVisible}
-      title={getChapterLabel(chapter.title, chapter.chapter_id)}
+      title={getChapterLabel(t, chapter.title, chapter.chapter_id)}
       prevChapter={chapter.prev_chapter}
       nextChapter={chapter.next_chapter}
       isAuthenticated={isAuthenticated}
@@ -777,7 +778,7 @@ const ChapterReader = () => {
                 icon: <ListAltIcon fontSize="inherit" />
               },
               {
-                label: getChapterLabel(chapter.title, chapter.chapter_id),
+                label: getChapterLabel(t, chapter.title, chapter.chapter_id),
                 icon: <MenuBookIcon fontSize="inherit" />
               }
             ]}
@@ -798,7 +799,7 @@ const ChapterReader = () => {
           {/* Chapter title and content */}
           <Box sx={{ mb: 3 }}>
             <Typography variant="h5" gutterBottom align="center" sx={{ color: readerSettings.fontColor || undefined }}>
-              {getChapterLabel(chapter.title, chapter.chapter_id)}
+              {getChapterLabel(t, chapter.title, chapter.chapter_id)}
             </Typography>
             <Typography variant="subtitle1" sx={{ color: 'text.secondary', textAlign: 'center' }}>
               {chapter.novel_title}
@@ -915,7 +916,7 @@ const ChapterReader = () => {
         settings={readerSettings}
         onSettingChange={handleSettingChange}
         chapterInfo={{
-          title: getChapterLabel(chapter.title, chapter.chapter_id),
+          title: getChapterLabel(t, chapter.title, chapter.chapter_id),
           novelTitle: chapter.novel_title,
           prevChapter: chapter.prev_chapter,
           nextChapter: chapter.next_chapter

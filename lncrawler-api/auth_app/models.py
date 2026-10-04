@@ -1,6 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-import uuid
+import hashlib
 from django.utils import timezone
 from datetime import timedelta
 
@@ -36,6 +36,9 @@ class CustomUser(AbstractUser):
     preferred_languages = models.JSONField(default=list, blank=True)
     # When False, the home page ignores preferred_languages and mixes everything.
     language_filter_enabled = models.BooleanField(default=True)
+    # When False, the user never appears in the user-search results used for
+    # finding friends/collaborators. Existing accounts stay discoverable.
+    discoverable = models.BooleanField(default=True)
 
     def visibility(self, section):
         """Effective visibility of a profile section for this user."""
@@ -50,9 +53,15 @@ class CustomUser(AbstractUser):
 
 class PasswordResetToken(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    # Only the sha256 of the emailed raw token is stored, so a DB leak cannot
+    # be turned into a usable reset link.
+    token = models.CharField(max_length=64, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     used = models.BooleanField(default=False)
+
+    @staticmethod
+    def hash_token(raw_token):
+        return hashlib.sha256(raw_token.encode()).hexdigest()
 
     def is_valid(self):
         return not self.used and self.created_at > timezone.now() - timedelta(hours=24)

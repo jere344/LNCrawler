@@ -2,6 +2,12 @@ from rest_framework import serializers
 from ..models.boards_models import Board
 from .comments_serializers import CommentSerializer
 
+
+def board_comment_context(request, board):
+    """Serializer context for BoardCommentSerializer."""
+    return {'request': request, 'board_name': board.name, 'board_slug': board.slug}
+
+
 class BoardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Board

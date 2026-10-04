@@ -9,29 +9,44 @@ from rest_framework import status
 
 from ..models.users_models import Friendship
 from ..serializers.profile_serializers import FriendshipSerializer
+from ..utils.pagination import parse_page_size
 from auth_app.serializers import OtherUserSerializer
 
 User = get_user_model()
 
+MAX_PENDING_FRIEND_REQUESTS = 50
+MAX_FRIENDS_PER_REQUEST = 50
 
-def _friend_users(user):
-    friendships = (
-        Friendship.objects
-        .filter(status=Friendship.ACCEPTED)
-        .filter(Q(requester=user) | Q(addressee=user))
-        .select_related('requester', 'addressee')
-    )
-    return [
-        f.addressee if f.requester_id == user.id else f.requester
-        for f in friendships
-    ]
+
+def friend_user_queryset(user):
+    """Users who have an accepted friendship with ``user``."""
+    return User.objects.filter(
+        Q(friend_requests_sent__addressee=user,
+          friend_requests_sent__status=Friendship.ACCEPTED)
+        | Q(friend_requests_received__requester=user,
+            friend_requests_received__status=Friendship.ACCEPTED)
+    ).distinct()
+
+
+def _friend_users(user, limit=None):
+    friends = friend_user_queryset(user)
+    if limit is not None:
+        friends = friends[:limit]
+    return list(friends)
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_friends(request):
-    """List the authenticated user's accepted friends."""
-    serializer = OtherUserSerializer(_friend_users(request.user), many=True, context={"request": request})
+    """List the authenticated user's accepted friends.
+
+    The frontend consumes a bare array (User[]), so we keep the response shape
+    and cap the result via page_size instead of returning a paginated envelope.
+    """
+    limit = parse_page_size(request, default=MAX_FRIENDS_PER_REQUEST, max_size=MAX_FRIENDS_PER_REQUEST)
+    serializer = OtherUserSerializer(
+        _friend_users(request.user, limit=limit), many=True, context={"request": request}
+    )
     return Response(serializer.data)
 
 
@@ -72,6 +87,15 @@ def send_friend_request(request, username):
                     return Response({"status": "accepted", "friendship_id": existing.id})
                 return Response({"status": "request_sent", "friendship_id": existing.id})
 
+            pending_count = Friendship.objects.filter(
+                requester=request.user, status=Friendship.PENDING
+            ).count()
+            if pending_count >= MAX_PENDING_FRIEND_REQUESTS:
+                return Response(
+                    {"detail": "You have too many pending friend requests."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+
             friendship = Friendship.objects.create(requester=request.user, addressee=target)
     except IntegrityError:
         # Lost a concurrent send: the other direction won the unique-pair race.
@@ -95,16 +119,27 @@ def send_friend_request(request, username):
 @permission_classes([IsAuthenticated])
 def respond_friend_request(request, friendship_id):
     """Accept or decline an incoming request. Declining deletes the request."""
-    friendship = get_object_or_404(Friendship, id=friendship_id, addressee=request.user)
     action = request.data.get("action")
-    if action == "accept":
-        friendship.status = Friendship.ACCEPTED
-        friendship.save(update_fields=['status', 'updated_at'])
-        return Response({"status": "accepted", "friendship_id": friendship.id})
-    if action == "decline":
+    if action not in ("accept", "decline"):
+        return Response({"detail": "action must be 'accept' or 'decline'."}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        friendship = get_object_or_404(
+            Friendship.objects.select_for_update(),
+            id=friendship_id,
+            addressee=request.user,
+        )
+        if friendship.status != Friendship.PENDING:
+            return Response(
+                {"detail": "This friend request is no longer pending."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if action == "accept":
+            friendship.status = Friendship.ACCEPTED
+            friendship.save(update_fields=['status', 'updated_at'])
+            return Response({"status": "accepted", "friendship_id": friendship.id})
         friendship.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-    return Response({"detail": "action must be 'accept' or 'decline'."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["DELETE"])

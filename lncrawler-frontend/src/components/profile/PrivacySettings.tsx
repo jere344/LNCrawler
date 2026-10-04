@@ -8,6 +8,8 @@ import {
     InputLabel,
     Alert,
     CircularProgress,
+    Switch,
+    FormControlLabel,
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@context/AuthContext';
@@ -36,6 +38,19 @@ const PrivacySettings: React.FC = () => {
     const settings = user?.privacy_settings || {};
     const current = (section: PrivacySection): PrivacyValue =>
         (settings[section] as PrivacyValue) || 'private';
+
+    const handleDiscoverableChange = async (checked: boolean) => {
+        setSaving('discoverable');
+        setError(null);
+        try {
+            await updateProfile({ discoverable: checked });
+        } catch (err) {
+            console.error('Error saving privacy settings:', err);
+            setError(t('privacy.saveError'));
+        } finally {
+            setSaving(null);
+        }
+    };
 
     const handleChange = async (section: PrivacySection, value: PrivacyValue) => {
         setSaving(section);
@@ -80,6 +95,24 @@ const PrivacySettings: React.FC = () => {
                     </FormControl>
                 </Box>
             ))}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+                <Box sx={{ flex: 1 }}>
+                    <Typography>{t('privacy.discoverable')}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {t('privacy.discoverableHelper')}
+                    </Typography>
+                </Box>
+                <FormControlLabel
+                    control={
+                        <Switch
+                            checked={user?.discoverable !== false}
+                            onChange={(e) => handleDiscoverableChange(e.target.checked)}
+                            disabled={saving === 'discoverable'}
+                        />
+                    }
+                    label=""
+                />
+            </Box>
         </Box>
     );
 };

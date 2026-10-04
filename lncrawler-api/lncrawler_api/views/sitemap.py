@@ -30,9 +30,6 @@ class StaticViewSitemap(BaseSitemap):
         # These correspond to paths in your App.tsx
         return [
             '/',
-            '/login',
-            '/register',
-            '/profile',
             '/library',
             '/history',
             '/reading-lists',

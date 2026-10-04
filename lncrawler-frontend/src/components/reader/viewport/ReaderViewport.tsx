@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useEffect, useState } from 'react';
 import { Box, useTheme } from '@mui/material';
 import { EdgeTapBehavior } from '../ReaderSettings';
 
@@ -37,6 +37,14 @@ const ReaderViewport = forwardRef<HTMLDivElement, ReaderViewportProps>((
   ref
 ) => {
   const theme = useTheme();
+
+  // Re-render every minute so a schedule boundary is crossed without a reload.
+  const [, setClockTick] = useState(0);
+  useEffect(() => {
+    if (!nightModeScheduleEnabled) return;
+    const interval = window.setInterval(() => setClockTick((tick) => tick + 1), 60000);
+    return () => window.clearInterval(interval);
+  }, [nightModeScheduleEnabled]);
 
   // Function to check if current time is within night mode schedule
   const isNightModeTime = () => {

@@ -40,7 +40,7 @@ class UserSerializer(serializers.ModelSerializer):
                  'social_links', 'privacy_settings', 'date_joined', 'last_login', 
                  'word_read', 'chapters_read_count', 'chapters_not_read_yet_count',
                  'preferred_ui_language', 'preferred_languages', 'language_filter_enabled',
-                 'pinned_novels')
+                 'discoverable', 'pinned_novels')
         read_only_fields = ('id', 'date_joined', 'last_login', 'word_read', 
                            'chapters_read_count', 'chapters_not_read_yet_count')
 
@@ -156,21 +156,13 @@ class OtherUserSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
-        
-        profile_pic_url = representation.get('profile_pic')
-
-        if profile_pic_url and not profile_pic_url.startswith('http'):
-            request = self.context.get('request')
-            if request:
-                representation['profile_pic'] = request.build_absolute_uri(profile_pic_url)
-            else:
-                formatted_url = profile_pic_url if profile_pic_url.startswith('/') else f'/{profile_pic_url}'
-                representation['profile_pic'] = f"{settings.SITE_API_URL}{formatted_url}"
-
+        representation['profile_pic'] = absolute_media_url(
+            representation.get('profile_pic'), self.context
+        )
         return representation
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password = serializers.CharField(write_only=True, required=True)
     password2 = serializers.CharField(write_only=True, required=True)
 
     class Meta:
@@ -178,6 +170,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ('username', 'password', 'password2', 'email', 'profile_pic')
 
     def validate(self, attrs):
+        # Give the similarity validator a user-like object so it can compare
+        # the password against the chosen username/email.
+        user = User(username=attrs.get('username', ''), email=attrs.get('email', ''))
+        validate_password(attrs['password'], user=user)
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
         return attrs
@@ -193,10 +189,13 @@ class LoginSerializer(serializers.Serializer):
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True, write_only=True)
-    new_password = serializers.CharField(required=True, write_only=True, validators=[validate_password])
+    new_password = serializers.CharField(required=True, write_only=True)
     new_password2 = serializers.CharField(required=True, write_only=True)
 
     def validate(self, attrs):
+        # Pass the requesting user so the similarity validator can compare
+        # against username/email.
+        validate_password(attrs['new_password'], user=self.context['request'].user)
         if attrs['new_password'] != attrs['new_password2']:
             raise serializers.ValidationError({"new_password": "New password fields didn't match."})
         return attrs
@@ -211,11 +210,21 @@ class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
 class ResetPasswordSerializer(serializers.Serializer):
-    token = serializers.UUIDField(required=True)
-    new_password = serializers.CharField(required=True, write_only=True, validators=[validate_password])
+    token = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, write_only=True)
     new_password2 = serializers.CharField(required=True, write_only=True)
 
     def validate(self, attrs):
+        # Resolve the token's user so the similarity validator has context.
+        reset_token = (
+            PasswordResetToken.objects
+            .filter(token=PasswordResetToken.hash_token(attrs['token']))
+            .first()
+        )
+        validate_password(
+            attrs['new_password'],
+            user=reset_token.user if reset_token else None,
+        )
         if attrs['new_password'] != attrs['new_password2']:
             raise serializers.ValidationError({"new_password": "Password fields didn't match."})
         return attrs

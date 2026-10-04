@@ -4,10 +4,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
 from django.db.models import Count, F, Q
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
+from ..utils.pagination import paginated_response as _paginated_response
+from ..utils.responses import forbidden as _forbidden
 from ..models.users_models import ReadingList, ReadingListItem, ReadingListCollaborator
 from ..models.novels_models import Novel
 from ..serializers import (
@@ -29,27 +31,6 @@ def _reading_lists_query_set():
     return ReadingList.objects.select_related('user').prefetch_related(
         'collaborators__user', 'items__novel'
     ).annotate(items_count=Count('items', distinct=True))
-
-
-def _forbidden(detail):
-    return Response({"detail": detail}, status=status.HTTP_403_FORBIDDEN)
-
-
-def _paginated_response(request, query_set, serializer_class):
-    page_number = request.GET.get("page", 1)
-    try:
-        page_size = min(int(request.GET.get("page_size", 20)), 100)
-    except (TypeError, ValueError):
-        page_size = 20
-    paginator = Paginator(query_set, page_size)
-    page_obj = paginator.get_page(page_number)
-    serializer = serializer_class(page_obj, many=True, context={"request": request})
-    return Response({
-        "count": paginator.count,
-        "total_pages": paginator.num_pages,
-        "current_page": page_obj.number,
-        "results": serializer.data,
-    })
 
 
 @api_view(["GET"])
@@ -158,43 +139,50 @@ def add_novel_to_list(request, list_id):
     """
     Add a novel to a reading list. The owner and editors can add items.
     """
-    reading_list = get_object_or_404(ReadingList, id=list_id)
+    # Lock the list row so concurrent adds serialize and can't pick the same
+    # next position (a plain max+1 outside a transaction races).
+    with transaction.atomic():
+        reading_list = get_object_or_404(
+            ReadingList.objects.select_for_update(), id=list_id
+        )
 
-    if get_reading_list_role(reading_list, request.user) not in ('owner', 'editor'):
-        return _forbidden("You do not have permission to modify this reading list.")
+        if get_reading_list_role(reading_list, request.user) not in ('owner', 'editor'):
+            return _forbidden("You do not have permission to modify this reading list.")
 
-    # Find the highest position and increment by 1 for new item
-    highest_position = ReadingListItem.objects.filter(reading_list=reading_list).order_by('-position').first()
-    next_position = (highest_position.position + 1) if highest_position else 0
-    data = request.data.copy()
-    data['position'] = next_position
+        # Find the highest position and increment by 1 for new item
+        highest_position = ReadingListItem.objects.filter(reading_list=reading_list).order_by('-position').first()
+        next_position = (highest_position.position + 1) if highest_position else 0
+        data = request.data.copy()
+        data['position'] = next_position
 
-    serializer = ReadingListItemSerializer(data=data)
-    if serializer.is_valid():
-        # Get novel to ensure it exists
-        novel_id = serializer.validated_data['novel_id']
-        get_object_or_404(Novel, id=novel_id)
+        serializer = ReadingListItemSerializer(data=data)
+        if serializer.is_valid():
+            # Get novel to ensure it exists
+            novel_id = serializer.validated_data['novel_id']
+            get_object_or_404(Novel, id=novel_id)
 
-        if ReadingListItem.objects.filter(reading_list=reading_list, novel_id=novel_id).exists():
-            return Response(
-                {"detail": "This novel is already in the reading list."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            if ReadingListItem.objects.filter(reading_list=reading_list, novel_id=novel_id).exists():
+                return Response(
+                    {"detail": "This novel is already in the reading list."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # Create the item
-        try:
-            item = serializer.save(reading_list=reading_list)
-        except IntegrityError:
-            return Response(
-                {"detail": "This novel is already in the reading list."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            # Create the item
+            try:
+                item = serializer.save(reading_list=reading_list)
+            except IntegrityError:
+                return Response(
+                    {"detail": "This novel is already in the reading list."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # Return the item with the novel details
-        return_serializer = ReadingListItemSerializer(item)
-        return Response(return_serializer.data, status=status.HTTP_201_CREATED)
+            ReadingList.objects.filter(pk=reading_list.pk).update(updated_at=timezone.now())
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Return the item with the novel details
+            return_serializer = ReadingListItemSerializer(item)
+            return Response(return_serializer.data, status=status.HTTP_201_CREATED)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["PUT"])
@@ -249,6 +237,8 @@ def remove_novel_from_list(request, list_id, item_id):
             reading_list=reading_list,
             position__gt=position_to_delete
         ).update(position=F('position') - 1)
+
+        ReadingList.objects.filter(pk=reading_list.pk).update(updated_at=timezone.now())
 
     return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -316,6 +306,7 @@ def reorder_list_items(request, list_id):
         for item, position in plan:
             item.position = position
             item.save(update_fields=['position'])
+        ReadingList.objects.filter(pk=reading_list.pk).update(updated_at=timezone.now())
 
     # Return updated list
     updated_list = get_object_or_404(_reading_lists_query_set(), id=list_id)
@@ -333,7 +324,10 @@ def manage_collaborators(request, list_id):
     role = get_reading_list_role(reading_list, request.user)
 
     if request.method == "GET":
-        if not reading_list.is_public and role is None:
+        # A public list is visible to all, but its collaborator roster is not:
+        # only the owner/editors (or any collaborator on a private list) may see it.
+        allowed = role in ('owner', 'editor') if reading_list.is_public else role is not None
+        if not allowed:
             return _forbidden("You do not have access to this reading list.")
         serializer = ReadingListCollaboratorSerializer(
             reading_list.collaborators.all(), many=True, context={"request": request}

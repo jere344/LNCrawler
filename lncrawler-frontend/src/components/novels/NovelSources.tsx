@@ -26,7 +26,7 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import TranslateIcon from '@mui/icons-material/Translate';
 import ImageIcon from '@mui/icons-material/Image';
-import { getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { getChapterName, languageFlagUrl, languageCodeToName, formatDate } from '@utils/Misc';
 import { novelService } from '../../services/api';
 import { NovelDetail, NovelFromSource } from '@models/novels_types';
 
@@ -71,16 +71,6 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
     } finally {
       setVotingInProgress(prev => ({ ...prev, [sourceSlug]: false }));
     }
-  };
-
-  // Format date to readable format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat(i18n.language, { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    }).format(date);
   };
 
   return (
@@ -209,7 +199,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                               {source.language ? (
                                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                   <img 
-                                    src={`/flags/${languageCodeToFlag(source.language)}.svg`} 
+                                    src={languageFlagUrl(source.language)} 
                                     alt={languageCodeToName(t, source.language)}
                                     style={{ 
                                       width: '20px',
@@ -318,7 +308,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                                 {t('novelSources.updated')}
                               </Typography>
                               <Typography variant="body2" sx={{ fontStyle: 'italic', fontSize: '0.7rem' }}>
-                                {formatDate(source.last_chapter_update)}
+                                {formatDate(source.last_chapter_update, i18n.language)}
                               </Typography>
                             </Box>
                           }

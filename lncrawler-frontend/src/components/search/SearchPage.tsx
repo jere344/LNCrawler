@@ -17,9 +17,10 @@ import { novelService } from '../../services/api';
 import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
 import { useDebounce } from '@utils/useDebounce';
 import { Novel } from '@models/novels_types';
-import { languageCodeToFlag, availableLanguages, languageCodeToName, getNovelSourceLink } from '@utils/Misc';
+import { languageFlagUrl, availableLanguages, languageCodeToName, getNovelSourceLink } from '@utils/Misc';
 import { useTheme } from '@theme/ThemeContext';
 import { useLanguage } from '@context/LanguageContext';
+import SeoMeta from '../common/SeoMeta';
 
 
 interface FilterOptions {
@@ -37,7 +38,6 @@ interface Suggestion {
 }
 
 const ITEMS_PER_PAGE = 24;
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
 const SearchPage: React.FC = () => {
   const { t } = useTranslation();
@@ -76,21 +76,24 @@ const SearchPage: React.FC = () => {
     searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
   );
   const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'title');
-  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
+  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'asc');
 
   // Pre-check the user's content languages once, on first arrival. After that
   // the URL is authoritative: unchecking everything shows all languages.
   const seededLanguages = useRef(searchParams.getAll('language').length > 0);
   useEffect(() => {
     if (seededLanguages.current) return;
-    seededLanguages.current = true;
     if (!languageFilterEnabled || contentLanguages.length === 0) return;
+    seededLanguages.current = true;
     const params = new URLSearchParams(searchParams);
     contentLanguages.forEach((code) => params.append('language', code));
     setSearchParams(params, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentLanguages, languageFilterEnabled]);
   
+  // Tags each search fetch so a slow older request can't overwrite a newer one
+  const searchRequestIdRef = useRef(0);
+
   // State for autocomplete options
   const [tagSuggestions, setTagSuggestions] = useState<Suggestion[]>([]);
   const [authorSuggestions, setAuthorSuggestions] = useState<Suggestion[]>([]);
@@ -151,6 +154,7 @@ const SearchPage: React.FC = () => {
   
   // Load search results based on current parameters
   useEffect(() => {
+    const requestId = ++searchRequestIdRef.current;
     const fetchNovels = async () => {
       setLoading(true);
       try {
@@ -172,9 +176,10 @@ const SearchPage: React.FC = () => {
           min_rating: searchParams.get('min_rating') ? 
             Number(searchParams.get('min_rating')) : undefined,
           sort_by: (searchParams.get('sort_by') as 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated') || 'title',
-          sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
+          sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc',
         });
         
+        if (requestId !== searchRequestIdRef.current) return;
         setNovels(response.results);
         setTotalCount(response.count);
         setTotalPages(response.total_pages);
@@ -190,9 +195,12 @@ const SearchPage: React.FC = () => {
           }
         );
       } catch (error) {
+        if (requestId !== searchRequestIdRef.current) return;
         console.error('Error fetching search results:', error);
       } finally {
-        setLoading(false);
+        if (requestId === searchRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     };
     
@@ -255,7 +263,7 @@ const SearchPage: React.FC = () => {
     setSelectedLanguages([]);
     setMinRating(null);
     setSortBy('title');
-    setSortOrder('desc');
+    setSortOrder('asc');
     
     // Reset URL params to default
     setSearchParams(new URLSearchParams({ page: '1' }));
@@ -278,7 +286,6 @@ const SearchPage: React.FC = () => {
   };
   
   const pageUrl = window.location.href;
-  const siteName = "LNCrawler";
   const baseTitle = t('search.metaDefaultTitle');
   const queryTitle = searchQuery ? t('search.metaQueryTitle', { query: searchQuery }) : baseTitle;
 
@@ -306,22 +313,12 @@ const SearchPage: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <title>{metaTitle}</title>
-      <meta name="description" content={metaDescription} />
-      <meta name="keywords" content={metaKeywords} />
-      <link rel="canonical" href={pageUrl} />
-
-      <meta property="og:title" content={metaTitle} />
-      <meta property="og:description" content={metaDescription} />
-      <meta property="og:type" content="website" />
-      <meta property="og:url" content={pageUrl} />
-      <meta property="og:site_name" content={siteName} />
-      <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={metaTitle} />
-      <meta name="twitter:description" content={metaDescription} />
-      <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+      <SeoMeta
+        title={metaTitle}
+        description={metaDescription}
+        keywords={metaKeywords}
+        canonical={pageUrl}
+      />
 
       <Typography variant="h4" component="h1" gutterBottom>
         {t('search.heading')}
@@ -632,7 +629,7 @@ const SearchPage: React.FC = () => {
                           label={languageCodeToName(t, langCode)}
                           avatar={
                             <img
-                              src={`/flags/${languageCodeToFlag(langCode)}.svg`}
+                              src={languageFlagUrl(langCode)}
                               alt={languageCodeToName(t, langCode)}
                               style={{ width: '20px', height: '15px', objectFit: 'cover' }}
                             />
@@ -647,7 +644,7 @@ const SearchPage: React.FC = () => {
                       <Checkbox checked={selectedLanguages.indexOf(langCode) > -1} />
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <img 
-                          src={`/flags/${languageCodeToFlag(langCode)}.svg`} 
+                          src={languageFlagUrl(langCode)} 
                           alt={languageCodeToName(t, langCode)}
                           style={{ 
                             width: '20px',
@@ -805,7 +802,7 @@ const SearchPage: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   {t('search.languageFilter')}&nbsp;
                   <img 
-                    src={`/flags/${languageCodeToFlag(langCode)}.svg`} 
+                    src={languageFlagUrl(langCode)} 
                     alt={languageCodeToName(t, langCode)}
                     style={{ 
                       width: '20px', 

@@ -16,10 +16,7 @@ import {
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@context/LanguageContext';
-import { availableLanguages, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
-
-// Language codes are rendered as small flags so the dropdown stays scannable.
-const flagSrc = (code: string) => `/flags/${languageCodeToFlag(code)}.svg`;
+import { availableLanguages, languageFlagUrl, languageCodeToName } from '@utils/Misc';
 
 const LanguagePreferences: React.FC = () => {
     const { t } = useTranslation();
@@ -48,7 +45,7 @@ const LanguagePreferences: React.FC = () => {
                     renderValue={(code) => (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             {code && (
-                                <Avatar src={flagSrc(code)} sx={{ width: 22, height: 15, borderRadius: 0.5 }} />
+                                <Avatar src={languageFlagUrl(code)} sx={{ width: 22, height: 15, borderRadius: 0.5 }} />
                             )}
                             {code ? languageCodeToName(t, code) : t('profileLanguage.automatic')}
                         </Box>
@@ -60,7 +57,7 @@ const LanguagePreferences: React.FC = () => {
                     {availableLanguages.map((code) => (
                         <MenuItem key={code} value={code}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar src={flagSrc(code)} sx={{ width: 22, height: 15, borderRadius: 0.5 }} />
+                                <Avatar src={languageFlagUrl(code)} sx={{ width: 22, height: 15, borderRadius: 0.5 }} />
                                 {languageCodeToName(t, code)}
                             </Box>
                         </MenuItem>
@@ -91,7 +88,7 @@ const LanguagePreferences: React.FC = () => {
                     renderOption={(props, code) => (
                         <li {...props} key={code}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar src={flagSrc(code)} sx={{ width: 22, height: 15, borderRadius: 0.5 }} />
+                                <Avatar src={languageFlagUrl(code)} sx={{ width: 22, height: 15, borderRadius: 0.5 }} />
                                 {languageCodeToName(t, code)}
                             </Box>
                         </li>
@@ -100,7 +97,7 @@ const LanguagePreferences: React.FC = () => {
                         value.map((code, index) => (
                             <Chip
                                 label={languageCodeToName(t, code)}
-                                avatar={<Avatar src={flagSrc(code)} />}
+                                avatar={<Avatar src={languageFlagUrl(code)} />}
                                 {...getItemProps({ index })}
                                 key={code}
                             />

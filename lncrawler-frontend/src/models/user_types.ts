@@ -8,6 +8,7 @@ export interface User {
     banner?: string | null;
     social_links?: Record<string, string>;
     privacy_settings?: Record<string, PrivacyValue>;
+    discoverable?: boolean;
 }
 
 export type PrivacyValue = 'public' | 'friends' | 'private';

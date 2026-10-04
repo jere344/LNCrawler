@@ -15,6 +15,7 @@ from .models import PasswordResetToken
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 import logging
+import secrets
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -195,9 +196,12 @@ class ForgotPasswordView(APIView):
                 # Only one outstanding reset token per account: retire the
                 # previous ones so an older (possibly leaked) link cannot be used.
                 PasswordResetToken.objects.filter(user=user, used=False).update(used=True)
-                reset_token = PasswordResetToken.objects.create(user=user)
+                raw_token = secrets.token_urlsafe(32)
+                PasswordResetToken.objects.create(
+                    user=user, token=PasswordResetToken.hash_token(raw_token)
+                )
                 try:
-                    send_password_reset_email(user, reset_token.token)
+                    send_password_reset_email(user, raw_token)
                 except Exception as e:
                     logger.error(f"Error sending password reset email: {e}")
 
@@ -223,7 +227,7 @@ class ResetPasswordView(APIView):
                 reset_token = (
                     PasswordResetToken.objects
                     .select_for_update()
-                    .filter(token=token)
+                    .filter(token=PasswordResetToken.hash_token(token))
                     .first()
                 )
                 

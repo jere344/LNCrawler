@@ -1,12 +1,16 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from ..models import Novel, Chapter
 from ..models.comments_models import Comment, CommentVote
 from ..utils import get_client_ip, resolve_novel_slug
-from ..serializers.comments_serializers import NovelCommentSerializer, ChapterCommentSerializer
-from ..serializers.boards_serializers import BoardCommentSerializer
+from ..utils.pagination import parse_page_size
+from ..serializers.comments_serializers import (
+    NovelCommentSerializer, ChapterCommentSerializer, chapter_comment_context,
+)
+from ..serializers.boards_serializers import BoardCommentSerializer, board_comment_context
 
 
 MAX_AUTHOR_NAME_LENGTH = 100
@@ -35,26 +39,20 @@ def novel_comments(request, novel_slug):
     # Process chapter comments with their replies
     chapter_comments_data = []
     for comment in chapter_comments:
-        chapter = comment.chapter
-        source = chapter.novel_from_source
-         
         serializer = ChapterCommentSerializer(
-            comment, 
-            context={
-                'request': request, 
-                'chapter_title': chapter.title,
-                'chapter_id': chapter.chapter_id,
-                'source_name': source.external_source.source_name,
-                'source_slug': source.source_slug
-            })
-        comment_data = serializer.data
-        chapter_comments_data.append(comment_data)
+            comment, context=chapter_comment_context(request, comment.chapter)
+        )
+        chapter_comments_data.append(serializer.data)
     
     # Combine and sort by creation date
     all_comments = novel_comments_data + chapter_comments_data
     all_comments.sort(key=lambda x: x['created_at'], reverse=True)
-    
-    return Response(all_comments)
+
+    # Frontend consumes a plain list; paginate top-level comments while keeping replies attached.
+    paginator = Paginator(all_comments, parse_page_size(request, 20, 50))
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+
+    return Response(page_obj.object_list)
 
 @api_view(['POST'])
 def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
@@ -74,11 +72,20 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
     if isinstance(message, str):
         message = message.strip()
 
-    if not author_name or not message:
+    if not message:
         return Response(
-            {'error': 'Author name (if anonymous) and message are required'},
+            {'error': 'Message is required'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    if not author_name:
+        if user_instance:
+            author_name = user_instance.username
+        else:
+            return Response(
+                {'error': 'Author name is required for anonymous comments'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     if not isinstance(author_name, str) or len(author_name) > MAX_AUTHOR_NAME_LENGTH:
         return Response(
@@ -139,13 +146,9 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
             # Increment comment count for the novel
             novel.increment_comment_count()
             
-            serializer = ChapterCommentSerializer(comment_obj, context={
-                'request': request,
-                'chapter_title': chapter.title,
-                'chapter_id': chapter.chapter_id,
-                'source_name': source.external_source.source_name,
-                'source_slug': source.source_slug
-            })
+            serializer = ChapterCommentSerializer(
+                comment_obj, context=chapter_comment_context(request, chapter)
+            )
         else: # Novel comment
             comment_obj = Comment.objects.create(
                 novel=novel,
@@ -179,15 +182,10 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     
     
     specific_comments_serializer = ChapterCommentSerializer(
-        specific_comments, 
-        many=True, 
-        context={
-            'request': request,
-            'chapter_title': chapter.title,
-            'chapter_id': chapter.chapter_id,
-            'source_name': source.external_source.source_name,
-            'source_slug': source.source_slug
-        })
+        specific_comments,
+        many=True,
+        context=chapter_comment_context(request, chapter),
+    )
     specific_comments_data = specific_comments_serializer.data
     
     # Get comments for the same chapter number but from different sources
@@ -198,15 +196,10 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
             other_comments = other_chapter.comments.filter(parent=None)
             
             serializer = ChapterCommentSerializer(
-                other_comments, 
-                many=True, 
-                context={
-                    'request': request,
-                    'chapter_title': other_chapter.title,
-                    'chapter_id': other_chapter.chapter_id,
-                    'source_name': other_source.external_source.source_name,
-                    'source_slug': other_source.source_slug
-                })
+                other_comments,
+                many=True,
+                context=chapter_comment_context(request, other_chapter),
+            )
             for comment_data in serializer.data:
                 other_source_comments_data.append(comment_data)
                 
@@ -216,8 +209,12 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     # Combine all comments and sort by creation date
     all_comments = specific_comments_data + other_source_comments_data
     all_comments.sort(key=lambda x: x['created_at'], reverse=True)
-    
-    return Response(all_comments)
+
+    # Frontend consumes a plain list; paginate top-level comments while keeping replies attached.
+    paginator = Paginator(all_comments, parse_page_size(request, 20, 50))
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+
+    return Response(page_obj.object_list)
 
 @api_view(['POST'])
 def vote_comment(request, comment_id):
@@ -281,22 +278,13 @@ def edit_comment(request, comment_id):
     
     # Return the updated comment using the appropriate serializer
     if comment.chapter:
-        chapter = comment.chapter
-        source = chapter.novel_from_source
-        serializer = ChapterCommentSerializer(comment, context={
-            'request': request,
-            'chapter_title': chapter.title,
-            'chapter_id': chapter.chapter_id,
-            'source_name': source.external_source.source_name,
-            'source_slug': source.source_slug
-        })
+        serializer = ChapterCommentSerializer(
+            comment, context=chapter_comment_context(request, comment.chapter)
+        )
     elif comment.board:
-        board = comment.board
-        serializer = BoardCommentSerializer(comment, context={
-            'request': request,
-            'board_name': board.name,
-            'board_slug': board.slug
-        })
+        serializer = BoardCommentSerializer(
+            comment, context=board_comment_context(request, comment.board)
+        )
     else:
         serializer = NovelCommentSerializer(comment, context={'request': request})
     

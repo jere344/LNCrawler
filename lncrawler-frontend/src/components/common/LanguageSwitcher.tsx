@@ -13,7 +13,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import CheckIcon from '@mui/icons-material/Check';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@context/LanguageContext';
-import { availableLanguages, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { availableLanguages, languageFlagUrl, languageCodeToName } from '@utils/Misc';
 import i18n from '../../i18n';
 
 // Compact interface-language picker for the header. Works logged out: the
@@ -24,7 +24,7 @@ const LanguageSwitcher = () => {
     const [anchor, setAnchor] = useState<null | HTMLElement>(null);
 
     const activeLanguage = uiLanguage || i18n.resolvedLanguage || 'en';
-    const flag = languageCodeToFlag(activeLanguage);
+    const flag = languageFlagUrl(activeLanguage);
 
     const handleClose = () => setAnchor(null);
 
@@ -42,7 +42,7 @@ const LanguageSwitcher = () => {
                     aria-label={t('header.language')}
                 >
                     <Avatar
-                        src={`/flags/${flag}.svg`}
+                        src={flag}
                         sx={{ width: 24, height: 16, borderRadius: 0.5 }}
                     >
                         <LanguageIcon fontSize="small" />
@@ -73,7 +73,7 @@ const LanguageSwitcher = () => {
                         )}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: activeLanguage === code ? 0 : 3 }}>
                             <Avatar
-                                src={`/flags/${languageCodeToFlag(code)}.svg`}
+                                src={languageFlagUrl(code)}
                                 sx={{ width: 22, height: 15, borderRadius: 0.5 }}
                             />
                             {languageCodeToName(t, code)}

@@ -29,8 +29,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
 import { getChapterLabel } from '@utils/Misc';
-
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
+import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 
 interface GalleryImage {
   chapter_id: number;
@@ -174,7 +173,6 @@ const ImageGallery = () => {
   }, [imagesWithDimensions, showSmallImages]);
 
   const pageUrl = window.location.href;
-  const siteName = "LNCrawler";
 
   const metaTitle = gallery 
     ? t('gallery.metaTitle', { novel: gallery.novel_title, source: gallery.source_name })
@@ -234,22 +232,14 @@ const ImageGallery = () => {
 
   return (
     <Container maxWidth="lg">
-      <title>{metaTitle}</title>
-      <meta name="description" content={metaDescription.substring(0, 160)} />
-      <meta name="keywords" content={metaKeywords} />
-      <link rel="canonical" href={pageUrl} />
-
-      <meta property="og:title" content={metaTitle} />
-      <meta property="og:description" content={metaDescription.substring(0, 160)} />
-      <meta property="og:type" content="image.gallery" />
-      <meta property="og:url" content={pageUrl} />
-      <meta property="og:site_name" content={siteName} />
-      <meta property="og:image" content={ogImage} />
-
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={metaTitle} />
-      <meta name="twitter:description" content={metaDescription.substring(0, 160)} />
-      <meta name="twitter:image" content={ogImage} />
+      <SeoMeta
+        title={metaTitle}
+        description={metaDescription.substring(0, 160)}
+        keywords={metaKeywords}
+        image={ogImage}
+        type="image.gallery"
+        canonical={pageUrl}
+      />
 
       {gallery && (
         <BreadcrumbNav

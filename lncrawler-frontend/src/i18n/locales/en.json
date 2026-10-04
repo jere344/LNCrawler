@@ -219,6 +219,8 @@
     "description": "Choose who can see each part of your profile.",
     "visibility": "Visibility",
     "saveError": "Could not save privacy settings.",
+    "discoverable": "Appear in user search",
+    "discoverableHelper": "When off, other users cannot find you when searching to add a friend or collaborator.",
     "values": {
       "public": "Public",
       "friends": "Friends",

@@ -111,6 +111,11 @@ def create_issue(title, body, fp):
     if not _enabled():
         return
 
+    # Dedup searches the title for the fingerprint, so a caller-supplied title
+    # must still carry it or the issue duplicates across restarts.
+    if fp and fp not in title:
+        title = f"{title} ({fp})"
+
     if _disk_enabled():
         _write_report(title, body, fp)
         return

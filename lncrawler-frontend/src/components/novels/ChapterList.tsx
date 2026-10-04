@@ -34,8 +34,7 @@ import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { getChapterLabel } from '@utils/Misc';
-
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
+import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 
 interface IExtendedChapterListResponse extends IChapterListResponse {
   count: number;
@@ -113,7 +112,6 @@ const ChapterList = () => {
   const filteredVolumes = volumeChapters;
 
   const pageUrl = window.location.href;
-  const siteName = "LNCrawler";
 
   const metaTitle = chapterData 
     ? t('chapterList.metaTitle', { novel: chapterData.novel_title, source: chapterData.source_name }) 
@@ -151,22 +149,13 @@ const ChapterList = () => {
 
   return (
     <Container maxWidth="md">
-      <title>{metaTitle}</title>
-      <meta name="description" content={metaDescription.substring(0, 160)} />
-      <meta name="keywords" content={metaKeywords} />
-      <link rel="canonical" href={pageUrl} />
-
-      <meta property="og:title" content={metaTitle} />
-      <meta property="og:description" content={metaDescription.substring(0, 160)} />
-      <meta property="og:type" content="website" />
-      <meta property="og:url" content={pageUrl} />
-      <meta property="og:site_name" content={siteName} />
-      <meta property="og:image" content={ogImage} />
-
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={metaTitle} />
-      <meta name="twitter:description" content={metaDescription.substring(0, 160)} />
-      <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+      <SeoMeta
+        title={metaTitle}
+        description={metaDescription.substring(0, 160)}
+        keywords={metaKeywords}
+        image={ogImage}
+        canonical={pageUrl}
+      />
 
       {!loading && chapterData && (
         <BreadcrumbNav

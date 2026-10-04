@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -91,6 +91,9 @@ const LibraryPage: React.FC = () => {
   }>({ open: false, folder: null, value: '' });
   const [deleteFolder, setDeleteFolder] = useState<LibraryFolder | null>(null);
 
+  // Tags each fetch so a slow older response can't overwrite a newer one
+  const fetchRequestIdRef = useRef(0);
+
   const canDrag = sort === 'custom' && folder === 'all' && !debouncedSearch;
 
   const sensors = useSensors(
@@ -101,6 +104,7 @@ const LibraryPage: React.FC = () => {
 
   const fetchLibrary = useCallback(
     async (pageNum = 1) => {
+      const requestId = ++fetchRequestIdRef.current;
       try {
         setLoading(true);
         setError(null);
@@ -111,6 +115,7 @@ const LibraryPage: React.FC = () => {
           folder,
           sort,
         });
+        if (requestId !== fetchRequestIdRef.current) return;
         setItems(response.results);
         setFolders(response.folders || []);
         setRecommendations(response.recommendations || []);
@@ -120,10 +125,13 @@ const LibraryPage: React.FC = () => {
           setAllCount(response.count);
         }
       } catch (err) {
+        if (requestId !== fetchRequestIdRef.current) return;
         console.error('Error fetching library:', err);
         setError(t('library.loadFailed'));
       } finally {
-        setLoading(false);
+        if (requestId === fetchRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [debouncedSearch, folder, sort, t]

@@ -4,6 +4,7 @@ import { Box, Typography, Paper, Grid, LinearProgress, Tooltip } from '@mui/mate
 import ImportContactsIcon from '@mui/icons-material/ImportContacts';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
+import { formatNumber } from '@utils/Misc';
 
 interface ProfileData {
   word_read?: number;
@@ -16,11 +17,7 @@ interface ReadingStatisticsCardProps {
 }
 
 const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileData }) => {
-  const { t } = useTranslation();
-  // Format large numbers with commas
-  const formatNumber = (num: number): string => {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  };
+  const { t, i18n } = useTranslation();
 
   // Calculate reading progress percentage
   const calculateReadingProgress = (): number => {
@@ -102,7 +99,7 @@ const ReadingStatisticsCard: React.FC<ReadingStatisticsCardProps> = ({ profileDa
                 <Typography variant="h4" sx={{
                   fontWeight: "bold"
                 }}>
-                  {formatNumber(profileData?.word_read || 0)}
+                  {formatNumber(profileData?.word_read || 0, i18n.language)}
                 </Typography>
               </Box>
               <Typography variant="caption" sx={{

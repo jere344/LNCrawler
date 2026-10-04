@@ -12,6 +12,7 @@ import LanguagePreferences from '../profile/LanguagePreferences';
 import PrivacySettings from '../profile/PrivacySettings';
 import PinnedNovelsPicker from '../profile/PinnedNovelsPicker';
 import type { Novel } from '@models/novels_types';
+import { formatDate } from '@utils/Misc';
 
 interface ProfileData {
   username: string;
@@ -46,7 +47,7 @@ const formatApiError = (data: unknown): string | null => {
 
 const SettingsPage: React.FC = () => {
   const { updateProfile, refreshUser } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -382,7 +383,7 @@ const SettingsPage: React.FC = () => {
                 {t('profile.memberSince')}
               </Typography>
               <Typography variant="body1">
-                {profileData?.date_joined ? new Date(profileData.date_joined).toLocaleDateString() : t('common.na')}
+                {profileData?.date_joined ? formatDate(profileData.date_joined, i18n.language) : t('common.na')}
               </Typography>
             </Grid>
             <Grid
@@ -396,7 +397,7 @@ const SettingsPage: React.FC = () => {
                 {t('profile.lastLogin')}
               </Typography>
               <Typography variant="body1">
-                {profileData?.last_login ? new Date(profileData.last_login).toLocaleDateString() : t('common.na')}
+                {profileData?.last_login ? formatDate(profileData.last_login, i18n.language) : t('common.na')}
               </Typography>
             </Grid>
           </Grid>

@@ -4,6 +4,18 @@ from ..utils.ip_utils import get_client_ip
 from auth_app.serializers import OtherUserSerializer
 
 
+def chapter_comment_context(request, chapter):
+    """Serializer context for ChapterCommentSerializer, derived from a chapter."""
+    source = chapter.novel_from_source
+    return {
+        'request': request,
+        'chapter_title': chapter.title,
+        'chapter_id': chapter.chapter_id,
+        'source_name': source.external_source.source_name,
+        'source_slug': source.source_slug,
+    }
+
+
 class RecursiveCommentSerializer(serializers.Serializer):
     def to_representation(self, instance):
         serializer = self.parent.parent.__class__(instance, context=self.context)
@@ -44,7 +56,7 @@ class NovelCommentSerializer(CommentSerializer):
     type = serializers.CharField(default='novel', read_only=True)
     
     class Meta(CommentSerializer.Meta):
-        fields = CommentSerializer.Meta.fields + ['type']
+        fields = CommentSerializer.Meta.fields + ['type', 'edited']
 
 
 class ChapterCommentSerializer(CommentSerializer):

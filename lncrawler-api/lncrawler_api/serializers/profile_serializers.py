@@ -1,11 +1,12 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Q
+from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Sum
 from rest_framework import serializers
 
 from auth_app.serializers import OtherUserSerializer, absolute_media_url
 from auth_app.models import PRIVACY_SECTIONS
 
-from ..models.users_models import Friendship, ProfilePinnedNovel, ReadingHistory
+from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel, ReadingHistory
+from ..models.chapter_models import Chapter
 from ..models.novels_models import Tag
 from ..privacy import are_friends, can_view
 from .novels_serializers import BasicNovelSerializer
@@ -65,7 +66,11 @@ class PublicUserSerializer(serializers.ModelSerializer):
         ).count()
 
     def get_visibility(self, obj):
-        return {section: obj.visibility(section) for section in PRIVACY_SECTIONS}
+        viewer = self._viewer()
+        return {
+            section: 'public' if can_view(viewer, obj, section) else 'private'
+            for section in PRIVACY_SECTIONS
+        }
 
     def get_pinned_novels(self, obj):
         pins = (
@@ -81,13 +86,34 @@ class PublicUserSerializer(serializers.ModelSerializer):
     def get_stats(self, obj):
         if not can_view(self._viewer(), obj, 'stats'):
             return None
-        from auth_app.serializers import UserSerializer
-        data = UserSerializer(obj, context=self.context).data
+        bookmarked = NovelBookmark.objects.filter(user=obj).values('novel')
+        chapters_read = (
+            ReadingHistory.objects
+            .filter(user=obj, novel__in=bookmarked, last_read_chapter__isnull=False)
+            .annotate(last_chapter_id=F('last_read_chapter__chapter_id'))
+            .annotate(read_count=Subquery(
+                Chapter.objects
+                .filter(
+                    novel_from_source=OuterRef('source_id'),
+                    has_content=True,
+                    chapter_id__lte=OuterRef('last_chapter_id'),
+                )
+                .order_by()
+                .values('novel_from_source')
+                .annotate(c=Count('*'))
+                .values('c')[:1],
+                output_field=IntegerField(),
+            ))
+            .aggregate(total=Sum('read_count'))['total']
+        ) or 0
+        total_chapters = Chapter.objects.filter(
+            novel_from_source__novel__in=bookmarked, has_content=True
+        ).count()
         return {
-            'word_read': data['word_read'],
-            'chapters_read_count': data['chapters_read_count'],
-            'chapters_not_read_yet_count': data['chapters_not_read_yet_count'],
-            'novels_count': obj.novel_bookmarks.count(),
+            'word_read': obj.word_read,
+            'chapters_read_count': chapters_read,
+            'chapters_not_read_yet_count': max(0, total_chapters - chapters_read),
+            'novels_count': NovelBookmark.objects.filter(user=obj).count(),
         }
 
     def _recent_history(self, obj):

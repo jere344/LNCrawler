@@ -5,17 +5,19 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 import os
-from urllib.parse import quote
 
-from ..models import Novel, SourceVote, WeeklySourceView
+from ..models import Novel, SourceVote, WeeklySourceView, resolve_output_path
 from ..serializers import NovelSourceSerializer, ChapterSerializer, ChapterContentSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
 from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum, Func, IntegerField
 from django.db.models.functions import Coalesce
-from django.conf import settings
 from django.http import FileResponse
-from ..utils import get_client_ip, resolve_novel_slug
+from ..utils import build_media_url, get_client_ip, resolve_novel_slug
+from ..utils.pagination import parse_page_size
 from ..services.epub_service import get_or_build_epub
+
+
+MAX_EPUB_CHAPTERS = 500
 
 
 class ArrayLength(Func):
@@ -106,7 +108,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
 
     # Pagination parameters
     page_number = request.GET.get("page", 1)
-    page_size = min(int(request.GET.get("page_size", 100)), 500)  # Higher default for chapters
+    page_size = parse_page_size(request, 100, 500)  # Higher default for chapters
 
     paginator = Paginator(chapters, page_size)
     page_obj = paginator.get_page(page_number)
@@ -126,9 +128,9 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
             "current_page": page_obj.number,
             "chapters": serializer.data,
             "source_overview_image_url": (
-                f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
+                build_media_url(source.overview_picture_path)
                 if source.overview_picture_path and os.path.exists(
-                    os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path)
+                    resolve_output_path(source.overview_picture_path) or ""
                 )
                 else None
             ),
@@ -173,7 +175,7 @@ def source_image_gallery(request, novel_slug, source_slug):
     )
 
     # Check if there are any images available
-    has_overview = source.overview_picture_path and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path))
+    has_overview = source.overview_picture_path and os.path.exists(resolve_output_path(source.overview_picture_path) or "")
     total_images = chapters_with_images.aggregate(total=Sum(ArrayLength("images")))["total"] or 0
     if has_overview:
         total_images += 1
@@ -181,7 +183,7 @@ def source_image_gallery(request, novel_slug, source_slug):
         return Response({"detail": "No images found for this source"}, status=status.HTTP_404_NOT_FOUND)
 
     # Pagination parameters
-    page_size = min(int(request.GET.get("page_size", 20)), 100)
+    page_size = parse_page_size(request, 20, 100)
 
     # Paginate over the image count only; rows are streamed below, so a source
     # with tens of thousands of images never lands in memory all at once.
@@ -197,18 +199,16 @@ def source_image_gallery(request, novel_slug, source_slug):
     # Add the overview image if it exists
     if has_overview:
         if start <= index < end:
-            overview_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
             image_data.append({
                 "chapter_id": 0,  # Special ID for overview
                 "chapter_title": "Novel Overview",
-                "image_url": quote(overview_image_url, safe=':/'),
+                "image_url": build_media_url(source.overview_picture_path),
                 "image_name": "overview.png"
             })
         index += 1
 
     # Add chapter images, expanding only the slice for this page.
-    base_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}/images/"
-    image_dir = os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.source_path, "images")
+    image_dir = resolve_output_path(source.source_path, "images") or ""
     for chapter_id, chapter_title, images in chapters_with_images.iterator(chunk_size=500):
         for image_name in images:
             if index >= end:
@@ -220,7 +220,7 @@ def source_image_gallery(request, novel_slug, source_slug):
                 image_data.append({
                     "chapter_id": chapter_id,
                     "chapter_title": chapter_title,
-                    "image_url": quote(f"{base_image_url}{image_name}", safe=':/'),
+                    "image_url": build_media_url(f"{source.source_path}/images/{image_name}"),
                     "image_name": image_name
                 })
             index += 1
@@ -268,6 +268,23 @@ def download_source_epub(request, novel_slug, source_slug):
                 {"error": "Volume not found for this source."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+    # Cap the inline build so an unauthenticated request can't make the server
+    # assemble a book with an unbounded number of chapters in one go.
+    chapter_count = source.chapters.filter(has_content=True)
+    if volume is not None:
+        chapter_count = chapter_count.filter(volume=volume)
+    chapter_count = chapter_count.count()
+    if chapter_count > MAX_EPUB_CHAPTERS:
+        return Response(
+            {
+                "error": (
+                    f"This selection has {chapter_count} chapters (limit "
+                    f"{MAX_EPUB_CHAPTERS}). Download it by volume instead."
+                )
+            },
+            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
 
     try:
         path, filename = get_or_build_epub(source, volume)

@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -16,7 +15,10 @@ from ..serializers.comments_serializers import CommentSerializer
 from ..serializers.reading_lists_serializers import ReadingListSerializer
 from ..serializers.profile_serializers import PublicUserSerializer
 from auth_app.serializers import OtherUserSerializer
-from .reading_lists_views import _paginated_response
+from ..utils.pagination import (
+    paginated_response as _paginated_response, paginated_reviews_response,
+)
+from ..utils.responses import forbidden as _forbidden
 from rest_framework import serializers as drf_serializers
 
 User = get_user_model()
@@ -90,10 +92,6 @@ class ProfileCommentSerializer(CommentSerializer):
 
 
 
-def _forbidden(detail):
-    return Response({"detail": detail}, status=status.HTTP_403_FORBIDDEN)
-
-
 def _target(username):
     return get_object_or_404(User, username=username)
 
@@ -135,24 +133,7 @@ def user_reviews(request, username):
         .select_related('novel', 'user')
         .prefetch_related('reactions__user')
     )
-    page_number = request.GET.get('page', 1)
-    try:
-        page_size = max(1, min(int(request.GET.get('page_size', 20)), 50))
-    except (TypeError, ValueError):
-        page_size = 20
-    paginator = Paginator(reviews, page_size)
-    page_obj = paginator.get_page(page_number)
-    serializer = ReviewListSerializer(page_obj, many=True, context={"request": request})
-    return Response({
-        'reviews': serializer.data,
-        'pagination': {
-            'current_page': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'total_reviews': paginator.count,
-            'has_next': page_obj.has_next(),
-            'has_previous': page_obj.has_previous(),
-        },
-    })
+    return paginated_reviews_response(request, reviews, ReviewListSerializer)
 
 
 @api_view(["GET"])
@@ -195,20 +176,9 @@ def user_friends(request, username):
     owner = _target(username)
     if not can_view(request.user, owner, 'friends'):
         return _forbidden("This user's friends are private.")
-    from ..models.users_models import Friendship
-    from django.db.models import Q
-    friendships = (
-        Friendship.objects
-        .filter(status=Friendship.ACCEPTED)
-        .filter(Q(requester=owner) | Q(addressee=owner))
-        .select_related('requester', 'addressee')
-    )
-    friends = [
-        friendship.addressee if friendship.requester_id == owner.id else friendship.requester
-        for friendship in friendships
-    ]
-    serializer = OtherUserSerializer(friends, many=True, context={"request": request})
-    return Response(serializer.data)
+    from .friends_views import friend_user_queryset
+    friends = friend_user_queryset(owner).order_by('username')
+    return _paginated_response(request, friends, OtherUserSerializer)
 
 
 @api_view(["POST", "DELETE"])

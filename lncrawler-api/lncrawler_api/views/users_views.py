@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
+from django.db import IntegrityError
 from django.db.models import Count, F, IntegerField, Max, OuterRef, Q, Subquery
 
 import uuid
@@ -16,6 +17,8 @@ from ..models.sources_models import NovelFromSource, Chapter
 from ..serializers.novels_serializers import BasicNovelSerializer, LibraryItemSerializer
 from ..serializers.users_serializers import DetailedReadingHistorySerializer
 from ..utils import resolve_novel_slug
+from ..utils.pagination import parse_page_size, paginated_response
+from ..utils.query_helpers import apply_novel_prefetches
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -24,7 +27,11 @@ def add_novel_bookmark(request, novel_slug):
     Bookmark a novel for the authenticated user.
     """
     novel = resolve_novel_slug(novel_slug)
-    bookmark, created = NovelBookmark.objects.get_or_create(user=request.user, novel=novel)
+    try:
+        bookmark, created = NovelBookmark.objects.get_or_create(user=request.user, novel=novel)
+    except IntegrityError:
+        bookmark = NovelBookmark.objects.get(user=request.user, novel=novel)
+        created = False
 
     if created:
         last_position = (
@@ -88,10 +95,7 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     folder_param = request.GET.get("folder", "all")
     sort = request.GET.get("sort", "custom")
     page_number = request.GET.get("page", 1)
-    try:
-        page_size = min(int(request.GET.get("page_size", 24)), 100)
-    except (TypeError, ValueError):
-        page_size = 24
+    page_size = parse_page_size(request, 24, 100)
 
     bookmarks = NovelBookmark.objects.filter(user=owner)
 
@@ -113,9 +117,7 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
         NovelRating.objects.filter(novel=OuterRef("novel_id"), user=owner).values("rating")[:1],
         output_field=IntegerField(),
     )
-    bookmarks = (
-        bookmarks.select_related("folder", "novel").annotate(owner_rating=owner_rating)
-    )
+    bookmarks = bookmarks.select_related("folder").annotate(owner_rating=owner_rating)
 
     if sort == "title":
         bookmarks = bookmarks.order_by("novel__title")
@@ -150,9 +152,15 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
         page_items = list(page_obj)
         count, total_pages, current_page = paginator.count, paginator.num_pages, page_obj.number
 
+    novels_by_id = {
+        novel.id: novel
+        for novel in apply_novel_prefetches(
+            Novel.objects.filter(id__in=[bookmark.novel_id for bookmark in page_items]), viewer
+        )
+    }
     novels = []
     for bookmark in page_items:
-        novel = bookmark.novel
+        novel = novels_by_id[bookmark.novel_id]
         novel.library_bookmark = bookmark
         novel.user_bookmarks = [True] if novel.id in viewer_bookmarked_ids else []
         novels.append(novel)
@@ -327,7 +335,9 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
         output_field=IntegerField()
     )
     
-    recommendations = Novel.objects.filter(pk__in=recommended_ids).order_by(preserved_order)
+    recommendations = apply_novel_prefetches(
+        Novel.objects.filter(pk__in=recommended_ids).order_by(preserved_order), user
+    )
     
     return recommendations
 
@@ -337,24 +347,13 @@ def list_reading_history(request):
     """
     List all novels with reading history for the authenticated user.
     """
-    page_number = request.GET.get("page", 1)
-    page_size = min(int(request.GET.get("page_size", 20)), 50)
-
     # Get novels with reading history for the current user
-    novels_with_history = Novel.objects.filter(reading_histories__user=request.user).order_by('-reading_histories__last_read_at')
-    
-    paginator = Paginator(novels_with_history, page_size)
-    page_obj = paginator.get_page(page_number)
-
-    serializer = BasicNovelSerializer(page_obj, many=True, context={"request": request})
-
-    return Response(
-        {
-            "count": paginator.count,
-            "total_pages": paginator.num_pages,
-            "current_page": page_obj.number,
-            "results": serializer.data,
-        }
+    novels_with_history = apply_novel_prefetches(
+        Novel.objects.filter(reading_histories__user=request.user).order_by('-reading_histories__last_read_at'),
+        request.user,
+    )
+    return paginated_response(
+        request, novels_with_history, BasicNovelSerializer, max_size=50
     )
 
 @api_view(["DELETE"])
@@ -388,14 +387,18 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
         .values_list("last_read_chapter_id", flat=True)
         .first()
     )
-    reading_history, created = ReadingHistory.objects.update_or_create(
-        user=request.user,
-        novel=novel,
-        defaults={
-            'source': source,
-            'last_read_chapter': chapter
-        }
-    )
+    try:
+        reading_history, created = ReadingHistory.objects.update_or_create(
+            user=request.user,
+            novel=novel,
+            defaults={
+                'source': source,
+                'last_read_chapter': chapter
+            }
+        )
+    except IntegrityError:
+        reading_history = ReadingHistory.objects.get(user=request.user, novel=novel)
+        created = False
 
     # Only count words when advancing to a different chapter, so revisiting a
     # chapter does not inflate the total. F() avoids lost updates under concurrency.
@@ -427,7 +430,7 @@ def search_users(request):
 
     users = (
         get_user_model().objects
-        .filter(username__icontains=query)
+        .filter(username__icontains=query, discoverable=True)
         .exclude(id=request.user.id)
         .order_by("username")[:20]
     )

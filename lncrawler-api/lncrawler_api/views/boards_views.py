@@ -5,7 +5,9 @@ from django.shortcuts import get_object_or_404
 from ..models.boards_models import Board
 from ..models.comments_models import Comment
 from ..utils import get_client_ip
-from ..serializers.boards_serializers import BoardSerializer, BoardCommentSerializer
+from ..serializers.boards_serializers import (
+    BoardSerializer, BoardCommentSerializer, board_comment_context,
+)
 
 @api_view(['GET'])
 def list_boards(request):
@@ -36,13 +38,8 @@ def board_comments(request, board_slug):
     comments = board.comments.filter(parent=None)
     
     serializer = BoardCommentSerializer(
-        comments, 
-        many=True, 
-        context={
-            'request': request,
-            'board_name': board.name,
-            'board_slug': board.slug
-        })
+        comments, many=True, context=board_comment_context(request, board)
+    )
     
     return Response(serializer.data)
 
@@ -99,10 +96,8 @@ def add_board_comment(request, board_slug):
     # Increment comment count for the board
     board.increment_comment_count()
     
-    serializer = BoardCommentSerializer(comment_obj, context={
-        'request': request,
-        'board_name': board.name,
-        'board_slug': board.slug
-    })
+    serializer = BoardCommentSerializer(
+        comment_obj, context=board_comment_context(request, board)
+    )
     
     return Response(serializer.data, status=status.HTTP_201_CREATED)

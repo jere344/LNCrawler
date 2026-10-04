@@ -6,6 +6,7 @@ Writes:
 - <output>/cover.jpg             downloaded or generated cover
 """
 
+import html
 import itertools
 import json
 import logging
@@ -36,13 +37,14 @@ def _save_chapter(file_name: Path, chapter: Chapter) -> None:
         chapter.body = "<p><i>Failed to download chapter body</i></p>"
 
     args = get_args()
+    source_url = html.escape(chapter.url or "", quote=True)
     source_notice = (
-        f'<br><p><small>Source: <a href="{chapter.url}">{chapter.url}</a></small></p>'
+        f'<br><p><small>Source: <a href="{source_url}">{source_url}</a></small></p>'
     )
     if args.add_source_url and not chapter.body.endswith(source_notice):
         chapter.body += source_notice
 
-    title = (chapter.title or "").replace("<", "&lt;").replace(">", "&gt;")
+    title = html.escape(chapter.title or "")
     title = f"<h1>{title}</h1>"
     if not chapter.body.startswith(title):
         chapter.body = title + chapter.body

@@ -16,6 +16,22 @@ def truncate(value, max_length=500):
         return value[:max_length]
     return value
 
+
+def resolve_output_path(*relative):
+    """
+    Resolve DB-relative path parts under ``LNCRAWL_OUTPUT_PATH`` and return the
+    absolute path, or ``None`` if the result escapes the output root (e.g. a
+    poisoned ``..`` segment). Valid paths are returned unchanged.
+    """
+    base = os.path.realpath(settings.LNCRAWL_OUTPUT_PATH)
+    target = os.path.realpath(os.path.join(base, *relative))
+    try:
+        if os.path.commonpath([base, target]) != base:
+            return None
+    except ValueError:
+        return None
+    return target
+
 class ExternalSource(models.Model):
     """
     Represents an external source (website) where novels are crawled from
@@ -125,7 +141,7 @@ class NovelFromSource(models.Model):
         Returns the absolute path to the source directory
         """
         if self.source_path:
-            return os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.source_path)
+            return resolve_output_path(self.source_path)
         return None
     
     @property
@@ -342,9 +358,15 @@ class NovelFromSource(models.Model):
             for chapter_data in novel_data['chapters']:
                 chapter_id = chapter_data.get('id')
 
-                # Extract only the image filenames (keys) from the images dictionary
-                images_dict = chapter_data.get('images', {})
-                image_filenames = list(images_dict.keys()) if images_dict else []
+                # Accept both shapes meta.json uses: a dict of filename -> {..}
+                # and a plain list of filenames.
+                images_data = chapter_data.get('images')
+                if isinstance(images_data, dict):
+                    image_filenames = list(images_data.keys())
+                elif isinstance(images_data, list):
+                    image_filenames = list(images_data)
+                else:
+                    image_filenames = []
 
                 # Prepare chapter data
                 chapter_dict = {
@@ -435,8 +457,8 @@ class NovelFromSource(models.Model):
         # Check if we have a source path and it exists
         print(f"Deleting source folder: {self.source_path}")
         if self.source_path:
-            full_source_path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, self.source_path)
-            if os.path.exists(full_source_path) and os.path.isdir(full_source_path):
+            full_source_path = self.absolute_source_path
+            if full_source_path and os.path.exists(full_source_path) and os.path.isdir(full_source_path):
                 try:
                     # Delete the source folder and all its contents
                     shutil.rmtree(full_source_path)

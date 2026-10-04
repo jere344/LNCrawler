@@ -1,4 +1,5 @@
 import { reportError } from './errorReporter';
+import { getCookie } from '../utils/cookies';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
 
@@ -25,13 +26,7 @@ export interface ApiError extends Error {
 const defaults = { headers: { common: {} as Record<string, string> } };
 
 // More robust function to get CSRF token from cookies
-const getCsrfToken = (): string | null => {
-  const cookieValue = document.cookie
-    .split('; ')
-    .find(row => row.startsWith('csrftoken='))
-    ?.split('=')[1];
-  return cookieValue || null;
-};
+const getCsrfToken = (): string | null => getCookie('csrftoken') || null;
 
 // Function to explicitly fetch CSRF token when needed
 const fetchCsrfToken = async (): Promise<string | null> => {

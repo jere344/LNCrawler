@@ -1,14 +1,18 @@
+import functools
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Semaphore
-from typing import Any, Dict, Generator, Iterable, List, Optional
+from typing import Any, Generator, Iterable, List, Optional
 
 from ..constants import DEFAULT_WORKERS, MAX_REQUESTS_PER_DOMAIN
 from ..utils.ratelimit import RateLimiter
 
 logger = logging.getLogger(__name__)
 
-_host_semaphores: Dict[str, Semaphore] = {}
+
+@functools.lru_cache(maxsize=1024)
+def _host_semaphore(hostname: str) -> Semaphore:
+    return Semaphore(MAX_REQUESTS_PER_DOMAIN)
 
 
 class _NullProgress:
@@ -113,11 +117,7 @@ class TaskManager:
         return _NullProgress(iterable)
 
     def domain_gate(self, hostname: Optional[str]) -> Semaphore:
-        if hostname is None:
-            hostname = ""
-        if hostname not in _host_semaphores:
-            _host_semaphores[hostname] = Semaphore(MAX_REQUESTS_PER_DOMAIN)
-        return _host_semaphores[hostname]
+        return _host_semaphore(hostname or "")
 
     def cancel_futures(self, futures: Iterable[Future]) -> None:
         if not futures:

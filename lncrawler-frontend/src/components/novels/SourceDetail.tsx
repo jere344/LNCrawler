@@ -41,12 +41,13 @@ import NovelUpdateButton from './common/NovelUpdateButton';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import { getChapterLabel, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
+import { getChapterLabel, languageFlagUrl, languageCodeToName, formatDate } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import DownloadIcon from '@mui/icons-material/Download';
 import ActionButton from '../common/ActionButton';
 import SectionContainer from '@components/common/SectionContainer.tsx';
+import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 import NovelSources from './NovelSources';
 import NovelRecommendation from '../common/NovelRecommendation';
 import Reviews from './Reviews';
@@ -54,8 +55,6 @@ import ReadingListCard from '../readinglist/ReadingListCard';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import InfoIcon from '@mui/icons-material/Info';
-
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
 
 const DetailRow = ({ label, value }: { label: string; value: string }) => (
   <Box>
@@ -160,16 +159,6 @@ const SourceDetail = () => {
   };
 
   const continue_chapter = source?.reading_history?.next_chapter || source?.reading_history?.last_read_chapter;
-
-  // Format date to readable format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat(i18n.language, { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    }).format(date);
-  };
 
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
@@ -422,24 +411,17 @@ const SourceDetail = () => {
 
   return (
       <Container maxWidth="lg">
-        <title>{metaTitle}</title>
-        <meta name="description" content={metaDescription} />
-        <meta name="keywords" content={metaKeywords} />
-        <link rel="canonical" href={pageUrl} />
-
-        <meta property="og:title" content={metaTitle} />
-        <meta property="og:description" content={metaDescription} />
-        <meta property="og:type" content="book" />
-        <meta property="og:url" content={pageUrl} />
-        <meta property="og:site_name" content={siteName} />
-        <meta property="og:image" content={ogImage} />
-        {source?.authors?.length > 0 && <meta property="book:author" content={source.authors.join(', ')} />}
-        {source?.tags?.length > 0 && source.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
-        
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={metaTitle} />
-        <meta name="twitter:description" content={metaDescription} />
-        <meta name="twitter:image" content={ogImage} />
+        <SeoMeta
+          title={metaTitle}
+          description={metaDescription}
+          keywords={metaKeywords}
+          image={ogImage}
+          type="book"
+          canonical={pageUrl}
+        >
+          {source?.authors?.length > 0 && <meta property="book:author" content={source.authors.join(', ')} />}
+          {source?.tags?.length > 0 && source.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
+        </SeoMeta>
 
         {!loading && source && (
           <BreadcrumbNav
@@ -552,7 +534,7 @@ const SourceDetail = () => {
                       }}
                     >
                       <img 
-                        src={`/flags/${languageCodeToFlag(source.language)}.svg`} 
+                        src={languageFlagUrl(source.language)} 
                         alt={languageCodeToName(t, source.language)}
                         style={{ 
                           width: '20px',
@@ -751,7 +733,7 @@ const SourceDetail = () => {
                           {t('sourceDetail.lastUpdated')}
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {formatDate(source.last_chapter_update)}
+                          {formatDate(source.last_chapter_update, i18n.language)}
                         </Typography>
                       </Box>
                     </Box>

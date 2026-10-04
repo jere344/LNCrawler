@@ -1,24 +1,17 @@
 import { useTranslation } from 'react-i18next';
 import { ChapterContent } from '@models/novels_types';
+import { getChapterLabel } from '@utils/Misc';
+import SeoMeta, { DEFAULT_OG_IMAGE } from '@components/common/SeoMeta';
 
 interface ChapterSEOProps {
   chapter: ChapterContent | null;
 }
 
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
-
 const ChapterSEO = ({ chapter }: ChapterSEOProps) => {
   const { t } = useTranslation();
-  const getChapterLabel = (title?: string | null, chapterId?: number | null): string => {
-    const trimmed = title?.trim();
-    if (trimmed) {
-      return trimmed;
-    }
-    return chapterId != null ? t('units.chapter', { number: chapterId }) : "";
-  };
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
-  const chapterLabel = chapter ? getChapterLabel(chapter.title, chapter.chapter_id) : "";
+  const chapterLabel = chapter ? getChapterLabel(t, chapter.title, chapter.chapter_id) : "";
 
   // i18n-missing: no catalog keys for chapter SEO meta strings
   const metaTitle = chapter 
@@ -40,25 +33,16 @@ const ChapterSEO = ({ chapter }: ChapterSEOProps) => {
     : `${window.location.origin}${DEFAULT_OG_IMAGE}`;
 
   return (
-    <>
-      <title>{metaTitle}</title>
-      <meta name="description" content={metaDescription} />
-      <meta name="keywords" content={metaKeywords} />
-      <link rel="canonical" href={pageUrl} />
-
-      <meta property="og:title" content={metaTitle} />
-      <meta property="og:description" content={metaDescription} />
-      <meta property="og:type" content="article" />
-      <meta property="og:url" content={pageUrl} />
-      <meta property="og:site_name" content={siteName} />
-      <meta property="og:image" content={ogImage} />
+    <SeoMeta
+      title={metaTitle}
+      description={metaDescription}
+      keywords={metaKeywords}
+      image={ogImage}
+      type="article"
+      canonical={pageUrl}
+    >
       {chapter && <meta property="article:section" content={chapter.novel_title} />}
-
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={metaTitle} />
-      <meta name="twitter:description" content={metaDescription} />
-      <meta name="twitter:image" content={ogImage} />
-    </>
+    </SeoMeta>
   );
 };
 

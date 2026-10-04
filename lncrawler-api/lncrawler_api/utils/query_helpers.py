@@ -107,14 +107,14 @@ def novel_prefetch_objects(user=None, prefix=''):
             Prefetch(
                 prefix + 'bookmarked_by_users',
                 queryset=NovelBookmark.objects.filter(user=user),
-                to_attr=prefix + 'user_bookmarks',
+                to_attr='user_bookmarks',
             ),
             Prefetch(
                 prefix + 'reading_histories',
                 queryset=ReadingHistory.objects.filter(user=user).select_related(
                     'source', 'novel', 'last_read_chapter'
                 ),
-                to_attr=prefix + 'user_histories',
+                to_attr='user_histories',
             ),
         ]
     return prefetches

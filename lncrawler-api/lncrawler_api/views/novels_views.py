@@ -3,7 +3,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
 from django.db.models import F, Avg, Q, Count, Value, Max, Min
 from django.db.models.functions import Coalesce
 from ..models import (
@@ -25,6 +24,7 @@ from ..utils.query_helpers import (
     sources_total_views_subquery,
     weekly_views_subquery,
 )
+from ..utils.pagination import paginated_response
 from ..serializers import (
     BasicNovelSerializer,
     DetailedNovelSerializer,
@@ -41,22 +41,7 @@ def list_novels(request):
     novels = apply_novel_prefetches(
         Novel.objects.all().order_by("title"), request.user
     )
-    page_number = request.GET.get("page", 1)
-    page_size = min(int(request.GET.get("page_size", 20)), 50)
-
-    paginator = Paginator(novels, page_size)
-    page_obj = paginator.get_page(page_number)
-
-    serializer = BasicNovelSerializer(page_obj, many=True, context={"request": request})
-
-    return Response(
-        {
-            "count": paginator.count,
-            "total_pages": paginator.num_pages,
-            "current_page": page_obj.number,
-            "results": serializer.data,
-        }
-    )
+    return paginated_response(request, novels, BasicNovelSerializer, max_size=50)
 
 
 @api_view(["GET"])
@@ -136,8 +121,6 @@ def search_novels(request):
     """
     # Get search parameters
     query = request.GET.get("query", "").strip()
-    page_number = request.GET.get("page", 1)
-    page_size = min(int(request.GET.get("page_size", 20)), 50)
 
     # Get filter parameters
     tags = request.GET.getlist("tag", [])
@@ -253,30 +236,13 @@ def search_novels(request):
     # Resolve everything the serializer needs up front, then paginate.
     novels_query = apply_novel_prefetches(novels_query, request.user)
 
-    # Pagination
-    paginator = Paginator(novels_query, page_size)
-    page_obj = paginator.get_page(page_number)
-
-    serializer = BasicNovelSerializer(
-        page_obj, many=True, context={"request": request, "languages": languages}
-    )
-
-    return Response(
-        {
-            "count": paginator.count,
-            "total_pages": paginator.num_pages,
-            "current_page": page_obj.number,
-            "results": serializer.data,
-            "filters": {
-                "statuses": [
-                    "Ongoing",
-                    "Completed",
-                    "Unknown",
-                    "On Hiatus",
-                    "Cancelled",
-                ]
-            },
-        }
+    return paginated_response(
+        request, novels_query, BasicNovelSerializer,
+        max_size=50,
+        context={"languages": languages},
+        extra={"filters": {
+            "statuses": ["Ongoing", "Completed", "Unknown", "On Hiatus", "Cancelled"],
+        }},
     )
 
 
@@ -287,7 +253,10 @@ def autocomplete_suggestion(request):
     """
     search_type = request.GET.get("type", "")
     query = request.GET.get("query", "").strip()
-    limit = min(int(request.GET.get("limit", "10")), 50)
+    try:
+        limit = max(1, min(int(request.GET.get("limit", "10")), 50))
+    except (TypeError, ValueError):
+        limit = 10
 
     if len(query) < 1:
         return Response([])

@@ -16,7 +16,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, formatCount, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, formatCount, languageFlagUrl, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
@@ -215,7 +215,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
               novel.languages.slice(0, 2).map((lang) => (
                 <Tooltip key={lang} title={languageCodeToName(t, lang)}>
                   <img 
-                    src={`/flags/${languageCodeToFlag(lang)}.svg`} 
+                    src={languageFlagUrl(lang)} 
                     alt={languageCodeToName(t, lang)}
                     style={{ 
                       width: '20px',

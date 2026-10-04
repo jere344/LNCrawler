@@ -80,6 +80,7 @@ export const authService = {
     preferred_ui_language?: string;
     preferred_languages?: string[];
     language_filter_enabled?: boolean;
+    discoverable?: boolean;
   }) => {
     // Use FormData if there's an image upload (profile_pic or banner)
     if (profileData.profile_pic || profileData.banner) {

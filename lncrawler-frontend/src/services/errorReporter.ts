@@ -3,6 +3,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185
 // Errors already sent this session, so a render/loop that throws on every
 // frame does not flood the backend.
 const reported = new Set<string>();
+// Cap the dedup set so a long session can't grow it without bound. Sets keep
+// insertion order, so the front entry is the oldest and goes first.
+const MAX_REPORTED_KEYS = 100;
 
 // keepalive requests share a browser cap (~64KiB), so keep the stack small.
 const MAX_STACK_LENGTH = 16000;
@@ -28,6 +31,10 @@ export const reportError = (error: unknown, ctx: ErrorContext = {}): void => {
     const key = `${err.message || 'unknown'}|${ctx.context || ''}|${ctx.url || ''}`;
     if (reported.has(key)) return;
     reported.add(key);
+    if (reported.size > MAX_REPORTED_KEYS) {
+      const oldest = reported.values().next().value;
+      if (oldest !== undefined) reported.delete(oldest);
+    }
 
     void fetch(`${API_BASE_URL}/report-error/`, {
       method: 'POST',

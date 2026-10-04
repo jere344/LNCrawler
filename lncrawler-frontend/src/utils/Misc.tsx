@@ -24,6 +24,24 @@ export function formatTimeAgo(date: Date, t: TFunction): string {
     }
 }
 
+export function formatDate(dateString: string, locale?: string): string {
+    return new Date(dateString).toLocaleDateString(locale, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+}
+
+export function formatDateTime(dateString: string, locale?: string): string {
+    return new Date(dateString).toLocaleDateString(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+    });
+}
+
 export function formatCount(count: number): string {
     if (count >= 1000000) {
         return `${(count / 1000000).toFixed(1)}M`;
@@ -32,6 +50,9 @@ export function formatCount(count: number): string {
     }
     return `${count}`;
 }
+
+export const formatNumber = (value: number, locale?: string): string =>
+    value.toLocaleString(locale);
 
 export const getChapterName = (title: string): string => {
     const chapterMarkers = [
@@ -118,6 +139,9 @@ export const languageCodeToFlag = (language: string): string => {
     };
     return languageMap[language.toLowerCase()] || 'unknown';
 }
+
+export const languageFlagUrl = (language: string): string =>
+    `/flags/${languageCodeToFlag(language)}.svg`;
 
 export const languageCodeToName = (t: TFunction, language: string): string => {
     const code = (language || '').toLowerCase();

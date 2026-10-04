@@ -29,7 +29,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import CommentForm from './CommentForm';
 import { commentService, type ApiError } from '../../services/api';
 import { Comment as IComment, CommentFormData } from '@models/comments_types';
-import { getChapterLabel } from '@utils/Misc';
+import { getChapterLabel, formatDateTime } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -74,16 +74,7 @@ const CommentItem = ({
   const displayName = (comment.user != undefined && comment.user.username) ? comment.user.username : comment.author_name;
 
   // Format date to readable format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat(i18n.language, { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric'
-    }).format(date);
-  };
+  const formatDate = (dateString: string) => formatDateTime(dateString, i18n.language);
   
   const handleReplySubmit = async (data: CommentFormData) => {
     if (onAddReply) {

@@ -24,7 +24,7 @@ import { useAuth } from '@context/AuthContext';
 import FriendButton from './FriendButton';
 import FriendsTab from './FriendsTab';
 import { BaseNovelCard } from '@components/common/novelcardtypes/BaseNovelCard';
-import { getNovelSourceLink } from '@utils/Misc';
+import { getNovelSourceLink, formatDate, formatNumber } from '@utils/Misc';
 import ReadingListCard from '@components/readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 import PublicLibraryTab from '@components/library/PublicLibraryTab';
@@ -40,7 +40,7 @@ const SOCIAL_URLS: Record<string, (handle: string) => string | undefined> = {
 
 const PublicProfilePage: React.FC = () => {
     const { username = '' } = useParams<{ username: string }>();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const { user } = useAuth();
 
@@ -119,7 +119,7 @@ const PublicProfilePage: React.FC = () => {
                     <Box sx={{ flex: 1, minWidth: 200, pt: 2 }}>
                         <Typography variant="h5">{profile.username}</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            {t('profile.memberSinceFull', { date: new Date(profile.date_joined).toLocaleDateString() })}
+                            {t('profile.memberSinceFull', { date: formatDate(profile.date_joined, i18n.language) })}
                         </Typography>
                         {profile.bio && <Typography sx={{ mt: 1 }}>{profile.bio}</Typography>}
                         {profile.social_links && Object.keys(profile.social_links).length > 0 && (
@@ -182,7 +182,7 @@ const PublicProfilePage: React.FC = () => {
 };
 
 const OverviewTab: React.FC<{ profile: PublicProfile }> = ({ profile }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const hasGatedContent =
         profile.stats ||
         profile.currently_reading ||
@@ -200,7 +200,7 @@ const OverviewTab: React.FC<{ profile: PublicProfile }> = ({ profile }) => {
                     </Typography>
                     <Grid container spacing={2}>
                         <Grid size={{ xs: 6, md: 3 }}>
-                            <Typography variant="h5">{profile.stats.word_read.toLocaleString()}</Typography>
+                            <Typography variant="h5">{formatNumber(profile.stats.word_read, i18n.language)}</Typography>
                             <Typography variant="body2" color="text.secondary">{t('profile.wordsRead')}</Typography>
                         </Grid>
                         <Grid size={{ xs: 6, md: 3 }}>
@@ -221,7 +221,7 @@ const OverviewTab: React.FC<{ profile: PublicProfile }> = ({ profile }) => {
                     <Typography>{profile.currently_reading.novel.title}</Typography>
                     {profile.currently_reading.last_read_at && (
                         <Typography variant="body2" color="text.secondary">
-                            {t('profile.lastRead', { date: new Date(profile.currently_reading.last_read_at).toLocaleDateString() })}
+                            {t('profile.lastRead', { date: formatDate(profile.currently_reading.last_read_at, i18n.language) })}
                         </Typography>
                     )}
                 </Paper>

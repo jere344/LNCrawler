@@ -1,7 +1,6 @@
-from urllib.parse import quote
-from django.conf import settings
 from rest_framework import serializers
 from ..models import Chapter
+from ..utils import build_media_url
 
 class ChapterSerializer(serializers.ModelSerializer):
     """
@@ -71,10 +70,8 @@ class ChapterContentSerializer(serializers.ModelSerializer):
     
     def get_images_path(self, obj:Chapter):
         if obj.images: # no need if no images
-            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.novel_from_source.source_path}/images", safe=':/')
+            return build_media_url(f"{obj.novel_from_source.source_path}/images")
         return None
-    
+
     def get_source_overview_image_url(self, obj:Chapter):
-        if obj.novel_from_source.overview_picture_path:
-            return quote(f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{obj.novel_from_source.overview_picture_path}", safe=':/')
-        return None
+        return build_media_url(obj.novel_from_source.overview_picture_path)
