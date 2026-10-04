@@ -719,6 +719,33 @@ class PruneLibraryPortTests(MergeTestCase):
         cmd.percent = 100
         self.assertEqual(cmd._sample(Novel.objects.all()).count(), Novel.objects.count())
 
+    def test_empty_source_with_stale_flag_is_rechecked_on_disk(self):
+        from io import StringIO
+
+        from .management.commands.prune_library import Command
+
+        Novel.objects.filter(pk=self.novel.pk).update(
+            created_at=timezone.now() - timedelta(days=8)
+        )
+        # Simulate a stale flag: files are on disk but the column says empty.
+        self.dead.chapters.update(has_content=False)
+
+        cmd = Command()
+        cmd.apply = False
+        cmd.limit = 0
+        cmd.percent = 100
+        cmd.force = False
+        cmd.age_cutoff = timezone.now() - timedelta(days=7)
+        cmd.deleted = 0
+        cmd.stdout = StringIO()
+
+        cmd._phase_empty_sources()
+
+        self.assertEqual(cmd.deleted, 0)
+        self.assertTrue(NovelFromSource.objects.filter(pk=self.dead.pk).exists())
+        self.assertIn("content present on disk", cmd.stdout.getvalue())
+        self.assertFalse(self.dead.chapters.filter(has_content=False).exists())
+
 
 class ConsolidateSourceViewsTests(TestCase):
     def setUp(self):

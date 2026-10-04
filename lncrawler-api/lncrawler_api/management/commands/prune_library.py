@@ -292,6 +292,27 @@ class Command(BaseCommand):
 
     # -- phase 2: empty sources ---------------------------------------- #
 
+    def _source_has_content_on_disk(self, source) -> bool:
+        """Verify a source flagged empty really is, repairing stale has_content.
+
+        ``has_content`` is a cached column written at import time, so an import
+        that ran before the bodies landed (or a chapter added since) leaves it
+        False while the files are on disk. Deletion is destructive, so re-check
+        the files and repair the column for every chapter found.
+        """
+        base = source.absolute_source_path
+        if not base:
+            return False
+        found = False
+        for chapter in source.chapters.all():
+            if chapter.has_content:
+                found = True
+            elif chapter_utils.check_chapter_has_content(base, chapter.chapter_id):
+                chapter.has_content = True
+                chapter.save(update_fields=["has_content"])
+                found = True
+        return found
+
     def _phase_empty_sources(self):
         self.stdout.write("Phase 2: empty sources")
         with_content = NovelFromSource.objects.filter(chapters__has_content=True).values("pk")
@@ -304,6 +325,11 @@ class Command(BaseCommand):
         for source in empties.iterator():
             if self._stopped():
                 return
+            if self._source_has_content_on_disk(source):
+                self.stdout.write(
+                    f"  KEEP source {source.id} {source.title!r}: content present on disk"
+                )
+                continue
             if not self.force and self._source_has_user_data(source):
                 self.stdout.write(
                     f"  SKIP source {source.id} {source.title!r}: has user data"
