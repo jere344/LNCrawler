@@ -842,5 +842,30 @@
     "rainbow": "Arco-íris",
     "horror": "Terror",
     "galaxy": "Galáxia"
+  },
+  "importNu": {
+    "heading": "Importar do NovelUpdates",
+    "linkFromLibrary": "Importar do NovelUpdates",
+    "tutorialTitle": "Como exportar a sua lista de leitura do NovelUpdates",
+    "tutorialStep1": "Inicie sessão no NovelUpdates. Se a sua lista de leitura estiver em falta, abra a página Lista de leitura e ative-a nas Definições globais (canto superior direito).",
+    "tutorialStep2": "No mesmo painel Definições globais, clique em \"Exportar lista de leitura\". Será descarregado um ficheiro XML (apenas para cópia de segurança).",
+    "tutorialStep3": "Carregue esse ficheiro XML abaixo. Os romances são associados à sua biblioteca pelo título; o progresso de leitura é lido do campo do capítulo (ex.: v0c12).",
+    "chooseFile": "Escolher ficheiro XML",
+    "chooseFileHint": "Selecione o ficheiro XML exportado do NovelUpdates.",
+    "parsing": "A ler o ficheiro...",
+    "chooseAnother": "Escolher outro ficheiro",
+    "matchLabel": "Romance da biblioteca",
+    "searchPlaceholder": "Pesquisar na sua biblioteca...",
+    "folderLabel": "Pasta",
+    "include": "Importar",
+    "listLabel": "Lista: {list}",
+    "noProgress": "sem progresso",
+    "parsedCount": "{count} entradas lidas, {selected} selecionadas",
+    "apply": "Importar {count} romances",
+    "applying": "A importar...",
+    "parseFailed": "Não foi possível ler este ficheiro. Certifique-se de que é uma exportação da lista de leitura do NovelUpdates.",
+    "applyFailed": "A importação falhou. Tente novamente.",
+    "resultSummary": "Importados {bookmarked} romances ({already} já na biblioteca). Progresso definido para {progress}.",
+    "goToLibrary": "Ir para a biblioteca"
   }
 }

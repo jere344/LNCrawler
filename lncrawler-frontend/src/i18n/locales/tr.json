@@ -842,5 +842,30 @@
     "rainbow": "Gökkuşağı",
     "horror": "Korku",
     "galaxy": "Galaksi"
+  },
+  "importNu": {
+    "heading": "NovelUpdates'ten içe aktar",
+    "linkFromLibrary": "NovelUpdates'ten içe aktar",
+    "tutorialTitle": "NovelUpdates okuma listenizi nasıl dışa aktarırsınız",
+    "tutorialStep1": "NovelUpdates'e giriş yapın. Okuma listeniz yoksa Okuma Listesi sayfasını açın ve Global Ayarlar'dan (sağ üst) etkinleştirin.",
+    "tutorialStep2": "Aynı Global Ayarlar panelinde \"Okuma Listesini Dışa Aktar\" seçeneğine tıklayın. Bir XML dosyası indirilir (yalnızca yedekleme amaçlı).",
+    "tutorialStep3": "Bu XML dosyasını aşağıdan yükleyin. Romanlar başlığa göre kitaplığınızla eşleştirilir; okuma ilerlemesi bölüm alanından okunur (örn. v0c12).",
+    "chooseFile": "XML dosyası seç",
+    "chooseFileHint": "NovelUpdates'ten dışa aktarılan XML dosyasını seçin.",
+    "parsing": "Dosya okunuyor...",
+    "chooseAnother": "Başka bir dosya seç",
+    "matchLabel": "Kitaplıktaki roman",
+    "searchPlaceholder": "Kitaplığınızda arayın...",
+    "folderLabel": "Klasör",
+    "include": "İçe aktar",
+    "listLabel": "Liste: {list}",
+    "noProgress": "ilerleme yok",
+    "parsedCount": "{count} giriş okundu, {selected} seçildi",
+    "apply": "{count} romanı içe aktar",
+    "applying": "İçe aktarılıyor...",
+    "parseFailed": "Bu dosya okunamadı. NovelUpdates okuma listesi dışa aktarımı olduğundan emin olun.",
+    "applyFailed": "İçe aktarma başarısız oldu. Lütfen tekrar deneyin.",
+    "resultSummary": "{bookmarked} roman içe aktarıldı ({already} zaten kitaplıkta). {progress} için ilerleme ayarlandı.",
+    "goToLibrary": "Kitaplığa git"
   }
 }

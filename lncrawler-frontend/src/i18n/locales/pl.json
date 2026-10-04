@@ -842,5 +842,30 @@
     "rainbow": "Tęczowy",
     "horror": "Horror",
     "galaxy": "Galaktyka"
+  },
+  "importNu": {
+    "heading": "Importuj z NovelUpdates",
+    "linkFromLibrary": "Importuj z NovelUpdates",
+    "tutorialTitle": "Jak wyeksportować listę czytania z NovelUpdates",
+    "tutorialStep1": "Zaloguj się do NovelUpdates. Jeśli brakuje Twojej listy czytania, otwórz stronę Lista czytania i włącz ją w Ustawieniach globalnych (w prawym górnym rogu).",
+    "tutorialStep2": "W tym samym panelu Ustawień globalnych kliknij „Eksportuj listę czytania”. Pobrany zostanie plik XML (tylko do kopii zapasowej).",
+    "tutorialStep3": "Prześlij ten plik XML poniżej. Powieści są dopasowywane do Twojej biblioteki po tytule; postęp czytania jest odczytywany z pola rozdziału (np. v0c12).",
+    "chooseFile": "Wybierz plik XML",
+    "chooseFileHint": "Wybierz plik XML wyeksportowany z NovelUpdates.",
+    "parsing": "Wczytywanie pliku...",
+    "chooseAnother": "Wybierz inny plik",
+    "matchLabel": "Powieść w bibliotece",
+    "searchPlaceholder": "Szukaj w bibliotece...",
+    "folderLabel": "Folder",
+    "include": "Importuj",
+    "listLabel": "Lista: {list}",
+    "noProgress": "brak postępu",
+    "parsedCount": "Wczytano {count} wpisów, wybrano {selected}",
+    "apply": "Importuj {count} powieści",
+    "applying": "Importowanie...",
+    "parseFailed": "Nie udało się odczytać tego pliku. Upewnij się, że to eksport listy czytania z NovelUpdates.",
+    "applyFailed": "Import nie powiódł się. Spróbuj ponownie.",
+    "resultSummary": "Zaimportowano {bookmarked} powieści ({already} już w bibliotece). Ustawiono postęp dla {progress}.",
+    "goToLibrary": "Przejdź do biblioteki"
   }
 }

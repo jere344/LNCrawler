@@ -842,5 +842,30 @@
     "rainbow": "Arc-en-ciel",
     "horror": "Horreur",
     "galaxy": "Galaxie"
+  },
+  "importNu": {
+    "heading": "Importer depuis NovelUpdates",
+    "linkFromLibrary": "Importer depuis NovelUpdates",
+    "tutorialTitle": "Comment exporter votre liste de lecture NovelUpdates",
+    "tutorialStep1": "Connectez-vous à NovelUpdates. Si votre liste de lecture est absente, ouvrez la page Liste de lecture et activez-la dans les Paramètres globaux (en haut à droite).",
+    "tutorialStep2": "Dans le même panneau Paramètres globaux, cliquez sur « Exporter la liste de lecture ». Un fichier XML est téléchargé (à des fins de sauvegarde uniquement).",
+    "tutorialStep3": "Téléversez ce fichier XML ci-dessous. Les romans sont associés à votre bibliothèque par titre ; la progression de lecture est lue dans le champ du chapitre (par ex. v0c12).",
+    "chooseFile": "Choisir un fichier XML",
+    "chooseFileHint": "Sélectionnez le fichier XML exporté depuis NovelUpdates.",
+    "parsing": "Lecture du fichier...",
+    "chooseAnother": "Choisir un autre fichier",
+    "matchLabel": "Roman de la bibliothèque",
+    "searchPlaceholder": "Rechercher dans votre bibliothèque...",
+    "folderLabel": "Dossier",
+    "include": "Importer",
+    "listLabel": "Liste : {list}",
+    "noProgress": "aucune progression",
+    "parsedCount": "{count} entrées analysées, {selected} sélectionnées",
+    "apply": "Importer {count} romans",
+    "applying": "Importation...",
+    "parseFailed": "Impossible de lire ce fichier. Assurez-vous qu'il s'agit d'un export de liste de lecture NovelUpdates.",
+    "applyFailed": "L'importation a échoué. Veuillez réessayer.",
+    "resultSummary": "{bookmarked} romans importés ({already} déjà dans la bibliothèque). Progression définie pour {progress}.",
+    "goToLibrary": "Aller à la bibliothèque"
   }
 }

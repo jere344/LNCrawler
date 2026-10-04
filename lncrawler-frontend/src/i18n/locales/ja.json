@@ -842,5 +842,30 @@
     "rainbow": "レインボー",
     "horror": "ホラー",
     "galaxy": "ギャラクシー"
+  },
+  "importNu": {
+    "heading": "NovelUpdatesからインポート",
+    "linkFromLibrary": "NovelUpdatesからインポート",
+    "tutorialTitle": "NovelUpdatesの読書リストをエクスポートする方法",
+    "tutorialStep1": "NovelUpdatesにログインします。読書リストが表示されない場合は、読書リストページを開き、グローバル設定（右上）から有効にしてください。",
+    "tutorialStep2": "同じグローバル設定パネルで「読書リストをエクスポート」をクリックします。XMLファイルがダウンロードされます（バックアップ目的のみ）。",
+    "tutorialStep3": "そのXMLファイルを下からアップロードします。小説はタイトルでライブラリと照合され、読書の進捗はチャプターフィールド（例：v0c12）から読み取られます。",
+    "chooseFile": "XMLファイルを選択",
+    "chooseFileHint": "NovelUpdatesからエクスポートしたXMLファイルを選択してください。",
+    "parsing": "ファイルを読み込み中...",
+    "chooseAnother": "別のファイルを選択",
+    "matchLabel": "ライブラリの小説",
+    "searchPlaceholder": "ライブラリを検索...",
+    "folderLabel": "フォルダ",
+    "include": "インポート",
+    "listLabel": "リスト: {list}",
+    "noProgress": "進捗なし",
+    "parsedCount": "{count}件を解析、{selected}件を選択中",
+    "apply": "{count}件の小説をインポート",
+    "applying": "インポート中...",
+    "parseFailed": "このファイルを読み込めませんでした。NovelUpdatesの読書リストのエクスポートであることを確認してください。",
+    "applyFailed": "インポートに失敗しました。もう一度お試しください。",
+    "resultSummary": "{bookmarked}件の小説をインポートしました（{already}件は既にライブラリにあります）。{progress}件の進捗を設定しました。",
+    "goToLibrary": "ライブラリへ"
   }
 }

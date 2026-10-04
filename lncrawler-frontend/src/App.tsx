@@ -34,6 +34,7 @@ const BoardList = lazy(() => import('@components/boards/BoardList'));
 const BoardDetail = lazy(() => import('@components/boards/BoardDetail'));
 const ReadingListsPage = lazy(() => import('@components/readinglist/ReadingListsPage'));
 const ReadingListDetail = lazy(() => import('@components/readinglist/ReadingListDetail'));
+const NovelUpdatesImportPage = lazy(() => import('@components/import/NovelUpdatesImportPage'));
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -105,6 +106,9 @@ function AppWithTheme() {
                             {/* Reading Lists routes */}
                             <Route path="/reading-lists" element={<ReadingListsPage />} />
                             <Route path="/reading-lists/:listId" element={<ReadingListDetail />} />
+
+                            {/* Import route */}
+                            <Route path="/import" element={<NovelUpdatesImportPage />} />
 
                             {/* Board routes */}
                             <Route path="/boards" element={<BoardList />} />

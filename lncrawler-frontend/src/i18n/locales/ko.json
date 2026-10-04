@@ -842,5 +842,30 @@
     "rainbow": "무지개",
     "horror": "호러",
     "galaxy": "갤럭시"
+  },
+  "importNu": {
+    "heading": "NovelUpdates에서 가져오기",
+    "linkFromLibrary": "NovelUpdates에서 가져오기",
+    "tutorialTitle": "NovelUpdates 읽기 목록을 내보내는 방법",
+    "tutorialStep1": "NovelUpdates에 로그인하세요. 읽기 목록이 없다면 읽기 목록 페이지를 열고 전역 설정(오른쪽 위)에서 활성화하세요.",
+    "tutorialStep2": "같은 전역 설정 패널에서 \"읽기 목록 내보내기\"를 클릭하세요. XML 파일이 다운로드됩니다(백업용).",
+    "tutorialStep3": "해당 XML 파일을 아래에 업로드하세요. 소설은 제목으로 라이브러리와 매칭되며, 읽기 진행 상황은 챕터 필드(예: v0c12)에서 읽습니다.",
+    "chooseFile": "XML 파일 선택",
+    "chooseFileHint": "NovelUpdates에서 내보낸 XML 파일을 선택하세요.",
+    "parsing": "파일 읽는 중...",
+    "chooseAnother": "다른 파일 선택",
+    "matchLabel": "라이브러리 소설",
+    "searchPlaceholder": "라이브러리 검색...",
+    "folderLabel": "폴더",
+    "include": "가져오기",
+    "listLabel": "목록: {list}",
+    "noProgress": "진행 없음",
+    "parsedCount": "{count}개 항목 분석됨, {selected}개 선택됨",
+    "apply": "{count}개 소설 가져오기",
+    "applying": "가져오는 중...",
+    "parseFailed": "이 파일을 읽을 수 없습니다. NovelUpdates 읽기 목록 내보내기 파일인지 확인하세요.",
+    "applyFailed": "가져오기에 실패했습니다. 다시 시도해 주세요.",
+    "resultSummary": "{bookmarked}개 소설을 가져왔습니다({already}개는 이미 라이브러리에 있음). {progress}개 진행 상황을 설정했습니다.",
+    "goToLibrary": "라이브러리로 이동"
   }
 }

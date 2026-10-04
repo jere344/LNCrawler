@@ -842,5 +842,30 @@
     "rainbow": "Regenboog",
     "horror": "Horror",
     "galaxy": "Melkweg"
+  },
+  "importNu": {
+    "heading": "Importeren uit NovelUpdates",
+    "linkFromLibrary": "Importeren uit NovelUpdates",
+    "tutorialTitle": "Je NovelUpdates-leeslijst exporteren",
+    "tutorialStep1": "Log in bij NovelUpdates. Als je leeslijst ontbreekt, open dan de pagina Leeslijst en schakel deze in via Algemene instellingen (rechtsboven).",
+    "tutorialStep2": "Klik in hetzelfde paneel Algemene instellingen op \"Leeslijst exporteren\". Er wordt een XML-bestand gedownload (alleen voor back-up).",
+    "tutorialStep3": "Upload dat XML-bestand hieronder. Romans worden op titel aan je bibliotheek gekoppeld; leesvoortgang wordt uit het hoofdstukveld gelezen (bijv. v0c12).",
+    "chooseFile": "XML-bestand kiezen",
+    "chooseFileHint": "Selecteer het XML-bestand dat uit NovelUpdates is geëxporteerd.",
+    "parsing": "Bestand lezen...",
+    "chooseAnother": "Ander bestand kiezen",
+    "matchLabel": "Roman in bibliotheek",
+    "searchPlaceholder": "Zoek in je bibliotheek...",
+    "folderLabel": "Map",
+    "include": "Importeren",
+    "listLabel": "Lijst: {list}",
+    "noProgress": "geen voortgang",
+    "parsedCount": "{count} items gelezen, {selected} geselecteerd",
+    "apply": "{count} romans importeren",
+    "applying": "Importeren...",
+    "parseFailed": "Kon dit bestand niet lezen. Zorg dat het een export van een NovelUpdates-leeslijst is.",
+    "applyFailed": "Importeren mislukt. Probeer het opnieuw.",
+    "resultSummary": "{bookmarked} romans geïmporteerd ({already} al in bibliotheek). Voortgang ingesteld voor {progress}.",
+    "goToLibrary": "Naar bibliotheek"
   }
 }

@@ -842,5 +842,30 @@
     "rainbow": "Rainbow",
     "horror": "Horror",
     "galaxy": "Galaxy"
+  },
+  "importNu": {
+    "heading": "Import from NovelUpdates",
+    "linkFromLibrary": "Import from NovelUpdates",
+    "tutorialTitle": "How to export your NovelUpdates reading list",
+    "tutorialStep1": "Log in to NovelUpdates. If your reading list is missing, open the Reading List page and enable it from Global Settings (top right).",
+    "tutorialStep2": "In the same Global Settings panel, click \"Export Reading List\". This downloads an XML file (for backup purposes only).",
+    "tutorialStep3": "Upload that XML file below. Novels are matched to your library by title; reading progress is read from the chapter field (e.g. v0c12).",
+    "chooseFile": "Choose XML file",
+    "chooseFileHint": "Select the XML file exported from NovelUpdates.",
+    "parsing": "Reading file...",
+    "chooseAnother": "Choose another file",
+    "matchLabel": "Library novel",
+    "searchPlaceholder": "Search your library...",
+    "folderLabel": "Folder",
+    "include": "Import",
+    "listLabel": "List: {list}",
+    "noProgress": "no progress",
+    "parsedCount": "{count, plural, one {# entry} other {# entries}} parsed, {selected} selected",
+    "apply": "Import {count, plural, one {# novel} other {# novels}}",
+    "applying": "Importing...",
+    "parseFailed": "Could not read this file. Make sure it is a NovelUpdates reading list export.",
+    "applyFailed": "Import failed. Please try again.",
+    "resultSummary": "Imported {bookmarked} novels ({already} already in library). Progress set for {progress}.",
+    "goToLibrary": "Go to library"
   }
 }

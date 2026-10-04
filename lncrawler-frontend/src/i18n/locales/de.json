@@ -842,5 +842,30 @@
     "rainbow": "Regenbogen",
     "horror": "Horror",
     "galaxy": "Galaxie"
+  },
+  "importNu": {
+    "heading": "Aus NovelUpdates importieren",
+    "linkFromLibrary": "Aus NovelUpdates importieren",
+    "tutorialTitle": "So exportierst du deine NovelUpdates-Leseliste",
+    "tutorialStep1": "Melde dich bei NovelUpdates an. Wenn deine Leseliste fehlt, öffne die Leselisten-Seite und aktiviere sie in den globalen Einstellungen (oben rechts).",
+    "tutorialStep2": "Klicke im selben Bereich „Globale Einstellungen“ auf „Leseliste exportieren“. Dadurch wird eine XML-Datei heruntergeladen (nur zur Sicherung).",
+    "tutorialStep3": "Lade diese XML-Datei unten hoch. Romane werden über den Titel deiner Bibliothek zugeordnet; der Lesefortschritt wird aus dem Kapitelfeld gelesen (z. B. v0c12).",
+    "chooseFile": "XML-Datei auswählen",
+    "chooseFileHint": "Wähle die aus NovelUpdates exportierte XML-Datei.",
+    "parsing": "Datei wird gelesen...",
+    "chooseAnother": "Andere Datei wählen",
+    "matchLabel": "Roman in der Bibliothek",
+    "searchPlaceholder": "Bibliothek durchsuchen...",
+    "folderLabel": "Ordner",
+    "include": "Importieren",
+    "listLabel": "Liste: {list}",
+    "noProgress": "kein Fortschritt",
+    "parsedCount": "{count} Einträge gelesen, {selected} ausgewählt",
+    "apply": "{count} Romane importieren",
+    "applying": "Wird importiert...",
+    "parseFailed": "Diese Datei konnte nicht gelesen werden. Stelle sicher, dass es sich um einen NovelUpdates-Leselisten-Export handelt.",
+    "applyFailed": "Import fehlgeschlagen. Bitte versuche es erneut.",
+    "resultSummary": "{bookmarked} Romane importiert ({already} bereits in der Bibliothek). Fortschritt für {progress} gesetzt.",
+    "goToLibrary": "Zur Bibliothek"
   }
 }

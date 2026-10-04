@@ -842,5 +842,30 @@
     "rainbow": "Cầu vồng",
     "horror": "Kinh dị",
     "galaxy": "Ngân hà"
+  },
+  "importNu": {
+    "heading": "Nhập từ NovelUpdates",
+    "linkFromLibrary": "Nhập từ NovelUpdates",
+    "tutorialTitle": "Cách xuất danh sách đọc NovelUpdates của bạn",
+    "tutorialStep1": "Đăng nhập vào NovelUpdates. Nếu thiếu danh sách đọc, hãy mở trang Danh sách đọc và bật nó trong Cài đặt chung (góc trên bên phải).",
+    "tutorialStep2": "Trong cùng bảng Cài đặt chung, nhấp vào \"Xuất danh sách đọc\". Một tệp XML sẽ được tải xuống (chỉ để sao lưu).",
+    "tutorialStep3": "Tải tệp XML đó lên bên dưới. Tiểu thuyết được khớp với thư viện của bạn theo tiêu đề; tiến trình đọc được lấy từ trường chương (ví dụ v0c12).",
+    "chooseFile": "Chọn tệp XML",
+    "chooseFileHint": "Chọn tệp XML được xuất từ NovelUpdates.",
+    "parsing": "Đang đọc tệp...",
+    "chooseAnother": "Chọn tệp khác",
+    "matchLabel": "Tiểu thuyết trong thư viện",
+    "searchPlaceholder": "Tìm trong thư viện của bạn...",
+    "folderLabel": "Thư mục",
+    "include": "Nhập",
+    "listLabel": "Danh sách: {list}",
+    "noProgress": "không có tiến trình",
+    "parsedCount": "Đã đọc {count} mục, đã chọn {selected}",
+    "apply": "Nhập {count} tiểu thuyết",
+    "applying": "Đang nhập...",
+    "parseFailed": "Không thể đọc tệp này. Hãy đảm bảo đây là bản xuất danh sách đọc của NovelUpdates.",
+    "applyFailed": "Nhập thất bại. Vui lòng thử lại.",
+    "resultSummary": "Đã nhập {bookmarked} tiểu thuyết ({already} đã có trong thư viện). Đã đặt tiến trình cho {progress}.",
+    "goToLibrary": "Đến thư viện"
   }
 }

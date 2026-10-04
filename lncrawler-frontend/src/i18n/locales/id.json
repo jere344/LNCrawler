@@ -842,5 +842,30 @@
     "rainbow": "Pelangi",
     "horror": "Horor",
     "galaxy": "Galaksi"
+  },
+  "importNu": {
+    "heading": "Impor dari NovelUpdates",
+    "linkFromLibrary": "Impor dari NovelUpdates",
+    "tutorialTitle": "Cara mengekspor daftar bacaan NovelUpdates Anda",
+    "tutorialStep1": "Masuk ke NovelUpdates. Jika daftar bacaan Anda tidak ada, buka halaman Daftar Bacaan dan aktifkan dari Pengaturan Global (kanan atas).",
+    "tutorialStep2": "Di panel Pengaturan Global yang sama, klik \"Export Reading List\". Ini akan mengunduh file XML (hanya untuk cadangan).",
+    "tutorialStep3": "Unggah file XML tersebut di bawah ini. Novel dicocokkan dengan pustaka Anda berdasarkan judul; kemajuan bacaan dibaca dari kolom bab (mis. v0c12).",
+    "chooseFile": "Pilih file XML",
+    "chooseFileHint": "Pilih file XML yang diekspor dari NovelUpdates.",
+    "parsing": "Membaca file...",
+    "chooseAnother": "Pilih file lain",
+    "matchLabel": "Novel di pustaka",
+    "searchPlaceholder": "Cari di pustaka Anda...",
+    "folderLabel": "Folder",
+    "include": "Impor",
+    "listLabel": "Daftar: {list}",
+    "noProgress": "tanpa kemajuan",
+    "parsedCount": "{count} entri dibaca, {selected} dipilih",
+    "apply": "Impor {count} novel",
+    "applying": "Mengimpor...",
+    "parseFailed": "Tidak dapat membaca file ini. Pastikan ini adalah ekspor daftar bacaan NovelUpdates.",
+    "applyFailed": "Impor gagal. Silakan coba lagi.",
+    "resultSummary": "{bookmarked} novel diimpor ({already} sudah ada di pustaka). Kemajuan diatur untuk {progress}.",
+    "goToLibrary": "Buka pustaka"
   }
 }

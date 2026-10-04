@@ -842,5 +842,30 @@
     "rainbow": "قوس قزح",
     "horror": "رعب",
     "galaxy": "مجرة"
+  },
+  "importNu": {
+    "heading": "استيراد من NovelUpdates",
+    "linkFromLibrary": "استيراد من NovelUpdates",
+    "tutorialTitle": "كيفية تصدير قائمة القراءة من NovelUpdates",
+    "tutorialStep1": "سجّل الدخول إلى NovelUpdates. إذا كانت قائمة القراءة غير موجودة، افتح صفحة قائمة القراءة وفعّلها من الإعدادات العامة (أعلى اليمين).",
+    "tutorialStep2": "في لوحة الإعدادات العامة نفسها، اضغط على \"تصدير قائمة القراءة\". سيؤدي ذلك إلى تنزيل ملف XML (لأغراض النسخ الاحتياطي فقط).",
+    "tutorialStep3": "ارفع ملف XML هذا أدناه. تتم مطابقة الروايات مع مكتبتك حسب العنوان؛ ويُقرأ تقدم القراءة من حقل الفصل (مثل v0c12).",
+    "chooseFile": "اختر ملف XML",
+    "chooseFileHint": "حدد ملف XML المُصدَّر من NovelUpdates.",
+    "parsing": "جارٍ قراءة الملف...",
+    "chooseAnother": "اختر ملفًا آخر",
+    "matchLabel": "رواية في المكتبة",
+    "searchPlaceholder": "ابحث في مكتبتك...",
+    "folderLabel": "مجلد",
+    "include": "استيراد",
+    "listLabel": "القائمة: {list}",
+    "noProgress": "لا يوجد تقدم",
+    "parsedCount": "تم تحليل {count} عنصر، و{selected} محدد",
+    "apply": "استيراد {count} رواية",
+    "applying": "جارٍ الاستيراد...",
+    "parseFailed": "تعذّر قراءة هذا الملف. تأكد من أنه تصدير قائمة قراءة من NovelUpdates.",
+    "applyFailed": "فشل الاستيراد. حاول مرة أخرى.",
+    "resultSummary": "تم استيراد {bookmarked} رواية ({already} موجودة بالفعل في المكتبة). تم ضبط التقدم لـ {progress}.",
+    "goToLibrary": "الانتقال إلى المكتبة"
   }
 }

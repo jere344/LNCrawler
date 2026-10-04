@@ -842,5 +842,30 @@
     "rainbow": "Regnbue",
     "horror": "Gyser",
     "galaxy": "Galakse"
+  },
+  "importNu": {
+    "heading": "Importer fra NovelUpdates",
+    "linkFromLibrary": "Importer fra NovelUpdates",
+    "tutorialTitle": "Sådan eksporterer du din læseliste fra NovelUpdates",
+    "tutorialStep1": "Log ind på NovelUpdates. Hvis din læseliste mangler, skal du åbne læselistesiden og aktivere den under Globale indstillinger (øverst til højre).",
+    "tutorialStep2": "Klik på \"Eksporter læseliste\" i samme panel med globale indstillinger. Det henter en XML-fil (kun til sikkerhedskopiering).",
+    "tutorialStep3": "Upload den XML-fil nedenfor. Romaner matches med dit bibliotek efter titel; læsefremskridt læses fra kapitelfeltet (f.eks. v0c12).",
+    "chooseFile": "Vælg XML-fil",
+    "chooseFileHint": "Vælg den XML-fil, der er eksporteret fra NovelUpdates.",
+    "parsing": "Læser fil...",
+    "chooseAnother": "Vælg en anden fil",
+    "matchLabel": "Roman i biblioteket",
+    "searchPlaceholder": "Søg i dit bibliotek...",
+    "folderLabel": "Mappe",
+    "include": "Importer",
+    "listLabel": "Liste: {list}",
+    "noProgress": "ingen fremgang",
+    "parsedCount": "{count} poster læst, {selected} valgt",
+    "apply": "Importer {count} romaner",
+    "applying": "Importerer...",
+    "parseFailed": "Kunne ikke læse denne fil. Sørg for, at det er en eksport af en læseliste fra NovelUpdates.",
+    "applyFailed": "Import mislykkedes. Prøv igen.",
+    "resultSummary": "Importerede {bookmarked} romaner ({already} allerede i biblioteket). Fremskridt angivet for {progress}.",
+    "goToLibrary": "Gå til biblioteket"
   }
 }

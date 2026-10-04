@@ -842,5 +842,30 @@
     "rainbow": "彩虹",
     "horror": "恐怖",
     "galaxy": "银河"
+  },
+  "importNu": {
+    "heading": "从 NovelUpdates 导入",
+    "linkFromLibrary": "从 NovelUpdates 导入",
+    "tutorialTitle": "如何导出你的 NovelUpdates 阅读列表",
+    "tutorialStep1": "登录 NovelUpdates。如果没有阅读列表，请打开阅读列表页面，并在全局设置（右上角）中启用它。",
+    "tutorialStep2": "在同一个全局设置面板中，点击“导出阅读列表”。将下载一个 XML 文件（仅供备份）。",
+    "tutorialStep3": "在下方上传该 XML 文件。小说将按标题与你的书库匹配；阅读进度从章节字段读取（例如 v0c12）。",
+    "chooseFile": "选择 XML 文件",
+    "chooseFileHint": "选择从 NovelUpdates 导出的 XML 文件。",
+    "parsing": "正在读取文件...",
+    "chooseAnother": "选择其他文件",
+    "matchLabel": "书库中的小说",
+    "searchPlaceholder": "搜索你的书库...",
+    "folderLabel": "文件夹",
+    "include": "导入",
+    "listLabel": "列表：{list}",
+    "noProgress": "无进度",
+    "parsedCount": "已解析 {count} 个条目，已选择 {selected} 个",
+    "apply": "导入 {count} 部小说",
+    "applying": "正在导入...",
+    "parseFailed": "无法读取此文件。请确认它是 NovelUpdates 阅读列表导出文件。",
+    "applyFailed": "导入失败，请重试。",
+    "resultSummary": "已导入 {bookmarked} 部小说（{already} 部已在书库中）。已为 {progress} 设置进度。",
+    "goToLibrary": "前往书库"
   }
 }

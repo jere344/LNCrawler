@@ -842,5 +842,30 @@
     "rainbow": "Regnbåge",
     "horror": "Skräck",
     "galaxy": "Galax"
+  },
+  "importNu": {
+    "heading": "Importera från NovelUpdates",
+    "linkFromLibrary": "Importera från NovelUpdates",
+    "tutorialTitle": "Så exporterar du din läslista från NovelUpdates",
+    "tutorialStep1": "Logga in på NovelUpdates. Om din läslista saknas öppnar du sidan Läslista och aktiverar den under Globala inställningar (uppe till höger).",
+    "tutorialStep2": "Klicka på \"Exportera läslista\" i samma panel för globala inställningar. En XML-fil laddas ner (endast för säkerhetskopiering).",
+    "tutorialStep3": "Ladda upp XML-filen nedan. Romaner matchas mot ditt bibliotek via titel; läsprogression läses från kapitelfältet (t.ex. v0c12).",
+    "chooseFile": "Välj XML-fil",
+    "chooseFileHint": "Välj XML-filen som exporterades från NovelUpdates.",
+    "parsing": "Läser fil...",
+    "chooseAnother": "Välj en annan fil",
+    "matchLabel": "Roman i biblioteket",
+    "searchPlaceholder": "Sök i ditt bibliotek...",
+    "folderLabel": "Mapp",
+    "include": "Importera",
+    "listLabel": "Lista: {list}",
+    "noProgress": "ingen progress",
+    "parsedCount": "{count} poster lästa, {selected} valda",
+    "apply": "Importera {count} romaner",
+    "applying": "Importerar...",
+    "parseFailed": "Kunde inte läsa den här filen. Kontrollera att det är en export av en läslista från NovelUpdates.",
+    "applyFailed": "Importen misslyckades. Försök igen.",
+    "resultSummary": "Importerade {bookmarked} romaner ({already} redan i biblioteket). Progress angiven för {progress}.",
+    "goToLibrary": "Gå till biblioteket"
   }
 }

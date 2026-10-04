@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views, reading_lists_views, profile_views, friends_views
+from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views, reading_lists_views, profile_views, friends_views, import_views
 from .views.csrf import get_csrf_token
 from .views.errors_views import report_error
 from django.contrib.sitemaps.views import sitemap, index
@@ -135,6 +135,10 @@ urlpatterns = [
     path('reading-lists/<uuid:list_id>/collaborators/<uuid:collaborator_id>/', reading_lists_views.collaborator_detail, name='collaborator_detail'),
     path('users/reading-lists/', reading_lists_views.get_user_reading_lists, name='get_user_reading_lists'),
     path('users/search/', users_views.search_users, name='search_users'),
+
+    # NovelUpdates reading-list import (read-only, user-initiated)
+    path('imports/novelupdates/parse/', import_views.parse_novelupdates_import, name='parse_novelupdates_import'),
+    path('imports/novelupdates/apply/', import_views.apply_novelupdates_import, name='apply_novelupdates_import'),
 
     # Public profiles
     path('users/profile/pinned/<uuid:novel_id>/', profile_views.pinned_novel, name='pinned_novel'),

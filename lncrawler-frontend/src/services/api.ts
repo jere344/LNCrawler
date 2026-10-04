@@ -154,6 +154,7 @@ export { reviewService } from './review.service';
 export { readingListService } from './readinglist.service';
 export { profileService } from './profile.service';
 export { friendService } from './friend.service';
+export { importService } from './import.service';
 
 // Set the auth token on startup
 const token = localStorage.getItem('authToken');

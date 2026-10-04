@@ -842,5 +842,30 @@
     "rainbow": "สายรุ้ง",
     "horror": "สยองขวัญ",
     "galaxy": "กาแล็กซี"
+  },
+  "importNu": {
+    "heading": "นำเข้าจาก NovelUpdates",
+    "linkFromLibrary": "นำเข้าจาก NovelUpdates",
+    "tutorialTitle": "วิธีส่งออกรายการอ่าน NovelUpdates ของคุณ",
+    "tutorialStep1": "เข้าสู่ระบบ NovelUpdates หากไม่มีรายการอ่านของคุณ ให้เปิดหน้ารายการอ่านและเปิดใช้งานจาก Global Settings (มุมขวาบน)",
+    "tutorialStep2": "ในแผง Global Settings เดียวกัน ให้คลิก \"Export Reading List\" ระบบจะดาวน์โหลดไฟล์ XML (สำหรับสำรองข้อมูลเท่านั้น)",
+    "tutorialStep3": "อัปโหลดไฟล์ XML นั้นด้านล่าง นิยายจะถูกจับคู่กับคลังของคุณตามชื่อเรื่อง และความคืบหน้าการอ่านจะอ่านจากฟิลด์บท (เช่น v0c12)",
+    "chooseFile": "เลือกไฟล์ XML",
+    "chooseFileHint": "เลือกไฟล์ XML ที่ส่งออกจาก NovelUpdates",
+    "parsing": "กำลังอ่านไฟล์...",
+    "chooseAnother": "เลือกไฟล์อื่น",
+    "matchLabel": "นิยายในคลัง",
+    "searchPlaceholder": "ค้นหาในคลังของคุณ...",
+    "folderLabel": "โฟลเดอร์",
+    "include": "นำเข้า",
+    "listLabel": "รายการ: {list}",
+    "noProgress": "ไม่มีความคืบหน้า",
+    "parsedCount": "อ่านแล้ว {count} รายการ เลือก {selected} รายการ",
+    "apply": "นำเข้า {count} นิยาย",
+    "applying": "กำลังนำเข้า...",
+    "parseFailed": "ไม่สามารถอ่านไฟล์นี้ได้ ตรวจสอบว่าเป็นไฟล์ส่งออกรายการอ่านของ NovelUpdates",
+    "applyFailed": "การนำเข้าล้มเหลว โปรดลองอีกครั้ง",
+    "resultSummary": "นำเข้า {bookmarked} นิยายแล้ว ({already} อยู่ในคลังแล้ว) ตั้งค่าความคืบหน้าสำหรับ {progress}",
+    "goToLibrary": "ไปที่คลัง"
   }
 }

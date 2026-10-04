@@ -42,6 +42,8 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import FolderIcon from '@mui/icons-material/Folder';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import { Link as RouterLink } from 'react-router-dom';
 import { userService, LibrarySort } from '@services/user.service';
 import { novelService } from '@services/novel.service';
 import LibraryNovelCard from '@components/library/LibraryNovelCard';
@@ -291,9 +293,19 @@ const LibraryPage: React.FC = () => {
         items={[{ label: t('header.library'), icon: <LibraryBooksIcon fontSize="inherit" /> }]}
       />
 
-      <Typography variant="h4" component="h1" gutterBottom>
-        {t('library.yourLibrary')}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 1 }}>
+        <Typography variant="h4" component="h1" sx={{ flex: 1 }}>
+          {t('library.yourLibrary')}
+        </Typography>
+        <Button
+          component={RouterLink}
+          to="/import"
+          variant="outlined"
+          startIcon={<UploadFileIcon />}
+        >
+          {t('importNu.linkFromLibrary')}
+        </Button>
+      </Box>
 
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
         <TextField

@@ -842,5 +842,30 @@
     "rainbow": "Arcobaleno",
     "horror": "Horror",
     "galaxy": "Galassia"
+  },
+  "importNu": {
+    "heading": "Importa da NovelUpdates",
+    "linkFromLibrary": "Importa da NovelUpdates",
+    "tutorialTitle": "Come esportare la tua lista di lettura di NovelUpdates",
+    "tutorialStep1": "Accedi a NovelUpdates. Se la tua lista di lettura non c'è, apri la pagina Lista di lettura e abilitala dalle Impostazioni globali (in alto a destra).",
+    "tutorialStep2": "Nello stesso pannello Impostazioni globali, clicca su \"Esporta lista di lettura\". Verrà scaricato un file XML (solo per backup).",
+    "tutorialStep3": "Carica quel file XML qui sotto. I romanzi vengono abbinati alla tua libreria per titolo; i progressi di lettura vengono letti dal campo capitolo (es. v0c12).",
+    "chooseFile": "Scegli file XML",
+    "chooseFileHint": "Seleziona il file XML esportato da NovelUpdates.",
+    "parsing": "Lettura del file...",
+    "chooseAnother": "Scegli un altro file",
+    "matchLabel": "Romanzo in libreria",
+    "searchPlaceholder": "Cerca nella tua libreria...",
+    "folderLabel": "Cartella",
+    "include": "Importa",
+    "listLabel": "Lista: {list}",
+    "noProgress": "nessun progresso",
+    "parsedCount": "{count} voci lette, {selected} selezionate",
+    "apply": "Importa {count} romanzi",
+    "applying": "Importazione...",
+    "parseFailed": "Impossibile leggere questo file. Assicurati che sia un'esportazione della lista di lettura di NovelUpdates.",
+    "applyFailed": "Importazione non riuscita. Riprova.",
+    "resultSummary": "Importati {bookmarked} romanzi ({already} già in libreria). Progresso impostato per {progress}.",
+    "goToLibrary": "Vai alla libreria"
   }
 }

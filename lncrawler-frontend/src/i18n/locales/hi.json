@@ -842,5 +842,30 @@
     "rainbow": "इंद्रधनुष",
     "horror": "हॉरर",
     "galaxy": "आकाशगंगा"
+  },
+  "importNu": {
+    "heading": "NovelUpdates से आयात करें",
+    "linkFromLibrary": "NovelUpdates से आयात करें",
+    "tutorialTitle": "अपनी NovelUpdates रीडिंग लिस्ट कैसे निर्यात करें",
+    "tutorialStep1": "NovelUpdates में लॉग इन करें। यदि आपकी रीडिंग लिस्ट नहीं दिख रही है, तो रीडिंग लिस्ट पेज खोलें और ग्लोबल सेटिंग्स (ऊपर दाईं ओर) से इसे सक्षम करें।",
+    "tutorialStep2": "उसी ग्लोबल सेटिंग्स पैनल में \"Export Reading List\" पर क्लिक करें। इससे एक XML फ़ाइल डाउनलोड होगी (केवल बैकअप के लिए)।",
+    "tutorialStep3": "उस XML फ़ाइल को नीचे अपलोड करें। उपन्यास शीर्षक के आधार पर आपकी लाइब्रेरी से मिलाए जाते हैं; पठन प्रगति चैप्टर फ़ील्ड (जैसे v0c12) से पढ़ी जाती है।",
+    "chooseFile": "XML फ़ाइल चुनें",
+    "chooseFileHint": "NovelUpdates से निर्यात की गई XML फ़ाइल चुनें।",
+    "parsing": "फ़ाइल पढ़ी जा रही है...",
+    "chooseAnother": "दूसरी फ़ाइल चुनें",
+    "matchLabel": "लाइब्रेरी उपन्यास",
+    "searchPlaceholder": "अपनी लाइब्रेरी में खोजें...",
+    "folderLabel": "फ़ोल्डर",
+    "include": "आयात करें",
+    "listLabel": "सूची: {list}",
+    "noProgress": "कोई प्रगति नहीं",
+    "parsedCount": "{count} प्रविष्टियाँ पढ़ी गईं, {selected} चयनित",
+    "apply": "{count} उपन्यास आयात करें",
+    "applying": "आयात हो रहा है...",
+    "parseFailed": "यह फ़ाइल पढ़ी नहीं जा सकी। सुनिश्चित करें कि यह NovelUpdates रीडिंग लिस्ट का निर्यात है।",
+    "applyFailed": "आयात विफल रहा। कृपया पुनः प्रयास करें।",
+    "resultSummary": "{bookmarked} उपन्यास आयात किए गए ({already} पहले से लाइब्रेरी में)। {progress} के लिए प्रगति सेट की गई।",
+    "goToLibrary": "लाइब्रेरी पर जाएँ"
   }
 }
