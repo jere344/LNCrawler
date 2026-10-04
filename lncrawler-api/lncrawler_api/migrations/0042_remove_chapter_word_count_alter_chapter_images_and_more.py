@@ -5,7 +5,13 @@ from django.db import migrations, models
 
 CONVERT_IMAGES_SQL = """
 CREATE FUNCTION pg_temp.jsonb_to_textarr(jsonb) RETURNS varchar(500)[] LANGUAGE sql IMMUTABLE AS
-$$ SELECT ARRAY(SELECT jsonb_array_elements_text($1))::varchar(500)[] $$;
+$$
+    SELECT CASE jsonb_typeof($1)
+        WHEN 'array'  THEN ARRAY(SELECT jsonb_array_elements_text($1))
+        WHEN 'object' THEN ARRAY(SELECT jsonb_object_keys($1))
+        ELSE ARRAY[]::text[]
+    END::varchar(500)[]
+$$;
 ALTER TABLE lncrawler_api_chapter
     ALTER COLUMN images TYPE varchar(500)[] USING pg_temp.jsonb_to_textarr(images);
 """
