@@ -3,7 +3,6 @@ import { Box, Typography, Divider, CircularProgress } from '@mui/material';
 import CommentForm from './CommentForm';
 import CommentList from './CommentList';
 import { novelService } from '../../services/api';
-import { boardService } from '../../services/board.service';
 import { useTranslation } from 'react-i18next';
 import { Comment, CommentFormData } from '@models/comments_types';
 
@@ -14,18 +13,16 @@ interface CommentSectionProps {
     sourceSlug: string;
     chapterNumber: number;
   };
-  boardSlug?: string;
   title: string;
 }
 
-const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSectionProps) => {
+const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) => {
   const { t } = useTranslation();
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const isChapterComments = !!chapterData;
-  const isBoardComments = !!boardSlug;
   
   useEffect(() => {
     const fetchComments = async () => {
@@ -35,9 +32,7 @@ const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSec
       try {
         let fetchedComments;
         
-        if (isBoardComments && boardSlug) {
-          fetchedComments = await boardService.getBoardComments(boardSlug);
-        } else if (isChapterComments && chapterData) {
+        if (isChapterComments && chapterData) {
           fetchedComments = await novelService.getChapterComments(
             chapterData.novelSlug,
             chapterData.sourceSlug,
@@ -46,7 +41,7 @@ const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSec
         } else if (novelSlug) {
           fetchedComments = await novelService.getNovelComments(novelSlug);
         } else {
-          throw new Error('Either novelSlug, chapterData, or boardSlug must be provided');
+          throw new Error('Either novelSlug or chapterData must be provided');
         }
         
         setComments(fetchedComments);
@@ -60,16 +55,11 @@ const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSec
     
     fetchComments();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
-  }, [novelSlug, chapterData, boardSlug, isChapterComments, isBoardComments]);
+  }, [novelSlug, chapterData, isChapterComments]);
   
   const handleAddComment = async (commentData: CommentFormData) => {
     try {
-      if (isBoardComments && boardSlug) {
-        await boardService.addBoardComment(boardSlug, commentData);
-        // Refetch all comments to ensure consistency
-        const updatedComments = await boardService.getBoardComments(boardSlug);
-        setComments(updatedComments);
-      } else if (isChapterComments && chapterData) {
+      if (isChapterComments && chapterData) {
         await novelService.addChapterComment(
           chapterData.novelSlug,
           chapterData.sourceSlug,
@@ -89,7 +79,7 @@ const CommentSection = ({ novelSlug, chapterData, boardSlug, title }: CommentSec
         const updatedComments = await novelService.getNovelComments(novelSlug);
         setComments(updatedComments);
       } else {
-        throw new Error('Either novelSlug, chapterData, or boardSlug must be provided');
+        throw new Error('Either novelSlug or chapterData must be provided');
       }
     } catch (err) {
       console.error('Failed to add comment:', err);

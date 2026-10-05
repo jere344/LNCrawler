@@ -6,9 +6,10 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import AnonRateThrottle
 from .serializers import (
-    UserSerializer, RegisterSerializer, LoginSerializer,
+    RegisterSerializer, LoginSerializer,
     ChangePasswordSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
 )
+from lncrawler_api.serializers.users_serializers import UserSerializer
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
 from .models import PasswordResetToken

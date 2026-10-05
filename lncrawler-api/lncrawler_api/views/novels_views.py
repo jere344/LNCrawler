@@ -30,7 +30,7 @@ from ..serializers import (
     NovelSerializer,
     NovelSourceSerializer,
 )
-from ..serializers.reviews_serializers import ReviewListSerializer
+from ..serializers.reviews_serializers import ReviewSerializer
 
 @api_view(["GET"])
 def list_novels(request):
@@ -328,7 +328,7 @@ def random_featured_novel(request):
         novel__is_dmca=False
     ).prefetch_related(
         *novel_prefetch_objects(
-            user=request.user, prefix='novel__', detailed=True,
+            user=request.user, prefix='novel__',
             ip=get_client_ip(request),
         )
     )
@@ -347,7 +347,7 @@ def random_featured_novel(request):
     
     # Get the novel and serialize it
     novel = featured.novel
-    serializer = NovelSerializer(novel, context={"request": request}, profile='detail')
+    serializer = NovelSerializer(novel, context={"request": request}, profile='featured')
     
     data = {
         'novel': serializer.data,
@@ -432,7 +432,7 @@ def home_page(request):
         novel__is_dmca=False
     ).prefetch_related(
         *novel_prefetch_objects(
-            user=request.user, prefix='novel__', detailed=True,
+            user=request.user, prefix='novel__',
             ip=get_client_ip(request),
         )
     )
@@ -444,7 +444,7 @@ def home_page(request):
         random_index = random.randint(0, featured_count - 1)
         featured = featured_qs[random_index]
         featured_novel_data = {
-            'novel': NovelSerializer(featured.novel, context=serializer_context, profile='detail').data,
+            'novel': NovelSerializer(featured.novel, context=serializer_context, profile='featured').data,
             'description': featured.description,
             'featured_since': featured.created_at,
         }
@@ -476,7 +476,7 @@ def home_page(request):
         'top_rated_novels': NovelSerializer(top_rated_novels, many=True, context=serializer_context).data,
         'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context, profile='card').data,
         'featured_novel': featured_novel_data,
-        'recent_reviews': ReviewListSerializer(recent_reviews, many=True, context={**serializer_context, 'card': True}).data,
+        'recent_reviews': ReviewSerializer(recent_reviews, many=True, context=serializer_context, profile='card').data,
     }
     
     return Response(response_data)

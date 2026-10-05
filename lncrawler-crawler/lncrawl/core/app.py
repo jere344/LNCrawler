@@ -92,9 +92,13 @@ class App:
         self.good_file_name = _safe_folder_name(slugify(self.crawler.novel_title or "unknown"))
 
         if not self.output_path:
-            host = urlparse(self.crawler.novel_url).netloc or "unknown"
+            source = (
+                self.crawler.source_name
+                or urlparse(self.crawler.novel_url).netloc
+                or "unknown"
+            )
             self.output_path = os.path.join(
-                DEFAULT_OUTPUT_PATH, slugify(host), self.good_file_name
+                DEFAULT_OUTPUT_PATH, self.good_file_name, slugify(source)
             )
 
     # -- download ------------------------------------------------------ #

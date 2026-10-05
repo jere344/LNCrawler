@@ -125,7 +125,9 @@ def create_issue(title, body, fp):
         # Drop expired entries so the map cannot grow without bound.
         for key in [k for k, seen in _recent.items() if now - seen >= _RECENT_TTL]:
             del _recent[key]
-        if now - _recent.get(fp, 0.0) < _RECENT_TTL:
+        # -inf, not 0.0: monotonic clocks below the TTL (fresh boot/container)
+        # would otherwise read "seen recently" for a fingerprint never recorded.
+        if now - _recent.get(fp, float("-inf")) < _RECENT_TTL:
             return
 
     try:

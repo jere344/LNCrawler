@@ -1,20 +1,19 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
 from ..models import Novel, Chapter
 from ..models.comments_models import Comment, CommentVote
-from ..utils import get_client_ip, resolve_novel_slug
-from ..utils.pagination import parse_page_size
-from ..serializers.comments_serializers import (
-    NovelCommentSerializer, ChapterCommentSerializer, chapter_comment_context,
+from ..utils import (
+    get_client_ip,
+    resolve_novel_slug,
+    resolve_author,
+    MAX_MESSAGE_LENGTH,
 )
-from ..serializers.boards_serializers import BoardCommentSerializer, board_comment_context
-
-
-MAX_AUTHOR_NAME_LENGTH = 100
-MAX_MESSAGE_LENGTH = 10000
+from ..utils.pagination import parse_page_size
+from ..serializers.comments_serializers import CommentSerializer, chapter_comment_context
 
 
 @api_view(['GET'])
@@ -33,14 +32,14 @@ def novel_comments(request, novel_slug):
     ).select_related('chapter__novel_from_source__external_source')
     
     # Process novel comments with their replies
-    novel_comments_serializer = NovelCommentSerializer(novel_comments, many=True, context={'request': request})
+    novel_comments_serializer = CommentSerializer(novel_comments, many=True, context={'request': request}, profile='novel')
     novel_comments_data = novel_comments_serializer.data
     
     # Process chapter comments with their replies
     chapter_comments_data = []
     for comment in chapter_comments:
-        serializer = ChapterCommentSerializer(
-            comment, context=chapter_comment_context(request, comment.chapter)
+        serializer = CommentSerializer(
+            comment, context=chapter_comment_context(request, comment.chapter), profile='chapter'
         )
         chapter_comments_data.append(serializer.data)
     
@@ -62,34 +61,24 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
     Otherwise, it's a novel comment.
     """
     parent_id = request.data.get('parent_id')
-    user_instance = request.user if request.user.is_authenticated else None
     message = request.data.get('message')
     author_name = request.data.get('author_name')
-    contains_spoiler = request.data.get('contains_spoiler', False)
+    contains_spoiler = bool(request.data.get('contains_spoiler', False))
     
-    if isinstance(author_name, str):
-        author_name = author_name.strip()
+    try:
+        user_instance, author_name = resolve_author(request, author_name)
+    except ValidationError as exc:
+        return Response(
+            {'error': exc.messages[0]},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     if isinstance(message, str):
         message = message.strip()
 
     if not message:
         return Response(
             {'error': 'Message is required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    if not author_name:
-        if user_instance:
-            author_name = user_instance.username
-        else:
-            return Response(
-                {'error': 'Author name is required for anonymous comments'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-    if not isinstance(author_name, str) or len(author_name) > MAX_AUTHOR_NAME_LENGTH:
-        return Response(
-            {'error': f'Author name must be at most {MAX_AUTHOR_NAME_LENGTH} characters'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -120,7 +109,7 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
             # Increment comment count for the novel
             novel.increment_comment_count()
 
-            serializer = NovelCommentSerializer(comment_obj, context={'request': request})
+            serializer = CommentSerializer(comment_obj, context={'request': request}, profile='novel')
             response_data = serializer.data
 
         except Comment.DoesNotExist:
@@ -146,8 +135,8 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
             # Increment comment count for the novel
             novel.increment_comment_count()
             
-            serializer = ChapterCommentSerializer(
-                comment_obj, context=chapter_comment_context(request, chapter)
+            serializer = CommentSerializer(
+                comment_obj, context=chapter_comment_context(request, chapter), profile='chapter'
             )
         else: # Novel comment
             comment_obj = Comment.objects.create(
@@ -162,7 +151,7 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
             # Increment comment count for the novel
             novel.increment_comment_count()
             
-            serializer = NovelCommentSerializer(comment_obj, context={'request': request})
+            serializer = CommentSerializer(comment_obj, context={'request': request}, profile='novel')
         response_data = serializer.data
 
         
@@ -181,10 +170,11 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     specific_comments = chapter.comments.filter(parent=None)
     
     
-    specific_comments_serializer = ChapterCommentSerializer(
+    specific_comments_serializer = CommentSerializer(
         specific_comments,
         many=True,
         context=chapter_comment_context(request, chapter),
+        profile='chapter',
     )
     specific_comments_data = specific_comments_serializer.data
     
@@ -195,10 +185,11 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
             other_chapter = other_source.chapters.get(chapter_id=chapter_number)
             other_comments = other_chapter.comments.filter(parent=None)
             
-            serializer = ChapterCommentSerializer(
+            serializer = CommentSerializer(
                 other_comments,
                 many=True,
                 context=chapter_comment_context(request, other_chapter),
+                profile='chapter',
             )
             for comment_data in serializer.data:
                 other_source_comments_data.append(comment_data)
@@ -278,14 +269,10 @@ def edit_comment(request, comment_id):
     
     # Return the updated comment using the appropriate serializer
     if comment.chapter:
-        serializer = ChapterCommentSerializer(
-            comment, context=chapter_comment_context(request, comment.chapter)
-        )
-    elif comment.board:
-        serializer = BoardCommentSerializer(
-            comment, context=board_comment_context(request, comment.board)
+        serializer = CommentSerializer(
+            comment, context=chapter_comment_context(request, comment.chapter), profile='chapter'
         )
     else:
-        serializer = NovelCommentSerializer(comment, context={'request': request})
+        serializer = CommentSerializer(comment, context={'request': request}, profile='novel')
     
     return Response(serializer.data, status=status.HTTP_200_OK)

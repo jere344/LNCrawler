@@ -561,21 +561,12 @@
     "noComments": "No comments yet. Be the first to comment!",
     "mixedSourcesWarning": "Some comments below were posted for different sources. Sources may use different chapter numbering so there may be spoilers or seemingly irrelevant comments."
   },
-  "boards": {
-    "loadFailed": "Failed to load boards. Please try refreshing the page.",
-    "listHeading": "Chat Boards",
-    "listDescription": "Join discussions in our community boards. Share your thoughts, ask questions, and connect with other readers.",
-    "noDescription": "No description available",
-    "noBoards": "No boards available",
-    "noBoardsHint": "There are currently no discussion boards. Please check back later.",
-    "detailLoadFailed": "Failed to load board. Please try refreshing the page.",
-    "notFound": "Board not found",
-    "commentsCount": "{count} comments",
-    "createdAt": "Created {date}",
-    "discussion": "Discussion",
-    "joinDiscordHeading": "Join our Discord Community",
-    "joinDiscordBody": "Connect with other readers, get updates, and join discussions!",
-    "joinDiscord": "Join Discord"
+  "chat": {
+    "title": "Community Chat",
+    "loadFailed": "Failed to load the chat. Please try refreshing the page.",
+    "noMessages": "No messages yet. Be the first to say something!",
+    "quoteUnavailable": "The quoted message could not be found.",
+    "quoteLookupLimit": "The quoted message is too far back to load automatically."
   },
   "readingLists": {
     "heading": "Reading Lists",

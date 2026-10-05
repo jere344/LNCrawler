@@ -215,11 +215,7 @@ const CommentItem = ({
           </Box>
         </Box>
         
-        {comment.type === 'board' ? (
-          <Box sx={{ mb: 1 }}>
-            <Chip size="small" label={t('comments.boardComment')} color="secondary" variant="outlined" />
-          </Box>
-        ) : comment.type && comment.type !== 'novel' ? (
+        {comment.type && comment.type !== 'novel' ? (
           <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
             <Chip size="small" label={t('comments.postedAt', { chapter: getChapterLabel(t, comment.chapter_title, comment.chapter_id) })} color="secondary" variant="outlined" />
             <Typography variant="body2" sx={{

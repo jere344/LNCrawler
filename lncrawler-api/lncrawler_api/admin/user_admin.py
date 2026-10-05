@@ -29,8 +29,6 @@ class UserCommentInline(admin.TabularInline):
             return f"Novel: {obj.novel.title}"
         elif obj.chapter:
             return f"Chapter: {obj.chapter.title}"
-        elif obj.board:
-            return f"Board: {obj.board.name}"
         return "Unknown"
     target_display.short_description = "Target"
 

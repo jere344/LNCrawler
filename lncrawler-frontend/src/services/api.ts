@@ -148,6 +148,7 @@ export { downloadService } from './download.service';
 export { jobService } from './job.service';
 export { novelService } from './novel.service';
 export { commentService } from './comment.service';
+export { chatService } from './chat.service';
 export { authService } from './auth.service';
 export { userService } from './user.service';
 export { reviewService } from './review.service';

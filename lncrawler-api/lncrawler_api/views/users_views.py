@@ -10,12 +10,12 @@ from django.db.models import Count, F, IntegerField, Max, OuterRef, Q, Subquery
 
 import uuid
 
-from auth_app.serializers import OtherUserSerializer
 from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
 from ..models.sources_models import NovelFromSource, Chapter
 from ..serializers.novels_serializers import NovelSerializer
-from ..serializers.reading_history_serializers import DetailedReadingHistorySerializer
+from ..serializers.reading_history_serializers import ReadingHistorySerializer
+from ..serializers.users_serializers import UserSerializer
 from ..utils import resolve_novel_slug
 from ..utils.pagination import parse_page_size, paginated_response
 from ..utils.query_helpers import apply_novel_prefetches
@@ -410,7 +410,7 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
                 word_read=F('word_read') + word_count
             )
     
-    serializer = DetailedReadingHistorySerializer(reading_history)
+    serializer = ReadingHistorySerializer(reading_history, profile='detail')
     
     if created:
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -434,5 +434,5 @@ def search_users(request):
         .exclude(id=request.user.id)
         .order_by("username")[:20]
     )
-    serializer = OtherUserSerializer(users, many=True, context={"request": request})
+    serializer = UserSerializer(users, many=True, context={"request": request}, profile='compact')
     return Response(serializer.data)

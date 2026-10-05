@@ -19,13 +19,13 @@ import argparse
 import logging
 import os
 import sys
-from urllib.parse import urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PKG_ROOT = os.path.dirname(HERE)
 sys.path.insert(0, PKG_ROOT)
 sys.path.insert(0, os.path.dirname(PKG_ROOT))
 
+from lncrawl.constants import DEFAULT_OUTPUT_PATH  # noqa: E402
 from lncrawl.core.app import App  # noqa: E402
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
@@ -74,10 +74,8 @@ def download_one(url, output_base, timeout):
             app.crawler.request_timeout = (timeout, timeout)
         app.get_novel_info()
         if output_base:
-            from slugify import slugify
-
-            host = urlparse(app.crawler.novel_url).netloc or "unknown"
-            app.output_path = os.path.join(output_base, slugify(host), app.good_file_name)
+            rel = os.path.relpath(app.output_path, DEFAULT_OUTPUT_PATH)
+            app.output_path = os.path.join(output_base, rel)
         app.start_download()
         return app.crawler.novel_title, app.output_path, len(app.chapters)
     finally:

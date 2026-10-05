@@ -4,6 +4,6 @@ from .sources_models import *
 from .comments_models import *
 from .users_models import *
 from .chapter_models import *
-from .boards_models import *
+from .chat_models import *
 from .reviews_models import *
 from .scheduler_models import *

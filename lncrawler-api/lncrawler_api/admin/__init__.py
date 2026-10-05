@@ -1,6 +1,6 @@
 # Import all admin modules to ensure they are registered
 from . import (
-    board_admin,
+    chat_admin,
     chapter_admin,
     comment_admin,
     downloader_admin,

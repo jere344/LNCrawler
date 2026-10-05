@@ -6,31 +6,13 @@ from .mixins import ProfileFieldsMixin
 from .reading_history_serializers import ReadingHistorySerializer
 from .chapter_serializers import ChapterSerializer
 
-_DETAIL_FIELDS = [
-    'id', 'title', 'source_url', 'source_name', 'source_slug',
-    'authors', 'tags', 'language', 'synopsis', 'has_crawler', 'cover_min_url',
-    'chapters_count', 'volumes_count', 'volumes', 'last_chapter_update',
-    'upvotes', 'downvotes', 'vote_score', 'user_vote', 'novel_id', 'novel_slug',
-    'novel_title', 'cover_url', 'latest_available_chapter',
-    'first_available_chapter', 'reading_history', 'overview_url',
-    'novelupdates_url', 'status', 'editors', 'translators', 'alternative_titles',
-    'original_publisher', 'english_publisher',
-]
-
-_CARD_FIELDS = [
-    'id', 'title', 'source_slug', 'novel_slug', 'cover_min_url',
-    'authors', 'tags', 'chapters_count', 'last_chapter_update',
-    'latest_available_chapter',
-]
-
-
 class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
-    """Serializes a novel source through one of two profiles.
+    """Serializes a novel source through one of three profiles.
 
-    ``detail`` is everything the source page needs (default); ``card`` is the
-    trimmed payload novel cards read, which lets
+    ``card`` is the trimmed payload novel cards read (default), which lets
     ``sources_queryset(detailed=False)`` skip the matching prefetches and
-    annotations.
+    annotations; ``featured`` is the home card (card plus the synopsis and
+    novel_id truthiness flag); ``detail`` is everything the source page needs.
     """
 
     authors = serializers.SerializerMethodField()
@@ -56,21 +38,41 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     synopsis = serializers.SerializerMethodField()
     has_crawler = serializers.SerializerMethodField()
 
-    default_profile = 'detail'
+    default_profile = 'card'
     field_profiles = {
-        'detail': _DETAIL_FIELDS,
-        'card': _CARD_FIELDS,
+        'card': [
+            'id', 'title', 'source_slug', 'novel_slug', 'cover_min_url',
+            'authors', 'tags', 'chapters_count', 'last_chapter_update',
+            'latest_available_chapter',
+        ],
+        # Home featured card: everything a card shows plus the synopsis (and
+        # novel_id, which the card uses as a truthiness flag). Skips the
+        # detail-only volumes / first-chapter / editors / translators / votes.
+        'featured': [
+            'id', 'title', 'source_slug', 'novel_slug', 'cover_min_url',
+            'authors', 'tags', 'chapters_count', 'last_chapter_update',
+            'latest_available_chapter', 'synopsis', 'novel_id',
+        ],
+        'detail': [
+            'id', 'title', 'source_url', 'source_name', 'source_slug',
+            'authors', 'tags', 'language', 'synopsis', 'has_crawler', 'cover_min_url',
+            'chapters_count', 'volumes_count', 'volumes', 'last_chapter_update',
+            'upvotes', 'downvotes', 'vote_score', 'user_vote', 'novel_id', 'novel_slug',
+            'novel_title', 'cover_url', 'latest_available_chapter',
+            'first_available_chapter', 'reading_history', 'overview_url',
+            'novelupdates_url', 'status', 'editors', 'translators', 'alternative_titles',
+            'original_publisher', 'english_publisher',
+        ],
     }
 
     class Meta:
         model = NovelFromSource
-        # Union of every profile; get_fields trims it down to the active one.
-        fields = _DETAIL_FIELDS
 
     def get_synopsis(self, obj: NovelFromSource):
-        # Synopsis is a large text field; only load it for detail views so list
-        # endpoints don't pull every source's synopsis.
-        return obj.synopsis if self.profile == 'detail' else None
+        # Synopsis is a large text field; only load it for detail views (and the
+        # single-source featured card) so list endpoints don't pull every
+        # source's synopsis.
+        return obj.synopsis if self.profile in ('detail', 'featured') else None
 
     def get_has_crawler(self, obj: NovelFromSource):
         # Only detail views show the update button; skip the registry import in

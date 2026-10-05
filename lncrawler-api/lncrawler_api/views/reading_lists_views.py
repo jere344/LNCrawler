@@ -14,7 +14,6 @@ from ..models.users_models import ReadingList, ReadingListItem, ReadingListColla
 from ..models.novels_models import Novel
 from ..serializers import (
     ReadingListSerializer,
-    DetailedReadingListSerializer,
     ReadingListItemSerializer,
     ReadingListCollaboratorSerializer,
     get_reading_list_role,
@@ -76,7 +75,7 @@ def reading_list_detail(request, list_id):
     if not reading_list.is_public and get_reading_list_role(reading_list, request.user) is None:
         return _forbidden("You do not have access to this reading list.")
 
-    serializer = DetailedReadingListSerializer(reading_list, context={"request": request})
+    serializer = ReadingListSerializer(reading_list, context={"request": request}, profile='detail')
     return Response(serializer.data)
 
 
@@ -310,7 +309,7 @@ def reorder_list_items(request, list_id):
 
     # Return updated list
     updated_list = get_object_or_404(_reading_lists_query_set(), id=list_id)
-    serializer = DetailedReadingListSerializer(updated_list, context={"request": request})
+    serializer = ReadingListSerializer(updated_list, context={"request": request}, profile='detail')
     return Response(serializer.data)
 
 

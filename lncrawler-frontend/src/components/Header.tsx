@@ -98,7 +98,7 @@ const Header = () => {
             if (location.pathname.startsWith("/history")) return "/history";
         }
         if (location.pathname.startsWith("/reading-lists")) return "/reading-lists";
-        if (location.pathname.startsWith("/boards")) return "/boards";
+        if (location.pathname.startsWith("/chat")) return "/chat";
         if (location.pathname.startsWith("/novels/search")) return "/novels/search";
         if (location.pathname.startsWith("/novels")) return "/";
         if (location.pathname === "/") return "/";
@@ -214,7 +214,7 @@ const Header = () => {
                         {isAuthenticated && <Tab label={t('header.library')} value="/library" component={RouterLink} to="/library" />}
                         {isAuthenticated && <Tab label={t('header.history')} value="/history" component={RouterLink} to="/history" />}
                         <Tab label={t('header.lists')} value="/reading-lists" component={RouterLink} to="/reading-lists" />
-                        <Tab label={t('header.chat')} value="/boards" component={RouterLink} to="/boards" />
+                        <Tab label={t('header.chat')} value="/chat" component={RouterLink} to="/chat" />
                         <Tab label={t('header.search')} value="/novels/search" component={RouterLink} to="/novels/search" />
                     </Tabs>
                 )}
@@ -420,7 +420,7 @@ const Header = () => {
                                         <ListItemText primary={t('header.readingLists')} />
                                     </MenuItem>
                                 )}
-                                <MenuItem component={RouterLink} to="/boards" onClick={handleMenuClose}>
+                                <MenuItem component={RouterLink} to="/chat" onClick={handleMenuClose}>
                                     <ListItemIcon>
                                         <ForumIcon fontSize="small" />
                                     </ListItemIcon>

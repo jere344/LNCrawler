@@ -8,6 +8,20 @@ from lncrawler_api.models import NovelFromSource
 
 logger = logging.getLogger('lncrawler_api')
 
+# 1. Harvest → popular_novels.json
+
+# docker compose exec -T crawler sh -lc 'cd /app/lncrawler-crawler && python tools/harvest_popular.py --limit 50'
+# Default output is popular_novels.json in the cwd → host lncrawler-crawler/popular_novels.json (97 sources, 4208 novels). Override with --output.
+
+# 2. Download into the import folder
+
+# docker compose exec -T crawler sh -lc 'cd /app/lncrawler-crawler && python tools/download_popular.py --output /app/imports'
+# /app/imports is the shared volume (host ./imports), so files land as imports/<novel>/<source>/meta.json.
+# Progress is tracked in download_state.txt (URL set, append-only), not the files. Default path is cwd-relative → host lncrawler-crawler/download_state.txt. Because it records URLs, it's unaffected by run_import moving/deleting the downloaded files; re-running resumes and skips already-done URLs. (--state overrides, --limit-per-source N caps, --list previews order.)
+# 3. Import into library + DB
+
+# docker compose exec -T api sh -lc 'cd /app/lncrawler-api && python manage.py run_import'
+# Default action move: imports/<novel>/<source>/ → Lightnovels/<novel>/<source>/ and upserts the DB row. Only runs on files still in imports/ (step 2 output). Use --action copy to keep a re-importable copy.
 
 class Command(BaseCommand):
     help = 'Import novels from the import folder specified in settings.IMPORT_FOLDER_PATH'

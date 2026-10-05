@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from ..models.novels_models import Novel
 from ..models.reviews_models import Review, ReviewReaction
 from ..serializers.reviews_serializers import (
-    ReviewListSerializer, ReviewCreateSerializer, ReactionCreateSerializer
+    ReviewSerializer, ReviewCreateSerializer, ReactionCreateSerializer
 )
 from ..utils.ip_utils import get_client_ip
 from ..utils.pagination import paginated_reviews_response
@@ -20,7 +20,7 @@ def novel_reviews(request, novel_slug):
     novel = resolve_novel_slug(novel_slug)
     reviews = Review.objects.filter(novel=novel).select_related('user', 'novel').prefetch_related('reactions__user')
     return paginated_reviews_response(
-        request, reviews, ReviewListSerializer, default_size=4
+        request, reviews, ReviewSerializer, default_size=4
     )
 
 
@@ -40,7 +40,7 @@ def add_review(request, novel_slug):
     serializer = ReviewCreateSerializer(data=request.data)
     if serializer.is_valid():
         review = serializer.save(novel=novel, user=request.user)
-        response_serializer = ReviewListSerializer(review, context={'request': request})
+        response_serializer = ReviewSerializer(review, context={'request': request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -53,7 +53,7 @@ def review_detail(request, review_id):
     review = get_object_or_404(Review, id=review_id)
     
     if request.method == 'GET':
-        serializer = ReviewListSerializer(review, context={'request': request})
+        serializer = ReviewSerializer(review, context={'request': request})
         return Response(serializer.data)
     
     # Only the review author can modify or delete
@@ -67,7 +67,7 @@ def review_detail(request, review_id):
         serializer = ReviewCreateSerializer(review, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            response_serializer = ReviewListSerializer(review, context={'request': request})
+            response_serializer = ReviewSerializer(review, context={'request': request})
             return Response(response_serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -149,4 +149,4 @@ def remove_reaction(request, review_id):
 def user_reviews(request):
     """Get all reviews by the authenticated user"""
     reviews = Review.objects.filter(user=request.user).select_related('novel').prefetch_related('reactions__user')
-    return paginated_reviews_response(request, reviews, ReviewListSerializer)
+    return paginated_reviews_response(request, reviews, ReviewSerializer)

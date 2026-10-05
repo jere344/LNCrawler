@@ -30,8 +30,7 @@ const ResetPasswordPage = lazy(() => import('@components/auth/ResetPasswordPage'
 const LibraryPage = lazy(() => import('@components/library/LibraryPage'));
 const ReadingHistoryPage = lazy(() => import('@components/history/ReadingHistoryPage'));
 const ImageGallery = lazy(() => import('@components/novels/ImageGallery'));
-const BoardList = lazy(() => import('@components/boards/BoardList'));
-const BoardDetail = lazy(() => import('@components/boards/BoardDetail'));
+const ChatPage = lazy(() => import('@components/chat/ChatPage'));
 const ReadingListsPage = lazy(() => import('@components/readinglist/ReadingListsPage'));
 const ReadingListDetail = lazy(() => import('@components/readinglist/ReadingListDetail'));
 const NovelUpdatesImportPage = lazy(() => import('@components/import/NovelUpdatesImportPage'));
@@ -110,9 +109,11 @@ function AppWithTheme() {
                             {/* Import route */}
                             <Route path="/import" element={<NovelUpdatesImportPage />} />
 
-                            {/* Board routes */}
-                            <Route path="/boards" element={<BoardList />} />
-                            <Route path="/boards/:boardSlug" element={<BoardDetail />} />
+                            {/* Chat route */}
+                            <Route path="/chat" element={<ChatPage />} />
+                            {/* Legacy board URLs */}
+                            <Route path="/boards" element={<Navigate to="/chat" replace />} />
+                            <Route path="/boards/:boardSlug" element={<Navigate to="/chat" replace />} />
                             
                             {/* Downloader routes */}
                             <Route path="/download" element={<DownloaderHome />} />

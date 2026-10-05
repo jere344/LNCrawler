@@ -7,7 +7,7 @@ from ..models import (
 from django.db.models import Avg, Sum
 from .mixins import ProfileFieldsMixin
 from .sources_serializers import NovelSourceSerializer
-from .reading_history_serializers import DetailedReadingHistorySerializer
+from .reading_history_serializers import ReadingHistorySerializer
 from ..utils import get_client_ip
 
 
@@ -18,9 +18,15 @@ class NovelAggregatesMixin:
     original per-object queries."""
 
     @property
-    def source_detail_context(self):
-        # Detail views opt into the heavier nested source payload (synopsis etc.).
-        return self.profile == 'detail'
+    def source_profile(self):
+        # Which NovelSourceSerializer profile the preferred/reading source uses.
+        # detail = full source payload; featured = card + synopsis (home card);
+        # anything else (card/library) = card.
+        if self.profile == 'detail':
+            return 'detail'
+        if self.profile == 'featured':
+            return 'featured'
+        return 'card'
 
     def _prefetched(self, obj, name):
         return name in getattr(obj, '_prefetched_objects_cache', {})
@@ -55,12 +61,8 @@ class NovelAggregatesMixin:
             sources,
             key=lambda s: (-(s.upvotes - s.downvotes), -s.upvotes, s.title or ''),
         )
-        if self.source_detail_context:
-            return NovelSourceSerializer(
-                prefered, context=self.context, profile='detail'
-            ).data
         return NovelSourceSerializer(
-            prefered, context=self.context, profile='card'
+            prefered, context=self.context, profile=self.source_profile
         ).data
 
     def get_avg_rating(self, obj):
@@ -117,7 +119,7 @@ class NovelAggregatesMixin:
 
     def get_reading_history(self, obj):
         history = self._get_reading_history(obj)
-        return DetailedReadingHistorySerializer(history).data if history else None
+        return ReadingHistorySerializer(history, profile='detail').data if history else None
 
     def _source_by_pk(self, obj, pk):
         # The reader's source is already in the prefetched ``sources`` list
@@ -132,24 +134,21 @@ class NovelAggregatesMixin:
         history = self._get_reading_history(obj)
         if history and history.source:
             source = self._source_by_pk(obj, history.source_id) or history.source
-            if self.source_detail_context:
-                return NovelSourceSerializer(
-                    source, context=self.context, profile='detail'
-                ).data
             return NovelSourceSerializer(
-                source, context=self.context, profile='card'
+                source, context=self.context, profile=self.source_profile
             ).data
         return None
 
 
 class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.ModelSerializer):
-    """Serializes a novel through one of three profiles.
+    """Serializes a novel through one of four profiles.
 
-    ``list`` is the lightweight card (default), ``detail`` adds the nested
-    sources / viewer rating / similar novels / reading lists, and ``library``
-    is the list payload plus the bookmark owner's folder, note, position and
-    rating. Only the fields a profile emits are built, so detail-only work
-    never runs for list rows.
+    ``card`` is the lightweight card (default), ``detail`` adds the nested
+    sources / viewer rating / similar novels / reading lists, ``library`` is
+    the card payload plus the bookmark owner's folder, note, position and
+    rating, and ``featured`` is ``card`` with the preferred source's synopsis
+    for the home card. Only the fields a profile emits are built, so
+    detail-only work never runs for card rows.
     """
 
     sources = serializers.SerializerMethodField()
@@ -171,9 +170,19 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     folder_name = serializers.SerializerMethodField()
     position = serializers.SerializerMethodField()
 
-    default_profile = 'list'
+    default_profile = 'card'
     field_profiles = {
-        'list': [
+        'card': [
+            'id', 'title', 'slug',
+            'avg_rating', 'rating_count', 'total_views', 'weekly_views',
+            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'reading_history', 'reading_source', 'is_dmca',
+        ],
+        # The home featured card: the card payload with its preferred source
+        # carrying the synopsis. Deliberately omits sources / similar_novels /
+        # reading_lists / user_rating, which the card never renders and whose
+        # serialization is where home used to spend most of its queries.
+        'featured': [
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
@@ -196,14 +205,6 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
 
     class Meta:
         model = Novel
-        # Union of every profile; get_fields trims it down to the active one.
-        fields = [
-            'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
-            'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source', 'similar_novels', 'reading_lists',
-            'is_dmca', 'bookmark_id', 'note', 'folder', 'folder_name', 'position',
-        ]
 
     def get_languages(self, obj):
         """Returns a list of languages for the sources of the novel."""

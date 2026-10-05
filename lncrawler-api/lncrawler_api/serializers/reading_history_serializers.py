@@ -2,21 +2,15 @@ from rest_framework import serializers
 
 from ..models import ReadingHistory, Chapter
 from .chapter_serializers import ChapterSerializer
+from .mixins import ProfileFieldsMixin
 
-class ReadingHistorySerializer(serializers.ModelSerializer):
-    """
-    Serializes the ReadingHistory model
-    """
-    last_read_chapter = ChapterSerializer(read_only=True)
-    
-    class Meta:
-        model = ReadingHistory
-        fields = ['id', 'last_read_chapter', 'last_read_at']
-        read_only_fields = ['id',  'last_read_at']
 
-class DetailedReadingHistorySerializer(serializers.ModelSerializer):
+class ReadingHistorySerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     """
-    Serializes the ReadingHistory model with additional details
+    Serializes the ReadingHistory model.
+
+    ``card`` is the plain history row (default); ``detail`` adds the novel /
+    source slugs and the next / latest chapter.
     """
     last_read_chapter = ChapterSerializer(read_only=True)
     next_chapter = serializers.SerializerMethodField()
@@ -24,14 +18,22 @@ class DetailedReadingHistorySerializer(serializers.ModelSerializer):
     source_slug = serializers.SerializerMethodField()
     source_latest_chapter = serializers.SerializerMethodField()
 
+    default_profile = 'card'
+    field_profiles = {
+        'card': ['id', 'last_read_chapter', 'last_read_at'],
+        'detail': [
+            'id', 'novel_slug', 'source_slug', 'last_read_chapter', 'last_read_at',
+            'next_chapter', 'source_latest_chapter',
+        ],
+    }
+
     class Meta:
         model = ReadingHistory
-        fields = ['id', 'novel_slug', 'source_slug', 'last_read_chapter', 'last_read_at', 'next_chapter', 'source_latest_chapter']
-        read_only_fields = ['id',  'last_read_at', 'next_chapter', 'source_latest_chapter']
-    
+        read_only_fields = ['id', 'last_read_at', 'next_chapter', 'source_latest_chapter']
+
     def get_novel_slug(self, obj):
         return obj.novel.slug
-    
+
     def get_source_slug(self, obj):
         return obj.source.source_slug
 

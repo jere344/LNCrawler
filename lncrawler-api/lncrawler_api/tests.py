@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import tempfile
 from datetime import date, timedelta
@@ -8,12 +9,15 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.cache import cache
 from django.db.models import Sum
-from django.test import TestCase, override_settings
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from .models import (
     Chapter,
+    ChatMessage,
     Comment,
     ExternalSource,
     FeaturedNovel,
@@ -411,13 +415,16 @@ class SplitNovelTests(MergeTestCase):
             user=user, novel=self.novel, source=self.web_source
         )
 
-        new = split_novel(
-            self.novel,
-            [self.web_source],
-            new_title="Re:Zero [Web Novel]",
-            new_slug="rezero-webnovel",
-            rename_title="Re:Zero [Light Novel]",
-        )
+        # File moves are queued with transaction.on_commit, which a TestCase's
+        # wrapping transaction would otherwise swallow; run them explicitly.
+        with self.captureOnCommitCallbacks(execute=True):
+            new = split_novel(
+                self.novel,
+                [self.web_source],
+                new_title="Re:Zero [Web Novel]",
+                new_slug="rezero-webnovel",
+                rename_title="Re:Zero [Light Novel]",
+            )
 
         self.assertEqual(new.title, "Re:Zero [Web Novel]")
         self.assertEqual(new.slug, "rezero-webnovel")
@@ -519,7 +526,8 @@ class SplitNovelTests(MergeTestCase):
             title="Re:Zero House", slug="house", novel_path="house"
         )
 
-        move_sources(self.novel, [self.web_source], target)
+        with self.captureOnCommitCallbacks(execute=True):
+            move_sources(self.novel, [self.web_source], target)
 
         self.web_source.refresh_from_db()
         self.assertEqual(self.web_source.novel, target)
@@ -534,12 +542,13 @@ class SplitNovelTests(MergeTestCase):
         self.assertEqual(self.novel.sources.count(), 1)
 
     def test_split_slug_is_normalized_for_future_updates(self):
-        new = split_novel(
-            self.novel,
-            [self.web_source],
-            new_title="Re:Zero WN",
-            new_slug="ReZero_WN",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            new = split_novel(
+                self.novel,
+                [self.web_source],
+                new_title="Re:Zero WN",
+                new_slug="ReZero_WN",
+            )
 
         # The slug must be exactly what slugify() derives from the folder,
         # otherwise a future import would derive a different novel identity.
@@ -1022,7 +1031,12 @@ class SerializerProfileTests(TestCase):
     queries) must never run."""
 
     NOVEL_FIELDS = {
-        "list": [
+        "card": [
+            "id", "title", "slug", "avg_rating", "rating_count", "total_views",
+            "weekly_views", "prefered_source", "languages", "is_bookmarked",
+            "comment_count", "reading_history", "reading_source", "is_dmca",
+        ],
+        "featured": [
             "id", "title", "slug", "avg_rating", "rating_count", "total_views",
             "weekly_views", "prefered_source", "languages", "is_bookmarked",
             "comment_count", "reading_history", "reading_source", "is_dmca",
@@ -1048,6 +1062,11 @@ class SerializerProfileTests(TestCase):
             "id", "title", "source_slug", "novel_slug", "cover_min_url",
             "authors", "tags", "chapters_count", "last_chapter_update",
             "latest_available_chapter",
+        ],
+        "featured": [
+            "id", "title", "source_slug", "novel_slug", "cover_min_url",
+            "authors", "tags", "chapters_count", "last_chapter_update",
+            "latest_available_chapter", "synopsis", "novel_id",
         ],
         "detail": [
             "id", "title", "source_url", "source_name", "source_slug", "authors",
@@ -1076,6 +1095,103 @@ class SerializerProfileTests(TestCase):
             self.assertEqual(
                 list(NovelSourceSerializer(profile=profile).fields), expected, profile
             )
+
+    def test_other_serializer_profiles_match_expected_field_sets(self):
+        """Every merged serializer exposes the same fields its split classes
+        used to, through a named profile."""
+        from .serializers import (
+            ChapterSerializer,
+            CommentSerializer,
+            ReadingHistorySerializer,
+            ReadingListSerializer,
+            ReviewSerializer,
+            UserSerializer,
+        )
+
+        base_comment = [
+            "id", "author_name", "message", "contains_spoiler", "created_at",
+            "upvotes", "downvotes", "vote_score", "user", "replies",
+            "has_replies", "user_vote",
+        ]
+        cases = {
+            ChapterSerializer: {
+                "card": [
+                    "id", "chapter_id", "title", "url", "volume", "volume_title",
+                    "has_content",
+                ],
+                "content": [
+                    "id", "chapter_id", "title", "novel_title", "novel_id",
+                    "novel_slug", "source_id", "source_name", "source_slug", "body",
+                    "prev_chapter", "next_chapter", "images_path",
+                    "source_overview_image_url",
+                ],
+            },
+            ReadingHistorySerializer: {
+                "card": ["id", "last_read_chapter", "last_read_at"],
+                "detail": [
+                    "id", "novel_slug", "source_slug", "last_read_chapter",
+                    "last_read_at", "next_chapter", "source_latest_chapter",
+                ],
+            },
+            ReadingListSerializer: {
+                "card": [
+                    "id", "title", "description", "is_public", "user", "user_role",
+                    "collaborators", "items_count", "created_at", "updated_at",
+                    "first_item", "items_names",
+                ],
+                "detail": [
+                    "id", "title", "description", "is_public", "user", "user_role",
+                    "collaborators", "items", "created_at", "updated_at",
+                ],
+            },
+            CommentSerializer: {
+                "novel": base_comment + ["type", "edited"],
+                "chapter": base_comment + [
+                    "type", "chapter_title", "chapter_id", "source_name",
+                    "source_slug", "edited",
+                ],
+                "profile": base_comment + [
+                    "target_type", "target_title", "target_slug",
+                    "target_novel_slug", "target_source_slug",
+                    "target_chapter_number",
+                ],
+            },
+            ReviewSerializer: {
+                "card": [
+                    "id", "novel_title", "novel_slug", "user", "title", "content",
+                    "rating", "created_at",
+                ],
+                "detail": [
+                    "id", "novel_title", "novel_slug", "user", "title", "content",
+                    "rating", "created_at", "updated_at", "reaction_count",
+                    "reactions", "current_user_reaction",
+                ],
+            },
+            UserSerializer: {
+                "me": [
+                    "id", "username", "email", "profile_pic", "banner", "bio",
+                    "social_links", "privacy_settings", "date_joined", "last_login",
+                    "word_read", "chapters_read_count", "chapters_not_read_yet_count",
+                    "preferred_ui_language", "preferred_languages",
+                    "language_filter_enabled", "discoverable", "pinned_novels",
+                ],
+                "compact": ["id", "username", "profile_pic"],
+                "public": [
+                    "id", "username", "profile_pic", "banner", "bio", "date_joined",
+                    "social_links", "friendship_status", "friend_count", "visibility",
+                    "pinned_novels", "stats", "currently_reading", "top_genres",
+                    "recent_reads",
+                ],
+            },
+        }
+
+        for serializer_class, profiles in cases.items():
+            for profile, expected in profiles.items():
+                self.assertEqual(
+                    list(serializer_class(profile=profile).fields),
+                    expected,
+                    f"{serializer_class.__name__}:{profile}",
+                )
 
     def test_unknown_profile_is_rejected(self):
         from .serializers import NovelSerializer
@@ -1580,9 +1696,12 @@ class ForgotPasswordEmailTests(TestCase):
         self.assertEqual(message.to, [self.user.email])
 
         token = PasswordResetToken.objects.get(user=self.user)
-        self.assertIn(str(token.token), message.body)
+        # Only the hash is stored; the email carries the raw token, so verify
+        # the emailed link hashes back to the stored row.
+        raw = re.search(r"token=([\w\-]+)", message.body).group(1)
+        self.assertEqual(PasswordResetToken.hash_token(raw), token.token)
         html = next(content for content, mime in message.alternatives if mime == "text/html")
-        self.assertIn(str(token.token), html)
+        self.assertIn(raw, html)
 
 
 class LibraryReworkTests(TestCase):
@@ -1957,3 +2076,146 @@ class HasCrawlerTests(TestCase):
         live = type("Live", (), {"is_disabled": False, "disable_reason": None})
         with patch("lncrawl.core.sources.get_crawler_by_url", return_value=live):
             self.assertTrue(self.registry.has_crawler(url))
+
+
+class ChatTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="chatter", password="pw")
+        self.list_url = reverse("list_chat")
+        self.add_url = reverse("add_chat_message")
+
+    def _post(self, payload, authenticated=False):
+        if authenticated:
+            self.client.force_login(self.user)
+        return self.client.post(
+            self.add_url, data=json.dumps(payload), content_type="application/json"
+        )
+
+    def test_anonymous_requires_author_name(self):
+        response = self._post({"message": "hello"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_anonymous_can_post_with_name(self):
+        response = self._post({"message": "hello", "author_name": "anon"})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["author_name"], "anon")
+        self.assertIsNone(response.json()["user"])
+
+    def test_authenticated_author_name_autofilled(self):
+        response = self._post({"message": "hello"}, authenticated=True)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["author_name"], "chatter")
+        self.assertIsNotNone(response.json()["user"])
+
+    def test_authenticated_author_name_cannot_be_spoofed(self):
+        response = self._post(
+            {"message": "hello", "author_name": "someoneelse"}, authenticated=True
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["author_name"], "chatter")
+
+    def test_list_is_newest_first_and_paginated(self):
+        for i in range(3):
+            ChatMessage.objects.create(author_name="a", message=f"m{i}")
+        response = self.client.get(self.list_url, {"page_size": 2})
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["count"], 3)
+        self.assertEqual(body["total_pages"], 2)
+        self.assertEqual([m["message"] for m in body["results"]], ["m2", "m1"])
+
+    def test_reply_carries_parent_preview(self):
+        parent = self._post({"message": "parent", "author_name": "a"}).json()
+        response = self._post(
+            {"message": "child", "author_name": "b", "parent_id": parent["id"]}
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["parent"]["id"], parent["id"])
+        self.assertEqual(response.json()["parent"]["message"], "parent")
+
+    def test_reply_to_unknown_parent_is_400(self):
+        import uuid
+
+        response = self._post(
+            {"message": "child", "author_name": "b", "parent_id": str(uuid.uuid4())}
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_message_too_long_is_400(self):
+        response = self._post({"message": "x" * 10001, "author_name": "a"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_contains_spoiler_round_trip(self):
+        response = self._post(
+            {"message": "spoiled", "author_name": "a", "contains_spoiler": True}
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.json()["contains_spoiler"])
+
+
+class BoardToChatMigrationTests(TransactionTestCase):
+    """Exercise the 0056 data migration, which is skipped when the board tables are empty."""
+
+    def test_board_comments_are_copied_to_chat_messages(self):
+        migrate_from = [("lncrawler_api", "0055_job_retry_count")]
+        migrate_to = [("lncrawler_api", "0057_remove_board")]
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(migrate_from)
+        old_apps = executor.loader.project_state(migrate_from).apps
+        Board = old_apps.get_model("lncrawler_api", "Board")
+        Comment = old_apps.get_model("lncrawler_api", "Comment")
+
+        user = get_user_model().objects.create_user(username="mig", password="pw")
+        board = Board.objects.create(name="General", slug="general")
+        parent_time = timezone.now() - timedelta(days=3)
+        parent = Comment.objects.create(
+            board=board,
+            user_id=user.pk,
+            author_name="mig",
+            message="parent",
+            contains_spoiler=True,
+            ip_address="1.2.3.4",
+            edited=True,
+        )
+        Comment.objects.filter(pk=parent.pk).update(created_at=parent_time)
+        reply = Comment.objects.create(
+            board=board,
+            user_id=user.pk,
+            author_name="mig",
+            message="reply",
+            parent_id=parent.pk,
+        )
+        reply_time = parent_time + timedelta(minutes=1)
+        Comment.objects.filter(pk=reply.pk).update(created_at=reply_time)
+        parent_pk, reply_pk = parent.pk, reply.pk
+
+        try:
+            executor = MigrationExecutor(connection)
+            executor.migrate(migrate_to)
+            new_apps = executor.loader.project_state(migrate_to).apps
+            ChatMessage = new_apps.get_model("lncrawler_api", "ChatMessage")
+            NewComment = new_apps.get_model("lncrawler_api", "Comment")
+
+            self.assertEqual(ChatMessage.objects.count(), 2)
+            self.assertFalse(
+                NewComment.objects.filter(pk__in=[parent_pk, reply_pk]).exists()
+            )
+
+            copied_parent = ChatMessage.objects.get(pk=parent_pk)
+            self.assertEqual(copied_parent.message, "parent")
+            self.assertEqual(copied_parent.user_id, user.pk)
+            self.assertEqual(copied_parent.author_name, "mig")
+            self.assertTrue(copied_parent.contains_spoiler)
+            self.assertEqual(copied_parent.ip_address, "1.2.3.4")
+            self.assertTrue(copied_parent.edited)
+            self.assertIsNone(copied_parent.parent_id)
+            self.assertEqual(copied_parent.created_at, parent_time)
+
+            copied_reply = ChatMessage.objects.get(pk=reply_pk)
+            self.assertEqual(copied_reply.parent_id, parent_pk)
+            self.assertEqual(copied_reply.created_at, reply_time)
+        finally:
+            # Restore the schema to the latest migration for subsequent tests.
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())

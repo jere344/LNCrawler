@@ -7,7 +7,7 @@ from django.core.paginator import Paginator
 import os
 
 from ..models import Novel, SourceVote, WeeklySourceView, resolve_output_path
-from ..serializers import NovelSourceSerializer, ChapterSerializer, ChapterContentSerializer
+from ..serializers import NovelSourceSerializer, ChapterSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
 from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum, Func, IntegerField
 from django.db.models.functions import Coalesce
@@ -43,7 +43,7 @@ def source_detail(request, novel_slug, source_slug):
         source_slug=source_slug,
     )
 
-    serializer = NovelSourceSerializer(source, context={"request": request})
+    serializer = NovelSourceSerializer(source, context={"request": request}, profile='detail')
     # Add novel info to the response
     data = serializer.data
     data.update(
@@ -170,7 +170,7 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     # Increment views for the source (also updates its all-time projection)
     WeeklySourceView.increment_for_source(source)
 
-    serializer = ChapterContentSerializer(chapter)
+    serializer = ChapterSerializer(chapter, profile='content')
     return Response(serializer.data)
 
 

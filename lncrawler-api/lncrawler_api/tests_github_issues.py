@@ -22,6 +22,7 @@ def _resp(status_code, payload=None):
     GITHUB_ISSUES_ENABLED=True,
     GITHUB_REPO="owner/repo",
     GITHUB_TOKEN="token",
+    ISSUE_REPORTS_TO_DISK=False,
 )
 class CreateIssueTests(TestCase):
     def setUp(self):
@@ -38,7 +39,8 @@ class CreateIssueTests(TestCase):
         github_issues.create_issue("title", "body", "abc123")
 
         post.assert_called_once()
-        self.assertEqual(post.call_args.kwargs["json"]["title"], "title")
+        # The fingerprint is appended so dedup survives restarts.
+        self.assertEqual(post.call_args.kwargs["json"]["title"], "title (abc123)")
 
     @mock.patch("api_project.github_issues.requests.post")
     @mock.patch("api_project.github_issues.requests.get")

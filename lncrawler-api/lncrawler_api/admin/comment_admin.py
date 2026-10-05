@@ -4,7 +4,6 @@ from django.urls import reverse
 from ..models import (
     Comment,
     CommentVote,
-    Board,
 )
 
 
@@ -109,8 +108,6 @@ class CommentAdmin(admin.ModelAdmin):
             return f"Novel: {obj.novel.title}"
         elif obj.chapter:
             return f"Chapter: {obj.chapter.title}"
-        elif obj.board:
-            return f"Board: {obj.board.name}"
         return "Unknown"
 
     target_display.short_description = "Target"
@@ -130,9 +127,6 @@ class CommentAdmin(admin.ModelAdmin):
         elif obj.chapter:
             url = reverse("admin:lncrawler_api_chapter_change", args=[obj.chapter.id])
             return format_html('<a href="{}">{}</a>', url, obj.chapter.title)
-        elif obj.board:
-            url = reverse("admin:lncrawler_api_board_change", args=[obj.board.id])
-            return format_html('<a href="{}">{}</a>', url, obj.board.name)
         return "Unknown"
 
     target_link.short_description = "Target"

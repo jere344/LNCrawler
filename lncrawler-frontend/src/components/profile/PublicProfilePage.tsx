@@ -350,9 +350,6 @@ const commentTargetPath = (comment: Comment): string | null => {
     if (comment.target_type === 'chapter' && comment.target_novel_slug && comment.target_source_slug) {
         return `/novels/${comment.target_novel_slug}/${comment.target_source_slug}/chapter/${comment.target_chapter_number}`;
     }
-    if (comment.target_type === 'board' && comment.target_slug) {
-        return `/boards/${comment.target_slug}`;
-    }
     return null;
 };
 

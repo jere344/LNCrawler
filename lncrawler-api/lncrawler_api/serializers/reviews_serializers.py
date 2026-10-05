@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from ..models.reviews_models import Review, ReviewReaction
-from auth_app.serializers import OtherUserSerializer
+from .users_serializers import UserSerializer
+from .mixins import ProfileFieldsMixin
 from ..utils.ip_utils import get_client_ip
 
 
@@ -13,31 +14,36 @@ class ReactionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
-class ReviewListSerializer(serializers.ModelSerializer):
-    """Serializer for listing reviews with their reactions"""
-    user = OtherUserSerializer(read_only=True)
+class ReviewSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
+    """
+    Serializes a review through one of two profiles.
+
+    ``detail`` includes reactions and counts (default); ``card`` is the core
+    review card the home feed renders.
+    """
+    user = UserSerializer(read_only=True, profile='compact')
     reactions = ReactionSerializer(many=True, read_only=True)
     novel_title = serializers.CharField(source='novel.title', read_only=True)
     novel_slug = serializers.CharField(source='novel.slug', read_only=True)
     reaction_count = serializers.IntegerField(source='get_reaction_count', read_only=True)
     current_user_reaction = serializers.SerializerMethodField()
-    
+
+    default_profile = 'detail'
+    field_profiles = {
+        'card': [
+            'id', 'novel_title', 'novel_slug', 'user', 'title', 'content',
+            'rating', 'created_at',
+        ],
+        'detail': [
+            'id', 'novel_title', 'novel_slug', 'user', 'title', 'content',
+            'rating', 'created_at', 'updated_at',
+            'reaction_count', 'reactions', 'current_user_reaction',
+        ],
+    }
+
     class Meta:
         model = Review
-        fields = [
-            'id', 'novel_title', 'novel_slug', 'user', 'title', 'content', 
-            'rating', 'created_at', 'updated_at', 
-            'reaction_count', 'reactions', 'current_user_reaction'
-        ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'reaction_count']
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Home renders only the core review card fields; reactions, counts and
-        # updated_at belong to the reviews detail context.
-        if self.context.get('card'):
-            for field in ('updated_at', 'reaction_count', 'reactions', 'current_user_reaction'):
-                self.fields.pop(field, None)
 
     def get_current_user_reaction(self, obj):
         """Get the current user's reaction to this review, if any"""

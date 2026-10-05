@@ -9,8 +9,8 @@ from rest_framework import status
 
 from ..models.users_models import Friendship
 from ..serializers.profile_serializers import FriendshipSerializer
+from ..serializers.users_serializers import UserSerializer
 from ..utils.pagination import parse_page_size
-from auth_app.serializers import OtherUserSerializer
 
 User = get_user_model()
 
@@ -44,8 +44,9 @@ def list_friends(request):
     and cap the result via page_size instead of returning a paginated envelope.
     """
     limit = parse_page_size(request, default=MAX_FRIENDS_PER_REQUEST, max_size=MAX_FRIENDS_PER_REQUEST)
-    serializer = OtherUserSerializer(
-        _friend_users(request.user, limit=limit), many=True, context={"request": request}
+    serializer = UserSerializer(
+        _friend_users(request.user, limit=limit), many=True,
+        context={"request": request}, profile='compact',
     )
     return Response(serializer.data)
 

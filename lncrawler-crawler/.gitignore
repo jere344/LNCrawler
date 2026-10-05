@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+popular_novels.json
+download_state.txt
