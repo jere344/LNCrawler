@@ -66,6 +66,9 @@ class Job(models.Model):
     
     # Error information
     error_message = models.TextField(blank=True, null=True)
+
+    # Number of times a crashed/stale job has been requeued for another attempt
+    retry_count = models.PositiveIntegerField(default=0)
     
     def __str__(self):
         return f"Job {self.id} - {self.get_status_display()}"

@@ -34,6 +34,10 @@ log = logging.getLogger("crawler_supervisor")
 
 TABLE = "lncrawler_api_job"
 
+# A crashed or stalled job is requeued at most this many times before it is
+# marked failed, so a permanently broken job cannot loop forever.
+MAX_RETRIES = 1
+
 # Claim the oldest queued job atomically. FOR UPDATE SKIP LOCKED lets several
 # supervisors claim concurrently without a lost-race retry loop.
 CLAIM_SQL = f"""
@@ -56,18 +60,33 @@ RETURNING job.id, job.job_type,
 """
 
 REQUEUE_SQL = f"""
-UPDATE {TABLE} SET status = 'created', updated_at = now()
+UPDATE {TABLE}
+SET status = CASE WHEN retry_count < {MAX_RETRIES} THEN 'created' ELSE 'failed' END,
+    retry_count = retry_count + 1,
+    updated_at = now(),
+    error_message = CASE
+        WHEN retry_count < {MAX_RETRIES} THEN error_message
+        ELSE COALESCE(error_message, 'Job timed out while running and exhausted retries')
+    END
 WHERE status IN ('searching', 'downloading')
   AND updated_at < now() - make_interval(secs => %s)
 """
 
 # A job subprocess that exits non-zero (crash, OOM, import error) leaves the row
-# in a running state; reset it to the queue immediately instead of waiting out
-# the stale window. Guarded on the running status so a row another worker has
-# since moved cannot be clobbered.
+# in a running state; requeue it immediately instead of waiting out the stale
+# window, or mark it failed once the retry budget is spent. Guarded on the
+# running status so a row another worker has since moved cannot be clobbered.
 FAIL_JOB_SQL = f"""
-UPDATE {TABLE} SET status = 'created', updated_at = now()
+UPDATE {TABLE}
+SET status = CASE WHEN retry_count < {MAX_RETRIES} THEN 'created' ELSE 'failed' END,
+    retry_count = retry_count + 1,
+    updated_at = now(),
+    error_message = CASE
+        WHEN retry_count < {MAX_RETRIES} THEN error_message
+        ELSE COALESCE(error_message, 'Job process crashed and exhausted retries')
+    END
 WHERE id = %s AND status IN ('searching', 'downloading')
+RETURNING status
 """
 
 
@@ -96,9 +115,11 @@ def requeue_stale(conn, age_seconds):
 
 
 def release_failed_job(conn, job_id):
+    """Requeue the job for one more attempt, or fail it; return the new status."""
     with conn.cursor() as cur:
         cur.execute(FAIL_JOB_SQL, (str(job_id),))
-        return cur.rowcount
+        row = cur.fetchone()
+        return row[0] if row else None
 
 
 class Supervisor:
@@ -134,13 +155,15 @@ class Supervisor:
             proc, job_id = self.children.pop(pid)
             if proc.returncode != 0:
                 log.warning(
-                    "Job %s process %s exited with code %s; releasing for retry",
+                    "Job %s process %s exited with code %s; requeueing/failing",
                     job_id, pid, proc.returncode,
                 )
                 conn = self._ensure_conn()
                 if conn is not None:
                     try:
-                        release_failed_job(conn, job_id)
+                        status = release_failed_job(conn, job_id)
+                        if status == "failed":
+                            log.error("Job %s exhausted retries; marked failed", job_id)
                     except Exception:
                         log.exception("Failed to release job %s after non-zero exit", job_id)
             else:
@@ -199,7 +222,7 @@ class Supervisor:
             try:
                 n = requeue_stale(conn, self.stale_seconds)
                 if n:
-                    log.warning("Requeued %s stale job(s) at startup", n)
+                    log.warning("Processed %s stale job(s) at startup", n)
             except Exception:
                 log.exception("Startup requeue failed")
             self.last_requeue = time.monotonic()
@@ -214,7 +237,7 @@ class Supervisor:
                 try:
                     n = requeue_stale(conn, self.stale_seconds)
                     if n:
-                        log.warning("Requeued %s stale job(s)", n)
+                        log.warning("Processed %s stale job(s)", n)
                     self.last_requeue = time.monotonic()
                 except Exception:
                     log.exception("Requeue failed; reconnecting")
