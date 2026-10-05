@@ -5,19 +5,22 @@ from ..models import (
     NovelBookmark
 )
 from django.db.models import Avg, Sum
+from .mixins import ProfileFieldsMixin
 from .sources_serializers import NovelSourceSerializer
-from .users_serializers import DetailedReadingHistorySerializer
+from .reading_history_serializers import DetailedReadingHistorySerializer
 from ..utils import get_client_ip
 
 
 class NovelAggregatesMixin:
-    """Computes the read-only counters shared by the list and detail
-    serializers. When the queryset was built with `apply_novel_prefetches`
-    everything is served from the prefetch cache (zero extra queries);
-    otherwise it falls back to the original per-object queries."""
+    """Computes the read-only counters shared by the novel profiles. When the
+    queryset was built with `apply_novel_prefetches` everything is served from
+    the prefetch cache (zero extra queries); otherwise it falls back to the
+    original per-object queries."""
 
-    # Detail views opt into the heavier nested source payload (synopsis etc.).
-    source_detail_context = False
+    @property
+    def source_detail_context(self):
+        # Detail views opt into the heavier nested source payload (synopsis etc.).
+        return self.profile == 'detail'
 
     def _prefetched(self, obj, name):
         return name in getattr(obj, '_prefetched_objects_cache', {})
@@ -52,10 +55,13 @@ class NovelAggregatesMixin:
             sources,
             key=lambda s: (-(s.upvotes - s.downvotes), -s.upvotes, s.title or ''),
         )
-        context = self.context
         if self.source_detail_context:
-            context = {**context, 'detailed': True}
-        return NovelSourceSerializer(prefered, context=context).data
+            return NovelSourceSerializer(
+                prefered, context=self.context, profile='detail'
+            ).data
+        return NovelSourceSerializer(
+            prefered, context=self.context, profile='card'
+        ).data
 
     def get_avg_rating(self, obj):
         if self._prefetched(obj, 'ratings'):
@@ -113,108 +119,38 @@ class NovelAggregatesMixin:
         history = self._get_reading_history(obj)
         return DetailedReadingHistorySerializer(history).data if history else None
 
+    def _source_by_pk(self, obj, pk):
+        # The reader's source is already in the prefetched ``sources`` list
+        # (with authors/tags warm), unlike ``history.source`` whose M2M would
+        # fire two queries per novel.
+        for source in obj.sources.all():
+            if source.pk == pk:
+                return source
+        return None
+
     def get_reading_source(self, obj):
         history = self._get_reading_history(obj)
         if history and history.source:
-            context = self.context
+            source = self._source_by_pk(obj, history.source_id) or history.source
             if self.source_detail_context:
-                context = {**context, 'detailed': True}
-            return NovelSourceSerializer(history.source, context=context).data
+                return NovelSourceSerializer(
+                    source, context=self.context, profile='detail'
+                ).data
+            return NovelSourceSerializer(
+                source, context=self.context, profile='card'
+            ).data
         return None
 
 
-class BasicNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
+class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.ModelSerializer):
+    """Serializes a novel through one of three profiles.
+
+    ``list`` is the lightweight card (default), ``detail`` adds the nested
+    sources / viewer rating / similar novels / reading lists, and ``library``
+    is the list payload plus the bookmark owner's folder, note, position and
+    rating. Only the fields a profile emits are built, so detail-only work
+    never runs for list rows.
     """
-    Serializes basic novel information for list views
-    """
-    avg_rating = serializers.SerializerMethodField()
-    rating_count = serializers.SerializerMethodField()
-    total_views = serializers.SerializerMethodField()
-    weekly_views = serializers.SerializerMethodField()
-    prefered_source = serializers.SerializerMethodField()
-    languages = serializers.SerializerMethodField()
-    is_bookmarked = serializers.SerializerMethodField()
-    reading_history = serializers.SerializerMethodField()
-    reading_source = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Novel
-        fields = [
-            'id', 'title', 'slug', 'sources_count',
-            'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source', 'is_dmca'
-        ]
-
-    def get_languages(self, obj):
-        """
-        Returns a list of languages for the sources of the novel
-        """
-        languages = {
-            source.language
-            for source in self._context_sources(obj)
-            if source.language
-        }
-        return list(languages)
-
-
-class LibraryItemSerializer(BasicNovelSerializer):
-    """A library bookmark: the basic novel payload plus the owner's
-    folder/note/position and the owner's (not the viewer's) star rating.
-
-    Instances are `Novel` objects carrying a `library_bookmark` attribute
-    set by the view. `show_notes`/`show_ratings` context flags blank the
-    note/rating for viewers who may not see them."""
-    bookmark_id = serializers.SerializerMethodField()
-    note = serializers.SerializerMethodField()
-    folder = serializers.SerializerMethodField()
-    folder_name = serializers.SerializerMethodField()
-    position = serializers.SerializerMethodField()
-    user_rating = serializers.SerializerMethodField()
-
-    class Meta(BasicNovelSerializer.Meta):
-        fields = BasicNovelSerializer.Meta.fields + [
-            'bookmark_id', 'note', 'folder', 'folder_name', 'position', 'user_rating',
-        ]
-
-    def _bookmark(self, obj):
-        return getattr(obj, 'library_bookmark', None)
-
-    def get_bookmark_id(self, obj):
-        bookmark = self._bookmark(obj)
-        return str(bookmark.id) if bookmark else None
-
-    def get_note(self, obj):
-        if not self.context.get('show_notes', True):
-            return None
-        bookmark = self._bookmark(obj)
-        return bookmark.note if bookmark else None
-
-    def get_folder(self, obj):
-        bookmark = self._bookmark(obj)
-        return str(bookmark.folder_id) if bookmark and bookmark.folder_id else None
-
-    def get_folder_name(self, obj):
-        bookmark = self._bookmark(obj)
-        return bookmark.folder.name if bookmark and bookmark.folder_id else None
-
-    def get_position(self, obj):
-        bookmark = self._bookmark(obj)
-        return bookmark.position if bookmark else 0
-
-    def get_user_rating(self, obj):
-        if not self.context.get('show_ratings', True):
-            return None
-        bookmark = self._bookmark(obj)
-        return getattr(bookmark, 'owner_rating', None) if bookmark else None
-
-
-
-class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer):
-    """
-    Serializes detailed novel information including sources
-    """
-    source_detail_context = True
 
     sources = serializers.SerializerMethodField()
     avg_rating = serializers.SerializerMethodField()
@@ -223,29 +159,75 @@ class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer)
     total_views = serializers.SerializerMethodField()
     weekly_views = serializers.SerializerMethodField()
     prefered_source = serializers.SerializerMethodField()
+    languages = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
     reading_source = serializers.SerializerMethodField()
     similar_novels = serializers.SerializerMethodField()
     reading_lists = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Novel
-        fields = [
+    bookmark_id = serializers.SerializerMethodField()
+    note = serializers.SerializerMethodField()
+    folder = serializers.SerializerMethodField()
+    folder_name = serializers.SerializerMethodField()
+    position = serializers.SerializerMethodField()
+
+    default_profile = 'list'
+    field_profiles = {
+        'list': [
+            'id', 'title', 'slug',
+            'avg_rating', 'rating_count', 'total_views', 'weekly_views',
+            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'reading_history', 'reading_source', 'is_dmca',
+        ],
+        'detail': [
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
             'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history',
-            'reading_source', 'similar_novels', 'reading_lists', 'is_dmca'
+            'reading_source', 'similar_novels', 'reading_lists', 'is_dmca',
+        ],
+        'library': [
+            'id', 'title', 'slug',
+            'avg_rating', 'rating_count', 'total_views', 'weekly_views',
+            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'reading_history', 'reading_source', 'is_dmca',
+            'bookmark_id', 'note', 'folder', 'folder_name', 'position', 'user_rating',
+        ],
+    }
+
+    class Meta:
+        model = Novel
+        # Union of every profile; get_fields trims it down to the active one.
+        fields = [
+            'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
+            'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
+            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'reading_history', 'reading_source', 'similar_novels', 'reading_lists',
+            'is_dmca', 'bookmark_id', 'note', 'folder', 'folder_name', 'position',
         ]
-    
+
+    def get_languages(self, obj):
+        """Returns a list of languages for the sources of the novel."""
+        languages = {
+            source.language
+            for source in self._context_sources(obj)
+            if source.language
+        }
+        return list(languages)
+
     def get_sources(self, obj):
         return NovelSourceSerializer(
-            obj.sources.all(),
-            many=True,
-            context={**self.context, 'detailed': True}
+            obj.sources.all(), many=True, context=self.context, profile='detail'
         ).data
 
     def get_user_rating(self, obj):
+        # Library = the bookmark owner's star rating (already attached by the
+        # view; no query). Detail = the requesting viewer's own rating.
+        if self.profile == 'library':
+            if not self.context.get('show_ratings', True):
+                return None
+            bookmark = self._bookmark(obj)
+            return getattr(bookmark, 'owner_rating', None) if bookmark else None
+
         request = self.context.get('request')
         if not request:
             return None
@@ -293,23 +275,23 @@ class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer)
                     'to_novel': novel,
                     'similarity': 0.0
                 })
-        
+
         # Serialize the novels
         result = []
         for item in similar_novels:
             if hasattr(item, 'to_novel'):
                 # Regular NovelSimilarity object
-                novel_data = BasicNovelSerializer(item.to_novel, context=self.context).data
+                novel_data = NovelSerializer(item.to_novel, context=self.context).data
                 novel_data['similarity'] = item.similarity
             else:
                 # Dictionary from most viewed novels
-                novel_data = BasicNovelSerializer(item['to_novel'], context=self.context).data
+                novel_data = NovelSerializer(item['to_novel'], context=self.context).data
                 novel_data['similarity'] = item['similarity']
-            
+
             result.append(novel_data)
-        
+
         return result
-    
+
     def get_reading_lists(self, obj):
         from .reading_lists_serializers import ReadingListSerializer
         from ..models.users_models import ReadingList
@@ -326,6 +308,32 @@ class DetailedNovelSerializer(NovelAggregatesMixin, serializers.ModelSerializer)
         lists = ReadingList.objects.filter(id__in=reading_lists).filter(visibility).distinct()
 
         return ReadingListSerializer(lists, many=True, context=self.context).data
+
+    def _bookmark(self, obj):
+        # Set by the library view; absent everywhere else.
+        return getattr(obj, 'library_bookmark', None)
+
+    def get_bookmark_id(self, obj):
+        bookmark = self._bookmark(obj)
+        return str(bookmark.id) if bookmark else None
+
+    def get_note(self, obj):
+        if not self.context.get('show_notes', True):
+            return None
+        bookmark = self._bookmark(obj)
+        return bookmark.note if bookmark else None
+
+    def get_folder(self, obj):
+        bookmark = self._bookmark(obj)
+        return str(bookmark.folder_id) if bookmark and bookmark.folder_id else None
+
+    def get_folder_name(self, obj):
+        bookmark = self._bookmark(obj)
+        return bookmark.folder.name if bookmark and bookmark.folder_id else None
+
+    def get_position(self, obj):
+        bookmark = self._bookmark(obj)
+        return bookmark.position if bookmark else 0
 
 
 class AuthorSerializer(serializers.ModelSerializer):

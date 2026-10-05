@@ -9,7 +9,7 @@ from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel,
 from ..models.chapter_models import Chapter
 from ..models.novels_models import Tag
 from ..privacy import are_friends, can_view
-from .novels_serializers import BasicNovelSerializer
+from .novels_serializers import NovelSerializer
 
 User = get_user_model()
 
@@ -79,7 +79,7 @@ class PublicUserSerializer(serializers.ModelSerializer):
             .select_related('novel')
             .order_by('position', 'created_at')
         )
-        return BasicNovelSerializer(
+        return NovelSerializer(
             [pin.novel for pin in pins], many=True, context=self.context
         ).data
 
@@ -131,7 +131,7 @@ class PublicUserSerializer(serializers.ModelSerializer):
         if not history:
             return None
         return {
-            'novel': BasicNovelSerializer(history.novel, context=self.context).data,
+            'novel': NovelSerializer(history.novel, context=self.context).data,
             'last_read_at': history.last_read_at,
             'last_read_chapter': history.last_read_chapter.chapter_id if history.last_read_chapter else None,
             'source_slug': history.source.source_slug if history.source else None,
@@ -155,7 +155,7 @@ class PublicUserSerializer(serializers.ModelSerializer):
         histories = self._recent_history(obj)
         return [
             {
-                'novel': BasicNovelSerializer(history.novel, context=self.context).data,
+                'novel': NovelSerializer(history.novel, context=self.context).data,
                 'last_read_at': history.last_read_at,
                 'last_read_chapter': history.last_read_chapter.chapter_id if history.last_read_chapter else None,
             }

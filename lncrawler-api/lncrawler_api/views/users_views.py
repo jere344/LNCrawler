@@ -14,8 +14,8 @@ from auth_app.serializers import OtherUserSerializer
 from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
 from ..models.sources_models import NovelFromSource, Chapter
-from ..serializers.novels_serializers import BasicNovelSerializer, LibraryItemSerializer
-from ..serializers.users_serializers import DetailedReadingHistorySerializer
+from ..serializers.novels_serializers import NovelSerializer
+from ..serializers.reading_history_serializers import DetailedReadingHistorySerializer
 from ..utils import resolve_novel_slug
 from ..utils.pagination import parse_page_size, paginated_response
 from ..utils.query_helpers import apply_novel_prefetches
@@ -165,8 +165,8 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
         novel.user_bookmarks = [True] if novel.id in viewer_bookmarked_ids else []
         novels.append(novel)
 
-    serializer = LibraryItemSerializer(
-        novels, many=True,
+    serializer = NovelSerializer(
+        novels, many=True, profile='library',
         context={"request": request, "show_notes": show_notes, "show_ratings": show_ratings},
     )
 
@@ -182,7 +182,7 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
         recommendations = get_novel_recommendations(
             owner, Novel.objects.filter(bookmarked_by_users__user=owner)
         )
-        payload["recommendations"] = BasicNovelSerializer(
+        payload["recommendations"] = NovelSerializer(
             recommendations, many=True, context={"request": request}
         ).data
     return Response(payload)
@@ -353,7 +353,7 @@ def list_reading_history(request):
         request.user,
     )
     return paginated_response(
-        request, novels_with_history, BasicNovelSerializer, max_size=50
+        request, novels_with_history, NovelSerializer, max_size=50
     )
 
 @api_view(["DELETE"])

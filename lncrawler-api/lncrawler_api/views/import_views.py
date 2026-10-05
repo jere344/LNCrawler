@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from ..models.novels_models import Novel
 from ..models.sources_models import Chapter, Volume
 from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
-from ..serializers.novels_serializers import BasicNovelSerializer
+from ..serializers.novels_serializers import NovelSerializer
 from ..services.novelupdates_import_service import (
     MAX_UPLOAD_BYTES,
     folder_name_for,
@@ -61,7 +61,7 @@ def parse_novelupdates_import(request):
     novels = apply_novel_prefetches(
         Novel.objects.filter(id__in=novel_ids), request.user
     )
-    serialized = BasicNovelSerializer(
+    serialized = NovelSerializer(
         novels, many=True, context={"request": request}
     ).data
     by_id = {str(item["id"]): item for item in serialized}

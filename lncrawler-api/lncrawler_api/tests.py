@@ -968,13 +968,13 @@ class HomeLanguageFilterTests(LanguageAwareSourceTestCase):
     def test_language_filtered_prefered_source_matches_language(self):
         response = self.client.get(reverse("home_page"), {"languages": "fr"})
         novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
-        self.assertEqual(novel["prefered_source"]["language"], "fr")
+        self.assertEqual(novel["prefered_source"]["title"], "Français")
 
     def test_prefered_source_falls_back_when_language_absent(self):
         # English source (worst votes) wins only because fr is excluded.
         response = self.client.get(reverse("home_page"), {"languages": "en"})
         novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
-        self.assertEqual(novel["prefered_source"]["language"], "en")
+        self.assertEqual(novel["prefered_source"]["title"], "English")
 
     def test_language_filter_scopes_view_counts_and_badges(self):
         NovelFromSource.objects.filter(pk=self.en_source.pk).update(total_views=100)
@@ -1008,13 +1008,179 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
         response = self.client.get(reverse("home_page"))
         self.assertEqual(response.status_code, 200)
         novel = self._novel(response)
-        self.assertEqual(novel["prefered_source"]["language"], "fr")
-        self.assertEqual(novel["reading_source"]["language"], "en")
+        self.assertEqual(novel["prefered_source"]["title"], "Français")
         self.assertEqual(novel["reading_source"]["title"], "English")
 
     def test_reading_source_absent_for_anonymous(self):
         response = self.client.get(reverse("home_page"))
         self.assertIsNone(self._novel(response)["reading_source"])
+
+
+class SerializerProfileTests(TestCase):
+    """One serializer per model, several profiles: each profile must emit the
+    same fields the old per-view classes did, and excluded fields (and their
+    queries) must never run."""
+
+    NOVEL_FIELDS = {
+        "list": [
+            "id", "title", "slug", "avg_rating", "rating_count", "total_views",
+            "weekly_views", "prefered_source", "languages", "is_bookmarked",
+            "comment_count", "reading_history", "reading_source", "is_dmca",
+        ],
+        "detail": [
+            "id", "title", "slug", "sources", "created_at", "updated_at",
+            "avg_rating", "rating_count", "user_rating", "total_views",
+            "weekly_views", "prefered_source", "is_bookmarked", "comment_count",
+            "reading_history", "reading_source", "similar_novels",
+            "reading_lists", "is_dmca",
+        ],
+        "library": [
+            "id", "title", "slug", "avg_rating", "rating_count", "total_views",
+            "weekly_views", "prefered_source", "languages", "is_bookmarked",
+            "comment_count", "reading_history", "reading_source", "is_dmca",
+            "bookmark_id", "note", "folder", "folder_name", "position",
+            "user_rating",
+        ],
+    }
+
+    SOURCE_FIELDS = {
+        "card": [
+            "id", "title", "source_slug", "novel_slug", "cover_min_url",
+            "authors", "tags", "chapters_count", "last_chapter_update",
+            "latest_available_chapter",
+        ],
+        "detail": [
+            "id", "title", "source_url", "source_name", "source_slug", "authors",
+            "tags", "language", "synopsis", "has_crawler", "cover_min_url",
+            "chapters_count", "volumes_count", "volumes", "last_chapter_update",
+            "upvotes", "downvotes", "vote_score", "user_vote", "novel_id",
+            "novel_slug", "novel_title", "cover_url", "latest_available_chapter",
+            "first_available_chapter", "reading_history", "overview_url",
+            "novelupdates_url", "status", "editors", "translators",
+            "alternative_titles", "original_publisher", "english_publisher",
+        ],
+    }
+
+    def test_novel_profiles_match_legacy_field_sets(self):
+        from .serializers import NovelSerializer
+
+        for profile, expected in self.NOVEL_FIELDS.items():
+            self.assertEqual(
+                list(NovelSerializer(profile=profile).fields), expected, profile
+            )
+
+    def test_source_profiles_match_legacy_field_sets(self):
+        from .serializers import NovelSourceSerializer
+
+        for profile, expected in self.SOURCE_FIELDS.items():
+            self.assertEqual(
+                list(NovelSourceSerializer(profile=profile).fields), expected, profile
+            )
+
+    def test_unknown_profile_is_rejected(self):
+        from .serializers import NovelSerializer
+
+        with self.assertRaises(ValueError):
+            NovelSerializer(profile="nope")
+
+    def test_library_user_rating_reads_bookmark_without_query(self):
+        """The library profile's ``user_rating`` is the pre-annotated owner
+        rating on the attached bookmark; it must never hit the ratings table
+        (one query per bookmark otherwise)."""
+        from types import SimpleNamespace
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from .serializers import NovelSerializer
+
+        novel = self._make_novel(1)
+        novel.library_bookmark = SimpleNamespace(owner_rating=5)
+
+        shown = NovelSerializer(
+            novel, profile="library",
+            context={"request": None, "show_ratings": True},
+        )
+        with CaptureQueriesContext(connection) as captured:
+            self.assertEqual(shown.get_user_rating(novel), 5)
+        self.assertEqual(len(captured), 0)
+
+        hidden = NovelSerializer(
+            novel, profile="library",
+            context={"request": None, "show_ratings": False},
+        )
+        self.assertIsNone(hidden.get_user_rating(novel))
+
+    def _make_novel(self, index):
+        novel = Novel.objects.create(
+            title=f"Novel {index}", slug=f"novel-{index}", novel_path=f"n{index}"
+        )
+        source = NovelFromSource.objects.create(
+            novel=novel,
+            external_source=ExternalSource.objects.create(source_name=f"site-{index}"),
+            title=f"Source {index}",
+            source_url=f"http://site/{index}",
+            source_slug=f"site-{index}",
+            language="en",
+            synopsis="A long synopsis",
+        )
+        NovelRating.objects.create(novel=novel, ip_address="1.1.1.1", rating=4)
+        WeeklySourceView.objects.create(source=source, day=timezone.localdate(), views=3)
+        return novel
+
+    def _list_queries(self, queryset):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from .serializers import NovelSerializer
+
+        with CaptureQueriesContext(connection) as captured:
+            NovelSerializer(queryset, many=True, context={"request": None}).data
+        return len(captured)
+
+    def test_list_profile_query_count_is_flat(self):
+        """Serializing 2 vs 4 novels must cost the same: any growth is an N+1."""
+        from .utils.query_helpers import apply_novel_prefetches
+
+        for index in range(4):
+            self._make_novel(index)
+        queryset = apply_novel_prefetches(Novel.objects.all().order_by("title"), None)
+        self.assertEqual(
+            self._list_queries(queryset[:2]),
+            self._list_queries(queryset[:4]),
+        )
+
+    def test_card_profile_serializes_without_extra_queries(self):
+        """With the card fields annotated, serializing a source card must not
+        touch the chapter/volume tables (the old detail-only fallbacks)."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from .serializers import NovelSourceSerializer
+        from .utils.query_helpers import sources_queryset
+
+        self._make_novel(1)
+        source = sources_queryset(detailed=False).first()
+        with CaptureQueriesContext(connection) as captured:
+            NovelSourceSerializer(source, profile="card").data
+        self.assertEqual(len(captured), 0)
+
+    def test_novel_detail_endpoint_serializes_nested_sources(self):
+        novel = self._make_novel(1)
+        response = self.client.get(
+            reverse("novel_detail_by_slug", kwargs={"novel_slug": novel.slug})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(len(response.data["sources"]), 1)
+
+    def test_source_detail_endpoint_serves_full_detail_profile(self):
+        self._make_novel(1)
+        response = self.client.get(
+            reverse("source_detail", kwargs={"novel_slug": "novel-1", "source_slug": "site-1"})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["synopsis"], "A long synopsis")
+        self.assertIn("first_available_chapter", response.data)
 
 
 class SearchLanguageFilterTests(LanguageAwareSourceTestCase):

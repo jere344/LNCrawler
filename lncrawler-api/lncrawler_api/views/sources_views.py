@@ -13,6 +13,7 @@ from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum, Func, Integ
 from django.db.models.functions import Coalesce
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
+from ..utils.query_helpers import sources_queryset
 from ..utils.pagination import parse_page_size
 from ..services.epub_service import get_or_build_epub
 
@@ -33,9 +34,16 @@ def source_detail(request, novel_slug, source_slug):
     Get details for a specific novel source
     """
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    # Resolve every field the serializer reads (chapters, volumes, viewer vote
+    # and reading history) in the initial queryset instead of one fallback
+    # query per field.
+    source = get_object_or_404(
+        sources_queryset(detailed=True, ip=get_client_ip(request), user=request.user)
+        .filter(novel=novel),
+        source_slug=source_slug,
+    )
 
-    serializer = NovelSourceSerializer(source, context={"request": request, "detailed": True})
+    serializer = NovelSourceSerializer(source, context={"request": request})
     # Add novel info to the response
     data = serializer.data
     data.update(

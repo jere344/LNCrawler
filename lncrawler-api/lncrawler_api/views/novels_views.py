@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
-from django.db.models import F, Avg, Q, Count, Value, Max, Min
+from django.db.models import F, Avg, Q, Count, Sum, Value, Max, Min
 from django.db.models.functions import Coalesce
 from ..models import (
     Novel,
@@ -13,6 +13,7 @@ from ..models import (
     Author,
     FeaturedNovel,
     NovelFromSource,
+    WeeklySourceView,
 )
 from ..languages import parse_languages
 from ..models.reviews_models import Review
@@ -26,10 +27,8 @@ from ..utils.query_helpers import (
 )
 from ..utils.pagination import paginated_response
 from ..serializers import (
-    BasicNovelSerializer,
-    DetailedNovelSerializer,
+    NovelSerializer,
     NovelSourceSerializer,
-
 )
 from ..serializers.reviews_serializers import ReviewListSerializer
 
@@ -41,7 +40,7 @@ def list_novels(request):
     novels = apply_novel_prefetches(
         Novel.objects.all().order_by("title"), request.user
     )
-    return paginated_response(request, novels, BasicNovelSerializer, max_size=50)
+    return paginated_response(request, novels, NovelSerializer, max_size=50)
 
 
 @api_view(["GET"])
@@ -54,7 +53,7 @@ def novel_detail_by_slug(request, novel_slug):
         Novel.objects.filter(pk=novel.pk), request.user,
         detailed=True, ip=get_client_ip(request),
     ).get()
-    serializer = DetailedNovelSerializer(novel, context={"request": request})
+    serializer = NovelSerializer(novel, context={"request": request}, profile='detail')
     return Response(serializer.data)
 
 
@@ -238,7 +237,7 @@ def search_novels(request):
     novels_query = apply_novel_prefetches(novels_query, request.user)
 
     return paginated_response(
-        request, novels_query, BasicNovelSerializer,
+        request, novels_query, NovelSerializer,
         max_size=50,
         context={"languages": languages},
         extra={"filters": {
@@ -348,7 +347,7 @@ def random_featured_novel(request):
     
     # Get the novel and serialize it
     novel = featured.novel
-    serializer = DetailedNovelSerializer(novel, context={"request": request})
+    serializer = NovelSerializer(novel, context={"request": request}, profile='detail')
     
     data = {
         'novel': serializer.data,
@@ -383,20 +382,38 @@ def home_page(request):
             pk__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
         )
 
-    # Top novels (most popular). The language filter above joins sources, so the
-    # total is summed over a deduplicated source subquery to avoid inflation,
-    # restricted to the selected languages so the ranking matches the filter.
+    # Rankings sum the already-stored per-source projections (total_views is
+    # maintained by WeeklySourceView.increment_for_source) in a single
+    # aggregate join, scoped to the selected languages. The base queryset
+    # filters languages via pk__in (no source join), so this join adds no
+    # duplicate rows and each novel's sources are summed in one pass instead
+    # of one correlated subquery per novel.
+    language_filter = Q(sources__language__in=languages) if languages else Q()
+    week_filter = Q(
+        sources__weekly_views__granularity=WeeklySourceView.DAY,
+        sources__weekly_views__day__gte=WeeklySourceView.window_start(),
+    )
+
+    # Top novels (most popular), ranked by all-time views.
     top_novels = (
         base_queryset.annotate(
-            total_views=Coalesce(sources_total_views_subquery(languages), Value(0))
+            total_views=Coalesce(
+                Sum('sources__total_views', filter=language_filter), Value(0)
+            )
         )
         .order_by('-total_views', 'title')[:12]
     )
-    
-    # Trending novels (rolling 7-day views, same deduplicated language-scoped sum)
+
+    # Trending novels (rolling 7-day views).
     trending_novels = (
         base_queryset.annotate(
-            week_views=Coalesce(weekly_views_subquery(languages), Value(0))
+            week_views=Coalesce(
+                Sum(
+                    'sources__weekly_views__views',
+                    filter=language_filter & week_filter,
+                ),
+                Value(0),
+            )
         )
         .order_by('-week_views', 'title')[:12]
     )
@@ -427,7 +444,7 @@ def home_page(request):
         random_index = random.randint(0, featured_count - 1)
         featured = featured_qs[random_index]
         featured_novel_data = {
-            'novel': DetailedNovelSerializer(featured.novel, context=serializer_context).data,
+            'novel': NovelSerializer(featured.novel, context=serializer_context, profile='detail').data,
             'description': featured.description,
             'featured_since': featured.created_at,
         }
@@ -445,7 +462,7 @@ def home_page(request):
     # Get recent reviews (restricted to novels in the selected languages)
     recent_reviews_qs = Review.objects.select_related('user', 'novel').filter(
         novel__is_dmca=False
-    ).prefetch_related('reactions__user').order_by('-created_at')
+    ).order_by('-created_at')
     if languages:
         recent_reviews_qs = recent_reviews_qs.filter(
             novel__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
@@ -454,12 +471,12 @@ def home_page(request):
     
     # Serialize all the data
     response_data = {
-        'top_novels': BasicNovelSerializer(top_novels, many=True, context=serializer_context).data,
-        'trending_novels': BasicNovelSerializer(trending_novels, many=True, context=serializer_context).data,
-        'top_rated_novels': BasicNovelSerializer(top_rated_novels, many=True, context=serializer_context).data,
-        'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context).data,
+        'top_novels': NovelSerializer(top_novels, many=True, context=serializer_context).data,
+        'trending_novels': NovelSerializer(trending_novels, many=True, context=serializer_context).data,
+        'top_rated_novels': NovelSerializer(top_rated_novels, many=True, context=serializer_context).data,
+        'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context, profile='card').data,
         'featured_novel': featured_novel_data,
-        'recent_reviews': ReviewListSerializer(recent_reviews, many=True, context=serializer_context).data,
+        'recent_reviews': ReviewListSerializer(recent_reviews, many=True, context={**serializer_context, 'card': True}).data,
     }
     
     return Response(response_data)

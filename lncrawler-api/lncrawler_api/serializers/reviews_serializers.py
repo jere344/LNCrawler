@@ -30,7 +30,15 @@ class ReviewListSerializer(serializers.ModelSerializer):
             'reaction_count', 'reactions', 'current_user_reaction'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'reaction_count']
-    
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Home renders only the core review card fields; reactions, counts and
+        # updated_at belong to the reviews detail context.
+        if self.context.get('card'):
+            for field in ('updated_at', 'reaction_count', 'reactions', 'current_user_reaction'):
+                self.fields.pop(field, None)
+
     def get_current_user_reaction(self, obj):
         """Get the current user's reaction to this review, if any"""
         request = self.context.get('request')

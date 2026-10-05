@@ -74,21 +74,27 @@ def sources_queryset(detailed=False, ip=None, user=None):
     parent novel joined, authors/tags prefetched, and the latest available
     chapter annotated (avoids a per-source chapter query).
 
-    ``detailed`` additionally annotates the first available chapter and
-    prefetches volumes and (when an ``ip``/``user`` is given) the viewer's own
-    vote/reading history, so detail views resolve the whole payload without a
-    query per source. Lists leave these off to keep their SQL smaller."""
+    ``detailed`` additionally annotates the first available chapter, the volume
+    count, and prefetches volumes and (when an ``ip``/``user`` is given) the
+    viewer's own vote/reading history, so detail views resolve the whole payload
+    without a query per source. Lists only need authors/tags (the card
+    serializer drops the rest), so they leave these off to keep their SQL
+    smaller."""
     latest = _latest_content_chapter()
+    prefetch = (
+        ['authors', 'editors', 'translators', 'tags', 'alternative_titles']
+        if detailed
+        else ['authors', 'tags']
+    )
     qs = (
         NovelFromSource.objects.select_related('external_source', 'novel')
-        .prefetch_related('authors', 'editors', 'translators', 'tags', 'alternative_titles')
+        .prefetch_related(*prefetch)
         .annotate(
             latest_chapter_id=Subquery(latest.values('chapter_id')[:1]),
             latest_chapter_title=Subquery(latest.values('title')[:1]),
             latest_chapter_url=Subquery(latest.values('url')[:1]),
             # Counted here so the serializer never runs per-source COUNT queries.
             annotated_chapters_count=_related_count(Chapter),
-            annotated_volumes_count=_related_count(Volume),
         )
     )
     if not detailed:
@@ -99,6 +105,7 @@ def sources_queryset(detailed=False, ip=None, user=None):
         first_chapter_id=Subquery(first.values('chapter_id')[:1]),
         first_chapter_title=Subquery(first.values('title')[:1]),
         first_chapter_url=Subquery(first.values('url')[:1]),
+        annotated_volumes_count=_related_count(Volume),
     ).prefetch_related('volumes')
     if ip:
         qs = qs.prefetch_related(

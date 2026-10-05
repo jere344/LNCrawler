@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from ..models.users_models import ReadingList, ReadingListItem, ReadingListCollaborator
 from auth_app.serializers import OtherUserSerializer
-from .novels_serializers import BasicNovelSerializer
+from .novels_serializers import NovelSerializer
 
 
 def get_reading_list_role(reading_list, user):
@@ -18,7 +18,7 @@ def get_reading_list_role(reading_list, user):
 
 
 class ReadingListItemSerializer(serializers.ModelSerializer):
-    novel = BasicNovelSerializer(read_only=True)
+    novel = NovelSerializer(read_only=True, profile='list')
     novel_id = serializers.UUIDField(write_only=True)
     
     class Meta:

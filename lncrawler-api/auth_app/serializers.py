@@ -101,10 +101,10 @@ class UserSerializer(serializers.ModelSerializer):
         return codes
     
     def get_pinned_novels(self, obj):
-        from lncrawler_api.serializers import BasicNovelSerializer
+        from lncrawler_api.serializers import NovelSerializer
         from lncrawler_api.models import ProfilePinnedNovel
         pinned = ProfilePinnedNovel.objects.filter(user=obj).select_related('novel').order_by('position', 'created_at')
-        return BasicNovelSerializer([p.novel for p in pinned], many=True, context=self.context).data
+        return NovelSerializer([p.novel for p in pinned], many=True, context=self.context).data
 
     def get_chapters_read_count(self, obj):
         # Check if we've already calculated this
