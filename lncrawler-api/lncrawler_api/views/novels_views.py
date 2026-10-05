@@ -51,7 +51,8 @@ def novel_detail_by_slug(request, novel_slug):
     """
     novel = resolve_novel_slug(novel_slug)
     novel = apply_novel_prefetches(
-        Novel.objects.filter(pk=novel.pk), request.user
+        Novel.objects.filter(pk=novel.pk), request.user,
+        detailed=True, ip=get_client_ip(request),
     ).get()
     serializer = DetailedNovelSerializer(novel, context={"request": request})
     return Response(serializer.data)
@@ -327,7 +328,10 @@ def random_featured_novel(request):
     featured_qs = FeaturedNovel.objects.select_related('novel').filter(
         novel__is_dmca=False
     ).prefetch_related(
-        *novel_prefetch_objects(user=request.user, prefix='novel__')
+        *novel_prefetch_objects(
+            user=request.user, prefix='novel__', detailed=True,
+            ip=get_client_ip(request),
+        )
     )
     featured_count = featured_qs.count()
     if featured_count == 0:
@@ -410,7 +414,10 @@ def home_page(request):
     featured_qs = FeaturedNovel.objects.select_related('novel').filter(
         novel__is_dmca=False
     ).prefetch_related(
-        *novel_prefetch_objects(user=request.user, prefix='novel__')
+        *novel_prefetch_objects(
+            user=request.user, prefix='novel__', detailed=True,
+            ip=get_client_ip(request),
+        )
     )
     if languages:
         featured_qs = featured_qs.filter(novel__sources__language__in=languages).distinct()

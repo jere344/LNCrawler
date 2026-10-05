@@ -7,13 +7,19 @@ from ..models import (
     Volume,
     WeeklySourceView,
 )
-from ..models.sources_models import NovelFromSource
+from ..models.sources_models import NovelFromSource, SourceVote
 
 
 def _latest_content_chapter():
     return Chapter.objects.filter(
         novel_from_source=OuterRef('pk'), has_content=True
     ).order_by('-chapter_id')
+
+
+def _first_content_chapter():
+    return Chapter.objects.filter(
+        novel_from_source=OuterRef('pk'), has_content=True
+    ).order_by('chapter_id')
 
 
 def _related_count(model, **filters):
@@ -63,12 +69,17 @@ def weekly_views_subquery(languages=None):
     )
 
 
-def sources_queryset():
-    """Sources with everything the list serializers read: external source and
+def sources_queryset(detailed=False, ip=None, user=None):
+    """Sources with everything the serializers read: external source and
     parent novel joined, authors/tags prefetched, and the latest available
-    chapter annotated (avoids a per-source chapter query)."""
+    chapter annotated (avoids a per-source chapter query).
+
+    ``detailed`` additionally annotates the first available chapter and
+    prefetches volumes and (when an ``ip``/``user`` is given) the viewer's own
+    vote/reading history, so detail views resolve the whole payload without a
+    query per source. Lists leave these off to keep their SQL smaller."""
     latest = _latest_content_chapter()
-    return (
+    qs = (
         NovelFromSource.objects.select_related('external_source', 'novel')
         .prefetch_related('authors', 'editors', 'translators', 'tags', 'alternative_titles')
         .annotate(
@@ -80,11 +91,40 @@ def sources_queryset():
             annotated_volumes_count=_related_count(Volume),
         )
     )
+    if not detailed:
+        return qs
+
+    first = _first_content_chapter()
+    qs = qs.annotate(
+        first_chapter_id=Subquery(first.values('chapter_id')[:1]),
+        first_chapter_title=Subquery(first.values('title')[:1]),
+        first_chapter_url=Subquery(first.values('url')[:1]),
+    ).prefetch_related('volumes')
+    if ip:
+        qs = qs.prefetch_related(
+            Prefetch(
+                'votes',
+                queryset=SourceVote.objects.filter(ip_address=ip),
+                to_attr='user_votes',
+            )
+        )
+    if user is not None and user.is_authenticated:
+        qs = qs.prefetch_related(
+            Prefetch(
+                'read_by_users',
+                queryset=ReadingHistory.objects.filter(user=user),
+                to_attr='user_read_history',
+            )
+        )
+    return qs
 
 
-def source_prefetch(prefix=''):
+def source_prefetch(prefix='', detailed=False, ip=None, user=None):
     """Prefetch a novel's sources (see `sources_queryset`)."""
-    return Prefetch(prefix + 'sources', queryset=sources_queryset())
+    return Prefetch(
+        prefix + 'sources',
+        queryset=sources_queryset(detailed=detailed, ip=ip, user=user),
+    )
 
 
 def weekly_views_prefetch(prefix=''):
@@ -98,10 +138,14 @@ def weekly_views_prefetch(prefix=''):
     )
 
 
-def novel_prefetch_objects(user=None, prefix=''):
+def novel_prefetch_objects(user=None, prefix='', detailed=False, ip=None):
     """The prefetch list for a novel queryset, optionally addressed through a
     relation (e.g. prefix='to_novel__' for NovelSimilarity rows)."""
-    prefetches = [source_prefetch(prefix), prefix + 'ratings', weekly_views_prefetch(prefix)]
+    prefetches = [
+        source_prefetch(prefix, detailed=detailed, ip=ip, user=user),
+        prefix + 'ratings',
+        weekly_views_prefetch(prefix),
+    ]
     if user is not None and user.is_authenticated:
         prefetches += [
             Prefetch(
@@ -120,7 +164,11 @@ def novel_prefetch_objects(user=None, prefix=''):
     return prefetches
 
 
-def apply_novel_prefetches(queryset, user=None):
+def apply_novel_prefetches(queryset, user=None, detailed=False, ip=None):
     """Attach the relations the novel serializers read. Pass the request user
-    so per-user bookmark/history lookups are collapsed into one query each."""
-    return queryset.prefetch_related(*novel_prefetch_objects(user))
+    so per-user bookmark/history lookups are collapsed into one query each;
+    ``detailed`` adds the first-chapter/volumes/vote prefetches detail views
+    need (see ``sources_queryset``)."""
+    return queryset.prefetch_related(
+        *novel_prefetch_objects(user, detailed=detailed, ip=ip)
+    )

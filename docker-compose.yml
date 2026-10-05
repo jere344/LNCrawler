@@ -2,17 +2,27 @@ services:
   db:
     image: postgres:17
     restart: unless-stopped
-    shm_size: 256mb
+    shm_size: 128mb
+    # Bounded for a ~2GB DB on a small host. The old config let each of 3
+    # autovacuum workers inherit maintenance_work_mem=128MB (autovacuum_work_mem
+    # default -1) and top out near 500MB. See autovacuum_work_mem below.
     command:
       - postgres
       - -c
-      - shared_buffers=256MB
+      - shared_buffers=128MB
       - -c
-      - effective_cache_size=768MB
+      - effective_cache_size=512MB
       - -c
-      - maintenance_work_mem=128MB
+      - maintenance_work_mem=64MB
       - -c
-      - work_mem=8MB
+      - autovacuum_work_mem=32MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - max_connections=40
+      - -c
+      - max_parallel_workers_per_gather=0
+    mem_limit: 768m
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     environment:
@@ -71,6 +81,10 @@ services:
   crawler:
     build: ./lncrawler-api
     restart: unless-stopped
+    # tini as PID 1 (reaps orphaned Chromium grandchildren from job subprocesses).
+    init: true
+    # Hard cap so a runaway job/leak OOM-kills a crawler, not the host.
+    mem_limit: ${CRAWLER_MEM_LIMIT:-1g}
     deploy:
       replicas: ${CRAWLER_REPLICAS:-1}
     volumes: *api-volumes

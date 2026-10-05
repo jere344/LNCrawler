@@ -88,6 +88,9 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         # in list contexts removes one query per source.
         if not self.context.get('detailed'):
             return None
+        # Detailed querysets prefetch the viewer's votes for the whole page.
+        if hasattr(obj, 'user_votes'):
+            return obj.user_votes[0].vote_type if obj.user_votes else None
         request = self.context.get('request')
         if not request:
             return None
@@ -137,6 +140,20 @@ class NovelSourceSerializer(serializers.ModelSerializer):
 
     def get_first_available_chapter(self, obj: NovelFromSource):
         """Return the first available chapter with content"""
+        # Detail querysets annotate this (see sources_queryset detailed mode).
+        if 'first_chapter_id' in obj.__dict__:
+            chapter_id = obj.first_chapter_id
+            if chapter_id is None:
+                return None
+            return {
+                'id': None,
+                'chapter_id': chapter_id,
+                'title': obj.first_chapter_title,
+                'url': obj.first_chapter_url,
+                'volume': 0,
+                'volume_title': None,
+                'has_content': True,
+            }
         # Only detail views render this; lists skip the extra query.
         if not self.context.get('detailed'):
             return None
@@ -151,6 +168,11 @@ class NovelSourceSerializer(serializers.ModelSerializer):
         """
         # Card views use the novel-level reading_source instead.
         if not self.context.get('detailed'):
+            return None
+        if hasattr(obj, 'user_read_history'):
+            history = obj.user_read_history[0] if obj.user_read_history else None
+            if history:
+                return ReadingHistorySerializer(history).data
             return None
         request = self.context.get('request')
         if request and request.user.is_authenticated:
@@ -182,7 +204,9 @@ class NovelSourceSerializer(serializers.ModelSerializer):
                 'final_chapter': v.final_chapter,
                 'chapter_count': v.chapter_count,
             }
-            for v in obj.volumes.all().order_by('volume_id')
+            # sorted() keeps the prefetched cache (no query); .order_by() would
+            # clone the manager and discard the prefetch.
+            for v in sorted(obj.volumes.all(), key=lambda v: v.volume_id)
         ]
 
 

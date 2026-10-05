@@ -25,14 +25,21 @@ class NovelAggregatesMixin:
     def _context_sources(self, obj):
         # Restrict to the languages the request was filtered by (when any) so
         # counters, language badges and the preferred source agree with the
-        # filter; fall back to all sources if none match.
-        sources = list(obj.sources.all())
-        languages = self.context.get('languages') or []
-        if languages:
-            localized = [s for s in sources if s.language in languages]
-            if localized:
-                sources = localized
-        return sources
+        # filter; fall back to all sources if none match. Memoized because the
+        # list serializer instance is reused for every novel and reads this
+        # from total_views/weekly_views/prefered_source/languages.
+        cache = getattr(self, '_context_sources_cache', None)
+        if cache is None:
+            cache = self._context_sources_cache = {}
+        if obj.pk not in cache:
+            sources = list(obj.sources.all())
+            languages = self.context.get('languages') or []
+            if languages:
+                localized = [s for s in sources if s.language in languages]
+                if localized:
+                    sources = localized
+            cache[obj.pk] = sources
+        return cache[obj.pk]
 
     def get_prefered_source(self, obj):
         sources = self._context_sources(obj)
