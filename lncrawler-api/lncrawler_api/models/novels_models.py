@@ -100,6 +100,11 @@ class Tag(models.Model):
     """Tags for novels"""
     name = models.CharField(max_length=100, unique=True)
 
+    class Meta:
+        indexes = [
+            GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='tag_name_trgm_idx'),
+        ]
+
     def __str__(self):
         return self.name
 
@@ -126,6 +131,9 @@ class TagAlias(models.Model):
         verbose_name = 'tag alias'
         verbose_name_plural = 'tag aliases'
         ordering = ['name']
+        indexes = [
+            GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='tagalias_name_trgm_idx'),
+        ]
 
     def __str__(self):
         return f"{self.name} -> {self.tag.name}"

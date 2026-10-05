@@ -295,7 +295,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
 
     def get_reading_lists(self, obj):
         from .reading_lists_serializers import ReadingListSerializer
-        from ..models.users_models import ReadingList
+        from ..views.reading_lists_views import _reading_lists_query_set
         from django.db.models import Q
 
         # Only expose public lists, plus private ones the caller owns or helps on.
@@ -306,7 +306,14 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             visibility |= Q(user=user) | Q(collaborators__user=user)
 
         reading_lists = obj.in_reading_lists.values_list('reading_list', flat=True)
-        lists = ReadingList.objects.filter(id__in=reading_lists).filter(visibility).distinct()
+        # Reuse the reading-lists view queryset so each list's items (and their
+        # nested novels) are prefetched instead of firing per-list/per-item.
+        lists = (
+            _reading_lists_query_set(user)
+            .filter(id__in=reading_lists)
+            .filter(visibility)
+            .distinct()
+        )
 
         return ReadingListSerializer(lists, many=True, context=self.context).data
 

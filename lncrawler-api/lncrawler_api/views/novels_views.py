@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
-from django.db.models import F, Avg, Q, Count, Sum, Value, Max, Min
+from django.db.models import F, Avg, Q, Case, When, IntegerField, Count, Sum, Value, Max, Min
 from django.db.models.functions import Coalesce
 from ..models import (
     Novel,
@@ -142,12 +142,29 @@ def search_novels(request):
     # Apply search query if provided
     if query:
         # Each traversal is its own subquery so Postgres can use the per-column
-        # pg_trgm indexes; a single multi-table OR cannot use them.
+        # pg_trgm indexes; a single multi-table OR cannot use them. Authors are
+        # intentionally not searched here (use ?author= or the author
+        # autocomplete instead).
         novels_query = novels_query.filter(
             Q(id__in=Novel.objects.filter(title__icontains=query).values('id'))
             | Q(id__in=NovelFromSource.objects.filter(synopsis__icontains=query).values('novel_id'))
-            | Q(id__in=NovelFromSource.objects.filter(authors__name__icontains=query).values('novel_id'))
             | Q(id__in=NovelFromSource.objects.filter(alternative_titles__name__icontains=query).values('novel_id'))
+        ).annotate(
+            # Relevance: exact title, exact alt-title, title prefix, title
+            # substring, then anything else (e.g. synopsis match).
+            _relevance=Case(
+                When(title__iexact=query, then=Value(0)),
+                When(
+                    Q(pk__in=NovelFromSource.objects.filter(
+                        alternative_titles__name__iexact=query
+                    ).values('novel_id')),
+                    then=Value(1),
+                ),
+                When(title__istartswith=query, then=Value(2)),
+                When(title__icontains=query, then=Value(3)),
+                default=Value(4),
+                output_field=IntegerField(),
+            )
         ).distinct()
 
     # Filter by tags
@@ -234,6 +251,13 @@ def search_novels(request):
     else:
         # Default sorting by title
         novels_query = novels_query.order_by("title")
+
+    # With a text query, exact/near title matches outrank the chosen sort; the
+    # chosen sort still breaks ties within the same relevance tier.
+    if query:
+        novels_query = novels_query.order_by(
+            "_relevance", *novels_query.query.order_by
+        )
 
     # Resolve everything the serializer needs up front, then paginate.
     novels_query = apply_novel_prefetches(novels_query, request.user)

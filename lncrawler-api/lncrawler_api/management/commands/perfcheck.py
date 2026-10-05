@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+from urllib.parse import quote
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
@@ -63,6 +64,14 @@ class Command(BaseCommand):
         source = chapter.novel_from_source
         novel = source.novel
 
+        # Search a real 3+ character term: pg_trgm indexes only apply at >=3
+        # chars, so the old query=a forced a seq scan and made search look far
+        # slower than a real query. Falls back to a literal if the title has no
+        # long enough word.
+        search_term = quote(
+            next((w for w in novel.title.split() if len(w) >= 4), 'novel')
+        )
+
         # The full read surface: home/rankings, list+search variants, the novel
         # and source pages, and the social reads. The more endpoints, the more
         # useful this is as a before/after profiling tool.
@@ -73,10 +82,10 @@ class Command(BaseCommand):
             ('list novels', '/novels/'),
             ('list novels p2', '/novels/?page=2'),
             ('list novels?langs', '/novels/?languages=en'),
-            ('search', '/novels/search/?query=a'),
-            ('search popularity', '/novels/search/?query=a&sort_by=popularity'),
-            ('search trending', '/novels/search/?sort_by=trending'),
-            ('search rating', '/novels/search/?sort_by=rating&sort_order=desc'),
+            ('search', f'/novels/search/?query={search_term}'),
+            ('search popularity', f'/novels/search/?query={search_term}&sort_by=popularity'),
+            ('search trending', f'/novels/search/?query={search_term}&sort_by=trending'),
+            ('search rating', f'/novels/search/?query={search_term}&sort_by=rating&sort_order=desc'),
             ('autocomplete tag', '/novels/autocomplete/?type=tag&query=a'),
             ('autocomplete author', '/novels/autocomplete/?type=author&query=a'),
             ('novel detail', f'/novels/{novel.slug}/'),
