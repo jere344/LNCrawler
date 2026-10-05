@@ -114,7 +114,7 @@ export const getChapterLabel = (t: TFunction, title?: string | null, chapterId?:
 }
 
 
-export const languageCodeToFlag = (language: string): string => {
+export const languageCodeToFlag = (language?: string | null): string => {
     const languageMap: { [key: string]: string } = {
         'en': 'gb',
         'fr': 'fr',
@@ -137,7 +137,7 @@ export const languageCodeToFlag = (language: string): string => {
         'sv': 'se',
         'da': 'dk',
     };
-    return languageMap[language.toLowerCase()] || 'unknown';
+    return languageMap[(language || '').toLowerCase()] || 'unknown';
 }
 
 export const languageFlagUrl = (language: string): string =>
