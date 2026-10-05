@@ -533,7 +533,6 @@
     "editFailed": "댓글 편집에 실패했습니다. 다시 시도해 주세요.",
     "edited": "(수정됨)",
     "editTooltip": "댓글 편집",
-    "boardComment": "게시판 댓글",
     "postedAt": "{chapter}에 게시된 댓글",
     "fromSource": "{source}에서",
     "editPlaceholder": "댓글 편집",
@@ -546,21 +545,12 @@
     "noComments": "아직 댓글이 없습니다. 첫 댓글을 남겨보세요!",
     "mixedSourcesWarning": "아래 일부 댓글은 다른 소스에 게시된 것입니다. 소스마다 화 번호가 다를 수 있으므로 스포일러나 관련 없어 보이는 댓글이 있을 수 있습니다."
   },
-  "boards": {
-    "loadFailed": "게시판을 불러오지 못했습니다. 페이지를 새로고침해 보세요.",
-    "listHeading": "채팅 게시판",
-    "listDescription": "커뮤니티 게시판의 토론에 참여하세요. 생각을 나누고, 질문하고, 다른 독자들과 소통할 수 있습니다.",
-    "noDescription": "설명이 없습니다",
-    "noBoards": "이용 가능한 게시판이 없습니다",
-    "noBoardsHint": "현재 토론 게시판이 없습니다. 나중에 다시 확인해 주세요.",
-    "detailLoadFailed": "게시판을 불러오지 못했습니다. 페이지를 새로고침해 보세요.",
-    "notFound": "게시판을 찾을 수 없습니다",
-    "commentsCount": "댓글 {count}개",
-    "createdAt": "{date}에 생성",
-    "discussion": "토론",
-    "joinDiscordHeading": "Discord 커뮤니티에 참여하세요",
-    "joinDiscordBody": "다른 독자들과 소통하고, 업데이트를 받고, 토론에 참여하세요!",
-    "joinDiscord": "Discord 참여"
+  "chat": {
+    "title": "커뮤니티 채팅",
+    "loadFailed": "채팅을 불러오지 못했습니다. 페이지를 새로고침해 보세요.",
+    "noMessages": "아직 메시지가 없습니다. 첫 번째로 말을 걸어보세요!",
+    "quoteUnavailable": "인용된 메시지를 찾을 수 없습니다.",
+    "quoteLookupLimit": "인용된 메시지가 너무 오래되어 자동으로 불러올 수 없습니다."
   },
   "readingLists": {
     "heading": "읽기 목록",

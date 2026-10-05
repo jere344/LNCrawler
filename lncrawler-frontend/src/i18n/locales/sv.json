@@ -533,7 +533,6 @@
     "editFailed": "Det gick inte att redigera kommentaren. Försök igen.",
     "edited": "(redigerad)",
     "editTooltip": "Redigera kommentar",
-    "boardComment": "Forumkommentar",
     "postedAt": "Kommentar publicerad vid {chapter}",
     "fromSource": "från {source}",
     "editPlaceholder": "Redigera din kommentar",
@@ -546,21 +545,12 @@
     "noComments": "Inga kommentarer än. Bli den första att kommentera!",
     "mixedSourcesWarning": "Vissa kommentarer nedan publicerades för olika källor. Källor kan använda olika kapitelnumrering, så det kan förekomma spoilers eller till synes irrelevanta kommentarer."
   },
-  "boards": {
-    "loadFailed": "Det gick inte att ladda forumen. Prova att uppdatera sidan.",
-    "listHeading": "Chattforum",
-    "listDescription": "Delta i diskussioner i våra communityforum. Dela dina tankar, ställ frågor och få kontakt med andra läsare.",
-    "noDescription": "Ingen beskrivning tillgänglig",
-    "noBoards": "Inga forum tillgängliga",
-    "noBoardsHint": "Det finns för närvarande inga diskussionsforum. Kom tillbaka senare.",
-    "detailLoadFailed": "Det gick inte att ladda forumet. Prova att uppdatera sidan.",
-    "notFound": "Forumet hittades inte",
-    "commentsCount": "{count} kommentarer",
-    "createdAt": "Skapad {date}",
-    "discussion": "Diskussion",
-    "joinDiscordHeading": "Gå med i vår Discord-gemenskap",
-    "joinDiscordBody": "Få kontakt med andra läsare, få uppdateringar och delta i diskussioner!",
-    "joinDiscord": "Gå med i Discord"
+  "chat": {
+    "title": "Communitychatt",
+    "loadFailed": "Det gick inte att ladda chatten. Prova att uppdatera sidan.",
+    "noMessages": "Inga meddelanden ännu. Bli den första att säga något!",
+    "quoteUnavailable": "Det citerade meddelandet kunde inte hittas.",
+    "quoteLookupLimit": "Det citerade meddelandet är för långt tillbaka för att laddas automatiskt."
   },
   "readingLists": {
     "heading": "Läslistor",

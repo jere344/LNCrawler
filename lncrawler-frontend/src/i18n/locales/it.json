@@ -533,7 +533,6 @@
     "editFailed": "Modifica del commento non riuscita. Riprova.",
     "edited": "(modificato)",
     "editTooltip": "Modifica commento",
-    "boardComment": "Commento del forum",
     "postedAt": "Commento pubblicato a {chapter}",
     "fromSource": "da {source}",
     "editPlaceholder": "Modifica il tuo commento",
@@ -546,21 +545,12 @@
     "noComments": "Ancora nessun commento. Sii il primo a commentare!",
     "mixedSourcesWarning": "Alcuni commenti seguenti sono stati pubblicati per fonti diverse. Le fonti possono usare una numerazione dei capitoli diversa, quindi potrebbero esserci spoiler o commenti apparentemente irrilevanti."
   },
-  "boards": {
-    "loadFailed": "Caricamento dei forum non riuscito. Prova ad aggiornare la pagina.",
-    "listHeading": "Forum di chat",
-    "listDescription": "Partecipa alle discussioni nei nostri forum della community. Condividi i tuoi pensieri, fai domande e connettiti con altri lettori.",
-    "noDescription": "Nessuna descrizione disponibile",
-    "noBoards": "Nessun forum disponibile",
-    "noBoardsHint": "Al momento non ci sono forum di discussione. Torna più tardi.",
-    "detailLoadFailed": "Caricamento del forum non riuscito. Prova ad aggiornare la pagina.",
-    "notFound": "Forum non trovato",
-    "commentsCount": "{count} commenti",
-    "createdAt": "Creato il {date}",
-    "discussion": "Discussione",
-    "joinDiscordHeading": "Unisciti alla nostra community di Discord",
-    "joinDiscordBody": "Connettiti con altri lettori, ricevi aggiornamenti e partecipa alle discussioni!",
-    "joinDiscord": "Unisciti a Discord"
+  "chat": {
+    "title": "Chat della community",
+    "loadFailed": "Caricamento della chat non riuscito. Prova ad aggiornare la pagina.",
+    "noMessages": "Ancora nessun messaggio. Sii il primo a scrivere qualcosa!",
+    "quoteUnavailable": "Impossibile trovare il messaggio citato.",
+    "quoteLookupLimit": "Il messaggio citato è troppo vecchio per essere caricato automaticamente."
   },
   "readingLists": {
     "heading": "Liste di lettura",

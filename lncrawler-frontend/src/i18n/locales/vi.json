@@ -533,7 +533,6 @@
     "editFailed": "Chỉnh sửa bình luận thất bại. Vui lòng thử lại.",
     "edited": "(đã chỉnh sửa)",
     "editTooltip": "Chỉnh sửa bình luận",
-    "boardComment": "Bình luận bảng tin",
     "postedAt": "Bình luận được đăng tại {chapter}",
     "fromSource": "từ {source}",
     "editPlaceholder": "Chỉnh sửa bình luận của bạn",
@@ -546,21 +545,12 @@
     "noComments": "Chưa có bình luận. Hãy là người đầu tiên bình luận!",
     "mixedSourcesWarning": "Một số bình luận bên dưới được đăng cho các nguồn khác nhau. Các nguồn có thể dùng cách đánh số chương khác nhau nên có thể có nội dung tiết lộ hoặc bình luận có vẻ không liên quan."
   },
-  "boards": {
-    "loadFailed": "Tải bảng tin thất bại. Vui lòng thử làm mới trang.",
-    "listHeading": "Bảng trò chuyện",
-    "listDescription": "Tham gia thảo luận trong bảng tin cộng đồng của chúng tôi. Chia sẻ suy nghĩ, đặt câu hỏi và kết nối với những độc giả khác.",
-    "noDescription": "Không có mô tả",
-    "noBoards": "Không có bảng tin nào",
-    "noBoardsHint": "Hiện tại không có bảng thảo luận nào. Vui lòng quay lại sau.",
-    "detailLoadFailed": "Tải bảng tin thất bại. Vui lòng thử làm mới trang.",
-    "notFound": "Không tìm thấy bảng tin",
-    "commentsCount": "{count} bình luận",
-    "createdAt": "Đã tạo {date}",
-    "discussion": "Thảo luận",
-    "joinDiscordHeading": "Tham gia cộng đồng Discord của chúng tôi",
-    "joinDiscordBody": "Kết nối với những độc giả khác, nhận cập nhật và tham gia thảo luận!",
-    "joinDiscord": "Tham gia Discord"
+  "chat": {
+    "title": "Trò chuyện cộng đồng",
+    "loadFailed": "Tải trò chuyện thất bại. Vui lòng thử làm mới trang.",
+    "noMessages": "Chưa có tin nhắn nào. Hãy là người đầu tiên lên tiếng!",
+    "quoteUnavailable": "Không tìm thấy tin nhắn được trích dẫn.",
+    "quoteLookupLimit": "Tin nhắn được trích dẫn quá cũ để tự động tải."
   },
   "readingLists": {
     "heading": "Danh sách đọc",

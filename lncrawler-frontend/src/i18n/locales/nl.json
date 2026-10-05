@@ -533,7 +533,6 @@
     "editFailed": "Reactie bewerken mislukt. Probeer het opnieuw.",
     "edited": "(bewerkt)",
     "editTooltip": "Reactie bewerken",
-    "boardComment": "Forumbericht",
     "postedAt": "Reactie geplaatst bij {chapter}",
     "fromSource": "van {source}",
     "editPlaceholder": "Bewerk je reactie",
@@ -546,21 +545,12 @@
     "noComments": "Nog geen reacties. Wees de eerste die reageert!",
     "mixedSourcesWarning": "Sommige reacties hieronder zijn geplaatst voor verschillende bronnen. Bronnen kunnen verschillende hoofdstuknummering gebruiken, dus er kunnen spoilers of ogenschijnlijk irrelevante reacties zijn."
   },
-  "boards": {
-    "loadFailed": "Forums laden mislukt. Probeer de pagina te vernieuwen.",
-    "listHeading": "Chatforums",
-    "listDescription": "Neem deel aan discussies in onze communityforums. Deel je gedachten, stel vragen en maak contact met andere lezers.",
-    "noDescription": "Geen beschrijving beschikbaar",
-    "noBoards": "Geen forums beschikbaar",
-    "noBoardsHint": "Er zijn momenteel geen discussieforums. Kom later terug.",
-    "detailLoadFailed": "Forum laden mislukt. Probeer de pagina te vernieuwen.",
-    "notFound": "Forum niet gevonden",
-    "commentsCount": "{count} reacties",
-    "createdAt": "Aangemaakt {date}",
-    "discussion": "Discussie",
-    "joinDiscordHeading": "Word lid van onze Discord-gemeenschap",
-    "joinDiscordBody": "Maak contact met andere lezers, ontvang updates en doe mee aan discussies!",
-    "joinDiscord": "Lid worden van Discord"
+  "chat": {
+    "title": "Communitychat",
+    "loadFailed": "Chat laden mislukt. Probeer de pagina te vernieuwen.",
+    "noMessages": "Nog geen berichten. Wees de eerste die iets zegt!",
+    "quoteUnavailable": "Het geciteerde bericht kon niet worden gevonden.",
+    "quoteLookupLimit": "Het geciteerde bericht is te oud om automatisch te laden."
   },
   "readingLists": {
     "heading": "Leeslijsten",

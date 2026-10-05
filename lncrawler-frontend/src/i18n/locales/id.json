@@ -533,7 +533,6 @@
     "editFailed": "Gagal mengedit komentar. Silakan coba lagi.",
     "edited": "(diedit)",
     "editTooltip": "Edit komentar",
-    "boardComment": "Komentar Papan",
     "postedAt": "Komentar diposting di {chapter}",
     "fromSource": "dari {source}",
     "editPlaceholder": "Edit komentar Anda",
@@ -546,21 +545,12 @@
     "noComments": "Belum ada komentar. Jadilah yang pertama berkomentar!",
     "mixedSourcesWarning": "Beberapa komentar di bawah diposting untuk sumber yang berbeda. Sumber mungkin menggunakan penomoran bab yang berbeda sehingga mungkin ada spoiler atau komentar yang tampak tidak relevan."
   },
-  "boards": {
-    "loadFailed": "Gagal memuat papan. Silakan coba segarkan halaman.",
-    "listHeading": "Papan Obrolan",
-    "listDescription": "Ikuti diskusi di papan komunitas kami. Bagikan pendapat Anda, ajukan pertanyaan, dan terhubung dengan pembaca lain.",
-    "noDescription": "Tidak ada deskripsi tersedia",
-    "noBoards": "Tidak ada papan tersedia",
-    "noBoardsHint": "Saat ini tidak ada papan diskusi. Silakan periksa lagi nanti.",
-    "detailLoadFailed": "Gagal memuat papan. Silakan coba segarkan halaman.",
-    "notFound": "Papan tidak ditemukan",
-    "commentsCount": "{count} komentar",
-    "createdAt": "Dibuat {date}",
-    "discussion": "Diskusi",
-    "joinDiscordHeading": "Bergabung dengan Komunitas Discord Kami",
-    "joinDiscordBody": "Terhubung dengan pembaca lain, dapatkan pembaruan, dan ikuti diskusi!",
-    "joinDiscord": "Bergabung dengan Discord"
+  "chat": {
+    "title": "Chat Komunitas",
+    "loadFailed": "Gagal memuat chat. Silakan coba segarkan halaman.",
+    "noMessages": "Belum ada pesan. Jadilah yang pertama mengatakan sesuatu!",
+    "quoteUnavailable": "Pesan yang dikutip tidak dapat ditemukan.",
+    "quoteLookupLimit": "Pesan yang dikutip terlalu jauh ke belakang untuk dimuat secara otomatis."
   },
   "readingLists": {
     "heading": "Daftar Bacaan",

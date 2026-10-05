@@ -533,7 +533,6 @@
     "editFailed": "Kunne ikke redigere kommentaren. Prøv igen.",
     "edited": "(redigeret)",
     "editTooltip": "Rediger kommentar",
-    "boardComment": "Forumkommentar",
     "postedAt": "Kommentar sendt ved {chapter}",
     "fromSource": "fra {source}",
     "editPlaceholder": "Rediger din kommentar",
@@ -546,21 +545,12 @@
     "noComments": "Ingen kommentarer endnu. Vær den første til at kommentere!",
     "mixedSourcesWarning": "Nogle af kommentarerne nedenfor blev sendt til forskellige kilder. Kilder kan bruge forskellig kapitelnummerering, så der kan forekomme spoilers eller tilsyneladende irrelevante kommentarer."
   },
-  "boards": {
-    "loadFailed": "Kunne ikke indlæse fora. Prøv at genindlæse siden.",
-    "listHeading": "Chatfora",
-    "listDescription": "Deltag i diskussioner i vores fællesskabsfora. Del dine tanker, stil spørgsmål og kom i kontakt med andre læsere.",
-    "noDescription": "Ingen beskrivelse tilgængelig",
-    "noBoards": "Ingen fora tilgængelige",
-    "noBoardsHint": "Der er i øjeblikket ingen diskussionsfora. Kom tilbage senere.",
-    "detailLoadFailed": "Kunne ikke indlæse forummet. Prøv at genindlæse siden.",
-    "notFound": "Forummet blev ikke fundet",
-    "commentsCount": "{count} kommentarer",
-    "createdAt": "Oprettet {date}",
-    "discussion": "Diskussion",
-    "joinDiscordHeading": "Deltag i vores Discord-fællesskab",
-    "joinDiscordBody": "Kom i kontakt med andre læsere, få opdateringer og deltag i diskussioner!",
-    "joinDiscord": "Deltag i Discord"
+  "chat": {
+    "title": "Fællesskabschat",
+    "loadFailed": "Kunne ikke indlæse chatten. Prøv at genindlæse siden.",
+    "noMessages": "Ingen beskeder endnu. Vær den første til at skrive noget!",
+    "quoteUnavailable": "Den citerede besked blev ikke fundet.",
+    "quoteLookupLimit": "Den citerede besked er for langt tilbage til at blive indlæst automatisk."
   },
   "readingLists": {
     "heading": "Læselister",

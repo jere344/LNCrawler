@@ -533,7 +533,6 @@
     "editFailed": "コメントの編集に失敗しました。もう一度お試しください。",
     "edited": "（編集済み）",
     "editTooltip": "コメントを編集",
-    "boardComment": "掲示板コメント",
     "postedAt": "{chapter}に投稿されたコメント",
     "fromSource": "{source}より",
     "editPlaceholder": "コメントを編集",
@@ -546,21 +545,12 @@
     "noComments": "まだコメントがありません。最初にコメントしましょう！",
     "mixedSourcesWarning": "以下の一部のコメントは異なるソースに投稿されたものです。ソースによって章番号が異なる場合があるため、ネタバレや無関係に見えるコメントが含まれる可能性があります。"
   },
-  "boards": {
-    "loadFailed": "掲示板の読み込みに失敗しました。ページを更新してみてください。",
-    "listHeading": "チャット掲示板",
-    "listDescription": "コミュニティ掲示板のディスカッションに参加しましょう。感想を共有したり、質問したり、他の読者と交流できます。",
-    "noDescription": "説明はありません",
-    "noBoards": "利用可能な掲示板がありません",
-    "noBoardsHint": "現在ディスカッション掲示板はありません。後でもう一度ご確認ください。",
-    "detailLoadFailed": "掲示板の読み込みに失敗しました。ページを更新してみてください。",
-    "notFound": "掲示板が見つかりません",
-    "commentsCount": "{count}件のコメント",
-    "createdAt": "{date}に作成",
-    "discussion": "ディスカッション",
-    "joinDiscordHeading": "Discordコミュニティに参加",
-    "joinDiscordBody": "他の読者とつながり、最新情報を入手し、ディスカッションに参加しましょう！",
-    "joinDiscord": "Discordに参加"
+  "chat": {
+    "title": "コミュニティチャット",
+    "loadFailed": "チャットの読み込みに失敗しました。ページを更新してみてください。",
+    "noMessages": "まだメッセージがありません。最初に何か書いてみましょう！",
+    "quoteUnavailable": "引用されたメッセージが見つかりませんでした。",
+    "quoteLookupLimit": "引用されたメッセージは古すぎて自動的に読み込めません。"
   },
   "readingLists": {
     "heading": "読書リスト",

@@ -548,7 +548,6 @@
     "editFailed": "Failed to edit comment. Please try again.",
     "edited": "(edited)",
     "editTooltip": "Edit comment",
-    "boardComment": "Board Comment",
     "postedAt": "Comment posted at {chapter}",
     "fromSource": "from {source}",
     "editPlaceholder": "Edit your comment",

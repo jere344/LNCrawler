@@ -533,7 +533,6 @@
     "editFailed": "Yorum düzenlenemedi. Lütfen tekrar deneyin.",
     "edited": "(düzenlendi)",
     "editTooltip": "Yorumu düzenle",
-    "boardComment": "Pano Yorumu",
     "postedAt": "Yorum {chapter} bölümünde gönderildi",
     "fromSource": "{source} kaynağından",
     "editPlaceholder": "Yorumunuzu düzenleyin",
@@ -546,21 +545,12 @@
     "noComments": "Henüz yorum yok. İlk yorum yapan siz olun!",
     "mixedSourcesWarning": "Aşağıdaki bazı yorumlar farklı kaynaklar için gönderilmiştir. Kaynaklar farklı bölüm numaralandırması kullanabilir, bu nedenle spoiler veya alakasız görünen yorumlar olabilir."
   },
-  "boards": {
-    "loadFailed": "Panolar yüklenemedi. Lütfen sayfayı yenilemeyi deneyin.",
-    "listHeading": "Sohbet Panoları",
-    "listDescription": "Topluluk panolarımızdaki tartışmalara katılın. Düşüncelerinizi paylaşın, soru sorun ve diğer okuyucularla bağlantı kurun.",
-    "noDescription": "Açıklama yok",
-    "noBoards": "Pano yok",
-    "noBoardsHint": "Şu anda tartışma panosu yok. Lütfen daha sonra tekrar kontrol edin.",
-    "detailLoadFailed": "Pano yüklenemedi. Lütfen sayfayı yenilemeyi deneyin.",
-    "notFound": "Pano bulunamadı",
-    "commentsCount": "{count} yorum",
-    "createdAt": "{date} tarihinde oluşturuldu",
-    "discussion": "Tartışma",
-    "joinDiscordHeading": "Discord Topluluğumuza Katılın",
-    "joinDiscordBody": "Diğer okuyucularla bağlantı kurun, güncellemeleri alın ve tartışmalara katılın!",
-    "joinDiscord": "Discord'a Katıl"
+  "chat": {
+    "title": "Topluluk Sohbeti",
+    "loadFailed": "Sohbet yüklenemedi. Lütfen sayfayı yenilemeyi deneyin.",
+    "noMessages": "Henüz mesaj yok. Bir şey söyleyen ilk kişi olun!",
+    "quoteUnavailable": "Alıntılanan mesaj bulunamadı.",
+    "quoteLookupLimit": "Alıntılanan mesaj otomatik olarak yüklenemeyecek kadar eski."
   },
   "readingLists": {
     "heading": "Okuma Listeleri",

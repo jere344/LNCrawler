@@ -533,7 +533,6 @@
     "editFailed": "Kommentar konnte nicht bearbeitet werden. Bitte versuche es erneut.",
     "edited": "(bearbeitet)",
     "editTooltip": "Kommentar bearbeiten",
-    "boardComment": "Forum-Kommentar",
     "postedAt": "Kommentar gepostet bei {chapter}",
     "fromSource": "aus {source}",
     "editPlaceholder": "Bearbeite deinen Kommentar",
@@ -546,21 +545,12 @@
     "noComments": "Noch keine Kommentare. Sei der Erste, der kommentiert!",
     "mixedSourcesWarning": "Einige der folgenden Kommentare wurden für unterschiedliche Quellen gepostet. Quellen können eine andere Kapitelnummerierung verwenden, daher kann es Spoiler oder scheinbar irrelevante Kommentare geben."
   },
-  "boards": {
-    "loadFailed": "Foren konnten nicht geladen werden. Bitte versuche, die Seite neu zu laden.",
-    "listHeading": "Chat-Foren",
-    "listDescription": "Beteilige dich an Diskussionen in unseren Community-Foren. Teile deine Gedanken, stelle Fragen und vernetze dich mit anderen Lesern.",
-    "noDescription": "Keine Beschreibung verfügbar",
-    "noBoards": "Keine Foren verfügbar",
-    "noBoardsHint": "Derzeit gibt es keine Diskussionsforen. Bitte schau später wieder vorbei.",
-    "detailLoadFailed": "Forum konnte nicht geladen werden. Bitte versuche, die Seite neu zu laden.",
-    "notFound": "Forum nicht gefunden",
-    "commentsCount": "{count} Kommentare",
-    "createdAt": "Erstellt am {date}",
-    "discussion": "Diskussion",
-    "joinDiscordHeading": "Tritt unserer Discord-Community bei",
-    "joinDiscordBody": "Vernetze dich mit anderen Lesern, erhalte Updates und beteilige dich an Diskussionen!",
-    "joinDiscord": "Discord beitreten"
+  "chat": {
+    "title": "Community-Chat",
+    "loadFailed": "Chat konnte nicht geladen werden. Bitte versuche, die Seite neu zu laden.",
+    "noMessages": "Noch keine Nachrichten. Sei der Erste, der etwas schreibt!",
+    "quoteUnavailable": "Die zitierte Nachricht konnte nicht gefunden werden.",
+    "quoteLookupLimit": "Die zitierte Nachricht liegt zu weit zurück, um automatisch geladen zu werden."
   },
   "readingLists": {
     "heading": "Leselisten",

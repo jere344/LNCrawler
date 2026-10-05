@@ -533,7 +533,6 @@
     "editFailed": "Nie udało się edytować komentarza. Spróbuj ponownie.",
     "edited": "(edytowano)",
     "editTooltip": "Edytuj komentarz",
-    "boardComment": "Komentarz na forum",
     "postedAt": "Komentarz opublikowany w {chapter}",
     "fromSource": "z {source}",
     "editPlaceholder": "Edytuj swój komentarz",
@@ -546,21 +545,12 @@
     "noComments": "Brak komentarzy. Bądź pierwszy, który skomentuje!",
     "mixedSourcesWarning": "Niektóre z poniższych komentarzy zostały opublikowane dla różnych źródeł. Źródła mogą używać innej numeracji rozdziałów, więc mogą wystąpić spoilery lub pozornie nieistotne komentarze."
   },
-  "boards": {
-    "loadFailed": "Nie udało się wczytać forów. Spróbuj odświeżyć stronę.",
-    "listHeading": "Fora czatu",
-    "listDescription": "Dołącz do dyskusji na naszych forach społeczności. Podziel się swoimi przemyśleniami, zadawaj pytania i łącz się z innymi czytelnikami.",
-    "noDescription": "Brak dostępnego opisu",
-    "noBoards": "Brak dostępnych forów",
-    "noBoardsHint": "Obecnie nie ma żadnych forów dyskusyjnych. Sprawdź później.",
-    "detailLoadFailed": "Nie udało się wczytać forum. Spróbuj odświeżyć stronę.",
-    "notFound": "Nie znaleziono forum",
-    "commentsCount": "{count} komentarzy",
-    "createdAt": "Utworzono {date}",
-    "discussion": "Dyskusja",
-    "joinDiscordHeading": "Dołącz do naszej społeczności Discord",
-    "joinDiscordBody": "Łącz się z innymi czytelnikami, otrzymuj aktualizacje i dołączaj do dyskusji!",
-    "joinDiscord": "Dołącz do Discord"
+  "chat": {
+    "title": "Czat społeczności",
+    "loadFailed": "Nie udało się wczytać czatu. Spróbuj odświeżyć stronę.",
+    "noMessages": "Nie ma jeszcze wiadomości. Bądź pierwszy i napisz coś!",
+    "quoteUnavailable": "Nie znaleziono cytowanej wiadomości.",
+    "quoteLookupLimit": "Cytowana wiadomość jest zbyt odległa, aby załadować ją automatycznie."
   },
   "readingLists": {
     "heading": "Listy czytelnicze",

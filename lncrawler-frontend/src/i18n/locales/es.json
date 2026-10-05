@@ -533,7 +533,6 @@
     "editFailed": "Error al editar el comentario. Inténtalo de nuevo.",
     "edited": "(editado)",
     "editTooltip": "Editar comentario",
-    "boardComment": "Comentario del foro",
     "postedAt": "Comentario publicado en {chapter}",
     "fromSource": "de {source}",
     "editPlaceholder": "Edita tu comentario",
@@ -546,21 +545,12 @@
     "noComments": "Aún no hay comentarios. ¡Sé el primero en comentar!",
     "mixedSourcesWarning": "Algunos comentarios a continuación se publicaron para fuentes diferentes. Las fuentes pueden usar una numeración de capítulos distinta, por lo que puede haber spoilers o comentarios aparentemente irrelevantes."
   },
-  "boards": {
-    "loadFailed": "Error al cargar los foros. Intenta actualizar la página.",
-    "listHeading": "Foros de chat",
-    "listDescription": "Únete a las discusiones en nuestros foros comunitarios. Comparte tus opiniones, haz preguntas y conecta con otros lectores.",
-    "noDescription": "No hay descripción disponible",
-    "noBoards": "No hay foros disponibles",
-    "noBoardsHint": "Actualmente no hay foros de discusión. Vuelve más tarde.",
-    "detailLoadFailed": "Error al cargar el foro. Intenta actualizar la página.",
-    "notFound": "Foro no encontrado",
-    "commentsCount": "{count} comentarios",
-    "createdAt": "Creado el {date}",
-    "discussion": "Discusión",
-    "joinDiscordHeading": "Únete a nuestra comunidad de Discord",
-    "joinDiscordBody": "¡Conecta con otros lectores, recibe novedades y únete a las discusiones!",
-    "joinDiscord": "Unirse a Discord"
+  "chat": {
+    "title": "Chat de la comunidad",
+    "loadFailed": "Error al cargar el chat. Intenta actualizar la página.",
+    "noMessages": "Aún no hay mensajes. ¡Sé el primero en decir algo!",
+    "quoteUnavailable": "No se encontró el mensaje citado.",
+    "quoteLookupLimit": "El mensaje citado es demasiado antiguo para cargarse automáticamente."
   },
   "readingLists": {
     "heading": "Listas de lectura",

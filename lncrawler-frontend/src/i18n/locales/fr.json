@@ -545,7 +545,6 @@
     "editFailed": "Échec de la modification du commentaire. Veuillez réessayer.",
     "edited": "(modifié)",
     "editTooltip": "Modifier le commentaire",
-    "boardComment": "Commentaire du forum",
     "postedAt": "Commentaire publié à {chapter}",
     "fromSource": "depuis {source}",
     "editPlaceholder": "Modifiez votre commentaire",
@@ -558,21 +557,12 @@
     "noComments": "Aucun commentaire pour le moment. Soyez le premier à commenter !",
     "mixedSourcesWarning": "Certains commentaires ci-dessous ont été publiés pour différentes sources. Les sources peuvent utiliser une numérotation de chapitres différente, il peut donc y avoir des spoilers ou des commentaires apparemment hors sujet."
   },
-  "boards": {
-    "loadFailed": "Échec du chargement des forums. Veuillez essayer d'actualiser la page.",
-    "listHeading": "Forums de discussion",
-    "listDescription": "Participez aux discussions de nos forums communautaires. Partagez vos pensées, posez des questions et échangez avec d'autres lecteurs.",
-    "noDescription": "Aucune description disponible",
-    "noBoards": "Aucun forum disponible",
-    "noBoardsHint": "Il n'y a actuellement aucun forum de discussion. Veuillez revenir plus tard.",
-    "detailLoadFailed": "Échec du chargement du forum. Veuillez essayer d'actualiser la page.",
-    "notFound": "Forum introuvable",
-    "commentsCount": "{count} commentaires",
-    "createdAt": "Créé le {date}",
-    "discussion": "Discussion",
-    "joinDiscordHeading": "Rejoignez notre communauté Discord",
-    "joinDiscordBody": "Échangez avec d'autres lecteurs, recevez des mises à jour et participez aux discussions !",
-    "joinDiscord": "Rejoindre Discord"
+  "chat": {
+    "title": "Chat communautaire",
+    "loadFailed": "Échec du chargement du chat. Veuillez essayer d'actualiser la page.",
+    "noMessages": "Aucun message pour le moment. Soyez le premier à écrire quelque chose !",
+    "quoteUnavailable": "Le message cité est introuvable.",
+    "quoteLookupLimit": "Le message cité est trop ancien pour être chargé automatiquement."
   },
   "readingLists": {
     "heading": "Listes de lecture",

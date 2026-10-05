@@ -533,7 +533,6 @@
     "editFailed": "Falha ao editar o comentário. Tente novamente.",
     "edited": "(editado)",
     "editTooltip": "Editar comentário",
-    "boardComment": "Comentário do fórum",
     "postedAt": "Comentário publicado em {chapter}",
     "fromSource": "de {source}",
     "editPlaceholder": "Edite o seu comentário",
@@ -546,21 +545,12 @@
     "noComments": "Ainda não há comentários. Seja o primeiro a comentar!",
     "mixedSourcesWarning": "Alguns comentários abaixo foram publicados para fontes diferentes. As fontes podem usar uma numeração de capítulos diferente, pelo que pode haver spoilers ou comentários aparentemente irrelevantes."
   },
-  "boards": {
-    "loadFailed": "Falha ao carregar os fóruns. Tente atualizar a página.",
-    "listHeading": "Fóruns de conversa",
-    "listDescription": "Participe nas discussões nos nossos fóruns da comunidade. Partilhe as suas ideias, faça perguntas e ligue-se a outros leitores.",
-    "noDescription": "Nenhuma descrição disponível",
-    "noBoards": "Nenhum fórum disponível",
-    "noBoardsHint": "De momento não há fóruns de discussão. Volte mais tarde.",
-    "detailLoadFailed": "Falha ao carregar o fórum. Tente atualizar a página.",
-    "notFound": "Fórum não encontrado",
-    "commentsCount": "{count} comentários",
-    "createdAt": "Criado em {date}",
-    "discussion": "Discussão",
-    "joinDiscordHeading": "Junte-se à nossa comunidade Discord",
-    "joinDiscordBody": "Ligue-se a outros leitores, receba atualizações e participe nas discussões!",
-    "joinDiscord": "Juntar-se ao Discord"
+  "chat": {
+    "title": "Chat da comunidade",
+    "loadFailed": "Falha ao carregar o chat. Tente atualizar a página.",
+    "noMessages": "Ainda não há mensagens. Seja o primeiro a dizer algo!",
+    "quoteUnavailable": "Não foi possível encontrar a mensagem citada.",
+    "quoteLookupLimit": "A mensagem citada está muito atrás para ser carregada automaticamente."
   },
   "readingLists": {
     "heading": "Listas de leitura",

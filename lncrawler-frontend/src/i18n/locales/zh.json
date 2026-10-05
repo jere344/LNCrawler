@@ -533,7 +533,6 @@
     "editFailed": "编辑评论失败。请重试。",
     "edited": "（已编辑）",
     "editTooltip": "编辑评论",
-    "boardComment": "版块评论",
     "postedAt": "评论发表于 {chapter}",
     "fromSource": "来自 {source}",
     "editPlaceholder": "编辑您的评论",
@@ -546,21 +545,12 @@
     "noComments": "暂无评论。成为第一个评论的人吧！",
     "mixedSourcesWarning": "下方部分评论来自不同来源。不同来源可能使用不同的章节编号，因此可能存在剧透或看似无关的评论。"
   },
-  "boards": {
-    "loadFailed": "加载版块失败。请尝试刷新页面。",
-    "listHeading": "聊天版块",
-    "listDescription": "加入社区版块的讨论。分享您的想法、提问，并与其他读者交流。",
-    "noDescription": "暂无描述",
-    "noBoards": "暂无可用版块",
-    "noBoardsHint": "目前没有讨论版块。请稍后再来查看。",
-    "detailLoadFailed": "加载版块失败。请尝试刷新页面。",
-    "notFound": "未找到版块",
-    "commentsCount": "{count} 条评论",
-    "createdAt": "创建于 {date}",
-    "discussion": "讨论",
-    "joinDiscordHeading": "加入我们的 Discord 社区",
-    "joinDiscordBody": "与其他读者交流、获取更新并参与讨论！",
-    "joinDiscord": "加入 Discord"
+  "chat": {
+    "title": "社区聊天",
+    "loadFailed": "加载聊天失败。请尝试刷新页面。",
+    "noMessages": "还没有消息。快来第一个发言吧！",
+    "quoteUnavailable": "找不到引用的消息。",
+    "quoteLookupLimit": "引用的消息太久远，无法自动加载。"
   },
   "readingLists": {
     "heading": "阅读列表",
