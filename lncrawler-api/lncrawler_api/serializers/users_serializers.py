@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Sum
+from django.db.models import Count, F, IntegerField, OuterRef, Prefetch, Q, Subquery, Sum
 from rest_framework import serializers
 
 from auth_app.serializers import SOCIAL_LINK_KEYS, absolute_media_url
@@ -8,8 +8,9 @@ from auth_app.models import PRIVACY_CHOICES, PRIVACY_SECTIONS
 from ..languages import is_supported_language, normalize_language, parse_languages
 from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel, ReadingHistory
 from ..models.chapter_models import Chapter
-from ..models.novels_models import Tag
+from ..models.novels_models import Novel, Tag
 from ..privacy import are_friends, can_view
+from ..utils.query_helpers import novel_prefetch_objects
 from .mixins import ProfileFieldsMixin
 
 User = get_user_model()
@@ -127,7 +128,14 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         pinned = (
             ProfilePinnedNovel.objects
             .filter(user=obj)
-            .select_related('novel')
+            .prefetch_related(
+                Prefetch(
+                    'novel',
+                    queryset=Novel.objects.prefetch_related(
+                        *novel_prefetch_objects(self._viewer())
+                    ),
+                )
+            )
             .order_by('position', 'created_at')
         )
         return NovelSerializer(
@@ -233,17 +241,31 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         }
 
     def _recent_history(self, obj):
-        return (
-            ReadingHistory.objects
-            .filter(user=obj)
-            .select_related('novel', 'source', 'last_read_chapter')
-            .order_by('-last_read_at')[:RECENT_READS_LIMIT]
-        )
+        cache_attr = f'_recent_history_cache_{obj.pk}'
+        cache = getattr(self, cache_attr, None)
+        if cache is None:
+            cache = list(
+                ReadingHistory.objects
+                .filter(user=obj)
+                .select_related('source', 'last_read_chapter')
+                .prefetch_related(
+                    Prefetch(
+                        'novel',
+                        queryset=Novel.objects.prefetch_related(
+                            *novel_prefetch_objects(self._viewer())
+                        ),
+                    )
+                )
+                .order_by('-last_read_at')[:RECENT_READS_LIMIT]
+            )
+            setattr(self, cache_attr, cache)
+        return cache
 
     def get_currently_reading(self, obj):
         if not can_view(self._viewer(), obj, 'reading_history'):
             return None
-        history = self._recent_history(obj).first()
+        histories = self._recent_history(obj)
+        history = histories[0] if histories else None
         if not history:
             return None
         return {

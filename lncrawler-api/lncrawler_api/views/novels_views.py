@@ -141,11 +141,13 @@ def search_novels(request):
 
     # Apply search query if provided
     if query:
+        # Each traversal is its own subquery so Postgres can use the per-column
+        # pg_trgm indexes; a single multi-table OR cannot use them.
         novels_query = novels_query.filter(
-            Q(title__icontains=query)
-            | Q(sources__synopsis__icontains=query)
-            | Q(sources__authors__name__icontains=query)
-            | Q(sources__alternative_titles__name__icontains=query)
+            Q(id__in=Novel.objects.filter(title__icontains=query).values('id'))
+            | Q(id__in=NovelFromSource.objects.filter(synopsis__icontains=query).values('novel_id'))
+            | Q(id__in=NovelFromSource.objects.filter(authors__name__icontains=query).values('novel_id'))
+            | Q(id__in=NovelFromSource.objects.filter(alternative_titles__name__icontains=query).values('novel_id'))
         ).distinct()
 
     # Filter by tags

@@ -1,7 +1,9 @@
 from django.db import models
 import uuid
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db.models import F
+from django.db.models.functions import Upper
 
 
 class Novel(models.Model):
@@ -20,6 +22,7 @@ class Novel(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['-created_at'], name='novel_created_at_idx'),
+            GinIndex(OpClass(Upper('title'), name='gin_trgm_ops'), name='novel_title_trgm_idx'),
         ]
     
     def __str__(self):
@@ -77,7 +80,10 @@ class Person(models.Model):
 
 class Author(Person):
     """Author of a novel"""
-    pass
+    class Meta:
+        indexes = [
+            GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='author_name_trgm_idx'),
+        ]
 
 
 class Editor(Person):
@@ -131,6 +137,9 @@ class AlternativeTitle(models.Model):
 
     class Meta:
         ordering = ['name']
+        indexes = [
+            GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='alttitle_name_trgm_idx'),
+        ]
 
     def __str__(self):
         return self.name

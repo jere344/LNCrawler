@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from ..models.novels_models import Novel
-from ..models.users_models import ProfilePinnedNovel, ReadingList
+from ..models.users_models import ProfilePinnedNovel
 from ..models.reviews_models import Review
 from ..models.comments_models import Comment
 from ..privacy import can_view
@@ -94,11 +94,8 @@ def user_reading_lists(request, username):
     is_owner = viewer.is_authenticated and viewer.id == owner.id
     if not is_owner and not can_view(viewer, owner, 'reading_lists'):
         return _forbidden("This user's reading lists are private.")
-    query_set = (
-        ReadingList.objects
-        .filter(user=owner)
-        .prefetch_related('items__novel', 'collaborators__user')
-    )
+    from .reading_lists_views import _reading_lists_query_set
+    query_set = _reading_lists_query_set(viewer).filter(user=owner)
     if not is_owner:
         query_set = query_set.filter(is_public=True)
     return _paginated_response(request, query_set.order_by('-updated_at'), ReadingListSerializer)

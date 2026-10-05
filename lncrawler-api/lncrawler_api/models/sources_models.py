@@ -4,6 +4,8 @@ import re
 import json
 import shutil
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex, OpClass
+from django.db.models.functions import Upper
 from django.utils.text import slugify
 from django.utils import timezone
 
@@ -126,6 +128,7 @@ class NovelFromSource(models.Model):
             models.Index(fields=['-last_chapter_update'], name='nfs_last_chapter_upd_idx'),
             models.Index(fields=['language'], name='nfs_language_idx'),
             models.Index(fields=['-total_views'], name='nfs_total_views_idx'),
+            GinIndex(OpClass(Upper('synopsis'), name='gin_trgm_ops'), name='nfs_synopsis_trgm_idx'),
         ]
     
     def __str__(self):
