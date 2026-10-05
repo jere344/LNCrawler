@@ -315,9 +315,8 @@ class Command(BaseCommand):
 
     def _phase_empty_sources(self):
         self.stdout.write("Phase 2: empty sources")
-        with_content = NovelFromSource.objects.filter(chapters__has_content=True).values("pk")
         empties = self._sample(
-            NovelFromSource.objects.exclude(pk__in=with_content)
+            NovelFromSource.objects.exclude(chapters__has_content=True)
             .filter(novel__created_at__lt=self.age_cutoff)
             .select_related("novel", "external_source"),
             field="novel_id",
