@@ -1,7 +1,8 @@
 """Progressively clean the library.
 
-Three phases, run in order, each bounded by ``--limit`` deletions per run so
-the first pass over a large catalogue can be spread over many invocations:
+Three phases, run in order, each bounded by ``--limit`` candidates *examined*
+per run so the first pass over a large catalogue is spread over many
+invocations instead of scanning the whole DB (and running for hours) at once:
 
 1. orphan novels (no NovelFromSource left)
 2. empty sources (no chapter, or no chapter with content)
@@ -9,10 +10,16 @@ the first pass over a large catalogue can be spread over many invocations:
    source of the same novel with more chapters. Comments, reading history and
    votes attached to the discarded source are ported to the keeper first.
 
+Each phase walks its candidates in primary-key order and remembers where it
+stopped in ``<output>/.prune_trash/prune_cursor.json``, so repeated (or
+scheduled) runs continue through the DB and wrap around once a pass is done.
+Deletions are naturally capped by the same limit: at most one per candidate.
+
 Deleting is destructive, so ``--apply`` is required; the default is a dry run.
 Source folders are moved to ``<LNCRAWL_OUTPUT_PATH>/.prune_trash`` instead of
-being removed in place, and every real deletion is appended to ``audit.jsonl``
-there. Neither the DB nor the files are ever modified by a dry run.
+being removed in place, and every real deletion is appended to
+``audit.jsonl`` there. Neither the DB nor the files are ever modified by a
+dry run.
 """
 
 import json
@@ -88,7 +95,10 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--limit", type=int, default=200,
-            help="Max deletions per run across all phases (0 = unlimited).",
+            help=(
+                "Max candidates each phase examines per run (0 = unlimited). "
+                "Runs resume from a saved cursor, so the DB is walked in batches."
+            ),
         )
         parser.add_argument(
             "--threshold", type=float, default=0.90,
@@ -112,10 +122,6 @@ class Command(BaseCommand):
         parser.add_argument(
             "--sleep", type=float, default=0.2,
             help="Seconds to sleep between deletions.",
-        )
-        parser.add_argument(
-            "--max-scan", type=int, default=5000,
-            help="Max dead sources phase 3 examines per run (0 = unlimited).",
         )
         parser.add_argument(
             "--include-compressed", action="store_true",
@@ -147,7 +153,6 @@ class Command(BaseCommand):
         self.max_shift = max(0, options["max_shift"])
         self.min_chapters = options["min_chapters"]
         self.sleep = options["sleep"]
-        self.max_scan = options["max_scan"]
         self.include_compressed = options["include_compressed"]
         self.force = options["force"]
         self.source_filter = options["source"]
@@ -160,13 +165,17 @@ class Command(BaseCommand):
         self.trash_root = os.path.join(self.root, ".prune_trash")
         self.age_cutoff = timezone.now() - MIN_NOVEL_AGE
         self.deleted = 0
+        self.examined = 0
         self.kept_phase3 = 0
+        # Cursors are scoped by the filters that change the candidate set, so a
+        # manual --source/--percent run cannot resume the scheduler's position.
+        self.cursor_scope = f"{self.source_filter or '-'}|{self.percent:g}"
+        self.cursor = self._load_cursor()
 
         mode = "APPLY" if self.apply else "DRY-RUN"
         self.stdout.write(self.style.WARNING(
             f"prune_library ({mode}) limit={self.limit or 'unlimited'} "
-            f"threshold={self.threshold} max-scan={self.max_scan} "
-            f"percent={self.percent:g}"
+            f"threshold={self.threshold} percent={self.percent:g}"
         ))
 
         self._phase_orphan_novels()
@@ -174,17 +183,61 @@ class Command(BaseCommand):
         self._phase_dead_duplicates()
 
         self.stdout.write(self.style.SUCCESS(
-            f"prune_library: {self.deleted} deletion(s) "
+            f"prune_library: {self.examined} candidate(s) examined, "
+            f"{self.deleted} deletion(s) "
             f"({'applied' if self.apply else 'would happen'}), "
             f"{self.kept_phase3} dead source(s) kept"
         ))
-        if self.limit and self.deleted >= self.limit:
-            self.stdout.write(self.style.WARNING("--limit reached; run again for the next batch."))
+        if self.limit:
+            self.stdout.write(
+                "  cursor saved; the next run resumes where this one stopped."
+            )
 
     # -- bounded run helpers ------------------------------------------- #
 
-    def _stopped(self) -> bool:
-        return bool(self.limit) and self.deleted >= self.limit
+    def _load_cursor(self) -> dict:
+        try:
+            with open(os.path.join(self.trash_root, "prune_cursor.json"), encoding="utf-8") as fh:
+                data = json.load(fh)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_cursor(self):
+        if not self.apply:
+            return
+        os.makedirs(self.trash_root, exist_ok=True)
+        path = os.path.join(self.trash_root, "prune_cursor.json")
+        tmp = f"{path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(self.cursor, fh)
+        os.replace(tmp, path)
+
+    def _window(self, queryset, phase, order="pk"):
+        """Return the next batch of candidates, continuing from the saved cursor.
+
+        Candidates are walked in ``order``; if ``--limit`` is set only that many
+        are fetched, starting after the last pk seen for this phase. The cursor
+        is updated by ``_advance`` once the batch is processed.
+        """
+        queryset = queryset.order_by(order)
+        if not self.limit:
+            return queryset
+        start = self.cursor.get(phase)
+        if start is not None:
+            queryset = queryset.filter(**{f"{order}__gt": start})
+        return queryset[: self.limit]
+
+    def _advance(self, phase, last_pk, examined):
+        """Record how far this phase got, wrapping to the start after a pass."""
+        self.examined += examined
+        if not self.limit:
+            return
+        if examined < self.limit:
+            self.cursor.pop(phase, None)
+        elif last_pk is not None:
+            self.cursor[phase] = last_pk if isinstance(last_pk, int) else str(last_pk)
+        self._save_cursor()
 
     def _sample(self, queryset, field="id"):
         """Keep an MD5-bucket slice of the rows, so --percent N examines ~N%.
@@ -269,9 +322,10 @@ class Command(BaseCommand):
                 _n=0, created_at__lt=self.age_cutoff
             )
         )
-        for novel in orphans.iterator():
-            if self._stopped():
-                return
+        examined, last_pk = 0, None
+        for novel in self._window(orphans, "novel").iterator():
+            last_pk = novel.pk
+            examined += 1
             if not self.force and self._novel_has_user_data(novel):
                 self.stdout.write(f"  SKIP novel {novel.id} {novel.title!r}: has user data")
                 continue
@@ -289,6 +343,7 @@ class Command(BaseCommand):
                     continue
             self.deleted += 1
             self._maybe_sleep()
+        self._advance("novel", last_pk, examined)
 
     # -- phase 2: empty sources ---------------------------------------- #
 
@@ -321,9 +376,10 @@ class Command(BaseCommand):
             .select_related("novel", "external_source"),
             field="novel_id",
         )
-        for source in empties.iterator():
-            if self._stopped():
-                return
+        examined, last_pk = 0, None
+        for source in self._window(empties, "empty").iterator():
+            last_pk = source.pk
+            examined += 1
             if self._source_has_content_on_disk(source):
                 self.stdout.write(
                     f"  KEEP source {source.id} {source.title!r}: content present on disk"
@@ -335,6 +391,7 @@ class Command(BaseCommand):
                 )
                 continue
             self._delete_source_named(source, "empty source")
+        self._advance("empty", last_pk, examined)
 
     # -- phase 3: dead-source duplicates ------------------------------- #
 
@@ -389,19 +446,16 @@ class Command(BaseCommand):
         dead_qs = self._sample(
             NovelFromSource.objects.filter(external_source_id__in=dead_ids)
             .filter(novel__created_at__lt=self.age_cutoff)
-            .select_related("novel", "external_source")
-            .order_by("id"),
+            .select_related("novel", "external_source"),
             field="novel_id",
         )
-        if self.max_scan and self.max_scan > 0:
-            dead_qs = dead_qs[: self.max_scan]
 
-        examined = 0
-        for dead in dead_qs:
-            if self._stopped():
-                return
+        examined, last_pk = 0, None
+        for dead in self._window(dead_qs, "dead").iterator():
+            last_pk = dead.pk
             examined += 1
             self._consider_dead_source(dead, handled, ext_names)
+        self._advance("dead", last_pk, examined)
         self.stdout.write(f"  examined {examined} dead source(s)")
 
     def _is_live(self, source, handled, ext_names) -> bool:

@@ -746,6 +746,7 @@ class PruneLibraryPortTests(MergeTestCase):
         cmd.force = False
         cmd.age_cutoff = timezone.now() - timedelta(days=7)
         cmd.deleted = 0
+        cmd.examined = 0
         cmd.stdout = StringIO()
 
         cmd._phase_empty_sources()
@@ -754,6 +755,78 @@ class PruneLibraryPortTests(MergeTestCase):
         self.assertTrue(NovelFromSource.objects.filter(pk=self.dead.pk).exists())
         self.assertIn("content present on disk", cmd.stdout.getvalue())
         self.assertFalse(self.dead.chapters.filter(has_content=False).exists())
+
+    def test_window_pages_all_candidates_then_wraps(self):
+        import uuid as uuidlib
+
+        from .management.commands.prune_library import Command
+
+        for _ in range(4):
+            Novel.objects.create(
+                title="Paged", slug=uuidlib.uuid4().hex, novel_path="paged"
+            )
+
+        cmd = Command()
+        cmd.limit = 2
+        cmd.percent = 100
+        cmd.examined = 0
+        cmd.cursor = {}
+        cmd._save_cursor = lambda: None
+
+        seen = []
+        while True:
+            batch = list(cmd._window(Novel.objects.all(), "novel"))
+            if not batch:
+                break
+            seen.extend(n.pk for n in batch)
+            cmd._advance("novel", batch[-1].pk, len(batch))
+            if "novel" not in cmd.cursor:
+                break
+
+        self.assertEqual(len(seen), Novel.objects.count())
+        self.assertEqual(len(seen), len(set(seen)))
+        self.assertEqual(cmd.examined, len(seen))
+
+
+class PruneUnregisteredTests(TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="lncrawl-prune-unreg-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.imports = tempfile.mkdtemp(prefix="lncrawl-prune-imports-")
+        self.addCleanup(shutil.rmtree, self.imports, True)
+        for name, value in (
+            ("LNCRAWL_OUTPUT_PATH", self.tmp),
+            ("IMPORT_FOLDER_PATH", self.imports),
+        ):
+            override = override_settings(**{name: value})
+            override.enable()
+            self.addCleanup(override.disable)
+
+        self.registered = Novel.objects.create(
+            title="Kept", slug="kept", novel_path="kept"
+        )
+        os.makedirs(os.path.join(self.tmp, "kept", "site"))
+        NovelFromSource.objects.create(
+            novel=self.registered,
+            external_source=ExternalSource.objects.create(source_name="site"),
+            title="Kept",
+            source_url="http://x/kept",
+            source_path=os.path.join("kept", "site"),
+        )
+        os.makedirs(os.path.join(self.tmp, "orphan"))
+
+    def test_unregistered_folder_moved_to_imports(self):
+        call_command("prune_unregistered", "--apply", verbosity=0)
+
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "orphan")))
+        self.assertTrue(os.path.isdir(os.path.join(self.imports, "orphan")))
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "kept", "site")))
+
+    def test_dry_run_changes_nothing(self):
+        call_command("prune_unregistered", verbosity=0)
+
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "orphan")))
+        self.assertFalse(os.path.exists(os.path.join(self.imports, "orphan")))
 
 
 class ConsolidateSourceViewsTests(TestCase):
