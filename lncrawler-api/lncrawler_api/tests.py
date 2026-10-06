@@ -770,6 +770,7 @@ class PruneLibraryPortTests(MergeTestCase):
         cmd.limit = 2
         cmd.percent = 100
         cmd.examined = 0
+        cmd.cursor_scope = "-|100"
         cmd.cursor = {}
         cmd._save_cursor = lambda: None
 
@@ -780,7 +781,7 @@ class PruneLibraryPortTests(MergeTestCase):
                 break
             seen.extend(n.pk for n in batch)
             cmd._advance("novel", batch[-1].pk, len(batch))
-            if "novel" not in cmd.cursor:
+            if cmd._cursor_key("novel") not in cmd.cursor:
                 break
 
         self.assertEqual(len(seen), Novel.objects.count())

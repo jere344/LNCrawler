@@ -213,6 +213,9 @@ class Command(BaseCommand):
             json.dump(self.cursor, fh)
         os.replace(tmp, path)
 
+    def _cursor_key(self, phase):
+        return f"{phase}:{self.cursor_scope}"
+
     def _window(self, queryset, phase, order="pk"):
         """Return the next batch of candidates, continuing from the saved cursor.
 
@@ -223,7 +226,7 @@ class Command(BaseCommand):
         queryset = queryset.order_by(order)
         if not self.limit:
             return queryset
-        start = self.cursor.get(phase)
+        start = self.cursor.get(self._cursor_key(phase))
         if start is not None:
             queryset = queryset.filter(**{f"{order}__gt": start})
         return queryset[: self.limit]
@@ -233,10 +236,11 @@ class Command(BaseCommand):
         self.examined += examined
         if not self.limit:
             return
+        key = self._cursor_key(phase)
         if examined < self.limit:
-            self.cursor.pop(phase, None)
+            self.cursor.pop(key, None)
         elif last_pk is not None:
-            self.cursor[phase] = last_pk if isinstance(last_pk, int) else str(last_pk)
+            self.cursor[key] = last_pk if isinstance(last_pk, int) else str(last_pk)
         self._save_cursor()
 
     def _sample(self, queryset, field="id"):
