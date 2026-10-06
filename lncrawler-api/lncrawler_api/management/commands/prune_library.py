@@ -495,9 +495,6 @@ class Command(BaseCommand):
         # Never delete the only source of a novel here; it is still readable.
         if dead.novel.sources.count() <= 1:
             self.kept_phase3 += 1
-            self.stdout.write(
-                f"  KEEP {dead.external_source.source_name} {dead.title!r}: last source of novel"
-            )
             return
 
         if not self.include_compressed and self._is_compressed(dead):
@@ -524,9 +521,6 @@ class Command(BaseCommand):
                 return
 
         self.kept_phase3 += 1
-        self.stdout.write(
-            f"  KEEP {dead.external_source.source_name} {dead.title!r}: no better live counterpart"
-        )
 
     # -- deletion ------------------------------------------------------- #
 

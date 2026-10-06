@@ -203,21 +203,6 @@ def update_popular_sources():
         logger.error(f"Error queueing popular source update: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
-# Progressively prune orphan novels, empty sources and dead-source duplicates.
-# Bounded --limit per run so a 40k-novel first pass spreads over many runs.
-@scheduler.register_task(interval=600, name="prune_library")
-def prune_library_task():
-    import os
-    if os.getenv("LNCRAWL_PRUNE_APPLY", "1").lower() in ("0", "false", "no"):
-        return
-    logger.info("Pruning library (bounded batch)...")
-    try:
-        call_command('prune_library', apply=True, limit=200)
-        logger.info("Library prune batch completed")
-    except Exception as e:
-        logger.error(f"Error pruning library: {str(e)}", exc_info=True)
-        raise
-
 def start_scheduler():
     """Start the scheduler if it's not already running."""
     if not scheduler.running:
