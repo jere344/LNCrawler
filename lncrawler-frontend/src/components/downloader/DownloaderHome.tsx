@@ -8,16 +8,16 @@ const DownloaderHome = () => {
 
     return (
         <Container maxWidth="md">
-            <Box sx={{ my: 4, textAlign: 'center' }}>
-                <Typography variant="h1" component="h1" gutterBottom>
+            <Box sx={{ my: 1, textAlign: 'center' }}>
+                <Typography variant="h5" component="h1" gutterBottom>
                     {t('downloader.addNovelHeading')}
                 </Typography>
-                <Typography variant="subtitle1" component="h2" gutterBottom sx={{
+                <Typography variant="body2" component="h2" gutterBottom sx={{
                     color: "text.primary"
                 }}>
                     {t('downloader.addNovelSubtitle')}
                 </Typography>
-                <Typography variant="body1" component="p" gutterBottom sx={{
+                <Typography variant="body2" component="p" gutterBottom sx={{
                     color: "text.primary"
                 }}>
                     {t('downloader.addNovelBody')}
@@ -26,7 +26,7 @@ const DownloaderHome = () => {
 
             <DownloadStepper activeStep="search" />
 
-            <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+            <Paper elevation={3} sx={{ p: 1.5 }}>
                 <SearchForm />
             </Paper>
         </Container>

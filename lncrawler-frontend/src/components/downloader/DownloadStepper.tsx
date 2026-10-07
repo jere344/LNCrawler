@@ -20,7 +20,7 @@ const DownloadStepper = ({ activeStep }: DownloadStepperProps) => {
   const currentStep = steps.findIndex((step) => step.key === activeStep);
 
   return (
-    <Paper sx={{ p: 2, mb: 3 }} elevation={1}>
+    <Paper sx={{ p: 1, mb: 2 }} elevation={1}>
       <Box sx={{ width: '100%' }}>
         <Stepper activeStep={currentStep} alternativeLabel>
           {steps.map((step) => (

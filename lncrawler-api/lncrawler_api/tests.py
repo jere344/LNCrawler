@@ -1363,6 +1363,24 @@ class SerializerProfileTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(len(response.data["sources"]), 1)
 
+    def test_similar_novels_fallback_prefers_source_backed_novels(self):
+        # A source-less novel's summed views are NULL, which sorts first on a
+        # Postgres DESC, so it used to be recommended ahead of real novels and
+        # rendered as a broken card (no prefered_source -> no cover).
+        from .serializers import NovelSerializer
+
+        target = Novel.objects.create(title="Target", slug="target", novel_path="t")
+        for index in range(3):
+            self._make_novel(index).sources.update(total_views=10)
+        Novel.objects.create(title="No Source", slug="no-source", novel_path="ns")
+
+        data = NovelSerializer(target, profile="detail", context={"request": None}).data
+        titles = [item["title"] for item in data["similar_novels"]]
+        self.assertEqual(titles[-1], "No Source")
+        self.assertTrue(
+            all(item["prefered_source"] for item in data["similar_novels"][:3])
+        )
+
     def test_source_detail_endpoint_serves_full_detail_profile(self):
         self._make_novel(1)
         response = self.client.get(

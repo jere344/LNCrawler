@@ -4,7 +4,8 @@ from ..models import (
     WeeklySourceView,
     NovelBookmark
 )
-from django.db.models import Avg, Sum
+from django.db.models import Avg, Sum, Value
+from django.db.models.functions import Coalesce
 from .mixins import ProfileFieldsMixin
 from .sources_serializers import NovelSourceSerializer
 from .reading_history_serializers import ReadingHistorySerializer
@@ -243,7 +244,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         return rating.rating if rating else None
 
     def get_similar_novels(self, obj):
-        from ..utils.query_helpers import apply_novel_prefetches, novel_prefetch_objects
+        from ..utils.query_helpers import (
+            apply_novel_prefetches, novel_prefetch_objects, sources_total_views_subquery
+        )
 
         # Get the top 12 similar novels (list() so len() is accurate; a sliced
         # queryset's .count() caps at the slice and made the fallback always fire).
@@ -261,11 +264,13 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             existing_ids = [item.to_novel_id for item in similar_novels]
             needed_count = 12 - len(existing_ids)
 
-            # Get the most viewed novels not already in our list
+            # Get the most viewed novels not already in our list. Coalesce so
+            # source-less novels (NULL sum) sort last instead of first on
+            # Postgres DESC, and a dedup subquery so the sum isn't inflated.
             most_viewed = apply_novel_prefetches(
                 Novel.objects.exclude(id=obj.id)
                 .exclude(id__in=existing_ids)
-                .annotate(total_views=Sum('sources__total_views'))
+                .annotate(total_views=Coalesce(sources_total_views_subquery(), Value(0)))
                 .order_by('-total_views'),
                 getattr(self.context.get('request'), 'user', None),
             )[:needed_count]

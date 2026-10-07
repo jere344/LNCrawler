@@ -60,13 +60,12 @@ const SearchForm = () => {
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 2,
+        gap: 1.5,
         maxWidth: 'sm',
         mx: 'auto',
-        p: 2,
       }}
     >
-      <Typography variant="h5" component="h2" gutterBottom>
+      <Typography variant="h6" component="h2" gutterBottom>
         {t('downloader.searchForNovel')}
       </Typography>
       

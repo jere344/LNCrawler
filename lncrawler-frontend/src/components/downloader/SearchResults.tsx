@@ -171,27 +171,28 @@ const SearchResults = () => {
     return (
       <Container maxWidth="md">
         <DownloadStepper activeStep="select" />
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h5" gutterBottom>
-            {t('downloader.searchResults')}
-          </Typography>
-          
-          <Button 
-            variant="outlined" 
-            sx={{ mb: 2 }} 
-            component={Link}
-            to="/download/"
-          >
-            {t('downloader.newSearch')}
-          </Button>
+        <Box sx={{ p: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="h6">
+              {t('downloader.searchResults')}
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              component={Link}
+              to="/download/"
+            >
+              {t('downloader.newSearch')}
+            </Button>
+          </Box>
 
           {results.results && results.results.length > 0 ? (
             results.results.map((source, sourceIndex) => (
-              <Card key={`source-${sourceIndex}`} sx={{ mb: 3 }}>
-                <CardContent>
-                  <Typography variant="h6">{source.title}</Typography>
+              <Card key={`source-${sourceIndex}`} sx={{ mb: 0.5 }}>
+                <CardContent sx={{ py: 0.5, '&:last-child': { pb: 0.5 } }}>
+                  <Typography variant="subtitle2">{source.title}</Typography>
                   
-                  <List>
+                  <List dense disablePadding>
                     {source.sources.map((novel, novelIndex) => (
                       <Box key={`novel-${novelIndex}`}>
                         {novelIndex > 0 && <Divider />}

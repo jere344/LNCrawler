@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 CONCURRENCY = 25
 SEARCH_TIMEOUT = 40
-MAX_RESULTS = 10
 
 
 def _normalize(text: str) -> str:
@@ -100,7 +99,10 @@ def run_search(
 
     ranked = sorted(
         groups.values(),
-        key=lambda g: SequenceMatcher(None, _normalize(query), _normalize(g["title"])).ratio(),
+        key=lambda g: (
+            len(g["novels"]),
+            SequenceMatcher(None, _normalize(query), _normalize(g["title"])).ratio(),
+        ),
         reverse=True,
     )
-    return ranked[:MAX_RESULTS]
+    return ranked
