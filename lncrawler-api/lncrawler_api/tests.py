@@ -2352,6 +2352,30 @@ class HarvestServiceTests(TestCase):
             self.HarvestCandidate.objects.filter(status="queued").count(), 2
         )
 
+    def test_enqueue_rotates_across_sources_not_one_source_backlog(self):
+        self.config.max_concurrent = 1
+        self.config.save()
+
+        # srcA has a backlog and was discovered first; srcB is discovered later.
+        self._candidate("srcA", "https://a.example/1")
+        self._candidate("srcA", "https://a.example/2")
+        self._candidate("srcB", "https://b.example/1")
+
+        # First turn: srcA (never harvested, oldest candidate).
+        self.assertEqual(self.harvest_service.enqueue_ready(self.config), 1)
+        first = Job.objects.get(query="harvest:srcA")
+        first.status = Job.STATUS_DOWNLOAD_COMPLETED
+        first.output_slug = "novel/srcA"
+        first.save()
+        self.harvest_service.reconcile()
+
+        # srcA's backlog must NOT be picked again before srcB gets its first turn.
+        self.assertEqual(self.harvest_service.enqueue_ready(self.config), 1)
+        self.assertEqual(
+            Job.objects.filter(query="harvest:srcB").count(),
+            1,
+        )
+
     def test_enqueue_respects_concurrency_and_disabled_flag(self):
         running = self._candidate("srcA", "https://a.example/run")
         self._candidate("srcB", "https://b.example/1")

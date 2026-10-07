@@ -73,6 +73,25 @@ def merge_headers(
     return out
 
 
+def _retry_wait(retry_state) -> float:
+    """Wait per a ``Retry-After`` header, else random exponential backoff.
+
+    LiteSpeed/Cloudflare throttle by IP and tell the client how long to hold
+    off; ignoring the header makes the retry burn its whole budget in seconds
+    and fail a request that one compliant sleep would have served.
+    """
+    outcome = retry_state.outcome
+    exc = outcome.exception() if outcome is not None else None
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    retry_after = headers.get("Retry-After") if headers is not None else None
+    if retry_after is not None:
+        try:
+            return min(float(retry_after), 120.0)
+        except (TypeError, ValueError):
+            pass  # HTTP-date form: fall back to exponential
+    return wait_random_exponential(multiplier=0.5, max=60)(retry_state)
+
+
 class Scraper(TaskManager, SoupMaker):
     """Native request backend built on curl_cffi (TLS impersonation)."""
 
@@ -202,7 +221,7 @@ class Scraper(TaskManager, SoupMaker):
             stop=stop_after_attempt(
                 (self.workers + 3) if max_retries is None else max_retries + 1
             ),
-            wait=wait_random_exponential(multiplier=0.5, max=60),
+            wait=_retry_wait,
             retry=retry_if_exception(_is_retryable),
             reraise=True,
         )
@@ -405,3 +424,25 @@ class Scraper(TaskManager, SoupMaker):
 
 
 __all__ = ["Scraper", "FallbackToBrowser", "LNException"]
+
+
+if __name__ == "__main__":
+    # Run from lncrawler-crawler/: python -m lncrawl.core.scraper
+    class _Resp:
+        headers = {"Retry-After": "7"}
+
+    class _Exc:
+        response = _Resp()
+
+    class _Outcome:
+        @staticmethod
+        def exception():
+            return _Exc()
+
+    class _State:
+        outcome = _Outcome()
+
+    assert _retry_wait(_State()) == 7.0
+    _Resp.headers = {"Retry-After": "999"}
+    assert _retry_wait(_State()) == 120.0
+    print("self-check OK")

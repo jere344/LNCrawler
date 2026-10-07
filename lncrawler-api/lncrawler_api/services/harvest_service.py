@@ -19,6 +19,7 @@ import subprocess
 import sys
 
 from django.conf import settings
+from django.db.models import Max
 from django.utils import timezone
 
 logger = logging.getLogger("lncrawler_api")
@@ -95,6 +96,27 @@ def pending_candidates(config=None):
     )
 
 
+def _source_last_enqueued() -> dict:
+    """Most recent harvest Job time per source, so sources rotate by turn.
+
+    Derived from existing Job rows (query = ``harvest:<source>``) instead of a
+    new per-source column. ponytail: job retention can prune a source's history,
+    which resets it to "never harvested" and jumps it to the front of the queue.
+    """
+    from ..models import Job
+
+    rows = (
+        Job.objects.filter(query__startswith=HARVEST_QUERY_PREFIX)
+        .values("query")
+        .annotate(last=Max("created_at"))
+    )
+    return {
+        row["query"][len(HARVEST_QUERY_PREFIX):]: row["last"]
+        for row in rows
+        if row["query"]
+    }
+
+
 def enqueue_ready(config=None) -> int:
     """Queue one download Job per idle source, up to the concurrency budget."""
     from ..models import HarvestCandidate, Job
@@ -112,17 +134,25 @@ def enqueue_ready(config=None) -> int:
     if capacity <= 0:
         return 0
 
-    active_sources = _active_source_names()
-    chosen_sources = set()
-    enqueued = 0
+    # Oldest pending candidate per source. Round-robin is per *source*, so the
+    # source's turn decides order, not the candidate's created_at (candidates
+    # arrive clustered per source, which made the head source repeat forever).
+    oldest = {}
     for candidate in pending_candidates(config).iterator():
+        oldest.setdefault(candidate.source_name, candidate)
+
+    active_sources = _active_source_names()
+    last_turn = _source_last_enqueued()
+    ordered = sorted(
+        (s for s in oldest if s not in active_sources),
+        key=lambda s: (last_turn.get(s) is not None, last_turn.get(s) or timezone.now()),
+    )
+
+    enqueued = 0
+    for source_name in ordered:
         if enqueued >= capacity:
             break
-        # One in-flight harvest job per source: skip sources already active or
-        # already picked this pass.
-        if candidate.source_name in active_sources or candidate.source_name in chosen_sources:
-            continue
-        chosen_sources.add(candidate.source_name)
+        candidate = oldest[source_name]
         job = Job.objects.create(
             status=Job.STATUS_CREATED,
             job_type=Job.JOB_TYPE_DOWNLOAD,
