@@ -19,21 +19,26 @@ load_dotenv(encoding='utf-8')
 
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185").rstrip("/")
 SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000").rstrip("/")
-# Origins keep the port (browser Origin includes it for non-default ports), but
 # ALLOWED_HOSTS and the cookie domain must be the bare hostname: nginx forwards
 # `Host` without the port.
 SITE_DOMAIN = urlparse(SITE_URL).hostname or ""
 API_DOMAIN = urlparse(SITE_API_URL).hostname or ""
 
 
+def _origins(url):
+    # Trust the URL as given AND its scheme+hostname. A TLS terminator sends the
+    # browser an Origin with the public port (usually none), while the env URL
+    # may carry the internal NGINX_PORT; trusting both keeps CSRF working either
+    # way. CSRF_TRUSTED_ORIGINS must not contain a path.
+    parsed = urlparse(url)
+    return {f"{parsed.scheme}://{parsed.netloc}", f"{parsed.scheme}://{parsed.hostname}"}
+
+
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 
-CORS_ALLOWED_ORIGINS = [
-    SITE_URL,
-    SITE_API_URL,
-]
+CORS_ALLOWED_ORIGINS = sorted(_origins(SITE_URL) | _origins(SITE_API_URL))
 ALLOWED_HOSTS = [
     SITE_DOMAIN,
     API_DOMAIN,
@@ -54,10 +59,7 @@ CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "False") == "T
 if CORS_ALLOW_ALL_ORIGINS:
     CORS_ALLOW_CREDENTIALS = False
 
-CSRF_TRUSTED_ORIGINS = [
-    SITE_URL,
-    SITE_API_URL,
-]
+CSRF_TRUSTED_ORIGINS = sorted(_origins(SITE_URL) | _origins(SITE_API_URL))
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False 
 CSRF_USE_SESSIONS = False

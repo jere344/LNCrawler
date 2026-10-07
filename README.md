@@ -32,7 +32,7 @@ Docker Compose runs six services:
 | `crawler` | Identical, horizontally scalable job workers. Each claims queued search/download jobs from a DB-backed queue (`Job` rows) and runs them in isolation from the web workers. Scale with `CRAWLER_REPLICAS` or `--scale crawler=N`. |
 | `scheduler` | Singleton process running periodic database-backed tasks with DB-level locking so two replicas never run the same task. Keep exactly one running. |
 | `frontend` | React single-page app, built at image build time and served by Nginx. |
-| `nginx-proxy` | The public entry point. Listens on port 80 and routes by `Host` header to the API (`API_HOST`) or the frontend (`FRONTEND_HOST`), and serves `/static`, `/media` and `/lightnovels` directly. |
+| `nginx-proxy` | The public entry point. Published on `NGINX_PORT` and routes by `Host` header to the API (`SITE_API_URL`'s host) or the frontend (`SITE_URL`'s host), and serves `/static`, `/media` and `/lightnovels` directly. |
 
 The library is the crawler engine under `lncrawler-crawler/` (`lncrawl`
 package plus ported `sources/`). The API imports it as a library and drives it
@@ -82,8 +82,8 @@ through `lncrawler-api/lncrawler_api/services/downloader_service.py`.
    ```
 
    Open `.env` and set at least `SECRET_KEY`, the `POSTGRES_*` credentials,
-   `SITE_URL`, `SITE_API_URL`, `API_HOST`, `FRONTEND_HOST` and
-   `VITE_API_BASE_URL`. See [Configuration Reference](#configuration-reference).
+   `SITE_URL` and `SITE_API_URL`. See
+   [Configuration Reference](#configuration-reference).
 
 3. **Build and start everything:**
 
@@ -126,20 +126,22 @@ does not resolve `*.localhost`, add entries to `/etc/hosts`:
 127.0.0.1  localhost api.localhost
 ```
 
-The proxy is the only published port (`80:80`). Change the host side of the
-mapping in `docker-compose.yml` if port 80 is taken.
+The proxy is the only published port (`NGINX_PORT:80`). Change `NGINX_PORT` in
+`.env` if port 80 is taken.
 
 ## TLS / Public Deployment
 
 `nginx-proxy` itself only speaks HTTP. In production, terminate TLS in front of
-it (for example with Caddy) and forward to the proxy's port 80. The proxy reads
+it (for example with Caddy) and forward to `NGINX_PORT`. The proxy reads
 `X-Forwarded-Proto` and passes it to Django, so set:
 
 - `SITE_URL` / `SITE_API_URL` to your public HTTPS URLs.
-- `API_HOST` / `FRONTEND_HOST` to the public hostnames.
-- `VITE_API_BASE_URL` to the public API URL (baked into the frontend at build
-  time — rebuild the frontend after changing it).
 - `DEBUG=False` and `CORS_ALLOW_ALL_ORIGINS=False`.
+
+`API_HOST`, `FRONTEND_HOST` and the frontend's baked-in `VITE_API_BASE_URL` are
+derived from `SITE_URL` / `SITE_API_URL`, so there is nothing else to keep in
+sync. `NGINX_PORT` is the internal port the TLS terminator forwards to; the
+public URLs must not include it (only include it if nginx is exposed directly).
 
 ## Scaling
 
@@ -198,15 +200,13 @@ switching is a config change only.
 Without credentials, local development (`DEBUG=True`) prints reset emails to
 the console instead of sending them.
 
-### Frontend build
-
-- `VITE_API_BASE_URL` — API base URL compiled into the frontend. Rebuild the
-  frontend image after changing it.
-
 ### Nginx proxy
 
-- `API_HOST` — hostname routed to the API.
-- `FRONTEND_HOST` — hostname routed to the frontend.
+- `NGINX_PORT` — host port nginx is published on (default `80`). Set it to the
+  port your TLS terminator forwards to.
+- `API_HOST`, `FRONTEND_HOST` and `VITE_API_BASE_URL` are derived from
+  `SITE_URL` / `SITE_API_URL`; do not set them separately. The frontend image
+  must be rebuilt after changing `SITE_API_URL` (the URL is compiled in).
 
 ### Crawler
 
