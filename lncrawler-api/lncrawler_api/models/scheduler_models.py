@@ -80,11 +80,14 @@ class ScheduledTask(models.Model):
         ).update(locked_until=timezone.now() + timedelta(minutes=lock_timeout_minutes))
         return bool(updated)
     
-    def release_lock(self, success: bool = True, error_message: str = ""):
+    def release_lock(self, success: bool = True, error_message: str = "", no_github: bool = False):
         """
         Release the lock on this task and schedule next run. Only the worker that
         currently owns the lock may release it, so a worker whose lock was
         reclaimed after a stall cannot clobber the new owner.
+
+        ``no_github`` suppresses the auto-issue for expected failures (a stale
+        lock reclaimed after a restart), while genuine task errors still report.
         """
         worker_id = self.worker_id
         now = timezone.now()
@@ -120,7 +123,10 @@ class ScheduledTask(models.Model):
         if success:
             logger.info(f"Task '{self.name}' completed successfully")
         else:
-            logger.error(f"Task '{self.name}' failed: {error_message}")
+            logger.error(
+                f"Task '{self.name}' failed: {error_message}",
+                extra={"no_github": True} if no_github else None,
+            )
     
     @classmethod
     def cleanup_stale_locks(cls, stale_timeout_minutes: int = 60):
@@ -136,7 +142,11 @@ class ScheduledTask(models.Model):
         count = 0
         for task in stale_tasks:
             logger.warning(f"Cleaning up stale lock for task '{task.name}' (locked by worker '{task.worker_id}')")
-            task.release_lock(success=False, error_message="Lock expired - worker may have crashed")
+            task.release_lock(
+                success=False,
+                error_message="Lock expired - worker may have crashed",
+                no_github=True,
+            )
             count += 1
         
         if count > 0:

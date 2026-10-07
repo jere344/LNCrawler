@@ -9,6 +9,7 @@ from bs4 import Tag
 from ..models import Chapter, SearchResult, Volume
 from .arguments import get_args
 from .cleaner import TextCleaner
+from .exeptions import RetryErrorGroup
 from .scraper import Scraper
 
 logger = logging.getLogger(__name__)
@@ -190,7 +191,26 @@ class Crawler(Scraper):
                 except Exception as e:
                     if fail_fast:
                         raise
-                    logger.warning("%s: %s", type(e).__name__, e)
+                    if isinstance(e, RetryErrorGroup):
+                        # Expected per-chapter network/IO failure. Tolerated
+                        # (chapter marked failed, download continues), so it is
+                        # noise for the issue reporter.
+                        logger.warning("%s: %s", type(e).__name__, e)
+                    else:
+                        # Anything else is an unexpected parser/logic bug, so
+                        # report it. Dedup per source+type so one report covers
+                        # all chapters of a source.
+                        logger.error(
+                            "%s: %s",
+                            type(e).__name__,
+                            e,
+                            exc_info=True,
+                            extra={
+                                "github_fingerprint": hashlib.sha1(
+                                    f"{self.source_name}:{type(e).__name__}".encode()
+                                ).hexdigest()[:12]
+                            },
+                        )
                     result = None
 
                 chapter.body = result or ""

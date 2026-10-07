@@ -11,3 +11,6 @@ from . import (
     source_admin,
     user_admin,
 )
+
+# Regroup the admin sidebar into categories (must come last).
+from . import app_groups  # noqa: E402,F401

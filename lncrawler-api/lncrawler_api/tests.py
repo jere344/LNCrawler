@@ -2491,3 +2491,47 @@ class SchedulerOrphanTaskTests(TestCase):
             ScheduledTask.objects.filter(name="calculate_similarities").exists()
         )
 
+
+
+class ChapterFailureReportingTests(TestCase):
+    """Unexpected chapter-download errors are escalated to ERROR to reach the
+    issue reporter; expected transient network/IO failures stay at WARNING."""
+
+    def _run(self, exc):
+        from lncrawler_api.services.downloader_service import _load_app
+
+        _load_app()
+        from lncrawl.core.crawler import Crawler
+
+        class Boom(Crawler):
+            base_url = "http://example.invalid"
+            source_name = "example.invalid"
+
+            def download_chapter_body(self, chapter):
+                raise exc
+
+        class FakeChapter:
+            body = ""
+            images = {}
+            success = False
+
+        list(Boom().download_chapters([FakeChapter()]))
+
+    def test_unicode_error_logs_error_with_fingerprint(self):
+        with self.assertLogs("lncrawl.core.crawler", level="ERROR") as cm:
+            self._run(UnicodeDecodeError("ascii", b"\xe7", 0, 1, "boom"))
+        record = cm.records[-1]
+        self.assertEqual(record.levelname, "ERROR")
+        self.assertTrue(getattr(record, "github_fingerprint", None))
+
+    def test_unexpected_error_logs_error(self):
+        with self.assertLogs("lncrawl.core.crawler", level="ERROR") as cm:
+            self._run(RuntimeError("boom"))
+        self.assertEqual(cm.records[-1].levelname, "ERROR")
+
+    def test_transient_error_stays_warning(self):
+        from urllib.error import URLError
+
+        with self.assertLogs("lncrawl.core.crawler", level="WARNING") as cm:
+            self._run(URLError("boom"))
+        self.assertEqual([r.levelname for r in cm.records], ["WARNING"])
