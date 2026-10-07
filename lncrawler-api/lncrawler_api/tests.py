@@ -1135,12 +1135,12 @@ class SerializerProfileTests(TestCase):
         "card": [
             "id", "title", "source_slug", "novel_slug", "cover_min_url",
             "authors", "tags", "chapters_count", "last_chapter_update",
-            "latest_available_chapter",
+            "latest_available_chapter", "is_adult",
         ],
         "featured": [
             "id", "title", "source_slug", "novel_slug", "cover_min_url",
             "authors", "tags", "chapters_count", "last_chapter_update",
-            "latest_available_chapter", "synopsis", "novel_id",
+            "latest_available_chapter", "synopsis", "novel_id", "is_adult",
         ],
         "detail": [
             "id", "title", "source_url", "source_name", "source_slug", "authors",
@@ -1151,6 +1151,7 @@ class SerializerProfileTests(TestCase):
             "first_available_chapter", "reading_history", "overview_url",
             "novelupdates_url", "status", "editors", "translators",
             "alternative_titles", "original_publisher", "english_publisher",
+            "is_adult",
         ],
     }
 

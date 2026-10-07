@@ -16,9 +16,9 @@ logger = logging.getLogger('lncrawler_api')
 #   docker compose exec -T api python manage.py run_import --action copy
 # It moves/copies each <novel>/<source>/ into the library and upserts the rows.
 #
-# The background harvest feeder (docker compose `harvest` service, toggled in
-# the admin) discovers and imports novels automatically; run_import is for
-# bulk-loading a pre-downloaded catalogue.
+# The background harvest feeder (a thread inside the `scheduler` service,
+# toggled in the admin) discovers and imports novels automatically; run_import
+# is for bulk-loading a pre-downloaded catalogue.
 
 class Command(BaseCommand):
     help = 'Import novels from the import folder specified in settings.IMPORT_FOLDER_PATH'

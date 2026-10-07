@@ -147,6 +147,7 @@ def save_metadata(app, completed: bool = False) -> None:
             is_rtl=crawler.is_rtl,
             has_manga=crawler.has_manga,
             has_mtl=crawler.has_mtl,
+            is_adult=getattr(crawler, "is_adult", False),
             # Optional metadata: sources may populate these; the DB importer
             # reads them when present.
             status=getattr(crawler, "status", None) or NovelStatus.unknown,

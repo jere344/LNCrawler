@@ -22,7 +22,7 @@ from django.conf import settings
 from django.db.models import Max
 from django.utils import timezone
 
-logger = logging.getLogger("lncrawler_api")
+logger = logging.getLogger("lncrawler_api.harvest")
 
 HARVEST_QUERY_PREFIX = "harvest:"
 
@@ -181,7 +181,9 @@ def run_scan_subprocess() -> int:
     """Run one browse scan in a short-lived subprocess (memory isolation)."""
     cmd = [sys.executable, "manage.py", "harvest_browse"]
     env = dict(os.environ)
-    env.setdefault("SERVICE_NAME", "harvest")
+    # Force the tag even though the parent process is the scheduler, so the
+    # scan's logs/issues are attributed to harvest.
+    env["SERVICE_NAME"] = "harvest"
     timeout = int(os.environ.get("HARVEST_SCAN_TIMEOUT", "1800"))
     logger.info("Starting harvest scan subprocess: %s", " ".join(cmd))
     try:
@@ -201,6 +203,72 @@ def run_scan_subprocess() -> int:
     if proc.returncode != 0:
         logger.error("Harvest scan failed (rc=%s): %s", proc.returncode, proc.stderr.strip())
     return proc.returncode
+
+
+def tick(config=None) -> None:
+    """One feeder iteration: reconcile results, scan if stale, enqueue jobs."""
+    config = config or get_config()
+    if not config.enabled:
+        return
+
+    touched = reconcile()
+    if touched:
+        logger.info("Harvest: reconciled %s candidate(s)", touched)
+
+    if should_scan(config):
+        run_scan_subprocess()
+        # Record the attempt even when the scan failed, so a broken scan is
+        # retried after the normal cooldown instead of every tick.
+        config.refresh_from_db()
+        config.last_harvest_at = timezone.now()
+        config.save(update_fields=["last_harvest_at", "updated_at"])
+
+    enqueued = enqueue_ready(config)
+    if enqueued:
+        logger.info("Harvest: queued %s download(s)", enqueued)
+
+
+def run_feeder(stop_event, interval=None, once=False) -> None:
+    """Feeder loop, run in a thread (scheduler) or standalone (`run_harvest`).
+
+    ``stop_event`` is a ``threading.Event``; the loop exits promptly when set.
+    """
+    if interval is None:
+        try:
+            interval = int(os.environ.get("HARVEST_INTERVAL", "20"))
+        except (TypeError, ValueError):
+            interval = 20
+    logger.info("Harvest feeder started (interval=%ss)", interval)
+    try:
+        while not stop_event.is_set():
+            try:
+                if not acquire_feeder_lock():
+                    # Another feeder owns the lock. Wait instead of exiting, so
+                    # a stray replica does not restart-loop under
+                    # `restart: unless-stopped`.
+                    logger.info("Harvest lock held elsewhere; retrying in %ss", interval)
+                    if once:
+                        return
+                    stop_event.wait(interval)
+                    continue
+                try:
+                    tick()
+                finally:
+                    release_feeder_lock()
+            except Exception:
+                # The feeder has no supervisor now that it runs inside the
+                # scheduler, so any error (lock/DB failure included) must be
+                # swallowed and retried next iteration rather than kill the
+                # thread — which would silently disable harvest.
+                logger.exception("Harvest feeder tick failed")
+            if once:
+                return
+            stop_event.wait(interval)
+    finally:
+        from django.db import connection
+
+        connection.close()
+        logger.info("Harvest feeder stopped")
 
 
 def acquire_feeder_lock() -> bool:

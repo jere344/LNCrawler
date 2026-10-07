@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -318,6 +318,25 @@ const ChatPage = () => {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
+  // preserves the visible position when older messages are prepended above the viewport
+  const pendingScrollAdjust = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (!initialScrollDone.current) {
+      if (messages.length > 0) {
+        el.scrollTop = el.scrollHeight;
+        initialScrollDone.current = true;
+      }
+      return;
+    }
+    if (pendingScrollAdjust.current !== null) {
+      el.scrollTop += el.scrollHeight - pendingScrollAdjust.current;
+      pendingScrollAdjust.current = null;
+    }
+  }, [messages]);
 
   useEffect(() => {
     let active = true;
@@ -344,6 +363,8 @@ const ChatPage = () => {
   const loadMore = async () => {
     if (loadingMore || page >= totalPages) return;
     setLoadingMore(true);
+    const el = scrollRef.current;
+    if (el) pendingScrollAdjust.current = el.scrollHeight;
     try {
       const data = await chatService.listChat(page + 1, PAGE_SIZE);
       setMessages((prev) => dedupById([...prev, ...data.results]));
@@ -351,6 +372,7 @@ const ChatPage = () => {
       setTotalPages(Math.max(1, data.total_pages));
     } catch (err) {
       console.error('Failed to fetch more chat:', err);
+      pendingScrollAdjust.current = null;
     } finally {
       setLoadingMore(false);
     }
@@ -358,7 +380,7 @@ const ChatPage = () => {
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
+    if (el.scrollTop <= 200) {
       void loadMore();
     }
   };
@@ -409,7 +431,10 @@ const ChatPage = () => {
 
   const prependMessage = (created: ChatMessage) => {
     setMessages((prev) => dedupById([created, ...prev]));
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    });
     setReplyTo(null);
   };
 
@@ -467,21 +492,23 @@ const ChatPage = () => {
               {t('chat.noMessages')}
             </Typography>
           ) : (
-            messages.map((message) => (
-              <ChatRow
-                key={message.id}
-                message={message}
-                isOwn={!!user && !!message.user && message.user.username === user.username}
-                highlight={highlightId === message.id}
-                onReply={setReplyTo}
-                onQuoteClick={handleQuoteClick}
-              />
-            ))
-          )}
-          {loadingMore && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-              <CircularProgress size={24} />
-            </Box>
+            <>
+              {loadingMore && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              )}
+              {[...messages].reverse().map((message) => (
+                <ChatRow
+                  key={message.id}
+                  message={message}
+                  isOwn={!!user && !!message.user && message.user.username === user.username}
+                  highlight={highlightId === message.id}
+                  onReply={setReplyTo}
+                  onQuoteClick={handleQuoteClick}
+                />
+              ))}
+            </>
           )}
         </Box>
       )}

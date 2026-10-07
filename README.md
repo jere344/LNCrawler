@@ -30,7 +30,7 @@ Docker Compose runs six services:
 | `db` | PostgreSQL 17, the single source of truth. |
 | `api` | Django + Gunicorn. Serves the REST API, the admin, and static/media/library files. Runs migrations and creates the initial superuser on boot. |
 | `crawler` | Identical, horizontally scalable job workers. Each claims queued search/download jobs from a DB-backed queue (`Job` rows) and runs them in isolation from the web workers. Scale with `CRAWLER_REPLICAS` or `--scale crawler=N`. |
-| `scheduler` | Singleton process running periodic database-backed tasks with DB-level locking so two replicas never run the same task. Keep exactly one running. |
+| `scheduler` | Singleton maintenance process. Runs the periodic database-backed tasks (with DB-level locking so two replicas never run the same task) and the harvest feeder in a background thread. Keep exactly one running. |
 | `frontend` | React single-page app, built at image build time and served by Nginx. |
 | `nginx-proxy` | The public entry point. Published on `NGINX_PORT` and routes by `Host` header to the API (`SITE_API_URL`'s host) or the frontend (`SITE_URL`'s host), and serves `/static`, `/media` and `/lightnovels` directly. |
 
@@ -155,9 +155,9 @@ CRAWLER_REPLICAS=4
 docker compose up -d --scale crawler=4
 ```
 
-The `scheduler` and `harvest` services must each stay at one instance. Both are
-designed so that even if a second one starts, DB-level locking prevents
-duplicate work.
+The `scheduler` service must stay at one instance (it also hosts the harvest
+feeder). Both the scheduler and the feeder use DB-level locking, so even if a
+second one starts, duplicate work is prevented.
 
 ## Configuration Reference
 
@@ -232,10 +232,10 @@ the console instead of sending them.
 
 ### Harvest feeder
 
-The `harvest` service discovers novels from each source's browse page and
-queues download jobs. It is always running but inert until enabled in the
-admin (**Maintenance → Harvest**). Control it there — no `.env` change or
-restart is needed.
+The harvest feeder discovers novels from each source's browse page and queues
+download jobs. It runs as a thread inside the `scheduler` service and is always
+running but inert until enabled in the admin (**Maintenance → Harvest**).
+Control it there — no `.env` change or restart is needed.
 
 - `HARVEST_INTERVAL` *(optional)* — seconds between feeder loop iterations.
 - `HARVEST_REFRESH_SECONDS` *(optional)* — minimum gap between browse scans.
@@ -284,11 +284,11 @@ lncrawler/
 ├── docker-compose.yml       # Service definitions and wiring
 ├── .env.example             # Documented environment template
 ├── nginx-proxy/             # Public reverse proxy (Host-based routing)
-├── lncrawler-api/           # Django REST API + workers + scheduler + harvest
+├── lncrawler-api/           # Django REST API + workers + maintenance
 │   ├── api_project/         # Settings, URLs, logging, GitHub reporting
 │   ├── lncrawler_api/       # Models, views, services, management commands
 │   ├── auth_app/            # User model, auth and email
-│   └── start*.sh            # api / crawler / scheduler / harvest entrypoints
+│   └── start*.sh            # api / crawler / scheduler entrypoints
 ├── lncrawler-frontend/      # React + Vite SPA
 ├── lncrawler-crawler/       # Crawler engine (lncrawl) and source definitions
 │   ├── lncrawl/             # Core engine, models, browser backends

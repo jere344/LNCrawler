@@ -25,6 +25,9 @@ class Crawler(Scraper):
     source_name: str = ""
     has_manga = False
     has_mtl = False
+    # Set True on sources whose content is adult (R18/NSFW). Written to
+    # meta.json and loaded by the DB importer.
+    is_adult = False
     language = ""
 
     # Set True on sources that must authenticate before crawling. When set,

@@ -259,8 +259,14 @@ ISSUE_REPORTS_TO_DISK = os.environ.get("ISSUE_REPORTS_TO_DISK", "False") == "Tru
 ISSUE_REPORTS_DIR = os.environ.get(
     "ISSUE_REPORTS_DIR", os.path.join(BASE_DIR, "issue-reports")
 )
-# Identifies which container produced an issue: api / crawler / scheduler.
-SERVICE_NAME = os.environ.get("SERVICE_NAME", "api")
+# Identifies which runner produced a log/issue: api / crawler / scheduler / harvest.
+SERVICE_NAME = os.environ.get("SERVICE_NAME") or "api"
+
+# One log file per runner. Concurrent processes previously appended to the same
+# two files, so a rotation in one process moved the file out from under the rest.
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+SERVICE_LOG_FILE = os.path.join(LOGS_DIR, f"{SERVICE_NAME}.log")
+HARVEST_LOG_FILE = os.path.join(LOGS_DIR, "harvest.log")
 
 # Define a custom UTF-8 stream handler
 class UTF8StreamHandler(logging.StreamHandler):
@@ -301,18 +307,18 @@ LOGGING = {
             'formatter': 'lncrawler_api_formatter',
             'level': LOG_LEVEL,
         },
-        'django_file': {
+        'service_file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
-            'formatter': 'django_formatter',
+            'filename': SERVICE_LOG_FILE,
+            'formatter': 'lncrawler_api_formatter',
             'encoding': 'utf-8',
             'level': LOG_LEVEL,
             'maxBytes': 10 * 1024 * 1024,
             'backupCount': 5,
         },
-        'lncrawler_api_file': {
+        'harvest_file': {
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'lncrawler_api.log'),
+            'filename': HARVEST_LOG_FILE,
             'formatter': 'lncrawler_api_formatter',
             'encoding': 'utf-8',
             'level': LOG_LEVEL,
@@ -328,28 +334,35 @@ LOGGING = {
     },
     'loggers': {
         'django': {  # Django's built-in logger
-            'handlers': ['django_console', 'django_file', 'github_issues'],
+            'handlers': ['django_console', 'service_file', 'github_issues'],
             'level': LOG_LEVEL,
             'propagate': False,
         },
         'lncrawler_api': { 
-            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
 
             'level': LOG_LEVEL,
             'propagate': False,
         },
+        # Harvest feeder thread: runs inside the scheduler process, so it needs
+        # its own logger name to land in harvest.log instead of scheduler.log.
+        'lncrawler_api.harvest': {
+            'handlers': ['lncrawler_api_console', 'harvest_file', 'github_issues'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
         'lncrawl': {  # The lncrawler-crawler library
-            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
             'level': LOG_LEVEL,
             'propagate': False,
         },
         'frontend': {  # Errors reported by the browser via /report-error/
-            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
             'level': LOG_LEVEL,
             'propagate': False,
         },
         'auth_app': {  # Otherwise propagates to a handler-less root logger
-            'handlers': ['lncrawler_api_console', 'lncrawler_api_file', 'github_issues'],
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
             'level': LOG_LEVEL,
             'propagate': False,
         },
@@ -357,7 +370,7 @@ LOGGING = {
 }
 
 # Create logs directory if it doesn't exist
-os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 
 # Email settings — standard SMTP, provider-agnostic. Swapping providers is a

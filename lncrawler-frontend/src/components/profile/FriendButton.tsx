@@ -5,6 +5,7 @@ import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import CheckIcon from '@mui/icons-material/Check';
 import { useTranslation } from 'react-i18next';
 import { friendService } from '@services/friend.service';
+import { useAuth } from '@context/AuthContext';
 import type { FriendshipStatus } from '@models/user_types';
 
 interface FriendButtonProps {
@@ -15,6 +16,7 @@ interface FriendButtonProps {
 
 const FriendButton: React.FC<FriendButtonProps> = ({ username, initialStatus, onStatusChange }) => {
     const { t } = useTranslation();
+    const { isAuthenticated } = useAuth();
     const [status, setStatus] = useState<FriendshipStatus>(initialStatus);
     const [loading, setLoading] = useState(false);
 
@@ -48,7 +50,7 @@ const FriendButton: React.FC<FriendButtonProps> = ({ username, initialStatus, on
         }
     };
 
-    if (status === 'self') return null;
+    if (!isAuthenticated || status === 'self') return null;
 
     const config: Record<Exclude<FriendshipStatus, 'self'>, { label: string; icon: React.ReactNode; variant: 'contained' | 'outlined' | 'text' }> = {
         none: { label: t('friends.addFriend'), icon: <PersonAddIcon />, variant: 'contained' },

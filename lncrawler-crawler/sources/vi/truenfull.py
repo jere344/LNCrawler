@@ -2,21 +2,25 @@
 import logging
 from concurrent.futures import Future
 from typing import List, Optional
-from urllib.parse import quote, urlencode
+from urllib.parse import quote_plus, urlencode
 
 from bs4.element import Tag
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
-
-search_url = "https://truyenfull.live/tim-kiem/?tukhoa=%s"
 
 
 class TruenFull(Crawler):
     has_mtl = True
-    base_url = ["https://truyenfull.live/"]
+    # truyenfull.io is intentionally omitted: its TLS chain is broken and it
+    # only serves a JS redirect, so it cannot be crawled directly.
+    base_url = [
+        "https://truyenfull.live/",
+        "https://truyenfull.vn/",
+        "https://truyenfull.vision/",
+    ]
 
     @staticmethod
     def __select_value(tag: Tag, css: str, attr: Optional[str] = None):
@@ -29,11 +33,11 @@ class TruenFull(Crawler):
             return (getattr(possible_item, "text") or "").strip()
 
     def search_novel(self, query):
-        soup = self.get_soup(search_url % quote(query))
+        soup = self.get_soup(f"{self.home_url}tim-kiem/?tukhoa={quote_plus(query)}")
 
         results = []
         for div in soup.select(".list-truyen .row"):
-            a = div.select_one(".s-title h3 a")
+            a = div.select_one("h3.truyen-title a")
             if not isinstance(a, Tag):
                 continue
 
@@ -54,9 +58,9 @@ class TruenFull(Crawler):
         results = []
         page = 1
         while len(results) < offset + limit:
-            url = "https://truyenfull.live/danh-sach/truyen-hot/"
+            url = f"{self.home_url}danh-sach/truyen-hot/"
             if page > 1:
-                url = f"https://truyenfull.live/danh-sach/truyen-hot/trang-{page}/"
+                url = f"{self.home_url}danh-sach/truyen-hot/trang-{page}/"
             soup = self.get_soup(url)
             items = soup.select(".list-truyen .row")
             if not items:
@@ -106,7 +110,50 @@ class TruenFull(Crawler):
             self.novel_synopsis = synopsis_tag.get_text("\n", strip=True)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        info_rows = self.__parse_info_rows(soup)
+        if "tên khác" in info_rows or "tên gọi khác" in info_rows:
+            value = info_rows.get("tên khác") or info_rows.get("tên gọi khác")
+            self.alternative_titles = [
+                x.strip() for x in value.split(",") if x.strip()
+            ]
+        if "nguồn" in info_rows:
+            self.translators = [
+                x.strip() for x in info_rows["nguồn"].split(",") if x.strip()
+            ]
+        status = (info_rows.get("trạng thái") or "").lower()
+        if "full" in status or "hoàn thành" in status:
+            self.status = NovelStatus.completed
+        elif "đang ra" in status or "đang cập nhật" in status:
+            self.status = NovelStatus.ongoing
+        elif "tạm dừng" in status:
+            self.status = NovelStatus.hiatus
+        logger.info(
+            "Status: %s | Alt titles: %s | Translators: %s",
+            getattr(self, "status", None),
+            getattr(self, "alternative_titles", None),
+            getattr(self, "translators", None),
+        )
+
         self.parse_truyenfull_chapters(soup)
+
+    @staticmethod
+    def __parse_info_rows(soup: Tag):
+        """Map each ``.info`` row label to its value text (label stripped)."""
+        rows = {}
+        info = soup.select_one(".info")
+        if not isinstance(info, Tag):
+            return rows
+        for div in info.find_all("div", recursive=False):
+            h3 = div.find("h3")
+            if not isinstance(h3, Tag):
+                continue
+            label = h3.get_text(strip=True).rstrip(":").lower()
+            value = div.get_text(",", strip=True)
+            raw = h3.get_text(strip=True)
+            if value.startswith(raw):
+                value = value[len(raw):]
+            rows[label] = value.lstrip(": ,").strip()
+        return rows
 
     def parse_truyenfull_chapters(self, soup: Tag):
         truyen_id = self.__select_value(soup, "input#truyen-id", "value")
@@ -128,7 +175,7 @@ class TruenFull(Crawler):
                     "totalp": total_page,
                 }
             )
-            url = "https://truyenfull.live/ajax.php?" + params
+            url = f"{self.home_url}ajax.php?" + params
             logger.info("Getting chapters: %s", url)
             f = self.executor.submit(self.get_json, url)
             futures.append(f)

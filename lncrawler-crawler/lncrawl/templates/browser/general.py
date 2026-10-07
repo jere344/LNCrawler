@@ -3,6 +3,7 @@ from typing import Generator, Union
 
 from bs4 import BeautifulSoup, Tag
 
+from ...core.exeptions import LNException
 from ...models import Chapter, Volume
 from ..soup.general import GeneralSoupTemplate, meta_description
 from .basic import BasicBrowserTemplate
@@ -27,7 +28,10 @@ class GeneralBrowserTemplate(BasicBrowserTemplate, GeneralSoupTemplate):
     def read_novel_info_in_browser(self) -> None:
         self.visit_novel_page_in_browser()
 
-        self.novel_title = self.parse_title_in_browser()
+        try:
+            self.novel_title = self.parse_title_in_browser()
+        except Exception as e:
+            raise LNException("Failed to parse novel title", e)
 
         try:
             self.novel_cover = self.parse_cover_in_browser()

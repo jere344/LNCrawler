@@ -79,6 +79,14 @@ class BakaTsukiCrawler(Crawler):
         if author:
             self.novel_author = author.group(1).strip()[:120]
 
+        og_image = soup.select_one('meta[property="og:image"]')
+        if og_image and og_image.get("content"):
+            self.novel_cover = self.absolute_url(og_image["content"])
+        else:
+            img = content.select_one("figure.mw-halign-right img, .infobox img, figure img")
+            if img and img.get("src"):
+                self.novel_cover = self.absolute_url(img["src"])
+
         first_paras = []
         for p in content.select("p"):
             line = p.get_text(" ", strip=True)

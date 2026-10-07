@@ -110,6 +110,8 @@ class TapasCrawler(Crawler):
         contents = soup.select_one(".ep-epub-content") or soup.select_one(
             "article.viewer__body"
         )
+        if contents is None:
+            return ""
         for img in contents.select("img[src^='data:']"):
             img.decompose()
         self.cleaner.clean_contents(contents)

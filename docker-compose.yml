@@ -101,21 +101,10 @@ services:
         condition: service_started
     command: ["sh", "/app/lncrawler-api/start_crawler.sh"]
 
-  # Background harvest feeder: discovers novels and queues download jobs onto
-  # the crawler queue. Always up; toggled on/off from the admin (HarvestConfig).
-  harvest:
-    build: ./lncrawler-api
-    restart: unless-stopped
-    volumes: *api-volumes
-    environment: *api-env
-    env_file: .env
-    depends_on:
-      db:
-        condition: service_healthy
-      api:
-        condition: service_started
-    command: ["sh", "/app/lncrawler-api/start_harvest.sh"]
-
+  # Singleton maintenance process: runs the periodic database-backed tasks AND
+  # the harvest feeder (in a thread). The feeder discovers novels and queues
+  # download jobs onto the crawler queue; it is toggled from the admin
+  # (HarvestConfig). Merged into one process to save a whole Django interpreter.
   scheduler:
     build: ./lncrawler-api
     restart: unless-stopped
