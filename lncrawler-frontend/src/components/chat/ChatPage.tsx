@@ -62,7 +62,7 @@ const ChatRow = ({ message, isOwn, highlight, onReply, onQuoteClick }: ChatRowPr
           alignItems: 'center',
           gap: 0.5,
           mb: 0.25,
-          justifyContent: isOwn ? 'flex-end' : 'flex-start',
+          justifyContent: 'flex-start',
           flexDirection: isOwn ? 'row-reverse' : 'row',
         }}
       >
@@ -95,7 +95,7 @@ const ChatRow = ({ message, isOwn, highlight, onReply, onQuoteClick }: ChatRowPr
           display: 'flex',
           alignItems: 'center',
           gap: 0.5,
-          justifyContent: isOwn ? 'flex-end' : 'flex-start',
+          justifyContent: 'flex-start',
           flexDirection: isOwn ? 'row-reverse' : 'row',
         }}
       >
