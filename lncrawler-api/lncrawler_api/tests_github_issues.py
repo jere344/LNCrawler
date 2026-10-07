@@ -168,3 +168,31 @@ class DiskReportDedupLogTests(TestCase):
         self.assertTrue(
             any("duplicate" in r.getMessage().lower() for r in cm.records)
         )
+
+
+class HandlerForkTests(TestCase):
+    """gunicorn runs with preload_app=True: the handler is built in the master
+    and then forked, but threads do not survive fork. Each worker must start
+    its own drain thread or every API-side report is silently dropped."""
+
+    @mock.patch("api_project.logging_handlers.threading.Thread")
+    @mock.patch("api_project.logging_handlers.os.getpid")
+    def test_drain_thread_restarts_after_fork(self, getpid, thread):
+        from api_project.logging_handlers import GitHubIssueHandler
+
+        handler = GitHubIssueHandler()
+
+        getpid.return_value = 1000
+        handler._ensure_drain()
+        handler._ensure_drain()  # idempotent within one process
+        self.assertEqual(thread.call_count, 1)
+
+        getpid.return_value = 2000  # simulating the forked worker
+        handler._ensure_drain()
+        self.assertEqual(thread.call_count, 2)
+
+        # A drain thread that died must be re-armed, not trusted forever.
+        handler._drain_thread.is_alive.return_value = False
+        handler._ensure_drain()
+        self.assertEqual(thread.call_count, 3)
+

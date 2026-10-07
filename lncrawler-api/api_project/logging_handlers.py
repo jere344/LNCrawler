@@ -9,6 +9,7 @@ and ``github_details`` extras.
 """
 
 import logging
+import os
 import queue
 import threading
 import traceback
@@ -25,14 +26,33 @@ class GitHubIssueHandler(logging.Handler):
     def __init__(self):
         super().__init__(level=logging.ERROR)
         self._queue = queue.Queue(maxsize=_QUEUE_SIZE)
-        worker = threading.Thread(target=self._drain, daemon=True)
-        worker.start()
+        self._lock = threading.Lock()
+        self._drain_thread = None
+        self._drain_pid = None
+
+    def _ensure_drain(self):
+        # gunicorn is configured with preload_app=True: this handler is built in
+        # the master, then forked. Threads do not survive fork, so a worker's
+        # records would pile up in its copied queue with nobody draining them
+        # and every API-side report would be silently lost. Start (or restart
+        # after fork) exactly one live drain thread per process, lazily.
+        pid = os.getpid()
+        if self._drain_pid == pid and self._drain_thread is not None and self._drain_thread.is_alive():
+            return
+        with self._lock:
+            if self._drain_pid != pid or self._drain_thread is None or not self._drain_thread.is_alive():
+                self._drain_thread = threading.Thread(
+                    target=self._drain, daemon=True, name="github-issue-drain"
+                )
+                self._drain_thread.start()
+                self._drain_pid = pid
 
     def emit(self, record):
         # A logging handler must never raise; and must never block the caller.
         try:
             if getattr(record, "no_github", False):
                 return
+            self._ensure_drain()
             self._queue.put_nowait(self._build(record))
         except queue.Full:
             pass
