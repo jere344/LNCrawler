@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
@@ -39,8 +39,7 @@ class BakaTsukiCrawler(Crawler):
             results.append(
                 SearchResult(
                     title=title,
-                    url="https://baka-tsuki.org/project/index.php?title="
-                    + title.replace(" ", "_"),
+                    url=self._page_url(title),
                     info=f"Page id: {item['pageid']}",
                 )
             )
@@ -67,7 +66,8 @@ class BakaTsukiCrawler(Crawler):
         return results[offset : offset + limit]
 
     def _page_url(self, page_title: str) -> str:
-        return "https://baka-tsuki.org/project/index.php?title=" + page_title
+        title = quote(page_title.replace(" ", "_"), safe="/:")
+        return "https://baka-tsuki.org/project/index.php?title=" + title
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
