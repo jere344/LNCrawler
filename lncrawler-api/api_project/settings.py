@@ -12,14 +12,18 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from urllib.parse import urlparse
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(encoding='utf-8')
 
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185").rstrip("/")
 SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000").rstrip("/")
-SITE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]
-API_DOMAIN = SITE_API_URL.split("//")[-1].split("/")[0]
+# Origins keep the port (browser Origin includes it for non-default ports), but
+# ALLOWED_HOSTS and the cookie domain must be the bare hostname: nginx forwards
+# `Host` without the port.
+SITE_DOMAIN = urlparse(SITE_URL).hostname or ""
+API_DOMAIN = urlparse(SITE_API_URL).hostname or ""
 
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
@@ -27,10 +31,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 
 CORS_ALLOWED_ORIGINS = [
-    f"http://{SITE_DOMAIN}",
-    f"https://{SITE_DOMAIN}",
-    f"http://{API_DOMAIN}",
-    f"https://{API_DOMAIN}",
+    SITE_URL,
+    SITE_API_URL,
 ]
 ALLOWED_HOSTS = [
     SITE_DOMAIN,
@@ -53,10 +55,8 @@ if CORS_ALLOW_ALL_ORIGINS:
     CORS_ALLOW_CREDENTIALS = False
 
 CSRF_TRUSTED_ORIGINS = [
-    f"http://{SITE_DOMAIN}",
-    f"https://{SITE_DOMAIN}",
-    f"http://{API_DOMAIN}",
-    f"https://{API_DOMAIN}",
+    SITE_URL,
+    SITE_API_URL,
 ]
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False 
@@ -68,7 +68,7 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    CSRF_COOKIE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]  # Extract domain from SITE_URL
+    CSRF_COOKIE_DOMAIN = SITE_DOMAIN
 else:
     SECURE_PROXY_SSL_HEADER = None
     SESSION_COOKIE_SECURE = False

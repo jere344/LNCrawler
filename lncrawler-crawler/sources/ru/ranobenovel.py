@@ -12,6 +12,12 @@ search_url = "https://ranobe-novels.ru/wp-content/themes/ranobe-novels/template-
 class RanobeNovel(Crawler):
     base_url = "https://ranobe-novels.ru/"
 
+    is_disabled = True
+    disable_reason = (
+        "Site owner blocks this host's IP (HTTP 503, retry-after 3600). Needs "
+        "a proxy."
+    )
+
     def search_novel(self, query):
         logger.debug("Searching for %s", query)
 

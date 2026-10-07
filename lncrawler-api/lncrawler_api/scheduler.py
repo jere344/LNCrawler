@@ -10,6 +10,18 @@ from .models import ScheduledTask
 
 logger = logging.getLogger('lncrawler_api')
 
+
+def scheduler_enabled():
+    """Master switch for automatic maintenance tasks.
+
+    Set SCHEDULER_ENABLED=False to keep the scheduler process running (so it
+    still cleans up stale locks) while suppressing every registered task, e.g.
+    so they can be triggered manually from the admin instead.
+    """
+    value = os.environ.get("SCHEDULER_ENABLED", "True").strip().lower()
+    return value not in ("0", "false", "no", "off", "")
+
+
 class DatabaseScheduler:
     """
     A database-backed scheduler that prevents multiple workers from executing 
@@ -50,14 +62,33 @@ class DatabaseScheduler:
             return func
         return decorator
     
+    def _remove_orphan_tasks(self):
+        """Delete scheduler rows whose task is no longer registered.
+
+        Removing a command leaves its ScheduledTask row behind; the loop only
+        ever executes registered names, so those rows are dead weight.
+        """
+        deleted, _ = ScheduledTask.objects.exclude(
+            name__in=self.registered_tasks.keys()
+        ).delete()
+        if deleted:
+            logger.info("Removed %s orphaned scheduled task row(s)", deleted)
+
     def _run_task_loop(self):
         """Main loop that checks for and executes scheduled tasks."""
         logger.info(f"Scheduler worker {self.worker_id} started")
+        self._remove_orphan_tasks()
         
         while self.running:
             try:
                 # Clean up stale locks periodically
                 ScheduledTask.cleanup_stale_locks()
+                
+                # Master switch: when disabled, keep the worker alive (stale-lock
+                # cleanup above still runs) but never pick up a task.
+                if not scheduler_enabled():
+                    time.sleep(5)
+                    continue
                 
                 # Check each registered task
                 for task_name in self.registered_tasks.keys():
@@ -216,6 +247,18 @@ def prune_library_task():
         logger.info("Library prune batch completed")
     except Exception as e:
         logger.error(f"Error pruning library: {str(e)}", exc_info=True)
+        raise
+
+# Trim terminal Job rows so a continuously running harvest feeder cannot grow
+# the job table without bound. Keeps jobs still referenced by queued candidates.
+@scheduler.register_task(interval=86400, name="prune_jobs")  # daily
+def prune_jobs_task():
+    logger.info("Pruning old finished jobs...")
+    try:
+        call_command('prune_jobs')
+        logger.info("Old job prune completed")
+    except Exception as e:
+        logger.error(f"Error pruning old jobs: {str(e)}", exc_info=True)
         raise
 
 def start_scheduler():

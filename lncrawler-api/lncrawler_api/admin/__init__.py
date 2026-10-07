@@ -4,6 +4,7 @@ from . import (
     chapter_admin,
     comment_admin,
     downloader_admin,
+    harvest_admin,
     novel_admin,
     review_admin,
     scheduler_admin,

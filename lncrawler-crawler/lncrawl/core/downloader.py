@@ -6,10 +6,16 @@ Writes:
 - <output>/cover.jpg             downloaded or generated cover
 """
 
+import fcntl
 import html
 import itertools
 import json
 import logging
+import os
+import re
+import shutil
+import subprocess
+import tempfile
 from collections import deque
 from pathlib import Path
 
@@ -23,6 +29,103 @@ logger = logging.getLogger(__name__)
 # PIL exposes the size from the header before pixels are decoded.
 MAX_IMAGE_PIXELS = 64_000_000
 
+# Must match chapter_utils.SOURCE_LOCK_FILE on the API side: both lock the same
+# file so a chapter write never races the API's compress/extract.
+SOURCE_LOCK_FILE = ".lncrawl.lock"
+
+
+def _write_chapter_json(output_path, file_name: Path, data: dict) -> None:
+    """Write a chapter JSON, invalidating any stale solid archive.
+
+    The source folder may be locked by the API for compression/extraction, so
+    serialize on the shared lock. If an archive exists it is stale after this
+    write: restore it into ``json/`` first (a concurrent compression pass may
+    have just reclaimed the uncompressed copy) and then delete it. Keeping the
+    stale archive would make the compressor skip the source forever (permanent
+    2x storage).
+    """
+    source_dir = Path(output_path)
+    lock_fd = None
+    try:
+        lock_fd = os.open(source_dir / SOURCE_LOCK_FILE, os.O_CREAT | os.O_RDWR, 0o644)
+    except OSError:
+        lock_fd = None
+    try:
+        if lock_fd is not None:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        archive = source_dir / "json.7z"
+        if archive.exists():
+            json_dir = source_dir / "json"
+            if json_dir.exists() or _restore_archive(source_dir, archive):
+                archive.unlink()
+        file_name.parent.mkdir(parents=True, exist_ok=True)
+        with file_name.open("w", encoding="utf-8") as fp:
+            json.dump(data, fp, ensure_ascii=False)
+    finally:
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(lock_fd)
+
+
+def _is_unsafe_member(name: str) -> bool:
+    """Reject absolute paths and any ``..`` component (zip-slip)."""
+    if not name:
+        return True
+    if name.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", name):
+        return True
+    return ".." in re.split(r"[\\/]+", name)
+
+
+def _restore_archive(source_dir: Path, archive: Path) -> bool:
+    """Merge a solid archive back into ``json/`` without deleting it.
+
+    Extracts into a temp dir first (and rejects unsafe member paths), then
+    merges. Returns False on failure so the caller keeps the archive.
+    """
+    temp_dir = tempfile.mkdtemp(prefix="lncrawl_restore_", dir=str(source_dir))
+    try:
+        listing = subprocess.run(
+            ["7z", "l", "-slt", str(archive), "-bso0"],
+            capture_output=True, text=True,
+        )
+        if listing.returncode != 0:
+            return False
+        in_files = False
+        for line in listing.stdout.splitlines():
+            if line.startswith("----------"):
+                in_files = True
+                continue
+            if in_files and line.startswith("Path = "):
+                if _is_unsafe_member(line[len("Path = "):]):
+                    logger.debug("Unsafe member in archive %s", archive)
+                    return False
+
+        result = subprocess.run(
+            ["7z", "x", str(archive), f"-o{temp_dir}", "-bso0"],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            return False
+        for child in os.listdir(temp_dir):
+            src = os.path.join(temp_dir, child)
+            dst = os.path.join(str(source_dir), child)
+            if os.path.isdir(src) and os.path.isdir(dst):
+                shutil.copytree(src, dst, dirs_exist_ok=True)
+            else:
+                if os.path.isdir(dst):
+                    shutil.rmtree(dst)
+                elif os.path.exists(dst):
+                    os.remove(dst)
+                shutil.move(src, dst)
+        return True
+    except Exception:
+        logger.debug("Failed to restore archive %s", archive)
+        return False
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
 
 def _chapter_file(chapter: Chapter, output_path: str, pack_by_volume: bool) -> Path:
     dir_name = Path(output_path) / "json"
@@ -32,7 +135,7 @@ def _chapter_file(chapter: Chapter, output_path: str, pack_by_volume: bool) -> P
     return dir_name / (chapter_name + ".json")
 
 
-def _save_chapter(file_name: Path, chapter: Chapter) -> None:
+def _save_chapter(file_name: Path, chapter: Chapter, output_path: str) -> None:
     if not chapter.body:
         chapter.body = "<p><i>Failed to download chapter body</i></p>"
 
@@ -49,9 +152,7 @@ def _save_chapter(file_name: Path, chapter: Chapter) -> None:
     if not chapter.body.startswith(title):
         chapter.body = title + chapter.body
 
-    file_name.parent.mkdir(parents=True, exist_ok=True)
-    with file_name.open("w", encoding="utf-8") as fp:
-        json.dump(chapter.to_dict(), fp, ensure_ascii=False)
+    _write_chapter_json(output_path, file_name, chapter.to_dict())
 
 
 def _same_chapter(old_chapter: dict, chapter: Chapter) -> bool:
@@ -95,7 +196,7 @@ def fetch_chapter_body(app) -> None:
     app.progress = len(app.chapters) - len(pending_chapters)
     for chapter in app.crawler.download_chapters(pending_chapters):
         app.progress += 1
-        _save_chapter(file_names.get(chapter.id), chapter)
+        _save_chapter(file_names.get(chapter.id), chapter, app.output_path)
         # Written to disk; drop the body so a 3000-chapter novel does not
         # accumulate hundreds of MB in the long-lived worker process.
         chapter.body = None
@@ -176,8 +277,7 @@ def _discard_failed_images(app, chapter, failed) -> None:
     data["body"] = body
     data["images"] = dict(images)
     try:
-        with file_name.open("w", encoding="utf-8") as fp:
-            json.dump(data, fp, ensure_ascii=False)
+        _write_chapter_json(app.output_path, file_name, data)
     except Exception:
         logger.debug("Failed to rewrite chapter %s", chapter.id)
 

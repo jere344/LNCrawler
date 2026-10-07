@@ -28,7 +28,7 @@ class IxdzsCrawler(Crawler):
 
     def search_novel(self, query):
         query = query.lower().replace(" ", "+")
-        soup = self.get_soup(search_url % query)
+        soup = self.get_soup(search_url % query, verify=False)
         results = []
 
         for data in soup.select(
@@ -48,7 +48,7 @@ class IxdzsCrawler(Crawler):
         results = []
         page = 1
         while len(results) < offset + limit:
-            soup = self.get_soup(f"{self.home_url}hot/?page={page}")
+            soup = self.get_soup(f"{self.home_url}hot/?page={page}", verify=False)
             items = soup.select("li.burl h3.bname a[href]")
             if not items:
                 break
@@ -68,7 +68,7 @@ class IxdzsCrawler(Crawler):
         """Get novel title, author, cover etc"""
         self.novel_url = self.rectify_url(self.novel_url)
         logger.debug("Visiting %s", self.novel_url)
-        soup = self.get_soup(self.novel_url)
+        soup = self.get_soup(self.novel_url, verify=False)
         content = soup.select_one("div.novel")
         metadata = content.select_one("div.n-text")
 
@@ -119,7 +119,7 @@ class IxdzsCrawler(Crawler):
     def download_chapter_body(self, chapter):
 
         logger.info(f"Downloading {chapter['url']}")
-        soup = self.get_soup(chapter["url"])
+        soup = self.get_soup(chapter["url"], verify=False)
 
         possible_chapter_title = soup.select_one("article.page-content > h3")
         if possible_chapter_title:

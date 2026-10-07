@@ -21,30 +21,19 @@ TOP_K = 12
 # Python row/col lists never hold more than one chunk.
 BOOKMARK_CHUNK = 100_000
 
+# Fixed tuning: text vs bookmark weight, and matrix/bulk batch sizes.
+TEXT_WEIGHT = 0.7
+BOOKMARK_WEIGHT = 0.3
+CHUNK_SIZE = 512
+BATCH_SIZE = 2000
+
 
 class Command(BaseCommand):
     help = 'Calculate similarity scores between novels'
 
-    def add_arguments(self, parser):
-        parser.add_argument('--text-weight', type=float, default=0.7, help='Weight for text-based similarity (0-1)')
-        parser.add_argument('--bookmark-weight', type=float, default=0.3, help='Weight for bookmark-based similarity (0-1)')
-        parser.add_argument('--chunk-size', type=int, default=512, help='Rows of the similarity matrix computed at once (memory knob)')
-        parser.add_argument('--batch-size', type=int, default=2000, help='NovelSimilarity rows per bulk_create')
-
     def handle(self, *args, **kwargs):
-        text_weight = kwargs['text_weight']
-        bookmark_weight = kwargs['bookmark_weight']
-        chunk_size = max(1, kwargs['chunk_size'])
-        batch_size = max(1, kwargs['batch_size'])
-
-        if text_weight + bookmark_weight != 1.0:
-            self.stdout.write(self.style.WARNING('Weights should sum to 1.0, normalizing...'))
-            total = text_weight + bookmark_weight
-            text_weight /= total
-            bookmark_weight /= total
-
         self.stdout.write('Starting similarity calculation...')
-        self.calculate_similarities(text_weight, bookmark_weight, chunk_size, batch_size)
+        self.calculate_similarities(TEXT_WEIGHT, BOOKMARK_WEIGHT, CHUNK_SIZE, BATCH_SIZE)
         self.stdout.write(self.style.SUCCESS('Successfully calculated similarities'))
 
     def calculate_similarities(self, text_weight, bookmark_weight, chunk_size, batch_size):

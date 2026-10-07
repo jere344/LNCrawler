@@ -70,6 +70,17 @@ class Job(models.Model):
     # Number of times a crashed/stale job has been requeued for another attempt
     retry_count = models.PositiveIntegerField(default=0)
     
+    class Meta:
+        # The crawler supervisor claims the oldest queued job on every poll;
+        # a partial index keeps that scan cheap as the job table grows.
+        indexes = [
+            models.Index(
+                fields=["status", "created_at"],
+                name="job_claim_idx",
+                condition=models.Q(status="created"),
+            ),
+        ]
+    
     def __str__(self):
         return f"Job {self.id} - {self.get_status_display()}"
     

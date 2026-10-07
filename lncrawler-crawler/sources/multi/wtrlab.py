@@ -22,6 +22,13 @@ class WtrLab(Crawler):
     base_url = ["https://wtr-lab.com"]
     has_mtl = True
 
+    is_disabled = True
+    disable_reason = (
+        "Chapter reading now requires authentication (OAuth only) and bodies "
+        "are AES-encrypted client-side; anonymous API access returns no usable "
+        "text."
+    )
+
     def search_novel(self, query: str):
         # Swap: requests.post -> crawler HTTP helper. Search and reader live on
         # the apex host (the www host now returns an empty result set).

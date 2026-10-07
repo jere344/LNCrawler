@@ -72,7 +72,6 @@
     "chat": "Chat",
     "search": "Søg",
     "addNovel": "Tilføj roman",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Skift tema",
     "userFallback": "Bruger",
@@ -91,7 +90,6 @@
     "tagline": "Læs asiatiske light novels fra over 300 kilder",
     "copyright": "MIT-licens © {year} LNCrawler.",
     "links": "Links",
-    "discordCommunity": "Discord-fællesskab",
     "githubRepository": "GitHub-lager",
     "dmcaContact": "DMCA-kontakt",
     "developedBy": "Udviklet af bygourou",
@@ -303,7 +301,19 @@
       "title": "Titel",
       "date_added": "Dato tilføjet",
       "rating": "Bedømmelse"
-    }
+    },
+    "addNote": "Tilføj en note",
+    "clearSelection": "Ryd",
+    "dragToFolder": "Træk en roman over på en mappe for at arkivere den",
+    "moreActions": "Flere handlinger",
+    "moveTo": "Flyt til",
+    "moveToFolder": "Flyt til mappe",
+    "removeConfirmBody": "{count, plural, one {Fjern # roman fra dit bibliotek?} other {Fjern # romaner fra dit bibliotek?}} Dette kan ikke fortrydes.",
+    "removeConfirmTitle": "Fjern fra biblioteket?",
+    "removeFromLibrary": "Fjern fra biblioteket",
+    "select": "Vælg",
+    "selectAll": "Vælg alle",
+    "selectedCount": "{count, plural, one {# valgt} other {# valgt}}"
   },
   "history": {
     "loadFailed": "Kunne ikke indlæse din læsehistorik. Prøv igen senere.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "Indlæser kapitler | LNCrawler",
     "metaDescription": "Gennemse alle {count} kapitler for {novel} fra kilden {source} på LNCrawler. Læs light novels online med en ren læseoplevelse.",
     "metaLoadingDescription": "Indlæser kapitelliste. Opdag light novels på LNCrawler.",
-    "keywords": "{novel}, {source}, kapitelliste, alle kapitler, light novel-kapitler, web novel"
+    "keywords": "{novel}, {source}, kapitelliste, alle kapitler, light novel-kapitler, web novel",
+    "dmcaNotice": "Dette værk er blevet fjernet efter en DMCA-nedtagningsanmodning. Kapitler er ikke længere tilgængelige."
   },
   "gallery": {
     "loadFailed": "Kunne ikke indlæse billeder. Prøv igen senere.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - Læs på LNCrawler",
     "metaLoadingTitle": "Indlæser romankilde | LNCrawler",
     "metaDescription": "Læs {title} fra {source}. Synopsis: {synopsis}",
-    "metaLoadingDescription": "Indlæser detaljer om denne romankilde på LNCrawler."
+    "metaLoadingDescription": "Indlæser detaljer om denne romankilde på LNCrawler.",
+    "dmcaNotice": "Dette værk er blevet fjernet efter en DMCA-nedtagningsanmodning. Læsning og downloads er deaktiveret."
   },
   "rating": {
     "noRatings": "Ingen bedømmelser"
@@ -512,7 +524,8 @@
     "processing": "Behandler...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "Opdateringen af {title} er fuldført!",
-    "tryAgain": "Prøv at opdatere igen"
+    "tryAgain": "Prøv at opdatere igen",
+    "disabledNoCrawler": "Denne kilde understøttes ikke længere, så den kan ikke opdateres."
   },
   "comments": {
     "enterName": "Indtast dit navn",
@@ -543,7 +556,8 @@
     "showReplies": "Vis {count, plural, one {# svar} other {# svar}}",
     "loadFailed": "Kunne ikke indlæse kommentarer. Prøv at genindlæse siden.",
     "noComments": "Ingen kommentarer endnu. Vær den første til at kommentere!",
-    "mixedSourcesWarning": "Nogle af kommentarerne nedenfor blev sendt til forskellige kilder. Kilder kan bruge forskellig kapitelnummerering, så der kan forekomme spoilers eller tilsyneladende irrelevante kommentarer."
+    "mixedSourcesWarning": "Nogle af kommentarerne nedenfor blev sendt til forskellige kilder. Kilder kan bruge forskellig kapitelnummerering, så der kan forekomme spoilers eller tilsyneladende irrelevante kommentarer.",
+    "guest": "[gæst]"
   },
   "chat": {
     "title": "Fællesskabschat",
@@ -707,7 +721,8 @@
     "unlockScrolling": "Lås rulning op",
     "lockScrolling": "Lås rulning",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Side {current} af {total}"
+    "pageOf": "Side {current} af {total}",
+    "dmcaUnavailable": "Dette værk er utilgængeligt på grund af en DMCA-nedtagningsanmodning."
   },
   "readerControls": {
     "previousChapter": "Forrige kapitel",
@@ -857,5 +872,11 @@
     "applyFailed": "Import mislykkedes. Prøv igen.",
     "resultSummary": "Importerede {bookmarked} romaner ({already} allerede i biblioteket). Fremskridt angivet for {progress}.",
     "goToLibrary": "Gå til biblioteket"
+  },
+  "novelActions": {
+    "addToReadingList": "Føj til læseliste",
+    "bookmark": "Føj til bogmærker",
+    "menu": "Romanhandlinger",
+    "removeBookmark": "Fjern bogmærke"
   }
 }

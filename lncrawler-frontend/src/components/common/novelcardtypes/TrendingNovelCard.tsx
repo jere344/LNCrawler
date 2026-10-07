@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Badge, Skeleton // Added Skeleton
+  Typography, Box, Skeleton // Added Skeleton
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
@@ -11,6 +11,7 @@ import { formatCount } from '@utils/Misc';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import NovelActionsMenu from '@components/common/NovelActionsMenu';
 
 interface TrendingNovelCardProps {
   novel: Novel;
@@ -46,7 +47,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         <Box sx={{ position: 'relative', width: '100%', aspectRatio: '2/3' }}>
           <Skeleton variant="rectangular" sx={{ width: '100%', height: '100%' }} />
           {/* Placeholder for "HOT" badge */}
-          <Skeleton variant="rectangular" width={50} height={24} sx={{ position: 'absolute', top: 10, right: 10, borderRadius: 1, transform: 'translate(50%, -50%)' }}/>
+          <Skeleton variant="rectangular" width={50} height={24} sx={{ position: 'absolute', top: 8, right: 8, borderRadius: 1 }}/>
         </Box>
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1, pb: 1, px: 1.5, '&:last-child': { pb: 1 } }}>
           <Skeleton variant="text" height={28} sx={{ mb: 0.5 }} />
@@ -76,6 +77,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         '&:hover': {
           transform: 'translateY(-3px) scale(1.01)',
           boxShadow: '0px 6px 12px -3px rgba(0,0,0,0.2)',
+          zIndex: 2,
         }
       }}
     >
@@ -104,6 +106,15 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         </Box>
       )}
 
+      <NovelActionsMenu
+        novelId={novel.id}
+        novelTitle={novel.title}
+        slug={novel.slug}
+        isBookmarked={novel.is_bookmarked}
+        customSx={{ position: 'absolute', bottom: 8, right: 8, zIndex: 2 }}
+        buttonSize={28}
+      />
+
       <CardActionArea 
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
         onClick={onClick}
@@ -111,41 +122,33 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
         to={to}
         state={to ? state : undefined}
       >
-        <Badge
-          badgeContent={
-            <Box sx={{ 
-              bgcolor: 'error.main', 
-              color: 'white', 
-              px: 0.7, 
-              py: 0.3, 
+        <Box sx={{ position: 'relative', width: '100%' }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              zIndex: 2,
+              bgcolor: 'error.main',
+              color: 'white',
+              px: 0.7,
+              py: 0.3,
               borderRadius: 1,
               display: 'flex',
               alignItems: 'center',
               gap: 0.3,
-
-            }}>
-              <WhatshotIcon sx={{ fontSize: '0.9rem' }} />
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: "bold",
-                  fontSize: "0.7rem"
-                }}>
-                {t('cards.hot')}
-              </Typography>
-            </Box>
-          }
-          sx={{
-            '& .MuiBadge-badge': {
-              top: 12,
-              right: 12,
-              border: 'none',
-              borderColor: 'background.paper',
-            },
-            display: 'block',
-            width: '100%'
-          }}
-        >
+            }}
+          >
+            <WhatshotIcon sx={{ fontSize: '0.9rem' }} />
+            <Typography
+              variant="caption"
+              sx={{
+                fontWeight: "bold",
+                fontSize: "0.7rem"
+              }}>
+              {t('cards.hot')}
+            </Typography>
+          </Box>
           <CardMedia
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
@@ -157,7 +160,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               display: 'block',
             }}
           />
-        </Badge>
+        </Box>
         
         <CardContent sx={{ 
           flexGrow: 1, 

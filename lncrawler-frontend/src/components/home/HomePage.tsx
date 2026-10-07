@@ -338,6 +338,7 @@ const HomePage: React.FC = () => {
         ) : homeData?.featured_novel ? (
           <FeaturedNovelCard 
             source={(homeData.featured_novel.novel.reading_source ?? homeData.featured_novel.novel.prefered_source) as NovelFromSource}
+            isBookmarked={homeData.featured_novel.novel.is_bookmarked}
             {...getNovelSourceLink(homeData.featured_novel.novel)}
           />
         ) : (

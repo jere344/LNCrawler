@@ -72,7 +72,6 @@
     "chat": "Chat",
     "search": "Search",
     "addNovel": "Add Novel",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Change theme",
     "userFallback": "User",
@@ -91,7 +90,6 @@
     "tagline": "Read Asian Light Novels from 300+ Sources",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "Links",
-    "discordCommunity": "Discord Community",
     "githubRepository": "GitHub Repository",
     "dmcaContact": "DMCA Contact",
     "developedBy": "Developed by bygourou",
@@ -547,6 +545,7 @@
     "empty": "Comment cannot be empty",
     "editFailed": "Failed to edit comment. Please try again.",
     "edited": "(edited)",
+    "guest": "[guest]",
     "editTooltip": "Edit comment",
     "postedAt": "Comment posted at {chapter}",
     "fromSource": "from {source}",
@@ -615,6 +614,12 @@
     "removeTooltip": "Click to remove from this list",
     "novelsCount": "{count} novels",
     "createNewList": "Create New List"
+  },
+  "novelActions": {
+    "menu": "Novel actions",
+    "bookmark": "Bookmark",
+    "removeBookmark": "Remove bookmark",
+    "addToReadingList": "Add to reading list"
   },
   "markAsRead": {
     "tooltip": "Mark as read",

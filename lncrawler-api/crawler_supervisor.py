@@ -39,12 +39,14 @@ TABLE = "lncrawler_api_job"
 MAX_RETRIES = 1
 
 # Claim the oldest queued job atomically. FOR UPDATE SKIP LOCKED lets several
-# supervisors claim concurrently without a lost-race retry loop.
+# supervisors claim concurrently without a lost-race retry loop. User/foreground
+# jobs are preferred over background harvest jobs (query 'harvest:%'); the
+# COALESCE keeps NULL-query rows (manual/test jobs) in the foreground bucket.
 CLAIM_SQL = f"""
 WITH next AS (
     SELECT id FROM {TABLE}
     WHERE status = 'created'
-    ORDER BY created_at
+    ORDER BY (COALESCE(query, '') LIKE 'harvest:%'), created_at
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
@@ -292,9 +294,9 @@ def self_check():
             cur.execute(
                 f"INSERT INTO {TABLE} "
                 "(id, status, job_type, query, created_at, updated_at, progress, "
-                "total_items, progress_unit) "
+                "total_items, progress_unit, retry_count) "
                 "VALUES (gen_random_uuid(), 'created', 'search', 'selfcheck', "
-                "now() - interval '100 years', now(), 0, 0, 'chapters') RETURNING id"
+                "now() - interval '100 years', now(), 0, 0, 'chapters', 0) RETURNING id"
             )
             job_id = cur.fetchone()[0]
         row = claim(conn)

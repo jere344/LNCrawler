@@ -12,6 +12,7 @@ import {
     Chip,
     Alert,
     Grid,
+    Link as MuiLink,
 } from '@mui/material';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +25,7 @@ import { useAuth } from '@context/AuthContext';
 import FriendButton from './FriendButton';
 import FriendsTab from './FriendsTab';
 import { BaseNovelCard } from '@components/common/novelcardtypes/BaseNovelCard';
-import { getNovelSourceLink, formatDate, formatNumber } from '@utils/Misc';
+import { getNovelSourceLink, formatDate, formatDateTime, formatNumber } from '@utils/Misc';
 import ReadingListCard from '@components/readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 import PublicLibraryTab from '@components/library/PublicLibraryTab';
@@ -93,7 +94,6 @@ const PublicProfilePage: React.FC = () => {
         { key: 'reading_lists', label: t('profile.tabs.readingLists'), visible: canSee('reading_lists') },
         { key: 'reviews', label: t('profile.tabs.reviews'), visible: canSee('reviews') },
         { key: 'comments', label: t('profile.tabs.comments'), visible: canSee('comments') },
-        { key: 'friends', label: t('profile.tabs.friends'), visible: canSee('friends') },
     ].filter((item) => item.visible);
 
     return (
@@ -165,7 +165,7 @@ const PublicProfilePage: React.FC = () => {
                 ))}
             </Tabs>
 
-            {tabs[tab]?.key === 'overview' && <OverviewTab profile={profile} />}
+            {tabs[tab]?.key === 'overview' && <OverviewTab profile={profile} showFriends={canSee('friends')} />}
             {tabs[tab]?.key === 'library' && (
                 <PublicLibraryTab
                     username={profile.username}
@@ -176,12 +176,11 @@ const PublicProfilePage: React.FC = () => {
             {tabs[tab]?.key === 'reading_lists' && <ReadingListsTab username={profile.username} />}
             {tabs[tab]?.key === 'reviews' && <ReviewsTab username={profile.username} />}
             {tabs[tab]?.key === 'comments' && <CommentsTab username={profile.username} />}
-            {tabs[tab]?.key === 'friends' && <FriendsTab username={profile.username} />}
         </Box>
     );
 };
 
-const OverviewTab: React.FC<{ profile: PublicProfile }> = ({ profile }) => {
+const OverviewTab: React.FC<{ profile: PublicProfile; showFriends: boolean }> = ({ profile, showFriends }) => {
     const { t, i18n } = useTranslation();
     const hasGatedContent =
         profile.stats ||
@@ -252,7 +251,7 @@ const OverviewTab: React.FC<{ profile: PublicProfile }> = ({ profile }) => {
             )}
 
             {profile.recent_reads && profile.recent_reads.length > 0 && (
-                <Box>
+                <Box sx={{ mb: 3 }}>
                     <Typography variant="h6" gutterBottom>{t('profile.recentReads')}</Typography>
                     <Grid container spacing={2}>
                         {profile.recent_reads.map((read) => (
@@ -263,6 +262,8 @@ const OverviewTab: React.FC<{ profile: PublicProfile }> = ({ profile }) => {
                     </Grid>
                 </Box>
             )}
+
+            {showFriends && <FriendsTab username={profile.username} />}
         </Box>
     );
 };
@@ -358,7 +359,11 @@ const CommentMessage: React.FC<{ comment: Comment }> = ({ comment }) => {
     const [revealed, setRevealed] = useState(false);
 
     if (!comment.contains_spoiler) {
-        return <Typography sx={{ mt: 1 }}>{comment.message}</Typography>;
+        return (
+            <Typography sx={{ mt: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {comment.message}
+            </Typography>
+        );
     }
 
     return (
@@ -389,7 +394,7 @@ const CommentMessage: React.FC<{ comment: Comment }> = ({ comment }) => {
 };
 
 const CommentsTab: React.FC<{ username: string }> = ({ username }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [comments, setComments] = useState<Comment[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
@@ -423,15 +428,20 @@ const CommentsTab: React.FC<{ username: string }> = ({ username }) => {
                     return (
                         <Grid key={comment.id} size={12}>
                             <Paper sx={{ p: 2 }}>
-                                <Typography variant="body2" color="text.secondary">
-                                    {targetPath ? (
-                                        <Link to={targetPath}>
-                                            {comment.target_title || t('profile.commentOn')}
-                                        </Link>
-                                    ) : (
-                                        comment.target_title || t('profile.commentOn')
-                                    )}
-                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 2 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {targetPath ? (
+                                            <MuiLink component={Link} to={targetPath} underline="hover">
+                                                {comment.target_title || t('profile.commentOn')}
+                                            </MuiLink>
+                                        ) : (
+                                            comment.target_title || t('profile.commentOn')
+                                        )}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                                        {formatDateTime(comment.created_at, i18n.language)}
+                                    </Typography>
+                                </Box>
                                 <CommentMessage comment={comment} />
                             </Paper>
                         </Grid>

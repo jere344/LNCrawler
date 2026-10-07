@@ -153,8 +153,9 @@ CRAWLER_REPLICAS=4
 docker compose up -d --scale crawler=4
 ```
 
-The `scheduler` must stay at one instance. It is designed so that even if a
-second one starts, DB-level locking prevents duplicate task execution.
+The `scheduler` and `harvest` services must each stay at one instance. Both are
+designed so that even if a second one starts, DB-level locking prevents
+duplicate work.
 
 ## Configuration Reference
 
@@ -210,9 +211,35 @@ the console instead of sending them.
 ### Crawler
 
 - `CRAWLER_REPLICAS` — number of worker replicas (default `1`).
+- `CRAWLER_CONCURRENCY` *(optional)* — concurrent job subprocesses per worker
+  (default `5`). Each job is its own process, so raise `CRAWLER_MEM_LIMIT`
+  alongside it.
+- `CRAWLER_MEM_LIMIT` *(optional)* — per-crawler cgroup memory cap (default
+  `2g`); a runaway job OOM-kills the worker, not the host.
+- `CRAWLER_POLL`, `CRAWLER_STALE_MINUTES`, `CRAWLER_REQUEUE_EVERY` *(optional)*
+  — queue polling and stale-job retry tuning.
 - `LNCRAWL_<KEY>_USERNAME` / `LNCRAWL_<KEY>_PASSWORD` — credentials for
   login-gated sources, where `<KEY>` is the source's canonical domain label
   uppercased (e.g. `LNCRAWL_CYRISIA_USERNAME`).
+
+### Scheduled maintenance
+
+- `SCHEDULER_ENABLED` *(optional)* — master switch for all background
+  maintenance tasks (default `True`). Set to `False` to stop them and run the
+  commands by hand instead. The scheduler container stays up either way.
+- `LNCRAWL_PRUNE_APPLY` *(optional)* — set to `False` to skip the destructive
+  scheduled library prune (it defaults to enabled).
+
+### Harvest feeder
+
+The `harvest` service discovers novels from each source's browse page and
+queues download jobs. It is always running but inert until enabled in the
+admin (**Maintenance → Harvest**). Control it there — no `.env` change or
+restart is needed.
+
+- `HARVEST_INTERVAL` *(optional)* — seconds between feeder loop iterations.
+- `HARVEST_REFRESH_SECONDS` *(optional)* — minimum gap between browse scans.
+- `HARVEST_SCAN_TIMEOUT` *(optional)* — seconds before a browse scan is killed.
 
 ### Error reporting
 
@@ -224,6 +251,10 @@ the console instead of sending them.
 
 ## Common Operations
 
+Most routine maintenance runs automatically. The admin **Scheduled tasks →
+Maintenance** page can start/stop the harvest feeder, trigger a scan, import
+from `imports/`, test a source, and run any scheduled task on demand.
+
 Run Django management commands inside the running API container:
 
 ```bash
@@ -233,11 +264,14 @@ docker compose exec api python manage.py shell
 
 # Import novels dropped as files into imports/ (default action: move)
 docker compose exec api python manage.py run_import --action copy
+
+# Smoke-test a crawler source (add --inspect to dump its HTML + metadata)
+docker compose exec api python manage.py check_source --url NOVEL_URL
 ```
 
 Useful commands: `calculate_similarities`, `compress_low_traffic_novels`,
-`consolidate_source_views`, `generate_cover_min`, `merge_novels`, `merge_tags`,
-`prune_library`, `update_popular_sources`. List them all with:
+`consolidate_source_views`, `check_source`, `prune_library`, `prune_jobs`,
+`update_popular_sources`. List them all with:
 
 ```bash
 docker compose exec api python manage.py help
@@ -250,19 +284,17 @@ lncrawler/
 ├── docker-compose.yml       # Service definitions and wiring
 ├── .env.example             # Documented environment template
 ├── nginx-proxy/             # Public reverse proxy (Host-based routing)
-├── lncrawler-api/           # Django REST API + workers + scheduler
+├── lncrawler-api/           # Django REST API + workers + scheduler + harvest
 │   ├── api_project/         # Settings, URLs, logging, GitHub reporting
 │   ├── lncrawler_api/       # Models, views, services, management commands
 │   ├── auth_app/            # User model, auth and email
-│   └── start*.sh            # api / crawler / scheduler entrypoints
+│   └── start*.sh            # api / crawler / scheduler / harvest entrypoints
 ├── lncrawler-frontend/      # React + Vite SPA
 ├── lncrawler-crawler/       # Crawler engine (lncrawl) and source definitions
 │   ├── lncrawl/             # Core engine, models, browser backends
-│   ├── sources/             # Ported sources, grouped by language
-│   └── tools/               # Source smoke-test / inspection helpers
+│   └── sources/             # Ported sources, grouped by language
 ├── Lightnovels/             # Downloaded library files (volume)
-├── imports/                 # Drop folder consumed by run_import (volume)
-└── scripts/                 # Standalone EPUB parsing utilities
+└── imports/                 # Drop folder consumed by run_import (volume)
 ```
 
 ## Contributing
@@ -271,7 +303,9 @@ Contributions are welcome. Please open an issue or a pull request. When adding
 or changing a crawler source, run the source harness first:
 
 ```bash
-python lncrawler-crawler/tools/check_source.py --file lncrawler-crawler/sources/en/x/foo.py --url NOVEL_URL
+docker compose exec api python manage.py check_source --url NOVEL_URL
+# or, against a source file before it is registered:
+docker compose exec api python manage.py check_source --file sources/en/x/foo.py --query "reincarnation"
 ```
 
 ## License

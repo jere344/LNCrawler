@@ -81,8 +81,10 @@ const profileService = {
 
   // A user's friends
   getUserFriends: async (username: string): Promise<User[]> => {
-    const response = await api.get(`/users/profile/${encodeURIComponent(username)}/friends/`);
-    return response.data;
+    const response = await api.get(`/users/profile/${encodeURIComponent(username)}/friends/`, {
+      params: { page_size: 100 },
+    });
+    return response.data.results;
   },
 
   // Pin / unpin a novel on the current user's own profile

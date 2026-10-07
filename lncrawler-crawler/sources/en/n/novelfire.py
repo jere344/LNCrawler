@@ -17,6 +17,10 @@ class NovelFireCrawler(Crawler):
 
     language = "en"
 
+    def initialize(self) -> None:
+        # Cloudflare 429s on burst; space requests (~0.5s) and serialise.
+        self.init_executor(ratelimit=2)
+
     def search_novel(self, query: str) -> List[SearchResult]:
         soup = self.get_soup(f"{self.home_url}search?keyword={quote_plus(query)}")
         return [

@@ -72,7 +72,6 @@
     "chat": "Trò chuyện",
     "search": "Tìm kiếm",
     "addNovel": "Thêm tiểu thuyết",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Đổi chủ đề",
     "userFallback": "Người dùng",
@@ -91,7 +90,6 @@
     "tagline": "Đọc tiểu thuyết ánh sáng châu Á từ hơn 300 nguồn",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "Liên kết",
-    "discordCommunity": "Cộng đồng Discord",
     "githubRepository": "Kho GitHub",
     "dmcaContact": "Liên hệ DMCA",
     "developedBy": "Phát triển bởi bygourou",
@@ -303,7 +301,19 @@
       "title": "Tiêu đề",
       "date_added": "Ngày thêm",
       "rating": "Đánh giá"
-    }
+    },
+    "addNote": "Thêm ghi chú",
+    "clearSelection": "Xóa",
+    "dragToFolder": "Kéo một tiểu thuyết vào thư mục để lưu trữ",
+    "moreActions": "Thao tác khác",
+    "moveTo": "Di chuyển đến",
+    "moveToFolder": "Di chuyển vào thư mục",
+    "removeConfirmBody": "{count, plural, one {Xóa # tiểu thuyết khỏi thư viện của bạn?} other {Xóa # tiểu thuyết khỏi thư viện của bạn?}} Hành động này không thể hoàn tác.",
+    "removeConfirmTitle": "Xóa khỏi thư viện?",
+    "removeFromLibrary": "Xóa khỏi thư viện",
+    "select": "Chọn",
+    "selectAll": "Chọn tất cả",
+    "selectedCount": "{count, plural, one {Đã chọn #} other {Đã chọn #}}"
   },
   "history": {
     "loadFailed": "Tải lịch sử đọc thất bại. Vui lòng thử lại sau.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "Đang tải chương | LNCrawler",
     "metaDescription": "Duyệt tất cả {count} chương của {novel} từ nguồn {source} trên LNCrawler. Đọc tiểu thuyết ánh sáng trực tuyến với trải nghiệm đọc gọn gàng.",
     "metaLoadingDescription": "Đang tải danh sách chương. Khám phá tiểu thuyết ánh sáng trên LNCrawler.",
-    "keywords": "{novel}, {source}, danh sách chương, tất cả chương, chương tiểu thuyết ánh sáng, web novel"
+    "keywords": "{novel}, {source}, danh sách chương, tất cả chương, chương tiểu thuyết ánh sáng, web novel",
+    "dmcaNotice": "Tác phẩm này đã bị xóa theo yêu cầu gỡ bỏ DMCA. Các chương không còn khả dụng."
   },
   "gallery": {
     "loadFailed": "Tải hình ảnh thất bại. Vui lòng thử lại sau.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - Đọc trên LNCrawler",
     "metaLoadingTitle": "Đang tải nguồn tiểu thuyết | LNCrawler",
     "metaDescription": "Đọc {title} từ {source}. Tóm tắt: {synopsis}",
-    "metaLoadingDescription": "Đang tải chi tiết nguồn tiểu thuyết này trên LNCrawler."
+    "metaLoadingDescription": "Đang tải chi tiết nguồn tiểu thuyết này trên LNCrawler.",
+    "dmcaNotice": "Tác phẩm này đã bị xóa theo yêu cầu gỡ bỏ DMCA. Việc đọc và tải xuống đã bị vô hiệu hóa."
   },
   "rating": {
     "noRatings": "Chưa có đánh giá"
@@ -512,7 +524,8 @@
     "processing": "Đang xử lý...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "Cập nhật hoàn tất cho {title}!",
-    "tryAgain": "Thử cập nhật lại"
+    "tryAgain": "Thử cập nhật lại",
+    "disabledNoCrawler": "Nguồn này không còn được hỗ trợ nên không thể cập nhật."
   },
   "comments": {
     "enterName": "Vui lòng nhập tên của bạn",
@@ -543,7 +556,8 @@
     "showReplies": "{count, plural, one {Hiện # trả lời} other {Hiện # trả lời}}",
     "loadFailed": "Tải bình luận thất bại. Vui lòng thử làm mới trang.",
     "noComments": "Chưa có bình luận. Hãy là người đầu tiên bình luận!",
-    "mixedSourcesWarning": "Một số bình luận bên dưới được đăng cho các nguồn khác nhau. Các nguồn có thể dùng cách đánh số chương khác nhau nên có thể có nội dung tiết lộ hoặc bình luận có vẻ không liên quan."
+    "mixedSourcesWarning": "Một số bình luận bên dưới được đăng cho các nguồn khác nhau. Các nguồn có thể dùng cách đánh số chương khác nhau nên có thể có nội dung tiết lộ hoặc bình luận có vẻ không liên quan.",
+    "guest": "[khách]"
   },
   "chat": {
     "title": "Trò chuyện cộng đồng",
@@ -707,7 +721,8 @@
     "unlockScrolling": "Mở khóa cuộn",
     "lockScrolling": "Khóa cuộn",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Trang {current} / {total}"
+    "pageOf": "Trang {current} / {total}",
+    "dmcaUnavailable": "Tác phẩm này không khả dụng do yêu cầu gỡ bỏ DMCA."
   },
   "readerControls": {
     "previousChapter": "Chương trước",
@@ -857,5 +872,11 @@
     "applyFailed": "Nhập thất bại. Vui lòng thử lại.",
     "resultSummary": "Đã nhập {bookmarked} tiểu thuyết ({already} đã có trong thư viện). Đã đặt tiến trình cho {progress}.",
     "goToLibrary": "Đến thư viện"
+  },
+  "novelActions": {
+    "addToReadingList": "Thêm vào danh sách đọc",
+    "bookmark": "Thêm dấu trang",
+    "menu": "Thao tác tiểu thuyết",
+    "removeBookmark": "Xóa dấu trang"
   }
 }

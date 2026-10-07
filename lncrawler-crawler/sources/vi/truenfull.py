@@ -154,6 +154,7 @@ class TruenFull(Crawler):
             )
 
     def initialize(self) -> None:
+        self.init_executor(ratelimit=2)
         self.cleaner.bad_css = set(
             [
                 ".ads-content",

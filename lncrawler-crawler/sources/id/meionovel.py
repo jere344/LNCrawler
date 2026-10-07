@@ -11,6 +11,13 @@ search_url = "https://meionovels.com/wp-admin/admin-ajax.php"
 class MeionovelCrawler(Crawler):
     base_url = ["https://meionovel.id/", "https://meionovels.com/"]
 
+    is_disabled = True
+    disable_reason = (
+        "Cloudflare managed challenge (cf-mitigated: challenge) blocks this "
+        "host; fails in curl_cffi and headless Playwright. Needs a residential "
+        "proxy."
+    )
+
     def initialize(self):
         self.home_url = "https://meionovels.com/"
 

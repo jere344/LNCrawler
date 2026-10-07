@@ -1,3 +1,4 @@
+import threading
 import time
 
 
@@ -12,6 +13,7 @@ class RateLimiter:
             raise ValueError("ratelimit should be a non-zero positive number")
         self.period = 1 / ratelimit
         self._closed = False
+        self._lock = threading.Lock()
 
     def __enter__(self):
         self._time = time.monotonic()
@@ -28,8 +30,12 @@ class RateLimiter:
         self._closed = True
 
     def wrap(self, fn):
+        # The lock is held across the whole call: requests must start at least
+        # `period` apart even when the main thread and a worker share this
+        # limiter (ratelimit>0 forces workers=1, but callers may still overlap).
         def inner(*args, **kwargs):
-            with self:
-                return fn(*args, **kwargs)
+            with self._lock:
+                with self:
+                    return fn(*args, **kwargs)
 
         return inner

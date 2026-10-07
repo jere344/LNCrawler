@@ -14,6 +14,7 @@ const NovelSynopsis: React.FC<NovelSynopsisProps> = ({ synopsis }) => {
           lineHeight: 1.8,
           textAlign: 'justify',
           '& p': { mb: 1.5 },
+          '& img': { maxWidth: '100%', height: 'auto' },
         }} 
         dangerouslySetInnerHTML={{ __html: synopsis }} 
       />

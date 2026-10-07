@@ -63,6 +63,11 @@ interface ActionButtonProps {
    * Full width button
    */
   fullWidth?: boolean;
+
+  /**
+   * Render a smaller, content-sized button without subtitle or background icon
+   */
+  compact?: boolean;
 }
 
 /**
@@ -83,31 +88,44 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   tooltipPlacement = "top",
   sx = {},
   fullWidth = true,
+  compact = false,
 }) => {
   const buttonProps = {
     variant: "contained" as const,
     color,
-    size: "large" as const,
+    size: compact ? ("medium" as const) : ("large" as const),
     fullWidth,
     startIcon,
     disabled,
     sx: [
-      {
-        borderRadius: '12px',
-        p: 1.5,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-        textAlign: 'left',
-        position: 'relative',
-        overflow: 'hidden',
-      },
+      compact
+        ? {
+            borderRadius: '10px',
+            py: 0.75,
+            px: 1.5,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            whiteSpace: 'nowrap',
+          }
+        : {
+            borderRadius: '12px',
+            p: 1.5,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            display: 'flex',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            textAlign: 'left',
+            position: 'relative',
+            overflow: 'hidden',
+          },
       sx,
     ] as SxProps<Theme>,
   };
 
-  const buttonContent = (
+  const buttonContent = compact ? (
+    <Typography variant="button" sx={{ fontWeight: 600 }}>
+      {title}
+    </Typography>
+  ) : (
     <>
       <Box sx={{ zIndex: 1 }}>
         <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>

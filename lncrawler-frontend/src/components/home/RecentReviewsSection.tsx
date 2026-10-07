@@ -15,6 +15,7 @@ import {
 import { Link } from 'react-router-dom';
 import { Review } from '@services/review.service';
 import ReadOnlyMDXEditor from '@components/common/reviews/ReadOnlyMDXEditor';
+import UserLink from '@components/profile/UserLink';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { formatTimeAgo } from '@utils/Misc';
@@ -88,6 +89,8 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Avatar 
+                          component={Link}
+                          to={`/u/${encodeURIComponent(review.user.username)}`}
                           src={review.user.profile_pic} 
                           alt={review.user.username}
                         >
@@ -97,7 +100,7 @@ const RecentReviewsSection: React.FC<RecentReviewsSectionProps> = ({ reviews, is
                           <Typography variant="body2" sx={{
                             fontWeight: "bold"
                           }}>
-                            {review.user.username}
+                            <UserLink username={review.user.username} />
                           </Typography>
                           <Typography variant="caption" sx={{
                             color: "text.secondary"

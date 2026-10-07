@@ -72,7 +72,6 @@
     "chat": "แชท",
     "search": "ค้นหา",
     "addNovel": "เพิ่มนิยาย",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "เปลี่ยนธีม",
     "userFallback": "ผู้ใช้",
@@ -91,7 +90,6 @@
     "tagline": "อ่านไลต์โนเวลเอเชียจากกว่า 300 แหล่ง",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "ลิงก์",
-    "discordCommunity": "ชุมชน Discord",
     "githubRepository": "ที่เก็บ GitHub",
     "dmcaContact": "ติดต่อ DMCA",
     "developedBy": "พัฒนาโดย bygourou",
@@ -303,7 +301,19 @@
       "title": "ชื่อเรื่อง",
       "date_added": "วันที่เพิ่ม",
       "rating": "คะแนน"
-    }
+    },
+    "addNote": "เพิ่มบันทึก",
+    "clearSelection": "ล้าง",
+    "dragToFolder": "ลากนิยายไปยังโฟลเดอร์เพื่อจัดเก็บ",
+    "moreActions": "การดำเนินการเพิ่มเติม",
+    "moveTo": "ย้ายไปยัง",
+    "moveToFolder": "ย้ายไปยังโฟลเดอร์",
+    "removeConfirmBody": "{count, plural, one {ลบ # เรื่องออกจากคลังของคุณหรือไม่?} other {ลบ # เรื่องออกจากคลังของคุณหรือไม่?}} การกระทำนี้ไม่สามารถย้อนกลับได้",
+    "removeConfirmTitle": "ลบออกจากคลังหรือไม่?",
+    "removeFromLibrary": "ลบออกจากคลัง",
+    "select": "เลือก",
+    "selectAll": "เลือกทั้งหมด",
+    "selectedCount": "{count, plural, one {เลือก #} other {เลือก #}}"
   },
   "history": {
     "loadFailed": "โหลดประวัติการอ่านของคุณไม่สำเร็จ กรุณาลองใหม่ภายหลัง",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "กำลังโหลดบท | LNCrawler",
     "metaDescription": "เรียกดูทั้งหมด {count} บทของ {novel} จากแหล่ง {source} บน LNCrawler อ่านไลต์โนเวลออนไลน์ด้วยประสบการณ์การอ่านที่สะอาดตา",
     "metaLoadingDescription": "กำลังโหลดรายการบท ค้นพบไลต์โนเวลบน LNCrawler",
-    "keywords": "{novel}, {source}, รายการบท, ทุกบท, บทไลต์โนเวล, นิยายเว็บ"
+    "keywords": "{novel}, {source}, รายการบท, ทุกบท, บทไลต์โนเวล, นิยายเว็บ",
+    "dmcaNotice": "ผลงานนี้ถูกลบออกตามคำขอ DMCA บทต่างๆ ไม่พร้อมใช้งานอีกต่อไป"
   },
   "gallery": {
     "loadFailed": "โหลดรูปภาพไม่สำเร็จ กรุณาลองใหม่ภายหลัง",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - อ่านบน LNCrawler",
     "metaLoadingTitle": "กำลังโหลดแหล่งนิยาย | LNCrawler",
     "metaDescription": "อ่าน {title} จาก {source} เรื่องย่อ: {synopsis}",
-    "metaLoadingDescription": "กำลังโหลดรายละเอียดของแหล่งนิยายนี้บน LNCrawler"
+    "metaLoadingDescription": "กำลังโหลดรายละเอียดของแหล่งนิยายนี้บน LNCrawler",
+    "dmcaNotice": "ผลงานนี้ถูกลบออกตามคำขอ DMCA การอ่านและการดาวน์โหลดถูกปิดใช้งาน"
   },
   "rating": {
     "noRatings": "ยังไม่มีคะแนน"
@@ -512,7 +524,8 @@
     "processing": "กำลังประมวลผล...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "อัปเดต {title} เสร็จสมบูรณ์!",
-    "tryAgain": "ลองอัปเดตอีกครั้ง"
+    "tryAgain": "ลองอัปเดตอีกครั้ง",
+    "disabledNoCrawler": "แหล่งนี้ไม่ได้รับการสนับสนุนอีกต่อไป จึงไม่สามารถอัปเดตได้"
   },
   "comments": {
     "enterName": "กรุณากรอกชื่อของคุณ",
@@ -543,7 +556,8 @@
     "showReplies": "{count, plural, one {แสดง # การตอบกลับ} other {แสดง # การตอบกลับ}}",
     "loadFailed": "โหลดความคิดเห็นไม่สำเร็จ กรุณาลองรีเฟรชหน้า",
     "noComments": "ยังไม่มีความคิดเห็น มาเป็นคนแรกที่แสดงความคิดเห็นกันเถอะ!",
-    "mixedSourcesWarning": "ความคิดเห็นบางส่วนด้านล่างถูกโพสต์สำหรับแหล่งที่แตกต่างกัน แหล่งต่างๆ อาจใช้การกำหนดหมายเลขบทต่างกัน จึงอาจมีสปอยล์หรือความคิดเห็นที่ดูเหมือนไม่เกี่ยวข้อง"
+    "mixedSourcesWarning": "ความคิดเห็นบางส่วนด้านล่างถูกโพสต์สำหรับแหล่งที่แตกต่างกัน แหล่งต่างๆ อาจใช้การกำหนดหมายเลขบทต่างกัน จึงอาจมีสปอยล์หรือความคิดเห็นที่ดูเหมือนไม่เกี่ยวข้อง",
+    "guest": "[ผู้เยี่ยมชม]"
   },
   "chat": {
     "title": "แชทชุมชน",
@@ -707,7 +721,8 @@
     "unlockScrolling": "ปลดล็อกการเลื่อน",
     "lockScrolling": "ล็อกการเลื่อน",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "หน้า {current} จาก {total}"
+    "pageOf": "หน้า {current} จาก {total}",
+    "dmcaUnavailable": "ผลงานนี้ไม่พร้อมใช้งานเนื่องจากคำขอ DMCA"
   },
   "readerControls": {
     "previousChapter": "บทก่อนหน้า",
@@ -857,5 +872,11 @@
     "applyFailed": "การนำเข้าล้มเหลว โปรดลองอีกครั้ง",
     "resultSummary": "นำเข้า {bookmarked} นิยายแล้ว ({already} อยู่ในคลังแล้ว) ตั้งค่าความคืบหน้าสำหรับ {progress}",
     "goToLibrary": "ไปที่คลัง"
+  },
+  "novelActions": {
+    "addToReadingList": "เพิ่มในรายการอ่าน",
+    "bookmark": "เพิ่มบุ๊กมาร์ก",
+    "menu": "การดำเนินการกับนิยาย",
+    "removeBookmark": "ลบบุ๊กมาร์ก"
   }
 }

@@ -66,9 +66,9 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
 
   const arrowSx = {
     position: 'absolute',
-    top: '50%',
+    top: '42%',
     transform: 'translateY(-50%)',
-    zIndex: 2,
+    zIndex: 3,
     backgroundColor: alpha(theme.palette.primary.main, 0.9),
     color: theme.palette.primary.contrastText,
     '&:hover': { backgroundColor: theme.palette.primary.main },

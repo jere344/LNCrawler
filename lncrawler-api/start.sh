@@ -13,6 +13,11 @@ echo "Database is ready!"
 echo "Applying migrations..."
 python manage.py migrate --noinput
 
+# One-time repair of cached Chapter.has_content from the on-disk metadata.
+# Idempotent and guarded by a marker, so it is a no-op on later boots.
+echo "Backfilling chapter content flags..."
+python manage.py backfill_chapter_has_content || echo "has_content backfill failed; continuing."
+
 # echo "Migration status after applying..."
 # python manage.py showmigrations
 

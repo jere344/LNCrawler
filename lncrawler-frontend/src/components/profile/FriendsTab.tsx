@@ -28,6 +28,7 @@ const FriendsTab: React.FC<FriendsTabProps> = ({ username }) => {
 
     const [options, setOptions] = useState<User[]>([]);
     const [search, setSearch] = useState('');
+    const [selected, setSelected] = useState<User | null>(null);
     const [sending, setSending] = useState(false);
 
     useEffect(() => {
@@ -53,6 +54,7 @@ const FriendsTab: React.FC<FriendsTabProps> = ({ username }) => {
         try {
             await friendService.sendRequest(selected.username);
             setSearch('');
+            setSelected(null);
             setOptions([]);
         } catch (err) {
             console.error('Error sending friend request:', err);
@@ -75,15 +77,22 @@ const FriendsTab: React.FC<FriendsTabProps> = ({ username }) => {
                             options={options}
                             getOptionLabel={(option) => option.username}
                             isOptionEqualToValue={(option, value) => option.id === value.id}
-                            value={null}
+                            value={selected}
                             inputValue={search}
                             onInputChange={(_, value) => setSearch(value)}
-                            onChange={(_, value) => handleSend(value)}
+                            onChange={(_, value) => setSelected(value)}
                             renderInput={(params) => (
                                 <TextField {...params} label={t('friends.searchUsers')} />
                             )}
                         />
-                        <Button variant="contained" startIcon={sending ? <CircularProgress size={16} /> : <PersonAddIcon />} disabled>
+                        <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={sending ? <CircularProgress size={16} /> : <PersonAddIcon />}
+                            disabled={!selected || sending}
+                            onClick={() => handleSend(selected)}
+                            sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
                             {t('friends.sendRequest')}
                         </Button>
                     </Box>

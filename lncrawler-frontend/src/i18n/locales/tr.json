@@ -72,7 +72,6 @@
     "chat": "Sohbet",
     "search": "Ara",
     "addNovel": "Roman Ekle",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Temayı değiştir",
     "userFallback": "Kullanıcı",
@@ -91,7 +90,6 @@
     "tagline": "300'den Fazla Kaynaktan Asya Light Novel'ları Okuyun",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "Bağlantılar",
-    "discordCommunity": "Discord Topluluğu",
     "githubRepository": "GitHub Deposu",
     "dmcaContact": "DMCA İletişim",
     "developedBy": "bygourou tarafından geliştirildi",
@@ -303,7 +301,19 @@
       "title": "Başlık",
       "date_added": "Eklenme tarihi",
       "rating": "Puan"
-    }
+    },
+    "addNote": "Not ekle",
+    "clearSelection": "Temizle",
+    "dragToFolder": "Bir romanı bir klasöre sürükleyerek dosyalayın",
+    "moreActions": "Diğer işlemler",
+    "moveTo": "Şuraya taşı",
+    "moveToFolder": "Klasöre taşı",
+    "removeConfirmBody": "{count, plural, one {# romanı kütüphanenizden kaldır?} other {# romanı kütüphanenizden kaldır?}} Bu işlem geri alınamaz.",
+    "removeConfirmTitle": "Kütüphaneden kaldırılsın mı?",
+    "removeFromLibrary": "Kütüphaneden kaldır",
+    "select": "Seç",
+    "selectAll": "Tümünü seç",
+    "selectedCount": "{count, plural, one {# seçildi} other {# seçildi}}"
   },
   "history": {
     "loadFailed": "Okuma geçmişiniz yüklenemedi. Lütfen daha sonra tekrar deneyin.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "Bölümler Yükleniyor | LNCrawler",
     "metaDescription": "LNCrawler'da {source} kaynağından {novel} için tüm {count} bölüme göz atın. Temiz bir okuma deneyimiyle light novel'ları çevrimiçi okuyun.",
     "metaLoadingDescription": "Bölüm listesi yükleniyor. LNCrawler'da light novel'ları keşfedin.",
-    "keywords": "{novel}, {source}, bölüm listesi, tüm bölümler, light novel bölümleri, web novel"
+    "keywords": "{novel}, {source}, bölüm listesi, tüm bölümler, light novel bölümleri, web novel",
+    "dmcaNotice": "Bu eser, bir DMCA kaldırma talebi üzerine kaldırılmıştır. Bölümler artık kullanılamıyor."
   },
   "gallery": {
     "loadFailed": "Görseller yüklenemedi. Lütfen daha sonra tekrar deneyin.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - LNCrawler'da Okuyun",
     "metaLoadingTitle": "Roman Kaynağı Yükleniyor | LNCrawler",
     "metaDescription": "{source} kaynağından {title} okuyun. Özet: {synopsis}",
-    "metaLoadingDescription": "LNCrawler'da bu roman kaynağının ayrıntıları yükleniyor."
+    "metaLoadingDescription": "LNCrawler'da bu roman kaynağının ayrıntıları yükleniyor.",
+    "dmcaNotice": "Bu eser, bir DMCA kaldırma talebi üzerine kaldırılmıştır. Okuma ve indirmeler devre dışı."
   },
   "rating": {
     "noRatings": "Puan yok"
@@ -512,7 +524,8 @@
     "processing": "İşleniyor...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "{title} için güncelleme tamamlandı!",
-    "tryAgain": "Güncellemeyi Yeniden Dene"
+    "tryAgain": "Güncellemeyi Yeniden Dene",
+    "disabledNoCrawler": "Bu kaynak artık desteklenmiyor, bu nedenle güncellenemez."
   },
   "comments": {
     "enterName": "Lütfen adınızı girin",
@@ -543,7 +556,8 @@
     "showReplies": "Göster {count, plural, one {# yanıt} other {# yanıt}}",
     "loadFailed": "Yorumlar yüklenemedi. Lütfen sayfayı yenilemeyi deneyin.",
     "noComments": "Henüz yorum yok. İlk yorum yapan siz olun!",
-    "mixedSourcesWarning": "Aşağıdaki bazı yorumlar farklı kaynaklar için gönderilmiştir. Kaynaklar farklı bölüm numaralandırması kullanabilir, bu nedenle spoiler veya alakasız görünen yorumlar olabilir."
+    "mixedSourcesWarning": "Aşağıdaki bazı yorumlar farklı kaynaklar için gönderilmiştir. Kaynaklar farklı bölüm numaralandırması kullanabilir, bu nedenle spoiler veya alakasız görünen yorumlar olabilir.",
+    "guest": "[misafir]"
   },
   "chat": {
     "title": "Topluluk Sohbeti",
@@ -707,7 +721,8 @@
     "unlockScrolling": "Kaydırmayı aç",
     "lockScrolling": "Kaydırmayı kilitle",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Sayfa {current} / {total}"
+    "pageOf": "Sayfa {current} / {total}",
+    "dmcaUnavailable": "Bu eser bir DMCA kaldırma talebi nedeniyle kullanılamıyor."
   },
   "readerControls": {
     "previousChapter": "Önceki Bölüm",
@@ -857,5 +872,11 @@
     "applyFailed": "İçe aktarma başarısız oldu. Lütfen tekrar deneyin.",
     "resultSummary": "{bookmarked} roman içe aktarıldı ({already} zaten kitaplıkta). {progress} için ilerleme ayarlandı.",
     "goToLibrary": "Kitaplığa git"
+  },
+  "novelActions": {
+    "addToReadingList": "Okuma listesine ekle",
+    "bookmark": "Yer imlerine ekle",
+    "menu": "Roman işlemleri",
+    "removeBookmark": "Yer imini kaldır"
   }
 }

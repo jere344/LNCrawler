@@ -11,6 +11,7 @@ import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import NovelActionsMenu from '@components/common/NovelActionsMenu';
 
 interface FeaturedNovelCardProps {
   source: NovelFromSource;
@@ -18,9 +19,10 @@ interface FeaturedNovelCardProps {
   isLoading?: boolean;
   to?: To;
   state?: unknown;
+  isBookmarked?: boolean | null;
 }
 
-const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, isLoading = false, to, state }) => {
+const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, isLoading = false, to, state, isBookmarked = false }) => {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -60,6 +62,15 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
   const formatter = Intl.NumberFormat(i18n.language, { notation: 'compact' });
 
   return (
+    <Box sx={{ position: 'relative', width: '100%' }}>
+    <NovelActionsMenu
+      novelId={source.novel_id}
+      novelTitle={source.novel_title || source.title}
+      slug={source.novel_slug}
+      isBookmarked={isBookmarked}
+      customSx={{ position: 'absolute', top: 0, right: 0, zIndex: 2 }}
+      buttonSize={32}
+    />
     <ButtonBase 
       onClick={onClick}
       component={to ? Link : 'button'}
@@ -70,8 +81,10 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
         display: 'block',
         textAlign: 'left',
         transition: 'transform 0.2s',
+        position: 'relative',
         '&:hover': {
           transform: 'translateY(-5px)',
+          zIndex: 2,
         }
       }}
     >
@@ -99,7 +112,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
         </Grid>
         <Grid size={{ xs: 8, md: 8, lg: 10 }}>
           <Box sx={{ height: '100%' }}>
-            <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', mb: 1 }}>
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', mb: 1, pr: 4 }}>
               {source.title}
             </Typography>
             
@@ -109,7 +122,8 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 mb: 2,
                 maxHeight: isMobile ? '100px' : '140px',
                 overflow: 'auto',
-                color: 'text.secondary'
+                color: 'text.secondary',
+                '& img': { maxWidth: '100%', height: 'auto' }
               }}
               dangerouslySetInnerHTML={{ __html: source.synopsis || '' }}
             />
@@ -177,6 +191,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
         </Grid>
       </Grid>
     </ButtonBase>
+    </Box>
   );
 };
 

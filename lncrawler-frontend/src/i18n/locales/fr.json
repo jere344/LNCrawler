@@ -72,7 +72,6 @@
     "chat": "Discussion",
     "search": "Rechercher",
     "addNovel": "Ajouter un roman",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Changer de thème",
     "userFallback": "Utilisateur",
@@ -91,7 +90,6 @@
     "tagline": "Lisez des light novels asiatiques depuis plus de 300 sources",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "Liens",
-    "discordCommunity": "Communauté Discord",
     "githubRepository": "Dépôt GitHub",
     "dmcaContact": "Contact DMCA",
     "developedBy": "Développé par bygourou",
@@ -396,7 +394,8 @@
     "metaLoadingTitle": "Chargement des chapitres | LNCrawler",
     "metaDescription": "Parcourez les {count} chapitres de {novel} depuis la source {source} sur LNCrawler. Lisez des light novels en ligne avec une expérience de lecture épurée.",
     "metaLoadingDescription": "Chargement de la liste des chapitres. Découvrez des light novels sur LNCrawler.",
-    "keywords": "{novel}, {source}, liste des chapitres, tous les chapitres, chapitres de light novel, web novel"
+    "keywords": "{novel}, {source}, liste des chapitres, tous les chapitres, chapitres de light novel, web novel",
+    "dmcaNotice": "Cette œuvre a été supprimée à la suite d'une demande de retrait DMCA. Les chapitres ne sont plus disponibles."
   },
   "gallery": {
     "loadFailed": "Échec du chargement des images. Veuillez réessayer plus tard.",
@@ -504,7 +503,8 @@
     "metaTitle": "{title} ({source}) - À lire sur LNCrawler",
     "metaLoadingTitle": "Chargement de la source du roman | LNCrawler",
     "metaDescription": "Lisez {title} depuis {source}. Synopsis : {synopsis}",
-    "metaLoadingDescription": "Chargement des détails de cette source de roman sur LNCrawler."
+    "metaLoadingDescription": "Chargement des détails de cette source de roman sur LNCrawler.",
+    "dmcaNotice": "Cette œuvre a été supprimée à la suite d'une demande de retrait DMCA. La lecture et les téléchargements sont désactivés."
   },
   "rating": {
     "noRatings": "Aucune note"
@@ -524,7 +524,8 @@
     "processing": "Traitement...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "Mise à jour terminée pour {title} !",
-    "tryAgain": "Réessayer la mise à jour"
+    "tryAgain": "Réessayer la mise à jour",
+    "disabledNoCrawler": "Cette source n'est plus prise en charge et ne peut donc pas être mise à jour."
   },
   "comments": {
     "enterName": "Veuillez saisir votre nom",
@@ -555,7 +556,8 @@
     "showReplies": "Afficher {count, plural, one {# réponse} other {# réponses}}",
     "loadFailed": "Échec du chargement des commentaires. Veuillez essayer d'actualiser la page.",
     "noComments": "Aucun commentaire pour le moment. Soyez le premier à commenter !",
-    "mixedSourcesWarning": "Certains commentaires ci-dessous ont été publiés pour différentes sources. Les sources peuvent utiliser une numérotation de chapitres différente, il peut donc y avoir des spoilers ou des commentaires apparemment hors sujet."
+    "mixedSourcesWarning": "Certains commentaires ci-dessous ont été publiés pour différentes sources. Les sources peuvent utiliser une numérotation de chapitres différente, il peut donc y avoir des spoilers ou des commentaires apparemment hors sujet.",
+    "guest": "[invité]"
   },
   "chat": {
     "title": "Chat communautaire",
@@ -719,7 +721,8 @@
     "unlockScrolling": "Déverrouiller le défilement",
     "lockScrolling": "Verrouiller le défilement",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Page {current} sur {total}"
+    "pageOf": "Page {current} sur {total}",
+    "dmcaUnavailable": "Cette œuvre est indisponible en raison d'une demande de retrait DMCA."
   },
   "readerControls": {
     "previousChapter": "Chapitre précédent",
@@ -869,5 +872,11 @@
     "applyFailed": "L'importation a échoué. Veuillez réessayer.",
     "resultSummary": "{bookmarked} romans importés ({already} déjà dans la bibliothèque). Progression définie pour {progress}.",
     "goToLibrary": "Aller à la bibliothèque"
+  },
+  "novelActions": {
+    "addToReadingList": "Ajouter à la liste de lecture",
+    "bookmark": "Ajouter aux favoris",
+    "menu": "Actions du roman",
+    "removeBookmark": "Retirer des favoris"
   }
 }

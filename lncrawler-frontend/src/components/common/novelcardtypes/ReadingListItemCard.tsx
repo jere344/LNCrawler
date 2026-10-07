@@ -128,6 +128,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
         '&:hover': {
           transform: 'translateY(-2px)',
           boxShadow: '0px 6px 12px -2px rgba(0,0,0,0.15)',
+          zIndex: 2,
         },
         position: 'relative',
         overflow: 'hidden',

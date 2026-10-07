@@ -72,7 +72,6 @@
     "chat": "الدردشة",
     "search": "بحث",
     "addNovel": "إضافة رواية",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "تغيير المظهر",
     "userFallback": "مستخدم",
@@ -91,7 +90,6 @@
     "tagline": "اقرأ الروايات الخفيفة الآسيوية من أكثر من 300 مصدر",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "روابط",
-    "discordCommunity": "مجتمع Discord",
     "githubRepository": "مستودع GitHub",
     "dmcaContact": "جهة اتصال DMCA",
     "developedBy": "طُوِّر بواسطة bygourou",
@@ -303,7 +301,19 @@
       "title": "العنوان",
       "date_added": "تاريخ الإضافة",
       "rating": "التقييم"
-    }
+    },
+    "addNote": "إضافة ملاحظة",
+    "clearSelection": "مسح",
+    "dragToFolder": "اسحب رواية إلى مجلد لتصنيفها",
+    "moreActions": "مزيد من الإجراءات",
+    "moveTo": "نقل إلى",
+    "moveToFolder": "نقل إلى مجلد",
+    "removeConfirmBody": "{count, plural, one {إزالة رواية واحدة من مكتبتك؟} two {إزالة روايتين من مكتبتك؟} few {إزالة # روايات من مكتبتك؟} many {إزالة # رواية من مكتبتك؟} other {إزالة # رواية من مكتبتك؟}} لا يمكن التراجع عن هذا.",
+    "removeConfirmTitle": "إزالة من المكتبة؟",
+    "removeFromLibrary": "إزالة من المكتبة",
+    "select": "تحديد",
+    "selectAll": "تحديد الكل",
+    "selectedCount": "{count, plural, one {تم تحديد واحد} two {تم تحديد اثنين} few {تم تحديد #} many {تم تحديد #} other {تم تحديد #}}"
   },
   "history": {
     "loadFailed": "فشل تحميل سجل القراءة. يرجى المحاولة لاحقًا.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "جارٍ تحميل الفصول | LNCrawler",
     "metaDescription": "تصفح جميع الفصول البالغ عددها {count} لرواية {novel} من المصدر {source} على LNCrawler. اقرأ الروايات الخفيفة عبر الإنترنت بتجربة قراءة مريحة.",
     "metaLoadingDescription": "جارٍ تحميل قائمة الفصول. اكتشف الروايات الخفيفة على LNCrawler.",
-    "keywords": "{novel}, {source}, قائمة الفصول, جميع الفصول, فصول الروايات الخفيفة, رواية ويب"
+    "keywords": "{novel}, {source}, قائمة الفصول, جميع الفصول, فصول الروايات الخفيفة, رواية ويب",
+    "dmcaNotice": "تمت إزالة هذا العمل بناءً على طلب إزالة بموجب قانون DMCA. لم تعد الفصول متاحة."
   },
   "gallery": {
     "loadFailed": "فشل تحميل الصور. يرجى المحاولة لاحقًا.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - اقرأ على LNCrawler",
     "metaLoadingTitle": "جارٍ تحميل مصدر الرواية | LNCrawler",
     "metaDescription": "اقرأ {title} من {source}. الملخص: {synopsis}",
-    "metaLoadingDescription": "جارٍ تحميل تفاصيل مصدر هذه الرواية على LNCrawler."
+    "metaLoadingDescription": "جارٍ تحميل تفاصيل مصدر هذه الرواية على LNCrawler.",
+    "dmcaNotice": "تمت إزالة هذا العمل بناءً على طلب إزالة بموجب قانون DMCA. تم تعطيل القراءة والتنزيلات."
   },
   "rating": {
     "noRatings": "لا توجد تقييمات"
@@ -512,7 +524,8 @@
     "processing": "جارٍ المعالجة...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "اكتمل تحديث {title}!",
-    "tryAgain": "حاول التحديث مرة أخرى"
+    "tryAgain": "حاول التحديث مرة أخرى",
+    "disabledNoCrawler": "لم يعد هذا المصدر مدعومًا، لذا لا يمكن تحديثه."
   },
   "comments": {
     "enterName": "يرجى إدخال اسمك",
@@ -543,7 +556,8 @@
     "showReplies": "عرض {count, plural, one {# رد} two {ردين} few {# ردود} many {# ردًا} other {# رد}}",
     "loadFailed": "فشل تحميل التعليقات. يرجى محاولة تحديث الصفحة.",
     "noComments": "لا توجد تعليقات بعد. كن أول من يعلّق!",
-    "mixedSourcesWarning": "بعض التعليقات أدناه نُشرت لمصادر مختلفة. قد تستخدم المصادر ترقيمًا مختلفًا للفصول، لذا قد توجد حروق أو تعليقات تبدو غير ذات صلة."
+    "mixedSourcesWarning": "بعض التعليقات أدناه نُشرت لمصادر مختلفة. قد تستخدم المصادر ترقيمًا مختلفًا للفصول، لذا قد توجد حروق أو تعليقات تبدو غير ذات صلة.",
+    "guest": "[زائر]"
   },
   "chat": {
     "title": "دردشة المجتمع",
@@ -707,7 +721,8 @@
     "unlockScrolling": "إلغاء قفل التمرير",
     "lockScrolling": "قفل التمرير",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "الصفحة {current} من {total}"
+    "pageOf": "الصفحة {current} من {total}",
+    "dmcaUnavailable": "هذا العمل غير متاح بسبب طلب إزالة بموجب قانون DMCA."
   },
   "readerControls": {
     "previousChapter": "الفصل السابق",
@@ -857,5 +872,11 @@
     "applyFailed": "فشل الاستيراد. حاول مرة أخرى.",
     "resultSummary": "تم استيراد {bookmarked} رواية ({already} موجودة بالفعل في المكتبة). تم ضبط التقدم لـ {progress}.",
     "goToLibrary": "الانتقال إلى المكتبة"
+  },
+  "novelActions": {
+    "addToReadingList": "إضافة إلى قائمة القراءة",
+    "bookmark": "إضافة إلى الإشارات المرجعية",
+    "menu": "إجراءات الرواية",
+    "removeBookmark": "إزالة من الإشارات المرجعية"
   }
 }

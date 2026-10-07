@@ -72,7 +72,6 @@
     "chat": "聊天",
     "search": "搜索",
     "addNovel": "添加小说",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "切换主题",
     "userFallback": "用户",
@@ -91,7 +90,6 @@
     "tagline": "从300多个来源阅读亚洲轻小说",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "链接",
-    "discordCommunity": "Discord 社区",
     "githubRepository": "GitHub 仓库",
     "dmcaContact": "DMCA 联系方式",
     "developedBy": "由 bygourou 开发",
@@ -303,7 +301,19 @@
       "title": "标题",
       "date_added": "添加日期",
       "rating": "评分"
-    }
+    },
+    "addNote": "添加备注",
+    "clearSelection": "清除",
+    "dragToFolder": "将小说拖到文件夹中以归档",
+    "moreActions": "更多操作",
+    "moveTo": "移动到",
+    "moveToFolder": "移动到文件夹",
+    "removeConfirmBody": "{count, plural, one {从您的书库中移除 # 部小说？} other {从您的书库中移除 # 部小说？}} 此操作无法撤销。",
+    "removeConfirmTitle": "从书库中移除？",
+    "removeFromLibrary": "从书库中移除",
+    "select": "选择",
+    "selectAll": "全选",
+    "selectedCount": "{count, plural, one {已选择 # 项} other {已选择 # 项}}"
   },
   "history": {
     "loadFailed": "加载阅读历史失败。请稍后重试。",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "正在加载章节 | LNCrawler",
     "metaDescription": "在 LNCrawler 上浏览来源“{source}”的 {novel} 的全部 {count} 章。以清爽的阅读体验在线阅读轻小说。",
     "metaLoadingDescription": "正在加载章节列表。到 LNCrawler 发现轻小说。",
-    "keywords": "{novel}, {source}, 章节列表, 全部章节, 轻小说章节, 网络小说"
+    "keywords": "{novel}, {source}, 章节列表, 全部章节, 轻小说章节, 网络小说",
+    "dmcaNotice": "本作品已根据 DMCA 下架请求移除。章节不再可用。"
   },
   "gallery": {
     "loadFailed": "加载图片失败。请稍后重试。",
@@ -492,7 +503,8 @@
     "metaTitle": "{title}（{source}）- 在 LNCrawler 阅读",
     "metaLoadingTitle": "正在加载小说来源 | LNCrawler",
     "metaDescription": "阅读来自 {source} 的 {title}。简介：{synopsis}",
-    "metaLoadingDescription": "正在加载此小说来源在 LNCrawler 上的详情。"
+    "metaLoadingDescription": "正在加载此小说来源在 LNCrawler 上的详情。",
+    "dmcaNotice": "本作品已根据 DMCA 下架请求移除。阅读和下载已被禁用。"
   },
   "rating": {
     "noRatings": "暂无评分"
@@ -512,7 +524,8 @@
     "processing": "处理中...",
     "progressOf": "（{progress} / {total} {unit}）",
     "complete": "{title} 更新完成！",
-    "tryAgain": "重试更新"
+    "tryAgain": "重试更新",
+    "disabledNoCrawler": "此来源已不再受支持，因此无法更新。"
   },
   "comments": {
     "enterName": "请输入您的姓名",
@@ -543,7 +556,8 @@
     "showReplies": "{count, plural, one {显示 # 条回复} other {显示 # 条回复}}",
     "loadFailed": "加载评论失败。请尝试刷新页面。",
     "noComments": "暂无评论。成为第一个评论的人吧！",
-    "mixedSourcesWarning": "下方部分评论来自不同来源。不同来源可能使用不同的章节编号，因此可能存在剧透或看似无关的评论。"
+    "mixedSourcesWarning": "下方部分评论来自不同来源。不同来源可能使用不同的章节编号，因此可能存在剧透或看似无关的评论。",
+    "guest": "[访客]"
   },
   "chat": {
     "title": "社区聊天",
@@ -707,7 +721,8 @@
     "unlockScrolling": "解锁滚动",
     "lockScrolling": "锁定滚动",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "第 {current} 页，共 {total} 页"
+    "pageOf": "第 {current} 页，共 {total} 页",
+    "dmcaUnavailable": "由于 DMCA 下架请求，本作品不可用。"
   },
   "readerControls": {
     "previousChapter": "上一章",
@@ -857,5 +872,11 @@
     "applyFailed": "导入失败，请重试。",
     "resultSummary": "已导入 {bookmarked} 部小说（{already} 部已在书库中）。已为 {progress} 设置进度。",
     "goToLibrary": "前往书库"
+  },
+  "novelActions": {
+    "addToReadingList": "添加到阅读列表",
+    "bookmark": "收藏",
+    "menu": "小说操作",
+    "removeBookmark": "取消收藏"
   }
 }

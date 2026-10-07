@@ -1,9 +1,11 @@
 """Progressively clean the library.
 
-Three phases, run in order, each bounded by ``--limit`` candidates *examined*
-per run so the first pass over a large catalogue is spread over many
-invocations instead of scanning the whole DB (and running for hours) at once:
+Phases, run in order, each bounded by ``--limit`` candidates *examined* per run
+so the first pass over a large catalogue is spread over many invocations instead
+of scanning the whole DB (and running for hours) at once:
 
+0. unregistered library folders (a folder no ``Novel``/``NovelFromSource``/
+   ``NovelAlias`` refers to) moved back to the import folder (filesystem sweep)
 1. orphan novels (no NovelFromSource left)
 2. empty sources (no chapter, or no chapter with content)
 3. dead sources (no longer handled by the crawler) superseded by a live
@@ -40,11 +42,13 @@ from django.db import transaction
 from django.db.models import CharField, Count
 from django.db.models.functions import Cast, MD5, Substr
 from django.utils import timezone
+from django.utils.text import slugify
 
 from lncrawler_api.models import (
     Comment,
     ExternalSource,
     Novel,
+    NovelAlias,
     NovelFromSource,
     ReadingHistory,
     SourceVote,
@@ -54,7 +58,7 @@ from lncrawler_api.services.novel_operations import (
     recount_source_votes,
 )
 from lncrawler_api.utils import chapter_utils
-from lncrawler_api.utils.lncrawler_paths import sanitize
+from lncrawler_api.utils.lncrawler_paths import move_and_merge_directory, sanitize
 
 logger = logging.getLogger("lncrawler_api")
 
@@ -142,6 +146,15 @@ class Command(BaseCommand):
                 "Stable id-hash sample, so repeat runs check the same subset."
             ),
         )
+        parser.add_argument(
+            "--sweep-unregistered", action="store_true",
+            help=(
+                "Also move library folders no DB row points at back to the import "
+                "folder. Off by default: a folder can belong to a download that is "
+                "still in progress (the folder is created before the DB row), so "
+                "this must never run on the scheduler."
+            ),
+        )
 
     # -- run ----------------------------------------------------------- #
 
@@ -157,6 +170,7 @@ class Command(BaseCommand):
         self.force = options["force"]
         self.source_filter = options["source"]
         self.percent = options["percent"]
+        self.sweep_unregistered = options["sweep_unregistered"]
         if not 0 < self.percent <= 100:
             self.stdout.write(self.style.ERROR("--percent must be between 1 and 100"))
             return
@@ -178,6 +192,8 @@ class Command(BaseCommand):
             f"threshold={self.threshold} percent={self.percent:g}"
         ))
 
+        if self.sweep_unregistered:
+            self._phase_unregistered_folders()
         self._phase_orphan_novels()
         self._phase_empty_sources()
         self._phase_dead_duplicates()
@@ -192,6 +208,67 @@ class Command(BaseCommand):
             self.stdout.write(
                 "  cursor saved; the next run resumes where this one stopped."
             )
+
+    # -- phase 0: unregistered folders --------------------------------- #
+
+    def _phase_unregistered_folders(self):
+        """Move library folders the DB does not know about back to the import folder.
+
+        ``run_import`` only ever moves into the library; nothing removes a folder
+        whose DB rows were dropped (fresh DB, bad merge, manual cleanup). Those
+        folders are invisible to the app yet keep taking space. This is a
+        filesystem sweep, so it ignores the cursor/--limit/--percent/--source
+        knobs, but it only runs when ``--sweep-unregistered`` is passed (a folder
+        with no row may belong to a download that is still in progress) and only
+        moves when ``--apply`` is set.
+        """
+        import_folder = settings.IMPORT_FOLDER_PATH
+        if not import_folder:
+            self.stdout.write(self.style.ERROR(
+                "IMPORT_FOLDER_PATH is not defined; skipping unregistered-folder sweep"
+            ))
+            return
+
+        known = self._known_top_level_folders()
+        moved = 0
+        for name in sorted(os.listdir(self.root)):
+            src = os.path.join(self.root, name)
+            if name.startswith(".") or not os.path.isdir(src):
+                continue
+            if name in known or slugify(name) in known:
+                continue
+
+            target = os.path.join(import_folder, name)
+            if not self.apply:
+                self.stdout.write(f"  [DRY-RUN] would move unregistered {name!r} -> {target}")
+            else:
+                os.makedirs(import_folder, exist_ok=True)
+                if os.path.exists(target):
+                    move_and_merge_directory(src, target)
+                else:
+                    shutil.move(src, target)
+                self.stdout.write(self.style.SUCCESS(f"  moved unregistered {name!r} -> {target}"))
+            moved += 1
+
+        if moved:
+            self.stdout.write(self.style.SUCCESS(
+                f"  unregistered folders: {moved} "
+                f"{'moved' if self.apply else 'would be moved'}"
+            ))
+
+    @staticmethod
+    def _known_top_level_folders() -> set:
+        """Top-level folder names any DB row points at (novel_path/source_path/alias)."""
+        known = set()
+        paths = list(Novel.objects.exclude(
+            novel_path__isnull=True).values_list("novel_path", flat=True))
+        paths += list(NovelFromSource.objects.exclude(
+            source_path__isnull=True).values_list("source_path", flat=True))
+        for path in paths:
+            if path:
+                known.add(path.split(os.sep, 1)[0])
+        known.update(NovelAlias.objects.values_list("slug", flat=True))
+        return known
 
     # -- bounded run helpers ------------------------------------------- #
 

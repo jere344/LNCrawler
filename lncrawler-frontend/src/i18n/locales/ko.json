@@ -72,7 +72,6 @@
     "chat": "채팅",
     "search": "검색",
     "addNovel": "소설 추가",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "테마 변경",
     "userFallback": "사용자",
@@ -91,7 +90,6 @@
     "tagline": "300개 이상의 소스에서 아시아 라이트노벨을 읽어보세요",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "링크",
-    "discordCommunity": "Discord 커뮤니티",
     "githubRepository": "GitHub 저장소",
     "dmcaContact": "DMCA 문의",
     "developedBy": "개발: bygourou",
@@ -303,7 +301,19 @@
       "title": "제목",
       "date_added": "추가한 날짜",
       "rating": "평점"
-    }
+    },
+    "addNote": "메모 추가",
+    "clearSelection": "지우기",
+    "dragToFolder": "소설을 폴더로 끌어다 정리하세요",
+    "moreActions": "더 많은 작업",
+    "moveTo": "이동 대상",
+    "moveToFolder": "폴더로 이동",
+    "removeConfirmBody": "{count, plural, one {라이브러리에서 #편의 소설을 삭제할까요?} other {라이브러리에서 #편의 소설을 삭제할까요?}} 이 작업은 되돌릴 수 없습니다.",
+    "removeConfirmTitle": "라이브러리에서 삭제할까요?",
+    "removeFromLibrary": "라이브러리에서 삭제",
+    "select": "선택",
+    "selectAll": "전체 선택",
+    "selectedCount": "{count, plural, one {#개 선택됨} other {#개 선택됨}}"
   },
   "history": {
     "loadFailed": "읽기 기록을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "화 불러오는 중 | LNCrawler",
     "metaDescription": "LNCrawler에서 소스 '{source}'의 {novel} 전체 {count}화를 둘러보세요. 깔끔한 읽기 환경으로 라이트노벨을 온라인에서 읽어보세요.",
     "metaLoadingDescription": "화 목록을 불러오는 중입니다. LNCrawler에서 라이트노벨을 만나보세요.",
-    "keywords": "{novel}, {source}, 화 목록, 전체 화, 라이트노벨 화, 웹소설"
+    "keywords": "{novel}, {source}, 화 목록, 전체 화, 라이트노벨 화, 웹소설",
+    "dmcaNotice": "이 작품은 DMCA 삭제 요청에 따라 삭제되었습니다. 더 이상 챕터를 이용할 수 없습니다."
   },
   "gallery": {
     "loadFailed": "이미지를 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - LNCrawler에서 읽기",
     "metaLoadingTitle": "소설 소스 불러오는 중 | LNCrawler",
     "metaDescription": "{source}의 {title}을(를) 읽어보세요. 줄거리: {synopsis}",
-    "metaLoadingDescription": "LNCrawler에서 이 소설 소스의 세부 정보를 불러오는 중입니다."
+    "metaLoadingDescription": "LNCrawler에서 이 소설 소스의 세부 정보를 불러오는 중입니다.",
+    "dmcaNotice": "이 작품은 DMCA 삭제 요청에 따라 삭제되었습니다. 읽기와 다운로드가 비활성화되었습니다."
   },
   "rating": {
     "noRatings": "평점 없음"
@@ -512,7 +524,8 @@
     "processing": "처리 중...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "{title} 업데이트 완료!",
-    "tryAgain": "업데이트 다시 시도"
+    "tryAgain": "업데이트 다시 시도",
+    "disabledNoCrawler": "이 소스는 더 이상 지원되지 않으므로 업데이트할 수 없습니다."
   },
   "comments": {
     "enterName": "이름을 입력해 주세요",
@@ -543,7 +556,8 @@
     "showReplies": "{count, plural, one {답글 #개 보기} other {답글 #개 보기}}",
     "loadFailed": "댓글을 불러오지 못했습니다. 페이지를 새로고침해 보세요.",
     "noComments": "아직 댓글이 없습니다. 첫 댓글을 남겨보세요!",
-    "mixedSourcesWarning": "아래 일부 댓글은 다른 소스에 게시된 것입니다. 소스마다 화 번호가 다를 수 있으므로 스포일러나 관련 없어 보이는 댓글이 있을 수 있습니다."
+    "mixedSourcesWarning": "아래 일부 댓글은 다른 소스에 게시된 것입니다. 소스마다 화 번호가 다를 수 있으므로 스포일러나 관련 없어 보이는 댓글이 있을 수 있습니다.",
+    "guest": "[게스트]"
   },
   "chat": {
     "title": "커뮤니티 채팅",
@@ -707,7 +721,8 @@
     "unlockScrolling": "스크롤 잠금 해제",
     "lockScrolling": "스크롤 잠금",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "{total}페이지 중 {current}페이지"
+    "pageOf": "{total}페이지 중 {current}페이지",
+    "dmcaUnavailable": "이 작품은 DMCA 삭제 요청으로 인해 이용할 수 없습니다."
   },
   "readerControls": {
     "previousChapter": "이전 화",
@@ -857,5 +872,11 @@
     "applyFailed": "가져오기에 실패했습니다. 다시 시도해 주세요.",
     "resultSummary": "{bookmarked}개 소설을 가져왔습니다({already}개는 이미 라이브러리에 있음). {progress}개 진행 상황을 설정했습니다.",
     "goToLibrary": "라이브러리로 이동"
+  },
+  "novelActions": {
+    "addToReadingList": "읽기 목록에 추가",
+    "bookmark": "북마크에 추가",
+    "menu": "소설 작업",
+    "removeBookmark": "북마크 제거"
   }
 }

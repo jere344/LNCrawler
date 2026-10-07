@@ -27,8 +27,9 @@ import { reviewService } from '@services/api';
 import { Review, ReviewsResponse } from '@services/review.service';
 import ReviewReactions from '../common/reviews/ReviewReactions';
 import ReviewForm from '../common/reviews/ReviewForm';
+import UserLink from '@components/profile/UserLink';
 import { useAuth } from '@context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import ReadOnlyMDXEditor from '../common/reviews/ReadOnlyMDXEditor';
 
 interface ReviewsProps {
@@ -222,6 +223,8 @@ const Reviews: React.FC<ReviewsProps> = ({
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Avatar 
+                    component={Link}
+                    to={`/u/${encodeURIComponent(review.user.username)}`}
                     src={review.user.profile_pic} 
                     alt={review.user.username}
                     sx={{ width: 40, height: 40 }}
@@ -232,7 +235,7 @@ const Reviews: React.FC<ReviewsProps> = ({
                     <Typography variant="subtitle1" sx={{
                       fontWeight: "bold"
                     }}>
-                      {review.user.username}
+                      <UserLink username={review.user.username} />
                     </Typography>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"

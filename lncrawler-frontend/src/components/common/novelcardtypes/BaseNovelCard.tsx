@@ -142,6 +142,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         '&:hover': {
           transform: 'translateY(-5px)',
           boxShadow: '0px 10px 15px -3px rgba(0,0,0,0.1)',
+          zIndex: 2,
         },
         position: 'relative',
         overflow: 'visible',
@@ -152,8 +153,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           <Box
             sx={{
               position: 'absolute',
-              top: -8,
-              left: -8,
+              top: 8,
+              left: 8,
               zIndex: 2,
               backgroundColor: 'primary.main',
               color: 'primary.contrastText',

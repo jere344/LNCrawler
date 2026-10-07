@@ -9,6 +9,7 @@ import { Novel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import NovelActionsMenu from '@components/common/NovelActionsMenu';
 
 interface CompactNovelCardProps {
   novel: Novel;
@@ -71,6 +72,15 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   const coverWidthFixed = coverHeightFixed * 2/3;
 
   return (
+    <Box sx={{ position: 'relative', width: '100%' }}>
+    <NovelActionsMenu
+      novelId={novel.id}
+      novelTitle={novel.title}
+      slug={novel.slug}
+      isBookmarked={novel.is_bookmarked}
+      customSx={{ position: 'absolute', top: 4, right: 4, zIndex: 2 }}
+      buttonSize={26}
+    />
     <ButtonBase 
       onClick={onClick}
       component={to ? Link : 'button'}
@@ -113,6 +123,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
         flexShrink: 1,
         overflow: 'hidden',
         p: 1.5,
+        pr: 4,
         display: 'flex', 
         flexDirection: 'column', 
         justifyContent: 'space-between',
@@ -190,6 +201,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
         </Box>
       </Box>
     </ButtonBase>
+    </Box>
   );
 };
 

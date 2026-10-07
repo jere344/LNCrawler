@@ -3,10 +3,8 @@ import sys
 import threading
 import time
 import logging
-from datetime import timedelta
 from pathlib import Path
 import django
-from django.utils import timezone
 from ..utils import lncrawler_paths
 from ..utils import chapter_utils
 
@@ -419,45 +417,6 @@ class DownloaderService:
         return job
 
     @classmethod
-    def claim_next_job(cls):
-        """
-        Atomically claim the oldest queued job for this worker process.
-        Returns (job_id, job_type, payload) or None when the queue is empty.
-
-        Safe to run from several worker replicas at once: the claim is an
-        atomic conditional UPDATE, so each job goes to exactly one worker.
-        """
-        from ..models import Job
-
-        while True:
-            job = (
-                Job.objects.filter(status=Job.STATUS_CREATED)
-                .order_by('created_at')
-                .first()
-            )
-            if job is None:
-                return None
-
-            running_status = (
-                Job.STATUS_SEARCHING
-                if job.job_type == Job.JOB_TYPE_SEARCH
-                else Job.STATUS_DOWNLOADING
-            )
-            claimed = Job.objects.filter(
-                pk=job.pk, status=Job.STATUS_CREATED
-            ).update(status=running_status, updated_at=timezone.now())
-            if not claimed:
-                # Lost the race to another worker; try the next job.
-                continue
-
-            payload = (
-                job.target_url
-                if job.job_type == Job.JOB_TYPE_DOWNLOAD
-                else job.query
-            )
-            return str(job.id), job.job_type, payload
-
-    @classmethod
     def run_job(cls, job_id, job_type, payload):
         """Execute a claimed job synchronously."""
         from ..models import Job
@@ -466,23 +425,6 @@ class DownloaderService:
             cls._run_download_process(job_id, payload)
         else:
             cls._run_search_process(job_id, payload)
-
-    @classmethod
-    def requeue_stale_jobs(cls, minutes=10):
-        """
-        Reset jobs stuck in a running status (worker crashed / was restarted)
-        back to the queue so they get retried.
-        """
-        from ..models import Job
-
-        cutoff = timezone.now() - timedelta(minutes=minutes)
-        count = Job.objects.filter(
-            status__in=[Job.STATUS_SEARCHING, Job.STATUS_DOWNLOADING],
-            updated_at__lt=cutoff,
-        ).update(status=Job.STATUS_CREATED, updated_at=timezone.now())
-        if count:
-            logger.warning(f"Requeued {count} stale job(s) stuck in a running state")
-        return count
 
     @classmethod
     def get_search_status(cls, job_id):

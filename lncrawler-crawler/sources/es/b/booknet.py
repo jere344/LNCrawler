@@ -14,6 +14,9 @@ class BooknetCrawler(Crawler):
     base_url = ["https://booknet.com/"]
     language = "es"
 
+    def initialize(self) -> None:
+        self.init_executor(ratelimit=1)
+
     def search_novel(self, query):
         soup = self.get_soup(
             f"https://booknet.com/es/search?q={quote(query)}&type=book"

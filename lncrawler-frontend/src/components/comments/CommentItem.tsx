@@ -25,8 +25,10 @@ import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { Link } from 'react-router-dom';
 
 import CommentForm from './CommentForm';
+import UserLink from '@components/profile/UserLink';
 import { commentService, type ApiError } from '../../services/api';
 import { Comment as IComment, CommentFormData } from '@models/comments_types';
 import { getChapterLabel, formatDateTime } from '@utils/Misc';
@@ -159,6 +161,8 @@ const CommentItem = ({
             {/* Show avatar only if it's an authenticated user's comment and they have a profile pic */}
             {comment.user != undefined && comment.user.profile_pic && (
               <Avatar 
+                component={Link}
+                to={`/u/${encodeURIComponent(comment.user.username)}`}
                 alt={displayName} // Use determined displayName
                 src={comment.user.profile_pic} 
                 sx={{ width: 24, height: 24, mr: 1 }} 
@@ -166,15 +170,24 @@ const CommentItem = ({
             )}
             {/* Show initial-based avatar if authenticated user but no profile pic */}
             {comment.user != undefined && !comment.user.profile_pic && (
-              <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main' }}>
+              <Avatar
+                component={Link}
+                to={`/u/${encodeURIComponent(comment.user.username)}`}
+                sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main' }}>
                 {displayName ? displayName.charAt(0).toUpperCase() : '?'}
               </Avatar>
             )}
             <Typography variant="subtitle1" sx={{
               fontWeight: "bold"
             }}>
-              {displayName}
+              {comment.user ? <UserLink username={comment.user.username} /> : displayName}
             </Typography>
+
+            {!comment.user && (
+              <Typography variant="caption" sx={{ ml: 0.5, color: "text.secondary" }}>
+                {t('comments.guest')}
+              </Typography>
+            )}
             
             {hasReplies && (
               <IconButton 

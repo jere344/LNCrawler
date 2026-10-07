@@ -200,6 +200,9 @@ class NovelFromSource(models.Model):
             data = json.load(f)
         
         novel_data = data.get('novel', {})
+        # meta.json is written throughout a crawl; only the completed write has
+        # accurate per-chapter success values (see resolve_chapter_has_content).
+        completed = bool(data.get('session', {}).get('completed', False))
         
         # Get the title from the meta.json file
         title = novel_data.get('title', '')
@@ -378,7 +381,9 @@ class NovelFromSource(models.Model):
                     'volume': chapter_data.get('volume', 0),
                     'volume_title': truncate(chapter_data.get('volume_title', '')),
                     'images': image_filenames,
-                    'has_content': chapter_utils.check_chapter_has_content(source_absolute_path=source_dir, chapter_number=chapter_id)
+                    'has_content': chapter_utils.resolve_chapter_has_content(
+                        chapter_data, source_dir, chapter_id, completed=completed
+                    )
                 }
 
                 existing = None
@@ -431,10 +436,8 @@ class NovelFromSource(models.Model):
         """
         try:
             # Use dynamic import to avoid circular dependency
-            from ..management.commands.generate_overview import Command as GenerateOverviewCommand
-            overview_generator = GenerateOverviewCommand()
-            overview_generator.generate_overview(self)
-            return True
+            from ..services import cover_service
+            return cover_service.generate_overview(self)
         except Exception as e:
             print(f"Error generating overview image for {self.title}: {e}")
             return False
@@ -445,10 +448,8 @@ class NovelFromSource(models.Model):
         """
         try:
             # Use dynamic import to avoid circular dependency
-            from ..management.commands.generate_cover_min import Command as GenerateCoverMinCommand
-            cover_min_generator = GenerateCoverMinCommand()
-            cover_min_generator.generate_cover_min(self, width, height, quality)
-            return True
+            from ..services import cover_service
+            return cover_service.generate_cover_min(self, width, height, quality)
         except Exception as e:
             print(f"Error generating miniature cover for {self.title}: {e}")
             return False

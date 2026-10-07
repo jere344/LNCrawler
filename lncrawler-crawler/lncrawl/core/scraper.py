@@ -160,6 +160,13 @@ class Scraper(TaskManager, SoupMaker):
         **kwargs,
     ):
         method_call: Callable = getattr(self.scraper, method)
+        # Space every request on sources that configured a rate limit. Applying
+        # it at the HTTP funnel (not in submit_task) covers every submission
+        # path: download chapters, TOC bursts and images alike. (Browser
+        # requests do not pass through here.)
+        limiter = getattr(self, "_limiter", None)
+        if limiter is not None:
+            method_call = limiter.wrap(method_call)
         parsed = urlparse(url)
 
         if parsed.scheme in ("http", "https"):

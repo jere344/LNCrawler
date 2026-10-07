@@ -20,6 +20,10 @@ import {
   Alert,
 } from '@mui/material';
 import { novelService } from '../../services/api';
+import { userService } from '@services/user.service';
+import { useAuth } from '@context/AuthContext';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
+import AddToListDialog from '../readinglist/AddToListDialog';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LanguageIcon from '@mui/icons-material/Language';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
@@ -56,6 +60,7 @@ import ReadingListCard from '../readinglist/ReadingListCard';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import InfoIcon from '@mui/icons-material/Info';
+import ShareIcon from '@mui/icons-material/Share';
 
 const DetailRow = ({ label, value }: { label: string; value: string }) => (
   <Box>
@@ -100,6 +105,14 @@ const SourceDetail = () => {
     rating_count: linkState?.novel?.rating_count ?? 0,
     user_rating: null
   }));
+  const { isAuthenticated } = useAuth();
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarking, setBookmarking] = useState(false);
+  const [addToListOpen, setAddToListOpen] = useState(false);
+
+  useEffect(() => {
+    if (novel) setIsBookmarked(!!novel.is_bookmarked);
+  }, [novel]);
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
@@ -156,6 +169,37 @@ const SourceDetail = () => {
       console.error('Error voting for source:', err);
     } finally {
       setVotingInProgress(false);
+    }
+  };
+
+  const handleToggleBookmark = async () => {
+    if (!novelSlug || bookmarking) return;
+    setBookmarking(true);
+    try {
+      if (isBookmarked) {
+        await userService.removeNovelBookmark(novelSlug);
+        setIsBookmarked(false);
+      } else {
+        await userService.addNovelBookmark(novelSlug);
+        setIsBookmarked(true);
+      }
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+    } finally {
+      setBookmarking(false);
+    }
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: source?.title || t('common.share'),
+        url: window.location.href,
+      }).catch((error) => console.log('Error sharing:', error));
+    } else {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => alert(t('readingLists.linkCopied')))
+        .catch((error) => console.error('Error copying link:', error));
     }
   };
 
@@ -441,7 +485,7 @@ const SourceDetail = () => {
           />
         )}
         
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 4 }}>
           <Button 
             startIcon={<ArrowBackIcon />}
             component={Link}
@@ -454,6 +498,16 @@ const SourceDetail = () => {
           >
             {t('sourceDetail.backToHome')}
           </Button>
+          <Tooltip title={t('common.share')}>
+            <Button
+              startIcon={<ShareIcon />}
+              onClick={handleShare}
+              variant="outlined"
+              sx={{ borderRadius: '20px', px: 2 }}
+            >
+              {t('common.share')}
+            </Button>
+          </Tooltip>
         </Box>
 
         {isDmca && (
@@ -559,17 +613,49 @@ const SourceDetail = () => {
               </Grid>
               
               <Grid size={{ xs: 12, md: 6, lg: 7 }}>
-                <Typography 
-                  variant="h3" 
-                  gutterBottom 
-                  sx={{ 
-                    color: 'common.white',
-                    textShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                    fontWeight: 700,
-                  }}
-                >
-                  {source.title}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                  <Typography 
+                    variant="h3" 
+                    gutterBottom 
+                    sx={{ 
+                      color: 'common.white',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {source.title}
+                  </Typography>
+                  {isAuthenticated && (
+                    <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                      <Tooltip title={isBookmarked ? t('novelActions.removeBookmark') : t('novelActions.bookmark')}>
+                        <IconButton
+                          onClick={handleToggleBookmark}
+                          disabled={bookmarking || !novelSlug}
+                          sx={{
+                            color: 'common.white',
+                            bgcolor: alpha(theme.palette.common.black, 0.3),
+                            '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.5) },
+                          }}
+                        >
+                          {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={t('novelActions.addToReadingList')}>
+                        <IconButton
+                          onClick={() => setAddToListOpen(true)}
+                          disabled={!source?.novel_id}
+                          sx={{
+                            color: 'common.white',
+                            bgcolor: alpha(theme.palette.common.black, 0.3),
+                            '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.5) },
+                          }}
+                        >
+                          <PlaylistAddIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  )}
+                </Box>
                 
                 {source.alternative_titles?.length > 0 && (
                   <Typography
@@ -597,7 +683,7 @@ const SourceDetail = () => {
                   }}
                 >
                   {t('sourceDetail.fromPrefix')} {source.source_name}
-                  {source.source_url.startsWith('http') && (
+                  {source.source_url?.startsWith('http') && (
                     <Tooltip title={t('sourceDetail.visitSource')}>
                       <IconButton
                         size="small"
@@ -633,17 +719,33 @@ const SourceDetail = () => {
                           borderRadius: 6,
                         }}
                       >
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
+                        <PersonIcon sx={{ mr: 1, fontSize: '1rem', color: theme.palette.common.white }} />
+                        <Typography
+                          variant="body1"
+                          sx={{
                             color: theme.palette.common.white,
                             fontWeight: 600,
                             display: 'flex',
+                            flexWrap: 'wrap',
                             alignItems: 'center',
                           }}
                         >
-                          <PersonIcon sx={{ mr: 1, fontSize: '1rem' }} />
-                          {source.authors.join(', ')}
+                          {source.authors.map((author, index) => (
+                            <Box key={index} component="span">
+                              <Box
+                                component={Link}
+                                to={`/novels/search?author=${encodeURIComponent(author)}`}
+                                sx={{
+                                  color: theme.palette.common.white,
+                                  textDecoration: 'none',
+                                  '&:hover': { textDecoration: 'underline' },
+                                }}
+                              >
+                                {author}
+                              </Box>
+                              {index < source.authors.length - 1 ? ',\u00a0' : ''}
+                            </Box>
+                          ))}
                         </Typography>
                       </Box>
                     )}
@@ -826,80 +928,81 @@ const SourceDetail = () => {
                   </Box>
                 </Box>
                 
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: {
+                      xs: '1fr',
+                      lg: continue_chapter && !isDmca ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+                    },
+                    gap: 1,
+                    mb: 1.5,
+                  }}
+                >
+                  <ActionButton
+                    title={t('sourceDetail.startReading')}
+                    subtitle={t('sourceDetail.fromBeginning')}
+                    startIcon={<PlayArrowIcon />}
+                    color="success"
+                    to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source.first_available_chapter?.chapter_id}`}
+                    disabled={isDmca || !source.first_available_chapter}
+                    tooltip={t('sourceDetail.startFromFirst')}
+                  />
+
                   {continue_chapter && !isDmca && (
                     <ActionButton
                       title={t('sourceDetail.continueReading')}
-                      subtitle={getChapterLabel(
-                        t,
-                        continue_chapter.title,
-                        continue_chapter.chapter_id
-                      )}
+                      subtitle={getChapterLabel(t, continue_chapter.title, continue_chapter.chapter_id)}
                       startIcon={<BookmarkIcon />}
                       color="warning"
-                      // onClick={handleContinueReading}
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`}
                       tooltip={t('sourceDetail.continueFrom', { chapter: getChapterLabel(t, continue_chapter.title, continue_chapter.chapter_id) })}
-                      sx={{ mb: 1 }}
                     />
                   )}
-                  <Box sx={{ 
-                    width: '100%', 
-                    display: 'flex', 
-                    flexDirection: { xs: 'column', sm: 'row' }, 
-                    gap: 1,
-                    mb: 1
-                  }}>
-                    <ActionButton
-                      title={t('sourceDetail.chapterList')}
-                      subtitle={t('sourceDetail.viewAllChapters', { count: source?.chapters_count })}
-                      startIcon={<ViewListIcon />}
-                      backgroundIcon={<ListAltIcon />}
-                      color="info"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
-                      disabled={!source?.latest_available_chapter}
-                      tooltip={t('sourceDetail.browseAllChapters')}
-                    />
 
-                    <ActionButton
-                      title={t('sourceDetail.imageGallery')}
-                      subtitle={t('sourceDetail.browseAllImages')}
-                      startIcon={<CollectionsIcon />}
-                      color="secondary"
-                      to={`/novels/${novelSlug}/${sourceSlug}/gallery`}
-                      tooltip={t('sourceDetail.viewImageGallery')}
-                    />
+                  <ActionButton
+                    title={t('sourceDetail.latestChapter')}
+                    subtitle={getChapterLabel(t, source?.latest_available_chapter?.title, source?.latest_available_chapter?.chapter_id)}
+                    startIcon={<SkipNextIcon />}
+                    color="primary"
+                    to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
+                    disabled={isDmca || !source?.latest_available_chapter}
+                    tooltip={t('sourceDetail.jumpToLatest')}
+                  />
+                </Box>
 
-                    <ActionButton
-                      title={t('sourceDetail.download')}
-                      subtitle={t('sourceDetail.downloadEpub')}
-                      startIcon={<DownloadIcon />}
-                      color="info"
-                      onClick={(e) => setDownloadAnchor(e.currentTarget)}
-                      disabled={isDmca || !source?.chapters_count}
-                      tooltip={isDmca ? t('sourceDetail.dmcaNotice') : t('sourceDetail.downloadTooltip')}
-                    />
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <ActionButton
+                    compact
+                    fullWidth={false}
+                    title={t('sourceDetail.chapterList')}
+                    startIcon={<ViewListIcon />}
+                    color="info"
+                    to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
+                    disabled={!source?.latest_available_chapter}
+                    tooltip={t('sourceDetail.browseAllChapters')}
+                  />
 
-                    <ActionButton
-                      title={t('sourceDetail.startReading')}
-                      subtitle={t('sourceDetail.fromBeginning')}
-                      startIcon={<PlayArrowIcon />}
-                      color="success"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.first_available_chapter?.chapter_id}`}
-                      disabled={isDmca || !source?.first_available_chapter}
-                      tooltip={t('sourceDetail.startFromFirst')}
-                    />
+                  <ActionButton
+                    compact
+                    fullWidth={false}
+                    title={t('sourceDetail.imageGallery')}
+                    startIcon={<CollectionsIcon />}
+                    color="secondary"
+                    to={`/novels/${novelSlug}/${sourceSlug}/gallery`}
+                    tooltip={t('sourceDetail.viewImageGallery')}
+                  />
 
-                    <ActionButton
-                      title={t('sourceDetail.latestChapter')}
-                      subtitle={getChapterLabel(t, source?.latest_available_chapter?.title, source?.latest_available_chapter?.chapter_id)}
-                      startIcon={<SkipNextIcon />}
-                      color="primary"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
-                      disabled={isDmca || !source?.latest_available_chapter}
-                      tooltip={t('sourceDetail.jumpToLatest')}
-                    />
-                  </Box>
+                  <ActionButton
+                    compact
+                    fullWidth={false}
+                    title={t('sourceDetail.download')}
+                    startIcon={<DownloadIcon />}
+                    color="info"
+                    onClick={(e) => setDownloadAnchor(e.currentTarget)}
+                    disabled={isDmca || !source?.chapters_count}
+                    tooltip={isDmca ? t('sourceDetail.dmcaNotice') : t('sourceDetail.downloadTooltip')}
+                  />
                 </Box>
 
                 <Menu
@@ -914,7 +1017,7 @@ const SourceDetail = () => {
                   >
                     {t('sourceDetail.downloadFull')}
                   </MenuItem>
-                  {source?.volumes?.map((v) => (
+                  {source?.volumes && source.volumes.length > 1 && source.volumes.map((v) => (
                     <MenuItem
                       key={v.volume_id}
                       component="a"
@@ -1032,6 +1135,13 @@ const SourceDetail = () => {
             />
           </SectionContainer>
         )}
+
+        <AddToListDialog
+          open={addToListOpen}
+          onClose={() => setAddToListOpen(false)}
+          novelId={source?.novel_id}
+          novelTitle={novel?.title || source?.title}
+        />
     </Container>
   );
 };

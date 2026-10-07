@@ -72,7 +72,6 @@
     "chat": "Czat",
     "search": "Szukaj",
     "addNovel": "Dodaj powieść",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Zmień motyw",
     "userFallback": "Użytkownik",
@@ -91,7 +90,6 @@
     "tagline": "Czytaj azjatyckie light novel z ponad 300 źródeł",
     "copyright": "Licencja MIT © {year} LNCrawler.",
     "links": "Linki",
-    "discordCommunity": "Społeczność Discord",
     "githubRepository": "Repozytorium GitHub",
     "dmcaContact": "Kontakt DMCA",
     "developedBy": "Opracowane przez bygourou",
@@ -303,7 +301,19 @@
       "title": "Tytuł",
       "date_added": "Data dodania",
       "rating": "Ocena"
-    }
+    },
+    "addNote": "Dodaj notatkę",
+    "clearSelection": "Wyczyść",
+    "dragToFolder": "Przeciągnij powieść na folder, aby ją przypisać",
+    "moreActions": "Więcej akcji",
+    "moveTo": "Przenieś do",
+    "moveToFolder": "Przenieś do folderu",
+    "removeConfirmBody": "{count, plural, one {Usunąć # powieść z biblioteki?} few {Usunąć # powieści z biblioteki?} many {Usunąć # powieści z biblioteki?} other {Usunąć # powieści z biblioteki?}} Tej czynności nie można cofnąć.",
+    "removeConfirmTitle": "Usunąć z biblioteki?",
+    "removeFromLibrary": "Usuń z biblioteki",
+    "select": "Wybierz",
+    "selectAll": "Wybierz wszystko",
+    "selectedCount": "{count, plural, one {# wybrano} few {# wybrano} many {# wybrano} other {# wybrano}}"
   },
   "history": {
     "loadFailed": "Nie udało się wczytać Twojej historii czytania. Spróbuj ponownie później.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "Wczytywanie rozdziałów | LNCrawler",
     "metaDescription": "Przeglądaj wszystkie {count} rozdziałów powieści {novel} ze źródła {source} w LNCrawler. Czytaj light novel online w przejrzystym interfejsie.",
     "metaLoadingDescription": "Wczytywanie listy rozdziałów. Odkrywaj light novel w LNCrawler.",
-    "keywords": "{novel}, {source}, lista rozdziałów, wszystkie rozdziały, rozdziały light novel, web novel"
+    "keywords": "{novel}, {source}, lista rozdziałów, wszystkie rozdziały, rozdziały light novel, web novel",
+    "dmcaNotice": "Ta praca została usunięta w wyniku żądania usunięcia DMCA. Rozdziały nie są już dostępne."
   },
   "gallery": {
     "loadFailed": "Nie udało się wczytać obrazów. Spróbuj ponownie później.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - Czytaj w LNCrawler",
     "metaLoadingTitle": "Wczytywanie źródła powieści | LNCrawler",
     "metaDescription": "Czytaj {title} ze źródła {source}. Opis: {synopsis}",
-    "metaLoadingDescription": "Wczytywanie szczegółów tego źródła powieści w LNCrawler."
+    "metaLoadingDescription": "Wczytywanie szczegółów tego źródła powieści w LNCrawler.",
+    "dmcaNotice": "Ta praca została usunięta w wyniku żądania usunięcia DMCA. Czytanie i pobieranie są wyłączone."
   },
   "rating": {
     "noRatings": "Brak ocen"
@@ -512,7 +524,8 @@
     "processing": "Przetwarzanie...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "Aktualizacja powieści {title} zakończona!",
-    "tryAgain": "Spróbuj ponownie zaktualizować"
+    "tryAgain": "Spróbuj ponownie zaktualizować",
+    "disabledNoCrawler": "To źródło nie jest już obsługiwane, więc nie można go zaktualizować."
   },
   "comments": {
     "enterName": "Wpisz swoje imię",
@@ -543,7 +556,8 @@
     "showReplies": "Pokaż {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}",
     "loadFailed": "Nie udało się wczytać komentarzy. Spróbuj odświeżyć stronę.",
     "noComments": "Brak komentarzy. Bądź pierwszy, który skomentuje!",
-    "mixedSourcesWarning": "Niektóre z poniższych komentarzy zostały opublikowane dla różnych źródeł. Źródła mogą używać innej numeracji rozdziałów, więc mogą wystąpić spoilery lub pozornie nieistotne komentarze."
+    "mixedSourcesWarning": "Niektóre z poniższych komentarzy zostały opublikowane dla różnych źródeł. Źródła mogą używać innej numeracji rozdziałów, więc mogą wystąpić spoilery lub pozornie nieistotne komentarze.",
+    "guest": "[gość]"
   },
   "chat": {
     "title": "Czat społeczności",
@@ -707,7 +721,8 @@
     "unlockScrolling": "Odblokuj przewijanie",
     "lockScrolling": "Zablokuj przewijanie",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Strona {current} z {total}"
+    "pageOf": "Strona {current} z {total}",
+    "dmcaUnavailable": "Ta praca jest niedostępna z powodu żądania usunięcia DMCA."
   },
   "readerControls": {
     "previousChapter": "Poprzedni rozdział",
@@ -857,5 +872,11 @@
     "applyFailed": "Import nie powiódł się. Spróbuj ponownie.",
     "resultSummary": "Zaimportowano {bookmarked} powieści ({already} już w bibliotece). Ustawiono postęp dla {progress}.",
     "goToLibrary": "Przejdź do biblioteki"
+  },
+  "novelActions": {
+    "addToReadingList": "Dodaj do listy czytelniczej",
+    "bookmark": "Dodaj do zakładek",
+    "menu": "Akcje powieści",
+    "removeBookmark": "Usuń z zakładek"
   }
 }

@@ -8,6 +8,7 @@ import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import NovelActionsMenu from '@components/common/NovelActionsMenu';
 
 interface NovelItemCardProps {
   novel: Novel;
@@ -40,6 +41,24 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
   }
 
   return (
+    <Box sx={{
+      position: 'relative',
+      height: '100%',
+      width: '100%',
+      transition: 'transform 0.2s',
+      '&:hover': {
+        transform: 'translateY(-5px)',
+        zIndex: 2,
+      }
+    }}>
+    <NovelActionsMenu
+      novelId={novel.id}
+      novelTitle={novel.title}
+      slug={novel.slug}
+      isBookmarked={novel.is_bookmarked}
+      customSx={{ position: 'absolute', bottom: 8, right: 8, zIndex: 2 }}
+      buttonSize={28}
+    />
     <ButtonBase 
       onClick={onClick}
       component={to ? Link : 'button'}
@@ -52,10 +71,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
         height: '100%',
         width: '100%',
         textAlign: 'left',
-        transition: 'transform 0.2s',
-        '&:hover': {
-          transform: 'translateY(-5px)',
-        }
+        position: 'relative',
       }}
     >
       <Card 
@@ -159,6 +175,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
         </Box>
       </Box>
     </ButtonBase>
+    </Box>
   );
 };
 

@@ -18,9 +18,6 @@ from ..utils.pagination import parse_page_size
 from ..services.epub_service import get_or_build_epub
 
 
-MAX_EPUB_CHAPTERS = 500
-
-
 class ArrayLength(Func):
     """Postgres array length (Django has no built-in array Length)."""
     function = 'CARDINALITY'
@@ -289,23 +286,6 @@ def download_source_epub(request, novel_slug, source_slug):
                 {"error": "Volume not found for this source."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-
-    # Cap the inline build so an unauthenticated request can't make the server
-    # assemble a book with an unbounded number of chapters in one go.
-    chapter_count = source.chapters.filter(has_content=True)
-    if volume is not None:
-        chapter_count = chapter_count.filter(volume=volume)
-    chapter_count = chapter_count.count()
-    if chapter_count > MAX_EPUB_CHAPTERS:
-        return Response(
-            {
-                "error": (
-                    f"This selection has {chapter_count} chapters (limit "
-                    f"{MAX_EPUB_CHAPTERS}). Download it by volume instead."
-                )
-            },
-            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-        )
 
     try:
         path, filename = get_or_build_epub(source, volume)

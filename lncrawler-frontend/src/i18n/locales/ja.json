@@ -72,7 +72,6 @@
     "chat": "チャット",
     "search": "検索",
     "addNovel": "小説を追加",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "テーマを変更",
     "userFallback": "ユーザー",
@@ -91,7 +90,6 @@
     "tagline": "300以上のソースからアジアのライトノベルを読む",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "リンク",
-    "discordCommunity": "Discordコミュニティ",
     "githubRepository": "GitHubリポジトリ",
     "dmcaContact": "DMCA連絡先",
     "developedBy": "開発：bygourou",
@@ -303,7 +301,19 @@
       "title": "タイトル",
       "date_added": "追加日",
       "rating": "評価"
-    }
+    },
+    "addNote": "メモを追加",
+    "clearSelection": "クリア",
+    "dragToFolder": "小説をフォルダにドラッグして整理",
+    "moreActions": "その他の操作",
+    "moveTo": "移動先",
+    "moveToFolder": "フォルダに移動",
+    "removeConfirmBody": "{count, plural, one {ライブラリから#作品を削除しますか？} other {ライブラリから#作品を削除しますか？}} この操作は元に戻せません。",
+    "removeConfirmTitle": "ライブラリから削除しますか？",
+    "removeFromLibrary": "ライブラリから削除",
+    "select": "選択",
+    "selectAll": "すべて選択",
+    "selectedCount": "{count, plural, one {#件選択中} other {#件選択中}}"
   },
   "history": {
     "loadFailed": "閲覧履歴の読み込みに失敗しました。しばらくしてからもう一度お試しください。",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "章を読み込み中 | LNCrawler",
     "metaDescription": "LNCrawlerでソース「{source}」の{novel}の全{count}章を閲覧できます。快適な読書体験でライトノベルをオンラインで読みましょう。",
     "metaLoadingDescription": "章一覧を読み込み中。LNCrawlerでライトノベルを見つけましょう。",
-    "keywords": "{novel}, {source}, 章一覧, 全章, ライトノベルの章, Web小説"
+    "keywords": "{novel}, {source}, 章一覧, 全章, ライトノベルの章, Web小説",
+    "dmcaNotice": "この作品はDMCA削除要請に従い削除されました。章はもう利用できません。"
   },
   "gallery": {
     "loadFailed": "画像の読み込みに失敗しました。しばらくしてからもう一度お試しください。",
@@ -492,7 +503,8 @@
     "metaTitle": "{title}（{source}）- LNCrawlerで読む",
     "metaLoadingTitle": "小説ソースを読み込み中 | LNCrawler",
     "metaDescription": "{source}の{title}を読みましょう。あらすじ：{synopsis}",
-    "metaLoadingDescription": "LNCrawlerでこの小説ソースの詳細を読み込み中。"
+    "metaLoadingDescription": "LNCrawlerでこの小説ソースの詳細を読み込み中。",
+    "dmcaNotice": "この作品はDMCA削除要請に従い削除されました。閲覧とダウンロードは無効です。"
   },
   "rating": {
     "noRatings": "評価なし"
@@ -512,7 +524,8 @@
     "processing": "処理中...",
     "progressOf": "（{progress} / {total} {unit}）",
     "complete": "{title}の更新が完了しました！",
-    "tryAgain": "もう一度更新を試す"
+    "tryAgain": "もう一度更新を試す",
+    "disabledNoCrawler": "このソースはサポートされなくなったため、更新できません。"
   },
   "comments": {
     "enterName": "名前を入力してください",
@@ -543,7 +556,8 @@
     "showReplies": "{count, plural, one {#件の返信を表示} other {#件の返信を表示}}",
     "loadFailed": "コメントの読み込みに失敗しました。ページを更新してみてください。",
     "noComments": "まだコメントがありません。最初にコメントしましょう！",
-    "mixedSourcesWarning": "以下の一部のコメントは異なるソースに投稿されたものです。ソースによって章番号が異なる場合があるため、ネタバレや無関係に見えるコメントが含まれる可能性があります。"
+    "mixedSourcesWarning": "以下の一部のコメントは異なるソースに投稿されたものです。ソースによって章番号が異なる場合があるため、ネタバレや無関係に見えるコメントが含まれる可能性があります。",
+    "guest": "[ゲスト]"
   },
   "chat": {
     "title": "コミュニティチャット",
@@ -707,7 +721,8 @@
     "unlockScrolling": "スクロールを解除",
     "lockScrolling": "スクロールをロック",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "{total}ページ中{current}ページ"
+    "pageOf": "{total}ページ中{current}ページ",
+    "dmcaUnavailable": "この作品はDMCA削除要請により利用できません。"
   },
   "readerControls": {
     "previousChapter": "前の章",
@@ -857,5 +872,11 @@
     "applyFailed": "インポートに失敗しました。もう一度お試しください。",
     "resultSummary": "{bookmarked}件の小説をインポートしました（{already}件は既にライブラリにあります）。{progress}件の進捗を設定しました。",
     "goToLibrary": "ライブラリへ"
+  },
+  "novelActions": {
+    "addToReadingList": "読書リストに追加",
+    "bookmark": "ブックマークに追加",
+    "menu": "小説の操作",
+    "removeBookmark": "ブックマークを解除"
   }
 }

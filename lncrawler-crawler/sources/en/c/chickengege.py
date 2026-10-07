@@ -21,9 +21,7 @@ class ChickenGegeCrawler(Crawler):
     def search_novel(self, query):
         query = query.lower()
         url = f"{self.base_url[0]}/wp-json/wp/v2/novels?per_page=100"
-        response = self.submit_task(self.scraper.get, url).result()
-        if response.status_code != 200:
-            return []
+        response = self.get_response(url)
         return [
             SearchResult(title=item["name"], url=item["link"], info=f"{item['count']} chapters")
             for item in response.json()

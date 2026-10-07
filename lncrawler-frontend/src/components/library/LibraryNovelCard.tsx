@@ -177,6 +177,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
           '&:hover': {
             transform: 'translateY(-4px)',
             boxShadow: 6,
+            zIndex: 2,
           },
           '&:hover .card-quick': { opacity: 1 },
           ...(selected && {
@@ -276,7 +277,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
               component="div"
               sx={{
                 position: 'absolute',
-                bottom: 0,
+                bottom: 6,
                 left: 0,
                 right: 0,
                 p: 1,
@@ -285,10 +286,10 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
                 lineHeight: 1.25,
                 textShadow: '0 1px 3px rgba(0,0,0,0.6)',
                 display: '-webkit-box',
-                WebkitLineClamp: 2,
+                WebkitLineClamp: 3,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                maxHeight: '2.5em',
+                textOverflow: 'ellipsis',
                 wordBreak: 'break-word',
               }}
             >
@@ -331,7 +332,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: 0.5,
-                minHeight: 32,
+                minHeight: 48,
                 px: 0.5,
                 pt: 0.5,
                 borderRadius: 1,
@@ -353,9 +354,10 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
                     color: novel.note ? 'text.secondary' : 'text.disabled',
                     fontStyle: novel.note ? 'normal' : 'italic',
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: 4,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
                   {novel.note || t('library.addNote')}

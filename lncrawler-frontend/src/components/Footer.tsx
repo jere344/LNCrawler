@@ -74,16 +74,7 @@ const Footer = () => {
                             {t('footer.links')}
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <Link href="https://discord.gg/a2b4Mfr4cU" target="_blank" rel="noopener noreferrer" 
-                                sx={{ 
-                                    display: 'inline-flex', 
-                                    alignItems: 'center',
-                                    color: 'text.secondary',
-                                    '&:hover': { color: 'primary.main' },
-                                }}>
-                                {t('footer.discordCommunity')}
-                            </Link>
-                            <Link href="https://github.com/jere344/lightnovel-crawler-website" target="_blank" rel="noopener noreferrer" 
+                            <Link href="https://github.com/jere344/LNCrawler" target="_blank" rel="noopener noreferrer" 
                                 sx={{ 
                                     display: 'inline-flex', 
                                     alignItems: 'center',

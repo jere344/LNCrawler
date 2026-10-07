@@ -14,22 +14,8 @@ class Command(BaseCommand):
         'one bucket per ISO week so the table stays small'
     )
 
-    def add_arguments(self, parser):
-        parser.add_argument(
-            '--days',
-            type=int,
-            default=WeeklySourceView.CONSOLIDATION_DAYS,
-            help='Keep daily buckets for this many days before rolling them up',
-        )
-        parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Show what would be consolidated without changing anything',
-        )
-
     def handle(self, *args, **options):
-        cutoff = date.today() - timedelta(days=options['days'])
-        dry_run = options['dry_run']
+        cutoff = date.today() - timedelta(days=WeeklySourceView.CONSOLIDATION_DAYS)
 
         daily_rows = (
             WeeklySourceView.objects.filter(
@@ -55,9 +41,6 @@ class Command(BaseCommand):
                 consumed += 1
 
             sources_seen += 1
-            if dry_run:
-                weeks_written += len(per_week)
-                continue
 
             # One transaction per source: an interrupted run never leaves the
             # weekly bucket written without its daily rows deleted (or vice versa).
@@ -81,10 +64,9 @@ class Command(BaseCommand):
                     day__lt=cutoff,
                 ).delete()
 
-        action = 'Would roll up' if dry_run else 'Rolled up'
         self.stdout.write(
             self.style.SUCCESS(
-                f'{action} {consumed} daily buckets into {weeks_written} weekly '
+                f'Rolled up {consumed} daily buckets into {weeks_written} weekly '
                 f'buckets across {sources_seen} sources (daily rows before {cutoff})'
             )
         )

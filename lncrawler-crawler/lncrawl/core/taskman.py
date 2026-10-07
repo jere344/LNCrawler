@@ -98,9 +98,7 @@ class TaskManager:
         )
 
     def submit_task(self, fn, *args, **kwargs) -> Future:
-        limiter = getattr(self, "_limiter", None)
-        if limiter is not None:
-            fn = limiter.wrap(fn)
+        # Rate limiting is applied per HTTP request in Scraper.__process_request.
         future = self._executor.submit(fn, *args, **kwargs)
         self._futures.append(future)
         return future

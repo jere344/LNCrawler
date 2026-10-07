@@ -72,7 +72,6 @@
     "chat": "चैट",
     "search": "खोजें",
     "addNovel": "उपन्यास जोड़ें",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "थीम बदलें",
     "userFallback": "उपयोगकर्ता",
@@ -91,7 +90,6 @@
     "tagline": "300+ स्रोतों से एशियाई लाइट नॉवेल पढ़ें",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "लिंक",
-    "discordCommunity": "Discord समुदाय",
     "githubRepository": "GitHub रिपॉज़िटरी",
     "dmcaContact": "DMCA संपर्क",
     "developedBy": "bygourou द्वारा विकसित",
@@ -303,7 +301,19 @@
       "title": "शीर्षक",
       "date_added": "जोड़ने की तिथि",
       "rating": "रेटिंग"
-    }
+    },
+    "addNote": "नोट जोड़ें",
+    "clearSelection": "साफ़ करें",
+    "dragToFolder": "किसी उपन्यास को फ़ोल्डर पर खींचकर उसे वर्गीकृत करें",
+    "moreActions": "और क्रियाएँ",
+    "moveTo": "इसमें ले जाएँ",
+    "moveToFolder": "फ़ोल्डर में ले जाएँ",
+    "removeConfirmBody": "{count, plural, one {अपनी लाइब्रेरी से # उपन्यास हटाएँ?} other {अपनी लाइब्रेरी से # उपन्यास हटाएँ?}} इसे पूर्ववत नहीं किया जा सकता।",
+    "removeConfirmTitle": "लाइब्रेरी से हटाएँ?",
+    "removeFromLibrary": "लाइब्रेरी से हटाएँ",
+    "select": "चुनें",
+    "selectAll": "सभी चुनें",
+    "selectedCount": "{count, plural, one {# चयनित} other {# चयनित}}"
   },
   "history": {
     "loadFailed": "आपका पठन इतिहास लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "अध्याय लोड हो रहे हैं | LNCrawler",
     "metaDescription": "LNCrawler पर स्रोत {source} से {novel} के सभी {count} अध्याय ब्राउज़ करें। स्वच्छ पठन अनुभव के साथ लाइट नॉवेल ऑनलाइन पढ़ें।",
     "metaLoadingDescription": "अध्याय सूची लोड हो रही है। LNCrawler पर लाइट नॉवेल खोजें।",
-    "keywords": "{novel}, {source}, अध्याय सूची, सभी अध्याय, लाइट नॉवेल अध्याय, वेब नॉवेल"
+    "keywords": "{novel}, {source}, अध्याय सूची, सभी अध्याय, लाइट नॉवेल अध्याय, वेब नॉवेल",
+    "dmcaNotice": "यह कृति DMCA टेकडाउन अनुरोध के बाद हटा दी गई है। अध्याय अब उपलब्ध नहीं हैं।"
   },
   "gallery": {
     "loadFailed": "छवियां लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - LNCrawler पर पढ़ें",
     "metaLoadingTitle": "उपन्यास स्रोत लोड हो रहा है | LNCrawler",
     "metaDescription": "{source} से {title} पढ़ें। सारांश: {synopsis}",
-    "metaLoadingDescription": "LNCrawler पर इस उपन्यास स्रोत का विवरण लोड हो रहा है।"
+    "metaLoadingDescription": "LNCrawler पर इस उपन्यास स्रोत का विवरण लोड हो रहा है।",
+    "dmcaNotice": "यह कृति DMCA टेकडाउन अनुरोध के बाद हटा दी गई है। पढ़ना और डाउनलोड अक्षम हैं।"
   },
   "rating": {
     "noRatings": "कोई रेटिंग नहीं"
@@ -512,7 +524,8 @@
     "processing": "प्रोसेस हो रहा है...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "{title} के लिए अपडेट पूर्ण!",
-    "tryAgain": "फिर से अपडेट करें"
+    "tryAgain": "फिर से अपडेट करें",
+    "disabledNoCrawler": "यह स्रोत अब समर्थित नहीं है, इसलिए इसे अपडेट नहीं किया जा सकता।"
   },
   "comments": {
     "enterName": "कृपया अपना नाम दर्ज करें",
@@ -543,7 +556,8 @@
     "showReplies": "दिखाएं {count, plural, one {# जवाब} other {# जवाब}}",
     "loadFailed": "टिप्पणियां लोड करने में विफल। कृपया पेज रीफ़्रेश करके प्रयास करें।",
     "noComments": "अभी कोई टिप्पणी नहीं। टिप्पणी करने वाले पहले व्यक्ति बनें!",
-    "mixedSourcesWarning": "नीचे कुछ टिप्पणियां अलग-अलग स्रोतों के लिए पोस्ट की गई थीं। स्रोत अलग-अलग अध्याय संख्याएं उपयोग कर सकते हैं, इसलिए स्पॉइलर या अप्रासंगिक लगने वाली टिप्पणियां हो सकती हैं।"
+    "mixedSourcesWarning": "नीचे कुछ टिप्पणियां अलग-अलग स्रोतों के लिए पोस्ट की गई थीं। स्रोत अलग-अलग अध्याय संख्याएं उपयोग कर सकते हैं, इसलिए स्पॉइलर या अप्रासंगिक लगने वाली टिप्पणियां हो सकती हैं।",
+    "guest": "[अतिथि]"
   },
   "chat": {
     "title": "समुदाय चैट",
@@ -707,7 +721,8 @@
     "unlockScrolling": "स्क्रॉलिंग अनलॉक करें",
     "lockScrolling": "स्क्रॉलिंग लॉक करें",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "पृष्ठ {current} / {total}"
+    "pageOf": "पृष्ठ {current} / {total}",
+    "dmcaUnavailable": "यह कृति DMCA टेकडाउन अनुरोध के कारण अनुपलब्ध है।"
   },
   "readerControls": {
     "previousChapter": "पिछला अध्याय",
@@ -857,5 +872,11 @@
     "applyFailed": "आयात विफल रहा। कृपया पुनः प्रयास करें।",
     "resultSummary": "{bookmarked} उपन्यास आयात किए गए ({already} पहले से लाइब्रेरी में)। {progress} के लिए प्रगति सेट की गई।",
     "goToLibrary": "लाइब्रेरी पर जाएँ"
+  },
+  "novelActions": {
+    "addToReadingList": "पठन सूची में जोड़ें",
+    "bookmark": "बुकमार्क में जोड़ें",
+    "menu": "उपन्यास क्रियाएँ",
+    "removeBookmark": "बुकमार्क हटाएँ"
   }
 }

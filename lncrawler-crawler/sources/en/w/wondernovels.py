@@ -71,9 +71,13 @@ class WonderNovels(Crawler):
         self.novel_title = possible_title.text.strip()
         logger.info("Novel title: %s", self.novel_title)
 
-        self.novel_cover = self.absolute_url(
-            soup.select_one(".summary_image a img")["data-src"]
+        cover = soup.select_one(".summary_image a img") or soup.select_one(
+            ".summary_image img"
         )
+        if cover:
+            self.novel_cover = self.absolute_url(
+                cover.get("data-src") or cover.get("src")
+            )
         logger.info("Novel cover: %s", self.novel_cover)
 
         self.novel_author = " ".join(

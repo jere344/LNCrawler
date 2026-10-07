@@ -72,7 +72,6 @@
     "chat": "Obrolan",
     "search": "Cari",
     "addNovel": "Tambah Novel",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Ganti tema",
     "userFallback": "Pengguna",
@@ -91,7 +90,6 @@
     "tagline": "Baca Light Novel Asia dari 300+ Sumber",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "Tautan",
-    "discordCommunity": "Komunitas Discord",
     "githubRepository": "Repositori GitHub",
     "dmcaContact": "Kontak DMCA",
     "developedBy": "Dikembangkan oleh bygourou",
@@ -303,7 +301,19 @@
       "title": "Judul",
       "date_added": "Tanggal ditambahkan",
       "rating": "Peringkat"
-    }
+    },
+    "addNote": "Tambah catatan",
+    "clearSelection": "Bersihkan",
+    "dragToFolder": "Seret novel ke folder untuk menyimpannya",
+    "moreActions": "Tindakan lainnya",
+    "moveTo": "Pindahkan ke",
+    "moveToFolder": "Pindahkan ke folder",
+    "removeConfirmBody": "{count, plural, one {Hapus # novel dari perpustakaan Anda?} other {Hapus # novel dari perpustakaan Anda?}} Tindakan ini tidak dapat dibatalkan.",
+    "removeConfirmTitle": "Hapus dari perpustakaan?",
+    "removeFromLibrary": "Hapus dari perpustakaan",
+    "select": "Pilih",
+    "selectAll": "Pilih semua",
+    "selectedCount": "{count, plural, one {# dipilih} other {# dipilih}}"
   },
   "history": {
     "loadFailed": "Gagal memuat riwayat bacaan Anda. Silakan coba lagi nanti.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "Memuat Bab | LNCrawler",
     "metaDescription": "Jelajahi semua {count} bab untuk {novel} dari sumber {source} di LNCrawler. Baca light novel online dengan pengalaman membaca yang bersih.",
     "metaLoadingDescription": "Memuat daftar bab. Temukan light novel di LNCrawler.",
-    "keywords": "{novel}, {source}, daftar bab, semua bab, bab light novel, web novel"
+    "keywords": "{novel}, {source}, daftar bab, semua bab, bab light novel, web novel",
+    "dmcaNotice": "Karya ini telah dihapus setelah permintaan penurunan DMCA. Bab tidak lagi tersedia."
   },
   "gallery": {
     "loadFailed": "Gagal memuat gambar. Silakan coba lagi nanti.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - Baca di LNCrawler",
     "metaLoadingTitle": "Memuat Sumber Novel | LNCrawler",
     "metaDescription": "Baca {title} dari {source}. Sinopsis: {synopsis}",
-    "metaLoadingDescription": "Memuat detail sumber novel ini di LNCrawler."
+    "metaLoadingDescription": "Memuat detail sumber novel ini di LNCrawler.",
+    "dmcaNotice": "Karya ini telah dihapus setelah permintaan penurunan DMCA. Membaca dan mengunduh dinonaktifkan."
   },
   "rating": {
     "noRatings": "Tidak ada penilaian"
@@ -512,7 +524,8 @@
     "processing": "Memproses...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "Pembaruan selesai untuk {title}!",
-    "tryAgain": "Coba Perbarui Lagi"
+    "tryAgain": "Coba Perbarui Lagi",
+    "disabledNoCrawler": "Sumber ini tidak lagi didukung, sehingga tidak dapat diperbarui."
   },
   "comments": {
     "enterName": "Harap masukkan nama Anda",
@@ -543,7 +556,8 @@
     "showReplies": "Tampilkan {count, plural, one {# balasan} other {# balasan}}",
     "loadFailed": "Gagal memuat komentar. Silakan coba segarkan halaman.",
     "noComments": "Belum ada komentar. Jadilah yang pertama berkomentar!",
-    "mixedSourcesWarning": "Beberapa komentar di bawah diposting untuk sumber yang berbeda. Sumber mungkin menggunakan penomoran bab yang berbeda sehingga mungkin ada spoiler atau komentar yang tampak tidak relevan."
+    "mixedSourcesWarning": "Beberapa komentar di bawah diposting untuk sumber yang berbeda. Sumber mungkin menggunakan penomoran bab yang berbeda sehingga mungkin ada spoiler atau komentar yang tampak tidak relevan.",
+    "guest": "[tamu]"
   },
   "chat": {
     "title": "Chat Komunitas",
@@ -707,7 +721,8 @@
     "unlockScrolling": "Buka kunci gulir",
     "lockScrolling": "Kunci gulir",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Halaman {current} dari {total}"
+    "pageOf": "Halaman {current} dari {total}",
+    "dmcaUnavailable": "Karya ini tidak tersedia karena permintaan penurunan DMCA."
   },
   "readerControls": {
     "previousChapter": "Bab Sebelumnya",
@@ -857,5 +872,11 @@
     "applyFailed": "Impor gagal. Silakan coba lagi.",
     "resultSummary": "{bookmarked} novel diimpor ({already} sudah ada di pustaka). Kemajuan diatur untuk {progress}.",
     "goToLibrary": "Buka pustaka"
+  },
+  "novelActions": {
+    "addToReadingList": "Tambah ke daftar bacaan",
+    "bookmark": "Tandai",
+    "menu": "Tindakan novel",
+    "removeBookmark": "Hapus tanda"
   }
 }

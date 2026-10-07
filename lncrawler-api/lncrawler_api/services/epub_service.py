@@ -60,7 +60,11 @@ def _is_cache_fresh(path, source):
 
 
 def _select_chapters(source, volume):
-    qs = source.chapters.filter(has_content=True).order_by("chapter_id")
+    qs = (
+        source.chapters.filter(has_content=True)
+        .only("chapter_id", "title", "images")
+        .order_by("chapter_id")
+    )
     if volume is not None:
         qs = qs.filter(volume=volume)
     return list(qs)

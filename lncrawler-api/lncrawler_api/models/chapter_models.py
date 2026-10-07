@@ -56,21 +56,4 @@ class Chapter(models.Model):
             return parsed_chapter.get('body', None)
 
         return None
-    
-    def check_has_content(self, save=True):
-        """Check if the chapter file exists and has content, and update the has_content field"""
-        has_content = chapter_utils.check_chapter_has_content(self.novel_from_source.absolute_source_path, self.chapter_id)
-        
-        # Update the field if it's different
-        if self.has_content != has_content:
-            self.has_content = has_content
-            if save:
-                self.save(update_fields=['has_content'])
-        
-        return has_content
-    
-    def save(self, *args, **kwargs):
-        # If we're not explicitly updating specific fields, check content
-        if not kwargs.get('update_fields') or 'has_content' not in kwargs.get('update_fields', []):
-            self.check_has_content(save=False)
-        super().save(*args, **kwargs)
+

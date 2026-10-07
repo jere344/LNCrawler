@@ -72,7 +72,6 @@
     "chat": "Chat",
     "search": "Pesquisar",
     "addNovel": "Adicionar novela",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Alterar tema",
     "userFallback": "Utilizador",
@@ -91,7 +90,6 @@
     "tagline": "Leia light novels asiáticas de mais de 300 fontes",
     "copyright": "MIT License © {year} LNCrawler.",
     "links": "Ligações",
-    "discordCommunity": "Comunidade Discord",
     "githubRepository": "Repositório GitHub",
     "dmcaContact": "Contacto DMCA",
     "developedBy": "Desenvolvido por bygourou",
@@ -303,7 +301,19 @@
       "title": "Título",
       "date_added": "Data de adição",
       "rating": "Avaliação"
-    }
+    },
+    "addNote": "Adicionar uma nota",
+    "clearSelection": "Limpar",
+    "dragToFolder": "Arraste uma novela para uma pasta para arquivá-la",
+    "moreActions": "Mais ações",
+    "moveTo": "Mover para",
+    "moveToFolder": "Mover para pasta",
+    "removeConfirmBody": "{count, plural, one {Remover # novela da sua biblioteca?} other {Remover # novelas da sua biblioteca?}} Esta ação não pode ser anulada.",
+    "removeConfirmTitle": "Remover da biblioteca?",
+    "removeFromLibrary": "Remover da biblioteca",
+    "select": "Selecionar",
+    "selectAll": "Selecionar tudo",
+    "selectedCount": "{count, plural, one {# selecionado} other {# selecionados}}"
   },
   "history": {
     "loadFailed": "Falha ao carregar o seu histórico de leitura. Tente novamente mais tarde.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "A carregar capítulos | LNCrawler",
     "metaDescription": "Explore os {count} capítulos de {novel} da fonte {source} na LNCrawler. Leia light novels online com uma experiência de leitura limpa.",
     "metaLoadingDescription": "A carregar a lista de capítulos. Descubra light novels na LNCrawler.",
-    "keywords": "{novel}, {source}, lista de capítulos, todos os capítulos, capítulos de light novel, web novel"
+    "keywords": "{novel}, {source}, lista de capítulos, todos os capítulos, capítulos de light novel, web novel",
+    "dmcaNotice": "Esta obra foi removida após uma solicitação de remoção por DMCA. Os capítulos não estão mais disponíveis."
   },
   "gallery": {
     "loadFailed": "Falha ao carregar as imagens. Tente novamente mais tarde.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - Ler na LNCrawler",
     "metaLoadingTitle": "A carregar fonte da novela | LNCrawler",
     "metaDescription": "Leia {title} de {source}. Sinopse: {synopsis}",
-    "metaLoadingDescription": "A carregar os detalhes desta fonte de novela na LNCrawler."
+    "metaLoadingDescription": "A carregar os detalhes desta fonte de novela na LNCrawler.",
+    "dmcaNotice": "Esta obra foi removida após uma solicitação de remoção por DMCA. A leitura e os downloads estão desativados."
   },
   "rating": {
     "noRatings": "Sem avaliações"
@@ -512,7 +524,8 @@
     "processing": "A processar...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "Atualização concluída para {title}!",
-    "tryAgain": "Tentar atualizar novamente"
+    "tryAgain": "Tentar atualizar novamente",
+    "disabledNoCrawler": "Esta fonte não é mais suportada, portanto não pode ser atualizada."
   },
   "comments": {
     "enterName": "Introduza o seu nome",
@@ -543,7 +556,8 @@
     "showReplies": "Mostrar {count, plural, one {# resposta} other {# respostas}}",
     "loadFailed": "Falha ao carregar os comentários. Tente atualizar a página.",
     "noComments": "Ainda não há comentários. Seja o primeiro a comentar!",
-    "mixedSourcesWarning": "Alguns comentários abaixo foram publicados para fontes diferentes. As fontes podem usar uma numeração de capítulos diferente, pelo que pode haver spoilers ou comentários aparentemente irrelevantes."
+    "mixedSourcesWarning": "Alguns comentários abaixo foram publicados para fontes diferentes. As fontes podem usar uma numeração de capítulos diferente, pelo que pode haver spoilers ou comentários aparentemente irrelevantes.",
+    "guest": "[convidado]"
   },
   "chat": {
     "title": "Chat da comunidade",
@@ -707,7 +721,8 @@
     "unlockScrolling": "Desbloquear deslocamento",
     "lockScrolling": "Bloquear deslocamento",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Página {current} de {total}"
+    "pageOf": "Página {current} de {total}",
+    "dmcaUnavailable": "Esta obra está indisponível devido a uma solicitação de remoção por DMCA."
   },
   "readerControls": {
     "previousChapter": "Capítulo anterior",
@@ -857,5 +872,11 @@
     "applyFailed": "A importação falhou. Tente novamente.",
     "resultSummary": "Importados {bookmarked} romances ({already} já na biblioteca). Progresso definido para {progress}.",
     "goToLibrary": "Ir para a biblioteca"
+  },
+  "novelActions": {
+    "addToReadingList": "Adicionar à lista de leitura",
+    "bookmark": "Adicionar aos marcadores",
+    "menu": "Ações da novela",
+    "removeBookmark": "Remover dos marcadores"
   }
 }

@@ -72,7 +72,6 @@
     "chat": "Chat",
     "search": "Zoeken",
     "addNovel": "Roman toevoegen",
-    "discord": "Discord",
     "github": "GitHub",
     "changeTheme": "Thema wijzigen",
     "userFallback": "Gebruiker",
@@ -91,7 +90,6 @@
     "tagline": "Lees Aziatische light novels uit meer dan 300 bronnen",
     "copyright": "MIT-licentie © {year} LNCrawler.",
     "links": "Links",
-    "discordCommunity": "Discord-gemeenschap",
     "githubRepository": "GitHub-repository",
     "dmcaContact": "DMCA-contact",
     "developedBy": "Ontwikkeld door bygourou",
@@ -303,7 +301,19 @@
       "title": "Titel",
       "date_added": "Datum toegevoegd",
       "rating": "Beoordeling"
-    }
+    },
+    "addNote": "Notitie toevoegen",
+    "clearSelection": "Wissen",
+    "dragToFolder": "Sleep een roman naar een map om deze op te bergen",
+    "moreActions": "Meer acties",
+    "moveTo": "Verplaatsen naar",
+    "moveToFolder": "Naar map verplaatsen",
+    "removeConfirmBody": "{count, plural, one {# roman uit je bibliotheek verwijderen?} other {# romans uit je bibliotheek verwijderen?}} Dit kan niet ongedaan worden gemaakt.",
+    "removeConfirmTitle": "Uit bibliotheek verwijderen?",
+    "removeFromLibrary": "Uit bibliotheek verwijderen",
+    "select": "Selecteren",
+    "selectAll": "Alles selecteren",
+    "selectedCount": "{count, plural, one {# geselecteerd} other {# geselecteerd}}"
   },
   "history": {
     "loadFailed": "Je leesgeschiedenis laden mislukt. Probeer het later opnieuw.",
@@ -384,7 +394,8 @@
     "metaLoadingTitle": "Hoofdstukken laden | LNCrawler",
     "metaDescription": "Blader door alle {count} hoofdstukken van {novel} uit bron {source} op LNCrawler. Lees light novels online met een schone leeservaring.",
     "metaLoadingDescription": "Hoofdstukkenlijst laden. Ontdek light novels op LNCrawler.",
-    "keywords": "{novel}, {source}, hoofdstukkenlijst, alle hoofdstukken, light novel-hoofdstukken, web novel"
+    "keywords": "{novel}, {source}, hoofdstukkenlijst, alle hoofdstukken, light novel-hoofdstukken, web novel",
+    "dmcaNotice": "Dit werk is verwijderd naar aanleiding van een DMCA-verwijderingsverzoek. Hoofdstukken zijn niet meer beschikbaar."
   },
   "gallery": {
     "loadFailed": "Afbeeldingen laden mislukt. Probeer het later opnieuw.",
@@ -492,7 +503,8 @@
     "metaTitle": "{title} ({source}) - Lees op LNCrawler",
     "metaLoadingTitle": "Romanbron laden | LNCrawler",
     "metaDescription": "Lees {title} uit {source}. Samenvatting: {synopsis}",
-    "metaLoadingDescription": "Details van deze romanbron laden op LNCrawler."
+    "metaLoadingDescription": "Details van deze romanbron laden op LNCrawler.",
+    "dmcaNotice": "Dit werk is verwijderd naar aanleiding van een DMCA-verwijderingsverzoek. Lezen en downloads zijn uitgeschakeld."
   },
   "rating": {
     "noRatings": "Geen beoordelingen"
@@ -512,7 +524,8 @@
     "processing": "Verwerken...",
     "progressOf": "( {progress} / {total} {unit})",
     "complete": "Update voltooid voor {title}!",
-    "tryAgain": "Probeer de update opnieuw"
+    "tryAgain": "Probeer de update opnieuw",
+    "disabledNoCrawler": "Deze bron wordt niet meer ondersteund en kan daarom niet worden bijgewerkt."
   },
   "comments": {
     "enterName": "Voer je naam in",
@@ -543,7 +556,8 @@
     "showReplies": "Toon {count, plural, one {# antwoord} other {# antwoorden}}",
     "loadFailed": "Reacties laden mislukt. Probeer de pagina te vernieuwen.",
     "noComments": "Nog geen reacties. Wees de eerste die reageert!",
-    "mixedSourcesWarning": "Sommige reacties hieronder zijn geplaatst voor verschillende bronnen. Bronnen kunnen verschillende hoofdstuknummering gebruiken, dus er kunnen spoilers of ogenschijnlijk irrelevante reacties zijn."
+    "mixedSourcesWarning": "Sommige reacties hieronder zijn geplaatst voor verschillende bronnen. Bronnen kunnen verschillende hoofdstuknummering gebruiken, dus er kunnen spoilers of ogenschijnlijk irrelevante reacties zijn.",
+    "guest": "[gast]"
   },
   "chat": {
     "title": "Communitychat",
@@ -707,7 +721,8 @@
     "unlockScrolling": "Scrollen ontgrendelen",
     "lockScrolling": "Scrollen vergrendelen",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Pagina {current} van {total}"
+    "pageOf": "Pagina {current} van {total}",
+    "dmcaUnavailable": "Dit werk is niet beschikbaar vanwege een DMCA-verwijderingsverzoek."
   },
   "readerControls": {
     "previousChapter": "Vorig hoofdstuk",
@@ -857,5 +872,11 @@
     "applyFailed": "Importeren mislukt. Probeer het opnieuw.",
     "resultSummary": "{bookmarked} romans geïmporteerd ({already} al in bibliotheek). Voortgang ingesteld voor {progress}.",
     "goToLibrary": "Naar bibliotheek"
+  },
+  "novelActions": {
+    "addToReadingList": "Toevoegen aan leeslijst",
+    "bookmark": "Bladwijzer toevoegen",
+    "menu": "Romanacties",
+    "removeBookmark": "Bladwijzer verwijderen"
   }
 }

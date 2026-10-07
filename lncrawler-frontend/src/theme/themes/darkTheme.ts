@@ -125,6 +125,11 @@ export const getDarkTheme = () =>
                                     boxShadow: "0 6px 16px rgba(200, 164, 255, 0.4)",
                                     background: "linear-gradient(135deg, #9c78cc 10%, #b290e3 100%)",
                                 },
+                                "&&.Mui-disabled": {
+                                    background: "linear-gradient(135deg, #9c78cc 0%, #c8a4ff 100%)",
+                                    color: "rgba(17, 7, 30, 0.5)",
+                                    boxShadow: "none",
+                                },
                         },
                     },
                     {

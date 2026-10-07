@@ -91,6 +91,8 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Avatar 
+                      component={Link}
+                      to={`/u/${encodeURIComponent(review.user.username)}`}
                       src={review.user.profile_pic} 
                       alt={review.user.username}
                     >

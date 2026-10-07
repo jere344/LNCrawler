@@ -3,6 +3,7 @@ from django.db.models import Sum
 from lncrawler_api.models import Novel, WeeklySourceView
 from lncrawler_api.utils import chapter_utils
 from pathlib import Path
+import shutil
 import time
 
 # Process novels in small id-batches so a huge catalogue never loads at once.
@@ -120,35 +121,57 @@ class Command(BaseCommand):
                     json_folder_path = source_path / "json"
                     compressed_file_path = source_path / "json.7z"
 
-                    if not json_folder_path.exists():
-                        # Already compressed or nothing to compress
-                        continue
-                    if compressed_file_path.exists():
-                        continue
-
-                    self.stdout.write(f'  Compressing source: {source.external_source.source_name}')
-
+                    # Hold the per-source lock across the whole check-and-act so
+                    # a crawler write cannot delete the archive between the
+                    # existence check and the reclaim/compress.
+                    outcome = "skip"
+                    error = None
                     try:
-                        success = chapter_utils.compress_folder_to_tar_7zip(
-                            source_absolute_path=source_path,
-                            json_folder="json",
-                            tarfile_path=compressed_file_path,
-                            nice_level=nice_level,
-                        )
-                        if success:
-                            compressed_count += 1
-                            self.stdout.write(
-                                self.style.SUCCESS(f'    Successfully compressed {source.external_source.source_name}')
-                            )
-                        else:
-                            failed_count += 1
-                            self.stdout.write(
-                                self.style.ERROR(f'    Failed to compress {source.external_source.source_name}')
-                            )
+                        with chapter_utils.source_lock(source_path):
+                            if json_folder_path.exists():
+                                if compressed_file_path.exists():
+                                    # A write deletes the archive, so an existing
+                                    # archive is authoritative: the extracted copy
+                                    # is redundant. Drop it, don't recompress.
+                                    shutil.rmtree(json_folder_path)
+                                    outcome = "reclaimed"
+                                else:
+                                    self.stdout.write(
+                                        f'  Compressing source: {source.external_source.source_name}'
+                                    )
+                                    outcome = "compressed" if chapter_utils.compress_folder_to_tar_7zip(
+                                        source_absolute_path=source_path,
+                                        json_folder="json",
+                                        tarfile_path=compressed_file_path,
+                                        nice_level=nice_level,
+                                    ) else "failed"
                     except Exception as e:
+                        outcome = "error"
+                        error = e
+
+                    if outcome == "skip":
+                        continue
+                    if outcome == "reclaimed":
+                        compressed_count += 1
+                        self.stdout.write(self.style.SUCCESS(
+                            f'    Reclaimed extracted copy of {source.external_source.source_name}'
+                        ))
+                    elif outcome == "compressed":
+                        compressed_count += 1
+                        self.stdout.write(
+                            self.style.SUCCESS(f'    Successfully compressed {source.external_source.source_name}')
+                        )
+                    elif outcome == "failed":
                         failed_count += 1
                         self.stdout.write(
-                            self.style.ERROR(f'    Error compressing {source.external_source.source_name}: {str(e)}')
+                            self.style.ERROR(f'    Failed to compress {source.external_source.source_name}')
+                        )
+                    else:
+                        failed_count += 1
+                        self.stdout.write(
+                            self.style.ERROR(
+                                f'    Error compressing {source.external_source.source_name}: {str(error)}'
+                            )
                         )
 
                     # Deliberate pause: this task is for cold, rarely-read novels,
