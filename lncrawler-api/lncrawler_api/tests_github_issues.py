@@ -122,3 +122,49 @@ class ReportErrorEndpointTests(TestCase):
 
     def test_rejects_get(self):
         self.assertEqual(self.client.get("/report-error/").status_code, 405)
+
+
+@override_settings(GITHUB_ISSUES_ENABLED=False, ISSUE_REPORTS_TO_DISK=False)
+class FrontendFingerprintTests(TestCase):
+    """The endpoint's fingerprint must distinguish routes: the message alone is
+    identical ("Request failed with status code 500") for every failing
+    request, so it cannot be the only input."""
+
+    def _fingerprint(self, context):
+        with self.assertLogs("frontend", level="ERROR") as cm:
+            resp = self.client.post(
+                "/report-error/",
+                data=json.dumps(
+                    {
+                        "message": "Request failed with status code 500",
+                        "context": context,
+                        "url": "http://api/whatever",
+                    }
+                ),
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 200)
+        return cm.records[-1].github_fingerprint
+
+    def test_different_endpoints_get_different_fingerprints(self):
+        a = self._fingerprint("GET /novels/1")
+        b = self._fingerprint("GET /users/2")
+        self.assertNotEqual(a, b)
+
+    def test_same_endpoint_is_stable(self):
+        a = self._fingerprint("GET /novels/1")
+        b = self._fingerprint("GET /novels/1")
+        self.assertEqual(a, b)
+
+
+class DiskReportDedupLogTests(TestCase):
+    @override_settings(ISSUE_REPORTS_TO_DISK=True)
+    def test_duplicate_is_logged(self):
+        with tempfile.TemporaryDirectory() as d:
+            with override_settings(ISSUE_REPORTS_DIR=d):
+                github_issues.create_issue("t", "b", "abc123")
+                with self.assertLogs("lncrawler_api", level="INFO") as cm:
+                    github_issues.create_issue("t", "b", "abc123")
+        self.assertTrue(
+            any("duplicate" in r.getMessage().lower() for r in cm.records)
+        )

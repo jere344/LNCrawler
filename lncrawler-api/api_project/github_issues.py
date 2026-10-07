@@ -70,7 +70,9 @@ def _write_report(title, body, fp):
         with open(path, "x", encoding="utf-8") as fh:
             fh.write(f"# {title}\n\n{body}\n")
     except FileExistsError:
-        pass
+        logger.info(
+            "Error report flagged as duplicate of %s; not rewritten", path
+        )
 
 
 def _headers():
@@ -132,10 +134,12 @@ def create_issue(title, body, fp):
 
     try:
         exists = _open_issue_exists(fp)
-        if exists is not False:
-            # True: an issue is already open. None: we could not check.
-            # Neither is a successful create, so leave the fingerprint unmarked
-            # and let the next tick retry (important for the transient case).
+        if exists is True:
+            logger.info("Error report flagged as duplicate of open issue %s", fp)
+            return
+        if exists is None:
+            # We could not check: leave the fingerprint unmarked and let the
+            # next tick retry (important for the transient case).
             return
         resp = requests.post(
             f"{_API}/repos/{settings.GITHUB_REPO}/issues",

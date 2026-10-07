@@ -13,6 +13,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from api_project.github_issues import fingerprint
 from api_project.redaction import redact
 from lncrawler_api.utils import get_client_ip
 
@@ -54,6 +55,14 @@ def report_error(request):
     logger.error(
         "Frontend error: %s",
         redact(message),
-        extra={"github_details": redact(f"url={url}\ncontext={context}\n\n{stack}")},
+        extra={
+            # Fold the endpoint into the fingerprint: the message alone
+            # ("Request failed with status code 500") is identical for every
+            # failing route, so without this all of them dedup into one report.
+            "github_fingerprint": fingerprint(
+                "frontend", redact(message), context, url
+            ),
+            "github_details": redact(f"url={url}\ncontext={context}\n\n{stack}"),
+        },
     )
     return JsonResponse({"detail": "ok"})
