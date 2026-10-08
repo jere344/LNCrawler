@@ -722,7 +722,20 @@
     "cancelSearch": "Zoekopdracht annuleren",
     "searchResults": "Zoekresultaten",
     "noResults": "Geen romans gevonden die overeenkomen met je zoekopdracht. Probeer een andere zoekterm.",
-    "unexpectedResponse": "Onverwacht antwoordformaat. Probeer opnieuw te zoeken."
+    "unexpectedResponse": "Onverwacht antwoordformaat. Probeer opnieuw te zoeken.",
+    "jobsLink": "Actieve taken",
+    "jobsHeading": "Actieve taken",
+    "jobsSubtitle": "Romans die momenteel worden gezocht of gedownload.",
+    "jobsEmpty": "Er zijn momenteel geen actieve taken.",
+    "jobsBackToAdd": "Een roman toevoegen",
+    "jobsLoadFailed": "Actieve taken laden mislukt.",
+    "jobUntitled": "Naamloze taak",
+    "jobSearch": "Zoeken",
+    "jobDownload": "Downloaden",
+    "jobCreated": "Gestart",
+    "jobView": "Bekijken",
+    "jobCancel": "Annuleren",
+    "jobCancelFailed": "Kan de taak niet annuleren."
   },
   "reader": {
     "loadFailed": "Hoofdstukinhoud laden mislukt. Probeer het later opnieuw.",

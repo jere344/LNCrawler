@@ -27,6 +27,8 @@ import logging
 import os
 import posixpath
 import re
+import shutil
+import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from io import BytesIO
@@ -171,9 +173,9 @@ def _normalize_zip_path(base_dir: str, href: str) -> str:
 class _Epub:
     """Parsed state of a single EPUB archive."""
 
-    def __init__(self, key: str, data: bytes, zf: zipfile.ZipFile) -> None:
+    def __init__(self, key: str, path: str, zf: zipfile.ZipFile) -> None:
         self.key = key
-        self.data = data
+        self.path = path
         self.zip = zf
         self.label = ""
         self.opf_path = ""
@@ -211,6 +213,55 @@ class EpubCrawler(Crawler):
             self._chapter_source: Dict[int, Tuple[str, str]] = {}
         if not hasattr(self, "_volume_urls_by_key"):
             self._volume_urls_by_key: Dict[str, str] = {}
+        if not hasattr(self, "_epub_tmp"):
+            self._sweep_stale_epub_dirs()
+            self._epub_tmp = tempfile.TemporaryDirectory(
+                prefix="lncrawl-epub-%d-" % os.getpid()
+            )
+
+    @staticmethod
+    def _sweep_stale_epub_dirs() -> None:
+        # Jobs are killed with SIGTERM/SIGKILL/OOM, so close() does not always
+        # run. Remove spool dirs whose owning process is gone; a live job's dir
+        # (including our own) is left alone.
+        root = tempfile.gettempdir()
+        try:
+            names = os.listdir(root)
+        except OSError:
+            return
+        for name in names:
+            if not name.startswith("lncrawl-epub-"):
+                continue
+            parts = name.split("-")
+            if len(parts) < 4:
+                continue
+            try:
+                pid = int(parts[2])
+            except ValueError:
+                continue
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                shutil.rmtree(os.path.join(root, name), ignore_errors=True)
+            except (PermissionError, OSError):
+                pass
+
+    def close(self) -> None:
+        # Volumes are spooled to temp files: keeping the raw bytes in memory
+        # would hold every volume of a multi-volume novel for the whole job.
+        for book in getattr(self, "_books", {}).values():
+            try:
+                book.zip.close()
+            except Exception:
+                pass
+        tmp = getattr(self, "_epub_tmp", None)
+        if tmp is not None:
+            try:
+                tmp.cleanup()
+            except Exception:
+                pass
+            del self._epub_tmp
+        super().close()
 
     # -- incremental update support ----------------------------------- #
 
@@ -337,19 +388,27 @@ class EpubCrawler(Crawler):
     def load_book(self, data: bytes, key: str, label: str = "") -> _Epub:
         """Parse an EPUB archive and register it under ``key``."""
         self._init_state()
+        fd, path = tempfile.mkstemp(suffix=".epub", dir=self._epub_tmp.name)
+        with os.fdopen(fd, "wb") as fp:
+            fp.write(data)
+        del data
         try:
-            zf = zipfile.ZipFile(BytesIO(data))
+            zf = zipfile.ZipFile(path)
         except Exception as e:
             raise LNException(f"Not a valid EPUB archive: {e}")
-        book = _Epub(key, data, zf)
-        book.label = label
-        book.opf_path = self._find_opf(book)
-        if not book.opf_path:
-            raise LNException("No OPF package found in EPUB")
-        book.opf_dir = posixpath.dirname(book.opf_path)
-        self._parse_opf(book)
-        self._parse_toc(book)
-        book.cover_path = self._resolve_cover(book)
+        book = _Epub(key, path, zf)
+        try:
+            book.label = label
+            book.opf_path = self._find_opf(book)
+            if not book.opf_path:
+                raise LNException("No OPF package found in EPUB")
+            book.opf_dir = posixpath.dirname(book.opf_path)
+            self._parse_opf(book)
+            self._parse_toc(book)
+            book.cover_path = self._resolve_cover(book)
+        except Exception:
+            zf.close()
+            raise
         self._books[key] = book
         return book
 

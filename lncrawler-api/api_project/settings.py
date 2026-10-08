@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from urllib.parse import urlparse
-from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(encoding='utf-8')
 
@@ -232,12 +231,6 @@ CORS_URLS_REGEX = r"^/.*$"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL = 'auth_app.CustomUser'
-
-# Short-lived in-process cache for the anonymous home page (the heavy
-# ranking aggregations). Per-worker LocMemCache; a few seconds of staleness
-# for rankings is invisible to users. Not a substitute for Redis: each
-# worker keeps its own copy, so it only helps repeated hits on one worker.
-HOME_PAGE_CACHE_SECONDS = int(os.environ.get("HOME_PAGE_CACHE_SECONDS", "30"))
 
 import logging
 

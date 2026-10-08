@@ -722,7 +722,20 @@
     "cancelSearch": "Annuler la recherche",
     "searchResults": "Résultats de recherche",
     "noResults": "Aucun roman trouvé correspondant à votre requête. Veuillez essayer un autre terme de recherche.",
-    "unexpectedResponse": "Format de réponse inattendu. Veuillez réessayer la recherche."
+    "unexpectedResponse": "Format de réponse inattendu. Veuillez réessayer la recherche.",
+    "jobsLink": "Tâches en cours",
+    "jobsHeading": "Tâches en cours",
+    "jobsSubtitle": "Romans en cours de recherche ou de téléchargement.",
+    "jobsEmpty": "Aucune tâche n'est en cours pour le moment.",
+    "jobsBackToAdd": "Ajouter un roman",
+    "jobsLoadFailed": "Échec du chargement des tâches en cours.",
+    "jobUntitled": "Tâche sans titre",
+    "jobSearch": "Rechercher",
+    "jobDownload": "Télécharger",
+    "jobCreated": "Démarrée",
+    "jobView": "Voir",
+    "jobCancel": "Annuler",
+    "jobCancelFailed": "Échec de l'annulation de la tâche."
   },
   "reader": {
     "loadFailed": "Échec du chargement du contenu du chapitre. Veuillez réessayer plus tard.",

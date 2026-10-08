@@ -88,9 +88,6 @@ class HarvestConfig(models.Model):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
 
-    def is_muted(self, source_name):
-        return source_name in (self.muted_sources or [])
-
     def mute(self, source_name):
         muted = set(self.muted_sources or [])
         muted.add(source_name)

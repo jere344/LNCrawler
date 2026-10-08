@@ -97,9 +97,6 @@ class NovelFromSource(models.Model):
     alternative_titles = models.ManyToManyField(AlternativeTitle, related_name='novels', blank=True)
     
     # Extra metadata fields that may be in the JSON
-    is_rtl = models.BooleanField(default=False)
-    has_manga = models.BooleanField(null=True, blank=True)
-    has_mtl = models.BooleanField(null=True, blank=True)
     is_adult = models.BooleanField(default=False)
     original_publisher = models.CharField(max_length=500, null=True, blank=True)
     english_publisher = models.CharField(max_length=500, null=True, blank=True)
@@ -280,9 +277,6 @@ class NovelFromSource(models.Model):
         novel_from_source.language = novel_data.get('language', 'en')
         novel_from_source.status = novel_data.get('status', 'Unknown')
         novel_from_source.synopsis = novel_data.get('synopsis', '')
-        novel_from_source.is_rtl = novel_data.get('is_rtl', False)
-        novel_from_source.has_manga = novel_data.get('has_manga')
-        novel_from_source.has_mtl = novel_data.get('has_mtl')
         novel_from_source.is_adult = bool(novel_data.get('is_adult', False))
         novel_from_source.original_publisher = truncate(novel_data.get('original_publisher', ''))
         novel_from_source.english_publisher = truncate(novel_data.get('english_publisher', ''))

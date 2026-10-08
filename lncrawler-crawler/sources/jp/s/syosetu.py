@@ -4,7 +4,6 @@ import re
 from urllib.parse import quote_plus
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
-from concurrent.futures import ThreadPoolExecutor
 from bs4 import element
 
 logger = logging.getLogger(__name__)
@@ -84,22 +83,19 @@ class SyosetuCrawler(Crawler):
         logger.debug('Novel synopsis: %s', self.novel_synopsis)
 
         # Syosetu calls parts "chapters"
-        soups = []
         pager_last = soup.select_one(".c-pager__item--last")
         if pager_last and 'href' in pager_last.attrs:
             page_num = int(pager_last["href"].split("=")[-1])
-            with ThreadPoolExecutor() as executor:
-                futures = [executor.submit(self.get_soup, f'{self.novel_url}?p={x}') for x in range(1, page_num + 1)]
-                for future in futures:
-                    soups.append(future.result())
+            calls = [(self.get_soup, f'{self.novel_url}?p={x}') for x in range(1, page_num + 1)]
+            pages = self.resolve_bounded(calls)
         else:
-            soups.append(soup)
+            pages = iter([soup])
 
         volume_id = 0
         chapter_id = 0
         self.volumes.append({'id': 0})
-        for soup in soups:
-            for tag in soup.select_one(".p-eplist"):
+        for page_soup in pages:
+            for tag in page_soup.select_one(".p-eplist"):
 
                 if type(tag) is element.NavigableString:
                     continue

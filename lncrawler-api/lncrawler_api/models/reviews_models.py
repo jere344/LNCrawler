@@ -1,6 +1,5 @@
 from django.db import models
 import uuid
-from django.db.models import F, Case, When, Value
 from auth_app.models import CustomUser
 from .novels_models import Novel
 

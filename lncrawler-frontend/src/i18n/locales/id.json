@@ -722,7 +722,20 @@
     "cancelSearch": "Batalkan Pencarian",
     "searchResults": "Hasil Pencarian",
     "noResults": "Tidak ada novel yang cocok dengan kueri Anda. Silakan coba istilah pencarian yang berbeda.",
-    "unexpectedResponse": "Format respons tidak terduga. Silakan coba mencari lagi."
+    "unexpectedResponse": "Format respons tidak terduga. Silakan coba mencari lagi.",
+    "jobsLink": "Tugas yang berjalan",
+    "jobsHeading": "Tugas yang berjalan",
+    "jobsSubtitle": "Novel yang sedang dicari atau diunduh saat ini.",
+    "jobsEmpty": "Saat ini tidak ada tugas yang berjalan.",
+    "jobsBackToAdd": "Tambah novel",
+    "jobsLoadFailed": "Gagal memuat tugas yang berjalan.",
+    "jobUntitled": "Tugas tanpa judul",
+    "jobSearch": "Cari",
+    "jobDownload": "Unduh",
+    "jobCreated": "Dimulai",
+    "jobView": "Lihat",
+    "jobCancel": "Batal",
+    "jobCancelFailed": "Gagal membatalkan tugas."
   },
   "reader": {
     "loadFailed": "Gagal memuat konten bab. Silakan coba lagi nanti.",

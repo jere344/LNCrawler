@@ -1,8 +1,9 @@
 import functools
 import logging
+from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from threading import Semaphore
-from typing import Any, Generator, Iterable, List, Optional
+from typing import Any, Generator, Iterable, Optional
 
 from ..constants import DEFAULT_WORKERS, MAX_REQUESTS_PER_DOMAIN
 from ..utils.ratelimit import RateLimiter
@@ -64,10 +65,6 @@ class TaskManager:
         return self._executor
 
     @property
-    def futures(self) -> List[Future]:
-        return self._futures
-
-    @property
     def workers(self) -> int:
         return self._executor._max_workers
 
@@ -83,7 +80,6 @@ class TaskManager:
         workers: Optional[int] = None,
         ratelimit: Optional[float] = None,
     ) -> None:
-        self._futures: List[Future] = []
         self.shutdown()
 
         if ratelimit and ratelimit > 0:
@@ -99,9 +95,7 @@ class TaskManager:
 
     def submit_task(self, fn, *args, **kwargs) -> Future:
         # Rate limiting is applied per HTTP request in Scraper.__process_request.
-        future = self._executor.submit(fn, *args, **kwargs)
-        self._futures.append(future)
-        return future
+        return self._executor.submit(fn, *args, **kwargs)
 
     @staticmethod
     def progress_bar(
@@ -161,3 +155,28 @@ class TaskManager:
                 **kwargs,
             )
         )
+
+    def resolve_bounded(
+        self,
+        calls: Iterable[tuple],
+        window: Optional[int] = None,
+    ) -> Generator[Any, None, None]:
+        """Submit ``(fn, *args)`` calls with a bounded sliding window and yield
+        results in submission order.
+
+        Unlike submitting every future up front, at most ``window`` calls are
+        in flight, so the responses for thousands of pages are never all held
+        in memory at once. Errors propagate and the remaining futures are
+        cancelled.
+        """
+        queue: deque = deque()
+        limit = max(window if window is not None else self.workers, 1)
+        try:
+            for call in calls:
+                queue.append(self._executor.submit(*call))
+                if len(queue) >= limit:
+                    yield queue.popleft().result()
+            while queue:
+                yield queue.popleft().result()
+        finally:
+            self.cancel_futures(queue)

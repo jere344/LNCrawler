@@ -1,4 +1,3 @@
-from datetime import datetime
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,11 +5,10 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 import os
 
-from ..models import Novel, SourceVote, WeeklySourceView, resolve_output_path
+from ..models import SourceVote, WeeklySourceView, resolve_output_path
 from ..serializers import NovelSourceSerializer, ChapterSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
-from django.db.models import F, Avg, Q, Count, Value, Max, Min, Sum, Func, IntegerField
-from django.db.models.functions import Coalesce
+from django.db.models import Q, Sum, Func, IntegerField
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
 from ..utils.query_helpers import sources_queryset

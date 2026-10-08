@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import logging
-from concurrent.futures import Future
 from typing import List, Optional
 from urllib.parse import quote_plus, urlencode
 
@@ -163,7 +162,7 @@ class TruenFull(Crawler):
         total_page = int(str(total_page))
         logger.info("Total page count: %d", total_page)
 
-        futures: List[Future] = []
+        calls = []
         for page in range(total_page):
             params = urlencode(
                 {
@@ -177,11 +176,9 @@ class TruenFull(Crawler):
             )
             url = f"{self.home_url}ajax.php?" + params
             logger.info("Getting chapters: %s", url)
-            f = self.executor.submit(self.get_json, url)
-            futures.append(f)
+            calls.append((self.get_json, url))
 
-        for f in futures:
-            data = f.result()
+        for data in self.resolve_bounded(calls):
             soup = self.make_soup(data["chap_list"])
             self.parse_all_links(soup.select(".list-chapter a"))
 

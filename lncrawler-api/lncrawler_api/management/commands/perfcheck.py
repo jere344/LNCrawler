@@ -12,7 +12,9 @@ from django.test.utils import CaptureQueriesContext
 from lncrawler_api.models import (
     Chapter,
     LibraryFolder,
+    Novel,
     NovelBookmark,
+    NovelFromSource,
     NovelRating,
     ProfilePinnedNovel,
     ReadingHistory,
@@ -180,6 +182,24 @@ class Command(BaseCommand):
         ReadingHistory.objects.create(
             user=user, novel=novel, source=source, last_read_chapter=chapter
         )
+        # Pad history to five distinct novels so the home page's "recommended
+        # for you" path is exercised by the authenticated profile. Distinct
+        # novels matter: ReadingHistory is unique per (user, novel).
+        extra_novels = list(Novel.objects.exclude(id=novel.id).order_by('id')[:4])
+        sources_by_novel = {
+            src.novel_id: src
+            for src in NovelFromSource.objects.filter(novel__in=extra_novels).order_by('id')
+        }
+        for extra_novel in extra_novels:
+            extra_source = sources_by_novel.get(extra_novel.id)
+            if extra_source is None:
+                continue
+            ReadingHistory.objects.create(
+                user=user,
+                novel=extra_novel,
+                source=extra_source,
+                last_read_chapter=None,
+            )
         reading_list = ReadingList.objects.create(
             user=user, title='Perf list', is_public=True
         )

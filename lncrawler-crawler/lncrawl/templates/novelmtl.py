@@ -1,6 +1,4 @@
 import time
-from concurrent.futures import Future
-from typing import List
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from bs4 import BeautifulSoup, Tag
@@ -72,7 +70,7 @@ class NovelMTLTemplate(SearchableBrowserTemplate, ChapterOnlyBrowserTemplate):
             max_page = int(last_page_qs["page"][0])
             wjm = last_page_qs["wjm"][0]
 
-            futures: List[Future] = []
+            calls = []
             for i in range(max_page + 1):
                 payload = {
                     "page": i,
@@ -81,15 +79,10 @@ class NovelMTLTemplate(SearchableBrowserTemplate, ChapterOnlyBrowserTemplate):
                     "X-Requested-With": "XMLHttpRequest",
                 }
                 url = f"{self.home_url}e/extend/fy.php?{urlencode(payload)}"
-                f = self.executor.submit(self.get_soup, url)
-                futures.append(f)
+                calls.append((self.get_soup, url))
 
-            self.resolve_futures(futures, desc="TOC", unit="page")
-            for i, future in enumerate(futures):
-                if not future.done():
-                    raise LNException(f"Failed to get page {i + 1}")
-                soup = future.result()
-                yield from soup.select("ul.chapter-list li a")
+            for page_soup in self.resolve_bounded(calls):
+                yield from page_soup.select("ul.chapter-list li a")
         else:
             yield from soup.select("ul.chapter-list li a")
 

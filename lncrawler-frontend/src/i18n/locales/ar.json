@@ -722,7 +722,20 @@
     "cancelSearch": "إلغاء البحث",
     "searchResults": "نتائج البحث",
     "noResults": "لم يتم العثور على روايات مطابقة لاستعلامك. يرجى تجربة مصطلح بحث مختلف.",
-    "unexpectedResponse": "تنسيق استجابة غير متوقع. يرجى محاولة البحث مرة أخرى."
+    "unexpectedResponse": "تنسيق استجابة غير متوقع. يرجى محاولة البحث مرة أخرى.",
+    "jobsLink": "المهام الجارية",
+    "jobsHeading": "المهام الجارية",
+    "jobsSubtitle": "الروايات التي يتم البحث عنها أو تنزيلها حاليًا.",
+    "jobsEmpty": "لا توجد مهام جارية الآن.",
+    "jobsBackToAdd": "إضافة رواية",
+    "jobsLoadFailed": "فشل تحميل المهام الجارية.",
+    "jobUntitled": "مهمة بلا عنوان",
+    "jobSearch": "بحث",
+    "jobDownload": "تنزيل",
+    "jobCreated": "بدأت",
+    "jobView": "عرض",
+    "jobCancel": "إلغاء",
+    "jobCancelFailed": "فشل إلغاء المهمة."
   },
   "reader": {
     "loadFailed": "فشل تحميل محتوى الفصل. يرجى المحاولة لاحقًا.",

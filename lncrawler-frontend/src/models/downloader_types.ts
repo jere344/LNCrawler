@@ -83,11 +83,13 @@ export interface Job {
   id: string;
   status: string;
   status_display: string;
+  job_type: string;
   query: string;
   created_at: string;
   updated_at: string;
   progress: number;
   total_items: number;
+  progress_unit: string;
   progress_percentage: number;
   search_results: SearchResult[] | null;
   selected_novel: SelectedNovel | null;

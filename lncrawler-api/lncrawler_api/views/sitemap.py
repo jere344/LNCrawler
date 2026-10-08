@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from django.db import models
 from django.db.models.functions import Coalesce
 
-from ..models import Novel, NovelFromSource, Chapter
+from ..models import Novel, NovelFromSource
 
 # Parse SITE_URL once
 parsed_site_url = urlparse(settings.SITE_URL)

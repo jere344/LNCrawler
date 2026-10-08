@@ -14,10 +14,6 @@ class FallbackToBrowser(LNException):
     so the crawler should retry using the Playwright browser backend."""
 
 
-class CrawlerError(LNException):
-    """Raised when a crawler cannot resolve a novel."""
-
-
 # Kept for source compatibility with upstream imports.
 ScraperNotSupported = FallbackToBrowser
 

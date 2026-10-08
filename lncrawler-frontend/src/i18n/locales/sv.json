@@ -722,7 +722,20 @@
     "cancelSearch": "Avbryt sökning",
     "searchResults": "Sökresultat",
     "noResults": "Inga romaner hittades som matchar din sökning. Prova en annan sökterm.",
-    "unexpectedResponse": "Oväntat svarsformat. Prova att söka igen."
+    "unexpectedResponse": "Oväntat svarsformat. Prova att söka igen.",
+    "jobsLink": "Pågående jobb",
+    "jobsHeading": "Pågående jobb",
+    "jobsSubtitle": "Romaner som för närvarande söks eller laddas ner.",
+    "jobsEmpty": "Det finns inga pågående jobb just nu.",
+    "jobsBackToAdd": "Lägg till en roman",
+    "jobsLoadFailed": "Det gick inte att läsa in pågående jobb.",
+    "jobUntitled": "Namnlöst jobb",
+    "jobSearch": "Sök",
+    "jobDownload": "Ladda ner",
+    "jobCreated": "Startad",
+    "jobView": "Visa",
+    "jobCancel": "Avbryt",
+    "jobCancelFailed": "Det gick inte att avbryta jobbet."
   },
   "reader": {
     "loadFailed": "Det gick inte att ladda kapitelinnehållet. Försök igen senare.",

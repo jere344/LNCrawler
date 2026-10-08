@@ -1,4 +1,5 @@
-import { Container, Typography, Box, Paper } from '@mui/material';
+import { Container, Typography, Box, Paper, Button } from '@mui/material';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SearchForm from './SearchForm';
 import DownloadStepper from './DownloadStepper';
@@ -29,6 +30,12 @@ const DownloaderHome = () => {
             <Paper elevation={3} sx={{ p: 1.5 }}>
                 <SearchForm />
             </Paper>
+
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <Button variant="outlined" component={Link} to="/download/jobs">
+                    {t('downloader.jobsLink')}
+                </Button>
+            </Box>
         </Container>
     );
 };

@@ -3,7 +3,6 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from ..models.novels_models import Novel
 from ..models.reviews_models import Review, ReviewReaction
 from ..serializers.reviews_serializers import (
     ReviewSerializer, ReviewCreateSerializer, ReactionCreateSerializer

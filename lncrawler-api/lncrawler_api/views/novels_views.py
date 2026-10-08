@@ -2,7 +2,6 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError, transaction
-from django.shortcuts import get_object_or_404
 from django.db.models import F, Avg, Q, Case, When, IntegerField, Count, Sum, Value, Max, Min
 from django.db.models.functions import Coalesce
 from ..models import (
@@ -14,6 +13,7 @@ from ..models import (
     FeaturedNovel,
     NovelFromSource,
     WeeklySourceView,
+    ReadingHistory,
 )
 from ..languages import parse_languages
 from ..models.reviews_models import Review
@@ -522,6 +522,27 @@ def home_page(request):
         )
     recent_reviews = recent_reviews_qs[:4]
     
+    # "Recommended for you" (authenticated users with reading history only):
+    # seed from the last five novels read, aggregate their similarities, and
+    # exclude every novel the user already read. Anonymous visitors skip this
+    # entirely, so the public home path is untouched.
+    recommended_novels = []
+    if request.user.is_authenticated:
+        from .users_views import get_novel_recommendations
+
+        # One ordered fetch serves both the similarity seeds (last five) and
+        # the exclusion set (every novel already read).
+        read_ids = list(
+            ReadingHistory.objects.filter(user=request.user)
+            .order_by('-last_read_at')
+            .values_list('novel_id', flat=True)
+        )
+        if read_ids:
+            recommended_novels = get_novel_recommendations(
+                request.user, read_ids[:5], viewer=request.user,
+                exclude_ids=read_ids, languages=languages,
+            )
+    
     # Serialize all the data
     response_data = {
         'top_novels': NovelSerializer(top_novels, many=True, context=serializer_context).data,
@@ -530,6 +551,7 @@ def home_page(request):
         'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context, profile='card').data,
         'featured_novel': featured_novel_data,
         'recent_reviews': ReviewSerializer(recent_reviews, many=True, context=serializer_context, profile='card').data,
+        'recommended_novels': NovelSerializer(recommended_novels, many=True, context=serializer_context).data,
     }
     
     return Response(response_data)

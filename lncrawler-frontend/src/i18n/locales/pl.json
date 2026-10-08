@@ -722,7 +722,20 @@
     "cancelSearch": "Anuluj wyszukiwanie",
     "searchResults": "Wyniki wyszukiwania",
     "noResults": "Nie znaleziono powieści pasujących do zapytania. Spróbuj innego hasła.",
-    "unexpectedResponse": "Nieoczekiwany format odpowiedzi. Spróbuj wyszukać ponownie."
+    "unexpectedResponse": "Nieoczekiwany format odpowiedzi. Spróbuj wyszukać ponownie.",
+    "jobsLink": "Uruchomione zadania",
+    "jobsHeading": "Uruchomione zadania",
+    "jobsSubtitle": "Powieści obecnie wyszukiwane lub pobierane.",
+    "jobsEmpty": "Obecnie nie ma uruchomionych zadań.",
+    "jobsBackToAdd": "Dodaj powieść",
+    "jobsLoadFailed": "Nie udało się wczytać uruchomionych zadań.",
+    "jobUntitled": "Zadanie bez tytułu",
+    "jobSearch": "Szukaj",
+    "jobDownload": "Pobierz",
+    "jobCreated": "Rozpoczęto",
+    "jobView": "Zobacz",
+    "jobCancel": "Anuluj",
+    "jobCancelFailed": "Nie udało się anulować zadania."
   },
   "reader": {
     "loadFailed": "Nie udało się wczytać treści rozdziału. Spróbuj ponownie później.",

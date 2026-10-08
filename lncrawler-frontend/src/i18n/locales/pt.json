@@ -722,7 +722,20 @@
     "cancelSearch": "Cancelar pesquisa",
     "searchResults": "Resultados da pesquisa",
     "noResults": "Nenhuma novela encontrada correspondente à sua pesquisa. Tente um termo de pesquisa diferente.",
-    "unexpectedResponse": "Formato de resposta inesperado. Tente pesquisar novamente."
+    "unexpectedResponse": "Formato de resposta inesperado. Tente pesquisar novamente.",
+    "jobsLink": "Tarefas em execução",
+    "jobsHeading": "Tarefas em execução",
+    "jobsSubtitle": "Novelas sendo pesquisadas ou transferidas no momento.",
+    "jobsEmpty": "Não há tarefas em execução no momento.",
+    "jobsBackToAdd": "Adicionar uma novela",
+    "jobsLoadFailed": "Falha ao carregar as tarefas em execução.",
+    "jobUntitled": "Tarefa sem título",
+    "jobSearch": "Pesquisar",
+    "jobDownload": "Transferir",
+    "jobCreated": "Iniciada",
+    "jobView": "Ver",
+    "jobCancel": "Cancelar",
+    "jobCancelFailed": "Falha ao cancelar a tarefa."
   },
   "reader": {
     "loadFailed": "Falha ao carregar o conteúdo do capítulo. Tente novamente mais tarde.",

@@ -1,5 +1,3 @@
-from django.shortcuts import render
-
 # Create your views here.
 
 from django.http import JsonResponse
@@ -119,9 +117,14 @@ def cancel_job(request, job_id):
 
 @require_http_methods(["GET"])
 def list_jobs(request):
-    """List all jobs"""
+    """List jobs. Pass ?active=1 to only get queued/running jobs."""
     try:
-        jobs = Job.objects.all().order_by("-created_at")
+        jobs = Job.objects.all()
+        if request.GET.get("active"):
+            jobs = jobs.filter(status__in=[
+                Job.STATUS_CREATED, Job.STATUS_SEARCHING, Job.STATUS_DOWNLOADING,
+            ])
+        jobs = jobs.order_by("-created_at")
         return JsonResponse(
             {"status": "success", "jobs": [job.to_dict() for job in jobs]}
         )

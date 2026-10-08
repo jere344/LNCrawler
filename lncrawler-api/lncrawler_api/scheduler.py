@@ -4,7 +4,6 @@ import logging
 import os
 import uuid
 from django.core.management import call_command
-from django.utils import timezone
 from typing import Optional, Callable, Dict
 from .models import ScheduledTask
 

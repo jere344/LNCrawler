@@ -722,7 +722,20 @@
     "cancelSearch": "검색 취소",
     "searchResults": "검색 결과",
     "noResults": "검색어와 일치하는 소설이 없습니다. 다른 검색어로 시도해 보세요.",
-    "unexpectedResponse": "예기치 않은 응답 형식입니다. 다시 검색해 보세요."
+    "unexpectedResponse": "예기치 않은 응답 형식입니다. 다시 검색해 보세요.",
+    "jobsLink": "실행 중인 작업",
+    "jobsHeading": "실행 중인 작업",
+    "jobsSubtitle": "현재 검색 또는 다운로드 중인 소설.",
+    "jobsEmpty": "현재 실행 중인 작업이 없습니다.",
+    "jobsBackToAdd": "소설 추가",
+    "jobsLoadFailed": "실행 중인 작업을 불러오지 못했습니다.",
+    "jobUntitled": "제목 없는 작업",
+    "jobSearch": "검색",
+    "jobDownload": "다운로드",
+    "jobCreated": "시작됨",
+    "jobView": "보기",
+    "jobCancel": "취소",
+    "jobCancelFailed": "작업을 취소하지 못했습니다."
   },
   "reader": {
     "loadFailed": "화 내용을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",

@@ -722,7 +722,20 @@
     "cancelSearch": "Aramayı İptal Et",
     "searchResults": "Arama Sonuçları",
     "noResults": "Sorgunuzla eşleşen roman bulunamadı. Lütfen farklı bir arama terimi deneyin.",
-    "unexpectedResponse": "Beklenmeyen yanıt biçimi. Lütfen tekrar aramayı deneyin."
+    "unexpectedResponse": "Beklenmeyen yanıt biçimi. Lütfen tekrar aramayı deneyin.",
+    "jobsLink": "Çalışan işler",
+    "jobsHeading": "Çalışan işler",
+    "jobsSubtitle": "Şu anda aranan veya indirilen romanlar.",
+    "jobsEmpty": "Şu anda çalışan iş yok.",
+    "jobsBackToAdd": "Roman ekle",
+    "jobsLoadFailed": "Çalışan işler yüklenemedi.",
+    "jobUntitled": "Başlıksız iş",
+    "jobSearch": "Ara",
+    "jobDownload": "İndir",
+    "jobCreated": "Başladı",
+    "jobView": "Görüntüle",
+    "jobCancel": "İptal",
+    "jobCancelFailed": "İş iptal edilemedi."
   },
   "reader": {
     "loadFailed": "Bölüm içeriği yüklenemedi. Lütfen daha sonra tekrar deneyin.",

@@ -728,7 +728,20 @@
     "cancelSearch": "Cancel Search",
     "searchResults": "Search Results",
     "noResults": "No novels found matching your query. Please try a different search term.",
-    "unexpectedResponse": "Unexpected response format. Please try searching again."
+    "unexpectedResponse": "Unexpected response format. Please try searching again.",
+    "jobsLink": "Running jobs",
+    "jobsHeading": "Running jobs",
+    "jobsSubtitle": "Novels currently being searched or downloaded.",
+    "jobsEmpty": "There are no jobs running right now.",
+    "jobsBackToAdd": "Add a novel",
+    "jobsLoadFailed": "Failed to load running jobs.",
+    "jobUntitled": "Untitled job",
+    "jobSearch": "Search",
+    "jobDownload": "Download",
+    "jobCreated": "Started",
+    "jobView": "View",
+    "jobCancel": "Cancel",
+    "jobCancelFailed": "Failed to cancel the job."
   },
   "reader": {
     "loadFailed": "Failed to load chapter content. Please try again later.",

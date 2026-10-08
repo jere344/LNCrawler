@@ -722,7 +722,20 @@
     "cancelSearch": "Annulla ricerca",
     "searchResults": "Risultati della ricerca",
     "noResults": "Nessun romanzo trovato corrispondente alla tua query. Prova un termine di ricerca diverso.",
-    "unexpectedResponse": "Formato di risposta imprevisto. Prova a cercare di nuovo."
+    "unexpectedResponse": "Formato di risposta imprevisto. Prova a cercare di nuovo.",
+    "jobsLink": "Attività in corso",
+    "jobsHeading": "Attività in corso",
+    "jobsSubtitle": "Romanzi attualmente in ricerca o in download.",
+    "jobsEmpty": "Al momento non ci sono attività in corso.",
+    "jobsBackToAdd": "Aggiungi un romanzo",
+    "jobsLoadFailed": "Impossibile caricare le attività in corso.",
+    "jobUntitled": "Attività senza titolo",
+    "jobSearch": "Cerca",
+    "jobDownload": "Scarica",
+    "jobCreated": "Avviata",
+    "jobView": "Visualizza",
+    "jobCancel": "Annulla",
+    "jobCancelFailed": "Impossibile annullare l'attività."
   },
   "reader": {
     "loadFailed": "Caricamento del contenuto del capitolo non riuscito. Riprova più tardi.",

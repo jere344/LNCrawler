@@ -21,6 +21,7 @@ import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
+import NovelRecommendation from '@components/common/NovelRecommendation';
 import { getNovelSourceLink, getSourceLink } from '@utils/Misc';
 import { useLanguage } from '@context/LanguageContext';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +39,7 @@ const HomePage: React.FC = () => {
     recently_updated: NovelFromSource[];
     featured_novel: NovelFeaturedResponse | null;
     recent_reviews: Review[];
+    recommended_novels: Novel[];
   } | null>(null);
   
   // Loading and error states
@@ -128,6 +130,24 @@ const HomePage: React.FC = () => {
           </Typography>
         </Box>
       </Box>
+
+      {!loading && (homeData?.recommended_novels?.length ?? 0) > 0 && (
+        <Box sx={{ mb: 6 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" component="h2" sx={{
+              fontWeight: "bold"
+            }}>
+              {t('library.recommended')}
+            </Typography>
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          <NovelRecommendation
+            similarNovels={homeData!.recommended_novels.map((novel) => ({ ...novel, similarity: 0 }))}
+            loading={false}
+          />
+        </Box>
+      )}
 
       {/* Weekly Trending Section */}
       <Box sx={{ mb: 6 }}>

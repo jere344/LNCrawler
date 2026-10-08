@@ -722,7 +722,20 @@
     "cancelSearch": "Annuller søgning",
     "searchResults": "Søgeresultater",
     "noResults": "Ingen romaner fundet, der matcher din søgning. Prøv et andet søgeord.",
-    "unexpectedResponse": "Uventet svarformat. Prøv at søge igen."
+    "unexpectedResponse": "Uventet svarformat. Prøv at søge igen.",
+    "jobsLink": "Kørende job",
+    "jobsHeading": "Kørende job",
+    "jobsSubtitle": "Romaner, der i øjeblikket søges eller downloades.",
+    "jobsEmpty": "Der er ingen kørende job lige nu.",
+    "jobsBackToAdd": "Tilføj en roman",
+    "jobsLoadFailed": "Kunne ikke indlæse kørende job.",
+    "jobUntitled": "Job uden titel",
+    "jobSearch": "Søg",
+    "jobDownload": "Download",
+    "jobCreated": "Startet",
+    "jobView": "Se",
+    "jobCancel": "Annuller",
+    "jobCancelFailed": "Kunne ikke annullere jobbet."
   },
   "reader": {
     "loadFailed": "Kunne ikke indlæse kapitelindholdet. Prøv igen senere.",

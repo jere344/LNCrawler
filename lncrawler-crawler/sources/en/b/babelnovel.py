@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
-from concurrent import futures
 from urllib.parse import quote, urlparse
 
 from lncrawl.core.crawler import Crawler
@@ -128,20 +127,14 @@ class BabelNovelCrawler(Crawler):
         self.get_list_of_chapters(chapter_count)
 
     def get_list_of_chapters(self, chapter_count):
-        futures_to_check = dict()
-        temp_chapters = dict()
+        calls = []
         for page in range(1 + chapter_count // 100):
             list_url = chapter_list_url % (self.novel_id, self.novel_id, page)
-            future = self.executor.submit(self.parse_chapter_item, list_url)
-            futures_to_check[future] = str(page)
+            calls.append((self.parse_chapter_item, list_url))
 
-        for future in futures.as_completed(futures_to_check):
-            page = int(futures_to_check[future])
-            temp_chapters[page] = future.result()
-
-        for page in sorted(temp_chapters.keys()):
+        for page, chapters in enumerate(self.resolve_bounded(calls)):
             self.volumes.append({'id': page + 1})
-            for chap in temp_chapters[page]:
+            for chap in chapters:
                 chap['volume'] = page + 1
                 chap['id'] = 1 + len(self.chapters)
                 self.chapters.append(chap)

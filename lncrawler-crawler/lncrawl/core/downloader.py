@@ -249,7 +249,7 @@ def _discard_failed_images(app, chapter, failed) -> None:
     assert app.crawler is not None
 
     images = chapter.get("images") or {}
-    current_failed = [filename for filename in failed if filename in images]
+    current_failed = [filename for filename in images if filename in failed]
     if not current_failed:
         return
 
@@ -332,5 +332,6 @@ def fetch_chapter_images(app) -> None:
     finally:
         logger.info("Processed %d images [%d failed]" % (app.progress, len(failed)))
 
+    failed_set = set(failed)
     for chapter in app.chapters:
-        _discard_failed_images(app, chapter, failed)
+        _discard_failed_images(app, chapter, failed_set)

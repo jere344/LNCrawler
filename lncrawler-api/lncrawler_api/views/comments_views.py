@@ -4,7 +4,7 @@ from rest_framework import status
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
-from ..models import Novel, Chapter
+from ..models import Chapter
 from ..models.comments_models import Comment, CommentVote
 from ..utils import (
     get_client_ip,

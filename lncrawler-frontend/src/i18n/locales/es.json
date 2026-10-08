@@ -722,7 +722,20 @@
     "cancelSearch": "Cancelar búsqueda",
     "searchResults": "Resultados de búsqueda",
     "noResults": "No se encontraron novelas que coincidan con tu consulta. Prueba con otro término de búsqueda.",
-    "unexpectedResponse": "Formato de respuesta inesperado. Intenta buscar de nuevo."
+    "unexpectedResponse": "Formato de respuesta inesperado. Intenta buscar de nuevo.",
+    "jobsLink": "Tareas en curso",
+    "jobsHeading": "Tareas en curso",
+    "jobsSubtitle": "Novelas que se están buscando o descargando actualmente.",
+    "jobsEmpty": "No hay tareas en ejecución en este momento.",
+    "jobsBackToAdd": "Añadir una novela",
+    "jobsLoadFailed": "No se pudieron cargar las tareas en curso.",
+    "jobUntitled": "Tarea sin título",
+    "jobSearch": "Buscar",
+    "jobDownload": "Descargar",
+    "jobCreated": "Iniciada",
+    "jobView": "Ver",
+    "jobCancel": "Cancelar",
+    "jobCancelFailed": "No se pudo cancelar la tarea."
   },
   "reader": {
     "loadFailed": "Error al cargar el contenido del capítulo. Inténtalo de nuevo más tarde.",

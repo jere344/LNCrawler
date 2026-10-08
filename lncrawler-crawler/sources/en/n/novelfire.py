@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import itertools
 import logging
 import re
 from typing import List
@@ -85,15 +86,12 @@ class NovelFireCrawler(Crawler):
         pages = [int(p) for p in re.findall(r"chapters\?page=(\d+)", str(soup))]
         page_count = max(pages) if pages else 1
 
-        soups = [soup]
-        if page_count > 1:
-            futures = [
-                self.executor.submit(self.get_soup, f"{chapters_url}?page={p}")
-                for p in range(2, page_count + 1)
-            ]
-            soups += [f.result() for f in futures]
+        calls = [
+            (self.get_soup, f"{chapters_url}?page={p}")
+            for p in range(2, page_count + 1)
+        ]
 
-        for page in soups:
+        for page in itertools.chain([soup], self.resolve_bounded(calls)):
             for a in page.select("ul.chapter-list li a[href]"):
                 self.chapters.append(
                     Chapter(

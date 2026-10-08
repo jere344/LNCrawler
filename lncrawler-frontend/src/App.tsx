@@ -16,6 +16,7 @@ const DownloaderHome = lazy(() => import('@components/downloader/DownloaderHome'
 const SearchResults = lazy(() => import('@components/downloader/SearchResults'));
 const DownloadForm = lazy(() => import('@components/downloader/DownloadForm'));
 const DownloadStatus = lazy(() => import('@components/downloader/DownloadStatus'));
+const RunningJobsPage = lazy(() => import('@components/downloader/RunningJobsPage'));
 const NovelRedirect = lazy(() => import('@components/novels/NovelRedirect'));
 const SourceDetail = lazy(() => import('@components/novels/SourceDetail'));
 const ChapterList = lazy(() => import('@components/novels/ChapterList'));
@@ -117,6 +118,7 @@ function AppWithTheme() {
                             
                             {/* Downloader routes */}
                             <Route path="/download" element={<DownloaderHome />} />
+                            <Route path="/download/jobs" element={<RunningJobsPage />} />
                             <Route path="/download/search/:jobId" element={<SearchResults />} />
                             <Route path="/download/:jobId/:novelIndex/:sourceIndex" element={<DownloadForm />} />
                             <Route path="/download/status/:jobId" element={<DownloadStatus />} />

@@ -722,7 +722,20 @@
     "cancelSearch": "検索をキャンセル",
     "searchResults": "検索結果",
     "noResults": "検索条件に一致する小説が見つかりません。別のキーワードでお試しください。",
-    "unexpectedResponse": "予期しない応答形式です。もう一度検索してみてください。"
+    "unexpectedResponse": "予期しない応答形式です。もう一度検索してみてください。",
+    "jobsLink": "実行中のジョブ",
+    "jobsHeading": "実行中のジョブ",
+    "jobsSubtitle": "現在検索またはダウンロード中の小説。",
+    "jobsEmpty": "現在実行中のジョブはありません。",
+    "jobsBackToAdd": "小説を追加",
+    "jobsLoadFailed": "実行中のジョブの読み込みに失敗しました。",
+    "jobUntitled": "無題のジョブ",
+    "jobSearch": "検索",
+    "jobDownload": "ダウンロード",
+    "jobCreated": "開始",
+    "jobView": "表示",
+    "jobCancel": "キャンセル",
+    "jobCancelFailed": "ジョブのキャンセルに失敗しました。"
   },
   "reader": {
     "loadFailed": "章の内容の読み込みに失敗しました。しばらくしてからもう一度お試しください。",

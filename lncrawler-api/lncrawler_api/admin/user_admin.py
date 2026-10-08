@@ -2,7 +2,6 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from ..models import Comment, Review, Friendship, ProfilePinnedNovel
-from django.conf import settings
 from django.contrib.auth import get_user_model
 CustomUser = get_user_model()
 

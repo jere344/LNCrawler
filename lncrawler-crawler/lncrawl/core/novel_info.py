@@ -178,6 +178,6 @@ def save_metadata(app, completed: bool = False) -> None:
         Path(app.output_path).mkdir(parents=True, exist_ok=True)
         file_name = Path(app.output_path) / META_FILE_NAME
         with open(file_name, "w", encoding="utf-8") as fp:
-            json.dump(meta.to_dict(), fp, ensure_ascii=False, indent=2)
+            json.dump(meta.to_dict(), fp, ensure_ascii=False)
     except Exception:
         pass

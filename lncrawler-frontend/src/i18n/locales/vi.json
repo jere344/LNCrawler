@@ -722,7 +722,20 @@
     "cancelSearch": "Hủy tìm kiếm",
     "searchResults": "Kết quả tìm kiếm",
     "noResults": "Không tìm thấy tiểu thuyết nào khớp với truy vấn của bạn. Vui lòng thử từ khóa khác.",
-    "unexpectedResponse": "Định dạng phản hồi không mong đợi. Vui lòng thử tìm kiếm lại."
+    "unexpectedResponse": "Định dạng phản hồi không mong đợi. Vui lòng thử tìm kiếm lại.",
+    "jobsLink": "Tác vụ đang chạy",
+    "jobsHeading": "Tác vụ đang chạy",
+    "jobsSubtitle": "Tiểu thuyết hiện đang được tìm kiếm hoặc tải xuống.",
+    "jobsEmpty": "Hiện không có tác vụ nào đang chạy.",
+    "jobsBackToAdd": "Thêm một tiểu thuyết",
+    "jobsLoadFailed": "Không thể tải các tác vụ đang chạy.",
+    "jobUntitled": "Tác vụ không có tiêu đề",
+    "jobSearch": "Tìm kiếm",
+    "jobDownload": "Tải xuống",
+    "jobCreated": "Đã bắt đầu",
+    "jobView": "Xem",
+    "jobCancel": "Hủy",
+    "jobCancelFailed": "Không thể hủy tác vụ."
   },
   "reader": {
     "loadFailed": "Tải nội dung chương thất bại. Vui lòng thử lại sau.",

@@ -202,7 +202,9 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     }
     if include_recommendations:
         recommendations = get_novel_recommendations(
-            owner, Novel.objects.filter(bookmarked_by_users__user=owner), viewer
+            owner,
+            list(Novel.objects.filter(bookmarked_by_users__user=owner).values_list("id", flat=True)),
+            viewer,
         )
         payload["recommendations"] = NovelSerializer(
             recommendations, many=True, context={"request": request}
@@ -310,26 +312,47 @@ def reorder_library(request):
         NovelBookmark.objects.bulk_update(updated, ["position"])
     return Response({"status": "reordered", "count": len(updated)})
 
-def get_novel_recommendations(user, bookmarked_novels, viewer=None, max_recommendations=12):
+def get_novel_recommendations(
+    user, seed_novel_ids, viewer=None, max_recommendations=12,
+    exclude_ids=None, languages=None,
+):
     """
-    Generate novel recommendations based on user's bookmarked novels.
-    Optimized version that reduces database queries and performs most calculations at DB level.
+    Generate novel recommendations from a set of seed novels.
+
+    The seeds are the novels whose similarities drive the suggestions
+    (bookmarks for the library, the last few read novels for the home page).
+    ``exclude_ids``, defaulting to the seeds themselves, is removed from the
+    results so already-seen novels are not recommended. ``languages``, when
+    set, restricts both the similarity and the popular top-up to novels
+    available in those content languages. All calculations happen at the DB
+    level.
     """
-    if not bookmarked_novels.exists():
+    seed_novel_ids = list(seed_novel_ids)
+    if not seed_novel_ids:
         return []
 
     # ``viewer`` is who will see the recommendations (adult pref + bookmark
-    # prefetch); defaults to the library owner for the self-view.
+    # prefetch); defaults to the seed owner for the self-view.
     viewer = viewer if viewer is not None else user
     allow_adult = adult_allowed(viewer)
 
-    bookmarked_ids = list(bookmarked_novels.values_list('id', flat=True))
-    
+    excluded = set(seed_novel_ids)
+    if exclude_ids is not None:
+        excluded.update(exclude_ids)
+
+    language_filter = Q()
+    if languages:
+        language_filter = Q(
+            to_novel__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
+        )
+
     # Get recommendations with counts using a single database query
     from django.db.models import Count, Max
     similar_qs = (NovelSimilarity.objects
-        .filter(from_novel_id__in=bookmarked_ids)
-        .exclude(to_novel_id__in=bookmarked_ids)  # Exclude already bookmarked novels
+        .filter(from_novel_id__in=seed_novel_ids)
+        .exclude(to_novel_id__in=excluded)
+        .filter(to_novel__is_dmca=False)
+        .filter(language_filter)
     )
     if not allow_adult:
         similar_qs = similar_qs.exclude(to_novel__sources__is_adult=True)
@@ -343,18 +366,22 @@ def get_novel_recommendations(user, bookmarked_novels, viewer=None, max_recommen
         )
         .order_by('-recommendation_count', '-best_similarity')[:max_recommendations]
     )
-    
+
     # Get IDs of similar novels
     recommended_ids = [item['to_novel'] for item in similar_novels]
     
     # If we need more recommendations, add popular novels
     if len(recommended_ids) < max_recommendations:
         needed = max_recommendations - len(recommended_ids)
-        excluded_ids = bookmarked_ids + recommended_ids
+        excluded_ids = list(excluded) + recommended_ids
         
         # Get popular novels IDs in a single query (summed over sources)
         from django.db.models import Sum
-        popular_qs = Novel.objects.exclude(id__in=excluded_ids)
+        popular_qs = Novel.objects.exclude(id__in=excluded_ids).filter(is_dmca=False)
+        if languages:
+            popular_qs = popular_qs.filter(
+                id__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
+            )
         if not allow_adult:
             popular_qs = popular_qs.exclude(sources__is_adult=True)
         popular_ids = (popular_qs

@@ -722,7 +722,20 @@
     "cancelSearch": "取消搜索",
     "searchResults": "搜索结果",
     "noResults": "未找到与您的搜索词匹配的小说。请尝试其他搜索词。",
-    "unexpectedResponse": "响应格式异常。请重新搜索。"
+    "unexpectedResponse": "响应格式异常。请重新搜索。",
+    "jobsLink": "正在运行的任务",
+    "jobsHeading": "正在运行的任务",
+    "jobsSubtitle": "当前正在搜索或下载的小说。",
+    "jobsEmpty": "目前没有正在运行的任务。",
+    "jobsBackToAdd": "添加小说",
+    "jobsLoadFailed": "加载正在运行的任务失败。",
+    "jobUntitled": "无标题任务",
+    "jobSearch": "搜索",
+    "jobDownload": "下载",
+    "jobCreated": "已开始",
+    "jobView": "查看",
+    "jobCancel": "取消",
+    "jobCancelFailed": "取消任务失败。"
   },
   "reader": {
     "loadFailed": "加载章节内容失败。请稍后重试。",

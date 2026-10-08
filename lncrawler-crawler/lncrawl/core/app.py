@@ -14,7 +14,6 @@ from slugify import slugify
 from ..constants import DEFAULT_OUTPUT_PATH
 from ..models import Chapter
 from ..utils.novelupdates import find_novelupdates_url
-from .crawler import Crawler
 from .downloader import fetch_chapter_body, fetch_chapter_images
 from .novel_info import format_novel, save_metadata
 from .search import run_search
@@ -108,7 +107,6 @@ class App:
 
         save_metadata(self)
         fetch_chapter_body(self)
-        save_metadata(self)
         fetch_chapter_images(self)
         save_metadata(self, completed=True)
 

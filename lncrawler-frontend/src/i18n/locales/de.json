@@ -722,7 +722,20 @@
     "cancelSearch": "Suche abbrechen",
     "searchResults": "Suchergebnisse",
     "noResults": "Keine Romane gefunden, die zu deiner Suche passen. Bitte versuche einen anderen Suchbegriff.",
-    "unexpectedResponse": "Unerwartetes Antwortformat. Bitte versuche erneut zu suchen."
+    "unexpectedResponse": "Unerwartetes Antwortformat. Bitte versuche erneut zu suchen.",
+    "jobsLink": "Laufende Aufträge",
+    "jobsHeading": "Laufende Aufträge",
+    "jobsSubtitle": "Romane, die gerade gesucht oder heruntergeladen werden.",
+    "jobsEmpty": "Derzeit laufen keine Aufträge.",
+    "jobsBackToAdd": "Roman hinzufügen",
+    "jobsLoadFailed": "Laufende Aufträge konnten nicht geladen werden.",
+    "jobUntitled": "Unbenannter Auftrag",
+    "jobSearch": "Suchen",
+    "jobDownload": "Herunterladen",
+    "jobCreated": "Gestartet",
+    "jobView": "Anzeigen",
+    "jobCancel": "Abbrechen",
+    "jobCancelFailed": "Der Auftrag konnte nicht abgebrochen werden."
   },
   "reader": {
     "loadFailed": "Kapitelinhalt konnte nicht geladen werden. Bitte versuche es später erneut.",

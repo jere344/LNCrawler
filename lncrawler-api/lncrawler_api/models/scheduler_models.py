@@ -136,7 +136,7 @@ class ScheduledTask(models.Model):
         cutoff_time = timezone.now() - timedelta(minutes=stale_timeout_minutes)
         stale_tasks = cls.objects.filter(
             status='running',
-            locked_until__lt=timezone.now()
+            locked_until__lt=cutoff_time
         )
         
         count = 0
