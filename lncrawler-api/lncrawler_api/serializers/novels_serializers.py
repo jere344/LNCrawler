@@ -120,7 +120,9 @@ class NovelAggregatesMixin:
 
     def get_reading_history(self, obj):
         history = self._get_reading_history(obj)
-        return ReadingHistorySerializer(history, profile='detail').data if history else None
+        if not history or not history.last_read_chapter:
+            return None
+        return ReadingHistorySerializer(history, profile='detail').data
 
     def _source_by_pk(self, obj, pk):
         # The reader's source is already in the prefetched ``sources`` list

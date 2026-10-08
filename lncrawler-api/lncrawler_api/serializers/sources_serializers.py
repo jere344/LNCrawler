@@ -189,13 +189,13 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             return None
         if hasattr(obj, 'user_read_history'):
             history = obj.user_read_history[0] if obj.user_read_history else None
-            if history:
+            if history and history.last_read_chapter:
                 return ReadingHistorySerializer(history).data
             return None
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             history = obj.read_by_users.filter(user=request.user).first()
-            if history:
+            if history and history.last_read_chapter:
                 return ReadingHistorySerializer(history).data
         return None
 

@@ -1098,6 +1098,26 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
         response = self.client.get(reverse("home_page"))
         self.assertIsNone(self._novel(response)["reading_source"])
 
+    def test_deleted_last_read_chapter_yields_no_reading_history(self):
+        # Deleting the chapter SET_NULLs the FK; the card must not advertise a
+        # history whose last_read_chapter is missing.
+        user = get_user_model().objects.create_user(username="stale", password="x")
+        chapter = Chapter.objects.create(
+            novel_from_source=self.en_source,
+            chapter_id=1,
+            url="http://en/1/1",
+            title="Chapter 1",
+        )
+        ReadingHistory.objects.create(
+            user=user, novel=self.novel, source=self.en_source, last_read_chapter=chapter
+        )
+        chapter.delete()
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("home_page"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(self._novel(response)["reading_history"])
+
 
 class SerializerProfileTests(TestCase):
     """One serializer per model, several profiles: each profile must emit the
