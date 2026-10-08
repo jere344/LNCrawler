@@ -18,7 +18,27 @@ from ..serializers.reading_history_serializers import ReadingHistorySerializer
 from ..serializers.users_serializers import UserSerializer
 from ..utils import resolve_novel_slug
 from ..utils.pagination import parse_page_size, paginated_response
-from ..utils.query_helpers import apply_novel_prefetches
+from ..utils.query_helpers import (
+    adult_allowed,
+    apply_novel_prefetches,
+    exclude_adult,
+)
+
+
+def _folder_count_annotation(allow_adult):
+    """Count a folder's bookmarks, hiding adult novels unless allowed.
+
+    A novel is adult if ANY of its sources is, so this uses a subquery rather
+    than a per-source-row filter (which would count mixed-source novels).
+    """
+    if allow_adult:
+        return Count("bookmarks")
+    adult_novel_ids = Novel.objects.filter(sources__is_adult=True).values("id")
+    return Count(
+        "bookmarks",
+        filter=~Q(bookmarks__novel_id__in=adult_novel_ids),
+        distinct=True,
+    )
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -98,6 +118,9 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     page_size = parse_page_size(request, 24, 100)
 
     bookmarks = NovelBookmark.objects.filter(user=owner)
+    allow_adult = adult_allowed(viewer)
+    if not allow_adult:
+        bookmarks = bookmarks.exclude(novel__sources__is_adult=True)
 
     if folder_param == "unfiled":
         bookmarks = bookmarks.filter(folder__isnull=True)
@@ -129,10 +152,9 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
         sort = "custom"
         bookmarks = bookmarks.order_by("position", "-created_at")
 
-    folders = [
-        _folder_data(folder)
-        for folder in LibraryFolder.objects.filter(user=owner).annotate(count=Count("bookmarks"))
-    ]
+    folder_qs = LibraryFolder.objects.filter(user=owner)
+    folder_qs = folder_qs.annotate(count=_folder_count_annotation(allow_adult))
+    folders = [_folder_data(folder) for folder in folder_qs]
 
     # Resolve the viewer's own bookmark status up front so the serializer's
     # `is_bookmarked` never runs a query per row.
@@ -180,7 +202,7 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     }
     if include_recommendations:
         recommendations = get_novel_recommendations(
-            owner, Novel.objects.filter(bookmarked_by_users__user=owner)
+            owner, Novel.objects.filter(bookmarked_by_users__user=owner), viewer
         )
         payload["recommendations"] = NovelSerializer(
             recommendations, many=True, context={"request": request}
@@ -204,7 +226,9 @@ def library_folders(request):
         folder = LibraryFolder.objects.create(user=request.user, name=name)
         return Response(_folder_data(folder), status=status.HTTP_201_CREATED)
 
-    folders = LibraryFolder.objects.filter(user=request.user).annotate(count=Count("bookmarks"))
+    folders = LibraryFolder.objects.filter(user=request.user).annotate(
+        count=_folder_count_annotation(adult_allowed(request.user))
+    )
     return Response([_folder_data(folder) for folder in folders])
 
 
@@ -228,7 +252,9 @@ def library_folder_detail(request, folder_id):
         )
     folder.name = name
     folder.save(update_fields=["name"])
-    folder = LibraryFolder.objects.filter(pk=folder.pk).annotate(count=Count("bookmarks")).get()
+    folder = LibraryFolder.objects.filter(pk=folder.pk).annotate(
+        count=_folder_count_annotation(adult_allowed(request.user))
+    ).get()
     return Response(_folder_data(folder))
 
 
@@ -284,7 +310,7 @@ def reorder_library(request):
         NovelBookmark.objects.bulk_update(updated, ["position"])
     return Response({"status": "reordered", "count": len(updated)})
 
-def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
+def get_novel_recommendations(user, bookmarked_novels, viewer=None, max_recommendations=12):
     """
     Generate novel recommendations based on user's bookmarked novels.
     Optimized version that reduces database queries and performs most calculations at DB level.
@@ -292,13 +318,22 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
     if not bookmarked_novels.exists():
         return []
 
+    # ``viewer`` is who will see the recommendations (adult pref + bookmark
+    # prefetch); defaults to the library owner for the self-view.
+    viewer = viewer if viewer is not None else user
+    allow_adult = adult_allowed(viewer)
+
     bookmarked_ids = list(bookmarked_novels.values_list('id', flat=True))
     
     # Get recommendations with counts using a single database query
     from django.db.models import Count, Max
-    similar_novels = (NovelSimilarity.objects
+    similar_qs = (NovelSimilarity.objects
         .filter(from_novel_id__in=bookmarked_ids)
         .exclude(to_novel_id__in=bookmarked_ids)  # Exclude already bookmarked novels
+    )
+    if not allow_adult:
+        similar_qs = similar_qs.exclude(to_novel__sources__is_adult=True)
+    similar_novels = (similar_qs
         .values('to_novel')
         .annotate(
             recommendation_count=Count('to_novel'),
@@ -319,8 +354,10 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
         
         # Get popular novels IDs in a single query (summed over sources)
         from django.db.models import Sum
-        popular_ids = (Novel.objects
-            .exclude(id__in=excluded_ids)
+        popular_qs = Novel.objects.exclude(id__in=excluded_ids)
+        if not allow_adult:
+            popular_qs = popular_qs.exclude(sources__is_adult=True)
+        popular_ids = (popular_qs
             .annotate(total_views=Sum('sources__total_views'))
             .order_by('-total_views')
             .values_list('id', flat=True)[:needed]
@@ -336,7 +373,7 @@ def get_novel_recommendations(user, bookmarked_novels, max_recommendations=12):
     )
     
     recommendations = apply_novel_prefetches(
-        Novel.objects.filter(pk__in=recommended_ids).order_by(preserved_order), user
+        Novel.objects.filter(pk__in=recommended_ids).order_by(preserved_order), viewer
     )
     
     return recommendations
@@ -349,7 +386,10 @@ def list_reading_history(request):
     """
     # Get novels with reading history for the current user
     novels_with_history = apply_novel_prefetches(
-        Novel.objects.filter(reading_histories__user=request.user).order_by('-reading_histories__last_read_at'),
+        exclude_adult(
+            Novel.objects.filter(reading_histories__user=request.user),
+            request.user,
+        ).order_by('-reading_histories__last_read_at'),
         request.user,
     )
     return paginated_response(

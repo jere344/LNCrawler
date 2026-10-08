@@ -236,6 +236,17 @@
       "friends": "Venner"
     }
   },
+  "adultSettings": {
+    "title": "Voksenindhold",
+    "description": "Vælg, hvordan voksne (R18) romaner vises på hele siden.",
+    "label": "Vis voksenindhold",
+    "saveError": "Kunne ikke gemme indstillingen for voksenindhold.",
+    "values": {
+      "no": "Nej",
+      "yes": "Ja",
+      "blur": "Slør omslag"
+    }
+  },
   "profileLanguage": {
     "heading": "Sprogindstillinger",
     "interfaceLanguage": "Grænsefladesprog",
@@ -352,6 +363,10 @@
     "sortTrending": "Trending (ugentlige visninger)",
     "sortLastUpdated": "Senest opdateret",
     "sortDescending": "Sortér faldende",
+    "adultContent": "Voksenindhold (R18)",
+    "adultHide": "Skjul",
+    "adultShow": "Vis",
+    "adultOnly": "Vis kun",
     "applyFilters": "Anvend filtre",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Ekskluder: {tag}",

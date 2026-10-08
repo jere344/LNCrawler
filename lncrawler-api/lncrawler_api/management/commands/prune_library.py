@@ -652,6 +652,7 @@ class Command(BaseCommand):
                     f"superseded by {keeper.external_source.source_name} "
                     f"(similarity {mean:.3f}{offset})",
                     keeper=keeper,
+                    shift=shift,
                 )
                 return
 
@@ -659,12 +660,16 @@ class Command(BaseCommand):
 
     # -- deletion ------------------------------------------------------- #
 
-    def _port_user_data(self, loser, keeper):
+    def _port_user_data(self, loser, keeper, shift=0):
         """Hand a discarded source's user data to the keeper before deletion.
 
         Votes and reading history would otherwise cascade away with the source,
         and chapter comments with its chapters. Because the keeper is a sibling
         of the same novel, reading history stays unique per (user, novel).
+
+        ``shift`` is the positional offset ``_content_similarity`` found (the
+        dead source may prepend an intro chapter, moving every chapter by one),
+        so chapter-keyed data lands on the right chapter instead of off by N.
         """
         from lncrawler_api.models import SourceVote
 
@@ -673,16 +678,54 @@ class Command(BaseCommand):
             ip_address__in=existing_voters
         ).update(source=keeper)
         SourceVote.objects.filter(source=loser).delete()
-        ReadingHistory.objects.filter(source=loser).update(source=keeper)
 
-        keeper_by_id = {c.chapter_id: c for c in keeper.chapters.all()}
-        keeper_by_url = {c.url: c for c in keeper.chapters.all() if c.url}
+        # Chapter identity across sources is positional (ids are per-source).
+        # A shared url is the strongest match, so try it first; otherwise map
+        # loser position -> keeper position + shift. Same ordering as
+        # _content_similarity uses to compute the shift.
+        loser_pos = {
+            cid: pos for pos, cid in enumerate(
+                loser.chapters.order_by("chapter_id").values_list("chapter_id", flat=True)
+            )
+        }
+        keeper_chapters = list(keeper.chapters.order_by("chapter_id"))
+        keeper_ids = [c.chapter_id for c in keeper_chapters]
+        keeper_by_id = {c.chapter_id: c for c in keeper_chapters}
+        keeper_by_url = {c.url: c for c in keeper_chapters if c.url}
+
+        def map_chapter(chapter):
+            if chapter is None:
+                return None
+            # Only the loser's chapters are remapped; one already on the keeper
+            # (e.g. ported by an earlier run) must be left untouched.
+            if chapter.novel_from_source_id != loser.pk:
+                return chapter
+            if chapter.url:
+                by_url = keeper_by_url.get(chapter.url)
+                if by_url is not None:
+                    return by_url
+            pos = loser_pos.get(chapter.chapter_id)
+            if pos is not None:
+                kpos = pos + shift
+                if 0 <= kpos < len(keeper_ids):
+                    return keeper_by_id[keeper_ids[kpos]]
+            return None
+
+        # Move the history row and repoint its progress marker: last_read_chapter
+        # points at one of the loser's chapters, which is about to be deleted
+        # (SET_NULL), so without this the user keeps the history but loses their
+        # place.
+        for history in ReadingHistory.objects.filter(source=loser).select_related(
+            "last_read_chapter"
+        ):
+            history.source = keeper
+            history.last_read_chapter = map_chapter(history.last_read_chapter)
+            history.save(update_fields=["source", "last_read_chapter"])
+
         for comment in Comment.objects.filter(
             chapter__novel_from_source=loser
         ).select_related("chapter"):
-            target = keeper_by_id.get(comment.chapter.chapter_id) or keeper_by_url.get(
-                comment.chapter.url
-            )
+            target = map_chapter(comment.chapter)
             if target is None:
                 comment.delete()
             else:
@@ -693,7 +736,7 @@ class Command(BaseCommand):
         recount_source_votes(keeper)
         recount_comment_count(keeper.novel)
 
-    def _delete_source_named(self, source, reason, keeper=None):
+    def _delete_source_named(self, source, reason, keeper=None, shift=0):
         title = source.title
         source_name = source.external_source.source_name
         source_id = source.id
@@ -707,7 +750,7 @@ class Command(BaseCommand):
             try:
                 with transaction.atomic():
                     if keeper is not None:
-                        self._port_user_data(source, keeper)
+                        self._port_user_data(source, keeper, shift)
                     trash_path = self._trash_source_folder(source)
                     source.delete()
                     self._audit({

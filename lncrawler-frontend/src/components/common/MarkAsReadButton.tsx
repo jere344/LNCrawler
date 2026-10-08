@@ -37,7 +37,8 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
   const hasUnreadChapters = () => {
     if (novel.reading_history) {
       const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const lastReadChapterId = novel.reading_history.last_read_chapter.chapter_id;
+      const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
+      if (lastReadChapterId === undefined) return false;
       return latestChapterId > lastReadChapterId;
     }
     return novel.is_bookmarked && novel.prefered_source?.latest_available_chapter;
@@ -64,7 +65,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
       if (novel.reading_history) {
         sourceSlug = novel.reading_history.source_slug || novel.prefered_source?.source_slug || '';
         chapterNumber = novel.reading_history.source_latest_chapter?.chapter_id || 
-                       novel.reading_history.last_read_chapter.chapter_id;
+                       novel.reading_history.last_read_chapter?.chapter_id || 0;
       } else {
         sourceSlug = novel.prefered_source?.source_slug || '';
         chapterNumber = novel.prefered_source?.latest_available_chapter?.chapter_id || 0;

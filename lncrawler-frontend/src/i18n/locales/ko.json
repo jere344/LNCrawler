@@ -236,6 +236,17 @@
       "friends": "친구"
     }
   },
+  "adultSettings": {
+    "title": "성인 콘텐츠",
+    "description": "사이트 전체에서 성인(R18) 소설이 표시되는 방식을 선택하세요.",
+    "label": "성인 콘텐츠 표시",
+    "saveError": "성인 콘텐츠 설정을 저장할 수 없습니다.",
+    "values": {
+      "no": "아니요",
+      "yes": "예",
+      "blur": "표지 흐리게"
+    }
+  },
   "profileLanguage": {
     "heading": "언어 설정",
     "interfaceLanguage": "인터페이스 언어",
@@ -352,6 +363,10 @@
     "sortTrending": "트렌딩(주간 조회수)",
     "sortLastUpdated": "최근 업데이트",
     "sortDescending": "내림차순 정렬",
+    "adultContent": "성인(R18) 콘텐츠",
+    "adultHide": "숨기기",
+    "adultShow": "표시",
+    "adultOnly": "만 표시",
     "applyFilters": "필터 적용",
     "tagFilter": "태그: {tag}",
     "excludeFilter": "제외: {tag}",

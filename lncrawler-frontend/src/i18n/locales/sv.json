@@ -236,6 +236,17 @@
       "friends": "Vänner"
     }
   },
+  "adultSettings": {
+    "title": "Vuxet innehåll",
+    "description": "Välj hur vuxenromaner (R18) visas på hela webbplatsen.",
+    "label": "Visa vuxet innehåll",
+    "saveError": "Det gick inte att spara inställningen för vuxet innehåll.",
+    "values": {
+      "no": "Nej",
+      "yes": "Ja",
+      "blur": "Gör omslag suddiga"
+    }
+  },
   "profileLanguage": {
     "heading": "Språkinställningar",
     "interfaceLanguage": "Gränssnittsspråk",
@@ -352,6 +363,10 @@
     "sortTrending": "Trendande (veckovisa visningar)",
     "sortLastUpdated": "Senast uppdaterad",
     "sortDescending": "Sortera fallande",
+    "adultContent": "Vuxet innehåll (R18)",
+    "adultHide": "Dölj",
+    "adultShow": "Visa",
+    "adultOnly": "Visa endast",
     "applyFilters": "Tillämpa filter",
     "tagFilter": "Tagg: {tag}",
     "excludeFilter": "Exkludera: {tag}",

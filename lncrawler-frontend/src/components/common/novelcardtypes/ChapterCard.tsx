@@ -7,6 +7,8 @@ import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface ChapterCardProps {
   source: NovelFromSource;
@@ -18,6 +20,8 @@ interface ChapterCardProps {
 
 const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = false, to, state }) => {
   const { t } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(source.is_adult, source.novel_id);
   const coverHeight = 90;
   const coverWidth = coverHeight * 2/3;
 
@@ -65,17 +69,22 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
         borderRadius: 1.5,
         overflow: 'hidden',
         boxShadow: 2, 
+        position: 'relative',
       }}>
         <Box
           component="img"
           src={source.cover_min_url || defaultCover}
           alt={source.title}
+          onClick={blurred ? revealHandler(source.novel_id) : undefined}
           sx={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            cursor: blurred ? 'pointer' : undefined,
+            filter: blurred ? 'blur(16px)' : 'none',
           }}
         />
+        <AdultBadge isAdult={source.is_adult} novelId={source.novel_id} />
       </Card>
       
       <Box sx={{ 

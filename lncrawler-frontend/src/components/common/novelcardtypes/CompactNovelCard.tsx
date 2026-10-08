@@ -10,6 +10,8 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface CompactNovelCardProps {
   novel: Novel;
@@ -33,6 +35,8 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   state
 }) => {
   const { t, i18n } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const coverHeight = 90; 
   const coverWidth = coverHeight * 2/3;
 
@@ -110,10 +114,13 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
           component="img"
           src={(novel.reading_source ?? novel.prefered_source)?.cover_min_url || defaultCover}
           alt={novel.title}
+          onClick={blurred ? revealHandler(novel.id) : undefined}
           sx={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            cursor: blurred ? 'pointer' : undefined,
+            filter: blurred ? 'blur(16px)' : 'none',
           }}
         />
       </Card>
@@ -201,6 +208,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
         </Box>
       </Box>
     </ButtonBase>
+    <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
     </Box>
   );
 };

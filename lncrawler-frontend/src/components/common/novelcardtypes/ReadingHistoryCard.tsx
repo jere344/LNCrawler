@@ -18,6 +18,8 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
 import { formatTimeAgo, formatDate, getChapterName, getNovelSourceLink } from '@utils/Misc';
 import { useTranslation } from 'react-i18next';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface ReadingHistoryCardProps {
   novel: Novel;
@@ -26,7 +28,10 @@ interface ReadingHistoryCardProps {
 
 const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete }) => {
   const { t, i18n } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const continue_chapter = novel.reading_history?.next_chapter || novel.reading_history?.last_read_chapter;
+  const lastReadChapter = novel.reading_history?.last_read_chapter;
   const displaySource = novel.reading_source ?? novel.prefered_source;
   const sourceLink = getNovelSourceLink(novel);
 
@@ -73,12 +78,18 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           borderTopLeftRadius: 4,
           borderBottomLeftRadius: 4,
           opacity: novel.is_dmca ? 0.55 : 1,
-          filter: novel.is_dmca ? 'grayscale(100%)' : 'none',
+          cursor: blurred ? 'pointer' : undefined,
+          filter: [
+            novel.is_dmca ? 'grayscale(100%)' : null,
+            blurred ? 'blur(16px)' : null,
+          ].filter(Boolean).join(' ') || 'none',
         }}
+        onClick={blurred ? revealHandler(novel.id) : undefined}
         component={Link}
         to={sourceLink.to ?? ''} state={sourceLink.state}
         className="clickable"
       />
+      <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
 
       {novel.is_dmca && (
         <Chip
@@ -107,7 +118,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             {novel.title}
           </Typography>
           
-          {novel.reading_history && continue_chapter && (
+          {novel.reading_history && lastReadChapter && (
             <Box sx={{ mt: 1 }}>
               <Stack
                 direction="row"
@@ -130,14 +141,14 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
               </Stack>
               
               <Typography variant="body2" gutterBottom>
-                <strong>{t('cards.chapterLabel')}</strong> {novel.reading_history.last_read_chapter.chapter_id} 
-                {getChapterName(novel.reading_history.last_read_chapter.title) != '' ? ' - ' : ''}
-                {getChapterName(novel.reading_history.last_read_chapter.title)}
+                <strong>{t('cards.chapterLabel')}</strong> {lastReadChapter.chapter_id} 
+                {getChapterName(lastReadChapter.title) != '' ? ' - ' : ''}
+                {getChapterName(lastReadChapter.title)}
               </Typography>
               
-              {novel.reading_history.last_read_chapter.volume_title && (
+              {lastReadChapter.volume_title && (
                 <Typography variant="body2" gutterBottom>
-                  <strong>{t('cards.volumeLabel')}</strong> {novel.reading_history.last_read_chapter.volume_title}
+                  <strong>{t('cards.volumeLabel')}</strong> {lastReadChapter.volume_title}
                 </Typography>
               )}
               

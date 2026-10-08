@@ -250,6 +250,96 @@ class MergeNovelsTests(MergeTestCase):
             build_merge_plan(self.target, self.target)
 
 
+class ChapterReimportTests(MergeTestCase):
+    def test_renumbered_chapters_do_not_collide(self):
+        novel = Novel.objects.create(
+            title="Renumbered", slug="renumbered", novel_path="renumbered"
+        )
+        external = ExternalSource.objects.create(source_name="renumber-site")
+        source = self.make_source(
+            novel, external, "Renumbered", "http://r/s", "renumbered",
+            "renumber-site", 3,
+        )
+        # A new chapter prepended to the list shifts every id up by one while
+        # the urls stay put, so url matching must move each existing row.
+        comment = Comment.objects.create(
+            chapter=source.chapters.get(chapter_id=1), author_name="anon", message="hi"
+        )
+        meta_path = os.path.join(source.absolute_source_path, "meta.json")
+        with open(meta_path, "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "novel": {
+                        "title": "Renumbered",
+                        "url": "http://r/s",
+                        "chapters": [
+                            {"id": n + 1, "url": f"http://r/s/ch{n}", "title": f"Chapter {n}"}
+                            for n in (1, 2, 3)
+                        ],
+                    }
+                },
+                handle,
+            )
+
+        updated = NovelFromSource.from_meta_json(meta_path)
+
+        self.assertEqual(updated.pk, source.pk)
+        self.assertEqual(
+            sorted(updated.chapters.values_list("chapter_id", flat=True)), [2, 3, 4]
+        )
+        # Comments follow the row, which is now chapter 2.
+        comment.refresh_from_db()
+        self.assertEqual(comment.chapter.chapter_id, 2)
+
+    def test_removed_chapter_keeps_comments_and_progress(self):
+        novel = Novel.objects.create(
+            title="Removed", slug="removed", novel_path="removed"
+        )
+        external = ExternalSource.objects.create(source_name="removed-site")
+        source = self.make_source(
+            novel, external, "Removed", "http://x/s", "removed",
+            "removed-site", 3,
+        )
+        removed = source.chapters.get(chapter_id=2)
+        comment = Comment.objects.create(
+            chapter=removed, author_name="anon", message="hi"
+        )
+        user = get_user_model().objects.create_user(username="reader", password="x")
+        history = ReadingHistory.objects.create(
+            user=user, novel=novel, source=source, last_read_chapter=removed
+        )
+        # Chapter 2 is gone and the list renumbers down: chapter 3 becomes
+        # chapter 2, reusing the removed row's slot.
+        meta_path = os.path.join(source.absolute_source_path, "meta.json")
+        with open(meta_path, "w", encoding="utf-8") as handle:
+            json.dump(
+                {
+                    "novel": {
+                        "title": "Removed",
+                        "url": "http://x/s",
+                        "chapters": [
+                            {"id": 1, "url": "http://x/s/ch1", "title": "Chapter 1"},
+                            {"id": 2, "url": "http://x/s/ch3", "title": "Chapter 3"},
+                        ],
+                    }
+                },
+                handle,
+            )
+
+        updated = NovelFromSource.from_meta_json(meta_path)
+
+        self.assertEqual(
+            sorted(updated.chapters.values_list("chapter_id", flat=True)), [1, 2]
+        )
+        # The removed chapter's comment and progress must survive, repointed at
+        # the chapter that took over its slot (url /ch3).
+        comment.refresh_from_db()
+        self.assertEqual(comment.chapter.chapter_id, 2)
+        self.assertEqual(comment.chapter.url, "http://x/s/ch3")
+        history.refresh_from_db()
+        self.assertEqual(history.last_read_chapter.chapter_id, 2)
+
+
 class MergeDuplicateSourceTests(MergeTestCase):
     def setUp(self):
         super().setUp()
@@ -683,7 +773,10 @@ class PruneLibraryPortTests(MergeTestCase):
         comment = Comment.objects.create(
             chapter=self.dead_chapter, author_name="anon", message="hi"
         )
-        ReadingHistory.objects.create(user=user, novel=self.novel, source=self.dead)
+        ReadingHistory.objects.create(
+            user=user, novel=self.novel, source=self.dead,
+            last_read_chapter=self.dead_chapter,
+        )
         SourceVote.objects.create(source=self.dead, ip_address="1.1.1.1", vote_type="up")
         # Same voter already voted on the keeper: the duplicate must be dropped.
         SourceVote.objects.create(
@@ -694,12 +787,39 @@ class PruneLibraryPortTests(MergeTestCase):
 
         comment.refresh_from_db()
         self.assertEqual(comment.chapter, self.keeper_chapter)
-        self.assertEqual(ReadingHistory.objects.get(user=user).source, self.keeper)
+        history = ReadingHistory.objects.get(user=user)
+        self.assertEqual(history.source, self.keeper)
+        # Progress marker must follow the history, or the chapter deletion nulls it.
+        self.assertEqual(history.last_read_chapter, self.keeper_chapter)
         self.assertEqual(self.keeper.votes.count(), 1)
         self.keeper.refresh_from_db()
         self.assertEqual((self.keeper.upvotes, self.keeper.downvotes), (0, 1))
         self.novel.refresh_from_db()
         self.assertEqual(self.novel.comment_count, 1)
+
+    def test_port_user_data_applies_chapter_shift(self):
+        from .management.commands.prune_library import Command
+
+        # Simulate the dead source prepending an intro chapter: dead position 0
+        # really matches keeper position 1, so the shift from _content_similarity
+        # is +1 and chapter-keyed data must follow it.
+        keeper_second = self.keeper.chapters.order_by("chapter_id")[1]
+        user = get_user_model().objects.create_user(username="shifted", password="x")
+        comment = Comment.objects.create(
+            chapter=self.dead_chapter, author_name="anon", message="hi"
+        )
+        ReadingHistory.objects.create(
+            user=user, novel=self.novel, source=self.dead,
+            last_read_chapter=self.dead_chapter,
+        )
+
+        Command()._port_user_data(self.dead, self.keeper, shift=1)
+
+        comment.refresh_from_db()
+        self.assertEqual(comment.chapter, keeper_second)
+        self.assertEqual(
+            ReadingHistory.objects.get(user=user).last_read_chapter, keeper_second
+        )
 
     def test_sample_percent_uses_md5_bucket_subset(self):
         import hashlib
@@ -1119,6 +1239,89 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
         self.assertIsNone(self._novel(response)["reading_history"])
 
 
+class AdultContentFilterTests(LanguageAwareSourceTestCase):
+    """R18 gating: a novel is adult if ANY of its sources is."""
+
+    def setUp(self):
+        super().setUp()
+        self.clean = Novel.objects.create(title="Clean", slug="clean", novel_path="c")
+        NovelFromSource.objects.create(
+            novel=self.clean,
+            external_source=ExternalSource.objects.create(source_name="clean-site"),
+            title="Clean",
+            source_url="http://clean/1",
+            language="en",
+        )
+
+    def _home_titles(self, response):
+        return [n["title"] for n in response.data["top_novels"]]
+
+    def _search_titles(self, response):
+        return [n["title"] for n in response.data["results"]]
+
+    def _flag_adult(self):
+        self.en_source.is_adult = True
+        self.en_source.save(update_fields=["is_adult"])
+
+    def test_anonymous_hides_adult_novels_on_home(self):
+        self._flag_adult()
+        response = self.client.get(reverse("home_page"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Bilingue", self._home_titles(response))
+        self.assertIn("Clean", self._home_titles(response))
+
+    def test_show_r18_yes_reveals_adult_novels_on_home(self):
+        self._flag_adult()
+        user = get_user_model().objects.create_user(
+            username="adult-fan", password="x", show_r18="yes"
+        )
+        self.client.force_login(user)
+        response = self.client.get(reverse("home_page"))
+        self.assertIn("Bilingue", self._home_titles(response))
+
+    def test_search_adult_only_and_hide(self):
+        self._flag_adult()
+        only = self.client.get(reverse("search_novels"), {"adult": "only"})
+        self.assertEqual(self._search_titles(only), ["Bilingue"])
+
+        hide = self.client.get(reverse("search_novels"), {"adult": "hide"})
+        self.assertNotIn("Bilingue", self._search_titles(hide))
+
+    def test_sitemaps_exclude_adult_novel_and_its_sources(self):
+        from .views.sitemap import (
+            ChapterListSitemap,
+            ImageGallerySitemap,
+            NovelSitemap,
+            SourceSitemap,
+        )
+
+        NovelFromSource.objects.filter(pk=self.en_source.pk).update(source_slug="en-site")
+        self.clean.sources.update(source_slug="clean-site")
+        self._flag_adult()
+
+        self.assertNotIn("bilingue", [n.slug for n in NovelSitemap().items()])
+        self.assertIn("clean", [n.slug for n in NovelSitemap().items()])
+
+        for sitemap in (SourceSitemap(), ChapterListSitemap(), ImageGallerySitemap()):
+            # The adult novel's sources must be absent; get_latest_lastmod also
+            # guards against the sitemap helper regressing into a broken query.
+            slugs = [s.novel.slug for s in sitemap.items()]
+            self.assertNotIn("bilingue", slugs)
+            self.assertIn("clean", slugs)
+            sitemap.get_latest_lastmod()
+
+    def test_source_payload_reports_novel_level_adult_flag(self):
+        # A novel is adult if any source is, so even a source that is itself
+        # clean must report the novel-level flag (cards blur on it).
+        from .serializers import NovelSourceSerializer
+        from .utils.query_helpers import sources_queryset
+
+        self._flag_adult()
+        clean_source = sources_queryset(detailed=False).get(pk=self.fr_source.pk)
+        data = NovelSourceSerializer(clean_source, profile="card").data
+        self.assertTrue(data["is_adult"])
+
+
 class SerializerProfileTests(TestCase):
     """One serializer per model, several profiles: each profile must emit the
     same fields the old per-view classes did, and excluded fields (and their
@@ -1127,33 +1330,35 @@ class SerializerProfileTests(TestCase):
     NOVEL_FIELDS = {
         "card": [
             "id", "title", "slug", "avg_rating", "rating_count", "total_views",
-            "weekly_views", "prefered_source", "languages", "is_bookmarked",
-            "comment_count", "reading_history", "reading_source", "is_dmca",
+            "weekly_views", "prefered_source", "languages", "is_adult",
+            "is_bookmarked", "comment_count", "reading_history", "reading_source",
+            "is_dmca",
         ],
         "featured": [
             "id", "title", "slug", "avg_rating", "rating_count", "total_views",
-            "weekly_views", "prefered_source", "languages", "is_bookmarked",
-            "comment_count", "reading_history", "reading_source", "is_dmca",
+            "weekly_views", "prefered_source", "languages", "is_adult",
+            "is_bookmarked", "comment_count", "reading_history", "reading_source",
+            "is_dmca",
         ],
         "detail": [
             "id", "title", "slug", "sources", "created_at", "updated_at",
             "avg_rating", "rating_count", "user_rating", "total_views",
-            "weekly_views", "prefered_source", "is_bookmarked", "comment_count",
-            "reading_history", "reading_source", "similar_novels",
+            "weekly_views", "prefered_source", "is_adult", "is_bookmarked",
+            "comment_count", "reading_history", "reading_source", "similar_novels",
             "reading_lists", "is_dmca",
         ],
         "library": [
             "id", "title", "slug", "avg_rating", "rating_count", "total_views",
-            "weekly_views", "prefered_source", "languages", "is_bookmarked",
-            "comment_count", "reading_history", "reading_source", "is_dmca",
-            "bookmark_id", "note", "folder", "folder_name", "position",
+            "weekly_views", "prefered_source", "languages", "is_adult",
+            "is_bookmarked", "comment_count", "reading_history", "reading_source",
+            "is_dmca", "bookmark_id", "note", "folder", "folder_name", "position",
             "user_rating",
         ],
     }
 
     SOURCE_FIELDS = {
         "card": [
-            "id", "title", "source_slug", "novel_slug", "cover_min_url",
+            "id", "title", "source_slug", "novel_slug", "novel_id", "cover_min_url",
             "authors", "tags", "chapters_count", "last_chapter_update",
             "latest_available_chapter", "is_adult",
         ],
@@ -1268,7 +1473,7 @@ class SerializerProfileTests(TestCase):
                     "social_links", "privacy_settings", "date_joined", "last_login",
                     "word_read", "chapters_read_count", "chapters_not_read_yet_count",
                     "preferred_ui_language", "preferred_languages",
-                    "language_filter_enabled", "discoverable", "pinned_novels",
+                    "language_filter_enabled", "discoverable", "show_r18", "pinned_novels",
                 ],
                 "compact": ["id", "username", "profile_pic"],
                 "public": [

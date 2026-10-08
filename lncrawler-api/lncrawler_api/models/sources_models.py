@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 import os
 import re
 import json
@@ -358,13 +358,20 @@ class NovelFromSource(models.Model):
             )
             existing_by_url = {ch.url: ch for ch in existing_list if ch.url}
             existing_by_id = {ch.chapter_id: ch for ch in existing_list}
+            original_ids = {ch.pk: ch.chapter_id for ch in existing_list}
 
             new_chapters = []
             chapters_to_update = []
             used_pks = set()
+            assigned_ids = set()
 
             for chapter_data in novel_data['chapters']:
                 chapter_id = chapter_data.get('id')
+                # meta.json can list the same id twice; the unique
+                # (novel_from_source, chapter_id) key only allows one row.
+                if chapter_id in assigned_ids:
+                    continue
+                assigned_ids.add(chapter_id)
 
                 # Accept both shapes meta.json uses: a dict of filename -> {..}
                 # and a plain list of filenames.
@@ -412,14 +419,66 @@ class NovelFromSource(models.Model):
                         **chapter_dict
                     ))
 
-            # Bulk create new chapters
-            if new_chapters:
-                Chapter.objects.bulk_create(new_chapters)
+            # A re-import can renumber chapters, so rows matched by url may move
+            # to a different chapter_id. A bulk UPDATE applies row by row and
+            # would trip the unique (novel_from_source, chapter_id) constraint
+            # while an id is still held, so reassigned rows are parked on a
+            # temporary id first. Rows whose id an incoming chapter now claims
+            # but that were not matched are stale and must go.
+            reassigned = [
+                (ch, ch.chapter_id)
+                for ch in chapters_to_update
+                if original_ids.get(ch.pk) != ch.chapter_id
+            ]
+            target_ids = {ch.chapter_id for ch in chapters_to_update} | {
+                ch.chapter_id for ch in new_chapters
+            }
+            stale = [
+                ch for ch in existing_list
+                if ch.pk not in used_pks and ch.chapter_id in target_ids
+            ]
 
-            # Bulk update existing chapters
-            if chapters_to_update:
-                fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content']
-                Chapter.objects.bulk_update(chapters_to_update, fields_to_update)
+            with transaction.atomic():
+                if stale:
+                    # An incoming chapter took these rows' slot, so they must go.
+                    # Repoint their user data onto the chapter now holding that
+                    # slot first: Comment.chapter is CASCADE and
+                    # ReadingHistory.last_read_chapter is SET_NULL, so deleting
+                    # first would silently drop comments and wipe user progress.
+                    from .comments_models import Comment
+                    from .users_models import ReadingHistory
+
+                    incoming_by_id = {ch.chapter_id: ch for ch in chapters_to_update}
+                    for old in stale:
+                        target = incoming_by_id.get(old.chapter_id)
+                        if target is None:
+                            continue
+                        Comment.objects.filter(chapter=old).update(chapter=target)
+                        ReadingHistory.objects.filter(last_read_chapter=old).update(
+                            last_read_chapter=target
+                        )
+                    Chapter.objects.filter(pk__in=[ch.pk for ch in stale]).delete()
+
+                if reassigned:
+                    # Park below every existing id so no orphan row can already
+                    # hold a temporary id and trip the unique constraint.
+                    park = min([0] + [ch.chapter_id for ch in existing_list]) - 1
+                    for index, (chapter, _) in enumerate(reassigned, start=1):
+                        chapter.chapter_id = park - index + 1
+                    Chapter.objects.bulk_update(
+                        [chapter for chapter, _ in reassigned], ['chapter_id']
+                    )
+
+                # Bulk create new chapters
+                if new_chapters:
+                    Chapter.objects.bulk_create(new_chapters)
+
+                # Bulk update existing chapters
+                if chapters_to_update:
+                    for chapter, final_id in reassigned:
+                        chapter.chapter_id = final_id
+                    fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content']
+                    Chapter.objects.bulk_update(chapters_to_update, fields_to_update)
             
             # Update last_chapter_update timestamp
             novel_from_source.last_chapter_update = timezone.now()

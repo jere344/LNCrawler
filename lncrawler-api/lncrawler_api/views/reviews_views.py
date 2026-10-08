@@ -11,6 +11,7 @@ from ..serializers.reviews_serializers import (
 from ..utils.ip_utils import get_client_ip
 from ..utils.pagination import paginated_reviews_response
 from ..utils import resolve_novel_slug
+from ..utils.query_helpers import adult_allowed
 
 
 @api_view(['GET'])
@@ -149,4 +150,6 @@ def remove_reaction(request, review_id):
 def user_reviews(request):
     """Get all reviews by the authenticated user"""
     reviews = Review.objects.filter(user=request.user).select_related('novel').prefetch_related('reactions__user')
+    if not adult_allowed(request.user):
+        reviews = reviews.exclude(novel__sources__is_adult=True)
     return paginated_reviews_response(request, reviews, ReviewSerializer)

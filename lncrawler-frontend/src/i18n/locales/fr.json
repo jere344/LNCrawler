@@ -236,6 +236,17 @@
       "friends": "Amis"
     }
   },
+  "adultSettings": {
+    "title": "Contenu pour adultes",
+    "description": "Choisissez comment les romans pour adultes (R18) sont affichés sur le site.",
+    "label": "Afficher le contenu pour adultes",
+    "saveError": "Impossible d'enregistrer le paramètre de contenu pour adultes.",
+    "values": {
+      "no": "Non",
+      "yes": "Oui",
+      "blur": "Flouter les couvertures"
+    }
+  },
   "profileLanguage": {
     "heading": "Préférences de langue",
     "interfaceLanguage": "Langue de l'interface",
@@ -352,6 +363,10 @@
     "sortTrending": "Tendance (vues hebdomadaires)",
     "sortLastUpdated": "Dernière mise à jour",
     "sortDescending": "Trier par ordre décroissant",
+    "adultContent": "Contenu pour adultes (R18)",
+    "adultHide": "Masquer",
+    "adultShow": "Afficher",
+    "adultOnly": "Afficher uniquement",
     "applyFilters": "Appliquer les filtres",
     "tagFilter": "Tag : {tag}",
     "excludeFilter": "Exclure : {tag}",

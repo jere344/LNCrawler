@@ -5,6 +5,7 @@ import {
   Chip, Button, FormGroup,
   FormControlLabel, Rating, IconButton, InputAdornment,
   CircularProgress, Pagination, Stack, Autocomplete,
+  ToggleButton, ToggleButtonGroup,
   Grid as Grid,
 } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
@@ -20,7 +21,10 @@ import { Novel } from '@models/novels_types';
 import { languageFlagUrl, availableLanguages, languageCodeToName, getNovelSourceLink } from '@utils/Misc';
 import { useTheme } from '@theme/ThemeContext';
 import { useLanguage } from '@context/LanguageContext';
+import { useAuth } from '@context/AuthContext';
 import SeoMeta from '../common/SeoMeta';
+
+type AdultFilter = 'hide' | 'show' | 'only';
 
 
 interface FilterOptions {
@@ -42,7 +46,13 @@ const ITEMS_PER_PAGE = 24;
 const SearchPage: React.FC = () => {
   const { t } = useTranslation();
   const { contentLanguages, languageFilterEnabled } = useLanguage();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Default the adult filter from the account preference: users who allow
+  // adult content (yes/blur) start on 'show', everyone else on 'hide'.
+  const defaultAdult: AdultFilter =
+    user?.show_r18 === 'yes' || user?.show_r18 === 'blur' ? 'show' : 'hide';
   
   // State for search results
   const [novels, setNovels] = useState<Novel[]>([]);
@@ -77,6 +87,17 @@ const SearchPage: React.FC = () => {
   );
   const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'title');
   const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'asc');
+  const [adult, setAdult] = useState<AdultFilter>(
+    (searchParams.get('adult') as AdultFilter) || defaultAdult
+  );
+
+  // The profile loads after the first render, so re-align the toggle with its
+  // default once it does (results are already correct from the server). Bail
+  // out when the URL pins an explicit choice, i.e. the user touched the toggle.
+  useEffect(() => {
+    if (searchParams.get('adult')) return;
+    setAdult(defaultAdult);
+  }, [defaultAdult, searchParams]);
 
   // Pre-check the user's content languages once, on first arrival. After that
   // the URL is authoritative: unchecking everything shows all languages.
@@ -177,6 +198,7 @@ const SearchPage: React.FC = () => {
             Number(searchParams.get('min_rating')) : undefined,
           sort_by: (searchParams.get('sort_by') as 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated') || 'title',
           sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc',
+          adult: (searchParams.get('adult') as AdultFilter) || undefined,
         });
         
         if (requestId !== searchRequestIdRef.current) return;
@@ -264,6 +286,7 @@ const SearchPage: React.FC = () => {
     setMinRating(null);
     setSortBy('title');
     setSortOrder('asc');
+    setAdult(defaultAdult);
     
     // Reset URL params to default
     setSearchParams(new URLSearchParams({ page: '1' }));
@@ -281,6 +304,7 @@ const SearchPage: React.FC = () => {
       min_rating: minRating,
       sort_by: sortBy,
       sort_order: sortOrder,
+      adult: adult === defaultAdult ? null : adult,
     });
     setShowFilters(false);
   };
@@ -723,6 +747,23 @@ const SearchPage: React.FC = () => {
               </FormGroup>
             </Grid>
             
+            {/* Adult (R18) content */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary' }}>
+                {t('search.adultContent')}
+              </Typography>
+              <ToggleButtonGroup
+                value={adult}
+                exclusive
+                size="small"
+                onChange={(_, value: AdultFilter | null) => { if (value) setAdult(value); }}
+              >
+                <ToggleButton value="hide">{t('search.adultHide')}</ToggleButton>
+                <ToggleButton value="show">{t('search.adultShow')}</ToggleButton>
+                <ToggleButton value="only">{t('search.adultOnly')}</ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+            
             {/* Apply Filters Button */}
             <Grid size={12}>
               <Button 
@@ -741,7 +782,7 @@ const SearchPage: React.FC = () => {
       {/* Active Filters Display */}
       {(selectedTags.length > 0 || excludedTags.length > 0 ||
        selectedAuthors.length > 0 || selectedStatus || selectedLanguages.length > 0 || 
-       minRating || sortBy !== 'title' || sortOrder !== 'asc') && (
+       minRating || sortBy !== 'title' || sortOrder !== 'asc' || adult !== defaultAdult) && (
         <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {selectedTags.map(tag => (
             <Chip 
@@ -844,6 +885,16 @@ const SearchPage: React.FC = () => {
                   sort_by: 'title',
                   sort_order: 'asc'
                 });
+              }}
+            />
+          )}
+
+          {adult !== defaultAdult && (
+            <Chip
+              label={t(`search.adult${adult === 'hide' ? 'Hide' : adult === 'show' ? 'Show' : 'Only'}`)}
+              onDelete={() => {
+                setAdult(defaultAdult);
+                updateSearchParams({ adult: defaultAdult });
               }}
             />
           )}

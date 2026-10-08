@@ -236,6 +236,17 @@
       "friends": "เพื่อน"
     }
   },
+  "adultSettings": {
+    "title": "เนื้อหาสำหรับผู้ใหญ่",
+    "description": "เลือกว่าจะแสดงนิยายสำหรับผู้ใหญ่ (R18) ทั่วทั้งเว็บไซต์อย่างไร",
+    "label": "แสดงเนื้อหาสำหรับผู้ใหญ่",
+    "saveError": "ไม่สามารถบันทึกการตั้งค่าเนื้อหาสำหรับผู้ใหญ่ได้",
+    "values": {
+      "no": "ไม่",
+      "yes": "ใช่",
+      "blur": "ทำให้ปกเบลอ"
+    }
+  },
   "profileLanguage": {
     "heading": "การตั้งค่าภาษา",
     "interfaceLanguage": "ภาษาของอินเทอร์เฟซ",
@@ -352,6 +363,10 @@
     "sortTrending": "มาแรง (ยอดเข้าชมรายสัปดาห์)",
     "sortLastUpdated": "อัปเดตล่าสุด",
     "sortDescending": "เรียงจากมากไปน้อย",
+    "adultContent": "เนื้อหาสำหรับผู้ใหญ่ (R18)",
+    "adultHide": "ซ่อน",
+    "adultShow": "แสดง",
+    "adultOnly": "แสดงเฉพาะ",
     "applyFilters": "ใช้ตัวกรอง",
     "tagFilter": "แท็ก: {tag}",
     "excludeFilter": "ยกเว้น: {tag}",

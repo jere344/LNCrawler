@@ -131,15 +131,21 @@ def move_and_merge_directory(source_dir: str, target_dir: str) -> None:
     for entry in os.listdir(source_dir):
         src = os.path.join(source_dir, entry)
         dst = os.path.join(target_dir, entry)
-        if os.path.isdir(src):
-            if os.path.exists(dst):
-                move_and_merge_directory(src, dst)
+        try:
+            if os.path.isdir(src):
+                if os.path.exists(dst):
+                    move_and_merge_directory(src, dst)
+                else:
+                    shutil.move(src, dst)
             else:
+                if os.path.exists(dst):
+                    os.remove(dst)
                 shutil.move(src, dst)
-        else:
-            if os.path.exists(dst):
-                os.remove(dst)
-            shutil.move(src, dst)
+        except FileNotFoundError:
+            # The crawler keeps running while we consolidate and may create or
+            # remove an entry (its .lncrawl.lock) mid-move. It is already gone,
+            # so there is nothing left to move.
+            continue
 
     try:
         os.rmdir(source_dir)

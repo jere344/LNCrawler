@@ -162,6 +162,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     weekly_views = serializers.SerializerMethodField()
     prefered_source = serializers.SerializerMethodField()
     languages = serializers.SerializerMethodField()
+    is_adult = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
     reading_source = serializers.SerializerMethodField()
@@ -178,7 +179,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         'card': [
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
             'reading_history', 'reading_source', 'is_dmca',
         ],
         # The home featured card: the card payload with its preferred source
@@ -188,19 +189,19 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         'featured': [
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
             'reading_history', 'reading_source', 'is_dmca',
         ],
         'detail': [
             'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
-            'prefered_source', 'is_bookmarked', 'comment_count', 'reading_history',
+            'prefered_source', 'is_adult', 'is_bookmarked', 'comment_count', 'reading_history',
             'reading_source', 'similar_novels', 'reading_lists', 'is_dmca',
         ],
         'library': [
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_bookmarked', 'comment_count',
+            'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
             'reading_history', 'reading_source', 'is_dmca',
             'bookmark_id', 'note', 'folder', 'folder_name', 'position', 'user_rating',
         ],
@@ -217,6 +218,11 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             if source.language
         }
         return list(languages)
+
+    def get_is_adult(self, obj):
+        # Novel-level flag: adult if any of its sources is adult. Reads the
+        # prefetched sources, so no extra query.
+        return any(source.is_adult for source in obj.sources.all())
 
     def get_sources(self, obj):
         return NovelSourceSerializer(
@@ -247,7 +253,8 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
 
     def get_similar_novels(self, obj):
         from ..utils.query_helpers import (
-            apply_novel_prefetches, novel_prefetch_objects, sources_total_views_subquery
+            adult_allowed, apply_novel_prefetches, exclude_adult,
+            novel_prefetch_objects, sources_total_views_subquery
         )
 
         # Get the top 12 similar novels (list() so len() is accurate; a sliced
@@ -255,8 +262,11 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         # Pass the requesting user so bookmark/history lookups are prefetched
         # instead of firing a query per similar novel.
         user = getattr(self.context.get('request'), 'user', None)
+        similar_qs = obj.similar_to.select_related('to_novel')
+        if not adult_allowed(user):
+            similar_qs = similar_qs.exclude(to_novel__sources__is_adult=True)
         similar_novels = list(
-            obj.similar_to.select_related('to_novel')
+            similar_qs
             .prefetch_related(*novel_prefetch_objects(user, prefix='to_novel__'))
             .order_by('-similarity')[:12]
         )
@@ -270,11 +280,13 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             # source-less novels (NULL sum) sort last instead of first on
             # Postgres DESC, and a dedup subquery so the sum isn't inflated.
             most_viewed = apply_novel_prefetches(
-                Novel.objects.exclude(id=obj.id)
-                .exclude(id__in=existing_ids)
+                exclude_adult(
+                    Novel.objects.exclude(id=obj.id).exclude(id__in=existing_ids),
+                    user,
+                )
                 .annotate(total_views=Coalesce(sources_total_views_subquery(), Value(0)))
                 .order_by('-total_views'),
-                getattr(self.context.get('request'), 'user', None),
+                user,
             )[:needed_count]
 
             # Combine the results

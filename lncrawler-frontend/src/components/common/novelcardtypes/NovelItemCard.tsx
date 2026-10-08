@@ -9,6 +9,8 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface NovelItemCardProps {
   novel: Novel;
@@ -21,6 +23,8 @@ interface NovelItemCardProps {
 
 const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state }) => {
   const { t } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const displaySource = novel.reading_source ?? novel.prefered_source;
   if (isLoading) {
     return (
@@ -89,13 +93,17 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
           component="img"
           src={displaySource?.cover_min_url || defaultCover}
           alt={novel.title}
+          onClick={blurred ? revealHandler(novel.id) : undefined}
           sx={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            cursor: blurred ? 'pointer' : undefined,
+            filter: blurred ? 'blur(16px)' : 'none',
           }}
           
         />
+        <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
         <Badge 
           sx={{
             position: 'absolute',

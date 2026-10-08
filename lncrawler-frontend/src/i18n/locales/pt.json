@@ -236,6 +236,17 @@
       "friends": "Amigos"
     }
   },
+  "adultSettings": {
+    "title": "Conteúdo adulto",
+    "description": "Escolha como os romances adultos (R18) são exibidos em todo o site.",
+    "label": "Mostrar conteúdo adulto",
+    "saveError": "Não foi possível salvar a configuração de conteúdo adulto.",
+    "values": {
+      "no": "Não",
+      "yes": "Sim",
+      "blur": "Desfocar capas"
+    }
+  },
   "profileLanguage": {
     "heading": "Preferências de idioma",
     "interfaceLanguage": "Idioma da interface",
@@ -352,6 +363,10 @@
     "sortTrending": "Em alta (visualizações semanais)",
     "sortLastUpdated": "Última atualização",
     "sortDescending": "Ordem descendente",
+    "adultContent": "Conteúdo adulto (R18)",
+    "adultHide": "Ocultar",
+    "adultShow": "Mostrar",
+    "adultOnly": "Mostrar apenas",
     "applyFilters": "Aplicar filtros",
     "tagFilter": "Etiqueta: {tag}",
     "excludeFilter": "Excluir: {tag}",

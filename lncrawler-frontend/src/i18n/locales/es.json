@@ -236,6 +236,17 @@
       "friends": "Amigos"
     }
   },
+  "adultSettings": {
+    "title": "Contenido para adultos",
+    "description": "Elige cómo se muestran las novelas para adultos (R18) en todo el sitio.",
+    "label": "Mostrar contenido para adultos",
+    "saveError": "No se pudo guardar la configuración de contenido para adultos.",
+    "values": {
+      "no": "No",
+      "yes": "Sí",
+      "blur": "Desenfocar portadas"
+    }
+  },
   "profileLanguage": {
     "heading": "Preferencias de idioma",
     "interfaceLanguage": "Idioma de la interfaz",
@@ -352,6 +363,10 @@
     "sortTrending": "Tendencia (visitas semanales)",
     "sortLastUpdated": "Última actualización",
     "sortDescending": "Orden descendente",
+    "adultContent": "Contenido para adultos (R18)",
+    "adultHide": "Ocultar",
+    "adultShow": "Mostrar",
+    "adultOnly": "Mostrar solo",
     "applyFilters": "Aplicar filtros",
     "tagFilter": "Etiqueta: {tag}",
     "excludeFilter": "Excluir: {tag}",

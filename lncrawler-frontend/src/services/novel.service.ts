@@ -107,6 +107,7 @@ export const novelService = {
     min_rating?: number;
     sort_by?: 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated';
     sort_order?: 'asc' | 'desc';
+    adult?: 'hide' | 'show' | 'only';
   }) => {
     // Build query string
     const queryParams = new URLSearchParams();
@@ -122,6 +123,7 @@ export const novelService = {
     if (params.min_rating) queryParams.append('min_rating', params.min_rating.toString());
     if (params.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+    if (params.adult) queryParams.append('adult', params.adult);
     
     if (params.tag && params.tag.length) {
       params.tag.forEach(tag => queryParams.append('tag', tag));

@@ -31,6 +31,8 @@ import { getNovelSourceLink } from '@utils/Misc';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface LibraryNovelCardProps {
   novel: Novel;
@@ -63,7 +65,8 @@ const CoverOverlays: React.FC<{ novel: Novel }> = ({ novel }) => {
   const unread = useMemo(() => {
     if (novel.reading_history) {
       const latest = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const last = novel.reading_history.last_read_chapter.chapter_id;
+      const last = novel.reading_history.last_read_chapter?.chapter_id;
+      if (last === undefined) return null;
       const diff = latest - last;
       return diff > 0 ? diff : null;
     }
@@ -126,6 +129,8 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
   onRemove,
 }) => {
   const { t } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const cover = preferredSource?.cover_min_url || defaultCover;
@@ -254,6 +259,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
               component="img"
               image={cover}
               alt={novel.title}
+              onClick={blurred ? revealHandler(novel.id) : undefined}
               sx={{
                 position: 'absolute',
                 inset: 0,
@@ -261,13 +267,19 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
                 height: '100%',
                 objectFit: 'cover',
                 opacity: novel.is_dmca ? 0.55 : 1,
-                filter: novel.is_dmca ? 'grayscale(100%)' : 'none',
+                cursor: blurred ? 'pointer' : undefined,
+                filter: [
+                  novel.is_dmca ? 'grayscale(100%)' : null,
+                  blurred ? 'blur(16px)' : null,
+                ].filter(Boolean).join(' ') || 'none',
               }}
             />
+            <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
             <Box
               sx={{
                 position: 'absolute',
                 inset: 0,
+                pointerEvents: 'none',
                 background:
                   'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 28%, rgba(0,0,0,0) 55%)',
               }}

@@ -9,7 +9,10 @@ export interface User {
     social_links?: Record<string, string>;
     privacy_settings?: Record<string, PrivacyValue>;
     discoverable?: boolean;
+    show_r18?: ShowR18;
 }
+
+export type ShowR18 = 'yes' | 'no' | 'blur';
 
 export type PrivacyValue = 'public' | 'friends' | 'private';
 

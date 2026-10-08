@@ -50,7 +50,7 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             'social_links', 'privacy_settings', 'date_joined', 'last_login',
             'word_read', 'chapters_read_count', 'chapters_not_read_yet_count',
             'preferred_ui_language', 'preferred_languages', 'language_filter_enabled',
-            'discoverable', 'pinned_novels',
+            'discoverable', 'show_r18', 'pinned_novels',
         ],
         'compact': ['id', 'username', 'profile_pic'],
         'public': [
@@ -99,6 +99,11 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             cleaned[section] = visibility
         return cleaned
 
+    def validate_show_r18(self, value):
+        if value not in ('yes', 'no', 'blur'):
+            raise serializers.ValidationError("Must be one of 'yes', 'no', 'blur'.")
+        return value
+
     def validate_preferred_ui_language(self, value):
         if value in (None, ''):
             return ''
@@ -125,9 +130,12 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     def get_pinned_novels(self, obj):
         from .novels_serializers import NovelSerializer
+        from ..utils.query_helpers import adult_allowed
+        pinned = ProfilePinnedNovel.objects.filter(user=obj)
+        if not adult_allowed(self._viewer()):
+            pinned = pinned.exclude(novel__sources__is_adult=True)
         pinned = (
-            ProfilePinnedNovel.objects
-            .filter(user=obj)
+            pinned
             .prefetch_related(
                 Prefetch(
                     'novel',
@@ -244,9 +252,12 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         cache_attr = f'_recent_history_cache_{obj.pk}'
         cache = getattr(self, cache_attr, None)
         if cache is None:
+            from ..utils.query_helpers import adult_allowed
+            history_qs = ReadingHistory.objects.filter(user=obj)
+            if not adult_allowed(self._viewer()):
+                history_qs = history_qs.exclude(novel__sources__is_adult=True)
             cache = list(
-                ReadingHistory.objects
-                .filter(user=obj)
+                history_qs
                 .select_related('source', 'last_read_chapter')
                 .prefetch_related(
                     Prefetch(

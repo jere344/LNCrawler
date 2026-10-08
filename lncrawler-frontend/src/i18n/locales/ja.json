@@ -236,6 +236,17 @@
       "friends": "友達"
     }
   },
+  "adultSettings": {
+    "title": "アダルトコンテンツ",
+    "description": "サイト全体でアダルト（R18）小説をどのように表示するかを選択します。",
+    "label": "アダルトコンテンツを表示",
+    "saveError": "アダルトコンテンツ設定を保存できませんでした。",
+    "values": {
+      "no": "いいえ",
+      "yes": "はい",
+      "blur": "表紙をぼかす"
+    }
+  },
   "profileLanguage": {
     "heading": "言語設定",
     "interfaceLanguage": "インターフェース言語",
@@ -352,6 +363,10 @@
     "sortTrending": "トレンド（週間閲覧数）",
     "sortLastUpdated": "最終更新",
     "sortDescending": "降順で並び替え",
+    "adultContent": "アダルト（R18）コンテンツ",
+    "adultHide": "非表示",
+    "adultShow": "表示",
+    "adultOnly": "のみ表示",
     "applyFilters": "フィルターを適用",
     "tagFilter": "タグ：{tag}",
     "excludeFilter": "除外：{tag}",

@@ -236,6 +236,17 @@
       "friends": "Teman"
     }
   },
+  "adultSettings": {
+    "title": "Konten dewasa",
+    "description": "Pilih bagaimana novel dewasa (R18) ditampilkan di seluruh situs.",
+    "label": "Tampilkan konten dewasa",
+    "saveError": "Tidak dapat menyimpan pengaturan konten dewasa.",
+    "values": {
+      "no": "Tidak",
+      "yes": "Ya",
+      "blur": "Buramkan sampul"
+    }
+  },
   "profileLanguage": {
     "heading": "Preferensi Bahasa",
     "interfaceLanguage": "Bahasa antarmuka",
@@ -352,6 +363,10 @@
     "sortTrending": "Tren (Tampilan Mingguan)",
     "sortLastUpdated": "Terakhir Diperbarui",
     "sortDescending": "Urutkan Menurun",
+    "adultContent": "Konten dewasa (R18)",
+    "adultHide": "Sembunyikan",
+    "adultShow": "Tampilkan",
+    "adultOnly": "Tampilkan hanya",
     "applyFilters": "Terapkan Filter",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Kecualikan: {tag}",

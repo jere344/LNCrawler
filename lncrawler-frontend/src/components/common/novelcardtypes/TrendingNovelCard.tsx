@@ -12,6 +12,8 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface TrendingNovelCardProps {
   novel: Novel;
@@ -31,6 +33,8 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
   state
 }) => {
   const { t } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   if (isLoading) {
     return (
       <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
@@ -153,13 +157,17 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
             alt={novel.title}
+            onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               width: '100%',
               aspectRatio: '2/3',
               objectFit: 'cover',
               display: 'block',
+              cursor: blurred ? 'pointer' : undefined,
+              filter: blurred ? 'blur(16px)' : 'none',
             }}
           />
+          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
         </Box>
         
         <CardContent sx={{ 

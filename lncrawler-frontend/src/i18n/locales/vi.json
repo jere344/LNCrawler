@@ -236,6 +236,17 @@
       "friends": "Bạn bè"
     }
   },
+  "adultSettings": {
+    "title": "Nội dung người lớn",
+    "description": "Chọn cách hiển thị tiểu thuyết người lớn (R18) trên toàn trang web.",
+    "label": "Hiển thị nội dung người lớn",
+    "saveError": "Không thể lưu cài đặt nội dung người lớn.",
+    "values": {
+      "no": "Không",
+      "yes": "Có",
+      "blur": "Làm mờ bìa"
+    }
+  },
   "profileLanguage": {
     "heading": "Tùy chọn ngôn ngữ",
     "interfaceLanguage": "Ngôn ngữ giao diện",
@@ -352,6 +363,10 @@
     "sortTrending": "Xu hướng (lượt xem hàng tuần)",
     "sortLastUpdated": "Cập nhật gần đây",
     "sortDescending": "Sắp xếp giảm dần",
+    "adultContent": "Nội dung người lớn (R18)",
+    "adultHide": "Ẩn",
+    "adultShow": "Hiện",
+    "adultOnly": "Chỉ hiển thị",
     "applyFilters": "Áp dụng bộ lọc",
     "tagFilter": "Thẻ: {tag}",
     "excludeFilter": "Loại trừ: {tag}",

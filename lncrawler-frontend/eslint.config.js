@@ -42,7 +42,7 @@ export default tseslint.config(
           allowConstantExport: true,
           // Context files intentionally co-locate their Provider with the
           // useX() hook; this pattern is not compatible with Fast Refresh.
-          allowExportNames: ['useAuth', 'useLanguage', 'useTheme'],
+          allowExportNames: ['useAuth', 'useLanguage', 'useTheme', 'useAdultContent'],
         },
       ],
     },

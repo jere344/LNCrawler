@@ -4,12 +4,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, F, Prefetch, Q
+from django.db.models import F, Prefetch, Q
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from ..utils.pagination import paginated_response as _paginated_response
-from ..utils.query_helpers import novel_prefetch_objects
+from ..utils.query_helpers import adult_allowed, novel_prefetch_objects
 from ..utils.responses import forbidden as _forbidden
 from ..models.users_models import ReadingList, ReadingListItem, ReadingListCollaborator
 from ..models.novels_models import Novel
@@ -31,14 +31,24 @@ def _reading_lists_query_set(user=None):
     Each item's novel carries the full card prefetch set (sources, ratings,
     weekly views and, for a logged-in ``user``, their own bookmark/history);
     without it the nested NovelSerializer falls back to ~7 queries per item.
+
+    Items are prefetched into ``visible_items`` with adult novels dropped when
+    the viewer may not see them, so the serializer renders only visible items
+    (counts, first_item, names) consistently.
     """
+    items_qs = ReadingListItem.objects.all()
+    if not adult_allowed(user):
+        items_qs = items_qs.exclude(novel__sources__is_adult=True)
+    items_qs = items_qs.prefetch_related(
+        Prefetch(
+            'novel',
+            queryset=Novel.objects.prefetch_related(*novel_prefetch_objects(user)),
+        )
+    )
     return ReadingList.objects.select_related('user').prefetch_related(
         'collaborators__user',
-        Prefetch(
-            'items__novel',
-            queryset=Novel.objects.prefetch_related(*novel_prefetch_objects(user)),
-        ),
-    ).annotate(items_count=Count('items', distinct=True))
+        Prefetch('items', queryset=items_qs, to_attr='visible_items'),
+    )
 
 
 @api_view(["GET"])
@@ -122,7 +132,10 @@ def update_reading_list(request, list_id):
     )
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        # Re-fetch through the filtered queryset so the response never echoes
+        # adult items the viewer is not allowed to see.
+        fresh = _reading_lists_query_set(request.user).get(id=reading_list.id)
+        return Response(ReadingListSerializer(fresh, context={"request": request}).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

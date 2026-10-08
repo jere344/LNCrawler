@@ -17,6 +17,7 @@ search_url = "https://noc.syosetu.com/search/search/?word=%s"
 
 class SyosetuAdultCrawler(Crawler):
     has_mtl = True
+    is_adult = True
     base_url = [
         "https://novel18.syosetu.com/",
         "https://nocturne.syosetu.com/",
@@ -89,7 +90,10 @@ class SyosetuAdultCrawler(Crawler):
         chapter_id = 0
         self.volumes.append({"id": 0})
         for page in soups:
-            for tag in page.select_one(".p-eplist"):
+            eplist = page.select_one(".p-eplist")
+            if not eplist:
+                continue
+            for tag in eplist:
                 if type(tag) is element.NavigableString:
                     continue
                 if "p-eplist__chapter-title" in tag.attrs.get("class", ""):

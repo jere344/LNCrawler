@@ -131,6 +131,8 @@ class WuxiaworldCrawler(Crawler):
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
         body = soup.select_one("#chapter-body") or soup.select_one(".chapter-body")
+        if body is None:
+            return ""
         for p in body.select("p"):
             if p.get_text(strip=True) in ("Previous Chapter", "Next Chapter"):
                 p.decompose()

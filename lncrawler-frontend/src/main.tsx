@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter as Router } from 'react-router-dom'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext'
+import { AdultContentProvider } from './context/AdultContentContext'
 import { LanguageProvider } from './context/LanguageContext'
 import { i18nReady } from './i18n'
 import { reportError } from './services/errorReporter'
@@ -21,9 +22,11 @@ i18nReady.finally(() => {
     <StrictMode>
       <Router>
         <AuthProvider>
-          <LanguageProvider>
-            <App />
-          </LanguageProvider>
+          <AdultContentProvider>
+            <LanguageProvider>
+              <App />
+            </LanguageProvider>
+          </AdultContentProvider>
         </AuthProvider>
       </Router>
     </StrictMode>,

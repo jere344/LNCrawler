@@ -2,6 +2,7 @@
 import logging
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,8 @@ class NovelCool(Crawler):
         soup = self.get_soup(self.novel_url)
 
         possible_title = soup.select_one("h1.bookinfo-title")
-        assert possible_title, "No novel title"
+        if not possible_title:
+            raise LNException("No novel title")
         self.novel_title = possible_title.text.strip()
         logger.info("Novel title: %s", self.novel_title)
 

@@ -12,6 +12,8 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface FeaturedNovelCardProps {
   source: NovelFromSource;
@@ -25,6 +27,8 @@ interface FeaturedNovelCardProps {
 const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, isLoading = false, to, state, isBookmarked = false }) => {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(source.is_adult, source.novel_id);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const coverHeight = isMobile ? 180 : 270;
@@ -96,18 +100,23 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
             boxShadow: 2,
             width: coverWidth,
             height: coverHeight,
-            mx: 'auto'
+            mx: 'auto',
+            position: 'relative',
           }}>
             <Box
               component="img"
               src={source.cover_min_url || defaultCover}
               alt={source.title}
+              onClick={blurred ? revealHandler(source.novel_id) : undefined}
               sx={{
                 height: '100%',
                 width: '100%',
                 objectFit: 'cover',
+                cursor: blurred ? 'pointer' : undefined,
+                filter: blurred ? 'blur(16px)' : 'none',
               }}
             />
+            <AdultBadge isAdult={source.is_adult} novelId={source.novel_id} />
           </Card>
         </Grid>
         <Grid size={{ xs: 8, md: 8, lg: 10 }}>

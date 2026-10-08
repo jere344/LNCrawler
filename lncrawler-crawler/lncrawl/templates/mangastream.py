@@ -2,6 +2,7 @@ from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup, Tag
 
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, SearchResult, Volume
 from lncrawl.templates.browser.optional_volume import OptionalVolumeBrowserTemplate
 from lncrawl.templates.browser.searchable import SearchableBrowserTemplate
@@ -35,7 +36,10 @@ class MangaStreamTemplate(SearchableBrowserTemplate, OptionalVolumeBrowserTempla
 
     def parse_title(self, soup: BeautifulSoup) -> str:
         title = soup.select_one("h1.entry-title")
-        assert title
+        if not title:
+            # Raise (not return "") so the base template retries in the browser;
+            # JS-rendered MangaStream sites only have the title client-side.
+            raise LNException("No novel title")
         return title.text.strip()
 
     def parse_title_in_browser(self) -> str:

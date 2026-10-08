@@ -43,6 +43,8 @@ import NovelSynopsis from './common/NovelSynopsis';
 import NovelRating from './common/NovelRating';
 import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -106,6 +108,8 @@ const SourceDetail = () => {
     user_rating: null
   }));
   const { isAuthenticated } = useAuth();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const coverBlurred = isBlurred(source?.is_adult, source?.novel_id);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [addToListOpen, setAddToListOpen] = useState(false);
@@ -563,6 +567,7 @@ const SourceDetail = () => {
                       component="img"
                       image={source.cover_url || defaultCover}
                       alt={source.title}
+                      onClick={coverBlurred ? revealHandler(source.novel_id) : undefined}
                       sx={{
                         position: 'absolute',
                         top: 0,
@@ -570,12 +575,15 @@ const SourceDetail = () => {
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
+                        cursor: coverBlurred ? 'pointer' : undefined,
+                        filter: coverBlurred ? 'blur(16px)' : 'none',
                       }}
                       onError={(e) => {
                         e.currentTarget.onerror = null;
                         e.currentTarget.src = defaultCover;
                       }}
                     />
+                    <AdultBadge isAdult={source.is_adult} novelId={source.novel_id} />
                     
                     {/* Language indicator */}
                     <Box

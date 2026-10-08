@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -20,6 +21,7 @@ from ..utils.pagination import (
     paginated_response as _paginated_response, paginated_reviews_response,
 )
 from ..utils.responses import forbidden as _forbidden
+from ..utils.query_helpers import adult_allowed
 
 User = get_user_model()
 
@@ -67,6 +69,8 @@ def user_reviews(request, username):
         .select_related('novel', 'user')
         .prefetch_related('reactions__user')
     )
+    if not adult_allowed(request.user):
+        reviews = reviews.exclude(novel__sources__is_adult=True)
     return paginated_reviews_response(request, reviews, ReviewSerializer)
 
 
@@ -83,6 +87,12 @@ def user_comments(request, username):
         .prefetch_related('replies')
         .order_by('-created_at')
     )
+    if not adult_allowed(request.user):
+        # Comments can target a novel directly or a chapter of one.
+        comments = comments.exclude(
+            Q(novel__sources__is_adult=True)
+            | Q(chapter__novel_from_source__novel__sources__is_adult=True)
+        )
     return _paginated_response(request, comments, partial(CommentSerializer, profile='profile'))
 
 

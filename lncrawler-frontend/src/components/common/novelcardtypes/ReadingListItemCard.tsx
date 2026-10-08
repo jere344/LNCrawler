@@ -22,6 +22,8 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
 import { useTranslation } from 'react-i18next';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 export interface ReadingListCardProps {
   novel: Novel;
@@ -50,6 +52,8 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
 }) => {
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -195,14 +199,20 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
             alt={novel.title}
+            onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               width: '100%',
               height: '100%',
               objectFit: 'cover',
               opacity: novel.is_dmca ? 0.55 : 1,
-              filter: novel.is_dmca ? 'grayscale(100%)' : 'none',
+              cursor: blurred ? 'pointer' : undefined,
+              filter: [
+                novel.is_dmca ? 'grayscale(100%)' : null,
+                blurred ? 'blur(16px)' : null,
+              ].filter(Boolean).join(' ') || 'none',
             }}
           />
+          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
           {novel.is_dmca && (
             <Chip
               label="DMCA"

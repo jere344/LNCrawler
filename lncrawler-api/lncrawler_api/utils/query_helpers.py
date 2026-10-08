@@ -1,4 +1,4 @@
-from django.db.models import Count, OuterRef, Prefetch, Subquery, Sum
+from django.db.models import Count, Exists, OuterRef, Prefetch, Subquery, Sum
 
 from ..models import (
     Chapter,
@@ -8,6 +8,27 @@ from ..models import (
     WeeklySourceView,
 )
 from ..models.sources_models import NovelFromSource, SourceVote
+
+# Account setting values that let adult (R18) content through; 'blur' still
+# shows it (the frontend blurs the covers), only 'no' hides it.
+ADULT_ALLOWED_SETTINGS = ('yes', 'blur')
+
+
+def adult_allowed(user):
+    """Whether ``user`` may see adult novels. Anonymous visitors never can."""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    return getattr(user, 'show_r18', 'no') in ADULT_ALLOWED_SETTINGS
+
+
+def exclude_adult(queryset, user=None):
+    """Drop novels that have any adult source, unless the viewer may see them.
+
+    A novel is treated as adult when *any* of its sources is adult.
+    """
+    if adult_allowed(user):
+        return queryset
+    return queryset.exclude(sources__is_adult=True)
 
 
 def _latest_content_chapter():
@@ -95,6 +116,13 @@ def sources_queryset(detailed=False, ip=None, user=None):
             latest_chapter_url=Subquery(latest.values('url')[:1]),
             # Counted here so the serializer never runs per-source COUNT queries.
             annotated_chapters_count=_related_count(Chapter),
+            # Novel-level adult flag: a novel is adult if any of its sources is,
+            # so source cards blur when the *novel* is adult, not just this row.
+            novel_is_adult=Exists(
+                NovelFromSource.objects.filter(
+                    novel=OuterRef('novel_id'), is_adult=True
+                )
+            ),
         )
     )
     if not detailed:

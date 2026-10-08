@@ -236,6 +236,17 @@
       "friends": "好友"
     }
   },
+  "adultSettings": {
+    "title": "成人内容",
+    "description": "选择成人（R18）小说在整个网站上的显示方式。",
+    "label": "显示成人内容",
+    "saveError": "无法保存成人内容设置。",
+    "values": {
+      "no": "否",
+      "yes": "是",
+      "blur": "模糊封面"
+    }
+  },
   "profileLanguage": {
     "heading": "语言偏好",
     "interfaceLanguage": "界面语言",
@@ -352,6 +363,10 @@
     "sortTrending": "热门（每周浏览量）",
     "sortLastUpdated": "最近更新",
     "sortDescending": "降序排列",
+    "adultContent": "成人（R18）内容",
+    "adultHide": "隐藏",
+    "adultShow": "显示",
+    "adultOnly": "仅显示",
     "applyFilters": "应用筛选",
     "tagFilter": "标签：{tag}",
     "excludeFilter": "排除：{tag}",

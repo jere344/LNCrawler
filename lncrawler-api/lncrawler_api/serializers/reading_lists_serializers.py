@@ -49,9 +49,9 @@ class ReadingListSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     user_role = serializers.SerializerMethodField()
     collaborators = ReadingListCollaboratorSerializer(many=True, read_only=True)
     items_count = serializers.SerializerMethodField()
-    first_item = ReadingListItemSerializer(read_only=True, source='items.first')
+    first_item = serializers.SerializerMethodField()
     items_names = serializers.SerializerMethodField()
-    items = ReadingListItemSerializer(many=True, read_only=True)
+    items = serializers.SerializerMethodField()
 
     default_profile = 'card'
     field_profiles = {
@@ -74,9 +74,27 @@ class ReadingListSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         request = self.context.get('request')
         return get_reading_list_role(obj, getattr(request, 'user', None))
 
+    def _visible_items(self, obj):
+        # ``visible_items`` is prefetched (adult-filtered) by the list views.
+        # Fall back to the manager for freshly created/updated instances.
+        items = getattr(obj, 'visible_items', None)
+        if items is None:
+            items = list(obj.items.all())
+        return items
+
     def get_items_count(self, obj):
-        annotated = getattr(obj, 'items_count', None)
-        return annotated if annotated is not None else obj.items.count()
+        return len(self._visible_items(obj))
+
+    def get_first_item(self, obj):
+        items = self._visible_items(obj)
+        if not items:
+            return None
+        return ReadingListItemSerializer(items[0], context=self.context).data
 
     def get_items_names(self, obj):
-        return [item.novel.title for item in obj.items.all() if item.novel]
+        return [item.novel.title for item in self._visible_items(obj) if item.novel]
+
+    def get_items(self, obj):
+        return ReadingListItemSerializer(
+            self._visible_items(obj), many=True, context=self.context
+        ).data

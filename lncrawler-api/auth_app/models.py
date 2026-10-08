@@ -39,6 +39,14 @@ class CustomUser(AbstractUser):
     # When False, the user never appears in the user-search results used for
     # finding friends/collaborators. Existing accounts stay discoverable.
     discoverable = models.BooleanField(default=True)
+    # How adult (R18) content is shown to this user across the site:
+    # 'no' hides it, 'yes' shows it normally, 'blur' shows it with blurred
+    # covers. Anonymous visitors fall back to 'no'.
+    show_r18 = models.CharField(
+        max_length=4,
+        choices=[('yes', 'Yes'), ('no', 'No'), ('blur', 'Blur')],
+        default='no',
+    )
 
     def visibility(self, section):
         """Effective visibility of a profile section for this user."""

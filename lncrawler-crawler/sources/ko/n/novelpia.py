@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 import logging
 import re
 
@@ -141,10 +142,14 @@ class NovelpiaCrawler(Crawler):
     def download_chapter_body(self, chapter):
         match = re.search(r"/viewer/(\d+)", chapter["url"])
         assert match, "No episode id in url"
-        data = self.get_json(
-            VIEWER_URL % match.group(1),
-            headers={"X-Requested-With": "XMLHttpRequest"},
-        )
+        try:
+            data = self.get_json(
+                VIEWER_URL % match.group(1),
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse viewer data for %s", chapter["url"])
+            return None
         parts = []
         for item in data.get("s", []) or []:
             text = item.get("text") or ""

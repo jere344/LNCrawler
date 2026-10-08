@@ -7,6 +7,8 @@ import PublicIcon from "@mui/icons-material/Public";
 import { formatTimeAgo } from "@utils/Misc";
 import { useTranslation } from "react-i18next";
 import UserLink from "@components/profile/UserLink";
+import { useAdultContent } from "@context/AdultContentContext";
+import { AdultBadge } from "@components/common/AdultBadge";
 
 interface ReadingListCardProps {
     list: ReadingList;
@@ -14,6 +16,9 @@ interface ReadingListCardProps {
 
 const ReadingListCard = ({ list }: ReadingListCardProps) => {
     const { t } = useTranslation();
+    const { isBlurred, revealHandler } = useAdultContent();
+    const firstItemNovel = list.first_item?.novel;
+    const blurred = isBlurred(firstItemNovel?.is_adult, firstItemNovel?.id);
     const firstItemCover = list.first_item?.novel.prefered_source?.cover_min_url;
     const defaultCoverBg = "linear-gradient(135deg, #0a3d91 0%, #1e88e5 100%)";
     const coverHeight = 160;
@@ -55,9 +60,12 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                             height: "100%",
                             width: "100%",
                             objectFit: "cover",
+                            cursor: blurred ? "pointer" : undefined,
+                            filter: blurred ? "blur(16px)" : "none",
                         }}
                         image={firstItemCover}
                         alt={t("readingLists.coverAlt", { title: list.title })}
+                        onClick={blurred ? revealHandler(firstItemNovel?.id) : undefined}
                     />
                 ) : (
                     <Box
@@ -106,6 +114,7 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                         "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
                     }}
                 />
+                <AdultBadge isAdult={firstItemNovel?.is_adult} novelId={firstItemNovel?.id} />
             </Card>
 
             {/* Right side - Content */}

@@ -236,6 +236,17 @@
       "friends": "الأصدقاء"
     }
   },
+  "adultSettings": {
+    "title": "محتوى للبالغين",
+    "description": "اختر كيفية عرض الروايات للبالغين (R18) في جميع أنحاء الموقع.",
+    "label": "إظهار المحتوى للبالغين",
+    "saveError": "تعذّر حفظ إعداد المحتوى للبالغين.",
+    "values": {
+      "no": "لا",
+      "yes": "نعم",
+      "blur": "تمويه الأغلفة"
+    }
+  },
   "profileLanguage": {
     "heading": "تفضيلات اللغة",
     "interfaceLanguage": "لغة الواجهة",
@@ -352,6 +363,10 @@
     "sortTrending": "الأكثر رواجًا (المشاهدات الأسبوعية)",
     "sortLastUpdated": "آخر تحديث",
     "sortDescending": "ترتيب تنازلي",
+    "adultContent": "محتوى للبالغين (R18)",
+    "adultHide": "إخفاء",
+    "adultShow": "إظهار",
+    "adultOnly": "إظهار فقط",
     "applyFilters": "تطبيق عوامل التصفية",
     "tagFilter": "الوسم: {tag}",
     "excludeFilter": "استبعاد: {tag}",

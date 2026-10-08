@@ -236,6 +236,17 @@
       "friends": "Znajomi"
     }
   },
+  "adultSettings": {
+    "title": "Treści dla dorosłych",
+    "description": "Wybierz, jak powieści dla dorosłych (R18) są wyświetlane w całym serwisie.",
+    "label": "Pokaż treści dla dorosłych",
+    "saveError": "Nie udało się zapisać ustawienia treści dla dorosłych.",
+    "values": {
+      "no": "Nie",
+      "yes": "Tak",
+      "blur": "Rozmyj okładki"
+    }
+  },
   "profileLanguage": {
     "heading": "Preferencje językowe",
     "interfaceLanguage": "Język interfejsu",
@@ -352,6 +363,10 @@
     "sortTrending": "Popularne (tygodniowe wyświetlenia)",
     "sortLastUpdated": "Ostatnia aktualizacja",
     "sortDescending": "Sortuj malejąco",
+    "adultContent": "Treści dla dorosłych (R18)",
+    "adultHide": "Ukryj",
+    "adultShow": "Pokaż",
+    "adultOnly": "Pokaż tylko",
     "applyFilters": "Zastosuj filtry",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Wyklucz: {tag}",

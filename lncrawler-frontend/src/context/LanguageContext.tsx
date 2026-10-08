@@ -170,6 +170,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const setUiLanguage = useCallback((code: string) => {
         const normalized = code && availableLanguages.includes(code) ? code : '';
         setUiLanguageState(normalized);
+        // Guests have no separate content preference, so keep content languages
+        // in step with the interface language (automatic = follow the browser).
+        if (!authService.isAuthenticated()) {
+            setContentLanguagesState(normalized ? [normalized] : browserLanguages());
+        }
         pushToServer({ [UI_LANGUAGE_KEY]: normalized });
     }, [pushToServer]);
 

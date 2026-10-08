@@ -236,6 +236,17 @@
       "friends": "Vrienden"
     }
   },
+  "adultSettings": {
+    "title": "Volwassen inhoud",
+    "description": "Kies hoe volwassen (R18) romans op de site worden weergegeven.",
+    "label": "Volwassen inhoud tonen",
+    "saveError": "De instelling voor volwassen inhoud kon niet worden opgeslagen.",
+    "values": {
+      "no": "Nee",
+      "yes": "Ja",
+      "blur": "Omslagen vervagen"
+    }
+  },
   "profileLanguage": {
     "heading": "Taalvoorkeuren",
     "interfaceLanguage": "Interfacetaal",
@@ -352,6 +363,10 @@
     "sortTrending": "Trending (wekelijkse weergaven)",
     "sortLastUpdated": "Laatst bijgewerkt",
     "sortDescending": "Aflopend sorteren",
+    "adultContent": "Volwassen inhoud (R18)",
+    "adultHide": "Verbergen",
+    "adultShow": "Tonen",
+    "adultOnly": "Alleen tonen",
     "applyFilters": "Filters toepassen",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Uitsluiten: {tag}",

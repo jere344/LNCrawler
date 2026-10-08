@@ -19,7 +19,9 @@ from ..languages import parse_languages
 from ..models.reviews_models import Review
 from ..utils import get_client_ip, resolve_novel_slug
 from ..utils.query_helpers import (
+    adult_allowed,
     apply_novel_prefetches,
+    exclude_adult,
     novel_prefetch_objects,
     sources_queryset,
     sources_total_views_subquery,
@@ -38,7 +40,7 @@ def list_novels(request):
     List all novels with pagination
     """
     novels = apply_novel_prefetches(
-        Novel.objects.all().order_by("title"), request.user
+        exclude_adult(Novel.objects.all(), request.user).order_by("title"), request.user
     )
     return paginated_response(request, novels, NovelSerializer, max_size=50)
 
@@ -135,9 +137,19 @@ def search_novels(request):
     min_rating = request.GET.get("min_rating", None)
     sort_by = request.GET.get("sort_by", "title")
     sort_order = request.GET.get("sort_order", "asc")
+    # Adult filter: hide (default), show (mixed in), only (adult only). Defaults
+    # to show when the account allows adult content, else hide.
+    adult = request.GET.get("adult", "")
+    if adult not in ("hide", "show", "only"):
+        adult = "show" if adult_allowed(request.user) else "hide"
 
     # Start with all novels
     novels_query = Novel.objects.all()
+
+    if adult == "hide":
+        novels_query = novels_query.exclude(sources__is_adult=True)
+    elif adult == "only":
+        novels_query = novels_query.filter(sources__is_adult=True).distinct()
 
     # Apply search query if provided
     if query:
@@ -352,7 +364,10 @@ def random_featured_novel(request):
 
     featured_qs = FeaturedNovel.objects.select_related('novel').filter(
         novel__is_dmca=False
-    ).prefetch_related(
+    )
+    if not adult_allowed(request.user):
+        featured_qs = featured_qs.exclude(novel__sources__is_adult=True)
+    featured_qs = featured_qs.prefetch_related(
         *novel_prefetch_objects(
             user=request.user, prefix='novel__',
             ip=get_client_ip(request),
@@ -399,7 +414,9 @@ def home_page(request):
 
     # Base queryset, optionally restricted to novels with a source in the
     # selected languages.
-    base_queryset = apply_novel_prefetches(Novel.objects.filter(is_dmca=False), request.user)
+    base_queryset = apply_novel_prefetches(
+        exclude_adult(Novel.objects.filter(is_dmca=False), request.user), request.user
+    )
     if languages:
         # Match novels having a source in the selected languages without
         # joining sources: a join forces DISTINCT, so every ranking subquery
@@ -456,7 +473,10 @@ def home_page(request):
     featured_novel_data = None
     featured_qs = FeaturedNovel.objects.select_related('novel').filter(
         novel__is_dmca=False
-    ).prefetch_related(
+    )
+    if not adult_allowed(request.user):
+        featured_qs = featured_qs.exclude(novel__sources__is_adult=True)
+    featured_qs = featured_qs.prefetch_related(
         *novel_prefetch_objects(
             user=request.user, prefix='novel__',
             ip=get_client_ip(request),
@@ -478,7 +498,11 @@ def home_page(request):
     # for the recently updated it's a list of NovelFromSource insead of Novel that we want
     # NULLs sort first on PostgreSQL by default; never-updated sources would top
     # the strip, so push them to the end.
-    recently_updated_qs = sources_queryset().filter(novel__is_dmca=False).order_by(
+    recently_updated_qs = sources_queryset().filter(novel__is_dmca=False)
+    if not adult_allowed(request.user):
+        # Novel-level: hide the whole novel if any of its sources is adult.
+        recently_updated_qs = recently_updated_qs.exclude(novel__sources__is_adult=True)
+    recently_updated_qs = recently_updated_qs.order_by(
         F('last_chapter_update').desc(nulls_last=True)
     )
     if languages:
@@ -488,7 +512,10 @@ def home_page(request):
     # Get recent reviews (restricted to novels in the selected languages)
     recent_reviews_qs = Review.objects.select_related('user', 'novel').filter(
         novel__is_dmca=False
-    ).order_by('-created_at')
+    )
+    if not adult_allowed(request.user):
+        recent_reviews_qs = recent_reviews_qs.exclude(novel__sources__is_adult=True)
+    recent_reviews_qs = recent_reviews_qs.order_by('-created_at')
     if languages:
         recent_reviews_qs = recent_reviews_qs.filter(
             novel__in=NovelFromSource.objects.filter(language__in=languages).values("novel")

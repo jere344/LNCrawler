@@ -236,6 +236,17 @@
       "friends": "मित्र"
     }
   },
+  "adultSettings": {
+    "title": "वयस्क सामग्री",
+    "description": "चुनें कि साइट पर वयस्क (R18) उपन्यास कैसे दिखाए जाएँ।",
+    "label": "वयस्क सामग्री दिखाएँ",
+    "saveError": "वयस्क सामग्री सेटिंग सहेजी नहीं जा सकी।",
+    "values": {
+      "no": "नहीं",
+      "yes": "हाँ",
+      "blur": "कवर धुंधले करें"
+    }
+  },
   "profileLanguage": {
     "heading": "भाषा प्राथमिकताएं",
     "interfaceLanguage": "इंटरफ़ेस भाषा",
@@ -352,6 +363,10 @@
     "sortTrending": "ट्रेंडिंग (साप्ताहिक व्यूज़)",
     "sortLastUpdated": "अंतिम अपडेट",
     "sortDescending": "अवरोही क्रम में",
+    "adultContent": "वयस्क (R18) सामग्री",
+    "adultHide": "छिपाएँ",
+    "adultShow": "दिखाएँ",
+    "adultOnly": "केवल दिखाएँ",
     "applyFilters": "फ़िल्टर लागू करें",
     "tagFilter": "टैग: {tag}",
     "excludeFilter": "बाहर करें: {tag}",

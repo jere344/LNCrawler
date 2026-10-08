@@ -13,6 +13,8 @@ import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { formatTimeAgo, formatCount, getChapterName, languageFlagUrl, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
@@ -50,11 +52,16 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
 }) => {
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const { t } = useTranslation();
   const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => {
     if (novel.reading_history) {
       const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const lastReadChapterId = novel.reading_history.last_read_chapter.chapter_id;
+      const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
+      if (lastReadChapterId === undefined) {
+        return null;
+      }
       
       const unread = latestChapterId - lastReadChapterId;
       return unread > 0 ? unread : null;
@@ -201,6 +208,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
             alt={novel.title}
+            onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               position: 'absolute',
               top: 0,
@@ -209,9 +217,14 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               height: '100%',
               objectFit: 'cover',
               opacity: novel.is_dmca ? 0.55 : 1,
-              filter: novel.is_dmca ? 'grayscale(100%)' : 'none',
+              cursor: blurred ? 'pointer' : undefined,
+              filter: [
+                novel.is_dmca ? 'grayscale(100%)' : null,
+                blurred ? 'blur(16px)' : null,
+              ].filter(Boolean).join(' ') || 'none',
             }}
           />
+          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
           {novel.is_dmca && (
             <Chip
               label="DMCA"

@@ -236,6 +236,17 @@
       "friends": "Arkadaşlar"
     }
   },
+  "adultSettings": {
+    "title": "Yetişkin içeriği",
+    "description": "Yetişkin (R18) romanlarının site genelinde nasıl gösterileceğini seçin.",
+    "label": "Yetişkin içeriğini göster",
+    "saveError": "Yetişkin içeriği ayarı kaydedilemedi.",
+    "values": {
+      "no": "Hayır",
+      "yes": "Evet",
+      "blur": "Kapakları bulanıklaştır"
+    }
+  },
   "profileLanguage": {
     "heading": "Dil Tercihleri",
     "interfaceLanguage": "Arayüz dili",
@@ -352,6 +363,10 @@
     "sortTrending": "Trend (Haftalık Görüntülemeler)",
     "sortLastUpdated": "Son Güncelleme",
     "sortDescending": "Azalan Sırala",
+    "adultContent": "Yetişkin (R18) içeriği",
+    "adultHide": "Gizle",
+    "adultShow": "Göster",
+    "adultOnly": "Yalnızca göster",
     "applyFilters": "Filtreleri Uygula",
     "tagFilter": "Etiket: {tag}",
     "excludeFilter": "Hariç tut: {tag}",

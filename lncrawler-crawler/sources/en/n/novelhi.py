@@ -120,7 +120,8 @@ class NovelHiCrawler(Crawler):
         path_tag = soup.select_one("input#chapterContentPath")
         token_tag = soup.select_one("input#chapterContentToken")
         if not path_tag or not token_tag:
-            raise ValueError("Chapter content is not available")
+            logger.warning("Chapter content is not available: %s", chapter.url)
+            return None
 
         data = self.get_json(
             self.absolute_url(path_tag["value"]) + "?token=" + token_tag["value"],

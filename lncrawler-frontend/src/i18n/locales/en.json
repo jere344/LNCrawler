@@ -236,6 +236,17 @@
       "friends": "Friends"
     }
   },
+  "adultSettings": {
+    "title": "Adult content",
+    "description": "Choose how adult (R18) novels are shown across the site.",
+    "label": "Show adult content",
+    "saveError": "Could not save the adult content setting.",
+    "values": {
+      "no": "No",
+      "yes": "Yes",
+      "blur": "Blur covers"
+    }
+  },
   "profileLanguage": {
     "heading": "Language Preferences",
     "interfaceLanguage": "Interface language",
@@ -352,6 +363,10 @@
     "sortTrending": "Trending (Weekly Views)",
     "sortLastUpdated": "Last Updated",
     "sortDescending": "Sort Descending",
+    "adultContent": "Adult (R18) content",
+    "adultHide": "Hide",
+    "adultShow": "Show",
+    "adultOnly": "Show only",
     "applyFilters": "Apply Filters",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Exclude: {tag}",

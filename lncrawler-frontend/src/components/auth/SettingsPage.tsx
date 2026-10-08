@@ -10,6 +10,7 @@ import { authService } from '../../services/auth.service';
 import type { ApiError } from '../../services/api';
 import LanguagePreferences from '../profile/LanguagePreferences';
 import PrivacySettings from '../profile/PrivacySettings';
+import AdultContentSettings from '../profile/AdultContentSettings';
 import PinnedNovelsPicker from '../profile/PinnedNovelsPicker';
 import type { Novel } from '@models/novels_types';
 import { formatDate } from '@utils/Misc';
@@ -483,6 +484,10 @@ const SettingsPage: React.FC = () => {
         <Divider sx={{ my: 3 }} />
 
         <PrivacySettings />
+
+        <Divider sx={{ my: 3 }} />
+
+        <AdultContentSettings />
       </Paper>
     </Container>
   );

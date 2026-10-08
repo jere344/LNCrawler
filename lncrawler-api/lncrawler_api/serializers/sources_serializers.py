@@ -37,11 +37,12 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     synopsis = serializers.SerializerMethodField()
     has_crawler = serializers.SerializerMethodField()
+    is_adult = serializers.SerializerMethodField()
 
     default_profile = 'card'
     field_profiles = {
         'card': [
-            'id', 'title', 'source_slug', 'novel_slug', 'cover_min_url',
+            'id', 'title', 'source_slug', 'novel_slug', 'novel_id', 'cover_min_url',
             'authors', 'tags', 'chapters_count', 'last_chapter_update',
             'latest_available_chapter', 'is_adult',
         ],
@@ -78,6 +79,14 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         # Only detail views show the update button; skip the registry import in
         # list contexts (which don't render it).
         return has_crawler(obj.source_url or '') if self.profile == 'detail' else None
+
+    def get_is_adult(self, obj: NovelFromSource):
+        # A novel is adult if any of its sources is; the source payload drives
+        # cover blurring, so report the novel-level flag when the queryset
+        # annotated it (sources_queryset) and fall back to this source's flag.
+        if hasattr(obj, 'novel_is_adult'):
+            return obj.novel_is_adult
+        return obj.is_adult
 
     def get_cover_url(self, obj: NovelFromSource):
         return build_media_url(obj.cover_path)
