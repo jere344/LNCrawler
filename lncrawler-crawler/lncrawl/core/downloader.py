@@ -168,7 +168,8 @@ def _same_chapter(old_chapter: dict, chapter: Chapter) -> bool:
 
 
 def fetch_chapter_body(app) -> None:
-    from .app import App, Crawler
+    from .app import App
+    from .crawler import Crawler
 
     assert isinstance(app, App)
     assert isinstance(app.crawler, Crawler)
