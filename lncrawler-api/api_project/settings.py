@@ -202,6 +202,31 @@ LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 # hasn't changed. Also invalidated immediately when the source is updated.
 EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
 
+# Cross-source novel dedup (find_merge_candidates). certainty is 0..1 and a
+# candidate only auto-merges once it reaches MERGE_AUTO_SCORE; the default (>1)
+# never merges without a human, so lower it once the review queue is trusted.
+MERGE_AUTO_SCORE = float(os.environ.get("MERGE_AUTO_SCORE", "1.01"))
+# Pairs at/above this certainty are queued for manual review.
+MERGE_REVIEW_LOW = 0.5
+# A cover hash on at least this many novels is treated as a shared placeholder.
+MERGE_PLACEHOLDER_MIN_NOVELS = 5
+# Skip title/alt/author blocks bigger than this (a generic shared token).
+MERGE_MAX_BLOCK_SIZE = 50
+# Fuzzy title similarity floor; <0 disables the trigram pass.
+MERGE_TRIGRAM_MIN = 0.4
+
+# LLM gray-band adjudication (judge_merge_candidates). The provider/model are
+# the only knobs used by services/llm_service.py; it accepts any OpenAI-compatible
+# chat-completions endpoint (see PROVIDER_URLS there to switch provider).
+MERGE_LLM_PROVIDER = "groq"
+MERGE_LLM_API_KEY = os.environ.get("MERGE_LLM_API_KEY", "")
+MERGE_LLM_MODEL = "openai/gpt-oss-20b"
+MERGE_LLM_BASE_URL = ""  # non-empty overrides the provider's default endpoint
+MERGE_LLM_TIMEOUT = 30
+MERGE_LLM_DAILY_LIMIT = 500  # Groq free tier (1k RPD for this model)
+MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
+MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
+
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 
 REST_FRAMEWORK = {

@@ -20,6 +20,27 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 logger = logging.getLogger('lncrawler_api')
 
 
+def _dhash_hex(img) -> str:
+    """64-bit difference hash (dHash) as 16 hex chars, for cover matching.
+
+    Robust to resizing/re-encoding and cheap to compare by Hamming distance.
+    """
+    small = img.convert('L').resize((9, 8), Image.Resampling.LANCZOS)
+    pixels = list(small.getdata())
+    bits = 0
+    for row in range(8):
+        for col in range(8):
+            if pixels[row * 9 + col] > pixels[row * 9 + col + 1]:
+                bits |= 1 << (row * 8 + col)
+    return f'{bits:016x}'
+
+
+def dhash_file(path) -> str:
+    """dHash of an image file on disk."""
+    with Image.open(path) as img:
+        return _dhash_hex(img)
+
+
 class HTMLTextExtractor(HTMLParser):
     """Strip HTML tags from a synopsis string."""
 
@@ -38,6 +59,7 @@ class OverviewGenerator:
     """Renders the 1200x630 Open Graph overview image for a source."""
 
     FONT_DIR_NAME = 'fonts'
+    OG_BANNER_FILE = 'og-image.webp'
     DEFAULT_FONT_FILE = "NotoSans-Regular.ttf"
     CJK_FONT_FILES_MAP = {
         'sc': "NotoSansSC-Regular.ttf",
@@ -144,6 +166,12 @@ class OverviewGenerator:
         if cover_img:
             bg = self.create_background(cover_img, width, height)
             img.paste(bg, (0, 0))
+        else:
+            # No usable cover: fall back to the branded OG banner so the
+            # overview still renders instead of a flat dark box.
+            banner = self.load_og_banner(width, height)
+            if banner:
+                img.paste(banner, (0, 0))
 
         overlay = self.create_gradient_overlay(width, height)
         img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
@@ -156,8 +184,30 @@ class OverviewGenerator:
 
         return img
 
+    def load_og_banner(self, width: int, height: int) -> Optional[Image.Image]:
+        """Load the bundled OG banner, cover-fitted to the overview canvas."""
+        banner_path = Path(str(settings.STATIC_ROOT)) / self.OG_BANNER_FILE
+        if not banner_path.exists():
+            logger.warning("OG banner not found at %s", banner_path)
+            return None
+        try:
+            banner = Image.open(banner_path)
+            if banner.mode != 'RGB':
+                banner = banner.convert('RGB')
+            scale = max(width / banner.width, height / banner.height)
+            banner = banner.resize(
+                (int(banner.width * scale), int(banner.height * scale)),
+                Image.Resampling.LANCZOS,
+            )
+            left = (banner.width - width) // 2
+            top = (banner.height - height) // 2
+            return banner.crop((left, top, left + width, top + height))
+        except Exception as e:
+            logger.error("Failed to load OG banner: %s", e)
+            return None
+
     def get_cover_image(self, source) -> Optional[Image.Image]:
-        if not source.cover_url:
+        if not source.cover_path:
             return None
         file_path = Path(settings.LNCRAWL_OUTPUT_PATH) / source.cover_path
         if not file_path.exists():
@@ -401,9 +451,14 @@ def generate_cover_min(source, width=200, height=300, quality=80) -> bool:
             img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             img_resized.save(cover_min_path, 'WEBP', quality=quality)
 
+        # Hash the saved thumbnail (not the full-size source) so import-time and
+        # backfill hashes are identical and therefore comparable.
+        cover_phash = dhash_file(cover_min_path)
+
         relative_min_path = os.path.join(source.source_path, cover_min_filename)
         source.cover_min_path = relative_min_path
-        source.save(update_fields=['cover_min_path'])
+        source.cover_phash = cover_phash
+        source.save(update_fields=['cover_min_path', 'cover_phash'])
 
         logger.info("Generated miniature cover for: %s", source.title)
         return True

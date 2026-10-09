@@ -8,3 +8,4 @@ from .chat_models import *
 from .reviews_models import *
 from .scheduler_models import *
 from .harvest_models import *
+from .merge_models import *

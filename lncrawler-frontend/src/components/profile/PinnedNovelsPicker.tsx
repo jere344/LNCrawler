@@ -10,6 +10,7 @@ import {
     CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import BookIcon from '@mui/icons-material/Book';
 import { useTranslation } from 'react-i18next';
 import { novelService } from '@services/novel.service';
 import { profileService } from '@services/profile.service';
@@ -80,7 +81,11 @@ const PinnedNovelsPicker: React.FC<PinnedNovelsPickerProps> = ({ pinnedNovels, o
                 {pinnedNovels.map((novel) => (
                     <Chip
                         key={novel.id}
-                        avatar={<Avatar src={novel.prefered_source?.cover_min_url || undefined} />}
+                        avatar={
+                            <Avatar src={novel.prefered_source?.cover_min_url || undefined}>
+                                <BookIcon fontSize="small" />
+                            </Avatar>
+                        }
                         label={novel.title}
                         onDelete={() => handleRemove(novel)}
                         deleteIcon={<CloseIcon />}

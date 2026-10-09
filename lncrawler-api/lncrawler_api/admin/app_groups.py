@@ -11,6 +11,7 @@ APP_GROUPS = [
         "Novels",
         [
             "Novel",
+            "MergeCandidate",
             "NovelAlias",
             "NovelSimilarity",
             "NovelRating",

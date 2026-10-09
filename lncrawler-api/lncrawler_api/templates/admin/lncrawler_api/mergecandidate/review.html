@@ -1,0 +1,71 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_mergecandidate_changelist' %}">{% trans 'Merge candidates' %}</a>
+  &rsaquo; {% trans 'Review' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{% trans 'Review merge candidates' %}</h1>
+
+{% if not candidate %}
+  <p>
+    {% trans 'No pending candidates left.' %}
+    <a href="{% url 'admin:lncrawler_api_mergecandidate_changelist' %}">{% trans 'Back to the list' %}</a>.
+  </p>
+{% else %}
+  <p class="help">
+    {{ remaining }} {% trans 'pending candidate(s), highest certainty first.' %}
+  </p>
+
+  <div style="margin:12px 0;padding:10px 14px;border-radius:6px;background:var(--darkened-bg,#f0f0f0);">
+    <span style="font-size:18px;"><strong>{% trans 'Certainty' %}: {{ certainty_pct }}%</strong></span>
+    <span class="help">&middot; {{ candidate.get_decision_display }}</span>
+    {% if candidate.signals %}
+      <span class="help">&middot;
+        {% for key, value in candidate.signals.items %}{{ key }}={{ value|floatformat:2 }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </span>
+    {% endif %}
+    {% if candidate.llm_checked_at %}
+      <div style="margin-top:6px;">
+        <strong>{% trans 'LLM' %} ({{ candidate.llm_model }}):</strong>
+        {% if candidate.llm_verdict %}
+          {% if candidate.llm_verdict.same %}
+            <span style="color:#2e7d32;font-weight:bold;">{% trans 'SAME' %}</span>
+          {% else %}
+            <span style="color:#c62828;font-weight:bold;">{% trans 'DIFFERENT' %}</span>
+          {% endif %}
+          <span class="help">({% trans 'confidence' %} {{ candidate.llm_verdict.confidence|floatformat:2 }})</span>
+        {% endif %}
+        {% if candidate.llm_reason %}<div class="help">{{ candidate.llm_reason }}</div>{% endif %}
+      </div>
+    {% else %}
+      <div class="help" style="margin-top:6px;">{% trans 'No LLM verdict yet.' %}</div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+    {% include "admin/lncrawler_api/mergecandidate/_side.html" with side=side_a %}
+    <div style="align-self:center;font-size:22px;font-weight:bold;">&#8644;</div>
+    {% include "admin/lncrawler_api/mergecandidate/_side.html" with side=side_b %}
+  </div>
+
+  <form method="post" style="margin-top:18px;">{% csrf_token %}
+    <input type="hidden" name="candidate" value="{{ candidate.pk }}">
+    <div class="submit-row">
+      <button type="submit" name="action" value="merge" class="default" style="background:#2e7d32;">
+        {% trans 'Merge (keep the one with more sources)' %}
+      </button>
+      <button type="submit" name="action" value="reject" style="background:#c62828;">
+        {% trans "Don't merge" %}
+      </button>
+      <button type="submit" name="action" value="skip">{% trans 'Skip for now' %}</button>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

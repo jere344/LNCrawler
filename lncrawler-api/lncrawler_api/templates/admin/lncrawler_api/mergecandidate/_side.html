@@ -1,0 +1,36 @@
+{% load i18n %}
+<div style="flex:1;min-width:320px;border:1px solid var(--hairline-color,#ccc);border-radius:6px;padding:12px;">
+  {% if side %}
+    <h2 style="margin-top:0;">
+      <a href="{{ side.admin_url }}">{{ side.title }}</a>
+    </h2>
+    <div class="help">{{ side.slug }} &middot; {{ side.source_count }} source{{ side.source_count|pluralize }}</div>
+    {% for s in side.sources %}
+      <div style="display:flex;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-color,#eee);">
+        <div style="flex:0 0 90px;">
+          {% if s.cover %}
+            <img src="{{ s.cover }}" alt="" style="width:90px;border-radius:4px;">
+          {% else %}
+            <div style="width:90px;height:135px;background:var(--darkened-bg,#f0f0f0);border-radius:4px;"></div>
+          {% endif %}
+        </div>
+        <div style="min-width:0;">
+          <div><strong>{{ s.title }}</strong></div>
+          <div class="help">{{ s.name }} &middot; {{ s.language }}</div>
+          <div class="help"><a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a></div>
+          {% if s.novelupdates_url %}
+            <div class="help">NU: <a href="{{ s.novelupdates_url }}" target="_blank" rel="noopener">{{ s.novelupdates_url }}</a></div>
+          {% endif %}
+          {% if s.authors %}<div>{% trans 'Authors' %}: {{ s.authors|join:", " }}</div>{% endif %}
+          {% if s.alternative_titles %}<div>{% trans 'Alt titles' %}: {{ s.alternative_titles|join:", " }}</div>{% endif %}
+          {% if s.tags %}<div>{% trans 'Tags' %}: {{ s.tags|join:", " }}</div>{% endif %}
+          {% if s.synopsis %}<p class="help" style="margin-bottom:0;">{{ s.synopsis }}</p>{% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <p class="help">{% trans 'No sources.' %}</p>
+    {% endfor %}
+  {% else %}
+    <p class="errornote">{% trans 'This novel was deleted.' %}</p>
+  {% endif %}
+</div>

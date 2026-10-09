@@ -3,6 +3,7 @@ import threading
 import logging
 import os
 import uuid
+from django.conf import settings
 from django.core.management import call_command
 from typing import Optional, Callable, Dict
 from .models import ScheduledTask
@@ -186,6 +187,38 @@ def calculate_novel_similarities():
     except Exception as e:
         logger.error(f"Error in weekly novel similarity calculation: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
+
+# Rebuild the cross-source duplicate queue weekly, after similarities so the
+# text signal is fresh. Auto-merge stays off until MERGE_AUTO_SCORE is tuned.
+@scheduler.register_task(interval=604800, name="find_merge_candidates")  # 7 days
+def find_merge_candidates_task():
+    logger.info("Scanning for duplicate novel candidates...")
+    try:
+        call_command('find_merge_candidates')
+        logger.info("Duplicate novel scan completed successfully")
+    except Exception as e:
+        logger.error(f"Error scanning for duplicate novels: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Adjudicate the gray band with the LLM, a few calls per tick, only when an API
+# key is configured. Bounded per tick (settings.MERGE_LLM_LIMIT_PER_TICK) and by
+# a daily budget tracked on MergeCandidate.llm_checked_at, so a slow or
+# rate-limited provider cannot block the rest of the maintenance loop.
+@scheduler.register_task(
+    interval=int(getattr(settings, "MERGE_LLM_INTERVAL", 300)), name="judge_merge_candidates"
+)
+def judge_merge_candidates_task():
+    from django.conf import settings as _settings
+
+    if not getattr(_settings, "MERGE_LLM_API_KEY", ""):
+        return  # zero-LLM fallback: the review queue still works.
+    logger.info("Judging merge candidates with LLM...")
+    try:
+        call_command('judge_merge_candidates')
+        logger.info("Merge candidate LLM judging completed")
+    except Exception as e:
+        logger.error(f"Error judging merge candidates: {str(e)}", exc_info=True)
+        raise
 
 # Task to compress low traffic novels weekly.
 # Guardrails live in the command itself: single-threaded 7z (-mmt=1), low CPU

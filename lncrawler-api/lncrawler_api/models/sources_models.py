@@ -81,6 +81,11 @@ class NovelFromSource(models.Model):
     cover_path = models.CharField(max_length=500, null=True, blank=True)
     cover_min_path = models.CharField(max_length=500, null=True, blank=True)
     overview_picture_path = models.CharField(max_length=500, null=True, blank=True) 
+
+    # 64-bit dHash (16 hex chars) of the cover image, used to group the same
+    # cover across sources/languages. Computed from cover.min.webp only for real
+    # (non-placeholder) covers; NULL when there is no cover.
+    cover_phash = models.CharField(max_length=16, null=True, blank=True, db_index=True)
     
     # People relationships (many-to-many)
     authors = models.ManyToManyField(Author, related_name='novels', blank=True)
@@ -272,7 +277,11 @@ class NovelFromSource(models.Model):
         novel_from_source.title = truncate(title)
         novel_from_source.source_slug = truncate(source_slug, 100)
         novel_from_source.source_path = truncate(source_path)
-        novel_from_source.cover_path = truncate(cover_path) if cover_path else None
+        # Only keep the path if the file actually exists: the crawler no longer
+        # writes a placeholder cover, so a missing cover.jpg must stay NULL.
+        novel_from_source.cover_path = None
+        if cover_path and os.path.isfile(os.path.join(settings.LNCRAWL_OUTPUT_PATH, cover_path)):
+            novel_from_source.cover_path = truncate(cover_path)
         novel_from_source.cover_url = truncate(novel_data.get('cover_url', ''))
         novel_from_source.language = novel_data.get('language', 'en')
         novel_from_source.status = novel_data.get('status', 'Unknown')

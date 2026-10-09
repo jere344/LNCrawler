@@ -71,6 +71,7 @@ services:
       ISSUE_REPORTS_TO_DISK: ${ISSUE_REPORTS_TO_DISK}
       ISSUE_REPORTS_DIR: ${ISSUE_REPORTS_DIR}
       LNCRAWL_OUTPUT_PATH: /app/Lightnovels
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy

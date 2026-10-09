@@ -3,7 +3,7 @@
 Writes:
 - <output>/json/<id:05d>.json    one JSON file per chapter
 - <output>/images/<md5>.jpg      inline images referenced by chapters
-- <output>/cover.jpg             downloaded or generated cover
+- <output>/cover.jpg             downloaded cover (absent when unavailable)
 """
 
 import fcntl
@@ -20,7 +20,6 @@ from collections import deque
 from pathlib import Path
 
 from ..models.chapter import Chapter
-from ..utils.imgen import generate_cover_image
 from .arguments import get_args
 
 logger = logging.getLogger(__name__)
@@ -231,19 +230,14 @@ def _fetch_content_image(app, url: str, image_file: Path) -> None:
 def _fetch_cover_image(app) -> None:
     assert app.crawler is not None
 
-    cover_file = Path(app.output_path) / "cover.jpg"
-    if app.crawler.novel_cover:
-        try:
-            _fetch_content_image(app, app.crawler.novel_cover, cover_file)
-        except Exception as e:
-            logger.debug("Failed to download cover: %s", e)
+    if not app.crawler.novel_cover:
+        return
 
-    if not cover_file.is_file():
-        generate_cover_image(
-            cover_file.as_posix(),
-            title=app.crawler.novel_title,
-            author=app.crawler.novel_author,
-        )
+    cover_file = Path(app.output_path) / "cover.jpg"
+    try:
+        _fetch_content_image(app, app.crawler.novel_cover, cover_file)
+    except Exception as e:
+        logger.debug("Failed to download cover: %s", e)
 
 
 def _discard_failed_images(app, chapter, failed) -> None:

@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
+import BookIcon from '@mui/icons-material/Book';
 import { Link as RouterLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { novelService } from '@services/novel.service';
@@ -72,7 +73,9 @@ const NovelSelect: React.FC<NovelSelectProps> = ({ value, initialOptions, onChan
           <Avatar
             src={option.prefered_source?.cover_min_url || undefined}
             sx={{ width: 24, height: 24 }}
-          />
+          >
+            <BookIcon sx={{ fontSize: 16 }} />
+          </Avatar>
           {option.title}
         </Box>
       )}
