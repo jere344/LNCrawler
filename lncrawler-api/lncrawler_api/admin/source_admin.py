@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from ..models import (
@@ -17,6 +18,7 @@ from ..models import (
 )
 from ..services.merge_service import MergeError, merge_similar_tags, merge_tags
 from django.utils.html import format_html
+from .perf import CappedCountPaginator
 
 
 # ``Tag`` has no FK to itself, so borrow the FK-to-Tag field from ``TagAlias``
@@ -217,6 +219,18 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
     )
     raw_id_fields = ("novel",)
     inlines = [SourceVoteInline]  # Removed ChapterInline
+    paginator = CappedCountPaginator
+    list_select_related = ("external_source", "novel")
+    show_full_result_count = False
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_chapters_count=Count("chapters"))
+
+    def chapters_count(self, obj):
+        return obj._chapters_count
+
+    chapters_count.short_description = "Chapters"
+    chapters_count.admin_order_field = "_chapters_count"
 
     def link_to_novel(self, obj):
         url = reverse("admin:lncrawler_api_novel_change", args=[obj.novel.id])
@@ -240,7 +254,7 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
     def view_chapters_link(self, obj):
         if obj.pk:
             url = f"/admin/lncrawler_api/chapter/?novel_from_source__id__exact={obj.pk}"
-            return format_html('<a href="{}" target="_blank">View Chapters ({})</a>', url, obj.chapters_count)
+            return format_html('<a href="{}" target="_blank">View Chapters ({})</a>', url, obj._chapters_count)
         return "Save first to view chapters"
 
     view_chapters_link.short_description = "Chapters"
@@ -252,6 +266,9 @@ class VolumeAdmin(admin.ModelAdmin):
     list_filter = ("novel_from_source__external_source__source_name",)
     search_fields = ("title", "novel_from_source__title")
     raw_id_fields = ("novel_from_source",)
+    paginator = CappedCountPaginator
+    list_select_related = ("novel_from_source", "novel_from_source__external_source")
+    show_full_result_count = False
 
 
 # Register new models

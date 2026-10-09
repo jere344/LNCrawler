@@ -26,6 +26,18 @@ SITE_URL = settings.SITE_URL.rstrip("/")
 SITE_NAME = "LNCrawler"
 DEFAULT_OG_IMAGE = f"{SITE_URL}/og-image.webp"
 
+# Sitewide Organization entity, emitted on every page so answer engines resolve
+# "LNCrawler" as a single entity. sameAs lists the only canonical external
+# profile we have.
+ORG = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": f"{SITE_URL}/#organization",
+    "name": SITE_NAME,
+    "url": f"{SITE_URL}/",
+    "sameAs": ["https://github.com/jere344/LNCrawler"],
+}
+
 # Chapter bodies come from arbitrary third-party sites. Most crawler adapters
 # clean them at ingestion, but some (e.g. wattpad) return raw remote HTML, so we
 # cannot trust stored bodies when serving them as HTML on our own origin. This
@@ -122,7 +134,7 @@ def _sanitize_body(body, images_path):
 
 
 def _jsonld(*objects):
-    payload = json.dumps(objects, ensure_ascii=False)
+    payload = json.dumps((ORG, *objects), ensure_ascii=False)
     # Never let crawled text close the script tag.
     return payload.replace("<", "\\u003c")
 
@@ -185,6 +197,7 @@ def seo_home(request):
             "og_type": "website",
             "jsonld": _jsonld(website),
             "novels": novels,
+            "lang": "en",
             "site_url": SITE_URL,
         },
     )
@@ -197,7 +210,7 @@ def seo_novel(request, novel_slug):
 
     sources = list(
         novel.sources.select_related("external_source")
-        .prefetch_related("authors", "tags")
+        .prefetch_related("authors", "tags", "alternative_titles")
         .exclude(Q(source_slug__isnull=True) | Q(source_slug=""))
         .annotate(chapter_total=Count("chapters"))
     )
@@ -219,7 +232,9 @@ def seo_novel(request, novel_slug):
         "@type": "Book",
         "name": novel.title,
         "url": f"{SITE_URL}/novels/{novel.slug}/",
-        "inLanguage": primary.language,
+        "inLanguage": sorted({s.language for s in sources if s.language})
+        or primary.language
+        or "en",
     }
     if author_names:
         book["author"] = [{"@type": "Person", "name": n} for n in author_names]
@@ -242,6 +257,14 @@ def seo_novel(request, novel_slug):
     tags = [t.name for t in primary.tags.all()][:15]
     if tags:
         book["genre"] = tags
+    if primary.novelupdates_url:
+        book["sameAs"] = primary.novelupdates_url
+    alt_titles = [t.name for t in primary.alternative_titles.all()][:5]
+    if alt_titles:
+        book["alternateName"] = alt_titles
+    publisher = primary.original_publisher or primary.english_publisher
+    if publisher:
+        book["publisher"] = {"@type": "Organization", "name": publisher}
 
     crumbs = {
         "@context": "https://schema.org",
@@ -272,6 +295,10 @@ def seo_novel(request, novel_slug):
             "primary": primary,
             "sources": sources,
             "synopsis": synopsis,
+            "languages": sorted({s.language for s in sources if s.language}),
+            "chapter_total": sum(getattr(s, "chapter_total", 0) or 0 for s in sources),
+            "tags": tags,
+            "lang": primary.language or "en",
             "site_url": SITE_URL,
         },
         lastmod=novel.updated_at,
@@ -284,7 +311,7 @@ def seo_source(request, novel_slug, source_slug):
         return _gone(request, 451, "This work is unavailable due to a DMCA request.")
     source = get_object_or_404(
         NovelFromSource.objects.select_related("novel", "external_source")
-        .prefetch_related("authors", "tags")
+        .prefetch_related("authors", "tags", "alternative_titles")
         .filter(novel=novel),
         source_slug=source_slug,
     )
@@ -319,6 +346,14 @@ def seo_source(request, novel_slug, source_slug):
     tags = [t.name for t in source.tags.all()][:15]
     if tags:
         book["genre"] = tags
+    if source.novelupdates_url:
+        book["sameAs"] = source.novelupdates_url
+    alt_titles = [t.name for t in source.alternative_titles.all()][:5]
+    if alt_titles:
+        book["alternateName"] = alt_titles
+    publisher = source.original_publisher or source.english_publisher
+    if publisher:
+        book["publisher"] = {"@type": "Organization", "name": publisher}
     if source.last_chapter_update:
         book["dateModified"] = source.last_chapter_update.isoformat()
 
@@ -369,6 +404,7 @@ def seo_source(request, novel_slug, source_slug):
             "source_name": source_name,
             "synopsis": synopsis,
             "chapterlist_url": chapterlist_url,
+            "lang": source.language or "en",
             "site_url": SITE_URL,
         },
         lastmod=source.last_chapter_update or source.updated_at,
@@ -434,6 +470,7 @@ def seo_chapterlist(request, novel_slug, source_slug):
             "source_name": source_name,
             "chapters": chapters,
             "count": count,
+            "lang": source.language or "en",
             "site_url": SITE_URL,
         },
         lastmod=source.last_chapter_update or source.updated_at,
@@ -490,7 +527,7 @@ def seo_chapter(request, novel_slug, source_slug, chapter_number):
             "name": source.title,
             "url": f"{SITE_URL}/novels/{novel.slug}/{source.source_slug}/",
         },
-        "publisher": {"@type": "Organization", "name": SITE_NAME},
+        "publisher": {"@id": f"{SITE_URL}/#organization"},
     }
     if image:
         article["image"] = image
@@ -532,6 +569,7 @@ def seo_chapter(request, novel_slug, source_slug, chapter_number):
             "chapter": chapter,
             "label": label,
             "body": body,
+            "lang": source.language or "en",
             "site_url": SITE_URL,
         },
         lastmod=source.last_chapter_update or source.updated_at,

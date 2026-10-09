@@ -13,12 +13,9 @@ map $http_x_forwarded_proto $forwarded_proto {
     ""      $scheme;
 }
 
-# Crawlers and social scrapers get the server-rendered SEO pages instead of the
-# client-side SPA shell. Browser clients keep the SPA.
-map $http_user_agent $render_seo {
-    default "";
-    "~*(googlebot|bingbot|yandexbot|duckduckbot|baiduspider|applebot|petalbot|seznambot|bytespider|sogou|exabot|ia_archiver|semrushbot|ahrefsbot|mj12bot|dotbot|rogerbot|screaming frog|gptbot|oai-searchbot|oai-adsbot|chatgpt-user|claudebot|claude-web|anthropic-ai|perplexitybot|perplexity-user|ccbot|google-extended|googleother|google-inspectiontool|amazonbot|meta-externalagent|facebookexternalhit|twitterbot|discordbot|linkedinbot|slackbot|telegrambot|whatsapp|pinterestbot|redditbot|embedly|quora link preview|skypeuripreview|vkshare|w3c_validator|bitlybot|tumblr|iframely)" "1";
-}
+# The $render_seo crawler/social-bot map lives in a separate, auto-refreshed
+# file (00-render-seo-map.conf) so the UA list can be updated without touching
+# this template. See update-render-seo-map.sh.
 
 server {
     listen 80;

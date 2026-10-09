@@ -2,6 +2,7 @@ from django.contrib import admin
 from ..models import Chapter, Comment
 from django.utils.html import format_html
 from django.urls import reverse
+from .perf import CappedCountPaginator
 
 
 # Inline for showing comments in Chapter admin
@@ -39,6 +40,10 @@ class ChapterAdmin(admin.ModelAdmin):
     raw_id_fields = ("novel_from_source",)
     readonly_fields = ("comment_count",)
     inlines = [ChapterCommentInline]
+    paginator = CappedCountPaginator
+    show_full_result_count = False
+    ordering = ("-id",)
+    list_select_related = ("novel_from_source",)
 
     def link_to_novel_source(self, obj):
         url = reverse(

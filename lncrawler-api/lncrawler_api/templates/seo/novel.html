@@ -7,6 +7,19 @@
 <p><a href="{{ site_url }}/novels/{{ novel.slug }}/{{ primary.source_slug }}/chapterlist/">Chapter list ({{ primary.source_slug }}) &raquo;</a></p>
 {% endif %}
 
+{% if primary %}
+<h2>About {{ novel.title }}</h2>
+<ul class="sources">
+{% with author_list=primary.authors.all %}
+{% if author_list %}<li><strong>Author{{ author_list|pluralize }}:</strong> {% for a in author_list %}{{ a.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>{% endif %}
+{% endwith %}
+<li><strong>Status:</strong> {{ primary.get_status_display }}</li>
+{% if languages %}<li><strong>Language{{ languages|pluralize }}:</strong> {{ languages|join:", " }}</li>{% endif %}
+{% if chapter_total %}<li><strong>Chapters:</strong> {{ chapter_total }}</li>{% endif %}
+{% if tags %}<li><strong>Tags:</strong> {{ tags|join:", " }}</li>{% endif %}
+</ul>
+{% endif %}
+
 <h2>Available sources</h2>
 <ul class="sources">
 {% for source in sources %}
