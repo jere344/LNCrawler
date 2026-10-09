@@ -68,9 +68,8 @@ def reconcile() -> int:
             # Job was pruned/removed; let it be retried.
             candidate.mark_pending()
         elif job.status == Job.STATUS_DOWNLOAD_COMPLETED:
-            # The downloader sets download_completed even when the DB import
-            # failed; output_slug is only written on a successful import, so an
-            # empty slug means the novel never reached the library.
+            # output_slug is only written on a successful import, so an empty
+            # slug means the novel never reached the library.
             if job.output_slug:
                 candidate.mark_done()
             else:

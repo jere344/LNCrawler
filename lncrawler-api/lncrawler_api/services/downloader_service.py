@@ -377,9 +377,15 @@ class DownloaderService:
             if Job.objects.filter(pk=job.id, status=Job.STATUS_FAILED).exists():
                 return
 
-            job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
             if not success:
-                message = f"Download completed but import failed: {message}"
+                # An unusable meta.json (e.g. missing title) means nothing reached
+                # the library, so the job failed rather than merely warning.
+                job.import_message = message
+                job.save(update_fields=['import_message'])
+                job.update_status(Job.STATUS_FAILED, f"Download completed but import failed: {message}")
+                return
+
+            job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
             job.import_message = message
             job.save(update_fields=['import_message'])
 
