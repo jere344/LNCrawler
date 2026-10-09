@@ -48,9 +48,25 @@ class ParseTests(MergeTestCase):
         self.assertIn("Parahumans", user)
 
     def test_parse_rejects_malformed_and_non_object(self):
-        for content in ("", "not json", '{"same": true', "[1, 2, 3]", "123"):
+        for content in ("", "not json", "[1, 2, 3]", "123"):
             with self.assertRaises(llm_service.LLMError):
                 llm_service._parse_content(content)
+
+    def test_parse_salvages_truncated_verdict(self):
+        # A long "reason" hitting the token cap used to drop a valid verdict.
+        truncated = (
+            '{"same": true, "confidence": 0.9, "reason": "Both entries share the '
+            "exact title and the same author name, suggesting they refer"
+        )
+        verdict = llm_service._parse_content(truncated)
+        self.assertTrue(verdict["same"])
+        self.assertAlmostEqual(verdict["confidence"], 0.9)
+        self.assertEqual(verdict["reason"], "")
+
+    def test_parse_salvages_when_only_confidence_present(self):
+        verdict = llm_service._parse_content('garbage {"confidence": 0.4}')
+        self.assertFalse(verdict["same"])
+        self.assertAlmostEqual(verdict["confidence"], 0.4)
 
     def test_parse_coerces_string_booleans(self):
         self.assertFalse(

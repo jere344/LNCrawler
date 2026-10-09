@@ -13,6 +13,7 @@ rest of the maintenance loop.
 
 import json
 import logging
+import re
 
 import requests
 from django.conf import settings
@@ -36,7 +37,7 @@ SYSTEM_PROMPT = (
     "carry series/volume suffixes; different sources may use different "
     "languages. Judge the work identity, not the surface spelling. Respond with "
     'a single JSON object: {"same": true|false, "confidence": 0..1, '
-    '"reason": "short explanation"}.'
+    '"reason": "short explanation"}. Keep "reason" under 25 words.'
 )
 
 
@@ -104,17 +105,7 @@ def _as_bool(value):
     return bool(value)
 
 
-def _parse_content(content):
-    text = (content or "").strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start >= 0 and end > start:
-        text = text[start : end + 1]
-    try:
-        data = json.loads(text)
-    except ValueError as exc:
-        raise LLMError(f"unparseable LLM content: {content[:300]!r}") from exc
-    if not isinstance(data, dict):
-        raise LLMError(f"unexpected LLM content shape: {content[:300]!r}")
+def _normalize(data):
     try:
         confidence = float(data.get("confidence", 0.0))
     except (TypeError, ValueError):
@@ -124,6 +115,39 @@ def _parse_content(content):
         "confidence": max(0.0, min(1.0, confidence)),
         "reason": str(data.get("reason", ""))[:1000],
     }
+
+
+# Salvage the verdict from truncated/malformed JSON (a long "reason" can hit the
+# token cap before the closing brace, which would otherwise discard a valid
+# "same"/"confidence").
+_BOOL_RE = re.compile(r'"same"\s*:\s*(true|false)', re.IGNORECASE)
+_CONF_RE = re.compile(r'"confidence"\s*:\s*([0-9]*\.?[0-9]+)')
+_REASON_RE = re.compile(r'"reason"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
+
+
+def _parse_content(content):
+    text = (content or "").strip()
+    start, end = text.find("{"), text.rfind("}")
+    snippet = text[start : end + 1] if start >= 0 and end > start else text
+    try:
+        data = json.loads(snippet)
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        return _normalize(data)
+
+    same = _BOOL_RE.search(text)
+    conf = _CONF_RE.search(text)
+    if same is None and conf is None:
+        raise LLMError(f"unparseable LLM content: {content[:300]!r}")
+    reason = _REASON_RE.search(text)
+    return _normalize(
+        {
+            "same": same.group(1) if same else False,
+            "confidence": conf.group(1) if conf else 0.0,
+            "reason": reason.group(1) if reason else "",
+        }
+    )
 
 
 def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session=None):
@@ -142,7 +166,7 @@ def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session
     body = {
         "model": model,
         "temperature": 0,
-        "max_tokens": 300,
+        "max_tokens": 512,
         "messages": build_messages(profile_a, profile_b),
     }
 
