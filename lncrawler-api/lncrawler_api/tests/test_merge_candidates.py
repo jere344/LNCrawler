@@ -116,6 +116,48 @@ class SurvivorPickTests(MergeTestCase):
         self.assertIs(pick_merge_survivor(thin, fat), fat)
         self.assertIs(pick_merge_survivor(fat, thin), fat)
 
+    def test_merge_survives_a_stale_null_fk_candidate(self):
+        # A prior merge can leave an audit row whose other FK is already NULL;
+        # Postgres LEAST/GREATEST ignore NULL, so its effective pair key is
+        # (B, B). Merging A into B nulls this active row's novel_a -> (B, B),
+        # which must NOT collide with the stale row (the constraint is partial).
+        from ..services.merge_service import merge_novels
+
+        a = Novel.objects.create(title="A", slug="a", novel_path="a")
+        b = Novel.objects.create(title="B", slug="b", novel_path="b")
+        MergeCandidate.objects.create(
+            novel_a=b, novel_b=None, title_a=b.title,
+            status=MergeCandidate.STATUS_SKIPPED, certainty=0.5,
+        )
+        MergeCandidate.objects.create(
+            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
+            status=MergeCandidate.STATUS_PENDING, certainty=0.9,
+        )
+
+        merge_novels(a, b)
+
+        self.assertFalse(Novel.objects.filter(pk=a.pk).exists())
+        self.assertTrue(Novel.objects.filter(pk=b.pk).exists())
+
+    def test_deleting_a_novel_directly_survives_a_stale_null_fk_candidate(self):
+        # Same SET_NULL collapse as above, but via the admin/model delete path
+        # (Novel.delete()), not a merge.
+        a = Novel.objects.create(title="A", slug="a", novel_path="a")
+        b = Novel.objects.create(title="B", slug="b", novel_path="b")
+        MergeCandidate.objects.create(
+            novel_a=b, novel_b=None, title_a=b.title,
+            status=MergeCandidate.STATUS_SKIPPED, certainty=0.5,
+        )
+        MergeCandidate.objects.create(
+            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
+            status=MergeCandidate.STATUS_PENDING, certainty=0.9,
+        )
+
+        a.delete()
+
+        self.assertFalse(Novel.objects.filter(pk=a.pk).exists())
+        self.assertTrue(Novel.objects.filter(pk=b.pk).exists())
+
 
 class MergeCandidateReviewViewTests(MergeTestCase):
     def setUp(self):

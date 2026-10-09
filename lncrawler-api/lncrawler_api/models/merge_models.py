@@ -89,9 +89,14 @@ class MergeCandidate(models.Model):
                 name="mergecandidate_no_self",
             ),
             # Unordered pair: one row per (A, B) regardless of argument order.
+            # Partial: only enforced while BOTH novels still exist. Postgres
+            # LEAST/GREATEST ignore NULLs, so a row whose FK was SET_NULL by a
+            # merge collapses to (other, other) and would otherwise collide with
+            # any other audit row sharing that surviving novel.
             models.UniqueConstraint(
                 Least("novel_a", "novel_b"),
                 Greatest("novel_a", "novel_b"),
+                condition=models.Q(novel_a__isnull=False, novel_b__isnull=False),
                 name="mergecandidate_unique_pair",
             ),
         ]

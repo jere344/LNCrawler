@@ -1,5 +1,6 @@
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils.html import format_html
@@ -109,6 +110,9 @@ class MergeCandidateAdmin(admin.ModelAdmin):
                     request.session[self.SESSION_SKIPPED] = skipped
             return redirect("admin:lncrawler_api_mergecandidate_review")
 
+        # A novel deleted outside a merge leaves its candidates with a NULL FK;
+        # they are no longer actionable, so drop them out of the queue first.
+        self._clear_stale_for()
         pending = MergeCandidate.objects.filter(
             status=MergeCandidate.STATUS_PENDING
         ).order_by("-certainty")
@@ -195,7 +199,7 @@ class MergeCandidateAdmin(admin.ModelAdmin):
             return "failed", f"Could not merge: {exc}"
         candidate.refresh_from_db()
         candidate.mark_merged()
-        self._clear_stale_for(source, keep=candidate.pk)
+        self._clear_stale_for(keep=candidate.pk)
         return "merged", f"Merged '{source.title}' into '{target.title}'."
 
     @admin.action(description="Approve and merge the selected pairs")
@@ -230,16 +234,12 @@ class MergeCandidateAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f"Rejected {updated} candidate(s).")
 
-    def _clear_stale_for(self, novel, keep):
-        # Candidates other than the just-merged one that referenced the deleted
-        # novel are no longer actionable.
-        MergeCandidate.objects.filter(
-            status=MergeCandidate.STATUS_PENDING
-        ).exclude(pk=keep).filter(
-            novel_a__isnull=True
-        ).update(status=MergeCandidate.STATUS_SKIPPED)
-        MergeCandidate.objects.filter(
-            status=MergeCandidate.STATUS_PENDING
-        ).exclude(pk=keep).filter(
-            novel_b__isnull=True
-        ).update(status=MergeCandidate.STATUS_SKIPPED)
+    def _clear_stale_for(self, keep=None):
+        # Candidates that referenced a deleted novel have a NULL FK and are no
+        # longer actionable; mark them skipped (optionally sparing one row).
+        stale = MergeCandidate.objects.filter(status=MergeCandidate.STATUS_PENDING)
+        if keep is not None:
+            stale = stale.exclude(pk=keep)
+        stale.filter(Q(novel_a__isnull=True) | Q(novel_b__isnull=True)).update(
+            status=MergeCandidate.STATUS_SKIPPED
+        )
