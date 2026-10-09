@@ -123,6 +123,7 @@ services:
       context: ./lncrawler-frontend
       args:
         - VITE_API_BASE_URL=${SITE_API_URL}
+        - VITE_SITE_URL=${SITE_URL}
     restart: unless-stopped
     depends_on:
       - api

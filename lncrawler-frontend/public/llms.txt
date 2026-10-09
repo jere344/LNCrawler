@@ -1,0 +1,20 @@
+# LNCrawler
+
+> LNCrawler is a self-hosted light novel reader. It crawls hundreds of sources and
+> lets you search, download and read translated Asian light novels and web novels
+> (Japanese, Chinese, Korean) in multiple languages.
+
+## Main pages
+
+- [Home](https://lncrawler.monster/): browse featured and recently updated novels.
+- [Search novels](https://lncrawler.monster/novels/search): search the catalog by
+  title, author, tag, language, status and rating.
+- [Add a novel](https://lncrawler.monster/download): download a novel from a
+  supported source into the library.
+
+## Indexing
+
+- Sitemap: https://lncrawler.monster/sitemap.xml
+- Novel pages: https://lncrawler.monster/novels/{novel-slug}/
+- Source (per-language) pages: https://lncrawler.monster/novels/{novel-slug}/{source-slug}/
+- Chapter lists: https://lncrawler.monster/novels/{novel-slug}/{source-slug}/chapterlist/

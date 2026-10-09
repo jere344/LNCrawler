@@ -1,0 +1,13 @@
+{% extends "seo/base.html" %}
+{% block content %}
+<article>
+<h1>{{ label }}</h1>
+<p class="meta">
+  {{ source.title }} &mdash; {{ source_name }} &middot;
+  <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/chapterlist/">All chapters</a>
+</p>
+<div class="chapter-body">
+{{ body|safe }}
+</div>
+</article>
+{% endblock %}

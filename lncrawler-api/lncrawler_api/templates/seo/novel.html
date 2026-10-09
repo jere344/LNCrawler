@@ -1,0 +1,19 @@
+{% extends "seo/base.html" %}
+{% block content %}
+<h1>{{ novel.title }}</h1>
+{% if synopsis %}<p>{{ synopsis }}</p>{% endif %}
+
+{% if primary %}
+<p><a href="{{ site_url }}/novels/{{ novel.slug }}/{{ primary.source_slug }}/chapterlist/">Chapter list ({{ primary.source_slug }}) &raquo;</a></p>
+{% endif %}
+
+<h2>Available sources</h2>
+<ul class="sources">
+{% for source in sources %}
+  <li>
+    <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/">{{ source.title }} &mdash; {{ source.external_source.source_name }}</a>
+    <div class="meta">{{ source.get_status_display }} &middot; {{ source.language }} &middot; {{ source.chapter_total }} chapters</div>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

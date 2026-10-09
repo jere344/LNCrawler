@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-export const DEFAULT_OG_IMAGE = '/og-image.jpg';
+export const DEFAULT_OG_IMAGE = '/og-image.webp';
 const SITE_NAME = 'LNCrawler';
 
 interface SeoMetaProps {

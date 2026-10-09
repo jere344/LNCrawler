@@ -1,7 +1,7 @@
-from django.urls import path, include
+from django.urls import path, re_path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views, users_views, chat_views, reviews_views, reading_lists_views, profile_views, friends_views, import_views
+from .views import novels_views, comments_views, sources_views, users_views, chat_views, reviews_views, reading_lists_views, profile_views, friends_views, import_views, seo_views
 from .views.csrf import get_csrf_token
 from .views.errors_views import report_error
 from django.contrib.sitemaps.views import sitemap, index
@@ -118,6 +118,15 @@ urlpatterns = [
     # sitemap - 100h cache
     path('sitemap.xml', cache_page(360000)(index), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.index'),
     path('sitemap-<section>.xml', cache_page(360000)(sitemap), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
+
+    # Server-rendered pages for crawlers/social scrapers. Reached through an
+    # internal nginx rewrite of the public content URLs (see nginx-proxy).
+    # Trailing slash is optional so APPEND_SLASH never leaks the internal prefix.
+    re_path(r'^seo/$', seo_views.seo_home, name='seo_home'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/?$', seo_views.seo_novel, name='seo_novel'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/?$', seo_views.seo_source, name='seo_source'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/chapterlist/?$', seo_views.seo_chapterlist, name='seo_chapterlist'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/chapter/(?P<chapter_number>\d+)/?$', seo_views.seo_chapter, name='seo_chapter'),
 
     # Reading List endpoints
     path('reading-lists/', reading_lists_views.list_all_reading_lists, name='list_all_reading_lists'),
