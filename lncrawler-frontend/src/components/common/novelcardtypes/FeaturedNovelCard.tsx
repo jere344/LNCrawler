@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { Box, Card, Typography, useMediaQuery, useTheme, ButtonBase, Skeleton, Grid as Grid } from '@mui/material'; 
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CommentIcon from '@mui/icons-material/Comment';
@@ -134,7 +135,7 @@ const FeaturedNovelCard: React.FC<FeaturedNovelCardProps> = ({ source, onClick, 
                 color: 'text.secondary',
                 '& img': { maxWidth: '100%', height: 'auto' }
               }}
-              dangerouslySetInnerHTML={{ __html: source.synopsis || '' }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(source.synopsis || '', { USE_PROFILES: { html: true } }) }}
             />
             
             <Grid container spacing={1}>

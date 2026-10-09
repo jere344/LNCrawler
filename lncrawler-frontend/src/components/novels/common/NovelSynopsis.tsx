@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { Typography, Box } from '@mui/material';
 
 interface NovelSynopsisProps {
@@ -16,7 +17,7 @@ const NovelSynopsis: React.FC<NovelSynopsisProps> = ({ synopsis }) => {
           '& p': { mb: 1.5 },
           '& img': { maxWidth: '100%', height: 'auto' },
         }} 
-        dangerouslySetInnerHTML={{ __html: synopsis }} 
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(synopsis, { USE_PROFILES: { html: true } }) }} 
       />
     </Box>
   );

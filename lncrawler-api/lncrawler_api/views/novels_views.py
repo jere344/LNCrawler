@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError, transaction
 from django.db.models import F, Avg, Q, Case, When, IntegerField, Count, Sum, Value, Max, Min
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Upper
 from ..models import (
     Novel,
     NovelRating,
@@ -157,13 +157,19 @@ def search_novels(request):
         # pg_trgm indexes; a single multi-table OR cannot use them. Authors are
         # intentionally not searched here (use ?author= or the author
         # autocomplete instead).
+        # Fuzzy title match (pg_trgm) tolerates near-miss spellings like
+        # "bungo"/"bungou"; the GIN trgm index on UPPER(title) backs the lookup.
+        fuzzy_titles = Novel.objects.annotate(
+            _upper_title=Upper("title")
+        ).filter(_upper_title__trigram_similar=query.upper()).values('id')
         novels_query = novels_query.filter(
             Q(id__in=Novel.objects.filter(title__icontains=query).values('id'))
+            | Q(id__in=fuzzy_titles)
             | Q(id__in=NovelFromSource.objects.filter(synopsis__icontains=query).values('novel_id'))
             | Q(id__in=NovelFromSource.objects.filter(alternative_titles__name__icontains=query).values('novel_id'))
         ).annotate(
             # Relevance: exact title, exact alt-title, title prefix, title
-            # substring, then anything else (e.g. synopsis match).
+            # substring, fuzzy title, then anything else (e.g. synopsis match).
             _relevance=Case(
                 When(title__iexact=query, then=Value(0)),
                 When(
@@ -174,7 +180,8 @@ def search_novels(request):
                 ),
                 When(title__istartswith=query, then=Value(2)),
                 When(title__icontains=query, then=Value(3)),
-                default=Value(4),
+                When(Q(pk__in=fuzzy_titles), then=Value(4)),
+                default=Value(5),
                 output_field=IntegerField(),
             )
         ).distinct()

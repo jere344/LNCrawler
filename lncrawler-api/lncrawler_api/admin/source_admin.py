@@ -2,7 +2,8 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
+from django.db.models import Count, IntegerField, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from ..models import (
@@ -15,6 +16,7 @@ from ..models import (
     ExternalSource,
     SourceVote,
     Volume,
+    Chapter,
 )
 from ..services.merge_service import MergeError, merge_similar_tags, merge_tags
 from django.utils.html import format_html
@@ -224,7 +226,22 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
     show_full_result_count = False
 
     def get_queryset(self, request):
-        return super().get_queryset(request).annotate(_chapters_count=Count("chapters"))
+        # A correlated subquery counts chapters per row instead of a
+        # ``Count("chapters")`` join+GROUP BY, which forced a full scan and
+        # aggregation of the whole chapter table on every changelist load.
+        # The paginator's COUNT(*) prunes this unused subquery, so it stays cheap.
+        chapter_counts = (
+            Chapter.objects.filter(novel_from_source=OuterRef("pk"))
+            .order_by()
+            .values("novel_from_source")
+            .annotate(total=Count("pk"))
+            .values("total")
+        )
+        return super().get_queryset(request).annotate(
+            _chapters_count=Coalesce(
+                Subquery(chapter_counts, output_field=IntegerField()), 0
+            )
+        )
 
     def chapters_count(self, obj):
         return obj._chapters_count
