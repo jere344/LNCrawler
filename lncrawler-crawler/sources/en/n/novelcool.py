@@ -103,19 +103,40 @@ class NovelCool(Crawler):
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
 
-        chapter_title = soup.select_one(".chapter-title")
         chapter_start = soup.select_one(".chapter-start-mark")
+        if not chapter_start:
+            return self.download_manga_body(chapter, soup)
+
         body_parts = chapter_start.parent
 
+        chapter_title = soup.select_one(".chapter-title")
         if chapter_title:
             chapter_title.extract()
 
         chapter_start.extract()
 
-        for report in body_parts.find("div", {"model_target_name": "report"}):
+        for report in body_parts.find_all("div", {"model_target_name": "report"}):
             report.extract()
 
-        for junk in body_parts.find("p", {"class": "chapter-end-mark"}):
+        for junk in body_parts.find_all("p", {"class": "chapter-end-mark"}):
             junk.extract()
 
         return self.cleaner.extract_contents(body_parts)
+
+    def download_manga_body(self, chapter, soup):
+        page_urls = list(
+            dict.fromkeys(
+                o["value"]
+                for o in soup.select("select.sl-page option")
+                if o.get("value")
+            )
+        ) or [chapter["url"]]
+
+        body = soup.new_tag("div")
+        for page_url in page_urls:
+            page = self.get_soup(page_url)
+            for img in page.select("img.mangaread-manga-pic"):
+                src = img.get("src") or img.get("data-src")
+                if src:
+                    body.append(page.new_tag("img", src=src))
+        return self.cleaner.extract_contents(body)

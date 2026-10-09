@@ -127,3 +127,9 @@ class MergeSimilarTagsTests(TestCase):
 
         self.assertEqual(Tag.resolve("isekai"), Tag.objects.get(name="Isekai"))
         self.assertFalse(Tag.objects.filter(name="isekai").exists())
+
+    def test_resolve_truncates_overlong_name(self):
+        tag = Tag.resolve("x" * 250)
+
+        self.assertEqual(len(tag.name), 100)
+        self.assertTrue(Tag.objects.filter(name="x" * 100).exists())

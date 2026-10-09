@@ -114,6 +114,7 @@ class Tag(models.Model):
 
         Keeps re-imports from recreating a tag that was merged into another.
         """
+        name = name[: cls._meta.get_field('name').max_length]
         alias = TagAlias.objects.filter(name=name).select_related('tag').first()
         if alias is not None:
             return alias.tag
