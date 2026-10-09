@@ -130,6 +130,37 @@ def build_merge_plan(source_novel, target_novel, move_files=True):
     return plan
 
 
+def _novel_completeness(novel):
+    """Best source completeness across a novel, as a comparable (content, total)."""
+    best = (0, 0)
+    for source in novel.sources.all():
+        complete = source_completeness(source)
+        candidate = (complete[0], complete[1])
+        if candidate > best:
+            best = candidate
+    return best
+
+
+def pick_merge_survivor(a, b):
+    """Choose which novel survives a merge.
+
+    Prefer the novel holding the most complete source (most readable chapters),
+    then the one with more sources, then the lower id for stability. This keeps
+    the copy with the most content and discards the thinner duplicate.
+    """
+    if a is None:
+        return b
+    if b is None:
+        return a
+    comp_a, comp_b = _novel_completeness(a), _novel_completeness(b)
+    if comp_a != comp_b:
+        return a if comp_a > comp_b else b
+    count_a, count_b = a.sources.count(), b.sources.count()
+    if count_a != count_b:
+        return a if count_a > count_b else b
+    return a if str(a.pk) <= str(b.pk) else b
+
+
 def _record_aliases(source_novel, target_novel):
     # Anything already redirecting to the discarded novel now points at target.
     NovelAlias.objects.filter(novel=source_novel).update(novel=target_novel)

@@ -72,6 +72,50 @@ class FindMergeCandidatesTests(MergeTestCase):
         candidate = MergeCandidate.objects.get()
         self.assertEqual(candidate.status, MergeCandidate.STATUS_REJECTED)
 
+    def test_same_source_url_creates_a_candidate(self):
+        # A renamed novel has no title overlap; the shared source URL still wins.
+        a = self._novel("Old Name", "old-name")
+        b = self._novel("Brand New Name", "brand-new-name")
+        for novel, title in ((a, "Old Name"), (b, "Brand New Name")):
+            NovelFromSource.objects.create(
+                novel=novel, external_source=self.es, title=title, source_url="http://x/1"
+            )
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertIn("src", candidate.signals)
+        self.assertGreaterEqual(candidate.certainty, 0.99)
+
+    def test_blank_source_urls_do_not_block_together(self):
+        a = self._novel("Alpha", "alpha")
+        b = self._novel("Beta", "beta")
+        for novel, title in ((a, "Alpha"), (b, "Beta")):
+            NovelFromSource.objects.create(
+                novel=novel, external_source=self.es, title=title, source_url=""
+            )
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        self.assertFalse(MergeCandidate.objects.exists())
+
+
+class SurvivorPickTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.es = ExternalSource.objects.create(source_name="site")
+
+    def test_keeps_the_novel_with_more_chapters(self):
+        from ..services.merge_service import pick_merge_survivor
+
+        thin = Novel.objects.create(title="Thin", slug="thin", novel_path="thin")
+        fat = Novel.objects.create(title="Fat", slug="fat", novel_path="fat")
+        self.make_source(thin, self.es, "Thin", "http://x/1", "thin", "site", chapters=1)
+        self.make_source(fat, self.es, "Fat", "http://x/2", "fat", "site", chapters=5)
+
+        self.assertIs(pick_merge_survivor(thin, fat), fat)
+        self.assertIs(pick_merge_survivor(fat, thin), fat)
+
 
 class MergeCandidateReviewViewTests(MergeTestCase):
     def setUp(self):
@@ -115,6 +159,25 @@ class MergeCandidateReviewViewTests(MergeTestCase):
         )
         self.candidate.refresh_from_db()
         self.assertEqual(self.candidate.status, MergeCandidate.STATUS_REJECTED)
+
+    def test_merge_keeps_the_most_complete_side(self):
+        # Both novels share one source URL (a rename/bad import): the merge must
+        # survive the fuller copy and drop the thinner one.
+        thin = Novel.objects.create(title="Fate Points A", slug="fp-thin", novel_path="fp-thin")
+        fat = Novel.objects.create(title="Fate Points B", slug="fp-fat", novel_path="fp-fat")
+        self.make_source(thin, self.es, "Fate Points A", "http://rr/58682", "fp-thin", "site", chapters=1)
+        self.make_source(fat, self.es, "Fate Points B", "http://rr/58682", "fp-fat", "site", chapters=5)
+        c = MergeCandidate.objects.create(
+            novel_a=thin, novel_b=fat, title_a=thin.title, title_b=fat.title, certainty=0.99
+        )
+
+        self.client.post(self.review_url(), {"candidate": str(c.pk), "action": "merge"})
+
+        c.refresh_from_db()
+        self.assertEqual(c.status, MergeCandidate.STATUS_MERGED)
+        survivor = Novel.objects.get(pk=fat.pk)
+        self.assertEqual(survivor.sources.get().chapters.count(), 5)
+        self.assertFalse(Novel.objects.filter(pk=thin.pk).exists())
 
     def test_skip_action_leaves_the_candidate_pending(self):
         self.client.post(

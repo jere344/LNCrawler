@@ -5,21 +5,8 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 
 from ..models import MergeCandidate, Novel
-from ..services.merge_service import MergeError, merge_novels
+from ..services.merge_service import MergeError, merge_novels, pick_merge_survivor
 from ..utils.media_utils import build_media_url
-
-
-def _pick_survivor(a, b):
-    """Keep the novel carrying more sources; ties broken by id for stability."""
-    if a is None:
-        return b
-    if b is None:
-        return a
-    count_a = a.sources.count()
-    count_b = b.sources.count()
-    if count_a != count_b:
-        return a if count_a > count_b else b
-    return a if str(a.pk) <= str(b.pk) else b
 
 
 @admin.register(MergeCandidate)
@@ -200,7 +187,7 @@ class MergeCandidateAdmin(admin.ModelAdmin):
         if a is None or b is None:
             candidate.mark_skipped()
             return "skipped", "Candidate is no longer actionable (a novel was deleted)."
-        target = _pick_survivor(a, b)
+        target = pick_merge_survivor(a, b)
         source = b if target.pk == a.pk else a
         try:
             merge_novels(source, target)

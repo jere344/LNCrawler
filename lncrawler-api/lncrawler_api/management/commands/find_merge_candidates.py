@@ -3,8 +3,8 @@
 Cheap deterministic funnel:
 
 1. Block — group novels by normalized title, alternative title, author,
-   ``novelupdates_url`` and cover dHash. Only novels sharing a block are ever
-   compared, so this is not O(N^2).
+   ``novelupdates_url``, source URL and cover dHash. Only novels sharing a
+   block are ever compared, so this is not O(N^2).
 2. Score — combine the per-signal matches into a single 0..1 ``certainty``
    (noisy-OR, so independent signals corroborate each other).
 3. Store — write a ``MergeCandidate`` per pair. Nothing is merged unless
@@ -29,9 +29,11 @@ from lncrawler_api.models import MergeCandidate, Novel, NovelFromSource, NovelSi
 _PAREN_RE = re.compile(r"[\(\[\{][^)\]\}]*[\)\]\}]")
 _NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
 
-# Per-signal weights fed into the noisy-OR. ``nu`` (novelupdates URL) is the
-# strongest because it identifies the original work regardless of language.
+# Per-signal weights fed into the noisy-OR. ``src`` (same source URL) and ``nu``
+# (novelupdates URL) are the strongest: both identify the exact same work, the
+# former because a source URL maps to exactly one story.
 SIGNAL_WEIGHTS = {
+    "src": 0.99,
     "nu": 0.95,
     "phash": 0.75,
     "title": 0.60,
@@ -120,6 +122,7 @@ class Command(BaseCommand):
         alts = defaultdict(set)
         authors = defaultdict(set)
         nus = defaultdict(set)
+        urls = defaultdict(set)
         phashes = defaultdict(set)
 
         for novel_id, title in Novel.objects.filter(pk__in=allowed).values_list("id", "title"):
@@ -135,6 +138,8 @@ class Command(BaseCommand):
                 titles[nid].add(normalize_text(src.title))
             if src.novelupdates_url:
                 nus[nid].add(normalize_url(src.novelupdates_url))
+            if src.source_url:
+                urls[nid].add(normalize_url(src.source_url))
             if src.cover_phash:
                 phashes[nid].add(src.cover_phash)
             for author in src.authors.all():
@@ -147,6 +152,7 @@ class Command(BaseCommand):
             "alts": alts,
             "authors": authors,
             "nus": nus,
+            "urls": urls,
             "phashes": phashes,
             "novel_title": dict(Novel.objects.filter(pk__in=allowed).values_list("id", "title")),
             "allowed": allowed,
@@ -173,6 +179,9 @@ class Command(BaseCommand):
         for nid, values in data["nus"].items():
             for key in values:
                 add("nu", key, nid)
+        for nid, values in data["urls"].items():
+            for key in values:
+                add("src", key, nid)
 
         # A cover hash shared by too many novels is a site default placeholder,
         # not evidence of a duplicate -> drop it entirely.
@@ -330,13 +339,11 @@ class Command(BaseCommand):
         for a_id, b_id in auto_pairs:
             groups[find(a_id)].update((a_id, b_id))
 
-        from lncrawler_api.services.merge_service import MergeError, merge_novels
-
-        def pick_survivor(x, y):
-            cx, cy = x.sources.count(), y.sources.count()
-            if cx != cy:
-                return x if cx > cy else y
-            return x if str(x.pk) <= str(y.pk) else y
+        from lncrawler_api.services.merge_service import (
+            MergeError,
+            merge_novels,
+            pick_merge_survivor,
+        )
 
         merged = 0
         for members in groups.values():
@@ -351,7 +358,7 @@ class Command(BaseCommand):
             b = Novel.objects.filter(pk=b_id).first()
             if a is None or b is None:
                 continue
-            target = pick_survivor(a, b)
+            target = pick_merge_survivor(a, b)
             source = b if target.pk == a.pk else a
             try:
                 with transaction.atomic():
