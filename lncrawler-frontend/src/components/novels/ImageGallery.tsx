@@ -67,21 +67,18 @@ const ImageGallery = () => {
   const [lightboxOpen, setLightboxOpen] = useState<boolean>(false);
 
   const [showSmallImages, setShowSmallImages] = useState<boolean>(false);
-  const [imagesWithDimensions, setImagesWithDimensions] = useState<ImageWithDimensions[]>([]);
-  const [allDimensionsLoaded, setAllDimensionsLoaded] = useState<boolean>(false);
+  const [dimensions, setDimensions] = useState<Record<string, { width: number; height: number }>>({});
 
   useEffect(() => {
     const fetchGallery = async () => {
       if (!novelSlug || !sourceSlug) return;
       
       setLoading(true);
-      setImagesWithDimensions([]); // Reset for new page/source
-      setAllDimensionsLoaded(false);
+      setDimensions({}); // Reset for new page/source
       setError(null); 
       try {
         const data = await novelService.getSourceGallery(novelSlug, sourceSlug, page);
         setGallery(data);
-        // Dimension loading will be triggered by the effect below watching `gallery`
       } catch (err) {
         console.error('Error fetching gallery:', err);
         setError(t('gallery.loadFailed'));
@@ -95,38 +92,25 @@ const ImageGallery = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
   }, [novelSlug, sourceSlug, page]);
 
-  useEffect(() => {
-    if (!gallery || gallery.images.length === 0) {
-      setImagesWithDimensions([]);
-      setAllDimensionsLoaded(true); // No images to load dimensions for
-      return;
-    }
-
-    setAllDimensionsLoaded(false);
-    const promises = gallery.images.map(image => {
-      return new Promise<ImageWithDimensions>((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve({ ...image, width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = () => resolve({ ...image, width: 0, height: 0 }); // Resolve with 0,0 on error
-        img.src = image.image_url;
-      });
-    });
-
-    Promise.all(promises).then(results => {
-      setImagesWithDimensions(results);
-      setAllDimensionsLoaded(true);
-    });
-  }, [gallery]); // Trigger when gallery data (and thus its images) changes
-
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
   };
 
-  const openLightbox = (imageToOpen: GalleryImage) => {
-    const fullImageDetails = imagesWithDimensions.find(
-      img => img.image_url === imageToOpen.image_url
+  // Dimensions are recorded from the grid <img> as the browser lazy-loads each image,
+  // so the small-image filter no longer requires an eager full-page prefetch.
+  const handleImageLoad = (url: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+    setDimensions(prev =>
+      prev[url]?.width === width && prev[url]?.height === height ? prev : { ...prev, [url]: { width, height } }
     );
-    setSelectedImage(fullImageDetails || { ...imageToOpen });
+  };
+
+  const handleImageError = (url: string) => {
+    setDimensions(prev => (prev[url] ? prev : { ...prev, [url]: { width: 0, height: 0 } }));
+  };
+
+  const openLightbox = (imageToOpen: GalleryImage) => {
+    setSelectedImage(imageToOpen);
     setLightboxOpen(true);
   };
 
@@ -149,28 +133,26 @@ const ImageGallery = () => {
     }
 
     if (nextIndexInGallery !== -1) {
-      const nextImageFromGallery = gallery.images[nextIndexInGallery];
-      const fullNextImageDetails = imagesWithDimensions.find(
-        img => img.image_url === nextImageFromGallery.image_url
-      );
-      setSelectedImage(fullNextImageDetails || { ...nextImageFromGallery });
+      setSelectedImage(gallery.images[nextIndexInGallery]);
     }
   };
 
   const filteredImages = useMemo(() => {
-    return imagesWithDimensions.filter(image => {
-      if (showSmallImages) {
-        return true;
-      }
-      // If dimensions are not loaded (undefined), or if image is small, filter it out
-      if (typeof image.width === 'number' && typeof image.height === 'number') {
-        return image.width >= 50 && image.height >= 50;
-      }
-      // If dimensions are not yet available (should not happen with Promise.all approach unless error)
-      // or if we want to show images while dimensions are loading (not current strategy)
-      return true; // Default to show if dimensions are somehow undefined after loading
+    if (!gallery) return [];
+    if (showSmallImages) return gallery.images;
+    return gallery.images.filter(image => {
+      const d = dimensions[image.image_url];
+      return !d || (d.width >= 50 && d.height >= 50);
     });
-  }, [imagesWithDimensions, showSmallImages]);
+  }, [gallery, showSmallImages, dimensions]);
+
+  const hiddenSmallCount = useMemo(() => {
+    if (!gallery) return 0;
+    return gallery.images.filter(image => {
+      const d = dimensions[image.image_url];
+      return !!d && (d.width < 50 || d.height < 50);
+    }).length;
+  }, [gallery, dimensions]);
 
   const pageUrl = window.location.href;
 
@@ -303,7 +285,7 @@ const ImageGallery = () => {
               onChange={(e) => setShowSmallImages(e.target.checked)}
             />
           }
-          label={t('gallery.showSmall', { count: imagesWithDimensions.length - filteredImages.length })}
+          label={t('gallery.showSmall', { count: hiddenSmallCount })}
           sx={{ mt: 1, mb: 2, display: 'block' }}
         />
         
@@ -311,13 +293,6 @@ const ImageGallery = () => {
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
               <CircularProgress />
-            </Box>
-          ) : !allDimensionsLoaded && gallery && gallery.images.length > 0 ? (
-            <Box sx={{ textAlign: 'center', p: 4 }}>
-              <CircularProgress size={24} sx={{ mr: 1, verticalAlign: 'middle' }} />
-              <Typography variant="body2" component="span" sx={{ verticalAlign: 'middle' }}>
-                {t('gallery.loadingDimensions')}
-              </Typography>
             </Box>
           ) : (
             <>
@@ -342,6 +317,9 @@ const ImageGallery = () => {
                         src={image.image_url}
                         alt={t('gallery.imageAlt', { chapter: getChapterLabel(t, image.chapter_title, image.chapter_id), name: image.image_name })}
                         loading="lazy"
+                        decoding="async"
+                        onLoad={(e) => handleImageLoad(image.image_url, e)}
+                        onError={() => handleImageError(image.image_url)}
                         style={{ borderRadius: 8 }}
                       />
                       <Box 
@@ -364,13 +342,13 @@ const ImageGallery = () => {
                   ))}
                 </ImageList>
               ) : (
-                gallery && gallery.images.length > 0 && allDimensionsLoaded && (
+                gallery && gallery.images.length > 0 && (
                   <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
                     {t('gallery.noImagesFiltered')}
                   </Typography>
                 )
               )}
-              {gallery && gallery.images.length === 0 && allDimensionsLoaded && (
+              {gallery && gallery.images.length === 0 && (
                  <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
                   {t('gallery.noImagesPage')}
                 </Typography>
