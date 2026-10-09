@@ -104,17 +104,19 @@ def source_completeness(source):
 def find_duplicate(target_novel, source):
     """Find the target source representing the same external source.
 
-    Mirrors the identity used by ``from_meta_json``: canonical external source
-    first, then the exact URL. The URL check also runs for blank URLs, because
-    ``unique_together = ('novel', 'source_url')`` only allows one such row and
-    ``from_meta_json`` matches it the same way.
+    The exact URL is checked first: ``unique_together = ('novel', 'source_url')``
+    makes it the row that MUST be folded before ``source`` can be repointed at
+    ``target_novel`` (otherwise the save collides). The URL check also runs for
+    blank URLs, since the constraint only allows one such row. The canonical
+    external source is the fallback: the same mirror under a changed URL, which
+    ``from_meta_json`` also treats as the same row.
     """
     duplicate = target_novel.sources.filter(
-        external_source=source.external_source
+        source_url=source.source_url or ""
     ).first()
     if duplicate is None:
         duplicate = target_novel.sources.filter(
-            source_url=source.source_url or ""
+            external_source=source.external_source
         ).first()
     return duplicate
 

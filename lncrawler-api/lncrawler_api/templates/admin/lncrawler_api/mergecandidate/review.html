@@ -18,6 +18,11 @@
     {% trans 'No pending candidates left.' %}
     <a href="{% url 'admin:lncrawler_api_mergecandidate_changelist' %}">{% trans 'Back to the list' %}</a>.
   </p>
+  {% if can_reset %}
+  <form method="post" style="margin-top:12px;">{% csrf_token %}
+    <button type="submit" name="action" value="reset">{% trans 'Review the skipped candidates again' %}</button>
+  </form>
+  {% endif %}
 {% else %}
   <p class="help">
     {{ remaining }} {% trans 'pending candidate(s), highest certainty first.' %}

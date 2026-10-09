@@ -46,6 +46,8 @@ class MergeCandidateAdmin(admin.ModelAdmin):
     )
     actions = ("approve_and_merge", "reject_candidates")
     change_list_template = "admin/lncrawler_api/mergecandidate/change_list.html"
+    # Session key holding the candidate ids deferred with "Skip for now".
+    SESSION_SKIPPED = "merge_review_skipped"
 
     def has_add_permission(self, request):
         return False
@@ -78,12 +80,21 @@ class MergeCandidateAdmin(admin.ModelAdmin):
         if not self.has_change_permission(request):
             raise PermissionDenied
 
+        skipped = request.session.get(self.SESSION_SKIPPED, [])
+
         if request.method == "POST":
+            action = request.POST.get("action")
+            if action == "reset":
+                request.session[self.SESSION_SKIPPED] = []
+                return redirect("admin:lncrawler_api_mergecandidate_review")
+
             candidate = MergeCandidate.objects.filter(
                 pk=request.POST.get("candidate")
             ).first()
-            action = request.POST.get("action")
             if candidate is not None and candidate.status == MergeCandidate.STATUS_PENDING:
+                candidate_id = str(candidate.pk)
+                # A decided candidate leaves the skip list; a skipped one joins it.
+                skipped = [pk for pk in skipped if pk != candidate_id]
                 if action == "merge":
                     status, message = self._apply_merge(candidate)
                     level = {
@@ -98,19 +109,32 @@ class MergeCandidateAdmin(admin.ModelAdmin):
                         f"Rejected '{candidate.title_a}' / '{candidate.title_b}'.",
                         level=messages.SUCCESS,
                     )
+                elif action == "skip":
+                    skipped.append(candidate_id)
+                    self.message_user(
+                        request,
+                        f"Skipped '{candidate.title_a}' / '{candidate.title_b}' for now.",
+                        level=messages.INFO,
+                    )
+                else:
+                    skipped = None
+                if skipped is not None:
+                    request.session[self.SESSION_SKIPPED] = skipped
             return redirect("admin:lncrawler_api_mergecandidate_review")
 
         pending = MergeCandidate.objects.filter(
             status=MergeCandidate.STATUS_PENDING
         ).order_by("-certainty")
-        candidate = pending.select_related("novel_a", "novel_b").first()
+        remaining = pending.exclude(pk__in=skipped)
+        candidate = remaining.select_related("novel_a", "novel_b").first()
         context = {
             **self.admin_site.each_context(request),
             "title": "Review merge candidates",
             "opts": self.model._meta,
             "candidate": candidate,
-            "remaining": pending.count(),
+            "remaining": remaining.count(),
             "certainty_pct": round(candidate.certainty * 100, 1) if candidate else 0,
+            "can_reset": candidate is None and bool(skipped),
         }
         if candidate is not None:
             context["side_a"] = self._candidate_side(candidate.novel_a)

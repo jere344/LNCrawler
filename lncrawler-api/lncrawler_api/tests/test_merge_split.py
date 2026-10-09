@@ -324,6 +324,28 @@ class MergeDuplicateSourceTests(MergeTestCase):
         self.assertEqual(survivor.votes.count(), 2)
         self.assertFalse(SourceVote.objects.filter(source=self.winner).exists())
 
+    def test_same_url_is_replaced_by_the_more_complete_copy(self):
+        # Both novels carry the SAME source_url, so the incoming (more complete)
+        # copy must fold the target's copy first, or repointing collides on
+        # (novel, source_url).
+        same_url = "http://a/same"
+        target = Novel.objects.create(title="Same", slug="same-t", novel_path="same-t")
+        dup = Novel.objects.create(title="Same", slug="same-d", novel_path="same-d")
+        existing = self.make_source(
+            target, self.external, "old", same_url, "same-t", "novelfull", 1
+        )
+        incoming = self.make_source(
+            dup, self.external, "new", same_url, "same-d", "novelfull", 4
+        )
+
+        merge_novels(dup, target, move_files=False)
+
+        survivors = target.sources.filter(external_source=self.external)
+        self.assertEqual(survivors.count(), 1)
+        self.assertEqual(survivors.get().pk, incoming.pk)
+        self.assertEqual(survivors.get().chapters.count(), 4)
+        self.assertFalse(NovelFromSource.objects.filter(pk=existing.pk).exists())
+
 
 class MergeAdminTests(MergeTestCase):
     def setUp(self):

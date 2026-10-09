@@ -200,8 +200,8 @@ def _run_target_moves(plan):
         if duplicate is None:
             move_source_to_novel(source, plan.target_novel, move_files=True)
         elif source_completeness(source) > source_completeness(duplicate):
-            move_source_to_novel(source, plan.target_novel, move_files=True)
             dedupe_source(duplicate, source, move_files=True)
+            move_source_to_novel(source, plan.target_novel, move_files=True)
         else:
             dedupe_source(source, duplicate, move_files=True)
 

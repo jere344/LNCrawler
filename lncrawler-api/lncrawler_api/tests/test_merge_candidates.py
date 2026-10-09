@@ -123,6 +123,32 @@ class MergeCandidateReviewViewTests(MergeTestCase):
         self.candidate.refresh_from_db()
         self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
 
+    def test_skip_advances_and_reset_restores(self):
+        c = Novel.objects.create(title="Frieren", slug="frieren-c", novel_path="frieren-c")
+        d = Novel.objects.create(title="Frieren", slug="frieren-d", novel_path="frieren-d")
+        MergeCandidate.objects.create(
+            novel_a=c, novel_b=d, title_a=c.title, title_b=d.title, certainty=0.4
+        )
+
+        self.client.post(
+            self.review_url(), {"candidate": str(self.candidate.pk), "action": "skip"}
+        )
+        self.assertIn(
+            str(self.candidate.pk),
+            self.client.session.get("merge_review_skipped", []),
+        )
+
+        # The skipped candidate is gone from the pass; the next one shows instead.
+        response = self.client.get(self.review_url())
+        self.assertContains(response, "Frieren")
+        self.assertContains(response, "40.0%")
+        self.assertNotContains(response, "90.0%")
+
+        # When the pass is exhausted the skipped ones can be reviewed again.
+        self.client.post(self.review_url(), {"action": "reset"})
+        response = self.client.get(self.review_url())
+        self.assertContains(response, "90.0%")
+
     def test_changelist_exposes_the_review_button(self):
         response = self.client.get(
             reverse("admin:lncrawler_api_mergecandidate_changelist")

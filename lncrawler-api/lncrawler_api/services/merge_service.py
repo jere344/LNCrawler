@@ -229,9 +229,10 @@ def merge_novels(source_novel, target_novel, move_files=True):
             if duplicate is None:
                 move_source_to_novel(source, target_novel, move_files)
             elif source_completeness(source) > source_completeness(duplicate):
-                # Keep the incoming copy: repoint it, then drop the target one.
-                move_source_to_novel(source, target_novel, move_files)
+                # Keep the incoming copy: fold the target's weaker copy into it
+                # first, freeing the (novel, source_url) slot, then repoint.
                 dedupe_source(duplicate, source, move_files)
+                move_source_to_novel(source, target_novel, move_files)
             else:
                 # Keep the existing target copy: drop the incoming one.
                 dedupe_source(source, duplicate, move_files)
