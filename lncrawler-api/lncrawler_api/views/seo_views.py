@@ -424,7 +424,9 @@ def seo_chapterlist(request, novel_slug, source_slug):
     if _is_adult_novel(novel):
         raise Http404("Source not available")
 
-    chapters = source.chapters.only("chapter_id", "title").order_by("chapter_id")
+    chapters = (
+        source.chapters.only("chapter_id", "title", "has_content").order_by("chapter_id")
+    )
     count = chapters.count()
     source_name = source.external_source.source_name
     image = _source_image(source)

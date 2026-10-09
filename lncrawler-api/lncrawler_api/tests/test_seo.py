@@ -4,7 +4,7 @@ import json
 
 from django.urls import reverse
 
-from ..models import AlternativeTitle, NovelFromSource
+from ..models import AlternativeTitle, Chapter, NovelFromSource
 from .helpers import LanguageAwareSourceTestCase
 
 
@@ -58,3 +58,23 @@ class SeoNovelJsonLdTests(LanguageAwareSourceTestCase):
         response = self.client.get(reverse("seo_novel", args=[self.novel.slug]))
         _, book = self._book(response)
         self.assertEqual(book["inLanguage"], "en")
+
+
+class SeoChapterListDeadLinkTests(LanguageAwareSourceTestCase):
+    def test_chapter_without_content_is_listed_but_not_linked(self):
+        self.en_source.source_slug = "src"
+        self.en_source.save()
+        Chapter.objects.create(
+            novel_from_source=self.en_source, chapter_id=1, title="Live", has_content=True
+        )
+        Chapter.objects.create(
+            novel_from_source=self.en_source, chapter_id=2, title="Dead", has_content=False
+        )
+
+        html = self.client.get(
+            reverse("seo_chapterlist", args=[self.novel.slug, "src"])
+        ).content.decode()
+
+        self.assertIn("/chapter/1/", html)
+        self.assertNotIn("/chapter/2/", html)
+        self.assertIn("Dead", html)

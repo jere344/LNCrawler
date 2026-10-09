@@ -5,7 +5,13 @@
 
 <ol class="chapters">
 {% for chapter in chapters %}
-  <li><a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/chapter/{{ chapter.chapter_id }}/">{{ chapter.chapter_id }}. {{ chapter.title }}</a></li>
+  <li>
+    {% if chapter.has_content %}
+      <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/chapter/{{ chapter.chapter_id }}/">{{ chapter.chapter_id }}. {{ chapter.title }}</a>
+    {% else %}
+      {{ chapter.chapter_id }}. {{ chapter.title }}
+    {% endif %}
+  </li>
 {% endfor %}
 </ol>
 {% endblock %}
