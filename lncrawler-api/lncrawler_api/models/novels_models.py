@@ -21,6 +21,7 @@ class Novel(models.Model):
     
     class Meta:
         indexes = [
+            models.Index(fields=['title'], name='novel_title_idx'),
             models.Index(fields=['-created_at'], name='novel_created_at_idx'),
             GinIndex(OpClass(Upper('title'), name='gin_trgm_ops'), name='novel_title_trgm_idx'),
         ]

@@ -20,6 +20,7 @@ from ..models.reviews_models import Review
 from ..utils import get_client_ip, resolve_novel_slug
 from ..utils.query_helpers import (
     adult_allowed,
+    annotate_card_aggregates,
     apply_novel_prefetches,
     exclude_adult,
     novel_prefetch_objects,
@@ -39,10 +40,18 @@ def list_novels(request):
     """
     List all novels with pagination
     """
-    novels = apply_novel_prefetches(
-        exclude_adult(Novel.objects.all(), request.user).order_by("title"), request.user
+    novels = annotate_card_aggregates(
+        exclude_adult(Novel.objects.all(), request.user)
     )
-    return paginated_response(request, novels, NovelSerializer, max_size=50)
+    # Count a bare id queryset so the paginator doesn't recompute the four card
+    # subqueries for every row just to get a total.
+    count_queryset = novels.order_by().values("pk")
+    novels = apply_novel_prefetches(
+        novels, request.user, card_aggregates=True
+    ).order_by("title")
+    return paginated_response(
+        request, novels, NovelSerializer, max_size=50, count_queryset=count_queryset
+    )
 
 
 @api_view(["GET"])
@@ -278,6 +287,11 @@ def search_novels(request):
             "_relevance", *novels_query.query.order_by
         )
 
+    # Count distinct ids without the display-only relevance annotation (which
+    # re-runs the fuzzy-title subquery a second time); the full SELECT would
+    # evaluate all of it for every match just to page 20 rows.
+    count_queryset = novels_query.order_by().values("pk")
+
     # Resolve everything the serializer needs up front, then paginate.
     novels_query = apply_novel_prefetches(novels_query, request.user)
 
@@ -285,6 +299,7 @@ def search_novels(request):
         request, novels_query, NovelSerializer,
         max_size=50,
         context={"languages": languages},
+        count_queryset=count_queryset,
         extra={"filters": {
             "statuses": ["Ongoing", "Completed", "Unknown", "On Hiatus", "Cancelled"],
         }},
@@ -377,7 +392,7 @@ def random_featured_novel(request):
     featured_qs = featured_qs.prefetch_related(
         *novel_prefetch_objects(
             user=request.user, prefix='novel__',
-            ip=get_client_ip(request),
+            ip=get_client_ip(request), synopsis=True,
         )
     )
     featured_count = featured_qs.count()
@@ -486,7 +501,7 @@ def home_page(request):
     featured_qs = featured_qs.prefetch_related(
         *novel_prefetch_objects(
             user=request.user, prefix='novel__',
-            ip=get_client_ip(request),
+            ip=get_client_ip(request), synopsis=True,
         )
     )
     if languages:

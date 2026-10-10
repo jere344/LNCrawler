@@ -46,6 +46,9 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             'authors', 'tags', 'chapters_count', 'last_chapter_update',
             'latest_available_chapter', 'is_adult',
         ],
+        # Cover thumbnail for reading-list cards: only the blurred/first-item
+        # cover the list card needs.
+        'preview': ['id', 'cover_min_url'],
         # Home featured card: everything a card shows plus the synopsis (and
         # novel_id, which the card uses as a truthiness flag). Skips the
         # detail-only volumes / first-chapter / editors / translators / votes.

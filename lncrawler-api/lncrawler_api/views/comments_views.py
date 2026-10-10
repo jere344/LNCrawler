@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ..models import Chapter
 from ..models.comments_models import Comment, CommentVote
@@ -16,42 +17,73 @@ from ..utils.pagination import parse_page_size
 from ..serializers.comments_serializers import CommentSerializer, chapter_comment_context
 
 
+def _threaded_comments_response(request, root_comments, reply_comments):
+    """Serialize a page of top-level comments with their reply trees.
+
+    The whole thread is loaded up front (roots + every descendant) and the
+    replies are stitched into a ``parent_id -> [children]`` map, so the
+    recursive serializer never fires a query. The viewer's votes for every
+    comment in the thread are fetched in one query and shared through the
+    context. Pagination happens before serialization, so only the roots on the
+    requested page (and their replies) are rendered.
+    """
+    root_comments.sort(key=lambda comment: comment.created_at, reverse=True)
+    paginator = Paginator(root_comments, parse_page_size(request, 20, 50))
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+    page_roots = list(page_obj.object_list)
+
+    children = {}
+    for reply in reply_comments:
+        children.setdefault(reply.parent_id, []).append(reply)
+    for bucket in children.values():
+        bucket.sort(key=lambda comment: comment.created_at, reverse=True)
+
+    client_ip = get_client_ip(request)
+    user_votes = {}
+    if client_ip:
+        comment_ids = [comment.id for comment in page_roots] + [
+            reply.id for reply in reply_comments
+        ]
+        user_votes = dict(
+            CommentVote.objects.filter(
+                comment_id__in=comment_ids, ip_address=client_ip
+            ).values_list('comment_id', 'vote_type')
+        )
+
+    data = []
+    for comment in page_roots:
+        if comment.chapter_id:
+            context = chapter_comment_context(request, comment.chapter)
+            profile = 'chapter'
+        else:
+            context = {'request': request}
+            profile = 'novel'
+        context = {**context, 'comment_children': children, 'comment_user_votes': user_votes}
+        data.append(CommentSerializer(comment, context=context, profile=profile).data)
+    return Response(data)
+
+
 @api_view(['GET'])
 def novel_comments(request, novel_slug):
     """
     Get comments for a specific novel and its chapters
     """
     novel = resolve_novel_slug(novel_slug)
-    
-    # Get top-level comments directly on the novel (no parent)
-    novel_comments = novel.comments.filter(parent=None)
-    
-    # Get top-level comments on any chapter of this novel (no parent)
-    chapter_comments = Comment.objects.filter(
-        chapter__novel_from_source__novel=novel, parent=None
-    ).select_related('chapter__novel_from_source__external_source')
-    
-    # Process novel comments with their replies
-    novel_comments_serializer = CommentSerializer(novel_comments, many=True, context={'request': request}, profile='novel')
-    novel_comments_data = novel_comments_serializer.data
-    
-    # Process chapter comments with their replies
-    chapter_comments_data = []
-    for comment in chapter_comments:
-        serializer = CommentSerializer(
-            comment, context=chapter_comment_context(request, comment.chapter), profile='chapter'
-        )
-        chapter_comments_data.append(serializer.data)
-    
-    # Combine and sort by creation date
-    all_comments = novel_comments_data + chapter_comments_data
-    all_comments.sort(key=lambda x: x['created_at'], reverse=True)
 
-    # Frontend consumes a plain list; paginate top-level comments while keeping replies attached.
-    paginator = Paginator(all_comments, parse_page_size(request, 20, 50))
-    page_obj = paginator.get_page(request.GET.get('page', 1))
-
-    return Response(page_obj.object_list)
+    # A comment targets either the novel or one of its chapters; load both
+    # kinds (roots and replies) in two queries and build the tree in Python.
+    roots = list(
+        Comment.objects.filter(
+            Q(novel=novel) | Q(chapter__novel_from_source__novel=novel), parent=None
+        ).select_related('user', 'chapter__novel_from_source__external_source')
+    )
+    replies = list(
+        Comment.objects.filter(
+            Q(novel=novel) | Q(chapter__novel_from_source__novel=novel),
+            parent__isnull=False,
+        ).select_related('user')
+    )
+    return _threaded_comments_response(request, roots, replies)
 
 @api_view(['POST'])
 def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
@@ -164,48 +196,27 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     """
     novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
-    chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
-    
-    # Get top-level comments for this specific chapter (no parent)
-    specific_comments = chapter.comments.filter(parent=None)
-    
-    
-    specific_comments_serializer = CommentSerializer(
-        specific_comments,
-        many=True,
-        context=chapter_comment_context(request, chapter),
-        profile='chapter',
+    get_object_or_404(source.chapters, chapter_id=chapter_number)
+
+    # Every source of the novel carries its own copy of this chapter number;
+    # the commented chapter is shared across them, so gather them all at once
+    # instead of querying each source's chapter in a loop.
+    chapters = list(
+        Chapter.objects.filter(
+            novel_from_source__novel=novel, chapter_id=chapter_number
+        ).select_related('novel_from_source__external_source')
     )
-    specific_comments_data = specific_comments_serializer.data
-    
-    # Get comments for the same chapter number but from different sources
-    other_source_comments_data = []
-    for other_source in novel.sources.exclude(id=source.id):
-        try:
-            other_chapter = other_source.chapters.get(chapter_id=chapter_number)
-            other_comments = other_chapter.comments.filter(parent=None)
-            
-            serializer = CommentSerializer(
-                other_comments,
-                many=True,
-                context=chapter_comment_context(request, other_chapter),
-                profile='chapter',
-            )
-            for comment_data in serializer.data:
-                other_source_comments_data.append(comment_data)
-                
-        except Chapter.DoesNotExist:
-            continue
-    
-    # Combine all comments and sort by creation date
-    all_comments = specific_comments_data + other_source_comments_data
-    all_comments.sort(key=lambda x: x['created_at'], reverse=True)
-
-    # Frontend consumes a plain list; paginate top-level comments while keeping replies attached.
-    paginator = Paginator(all_comments, parse_page_size(request, 20, 50))
-    page_obj = paginator.get_page(request.GET.get('page', 1))
-
-    return Response(page_obj.object_list)
+    roots = list(
+        Comment.objects.filter(chapter__in=chapters, parent=None).select_related(
+            'user', 'chapter__novel_from_source__external_source'
+        )
+    )
+    replies = list(
+        Comment.objects.filter(
+            chapter__in=chapters, parent__isnull=False
+        ).select_related('user')
+    )
+    return _threaded_comments_response(request, roots, replies)
 
 @api_view(['POST'])
 def vote_comment(request, comment_id):

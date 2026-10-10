@@ -13,6 +13,17 @@ from .novels_models import Novel, NovelAlias, Author, Editor, Translator, Tag, A
 from .chapter_models import Volume, Chapter
 from ..utils import chapter_utils, lncrawler_paths
 
+CHAPTER_BULK_CHUNK = 500
+
+
+def _bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):
+    # Django's bulk_update builds one statement with a CASE/WHEN per row per
+    # field; a large chapter list becomes a single multi-MB query that can OOM
+    # the postgres backend. Chunk it. bulk_update has no batch_size argument.
+    for start in range(0, len(objects), chunk_size):
+        Chapter.objects.bulk_update(objects[start:start + chunk_size], fields)
+
+
 def truncate(value, max_length=500):
     if value and len(value) > max_length:
         return value[:max_length]
@@ -468,7 +479,7 @@ class NovelFromSource(models.Model):
                     park = min([0] + [ch.chapter_id for ch in existing_list]) - 1
                     for index, (chapter, _) in enumerate(reassigned, start=1):
                         chapter.chapter_id = park - index + 1
-                    Chapter.objects.bulk_update(
+                    _bulk_update_chunked(
                         [chapter for chapter, _ in reassigned], ['chapter_id']
                     )
 
@@ -481,7 +492,7 @@ class NovelFromSource(models.Model):
                     for chapter, final_id in reassigned:
                         chapter.chapter_id = final_id
                     fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content']
-                    Chapter.objects.bulk_update(chapters_to_update, fields_to_update)
+                    _bulk_update_chunked(chapters_to_update, fields_to_update)
             
             # Update last_chapter_update timestamp
             novel_from_source.last_chapter_update = timezone.now()

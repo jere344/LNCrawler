@@ -103,3 +103,75 @@ class DownloadImportFailureTests(TransactionTestCase):
         job.refresh_from_db()
         self.assertEqual(job.status, Job.STATUS_FAILED)
         self.assertIn("import failed", job.error_message)
+
+
+class DownloadExpectedErrorTests(TransactionTestCase):
+    """A source-level LNException (novel unavailable: removed from the site, no
+    downloads) must fail the job but stay below ERROR so it does not open an
+    auto-issue; unexpected errors still report."""
+
+    def _run_with(self, exc):
+        from unittest import mock
+
+        from ..services import downloader_service as ds
+
+        ds._load_app()  # put the crawler package on sys.path for isinstance
+        job = Job.objects.create(
+            status=Job.STATUS_CREATED, job_type=Job.JOB_TYPE_DOWNLOAD
+        )
+
+        class FakeApp:
+            crawler = object()
+
+            def prepare_search(self):
+                pass
+
+            def get_novel_info(self):
+                raise exc
+
+        # _setup_django runs django.setup(), which re-applies LOGGING and would
+        # strip assertLogs' handler mid-run. It only refreshes the DB
+        # connection here, which the test does not need.
+        with mock.patch.object(ds, "_load_app", return_value=FakeApp), mock.patch.object(
+            ds.DownloaderService, "_setup_django", return_value=None
+        ), mock.patch.object(
+            ds, "_poll_download_progress", return_value=None
+        ), mock.patch.object(
+            ds.DownloaderService, "_inject_existing_chapters", return_value=None
+        ):
+            ds.DownloaderService._run_download_process(
+                job.id, "http://example.invalid/novel"
+            )
+        return job
+
+    def test_source_error_fails_job_without_error_log(self):
+        from ..services.downloader_service import _load_app
+
+        _load_app()
+        from lncrawl.core.exeptions import LNException
+
+        with self.assertLogs("lncrawler_api", level="WARNING") as cm:
+            job = self._run_with(
+                LNException("No EPUB downloads found on this novel page")
+            )
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, Job.STATUS_FAILED)
+        self.assertIn("No EPUB downloads found", job.error_message)
+        self.assertFalse(any(r.levelname == "ERROR" for r in cm.records))
+
+    def test_transport_error_fails_job_without_error_log(self):
+        from urllib.error import URLError
+
+        with self.assertLogs("lncrawler_api", level="WARNING") as cm:
+            job = self._run_with(URLError("server error"))
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, Job.STATUS_FAILED)
+        self.assertFalse(any(r.levelname == "ERROR" for r in cm.records))
+
+    def test_unexpected_error_logs_error(self):
+        with self.assertLogs("lncrawler_api", level="ERROR") as cm:
+            self._run_with(RuntimeError("boom"))
+
+        self.assertTrue(any(r.levelname == "ERROR" for r in cm.records))

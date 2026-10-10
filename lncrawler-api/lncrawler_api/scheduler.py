@@ -5,6 +5,7 @@ import os
 import uuid
 from django.conf import settings
 from django.core.management import call_command
+from django.db import close_old_connections
 from typing import Optional, Callable, Dict
 from .models import ScheduledTask
 
@@ -81,6 +82,13 @@ class DatabaseScheduler:
         
         while self.running:
             try:
+                # This is a plain background thread, so Django's per-request
+                # connection cleanup never runs here. Revalidate the connection
+                # each iteration: CONN_MAX_AGE closes it by age and a DB
+                # restart/failover leaves a dead wrapper that would otherwise
+                # raise "the connection is closed" forever.
+                close_old_connections()
+
                 # Clean up stale locks periodically
                 ScheduledTask.cleanup_stale_locks()
                 
@@ -127,6 +135,7 @@ class DatabaseScheduler:
         
         def _heartbeat_loop():
             while not heartbeat_stop.wait(300):
+                close_old_connections()
                 if not task.heartbeat():
                     logger.warning(f"Task '{task.name}': lost lock while running, stopping heartbeat")
                     break

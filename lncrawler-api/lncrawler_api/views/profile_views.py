@@ -105,7 +105,7 @@ def user_reading_lists(request, username):
     if not is_owner and not can_view(viewer, owner, 'reading_lists'):
         return _forbidden("This user's reading lists are private.")
     from .reading_lists_views import _reading_lists_query_set
-    query_set = _reading_lists_query_set(viewer).filter(user=owner)
+    query_set = _reading_lists_query_set(viewer, full=False).filter(user=owner)
     if not is_owner:
         query_set = query_set.filter(is_public=True)
     return _paginated_response(request, query_set.order_by('-updated_at'), ReadingListSerializer)

@@ -33,6 +33,19 @@ def _load_app():
     return App
 
 
+def _is_expected_crawler_error(exc) -> bool:
+    """True for failures that are not bugs in our code: source-level
+    ``LNException``s (novel unavailable: removed from the site, no downloads,
+    bad URL) and transport errors (HTTP 5xx / network / IO) that exhausted their
+    retries. Chapter-level failures are classified inside the crawler, so an
+    exception reaching the download loop is either one of these or a real bug."""
+    try:
+        from lncrawl.core.exeptions import LNException, RetryErrorGroup
+    except Exception:
+        return False
+    return isinstance(exc, (LNException, *RetryErrorGroup))
+
+
 def _poll_download_progress(job, app, phase, total_chapters):
     """Push one progress reading from the crawler/app onto the job.
 
@@ -392,7 +405,13 @@ class DownloaderService:
             logger.debug(f"Download process completed successfully for job {job_id}")
 
         except Exception as e:
-            logger.exception(f"Error in download process: {str(e)}")
+            # A source-level LNException means the novel is unavailable, which
+            # is expected and user-facing rather than a bug. Keep it below ERROR
+            # so it fails the job without opening an auto-issue.
+            if _is_expected_crawler_error(e):
+                logger.warning("Download process stopped: %s", e)
+            else:
+                logger.exception(f"Error in download process: {str(e)}")
             try:
                 DownloaderService._setup_django()
                 from ..models import Job

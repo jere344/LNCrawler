@@ -4,7 +4,8 @@ from typing import Generator, List, Optional
 
 from ...core.browser import Browser, By  # noqa: F401  (By re-exported for sources)
 from ...core.crawler import Crawler
-from ...core.exeptions import FallbackToBrowser, ScraperErrorGroup
+from ...core.exeptions import (FallbackToBrowser, RetryErrorGroup,
+                               ScraperErrorGroup)
 from ...models import Chapter
 from ...models.search_result import SearchResult
 
@@ -177,7 +178,12 @@ class BasicBrowserTemplate(Crawler):
                     self.extract_chapter_images(chapter)
                     chapter.success = True
                 except Exception as e:
-                    logger.error("Failed to get chapter body: %s", e)
+                    # Expected transport/5xx failures are noise for the issue
+                    # reporter; only unexpected errors are worth reporting.
+                    if isinstance(e, RetryErrorGroup):
+                        logger.warning("Failed to get chapter body: %s", e)
+                    else:
+                        logger.error("Failed to get chapter body: %s", e)
                     if isinstance(e, KeyboardInterrupt):
                         break
                     if fail_fast:

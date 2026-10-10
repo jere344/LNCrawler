@@ -17,13 +17,6 @@ def chapter_comment_context(request, chapter):
     }
 
 
-class RecursiveCommentSerializer(serializers.Serializer):
-    def to_representation(self, instance):
-        parent = self.parent.parent
-        serializer = parent.__class__(instance, context=self.context, profile=parent.profile)
-        return serializer.data
-
-
 class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     """Serializes a comment through one of several profiles.
 
@@ -31,7 +24,7 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     labels carried in the serializer context; ``profile`` adds the target a
     comment was posted on (for the profile comments tab).
     """
-    replies = RecursiveCommentSerializer(many=True, read_only=True)
+    replies = serializers.SerializerMethodField()
     user = UserSerializer(read_only=True, profile='compact')
     vote_score = serializers.IntegerField(read_only=True)
     upvotes = serializers.IntegerField(read_only=True)
@@ -72,10 +65,34 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         model = Comment
         read_only_fields = ['id', 'created_at', 'upvotes', 'downvotes', 'vote_score']
 
+    def get_replies(self, obj):
+        # The thread views pass the whole reply tree as a prebuilt
+        # ``comment_children`` map so the recursion never queries. Elsewhere
+        # (single comment, profile tab) fall back to the related manager, which
+        # is a no-op when the caller prefetched ``replies``.
+        children = self.context.get('comment_children')
+        if children is not None:
+            replies = children.get(obj.id, [])
+        else:
+            replies = obj.replies.all()
+        return [
+            CommentSerializer(reply, context=self.context, profile=self.profile).data
+            for reply in replies
+        ]
+
     def get_has_replies(self, obj):
+        children = self.context.get('comment_children')
+        if children is not None:
+            return bool(children.get(obj.id))
+        if 'replies' in getattr(obj, '_prefetched_objects_cache', {}):
+            return len(obj.replies.all()) > 0
         return obj.replies.exists()
 
     def get_user_vote(self, obj):
+        # Batch path: the thread views precompute {comment_id: vote_type} for
+        # the viewer in one query and drop it in the context.
+        if 'comment_user_votes' in self.context:
+            return self.context['comment_user_votes'].get(obj.id)
         request = self.context.get('request')
         if request:
             ip_address = get_client_ip(request)

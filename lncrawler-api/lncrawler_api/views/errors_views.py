@@ -39,6 +39,22 @@ _IGNORABLE = re.compile(
     re.IGNORECASE,
 )
 
+# Browser extensions inject handlers into the page, so their rejected promises
+# surface through the client's window listeners. The message is generic, but the
+# top stack frame names the extension scheme. Mirror of the client check in
+# lncrawler-frontend/src/services/errorReporter.ts.
+_EXTENSION_ORIGIN = re.compile(
+    r"(?:chrome|moz|safari|ms-browser)(?:-web)?-extension://", re.IGNORECASE
+)
+
+
+def _is_extension_error(stack: str) -> bool:
+    top = next(
+        (line.strip() for line in stack.splitlines() if line.strip().startswith("at ")),
+        "",
+    )
+    return bool(_EXTENSION_ORIGIN.search(top))
+
 
 @csrf_exempt
 @require_POST
@@ -49,9 +65,10 @@ def report_error(request):
         payload = {}
 
     message = str(payload.get("message", "Unknown frontend error"))[:2000]
+    stack = str(payload.get("stack", ""))[:5000]
     # Drop non-actionable noise before it consumes the rate-limit budget, so a
     # browser extension in a loop can't get a real report from the same IP 429'd.
-    if _IGNORABLE.search(message):
+    if _IGNORABLE.search(message) or _is_extension_error(stack):
         return JsonResponse({"detail": "ignored"})
 
     ip = get_client_ip(request)
@@ -69,7 +86,6 @@ def report_error(request):
         if count > _RATE_LIMIT:
             return JsonResponse({"detail": "rate limited"}, status=429)
 
-    stack = str(payload.get("stack", ""))[:5000]
     # Drop the query string: it can carry tokens/emails/IDs into the tracker.
     url = str(payload.get("url", "")).split("?")[0][:500]
     context = str(payload.get("context", ""))[:500]

@@ -240,6 +240,11 @@ def run_feeder(stop_event, interval=None, once=False) -> None:
     logger.info("Harvest feeder started (interval=%ss)", interval)
     try:
         while not stop_event.is_set():
+            # Long-lived thread: no request cycle revalidates the connection,
+            # so drop a dead/aged one here before touching the DB.
+            from django.db import close_old_connections
+
+            close_old_connections()
             try:
                 if not acquire_feeder_lock():
                     # Another feeder owns the lock. Wait instead of exiting, so

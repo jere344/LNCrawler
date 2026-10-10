@@ -28,6 +28,16 @@ class ReadingListItemSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'added_at']
 
 
+class ReadingListPreviewItemSerializer(serializers.ModelSerializer):
+    """First item of a list card: a cover thumbnail, not a full novel card."""
+    novel = NovelSerializer(read_only=True, profile='preview')
+
+    class Meta:
+        model = ReadingListItem
+        fields = ['id', 'novel', 'note', 'position', 'added_at']
+        read_only_fields = fields
+
+
 class ReadingListCollaboratorSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True, profile='compact')
 
@@ -89,7 +99,7 @@ class ReadingListSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         items = self._visible_items(obj)
         if not items:
             return None
-        return ReadingListItemSerializer(items[0], context=self.context).data
+        return ReadingListPreviewItemSerializer(items[0], context=self.context).data
 
     def get_items_names(self, obj):
         return [item.novel.title for item in self._visible_items(obj) if item.novel]

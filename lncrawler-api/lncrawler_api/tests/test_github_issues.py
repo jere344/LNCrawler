@@ -123,6 +123,41 @@ class ReportErrorEndpointTests(TestCase):
     def test_rejects_get(self):
         self.assertEqual(self.client.get("/report-error/").status_code, 405)
 
+    def test_ignores_extension_origin_stack(self):
+        resp = self.client.post(
+            "/report-error/",
+            data=json.dumps(
+                {
+                    "message": "Cannot read properties of undefined (reading 'M_ID')",
+                    "stack": (
+                        "TypeError: Cannot read properties of undefined (reading 'M_ID')\n"
+                        "    at Y (chrome-extension://abc/executors/200.js:1:761)\n"
+                        "    at E (chrome-extension://abc/executors/200.js:1:1442)"
+                    ),
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.json(), {"detail": "ignored"})
+
+    def test_keeps_app_error_with_extension_string_below_top_frame(self):
+        with self.assertLogs("frontend", level="ERROR"):
+            resp = self.client.post(
+                "/report-error/",
+                data=json.dumps(
+                    {
+                        "message": "real app error",
+                        "stack": (
+                            "Error: real app error\n"
+                            "    at App (https://lncrawler.monster/assets/app.js:1:1)\n"
+                            "    at chrome-extension://abc/hook.js:1:1"
+                        ),
+                    }
+                ),
+                content_type="application/json",
+            )
+        self.assertEqual(resp.json(), {"detail": "ok"})
+
 
 @override_settings(GITHUB_ISSUES_ENABLED=False, ISSUE_REPORTS_TO_DISK=False)
 class FrontendFingerprintTests(TestCase):

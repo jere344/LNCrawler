@@ -28,6 +28,18 @@ const IGNORABLE_PATTERNS: RegExp[] = [
 const isIgnorable = (message: string): boolean =>
   IGNORABLE_PATTERNS.some((re) => re.test(message));
 
+// Browser extensions inject handlers into the page, so their rejected promises
+// surface through our window listeners. The message is generic ("Cannot read
+// properties of undefined..."), but the top stack frame names the extension
+// scheme, which is the reliable signal. Not ours to fix.
+const EXTENSION_ORIGIN = /(?:chrome|moz|safari|ms-browser)(?:-web)?-extension:\/\//i;
+
+const topFrame = (stack: string): string =>
+  stack.split('\n').find((line) => line.trim().startsWith('at ')) ?? '';
+
+const isExtensionError = (stack: string): boolean =>
+  EXTENSION_ORIGIN.test(topFrame(stack));
+
 export interface ErrorContext {
   url?: string;
   context?: string;
@@ -41,7 +53,7 @@ export const reportError = (error: unknown, ctx: ErrorContext = {}): void => {
   try {
     const err = error instanceof Error ? error : new Error(String(error));
 
-    if (isIgnorable(err.message || '')) return;
+    if (isIgnorable(err.message || '') || isExtensionError(err.stack || '')) return;
 
     const status = (err as { response?: { status?: number } }).response?.status;
     if (status !== undefined && status >= 400 && status < 500) return;

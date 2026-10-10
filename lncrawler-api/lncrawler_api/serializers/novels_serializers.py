@@ -27,6 +27,8 @@ class NovelAggregatesMixin:
             return 'detail'
         if self.profile == 'featured':
             return 'featured'
+        if self.profile == 'preview':
+            return 'preview'
         return 'card'
 
     def _prefetched(self, obj, name):
@@ -67,6 +69,10 @@ class NovelAggregatesMixin:
         ).data
 
     def get_avg_rating(self, obj):
+        # Querysets built with annotate_card_aggregates carry the average.
+        if 'card_avg_rating' in obj.__dict__:
+            avg = obj.card_avg_rating
+            return round(avg, 1) if avg is not None else None
         if self._prefetched(obj, 'ratings'):
             ratings = [rating.rating for rating in obj.ratings.all()]
             return round(sum(ratings) / len(ratings), 1) if ratings else None
@@ -74,14 +80,20 @@ class NovelAggregatesMixin:
         return round(avg, 1) if avg else None
 
     def get_rating_count(self, obj):
+        if 'card_rating_count' in obj.__dict__:
+            return obj.card_rating_count or 0
         if self._prefetched(obj, 'ratings'):
             return len(obj.ratings.all())
         return obj.ratings.count()
 
     def get_total_views(self, obj):
+        if 'card_total_views' in obj.__dict__:
+            return obj.card_total_views or 0
         return sum(source.total_views for source in self._context_sources(obj))
 
     def get_weekly_views(self, obj):
+        if 'card_weekly_views' in obj.__dict__:
+            return obj.card_weekly_views or 0
         sources = self._context_sources(obj)
         if self._prefetched(obj, 'sources') and all(
             self._prefetched(source, 'weekly_views') for source in sources
@@ -205,6 +217,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             'reading_history', 'reading_source', 'is_dmca',
             'bookmark_id', 'note', 'folder', 'folder_name', 'position', 'user_rating',
         ],
+        # Cover thumbnail for reading-list cards (first_item): only what the
+        # card renders, so a list page doesn't serialize a full card per list.
+        'preview': ['id', 'title', 'prefered_source', 'is_adult'],
     }
 
     class Meta:
