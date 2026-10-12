@@ -13,7 +13,6 @@ from django.urls import reverse
 from ..models import (
     Comment,
     ExternalSource,
-    FeaturedNovel,
     Novel,
     NovelAlias,
     NovelBookmark,
@@ -77,7 +76,6 @@ class MergeNovelsTests(MergeTestCase):
             day=date.today(),
             views=3,
         )
-        FeaturedNovel.objects.create(novel=self.duplicate, description="featured")
         other = Novel.objects.create(title="Other", slug="other", novel_path="other")
         NovelSimilarity.objects.create(
             from_novel=self.duplicate, to_novel=other, similarity=0.9
@@ -124,7 +122,6 @@ class MergeNovelsTests(MergeTestCase):
             )["total"],
             3,
         )
-        self.assertTrue(FeaturedNovel.objects.filter(novel=self.target).exists())
         self.assertEqual(
             NovelSimilarity.objects.get(similarity=0.9).from_novel, self.target
         )

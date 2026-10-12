@@ -346,9 +346,6 @@ class Command(BaseCommand):
                 return True
             if novel.in_reading_lists.exists():
                 return True
-            # OneToOne reverse raises DoesNotExist, not AttributeError.
-            if getattr(novel, "featured", None):
-                return True
         except Exception:
             # A missing reverse relation must never crash the prune run.
             return True

@@ -21,7 +21,7 @@ interface ChapterCardProps {
 const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = false, to, state }) => {
   const { t } = useTranslation();
   const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(source.is_adult, source.novel_id);
+  const blurred = isBlurred(source.is_adult, source.id);
   const coverHeight = 90;
   const coverWidth = coverHeight * 2/3;
 
@@ -75,7 +75,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
           component="img"
           src={source.cover_min_url || defaultCover}
           alt={source.title}
-          onClick={blurred ? revealHandler(source.novel_id) : undefined}
+          onClick={blurred ? revealHandler(source.id) : undefined}
           sx={{
             width: '100%',
             height: '100%',
@@ -84,7 +84,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
             filter: blurred ? 'blur(16px)' : 'none',
           }}
         />
-        <AdultBadge isAdult={source.is_adult} novelId={source.novel_id} />
+        <AdultBadge isAdult={source.is_adult} novelId={source.id} />
       </Card>
       
       <Box sx={{ 

@@ -135,7 +135,7 @@ def annotate_card_aggregates(queryset, languages=None):
 
 
 def sources_queryset(
-    detailed=False, ip=None, user=None, synopsis=False, associations=True
+    detailed=False, ip=None, user=None, associations=True
 ):
     """Sources with everything the serializers read: external source and
     parent novel joined, authors/tags prefetched, and the latest available
@@ -179,16 +179,13 @@ def sources_queryset(
     if not detailed:
         # Card/library payloads read only a handful of columns; defer the big
         # text/blob columns (the synopsis alone can be kilobytes per source) so
-        # list pages don't transfer every source's full row. Featured cards do
-        # render the synopsis, so callers that use the featured profile pass
-        # ``synopsis=True``.
+        # list pages don't transfer every source's full row.
         deferred = [
             'cover_url', 'cover_path', 'overview_picture_path', 'cover_phash',
             'meta_file_path', 'novelupdates_url', 'original_publisher',
             'english_publisher', 'status', 'source_path', 'source_url',
+            'synopsis',
         ]
-        if not synopsis:
-            deferred.append('synopsis')
         return qs.defer(*deferred)
 
     first = _first_content_chapter()
@@ -218,13 +215,13 @@ def sources_queryset(
 
 
 def source_prefetch(
-    prefix='', detailed=False, ip=None, user=None, synopsis=False, associations=True
+    prefix='', detailed=False, ip=None, user=None, associations=True
 ):
     """Prefetch a novel's sources (see `sources_queryset`)."""
     return Prefetch(
         prefix + 'sources',
         queryset=sources_queryset(
-            detailed=detailed, ip=ip, user=user, synopsis=synopsis,
+            detailed=detailed, ip=ip, user=user,
             associations=associations,
         ),
     )
@@ -242,13 +239,12 @@ def weekly_views_prefetch(prefix=''):
 
 
 def novel_prefetch_objects(
-    user=None, prefix='', detailed=False, ip=None, synopsis=False,
+    user=None, prefix='', detailed=False, ip=None,
     card_aggregates=False, associations=True,
 ):
     """The prefetch list for a novel queryset, optionally addressed through a
     relation (e.g. prefix='to_novel__' for NovelSimilarity rows).
 
-    ``synopsis`` keeps the sources' synopsis column (featured cards read it).
     ``card_aggregates`` drops the ratings/weekly-views prefetches because the
     queryset already carries the matching annotations
     (``annotate_card_aggregates``); only set it when that is true, otherwise the
@@ -256,7 +252,7 @@ def novel_prefetch_objects(
     """
     prefetches = [
         source_prefetch(
-            prefix, detailed=detailed, ip=ip, user=user, synopsis=synopsis,
+            prefix, detailed=detailed, ip=ip, user=user,
             associations=associations,
         ),
     ]
@@ -284,16 +280,16 @@ def novel_prefetch_objects(
 
 
 def apply_novel_prefetches(
-    queryset, user=None, detailed=False, ip=None, synopsis=False, card_aggregates=False
+    queryset, user=None, detailed=False, ip=None, card_aggregates=False
 ):
     """Attach the relations the novel serializers read. Pass the request user
     so per-user bookmark/history lookups are collapsed into one query each;
     ``detailed`` adds the first-chapter/volumes/vote prefetches detail views
-    need (see ``sources_queryset``). ``synopsis``/``card_aggregates`` are passed
-    through to ``novel_prefetch_objects``."""
+    need (see ``sources_queryset``). ``card_aggregates`` is passed through to
+    ``novel_prefetch_objects``."""
     return queryset.prefetch_related(
         *novel_prefetch_objects(
-            user, detailed=detailed, ip=ip, synopsis=synopsis,
+            user, detailed=detailed, ip=ip,
             card_aggregates=card_aggregates,
         )
     )

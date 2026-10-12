@@ -16,13 +16,20 @@ const MAX_STACK_LENGTH = 16000;
 // in errors_views.py (the server one is authoritative for cached clients).
 const IGNORABLE_PATTERNS: RegExp[] = [
   /window\.ethereum/i,
+  /__firefox__/i,
   /^Script error\.?$/,
-  /Failed to fetch dynamically imported module/,
-  /Unable to preload CSS/,
+  /dynamically imported module/i,
+  /Importing a module script failed/i,
+  /Unable to preload CSS/i,
   /^Failed to fetch$/,
-  /NetworkError when attempting to fetch resource/,
+  /NetworkError when attempting to fetch resource/i,
+  /Firefox can't establish a connection/i,
   /^Load failed$/,
-  /ResizeObserver loop/,
+  /ResizeObserver loop/i,
+  // DOM-node NotFoundError raised while React unmounts nodes the browser
+  // (translation/reader extensions) already removed. Same bug, two browsers.
+  /The node to be removed is not a child of this node/i,
+  /The object can not be found here/i,
 ];
 
 const isIgnorable = (message: string): boolean =>
@@ -34,11 +41,22 @@ const isIgnorable = (message: string): boolean =>
 // scheme, which is the reliable signal. Not ours to fix.
 const EXTENSION_ORIGIN = /(?:chrome|moz|safari|ms-browser)(?:-web)?-extension:\/\//i;
 
+// Our code is always served from a hashed `/assets/*.js` bundle; a script with
+// frames attributed to the document itself was injected into the page (Firefox
+// reader/quality extensions, edge proxies such as Rocket Loader). Those can
+// recurse or throw on our pages without a line existing in this repo.
+const ASSET_PATH = '/assets/';
+const isInjectedScript = (stack: string): boolean => {
+  const first = stack.split('\n').find((line) => line.trim()) ?? '';
+  const url = first.match(/https?:\/\/[^\s)]+/)?.[0] ?? '';
+  return url.includes('://') && !url.includes(ASSET_PATH);
+};
+
 const topFrame = (stack: string): string =>
   stack.split('\n').find((line) => line.trim().startsWith('at ')) ?? '';
 
 const isExtensionError = (stack: string): boolean =>
-  EXTENSION_ORIGIN.test(topFrame(stack));
+  EXTENSION_ORIGIN.test(topFrame(stack)) || isInjectedScript(stack);
 
 export interface ErrorContext {
   url?: string;
@@ -52,8 +70,12 @@ export interface ErrorContext {
 export const reportError = (error: unknown, ctx: ErrorContext = {}): void => {
   try {
     const err = error instanceof Error ? error : new Error(String(error));
+    // A cross-realm Error (extension/iframe) is not `instanceof Error` here, so
+    // `err.stack` would point at this reporter. Keep the original stack when the
+    // reason carries one, so the real origin (e.g. an extension frame) shows up.
+    const stack = (error as { stack?: string } | null)?.stack || err.stack || '';
 
-    if (isIgnorable(err.message || '') || isExtensionError(err.stack || '')) return;
+    if (isIgnorable(err.message || '') || isExtensionError(stack)) return;
 
     const status = (err as { response?: { status?: number } }).response?.status;
     if (status !== undefined && status >= 400 && status < 500) return;
@@ -75,7 +97,7 @@ export const reportError = (error: unknown, ctx: ErrorContext = {}): void => {
       keepalive: true,
       body: JSON.stringify({
         message: err.message || 'Unknown error',
-        stack: (err.stack || '').slice(0, MAX_STACK_LENGTH),
+        stack: stack.slice(0, MAX_STACK_LENGTH),
         url: ctx.url || window.location.href,
         context: ctx.context || '',
       }),

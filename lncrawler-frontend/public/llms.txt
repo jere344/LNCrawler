@@ -6,7 +6,7 @@
 
 ## Main pages
 
-- [Home](https://lncrawler.monster/): browse featured and recently updated novels.
+- [Home](https://lncrawler.monster/): browse popular and recently updated novels.
 - [Search novels](https://lncrawler.monster/novels/search): search the catalog by
   title, author, tag, language, status and rating.
 - [Add a novel](https://lncrawler.monster/download): download a novel from a

@@ -233,6 +233,10 @@ const SourceDetail = () => {
   if (!source && !error) {
     return (
       <Container maxWidth="lg">
+        <Box sx={{ mb: 3, mt: 1 }}>
+          <Skeleton variant="text" width={220} height={24} animation="wave" />
+        </Box>
+
         <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
           <Skeleton variant="rectangular" width={120} height={36} sx={{ borderRadius: '20px' }} />
         </Box>

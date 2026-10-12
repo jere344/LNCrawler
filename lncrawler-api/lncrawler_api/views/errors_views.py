@@ -29,13 +29,20 @@ _RATE_WINDOW = 3600
 # copy is authoritative so cached clients cannot keep opening issues.
 _IGNORABLE = re.compile(
     r"window\.ethereum"
+    r"|__firefox__"
     r"|^Script error\.?$"
-    r"|Failed to fetch dynamically imported module"
+    r"|dynamically imported module"
+    r"|Importing a module script failed"
     r"|Unable to preload CSS"
     r"|^Failed to fetch$"
     r"|NetworkError when attempting to fetch resource"
     r"|^Load failed$"
-    r"|ResizeObserver loop",
+    r"|Firefox can't establish a connection"
+    r"|ResizeObserver loop"
+    # DOM-node NotFoundError raised while React unmounts nodes the browser
+    # (translation/reader extensions) already removed. Same bug, two browsers.
+    r"|The node to be removed is not a child of this node"
+    r"|The object can not be found here",
     re.IGNORECASE,
 )
 
@@ -47,13 +54,27 @@ _EXTENSION_ORIGIN = re.compile(
     r"(?:chrome|moz|safari|ms-browser)(?:-web)?-extension://", re.IGNORECASE
 )
 
+# Our code is always served from a hashed `/assets/*.js` bundle; a script with
+# frames attributed to the document itself was injected into the page (Firefox
+# reader/quality extensions, edge proxies). Those can recurse or throw on our
+# pages without a line existing in the repo.
+_ASSET_PATH = "/assets/"
+_FRAME_URL = re.compile(r"https?://[^\s)]+")
+
+
+def _is_injected_script(stack: str) -> bool:
+    first = next((line.strip() for line in stack.splitlines() if line.strip()), "")
+    match = _FRAME_URL.search(first)
+    url = match.group(0) if match else ""
+    return "://" in url and _ASSET_PATH not in url
+
 
 def _is_extension_error(stack: str) -> bool:
     top = next(
         (line.strip() for line in stack.splitlines() if line.strip().startswith("at ")),
         "",
     )
-    return bool(_EXTENSION_ORIGIN.search(top))
+    return bool(_EXTENSION_ORIGIN.search(top)) or _is_injected_script(stack)
 
 
 @csrf_exempt

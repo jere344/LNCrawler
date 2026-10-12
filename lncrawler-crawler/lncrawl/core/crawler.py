@@ -120,7 +120,7 @@ class Crawler(Scraper):
 
     def read_novel_info(self) -> None:
         """Get novel title, author, cover, volumes and chapters."""
-        raise NotImplementedError()
+        raise NotImplementedError(f"{type(self).__name__} does not implement read_novel_info")
 
     def download_chapter_body(self, chapter: Chapter) -> str:
         """Download body of a single chapter and return clean html."""

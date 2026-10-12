@@ -116,13 +116,6 @@ export interface SimilarNovel extends Novel {
   similarity: number;
 }
 
-export interface NovelFeaturedResponse {
-  novel: Novel;
-  description: string;
-  featured_since: string;
-}
-
-
 export interface ChapterContent {
   id: string;
   chapter_id: number;

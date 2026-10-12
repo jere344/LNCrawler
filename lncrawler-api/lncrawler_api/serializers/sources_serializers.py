@@ -11,8 +11,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     ``card`` is the trimmed payload novel cards read (default), which lets
     ``sources_queryset(detailed=False)`` skip the matching prefetches and
-    annotations; ``featured`` is the home card (card plus the synopsis and
-    novel_id truthiness flag); ``detail`` is everything the source page needs.
+    annotations; ``detail`` is everything the source page needs.
     """
 
     authors = serializers.SerializerMethodField()
@@ -49,14 +48,6 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         # Cover thumbnail for reading-list cards: only the blurred/first-item
         # cover the list card needs.
         'preview': ['id', 'cover_min_url'],
-        # Home featured card: everything a card shows plus the synopsis (and
-        # novel_id, which the card uses as a truthiness flag). Skips the
-        # detail-only volumes / first-chapter / editors / translators / votes.
-        'featured': [
-            'id', 'title', 'source_slug', 'novel_slug', 'cover_min_url',
-            'authors', 'tags', 'chapters_count', 'last_chapter_update',
-            'latest_available_chapter', 'synopsis', 'novel_id', 'is_adult',
-        ],
         'detail': [
             'id', 'title', 'source_url', 'source_name', 'source_slug',
             'authors', 'tags', 'language', 'synopsis', 'has_crawler', 'cover_min_url',
@@ -73,10 +64,9 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         model = NovelFromSource
 
     def get_synopsis(self, obj: NovelFromSource):
-        # Synopsis is a large text field; only load it for detail views (and the
-        # single-source featured card) so list endpoints don't pull every
-        # source's synopsis.
-        return obj.synopsis if self.profile in ('detail', 'featured') else None
+        # Synopsis is a large text field; only load it for detail views so list
+        # endpoints don't pull every source's synopsis.
+        return obj.synopsis if self.profile == 'detail' else None
 
     def get_has_crawler(self, obj: NovelFromSource):
         # Only detail views show the update button; skip the registry import in

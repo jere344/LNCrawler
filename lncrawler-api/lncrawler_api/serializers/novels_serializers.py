@@ -21,12 +21,9 @@ class NovelAggregatesMixin:
     @property
     def source_profile(self):
         # Which NovelSourceSerializer profile the preferred/reading source uses.
-        # detail = full source payload; featured = card + synopsis (home card);
-        # anything else (card/library) = card.
+        # detail = full source payload; anything else (card/library) = card.
         if self.profile == 'detail':
             return 'detail'
-        if self.profile == 'featured':
-            return 'featured'
         if self.profile == 'preview':
             return 'preview'
         return 'card'
@@ -156,14 +153,13 @@ class NovelAggregatesMixin:
 
 
 class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.ModelSerializer):
-    """Serializes a novel through one of four profiles.
+    """Serializes a novel through one of three profiles.
 
     ``card`` is the lightweight card (default), ``detail`` adds the nested
-    sources / viewer rating / similar novels / reading lists, ``library`` is
-    the card payload plus the bookmark owner's folder, note, position and
-    rating, and ``featured`` is ``card`` with the preferred source's synopsis
-    for the home card. Only the fields a profile emits are built, so
-    detail-only work never runs for card rows.
+    sources / viewer rating / similar novels / reading lists, and ``library``
+    is the card payload plus the bookmark owner's folder, note, position and
+    rating. Only the fields a profile emits are built, so detail-only work
+    never runs for card rows.
     """
 
     sources = serializers.SerializerMethodField()
@@ -189,16 +185,6 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     default_profile = 'card'
     field_profiles = {
         'card': [
-            'id', 'title', 'slug',
-            'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source', 'is_dmca',
-        ],
-        # The home featured card: the card payload with its preferred source
-        # carrying the synopsis. Deliberately omits sources / similar_novels /
-        # reading_lists / user_rating, which the card never renders and whose
-        # serialization is where home used to spend most of its queries.
-        'featured': [
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',

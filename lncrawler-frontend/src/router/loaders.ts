@@ -4,7 +4,7 @@ import { chatService } from '@services/chat.service';
 import { readingListService } from '@services/readinglist.service';
 import { getInitialContentLanguages, getInitialLanguageFilterEnabled } from '@context/LanguageContext';
 import { getNovelSourcePath } from '@utils/Misc';
-import type { Novel, NovelFromSource, NovelFeaturedResponse, Chapter } from '@models/novels_types';
+import type { Novel, NovelFromSource, Chapter } from '@models/novels_types';
 import type { Review } from '@services/review.service';
 import type { ChatPageResponse } from '@models/chat_types';
 import type { ReadingList, ReadingListResponse } from '@models/readinglist_types';
@@ -18,7 +18,6 @@ export interface HomeData {
   top_rated_novels: Novel[];
   recently_added: Novel[];
   recently_updated: NovelFromSource[];
-  featured_novel: NovelFeaturedResponse | null;
   recent_reviews: Review[];
   recommended_novels: Novel[];
   novels_you_added: Novel[];

@@ -15,7 +15,6 @@ APP_GROUPS = [
             "NovelAlias",
             "NovelSimilarity",
             "NovelRating",
-            "FeaturedNovel",
             "WeeklySourceView",
         ],
     ),

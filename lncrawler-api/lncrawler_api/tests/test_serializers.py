@@ -29,12 +29,6 @@ class SerializerProfileTests(TestCase):
             "is_bookmarked", "comment_count", "reading_history", "reading_source",
             "is_dmca",
         ],
-        "featured": [
-            "id", "title", "slug", "avg_rating", "rating_count", "total_views",
-            "weekly_views", "prefered_source", "languages", "is_adult",
-            "is_bookmarked", "comment_count", "reading_history", "reading_source",
-            "is_dmca",
-        ],
         "detail": [
             "id", "title", "slug", "sources", "created_at", "updated_at",
             "avg_rating", "rating_count", "user_rating", "total_views",
@@ -56,11 +50,6 @@ class SerializerProfileTests(TestCase):
             "id", "title", "source_slug", "novel_slug", "novel_id", "cover_min_url",
             "authors", "tags", "chapters_count", "last_chapter_update",
             "latest_available_chapter", "is_adult",
-        ],
-        "featured": [
-            "id", "title", "source_slug", "novel_slug", "cover_min_url",
-            "authors", "tags", "chapters_count", "last_chapter_update",
-            "latest_available_chapter", "synopsis", "novel_id", "is_adult",
         ],
         "detail": [
             "id", "title", "source_url", "source_name", "source_slug", "authors",

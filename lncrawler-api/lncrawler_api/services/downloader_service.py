@@ -43,6 +43,9 @@ def _is_expected_crawler_error(exc) -> bool:
         from lncrawl.core.exeptions import LNException, RetryErrorGroup
     except Exception:
         return False
+    # An unsupported/disabled host is a user error, not a bug in our code.
+    if isinstance(exc, ValueError) and "No crawler available for host" in str(exc):
+        return True
     return isinstance(exc, (LNException, *RetryErrorGroup))
 
 
@@ -410,13 +413,15 @@ class DownloaderService:
             # so it fails the job without opening an auto-issue.
             if _is_expected_crawler_error(e):
                 logger.warning("Download process stopped: %s", e)
+                message = str(e) or "Novel unavailable from this source"
             else:
                 logger.exception(f"Error in download process: {str(e)}")
+                message = f"Download process error: {str(e)}"
             try:
                 DownloaderService._setup_django()
                 from ..models import Job
                 job = Job.objects.get(id=job_id)
-                job.update_status(Job.STATUS_FAILED, f"Download process error: {str(e)}")
+                job.update_status(Job.STATUS_FAILED, message)
             except Exception:
                 pass
         finally:

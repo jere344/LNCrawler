@@ -1,7 +1,7 @@
 import React from 'react';
-import { SimilarNovel } from '@models/novels_types';
+import { Novel, SimilarNovel } from '@models/novels_types';
 import BaseNovelCard from './novelcardtypes/BaseNovelCard';
-import { Box, Typography, Skeleton, useTheme, useMediaQuery, IconButton, alpha } from '@mui/material';
+import { Box, Typography, useTheme, useMediaQuery, IconButton, alpha } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { getNovelSourceLink } from '@utils/Misc';
@@ -40,14 +40,21 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
 
   if (loading) {
     return (
-      <Box sx={{ px: 2, py: 2, display: 'flex', gap: 2 }}>
-        {Array.from(new Array(itemsPerSlide)).map((_, index) => (
-          <Box key={index} sx={{ flex: 1 }}>
-            <Skeleton variant="rectangular" width="100%" height={180} />
-            <Skeleton variant="text" width="80%" sx={{ mt: 1 }} />
-            <Skeleton variant="text" width="60%" />
-          </Box>
-        ))}
+      <Box sx={{ px: 2, pt: 1, position: 'relative' }}>
+        <Box sx={{ display: 'flex', gap: 3, overflowX: 'hidden', px: 1, pb: 4 }}>
+          {Array.from(new Array(itemsPerSlide)).map((_, index) => (
+            <Box
+              key={index}
+              sx={{
+                flexShrink: 0,
+                width: { xs: '50%', sm: '50%', md: '25%', lg: '20%' },
+                marginTop: 1,
+              }}
+            >
+              <BaseNovelCard novel={{} as Novel} isLoading />
+            </Box>
+          ))}
+        </Box>
       </Box>
     );
   }

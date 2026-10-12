@@ -153,12 +153,6 @@ export const novelService = {
     return response.data;
   },
 
-  // Get a random featured novel
-  getRandomFeaturedNovel: async () => {
-    const response = await api.get('/novels/featured/random/');
-    return response.data;
-  },
-
   // Get all home page data in a single request
   // `languages` filters every section to those content languages; when the
   // list is empty no language parameter is sent and the sections stay global.

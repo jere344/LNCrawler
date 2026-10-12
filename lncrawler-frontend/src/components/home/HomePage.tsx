@@ -16,7 +16,6 @@ import {
 import { Link } from 'react-router-dom';
 import { Novel, NovelFromSource } from '@models/novels_types';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
-import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCard';
 import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
@@ -150,7 +149,7 @@ const HomePage: React.FC = () => {
           <Grid container spacing={2}>
             {homeData!.novels_you_added.slice(0, 12).map((novel) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
-                <NovelItemCard novel={novel} {...getNovelSourceLink(novel)} />
+                <NovelItemCard novel={novel} forceAdultBlur {...getNovelSourceLink(novel)} />
               </Grid>
             ))}
           </Grid>
@@ -345,33 +344,6 @@ const HomePage: React.FC = () => {
             </Grid>
           )}
         </Box>
-      </Box>
-
-      {/* Featured Novel Section */}
-      <Box sx={{ mb: 6 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" sx={{
-            fontWeight: "bold"
-          }}>
-            {t('home.featured')}
-          </Typography>
-          <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
-            {t('common.viewMore')}
-          </Button>
-        </Box>
-        <Divider sx={{ mb: 3 }} />
-        
-        {loading ? (
-          <FeaturedNovelCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
-        ) : homeData?.featured_novel ? (
-          <FeaturedNovelCard 
-            source={(homeData.featured_novel.novel.reading_source ?? homeData.featured_novel.novel.prefered_source) as NovelFromSource}
-            isBookmarked={homeData.featured_novel.novel.is_bookmarked}
-            {...getNovelSourceLink(homeData.featured_novel.novel)}
-          />
-        ) : (
-          <Typography variant="body1" align="center">{t('home.noFeatured')}</Typography>
-        )}
       </Box>
 
       {/* Recent Reviews Section */}

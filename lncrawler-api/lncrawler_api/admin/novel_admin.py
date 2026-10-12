@@ -4,7 +4,6 @@ from ..models import (
     NovelFromSource,
     NovelRating,
     WeeklySourceView,
-    FeaturedNovel,
     NovelSimilarity,
     Comment,
     Review,
@@ -458,19 +457,6 @@ class WeeklySourceViewAdmin(admin.ModelAdmin):
     list_filter = ("granularity", "day")
     search_fields = ("source__title", "source__novel__title", "day")
     raw_id_fields = ("source",)
-
-
-@admin.register(FeaturedNovel)
-class FeaturedNovelAdmin(admin.ModelAdmin):
-    list_display = ("novel", "description_preview", "created_at", "updated_at")
-    search_fields = ("novel__title", "description")
-    raw_id_fields = ("novel",)
-
-    def description_preview(self, obj):
-        preview = obj.description[:50] + "..." if len(obj.description) > 50 else obj.description
-        return preview
-
-    description_preview.short_description = "Description"
 
 
 @admin.register(NovelSimilarity)

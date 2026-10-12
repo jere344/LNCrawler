@@ -19,12 +19,13 @@ interface NovelItemCardProps {
   isLoading?: boolean;
   to?: To;
   state?: unknown;
+  forceAdultBlur?: boolean;
 }
 
-const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state }) => {
+const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state, forceAdultBlur = false }) => {
   const { t } = useTranslation();
   const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(novel.is_adult, novel.id);
+  const blurred = isBlurred(novel.is_adult, novel.id, forceAdultBlur);
   const displaySource = novel.reading_source ?? novel.prefered_source;
   if (isLoading) {
     return (
@@ -103,7 +104,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
           }}
           
         />
-        <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
+        <AdultBadge isAdult={novel.is_adult} novelId={novel.id} forceAdult={forceAdultBlur} />
         <Badge 
           sx={{
             position: 'absolute',

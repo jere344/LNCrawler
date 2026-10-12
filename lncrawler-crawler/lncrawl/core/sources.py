@@ -265,6 +265,13 @@ def _lookup(host: str) -> Optional[Type[Crawler]]:
     return None
 
 
+def _is_usable(cls: Type[Crawler]) -> bool:
+    """A source disabled for a ``disable_reason`` (Cloudflare, closed, app-only…)
+    has no working ``read_novel_info``; treating it as unresolved gives the user
+    a clean "no crawler" error instead of an ``NotImplementedError`` crash."""
+    return not getattr(cls, "is_disabled", False) and not getattr(cls, "disable_reason", None)
+
+
 def get_crawler_by_url(url: str) -> Optional[Type[Crawler]]:
     host = urlparse(url).hostname
     if not host:
@@ -283,11 +290,12 @@ def get_crawler_by_url(url: str) -> Optional[Type[Crawler]]:
         if path is not None:
             _load_source_file(path)
             cls = _lookup(host)
-            if cls is not None:
+            if cls is not None and _is_usable(cls):
                 return cls
 
     load_sources()
-    return _lookup(host)
+    cls = _lookup(host)
+    return cls if cls is not None and _is_usable(cls) else None
 
 
 def prepare_crawler(url: str, crawler_file: Optional[str] = None) -> Crawler:

@@ -2,7 +2,6 @@ import { Box, Typography, Divider, Grid, Tabs, Tab, Skeleton } from '@mui/materi
 import { useTranslation } from 'react-i18next';
 import { Novel, NovelFromSource } from '@models/novels_types';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
-import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCard';
 import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
@@ -94,10 +93,6 @@ const HomeSkeleton = () => {
           </Grid>
         </Box>
       </Box>
-
-      <Section title={t('home.featured')}>
-        <FeaturedNovelCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
-      </Section>
 
       <Section title={t('home.latestReviews')}>
         <Grid container spacing={2}>

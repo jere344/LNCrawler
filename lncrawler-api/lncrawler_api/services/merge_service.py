@@ -25,7 +25,6 @@ from django.db.models import Q
 from ..utils.slug import slugify
 from ..models import (
     Comment,
-    FeaturedNovel,
     Novel,
     NovelAlias,
     NovelBookmark,
@@ -182,17 +181,6 @@ def _merge_novel_ratings(source, target):
     NovelRating.objects.filter(novel=source).delete()
 
 
-def _merge_featured(source, target):
-    source_featured = FeaturedNovel.objects.filter(novel=source).first()
-    if source_featured is None:
-        return
-    if FeaturedNovel.objects.filter(novel=target).exists():
-        source_featured.delete()
-    else:
-        source_featured.novel = target
-        source_featured.save(update_fields=["novel", "updated_at"])
-
-
 def _merge_similarities(source, target):
     """Remap similarities onto target, dropping self-links and duplicates.
 
@@ -269,7 +257,6 @@ def merge_novels(source_novel, target_novel, move_files=True):
                 dedupe_source(source, duplicate, move_files)
 
         _merge_novel_ratings(source_novel, target_novel)
-        _merge_featured(source_novel, target_novel)
         _merge_similarities(source_novel, target_novel)
 
         # Novel-level comments only; chapter comments follow their sources.

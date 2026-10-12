@@ -10,7 +10,6 @@ from ..models import (
     Tag,
     TagAlias,
     Author,
-    FeaturedNovel,
     NovelFromSource,
     WeeklySourceView,
     ReadingHistory,
@@ -23,7 +22,6 @@ from ..utils.query_helpers import (
     annotate_card_aggregates,
     apply_novel_prefetches,
     exclude_adult,
-    novel_prefetch_objects,
     sources_queryset,
     sources_total_views_subquery,
     weekly_views_subquery,
@@ -378,49 +376,6 @@ def autocomplete_suggestion(request):
 
 
 @api_view(["GET"])
-def random_featured_novel(request):
-    """
-    Get a random featured novel
-    """
-    import random
-
-    featured_qs = FeaturedNovel.objects.select_related('novel').filter(
-        novel__is_dmca=False
-    )
-    if not adult_allowed(request.user):
-        featured_qs = featured_qs.exclude(novel__sources__is_adult=True)
-    featured_qs = featured_qs.prefetch_related(
-        *novel_prefetch_objects(
-            user=request.user, prefix='novel__',
-            ip=get_client_ip(request), synopsis=True,
-        )
-    )
-    featured_count = featured_qs.count()
-    if featured_count == 0:
-        return Response(
-            {
-                "novel": None,
-                "description": None,
-                "featured_since": None,
-            }
-        )
-
-    random_index = random.randint(0, featured_count - 1)
-    featured = featured_qs[random_index]
-    
-    # Get the novel and serialize it
-    novel = featured.novel
-    serializer = NovelSerializer(novel, context={"request": request}, profile='featured')
-    
-    data = {
-        'novel': serializer.data,
-        'description': featured.description,
-        'featured_since': featured.created_at,
-    }
-    
-    return Response(data)
-
-@api_view(["GET"])
 def home_page(request):
     """
     Get all data needed for the home page in a single request.
@@ -495,32 +450,6 @@ def home_page(request):
     # from recently_updated below, which lists per-source chapter updates.
     recently_added = base_queryset.order_by('-created_at')[:12]
     
-    # Get featured novel (restricted to one available in the selected languages)
-    featured_novel_data = None
-    featured_qs = FeaturedNovel.objects.select_related('novel').filter(
-        novel__is_dmca=False
-    )
-    if not adult_allowed(request.user):
-        featured_qs = featured_qs.exclude(novel__sources__is_adult=True)
-    featured_qs = featured_qs.prefetch_related(
-        *novel_prefetch_objects(
-            user=request.user, prefix='novel__',
-            ip=get_client_ip(request), synopsis=True,
-        )
-    )
-    if languages:
-        featured_qs = featured_qs.filter(novel__sources__language__in=languages).distinct()
-    featured_count = featured_qs.count()
-    if featured_count > 0:
-        import random
-        random_index = random.randint(0, featured_count - 1)
-        featured = featured_qs[random_index]
-        featured_novel_data = {
-            'novel': NovelSerializer(featured.novel, context=serializer_context, profile='featured').data,
-            'description': featured.description,
-            'featured_since': featured.created_at,
-        }
-    
     # for the recently updated it's a list of NovelFromSource insead of Novel that we want
     # NULLs sort first on PostgreSQL by default; never-updated sources would top
     # the strip, so push them to the end.
@@ -571,15 +500,13 @@ def home_page(request):
     
     # "Novels you added" (authenticated users only): novels whose download job
     # was first started by this user. Deliberately built without the language
-    # filter so a user always sees everything they contributed. Anonymous
-    # visitors get an empty list.
+    # *and adult* filters so a user always sees everything they contributed,
+    # even R18 novels; the frontend keeps the cover blurred unless the account
+    # allows adult content. Anonymous visitors get an empty list.
     novels_you_added = []
     if request.user.is_authenticated:
         novels_you_added = apply_novel_prefetches(
-            exclude_adult(
-                Novel.objects.filter(is_dmca=False, added_by=request.user),
-                request.user,
-            ),
+            Novel.objects.filter(is_dmca=False, added_by=request.user),
             request.user,
         ).order_by('-created_at')[:12]
 
@@ -590,7 +517,6 @@ def home_page(request):
         'top_rated_novels': NovelSerializer(top_rated_novels, many=True, context=serializer_context).data,
         'recently_added': NovelSerializer(recently_added, many=True, context=serializer_context).data,
         'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context, profile='card').data,
-        'featured_novel': featured_novel_data,
         'recent_reviews': ReviewSerializer(recent_reviews, many=True, context=serializer_context, profile='card').data,
         'recommended_novels': NovelSerializer(recommended_novels, many=True, context=serializer_context).data,
         'novels_you_added': NovelSerializer(novels_you_added, many=True, context=serializer_context).data,

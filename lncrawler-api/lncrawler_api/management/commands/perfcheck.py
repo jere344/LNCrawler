@@ -80,7 +80,6 @@ class Command(BaseCommand):
         endpoints = [
             ('home', '/novels/home/'),
             ('home?languages=en', '/novels/home/?languages=en'),
-            ('featured random', '/novels/featured/random/'),
             ('list novels', '/novels/'),
             ('list novels p2', '/novels/?page=2'),
             ('list novels?langs', '/novels/?languages=en'),

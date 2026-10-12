@@ -241,7 +241,7 @@ class HomeAddedSectionsTests(TestCase):
         ids = [n["id"] for n in response.data["novels_you_added"]]
         self.assertEqual(ids, [str(self.mine.id)])
 
-    def test_sections_exclude_dmca_and_adult(self):
+    def test_novels_you_added_keeps_adult_but_recently_added_excludes_it(self):
         self.mine.is_dmca = True
         self.mine.save(update_fields=["is_dmca"])
         adult = Novel.objects.create(
@@ -260,10 +260,12 @@ class HomeAddedSectionsTests(TestCase):
         response = self.client.get(reverse("home_page"))
         added_ids = {n["id"] for n in response.data["recently_added"]}
         mine_ids = {n["id"] for n in response.data["novels_you_added"]}
+        # DMCA stays hidden everywhere.
         self.assertNotIn(str(self.mine.id), added_ids)
         self.assertNotIn(str(self.mine.id), mine_ids)
+        # Adult is filtered from "Recently Added" but kept in "Novels You Added".
         self.assertNotIn(str(adult.id), added_ids)
-        self.assertNotIn(str(adult.id), mine_ids)
+        self.assertIn(str(adult.id), mine_ids)
 
     def test_home_query_count_is_flat(self):
         from django.db import connection
