@@ -18,11 +18,23 @@ class Novel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     comment_count = models.PositiveIntegerField(default=0)
     is_dmca = models.BooleanField(default=False, db_index=True)
+
+    # The user whose download job first imported this novel (null for
+    # anonymous submissions and for novels imported before this was tracked).
+    # Set once on creation and never rewritten by later updates.
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='added_novels',
+    )
     
     class Meta:
         indexes = [
             models.Index(fields=['title'], name='novel_title_idx'),
             models.Index(fields=['-created_at'], name='novel_created_at_idx'),
+            models.Index(fields=['added_by', '-created_at'], name='novel_added_by_idx'),
             GinIndex(OpClass(Upper('title'), name='gin_trgm_ops'), name='novel_title_trgm_idx'),
         ]
     

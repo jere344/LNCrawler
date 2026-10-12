@@ -281,7 +281,9 @@
     "featured": "Utvalda",
     "noFeatured": "Ingen utvald roman tillgänglig",
     "latestReviews": "Senaste recensionerna",
-    "recentlyUpdated": "Nyligen uppdaterade romaner"
+    "recentlyUpdated": "Nyligen uppdaterade romaner",
+    "recentlyAdded": "Nyligen tillagda romaner",
+    "novelsYouAdded": "Romaner du har lagt till"
   },
   "library": {
     "loadFailed": "Det gick inte att ladda dina bokmärkta romaner. Försök igen senare.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "Sök i ditt bibliotek...",
     "sortBy": "Sortera efter",
     "mirrorHidden": "Den här användaren håller sina anteckningar och/eller betyg privata.",
+    "select": "Välj",
+    "selectAll": "Välj alla",
+    "selectedCount": "{count, plural, one {# vald} other {# valda}}",
+    "clearSelection": "Rensa",
+    "moveTo": "Flytta till",
+    "moveToFolder": "Flytta till mapp",
+    "removeFromLibrary": "Ta bort från biblioteket",
+    "removeConfirmTitle": "Ta bort från biblioteket?",
+    "removeConfirmBody": "{count, plural, one {Ta bort # roman från ditt bibliotek?} other {Ta bort # romaner från ditt bibliotek?}} Detta kan inte ångras.",
+    "addNote": "Lägg till en anteckning",
+    "moreActions": "Fler åtgärder",
+    "dragToFolder": "Dra en roman till en mapp för att arkivera den",
     "sort": {
       "custom": "Anpassad ordning",
       "title": "Titel",
       "date_added": "Tillagt datum",
       "rating": "Betyg"
-    },
-    "addNote": "Lägg till en anteckning",
-    "clearSelection": "Rensa",
-    "dragToFolder": "Dra en roman till en mapp för att arkivera den",
-    "moreActions": "Fler åtgärder",
-    "moveTo": "Flytta till",
-    "moveToFolder": "Flytta till mapp",
-    "removeConfirmBody": "{count, plural, one {Ta bort # roman från ditt bibliotek?} other {Ta bort # romaner från ditt bibliotek?}} Detta kan inte ångras.",
-    "removeConfirmTitle": "Ta bort från biblioteket?",
-    "removeFromLibrary": "Ta bort från biblioteket",
-    "select": "Välj",
-    "selectAll": "Välj alla",
-    "selectedCount": "{count, plural, one {# vald} other {# valda}}"
+    }
   },
   "history": {
     "loadFailed": "Det gick inte att ladda din läshistorik. Försök igen senare.",
@@ -405,12 +407,12 @@
     "volume": "Volym {volume}",
     "contentUnavailable": "Innehåll ej tillgängligt",
     "noChapters": "Inga kapitel tillgängliga.",
+    "dmcaNotice": "Detta verk har tagits bort efter en DMCA-begäran om nedtagning. Kapitel är inte längre tillgängliga.",
     "metaTitle": "Kapitellista - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Laddar kapitel | LNCrawler",
     "metaDescription": "Bläddra bland alla {count} kapitel för {novel} från källan {source} på LNCrawler. Läs light novels online med en ren läsupplevelse.",
     "metaLoadingDescription": "Laddar kapitellistan. Upptäck light novels på LNCrawler.",
-    "keywords": "{novel}, {source}, kapitellista, alla kapitel, light novel-kapitel, web novel",
-    "dmcaNotice": "Detta verk har tagits bort efter en DMCA-begäran om nedtagning. Kapitel är inte längre tillgängliga."
+    "keywords": "{novel}, {source}, kapitellista, alla kapitel, light novel-kapitel, web novel"
   },
   "gallery": {
     "loadFailed": "Det gick inte att ladda bilder. Försök igen senare.",
@@ -474,6 +476,7 @@
     "loadFailed": "Det gick inte att ladda källinformationen. Försök igen senare.",
     "backToHome": "Tillbaka till startsidan",
     "notFound": "Källan hittades inte",
+    "dmcaNotice": "Detta verk har tagits bort efter en DMCA-begäran om nedtagning. Läsning och nedladdningar är inaktiverade.",
     "returnToHome": "Tillbaka till startsidan",
     "fromPrefix": "Från:",
     "visitSource": "Besök källan",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - Läs på LNCrawler",
     "metaLoadingTitle": "Laddar romankälla | LNCrawler",
     "metaDescription": "Läs {title} från {source}. Sammanfattning: {synopsis}",
-    "metaLoadingDescription": "Laddar information om denna romankälla på LNCrawler.",
-    "dmcaNotice": "Detta verk har tagits bort efter en DMCA-begäran om nedtagning. Läsning och nedladdningar är inaktiverade."
+    "metaLoadingDescription": "Laddar information om denna romankälla på LNCrawler."
   },
   "rating": {
     "noRatings": "Inga betyg"
@@ -560,6 +562,7 @@
     "empty": "Kommentaren får inte vara tom",
     "editFailed": "Det gick inte att redigera kommentaren. Försök igen.",
     "edited": "(redigerad)",
+    "guest": "[gäst]",
     "editTooltip": "Redigera kommentar",
     "postedAt": "Kommentar publicerad vid {chapter}",
     "fromSource": "från {source}",
@@ -571,8 +574,7 @@
     "showReplies": "Visa {count, plural, one {# svar} other {# svar}}",
     "loadFailed": "Det gick inte att ladda kommentarer. Prova att uppdatera sidan.",
     "noComments": "Inga kommentarer än. Bli den första att kommentera!",
-    "mixedSourcesWarning": "Vissa kommentarer nedan publicerades för olika källor. Källor kan använda olika kapitelnumrering, så det kan förekomma spoilers eller till synes irrelevanta kommentarer.",
-    "guest": "[gäst]"
+    "mixedSourcesWarning": "Vissa kommentarer nedan publicerades för olika källor. Källor kan använda olika kapitelnumrering, så det kan förekomma spoilers eller till synes irrelevanta kommentarer."
   },
   "chat": {
     "title": "Communitychatt",
@@ -629,6 +631,12 @@
     "removeTooltip": "Klicka för att ta bort från denna lista",
     "novelsCount": "{count} romaner",
     "createNewList": "Skapa ny lista"
+  },
+  "novelActions": {
+    "menu": "Romanåtgärder",
+    "bookmark": "Lägg till bokmärke",
+    "removeBookmark": "Ta bort bokmärke",
+    "addToReadingList": "Lägg till i läslista"
   },
   "markAsRead": {
     "tooltip": "Markera som läst",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Det gick inte att ladda kapitelinnehållet. Försök igen senare.",
     "notFound": "Kapitlet hittades inte",
+    "dmcaUnavailable": "Detta verk är otillgängligt på grund av en DMCA-begäran om nedtagning.",
     "chapters": "Kapitel",
     "chapterTab": "Kapitel",
     "commentsTab": "Kommentarer",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Lås upp rullning",
     "lockScrolling": "Lås rullning",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Sida {current} av {total}",
-    "dmcaUnavailable": "Detta verk är otillgängligt på grund av en DMCA-begäran om nedtagning."
+    "pageOf": "Sida {current} av {total}"
   },
   "readerControls": {
     "previousChapter": "Föregående kapitel",
@@ -901,10 +909,9 @@
     "resultSummary": "Importerade {bookmarked} romaner ({already} redan i biblioteket). Progress angiven för {progress}.",
     "goToLibrary": "Gå till biblioteket"
   },
-  "novelActions": {
-    "addToReadingList": "Lägg till i läslista",
-    "bookmark": "Lägg till bokmärke",
-    "menu": "Romanåtgärder",
-    "removeBookmark": "Ta bort bokmärke"
+  "notifications": {
+    "novelNotFound": "Romanen hittades inte. Återgår till startsidan.",
+    "pageNotFound": "Sidan hittades inte. Återgår till startsidan.",
+    "dismiss": "Stäng"
   }
 }

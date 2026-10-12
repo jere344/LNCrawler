@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 import uuid
@@ -44,6 +45,16 @@ class Job(models.Model):
     )
     query = models.CharField(max_length=255, blank=True, null=True)
     target_url = models.CharField(max_length=512, blank=True, null=True)
+
+    # Who started the job, when the request was authenticated. Kept so a novel
+    # imported by this job can be attributed to its submitter.
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='download_jobs',
+    )
     
     # Timestamps
     created_at = models.DateTimeField(default=timezone.now)

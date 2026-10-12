@@ -281,7 +281,9 @@
     "featured": "Destacadas",
     "noFeatured": "No hay ninguna novela destacada disponible",
     "latestReviews": "Últimas reseñas",
-    "recentlyUpdated": "Novelas actualizadas recientemente"
+    "recentlyUpdated": "Novelas actualizadas recientemente",
+    "recentlyAdded": "Novelas añadidas recientemente",
+    "novelsYouAdded": "Novelas que añadiste"
   },
   "library": {
     "loadFailed": "Error al cargar tus novelas en marcadores. Inténtalo de nuevo más tarde.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "Busca en tu biblioteca...",
     "sortBy": "Ordenar por",
     "mirrorHidden": "Este usuario mantiene privadas sus notas y/o valoraciones.",
+    "select": "Seleccionar",
+    "selectAll": "Seleccionar todo",
+    "selectedCount": "{count, plural, one {# seleccionada} other {# seleccionadas}}",
+    "clearSelection": "Borrar",
+    "moveTo": "Mover a",
+    "moveToFolder": "Mover a carpeta",
+    "removeFromLibrary": "Quitar de la biblioteca",
+    "removeConfirmTitle": "¿Quitar de la biblioteca?",
+    "removeConfirmBody": "{count, plural, one {¿Quitar # novela de tu biblioteca?} other {¿Quitar # novelas de tu biblioteca?}} Esta acción no se puede deshacer.",
+    "addNote": "Añadir una nota",
+    "moreActions": "Más acciones",
+    "dragToFolder": "Arrastra una novela a una carpeta para archivarla",
     "sort": {
       "custom": "Orden personalizado",
       "title": "Título",
       "date_added": "Fecha de alta",
       "rating": "Valoración"
-    },
-    "addNote": "Añadir una nota",
-    "clearSelection": "Borrar",
-    "dragToFolder": "Arrastra una novela a una carpeta para archivarla",
-    "moreActions": "Más acciones",
-    "moveTo": "Mover a",
-    "moveToFolder": "Mover a carpeta",
-    "removeConfirmBody": "{count, plural, one {¿Quitar # novela de tu biblioteca?} other {¿Quitar # novelas de tu biblioteca?}} Esta acción no se puede deshacer.",
-    "removeConfirmTitle": "¿Quitar de la biblioteca?",
-    "removeFromLibrary": "Quitar de la biblioteca",
-    "select": "Seleccionar",
-    "selectAll": "Seleccionar todo",
-    "selectedCount": "{count, plural, one {# seleccionada} other {# seleccionadas}}"
+    }
   },
   "history": {
     "loadFailed": "Error al cargar tu historial de lectura. Inténtalo de nuevo más tarde.",
@@ -405,12 +407,12 @@
     "volume": "Volumen {volume}",
     "contentUnavailable": "Contenido no disponible",
     "noChapters": "No hay capítulos disponibles.",
+    "dmcaNotice": "Esta obra se ha eliminado tras una solicitud de retirada por DMCA. Los capítulos ya no están disponibles.",
     "metaTitle": "Lista de capítulos - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Cargando capítulos | LNCrawler",
     "metaDescription": "Explora los {count} capítulos de {novel} de la fuente {source} en LNCrawler. Lee novelas ligeras en línea con una experiencia de lectura limpia.",
     "metaLoadingDescription": "Cargando la lista de capítulos. Descubre novelas ligeras en LNCrawler.",
-    "keywords": "{novel}, {source}, lista de capítulos, todos los capítulos, capítulos de novelas ligeras, web novel",
-    "dmcaNotice": "Esta obra se ha eliminado tras una solicitud de retirada por DMCA. Los capítulos ya no están disponibles."
+    "keywords": "{novel}, {source}, lista de capítulos, todos los capítulos, capítulos de novelas ligeras, web novel"
   },
   "gallery": {
     "loadFailed": "Error al cargar las imágenes. Inténtalo de nuevo más tarde.",
@@ -474,6 +476,7 @@
     "loadFailed": "Error al cargar los detalles de la fuente. Inténtalo de nuevo más tarde.",
     "backToHome": "Volver al inicio",
     "notFound": "Fuente no encontrada",
+    "dmcaNotice": "Esta obra se ha eliminado tras una solicitud de retirada por DMCA. La lectura y las descargas están deshabilitadas.",
     "returnToHome": "Volver al inicio",
     "fromPrefix": "De:",
     "visitSource": "Visitar fuente",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - Leer en LNCrawler",
     "metaLoadingTitle": "Cargando fuente de la novela | LNCrawler",
     "metaDescription": "Lee {title} de {source}. Sinopsis: {synopsis}",
-    "metaLoadingDescription": "Cargando los detalles de esta fuente de novela en LNCrawler.",
-    "dmcaNotice": "Esta obra se ha eliminado tras una solicitud de retirada por DMCA. La lectura y las descargas están deshabilitadas."
+    "metaLoadingDescription": "Cargando los detalles de esta fuente de novela en LNCrawler."
   },
   "rating": {
     "noRatings": "Sin valoraciones"
@@ -560,6 +562,7 @@
     "empty": "El comentario no puede estar vacío",
     "editFailed": "Error al editar el comentario. Inténtalo de nuevo.",
     "edited": "(editado)",
+    "guest": "[invitado]",
     "editTooltip": "Editar comentario",
     "postedAt": "Comentario publicado en {chapter}",
     "fromSource": "de {source}",
@@ -571,8 +574,7 @@
     "showReplies": "Mostrar {count, plural, one {# respuesta} other {# respuestas}}",
     "loadFailed": "Error al cargar los comentarios. Intenta actualizar la página.",
     "noComments": "Aún no hay comentarios. ¡Sé el primero en comentar!",
-    "mixedSourcesWarning": "Algunos comentarios a continuación se publicaron para fuentes diferentes. Las fuentes pueden usar una numeración de capítulos distinta, por lo que puede haber spoilers o comentarios aparentemente irrelevantes.",
-    "guest": "[invitado]"
+    "mixedSourcesWarning": "Algunos comentarios a continuación se publicaron para fuentes diferentes. Las fuentes pueden usar una numeración de capítulos distinta, por lo que puede haber spoilers o comentarios aparentemente irrelevantes."
   },
   "chat": {
     "title": "Chat de la comunidad",
@@ -629,6 +631,12 @@
     "removeTooltip": "Haz clic para eliminar de esta lista",
     "novelsCount": "{count} novelas",
     "createNewList": "Crear nueva lista"
+  },
+  "novelActions": {
+    "menu": "Acciones de la novela",
+    "bookmark": "Añadir a marcadores",
+    "removeBookmark": "Quitar de marcadores",
+    "addToReadingList": "Añadir a lista de lectura"
   },
   "markAsRead": {
     "tooltip": "Marcar como leído",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Error al cargar el contenido del capítulo. Inténtalo de nuevo más tarde.",
     "notFound": "Capítulo no encontrado",
+    "dmcaUnavailable": "Esta obra no está disponible debido a una solicitud de retirada por DMCA.",
     "chapters": "Capítulos",
     "chapterTab": "Capítulo",
     "commentsTab": "Comentarios",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Desbloquear desplazamiento",
     "lockScrolling": "Bloquear desplazamiento",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Página {current} de {total}",
-    "dmcaUnavailable": "Esta obra no está disponible debido a una solicitud de retirada por DMCA."
+    "pageOf": "Página {current} de {total}"
   },
   "readerControls": {
     "previousChapter": "Capítulo anterior",
@@ -901,10 +909,9 @@
     "resultSummary": "Se importaron {bookmarked} novelas ({already} ya en la biblioteca). Progreso establecido para {progress}.",
     "goToLibrary": "Ir a la biblioteca"
   },
-  "novelActions": {
-    "addToReadingList": "Añadir a lista de lectura",
-    "bookmark": "Añadir a marcadores",
-    "menu": "Acciones de la novela",
-    "removeBookmark": "Quitar de marcadores"
+  "notifications": {
+    "novelNotFound": "Novela no encontrada. Volviendo a la página de inicio.",
+    "pageNotFound": "Página no encontrada. Volviendo a la página de inicio.",
+    "dismiss": "Cerrar"
   }
 }

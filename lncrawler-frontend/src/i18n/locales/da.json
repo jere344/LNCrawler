@@ -281,7 +281,9 @@
     "featured": "Fremhævede",
     "noFeatured": "Ingen fremhævet roman tilgængelig",
     "latestReviews": "Seneste anmeldelser",
-    "recentlyUpdated": "Senest opdaterede romaner"
+    "recentlyUpdated": "Senest opdaterede romaner",
+    "recentlyAdded": "Senest tilføjede romaner",
+    "novelsYouAdded": "Romaner du har tilføjet"
   },
   "library": {
     "loadFailed": "Kunne ikke indlæse dine bogmærkede romaner. Prøv igen senere.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "Søg i dit bibliotek...",
     "sortBy": "Sortér efter",
     "mirrorHidden": "Denne bruger holder sine noter og/eller vurderinger private.",
+    "select": "Vælg",
+    "selectAll": "Vælg alle",
+    "selectedCount": "{count, plural, one {# valgt} other {# valgt}}",
+    "clearSelection": "Ryd",
+    "moveTo": "Flyt til",
+    "moveToFolder": "Flyt til mappe",
+    "removeFromLibrary": "Fjern fra biblioteket",
+    "removeConfirmTitle": "Fjern fra biblioteket?",
+    "removeConfirmBody": "{count, plural, one {Fjern # roman fra dit bibliotek?} other {Fjern # romaner fra dit bibliotek?}} Dette kan ikke fortrydes.",
+    "addNote": "Tilføj en note",
+    "moreActions": "Flere handlinger",
+    "dragToFolder": "Træk en roman over på en mappe for at arkivere den",
     "sort": {
       "custom": "Brugerdefineret rækkefølge",
       "title": "Titel",
       "date_added": "Dato tilføjet",
       "rating": "Bedømmelse"
-    },
-    "addNote": "Tilføj en note",
-    "clearSelection": "Ryd",
-    "dragToFolder": "Træk en roman over på en mappe for at arkivere den",
-    "moreActions": "Flere handlinger",
-    "moveTo": "Flyt til",
-    "moveToFolder": "Flyt til mappe",
-    "removeConfirmBody": "{count, plural, one {Fjern # roman fra dit bibliotek?} other {Fjern # romaner fra dit bibliotek?}} Dette kan ikke fortrydes.",
-    "removeConfirmTitle": "Fjern fra biblioteket?",
-    "removeFromLibrary": "Fjern fra biblioteket",
-    "select": "Vælg",
-    "selectAll": "Vælg alle",
-    "selectedCount": "{count, plural, one {# valgt} other {# valgt}}"
+    }
   },
   "history": {
     "loadFailed": "Kunne ikke indlæse din læsehistorik. Prøv igen senere.",
@@ -405,12 +407,12 @@
     "volume": "Bind {volume}",
     "contentUnavailable": "Indhold ikke tilgængeligt",
     "noChapters": "Ingen kapitler tilgængelige.",
+    "dmcaNotice": "Dette værk er blevet fjernet efter en DMCA-nedtagningsanmodning. Kapitler er ikke længere tilgængelige.",
     "metaTitle": "Kapitelliste - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Indlæser kapitler | LNCrawler",
     "metaDescription": "Gennemse alle {count} kapitler for {novel} fra kilden {source} på LNCrawler. Læs light novels online med en ren læseoplevelse.",
     "metaLoadingDescription": "Indlæser kapitelliste. Opdag light novels på LNCrawler.",
-    "keywords": "{novel}, {source}, kapitelliste, alle kapitler, light novel-kapitler, web novel",
-    "dmcaNotice": "Dette værk er blevet fjernet efter en DMCA-nedtagningsanmodning. Kapitler er ikke længere tilgængelige."
+    "keywords": "{novel}, {source}, kapitelliste, alle kapitler, light novel-kapitler, web novel"
   },
   "gallery": {
     "loadFailed": "Kunne ikke indlæse billeder. Prøv igen senere.",
@@ -474,6 +476,7 @@
     "loadFailed": "Kunne ikke indlæse kildedetaljer. Prøv igen senere.",
     "backToHome": "Tilbage til forsiden",
     "notFound": "Kilden blev ikke fundet",
+    "dmcaNotice": "Dette værk er blevet fjernet efter en DMCA-nedtagningsanmodning. Læsning og downloads er deaktiveret.",
     "returnToHome": "Tilbage til forsiden",
     "fromPrefix": "Fra:",
     "visitSource": "Besøg kilden",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - Læs på LNCrawler",
     "metaLoadingTitle": "Indlæser romankilde | LNCrawler",
     "metaDescription": "Læs {title} fra {source}. Synopsis: {synopsis}",
-    "metaLoadingDescription": "Indlæser detaljer om denne romankilde på LNCrawler.",
-    "dmcaNotice": "Dette værk er blevet fjernet efter en DMCA-nedtagningsanmodning. Læsning og downloads er deaktiveret."
+    "metaLoadingDescription": "Indlæser detaljer om denne romankilde på LNCrawler."
   },
   "rating": {
     "noRatings": "Ingen bedømmelser"
@@ -560,6 +562,7 @@
     "empty": "Kommentaren må ikke være tom",
     "editFailed": "Kunne ikke redigere kommentaren. Prøv igen.",
     "edited": "(redigeret)",
+    "guest": "[gæst]",
     "editTooltip": "Rediger kommentar",
     "postedAt": "Kommentar sendt ved {chapter}",
     "fromSource": "fra {source}",
@@ -571,8 +574,7 @@
     "showReplies": "Vis {count, plural, one {# svar} other {# svar}}",
     "loadFailed": "Kunne ikke indlæse kommentarer. Prøv at genindlæse siden.",
     "noComments": "Ingen kommentarer endnu. Vær den første til at kommentere!",
-    "mixedSourcesWarning": "Nogle af kommentarerne nedenfor blev sendt til forskellige kilder. Kilder kan bruge forskellig kapitelnummerering, så der kan forekomme spoilers eller tilsyneladende irrelevante kommentarer.",
-    "guest": "[gæst]"
+    "mixedSourcesWarning": "Nogle af kommentarerne nedenfor blev sendt til forskellige kilder. Kilder kan bruge forskellig kapitelnummerering, så der kan forekomme spoilers eller tilsyneladende irrelevante kommentarer."
   },
   "chat": {
     "title": "Fællesskabschat",
@@ -629,6 +631,12 @@
     "removeTooltip": "Klik for at fjerne fra denne liste",
     "novelsCount": "{count} romaner",
     "createNewList": "Opret ny liste"
+  },
+  "novelActions": {
+    "menu": "Romanhandlinger",
+    "bookmark": "Føj til bogmærker",
+    "removeBookmark": "Fjern bogmærke",
+    "addToReadingList": "Føj til læseliste"
   },
   "markAsRead": {
     "tooltip": "Markér som læst",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Kunne ikke indlæse kapitelindholdet. Prøv igen senere.",
     "notFound": "Kapitlet blev ikke fundet",
+    "dmcaUnavailable": "Dette værk er utilgængeligt på grund af en DMCA-nedtagningsanmodning.",
     "chapters": "Kapitler",
     "chapterTab": "Kapitel",
     "commentsTab": "Kommentarer",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Lås rulning op",
     "lockScrolling": "Lås rulning",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Side {current} af {total}",
-    "dmcaUnavailable": "Dette værk er utilgængeligt på grund af en DMCA-nedtagningsanmodning."
+    "pageOf": "Side {current} af {total}"
   },
   "readerControls": {
     "previousChapter": "Forrige kapitel",
@@ -901,10 +909,9 @@
     "resultSummary": "Importerede {bookmarked} romaner ({already} allerede i biblioteket). Fremskridt angivet for {progress}.",
     "goToLibrary": "Gå til biblioteket"
   },
-  "novelActions": {
-    "addToReadingList": "Føj til læseliste",
-    "bookmark": "Føj til bogmærker",
-    "menu": "Romanhandlinger",
-    "removeBookmark": "Fjern bogmærke"
+  "notifications": {
+    "novelNotFound": "Romanen blev ikke fundet. Vender tilbage til startsiden.",
+    "pageNotFound": "Siden blev ikke fundet. Vender tilbage til startsiden.",
+    "dismiss": "Luk"
   }
 }

@@ -281,7 +281,9 @@
     "featured": "추천",
     "noFeatured": "추천 소설이 없습니다",
     "latestReviews": "최신 리뷰",
-    "recentlyUpdated": "최근 업데이트된 소설"
+    "recentlyUpdated": "최근 업데이트된 소설",
+    "recentlyAdded": "최근 추가된 소설",
+    "novelsYouAdded": "회원님이 추가한 소설"
   },
   "library": {
     "loadFailed": "북마크한 소설을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "라이브러리 검색...",
     "sortBy": "정렬 기준",
     "mirrorHidden": "이 사용자는 메모 및/또는 평점을 비공개로 유지합니다.",
+    "select": "선택",
+    "selectAll": "전체 선택",
+    "selectedCount": "{count, plural, one {#개 선택됨} other {#개 선택됨}}",
+    "clearSelection": "지우기",
+    "moveTo": "이동 대상",
+    "moveToFolder": "폴더로 이동",
+    "removeFromLibrary": "라이브러리에서 삭제",
+    "removeConfirmTitle": "라이브러리에서 삭제할까요?",
+    "removeConfirmBody": "{count, plural, one {라이브러리에서 #편의 소설을 삭제할까요?} other {라이브러리에서 #편의 소설을 삭제할까요?}} 이 작업은 되돌릴 수 없습니다.",
+    "addNote": "메모 추가",
+    "moreActions": "더 많은 작업",
+    "dragToFolder": "소설을 폴더로 끌어다 정리하세요",
     "sort": {
       "custom": "사용자 지정 순서",
       "title": "제목",
       "date_added": "추가한 날짜",
       "rating": "평점"
-    },
-    "addNote": "메모 추가",
-    "clearSelection": "지우기",
-    "dragToFolder": "소설을 폴더로 끌어다 정리하세요",
-    "moreActions": "더 많은 작업",
-    "moveTo": "이동 대상",
-    "moveToFolder": "폴더로 이동",
-    "removeConfirmBody": "{count, plural, one {라이브러리에서 #편의 소설을 삭제할까요?} other {라이브러리에서 #편의 소설을 삭제할까요?}} 이 작업은 되돌릴 수 없습니다.",
-    "removeConfirmTitle": "라이브러리에서 삭제할까요?",
-    "removeFromLibrary": "라이브러리에서 삭제",
-    "select": "선택",
-    "selectAll": "전체 선택",
-    "selectedCount": "{count, plural, one {#개 선택됨} other {#개 선택됨}}"
+    }
   },
   "history": {
     "loadFailed": "읽기 기록을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
@@ -405,12 +407,12 @@
     "volume": "{volume}권",
     "contentUnavailable": "콘텐츠를 이용할 수 없습니다",
     "noChapters": "이용 가능한 화가 없습니다.",
+    "dmcaNotice": "이 작품은 DMCA 삭제 요청에 따라 삭제되었습니다. 더 이상 챕터를 이용할 수 없습니다.",
     "metaTitle": "화 목록 - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "화 불러오는 중 | LNCrawler",
     "metaDescription": "LNCrawler에서 소스 '{source}'의 {novel} 전체 {count}화를 둘러보세요. 깔끔한 읽기 환경으로 라이트노벨을 온라인에서 읽어보세요.",
     "metaLoadingDescription": "화 목록을 불러오는 중입니다. LNCrawler에서 라이트노벨을 만나보세요.",
-    "keywords": "{novel}, {source}, 화 목록, 전체 화, 라이트노벨 화, 웹소설",
-    "dmcaNotice": "이 작품은 DMCA 삭제 요청에 따라 삭제되었습니다. 더 이상 챕터를 이용할 수 없습니다."
+    "keywords": "{novel}, {source}, 화 목록, 전체 화, 라이트노벨 화, 웹소설"
   },
   "gallery": {
     "loadFailed": "이미지를 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
@@ -474,6 +476,7 @@
     "loadFailed": "소스 세부 정보를 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
     "backToHome": "홈으로 돌아가기",
     "notFound": "소스를 찾을 수 없습니다",
+    "dmcaNotice": "이 작품은 DMCA 삭제 요청에 따라 삭제되었습니다. 읽기와 다운로드가 비활성화되었습니다.",
     "returnToHome": "홈으로 돌아가기",
     "fromPrefix": "출처:",
     "visitSource": "소스 방문",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - LNCrawler에서 읽기",
     "metaLoadingTitle": "소설 소스 불러오는 중 | LNCrawler",
     "metaDescription": "{source}의 {title}을(를) 읽어보세요. 줄거리: {synopsis}",
-    "metaLoadingDescription": "LNCrawler에서 이 소설 소스의 세부 정보를 불러오는 중입니다.",
-    "dmcaNotice": "이 작품은 DMCA 삭제 요청에 따라 삭제되었습니다. 읽기와 다운로드가 비활성화되었습니다."
+    "metaLoadingDescription": "LNCrawler에서 이 소설 소스의 세부 정보를 불러오는 중입니다."
   },
   "rating": {
     "noRatings": "평점 없음"
@@ -560,6 +562,7 @@
     "empty": "댓글은 비워 둘 수 없습니다",
     "editFailed": "댓글 편집에 실패했습니다. 다시 시도해 주세요.",
     "edited": "(수정됨)",
+    "guest": "[게스트]",
     "editTooltip": "댓글 편집",
     "postedAt": "{chapter}에 게시된 댓글",
     "fromSource": "{source}에서",
@@ -571,8 +574,7 @@
     "showReplies": "{count, plural, one {답글 #개 보기} other {답글 #개 보기}}",
     "loadFailed": "댓글을 불러오지 못했습니다. 페이지를 새로고침해 보세요.",
     "noComments": "아직 댓글이 없습니다. 첫 댓글을 남겨보세요!",
-    "mixedSourcesWarning": "아래 일부 댓글은 다른 소스에 게시된 것입니다. 소스마다 화 번호가 다를 수 있으므로 스포일러나 관련 없어 보이는 댓글이 있을 수 있습니다.",
-    "guest": "[게스트]"
+    "mixedSourcesWarning": "아래 일부 댓글은 다른 소스에 게시된 것입니다. 소스마다 화 번호가 다를 수 있으므로 스포일러나 관련 없어 보이는 댓글이 있을 수 있습니다."
   },
   "chat": {
     "title": "커뮤니티 채팅",
@@ -629,6 +631,12 @@
     "removeTooltip": "클릭하여 이 목록에서 제거",
     "novelsCount": "{count}편",
     "createNewList": "새 목록 만들기"
+  },
+  "novelActions": {
+    "menu": "소설 작업",
+    "bookmark": "북마크에 추가",
+    "removeBookmark": "북마크 제거",
+    "addToReadingList": "읽기 목록에 추가"
   },
   "markAsRead": {
     "tooltip": "읽음으로 표시",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "화 내용을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
     "notFound": "화를 찾을 수 없습니다",
+    "dmcaUnavailable": "이 작품은 DMCA 삭제 요청으로 인해 이용할 수 없습니다.",
     "chapters": "화",
     "chapterTab": "화",
     "commentsTab": "댓글",
@@ -749,8 +758,7 @@
     "unlockScrolling": "스크롤 잠금 해제",
     "lockScrolling": "스크롤 잠금",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "{total}페이지 중 {current}페이지",
-    "dmcaUnavailable": "이 작품은 DMCA 삭제 요청으로 인해 이용할 수 없습니다."
+    "pageOf": "{total}페이지 중 {current}페이지"
   },
   "readerControls": {
     "previousChapter": "이전 화",
@@ -901,10 +909,9 @@
     "resultSummary": "{bookmarked}개 소설을 가져왔습니다({already}개는 이미 라이브러리에 있음). {progress}개 진행 상황을 설정했습니다.",
     "goToLibrary": "라이브러리로 이동"
   },
-  "novelActions": {
-    "addToReadingList": "읽기 목록에 추가",
-    "bookmark": "북마크에 추가",
-    "menu": "소설 작업",
-    "removeBookmark": "북마크 제거"
+  "notifications": {
+    "novelNotFound": "소설을 찾을 수 없습니다. 홈페이지로 돌아갑니다.",
+    "pageNotFound": "페이지를 찾을 수 없습니다. 홈페이지로 돌아갑니다.",
+    "dismiss": "닫기"
   }
 }

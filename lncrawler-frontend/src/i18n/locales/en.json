@@ -281,7 +281,9 @@
     "featured": "Featured",
     "noFeatured": "No featured novel available",
     "latestReviews": "Latest Reviews",
-    "recentlyUpdated": "Recently Updated Novels"
+    "recentlyUpdated": "Recently Updated Novels",
+    "recentlyAdded": "Recently Added Novels",
+    "novelsYouAdded": "Novels You Added"
   },
   "library": {
     "loadFailed": "Failed to load your bookmarked novels. Please try again later.",
@@ -906,5 +908,10 @@
     "applyFailed": "Import failed. Please try again.",
     "resultSummary": "Imported {bookmarked} novels ({already} already in library). Progress set for {progress}.",
     "goToLibrary": "Go to library"
+  },
+  "notifications": {
+    "novelNotFound": "Novel not found. Returning to the home page.",
+    "pageNotFound": "Page not found. Returning to the home page.",
+    "dismiss": "Dismiss"
   }
 }

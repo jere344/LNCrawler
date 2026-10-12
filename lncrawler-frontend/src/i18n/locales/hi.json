@@ -281,7 +281,9 @@
     "featured": "विशेष",
     "noFeatured": "कोई विशेष उपन्यास उपलब्ध नहीं",
     "latestReviews": "नवीनतम समीक्षाएं",
-    "recentlyUpdated": "हाल ही में अपडेट किए गए उपन्यास"
+    "recentlyUpdated": "हाल ही में अपडेट किए गए उपन्यास",
+    "recentlyAdded": "हाल ही में जोड़े गए उपन्यास",
+    "novelsYouAdded": "आपके द्वारा जोड़े गए उपन्यास"
   },
   "library": {
     "loadFailed": "आपके बुकमार्क किए गए उपन्यास लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "अपनी लाइब्रेरी में खोजें...",
     "sortBy": "क्रमबद्ध करें",
     "mirrorHidden": "यह उपयोगकर्ता अपने नोट्स और/या रेटिंग निजी रखता है।",
+    "select": "चुनें",
+    "selectAll": "सभी चुनें",
+    "selectedCount": "{count, plural, one {# चयनित} other {# चयनित}}",
+    "clearSelection": "साफ़ करें",
+    "moveTo": "इसमें ले जाएँ",
+    "moveToFolder": "फ़ोल्डर में ले जाएँ",
+    "removeFromLibrary": "लाइब्रेरी से हटाएँ",
+    "removeConfirmTitle": "लाइब्रेरी से हटाएँ?",
+    "removeConfirmBody": "{count, plural, one {अपनी लाइब्रेरी से # उपन्यास हटाएँ?} other {अपनी लाइब्रेरी से # उपन्यास हटाएँ?}} इसे पूर्ववत नहीं किया जा सकता।",
+    "addNote": "नोट जोड़ें",
+    "moreActions": "और क्रियाएँ",
+    "dragToFolder": "किसी उपन्यास को फ़ोल्डर पर खींचकर उसे वर्गीकृत करें",
     "sort": {
       "custom": "कस्टम क्रम",
       "title": "शीर्षक",
       "date_added": "जोड़ने की तिथि",
       "rating": "रेटिंग"
-    },
-    "addNote": "नोट जोड़ें",
-    "clearSelection": "साफ़ करें",
-    "dragToFolder": "किसी उपन्यास को फ़ोल्डर पर खींचकर उसे वर्गीकृत करें",
-    "moreActions": "और क्रियाएँ",
-    "moveTo": "इसमें ले जाएँ",
-    "moveToFolder": "फ़ोल्डर में ले जाएँ",
-    "removeConfirmBody": "{count, plural, one {अपनी लाइब्रेरी से # उपन्यास हटाएँ?} other {अपनी लाइब्रेरी से # उपन्यास हटाएँ?}} इसे पूर्ववत नहीं किया जा सकता।",
-    "removeConfirmTitle": "लाइब्रेरी से हटाएँ?",
-    "removeFromLibrary": "लाइब्रेरी से हटाएँ",
-    "select": "चुनें",
-    "selectAll": "सभी चुनें",
-    "selectedCount": "{count, plural, one {# चयनित} other {# चयनित}}"
+    }
   },
   "history": {
     "loadFailed": "आपका पठन इतिहास लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
@@ -405,12 +407,12 @@
     "volume": "खंड {volume}",
     "contentUnavailable": "सामग्री अनुपलब्ध",
     "noChapters": "कोई अध्याय उपलब्ध नहीं।",
+    "dmcaNotice": "यह कृति DMCA टेकडाउन अनुरोध के बाद हटा दी गई है। अध्याय अब उपलब्ध नहीं हैं।",
     "metaTitle": "अध्याय सूची - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "अध्याय लोड हो रहे हैं | LNCrawler",
     "metaDescription": "LNCrawler पर स्रोत {source} से {novel} के सभी {count} अध्याय ब्राउज़ करें। स्वच्छ पठन अनुभव के साथ लाइट नॉवेल ऑनलाइन पढ़ें।",
     "metaLoadingDescription": "अध्याय सूची लोड हो रही है। LNCrawler पर लाइट नॉवेल खोजें।",
-    "keywords": "{novel}, {source}, अध्याय सूची, सभी अध्याय, लाइट नॉवेल अध्याय, वेब नॉवेल",
-    "dmcaNotice": "यह कृति DMCA टेकडाउन अनुरोध के बाद हटा दी गई है। अध्याय अब उपलब्ध नहीं हैं।"
+    "keywords": "{novel}, {source}, अध्याय सूची, सभी अध्याय, लाइट नॉवेल अध्याय, वेब नॉवेल"
   },
   "gallery": {
     "loadFailed": "छवियां लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
@@ -474,6 +476,7 @@
     "loadFailed": "स्रोत विवरण लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
     "backToHome": "होम पर वापस जाएं",
     "notFound": "स्रोत नहीं मिला",
+    "dmcaNotice": "यह कृति DMCA टेकडाउन अनुरोध के बाद हटा दी गई है। पढ़ना और डाउनलोड अक्षम हैं।",
     "returnToHome": "होम पर लौटें",
     "fromPrefix": "से:",
     "visitSource": "स्रोत देखें",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - LNCrawler पर पढ़ें",
     "metaLoadingTitle": "उपन्यास स्रोत लोड हो रहा है | LNCrawler",
     "metaDescription": "{source} से {title} पढ़ें। सारांश: {synopsis}",
-    "metaLoadingDescription": "LNCrawler पर इस उपन्यास स्रोत का विवरण लोड हो रहा है।",
-    "dmcaNotice": "यह कृति DMCA टेकडाउन अनुरोध के बाद हटा दी गई है। पढ़ना और डाउनलोड अक्षम हैं।"
+    "metaLoadingDescription": "LNCrawler पर इस उपन्यास स्रोत का विवरण लोड हो रहा है।"
   },
   "rating": {
     "noRatings": "कोई रेटिंग नहीं"
@@ -560,6 +562,7 @@
     "empty": "टिप्पणी खाली नहीं हो सकती",
     "editFailed": "टिप्पणी संपादित करने में विफल। कृपया पुनः प्रयास करें।",
     "edited": "(संपादित)",
+    "guest": "[अतिथि]",
     "editTooltip": "टिप्पणी संपादित करें",
     "postedAt": "टिप्पणी {chapter} में पोस्ट की गई",
     "fromSource": "{source} से",
@@ -571,8 +574,7 @@
     "showReplies": "दिखाएं {count, plural, one {# जवाब} other {# जवाब}}",
     "loadFailed": "टिप्पणियां लोड करने में विफल। कृपया पेज रीफ़्रेश करके प्रयास करें।",
     "noComments": "अभी कोई टिप्पणी नहीं। टिप्पणी करने वाले पहले व्यक्ति बनें!",
-    "mixedSourcesWarning": "नीचे कुछ टिप्पणियां अलग-अलग स्रोतों के लिए पोस्ट की गई थीं। स्रोत अलग-अलग अध्याय संख्याएं उपयोग कर सकते हैं, इसलिए स्पॉइलर या अप्रासंगिक लगने वाली टिप्पणियां हो सकती हैं।",
-    "guest": "[अतिथि]"
+    "mixedSourcesWarning": "नीचे कुछ टिप्पणियां अलग-अलग स्रोतों के लिए पोस्ट की गई थीं। स्रोत अलग-अलग अध्याय संख्याएं उपयोग कर सकते हैं, इसलिए स्पॉइलर या अप्रासंगिक लगने वाली टिप्पणियां हो सकती हैं।"
   },
   "chat": {
     "title": "समुदाय चैट",
@@ -629,6 +631,12 @@
     "removeTooltip": "इस सूची से हटाने के लिए क्लिक करें",
     "novelsCount": "{count} उपन्यास",
     "createNewList": "नई सूची बनाएं"
+  },
+  "novelActions": {
+    "menu": "उपन्यास क्रियाएँ",
+    "bookmark": "बुकमार्क में जोड़ें",
+    "removeBookmark": "बुकमार्क हटाएँ",
+    "addToReadingList": "पठन सूची में जोड़ें"
   },
   "markAsRead": {
     "tooltip": "पढ़ा हुआ चिह्नित करें",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "अध्याय सामग्री लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
     "notFound": "अध्याय नहीं मिला",
+    "dmcaUnavailable": "यह कृति DMCA टेकडाउन अनुरोध के कारण अनुपलब्ध है।",
     "chapters": "अध्याय",
     "chapterTab": "अध्याय",
     "commentsTab": "टिप्पणियां",
@@ -749,8 +758,7 @@
     "unlockScrolling": "स्क्रॉलिंग अनलॉक करें",
     "lockScrolling": "स्क्रॉलिंग लॉक करें",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "पृष्ठ {current} / {total}",
-    "dmcaUnavailable": "यह कृति DMCA टेकडाउन अनुरोध के कारण अनुपलब्ध है।"
+    "pageOf": "पृष्ठ {current} / {total}"
   },
   "readerControls": {
     "previousChapter": "पिछला अध्याय",
@@ -901,10 +909,9 @@
     "resultSummary": "{bookmarked} उपन्यास आयात किए गए ({already} पहले से लाइब्रेरी में)। {progress} के लिए प्रगति सेट की गई।",
     "goToLibrary": "लाइब्रेरी पर जाएँ"
   },
-  "novelActions": {
-    "addToReadingList": "पठन सूची में जोड़ें",
-    "bookmark": "बुकमार्क में जोड़ें",
-    "menu": "उपन्यास क्रियाएँ",
-    "removeBookmark": "बुकमार्क हटाएँ"
+  "notifications": {
+    "novelNotFound": "उपन्यास नहीं मिला। होम पेज पर वापस जा रहे हैं।",
+    "pageNotFound": "पृष्ठ नहीं मिला। होम पेज पर वापस जा रहे हैं।",
+    "dismiss": "बंद करें"
   }
 }

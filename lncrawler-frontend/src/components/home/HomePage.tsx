@@ -36,10 +36,12 @@ const HomePage: React.FC = () => {
     top_novels: Novel[];
     trending_novels: Novel[];
     top_rated_novels: Novel[];
+    recently_added: Novel[];
     recently_updated: NovelFromSource[];
     featured_novel: NovelFeaturedResponse | null;
     recent_reviews: Review[];
     recommended_novels: Novel[];
+    novels_you_added: Novel[];
   } | null>(null);
   
   // Loading and error states
@@ -146,6 +148,26 @@ const HomePage: React.FC = () => {
             similarNovels={homeData!.recommended_novels.map((novel) => ({ ...novel, similarity: 0 }))}
             loading={false}
           />
+        </Box>
+      )}
+
+      {/* Novels You Added Section (connected users who added novels) */}
+      {!loading && (homeData?.novels_you_added?.length ?? 0) > 0 && (
+        <Box sx={{ mb: 6 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
+              {t('home.novelsYouAdded')}
+            </Typography>
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          <Grid container spacing={2}>
+            {homeData!.novels_you_added.slice(0, 12).map((novel) => (
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
+                <NovelItemCard novel={novel} {...getNovelSourceLink(novel)} />
+              </Grid>
+            ))}
+          </Grid>
         </Box>
       )}
 
@@ -382,6 +404,36 @@ const HomePage: React.FC = () => {
           isLoading={loading}
           maxItems={4}
         />
+      </Box>
+
+      {/* Recently Added Novels Section */}
+      <Box sx={{ mb: 6 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
+            {t('home.recentlyAdded')}
+          </Typography>
+        </Box>
+        <Divider sx={{ mb: 3 }} />
+
+        {loading ? (
+          <Grid container spacing={2}>
+            {[...Array(12)].map((_, index) => (
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`recently-added-skeleton-${index}`}>
+                <NovelItemCard novel={{} as Novel} isLoading={true} onClick={() => {}} />
+              </Grid>
+            ))}
+          </Grid>
+        ) : (
+          <Grid container spacing={2}>
+            {homeData?.recently_added?.slice(0, 12).map((novel) => (
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
+                <NovelItemCard novel={novel} {...getNovelSourceLink(novel)} />
+              </Grid>
+            ))}
+          </Grid>
+        )}
       </Box>
 
       {/* Recently Added Chapters Section */}

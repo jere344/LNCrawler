@@ -10,8 +10,6 @@ import {
   CircularProgress,
   useMediaQuery,
   useTheme,
-  Snackbar,
-  Alert,
   Tabs,
   Tab,
   IconButton,
@@ -30,6 +28,7 @@ import { getCookie } from '@utils/cookies';
 import { getChapterLabel } from '@utils/Misc';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
+import { useNotification } from '@context/NotificationContext';
 
 import ReaderToolbar from './controls/ReaderToolbar';
 import ReaderViewport from './viewport/ReaderViewport';
@@ -76,6 +75,7 @@ const ChapterReader = () => {
   
   // Get authentication state to check if the user is logged in
   const { isAuthenticated } = useAuth();
+  const { notify } = useNotification();
   
   // Reader settings state
   const [readerSettings, setReaderSettings] = useState<IReaderSettings>(defaultSettings);
@@ -565,6 +565,7 @@ const ChapterReader = () => {
         parseInt(chapterNumber)
       );
       setMarkReadSuccess(true);
+      notify({ message: t('reader.markedRead'), severity: 'success', duration: 3000 });
     } catch (error) {
       console.error('Error marking chapter as read:', error);
     } finally {
@@ -897,18 +898,6 @@ const ChapterReader = () => {
             prevUrl={prevUrl}
             nextUrl={nextUrl}
           />
-
-          {/* Success Notification */}
-          <Snackbar 
-            open={markReadSuccess} 
-            autoHideDuration={3000} 
-            onClose={() => setMarkReadSuccess(false)}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-          >
-            <Alert onClose={() => setMarkReadSuccess(false)} severity="success" sx={{ width: '100%' }}>
-              {t('reader.markedRead')}
-            </Alert>
-          </Snackbar>
         </Paper>
       </Container>
       </>

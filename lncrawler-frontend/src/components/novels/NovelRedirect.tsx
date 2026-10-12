@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { Box, CircularProgress } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { novelService } from '../../services/api';
 import { getNovelSourcePath } from '@utils/Misc';
+import RedirectWithNotification from '@components/common/RedirectWithNotification';
 
 const NovelRedirect = () => {
+  const { t } = useTranslation();
   const { novelSlug } = useParams<{ novelSlug: string }>();
   const [target, setTarget] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -22,7 +25,7 @@ const NovelRedirect = () => {
     resolve();
   }, [novelSlug]);
 
-  if (failed) return <Navigate to="/" replace />;
+  if (failed) return <RedirectWithNotification to="/" message={t('notifications.novelNotFound')} />;
   if (target) return <Navigate to={target} replace />;
 
   return (

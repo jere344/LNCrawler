@@ -281,7 +281,9 @@
     "featured": "Polecane",
     "noFeatured": "Brak dostępnej polecanej powieści",
     "latestReviews": "Najnowsze recenzje",
-    "recentlyUpdated": "Ostatnio zaktualizowane powieści"
+    "recentlyUpdated": "Ostatnio zaktualizowane powieści",
+    "recentlyAdded": "Ostatnio dodane powieści",
+    "novelsYouAdded": "Powieści dodane przez Ciebie"
   },
   "library": {
     "loadFailed": "Nie udało się wczytać Twoich powieści w zakładkach. Spróbuj ponownie później.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "Przeszukaj swoją bibliotekę...",
     "sortBy": "Sortuj według",
     "mirrorHidden": "Ten użytkownik zachowuje swoje notatki i/lub oceny jako prywatne.",
+    "select": "Wybierz",
+    "selectAll": "Wybierz wszystko",
+    "selectedCount": "{count, plural, one {# wybrano} few {# wybrano} many {# wybrano} other {# wybrano}}",
+    "clearSelection": "Wyczyść",
+    "moveTo": "Przenieś do",
+    "moveToFolder": "Przenieś do folderu",
+    "removeFromLibrary": "Usuń z biblioteki",
+    "removeConfirmTitle": "Usunąć z biblioteki?",
+    "removeConfirmBody": "{count, plural, one {Usunąć # powieść z biblioteki?} few {Usunąć # powieści z biblioteki?} many {Usunąć # powieści z biblioteki?} other {Usunąć # powieści z biblioteki?}} Tej czynności nie można cofnąć.",
+    "addNote": "Dodaj notatkę",
+    "moreActions": "Więcej akcji",
+    "dragToFolder": "Przeciągnij powieść na folder, aby ją przypisać",
     "sort": {
       "custom": "Niestandardowa kolejność",
       "title": "Tytuł",
       "date_added": "Data dodania",
       "rating": "Ocena"
-    },
-    "addNote": "Dodaj notatkę",
-    "clearSelection": "Wyczyść",
-    "dragToFolder": "Przeciągnij powieść na folder, aby ją przypisać",
-    "moreActions": "Więcej akcji",
-    "moveTo": "Przenieś do",
-    "moveToFolder": "Przenieś do folderu",
-    "removeConfirmBody": "{count, plural, one {Usunąć # powieść z biblioteki?} few {Usunąć # powieści z biblioteki?} many {Usunąć # powieści z biblioteki?} other {Usunąć # powieści z biblioteki?}} Tej czynności nie można cofnąć.",
-    "removeConfirmTitle": "Usunąć z biblioteki?",
-    "removeFromLibrary": "Usuń z biblioteki",
-    "select": "Wybierz",
-    "selectAll": "Wybierz wszystko",
-    "selectedCount": "{count, plural, one {# wybrano} few {# wybrano} many {# wybrano} other {# wybrano}}"
+    }
   },
   "history": {
     "loadFailed": "Nie udało się wczytać Twojej historii czytania. Spróbuj ponownie później.",
@@ -405,12 +407,12 @@
     "volume": "Tom {volume}",
     "contentUnavailable": "Treść niedostępna",
     "noChapters": "Brak dostępnych rozdziałów.",
+    "dmcaNotice": "Ta praca została usunięta w wyniku żądania usunięcia DMCA. Rozdziały nie są już dostępne.",
     "metaTitle": "Lista rozdziałów - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Wczytywanie rozdziałów | LNCrawler",
     "metaDescription": "Przeglądaj wszystkie {count} rozdziałów powieści {novel} ze źródła {source} w LNCrawler. Czytaj light novel online w przejrzystym interfejsie.",
     "metaLoadingDescription": "Wczytywanie listy rozdziałów. Odkrywaj light novel w LNCrawler.",
-    "keywords": "{novel}, {source}, lista rozdziałów, wszystkie rozdziały, rozdziały light novel, web novel",
-    "dmcaNotice": "Ta praca została usunięta w wyniku żądania usunięcia DMCA. Rozdziały nie są już dostępne."
+    "keywords": "{novel}, {source}, lista rozdziałów, wszystkie rozdziały, rozdziały light novel, web novel"
   },
   "gallery": {
     "loadFailed": "Nie udało się wczytać obrazów. Spróbuj ponownie później.",
@@ -474,6 +476,7 @@
     "loadFailed": "Nie udało się wczytać szczegółów źródła. Spróbuj ponownie później.",
     "backToHome": "Powrót do strony głównej",
     "notFound": "Nie znaleziono źródła",
+    "dmcaNotice": "Ta praca została usunięta w wyniku żądania usunięcia DMCA. Czytanie i pobieranie są wyłączone.",
     "returnToHome": "Powrót do strony głównej",
     "fromPrefix": "Z:",
     "visitSource": "Odwiedź źródło",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - Czytaj w LNCrawler",
     "metaLoadingTitle": "Wczytywanie źródła powieści | LNCrawler",
     "metaDescription": "Czytaj {title} ze źródła {source}. Opis: {synopsis}",
-    "metaLoadingDescription": "Wczytywanie szczegółów tego źródła powieści w LNCrawler.",
-    "dmcaNotice": "Ta praca została usunięta w wyniku żądania usunięcia DMCA. Czytanie i pobieranie są wyłączone."
+    "metaLoadingDescription": "Wczytywanie szczegółów tego źródła powieści w LNCrawler."
   },
   "rating": {
     "noRatings": "Brak ocen"
@@ -560,6 +562,7 @@
     "empty": "Komentarz nie może być pusty",
     "editFailed": "Nie udało się edytować komentarza. Spróbuj ponownie.",
     "edited": "(edytowano)",
+    "guest": "[gość]",
     "editTooltip": "Edytuj komentarz",
     "postedAt": "Komentarz opublikowany w {chapter}",
     "fromSource": "z {source}",
@@ -571,8 +574,7 @@
     "showReplies": "Pokaż {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}",
     "loadFailed": "Nie udało się wczytać komentarzy. Spróbuj odświeżyć stronę.",
     "noComments": "Brak komentarzy. Bądź pierwszy, który skomentuje!",
-    "mixedSourcesWarning": "Niektóre z poniższych komentarzy zostały opublikowane dla różnych źródeł. Źródła mogą używać innej numeracji rozdziałów, więc mogą wystąpić spoilery lub pozornie nieistotne komentarze.",
-    "guest": "[gość]"
+    "mixedSourcesWarning": "Niektóre z poniższych komentarzy zostały opublikowane dla różnych źródeł. Źródła mogą używać innej numeracji rozdziałów, więc mogą wystąpić spoilery lub pozornie nieistotne komentarze."
   },
   "chat": {
     "title": "Czat społeczności",
@@ -629,6 +631,12 @@
     "removeTooltip": "Kliknij, aby usunąć z tej listy",
     "novelsCount": "{count} powieści",
     "createNewList": "Utwórz nową listę"
+  },
+  "novelActions": {
+    "menu": "Akcje powieści",
+    "bookmark": "Dodaj do zakładek",
+    "removeBookmark": "Usuń z zakładek",
+    "addToReadingList": "Dodaj do listy czytelniczej"
   },
   "markAsRead": {
     "tooltip": "Oznacz jako przeczytane",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Nie udało się wczytać treści rozdziału. Spróbuj ponownie później.",
     "notFound": "Nie znaleziono rozdziału",
+    "dmcaUnavailable": "Ta praca jest niedostępna z powodu żądania usunięcia DMCA.",
     "chapters": "Rozdziały",
     "chapterTab": "Rozdział",
     "commentsTab": "Komentarze",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Odblokuj przewijanie",
     "lockScrolling": "Zablokuj przewijanie",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Strona {current} z {total}",
-    "dmcaUnavailable": "Ta praca jest niedostępna z powodu żądania usunięcia DMCA."
+    "pageOf": "Strona {current} z {total}"
   },
   "readerControls": {
     "previousChapter": "Poprzedni rozdział",
@@ -901,10 +909,9 @@
     "resultSummary": "Zaimportowano {bookmarked} powieści ({already} już w bibliotece). Ustawiono postęp dla {progress}.",
     "goToLibrary": "Przejdź do biblioteki"
   },
-  "novelActions": {
-    "addToReadingList": "Dodaj do listy czytelniczej",
-    "bookmark": "Dodaj do zakładek",
-    "menu": "Akcje powieści",
-    "removeBookmark": "Usuń z zakładek"
+  "notifications": {
+    "novelNotFound": "Nie znaleziono powieści. Powrót do strony głównej.",
+    "pageNotFound": "Nie znaleziono strony. Powrót do strony głównej.",
+    "dismiss": "Zamknij"
   }
 }

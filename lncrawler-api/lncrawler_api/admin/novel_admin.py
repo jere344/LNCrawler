@@ -245,12 +245,14 @@ class NovelAdmin(admin.ModelAdmin):
         "comment_count",
         "view_count_display",
         "is_dmca",
+        "added_by",
         "created_at",
         "updated_at",
     )
     list_filter = ("is_dmca",)
     actions = ("mark_dmca", "unmark_dmca")
     search_fields = ("title", "slug")
+    list_select_related = ("added_by",)
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = (
         "id",

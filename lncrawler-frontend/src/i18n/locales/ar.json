@@ -281,7 +281,9 @@
     "featured": "مميزة",
     "noFeatured": "لا توجد رواية مميزة متاحة",
     "latestReviews": "أحدث المراجعات",
-    "recentlyUpdated": "روايات حُدِّثت مؤخرًا"
+    "recentlyUpdated": "روايات حُدِّثت مؤخرًا",
+    "recentlyAdded": "روايات أُضيفت مؤخرًا",
+    "novelsYouAdded": "الروايات التي أضفتها"
   },
   "library": {
     "loadFailed": "فشل تحميل رواياتك المحفوظة. يرجى المحاولة لاحقًا.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "ابحث في مكتبتك...",
     "sortBy": "الترتيب حسب",
     "mirrorHidden": "يحتفظ هذا المستخدم بملاحظاته و/أو تقييماته خاصة.",
+    "select": "تحديد",
+    "selectAll": "تحديد الكل",
+    "selectedCount": "{count, plural, one {تم تحديد واحد} two {تم تحديد اثنين} few {تم تحديد #} many {تم تحديد #} other {تم تحديد #}}",
+    "clearSelection": "مسح",
+    "moveTo": "نقل إلى",
+    "moveToFolder": "نقل إلى مجلد",
+    "removeFromLibrary": "إزالة من المكتبة",
+    "removeConfirmTitle": "إزالة من المكتبة؟",
+    "removeConfirmBody": "{count, plural, one {إزالة رواية واحدة من مكتبتك؟} two {إزالة روايتين من مكتبتك؟} few {إزالة # روايات من مكتبتك؟} many {إزالة # رواية من مكتبتك؟} other {إزالة # رواية من مكتبتك؟}} لا يمكن التراجع عن هذا.",
+    "addNote": "إضافة ملاحظة",
+    "moreActions": "مزيد من الإجراءات",
+    "dragToFolder": "اسحب رواية إلى مجلد لتصنيفها",
     "sort": {
       "custom": "ترتيب مخصص",
       "title": "العنوان",
       "date_added": "تاريخ الإضافة",
       "rating": "التقييم"
-    },
-    "addNote": "إضافة ملاحظة",
-    "clearSelection": "مسح",
-    "dragToFolder": "اسحب رواية إلى مجلد لتصنيفها",
-    "moreActions": "مزيد من الإجراءات",
-    "moveTo": "نقل إلى",
-    "moveToFolder": "نقل إلى مجلد",
-    "removeConfirmBody": "{count, plural, one {إزالة رواية واحدة من مكتبتك؟} two {إزالة روايتين من مكتبتك؟} few {إزالة # روايات من مكتبتك؟} many {إزالة # رواية من مكتبتك؟} other {إزالة # رواية من مكتبتك؟}} لا يمكن التراجع عن هذا.",
-    "removeConfirmTitle": "إزالة من المكتبة؟",
-    "removeFromLibrary": "إزالة من المكتبة",
-    "select": "تحديد",
-    "selectAll": "تحديد الكل",
-    "selectedCount": "{count, plural, one {تم تحديد واحد} two {تم تحديد اثنين} few {تم تحديد #} many {تم تحديد #} other {تم تحديد #}}"
+    }
   },
   "history": {
     "loadFailed": "فشل تحميل سجل القراءة. يرجى المحاولة لاحقًا.",
@@ -405,12 +407,12 @@
     "volume": "المجلد {volume}",
     "contentUnavailable": "المحتوى غير متاح",
     "noChapters": "لا توجد فصول متاحة.",
+    "dmcaNotice": "تمت إزالة هذا العمل بناءً على طلب إزالة بموجب قانون DMCA. لم تعد الفصول متاحة.",
     "metaTitle": "قائمة الفصول - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "جارٍ تحميل الفصول | LNCrawler",
     "metaDescription": "تصفح جميع الفصول البالغ عددها {count} لرواية {novel} من المصدر {source} على LNCrawler. اقرأ الروايات الخفيفة عبر الإنترنت بتجربة قراءة مريحة.",
     "metaLoadingDescription": "جارٍ تحميل قائمة الفصول. اكتشف الروايات الخفيفة على LNCrawler.",
-    "keywords": "{novel}, {source}, قائمة الفصول, جميع الفصول, فصول الروايات الخفيفة, رواية ويب",
-    "dmcaNotice": "تمت إزالة هذا العمل بناءً على طلب إزالة بموجب قانون DMCA. لم تعد الفصول متاحة."
+    "keywords": "{novel}, {source}, قائمة الفصول, جميع الفصول, فصول الروايات الخفيفة, رواية ويب"
   },
   "gallery": {
     "loadFailed": "فشل تحميل الصور. يرجى المحاولة لاحقًا.",
@@ -474,6 +476,7 @@
     "loadFailed": "فشل تحميل تفاصيل المصدر. يرجى المحاولة لاحقًا.",
     "backToHome": "العودة إلى الرئيسية",
     "notFound": "لم يتم العثور على المصدر",
+    "dmcaNotice": "تمت إزالة هذا العمل بناءً على طلب إزالة بموجب قانون DMCA. تم تعطيل القراءة والتنزيلات.",
     "returnToHome": "العودة إلى الرئيسية",
     "fromPrefix": "من:",
     "visitSource": "زيارة المصدر",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - اقرأ على LNCrawler",
     "metaLoadingTitle": "جارٍ تحميل مصدر الرواية | LNCrawler",
     "metaDescription": "اقرأ {title} من {source}. الملخص: {synopsis}",
-    "metaLoadingDescription": "جارٍ تحميل تفاصيل مصدر هذه الرواية على LNCrawler.",
-    "dmcaNotice": "تمت إزالة هذا العمل بناءً على طلب إزالة بموجب قانون DMCA. تم تعطيل القراءة والتنزيلات."
+    "metaLoadingDescription": "جارٍ تحميل تفاصيل مصدر هذه الرواية على LNCrawler."
   },
   "rating": {
     "noRatings": "لا توجد تقييمات"
@@ -560,6 +562,7 @@
     "empty": "لا يمكن أن يكون التعليق فارغًا",
     "editFailed": "فشل تعديل التعليق. يرجى المحاولة مرة أخرى.",
     "edited": "(معدَّل)",
+    "guest": "[زائر]",
     "editTooltip": "تعديل التعليق",
     "postedAt": "نُشر التعليق في {chapter}",
     "fromSource": "من {source}",
@@ -571,8 +574,7 @@
     "showReplies": "عرض {count, plural, one {# رد} two {ردين} few {# ردود} many {# ردًا} other {# رد}}",
     "loadFailed": "فشل تحميل التعليقات. يرجى محاولة تحديث الصفحة.",
     "noComments": "لا توجد تعليقات بعد. كن أول من يعلّق!",
-    "mixedSourcesWarning": "بعض التعليقات أدناه نُشرت لمصادر مختلفة. قد تستخدم المصادر ترقيمًا مختلفًا للفصول، لذا قد توجد حروق أو تعليقات تبدو غير ذات صلة.",
-    "guest": "[زائر]"
+    "mixedSourcesWarning": "بعض التعليقات أدناه نُشرت لمصادر مختلفة. قد تستخدم المصادر ترقيمًا مختلفًا للفصول، لذا قد توجد حروق أو تعليقات تبدو غير ذات صلة."
   },
   "chat": {
     "title": "دردشة المجتمع",
@@ -629,6 +631,12 @@
     "removeTooltip": "انقر للإزالة من هذه القائمة",
     "novelsCount": "{count} رواية",
     "createNewList": "إنشاء قائمة جديدة"
+  },
+  "novelActions": {
+    "menu": "إجراءات الرواية",
+    "bookmark": "إضافة إلى الإشارات المرجعية",
+    "removeBookmark": "إزالة من الإشارات المرجعية",
+    "addToReadingList": "إضافة إلى قائمة القراءة"
   },
   "markAsRead": {
     "tooltip": "وضع علامة كمقروء",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "فشل تحميل محتوى الفصل. يرجى المحاولة لاحقًا.",
     "notFound": "لم يتم العثور على الفصل",
+    "dmcaUnavailable": "هذا العمل غير متاح بسبب طلب إزالة بموجب قانون DMCA.",
     "chapters": "الفصول",
     "chapterTab": "الفصل",
     "commentsTab": "التعليقات",
@@ -749,8 +758,7 @@
     "unlockScrolling": "إلغاء قفل التمرير",
     "lockScrolling": "قفل التمرير",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "الصفحة {current} من {total}",
-    "dmcaUnavailable": "هذا العمل غير متاح بسبب طلب إزالة بموجب قانون DMCA."
+    "pageOf": "الصفحة {current} من {total}"
   },
   "readerControls": {
     "previousChapter": "الفصل السابق",
@@ -901,10 +909,9 @@
     "resultSummary": "تم استيراد {bookmarked} رواية ({already} موجودة بالفعل في المكتبة). تم ضبط التقدم لـ {progress}.",
     "goToLibrary": "الانتقال إلى المكتبة"
   },
-  "novelActions": {
-    "addToReadingList": "إضافة إلى قائمة القراءة",
-    "bookmark": "إضافة إلى الإشارات المرجعية",
-    "menu": "إجراءات الرواية",
-    "removeBookmark": "إزالة من الإشارات المرجعية"
+  "notifications": {
+    "novelNotFound": "لم يتم العثور على الرواية. العودة إلى الصفحة الرئيسية.",
+    "pageNotFound": "لم يتم العثور على الصفحة. العودة إلى الصفحة الرئيسية.",
+    "dismiss": "إغلاق"
   }
 }

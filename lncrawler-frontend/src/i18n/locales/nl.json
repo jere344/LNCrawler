@@ -281,7 +281,9 @@
     "featured": "Uitgelicht",
     "noFeatured": "Geen uitgelichte roman beschikbaar",
     "latestReviews": "Nieuwste beoordelingen",
-    "recentlyUpdated": "Onlangs bijgewerkte romans"
+    "recentlyUpdated": "Onlangs bijgewerkte romans",
+    "recentlyAdded": "Onlangs toegevoegde romans",
+    "novelsYouAdded": "Romans die je hebt toegevoegd"
   },
   "library": {
     "loadFailed": "Je romans met bladwijzer laden mislukt. Probeer het later opnieuw.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "Je bibliotheek doorzoeken...",
     "sortBy": "Sorteren op",
     "mirrorHidden": "Deze gebruiker houdt zijn/haar notities en/of beoordelingen privé.",
+    "select": "Selecteren",
+    "selectAll": "Alles selecteren",
+    "selectedCount": "{count, plural, one {# geselecteerd} other {# geselecteerd}}",
+    "clearSelection": "Wissen",
+    "moveTo": "Verplaatsen naar",
+    "moveToFolder": "Naar map verplaatsen",
+    "removeFromLibrary": "Uit bibliotheek verwijderen",
+    "removeConfirmTitle": "Uit bibliotheek verwijderen?",
+    "removeConfirmBody": "{count, plural, one {# roman uit je bibliotheek verwijderen?} other {# romans uit je bibliotheek verwijderen?}} Dit kan niet ongedaan worden gemaakt.",
+    "addNote": "Notitie toevoegen",
+    "moreActions": "Meer acties",
+    "dragToFolder": "Sleep een roman naar een map om deze op te bergen",
     "sort": {
       "custom": "Aangepaste volgorde",
       "title": "Titel",
       "date_added": "Datum toegevoegd",
       "rating": "Beoordeling"
-    },
-    "addNote": "Notitie toevoegen",
-    "clearSelection": "Wissen",
-    "dragToFolder": "Sleep een roman naar een map om deze op te bergen",
-    "moreActions": "Meer acties",
-    "moveTo": "Verplaatsen naar",
-    "moveToFolder": "Naar map verplaatsen",
-    "removeConfirmBody": "{count, plural, one {# roman uit je bibliotheek verwijderen?} other {# romans uit je bibliotheek verwijderen?}} Dit kan niet ongedaan worden gemaakt.",
-    "removeConfirmTitle": "Uit bibliotheek verwijderen?",
-    "removeFromLibrary": "Uit bibliotheek verwijderen",
-    "select": "Selecteren",
-    "selectAll": "Alles selecteren",
-    "selectedCount": "{count, plural, one {# geselecteerd} other {# geselecteerd}}"
+    }
   },
   "history": {
     "loadFailed": "Je leesgeschiedenis laden mislukt. Probeer het later opnieuw.",
@@ -405,12 +407,12 @@
     "volume": "Deel {volume}",
     "contentUnavailable": "Inhoud niet beschikbaar",
     "noChapters": "Geen hoofdstukken beschikbaar.",
+    "dmcaNotice": "Dit werk is verwijderd naar aanleiding van een DMCA-verwijderingsverzoek. Hoofdstukken zijn niet meer beschikbaar.",
     "metaTitle": "Hoofdstukkenlijst - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Hoofdstukken laden | LNCrawler",
     "metaDescription": "Blader door alle {count} hoofdstukken van {novel} uit bron {source} op LNCrawler. Lees light novels online met een schone leeservaring.",
     "metaLoadingDescription": "Hoofdstukkenlijst laden. Ontdek light novels op LNCrawler.",
-    "keywords": "{novel}, {source}, hoofdstukkenlijst, alle hoofdstukken, light novel-hoofdstukken, web novel",
-    "dmcaNotice": "Dit werk is verwijderd naar aanleiding van een DMCA-verwijderingsverzoek. Hoofdstukken zijn niet meer beschikbaar."
+    "keywords": "{novel}, {source}, hoofdstukkenlijst, alle hoofdstukken, light novel-hoofdstukken, web novel"
   },
   "gallery": {
     "loadFailed": "Afbeeldingen laden mislukt. Probeer het later opnieuw.",
@@ -474,6 +476,7 @@
     "loadFailed": "Brondetails laden mislukt. Probeer het later opnieuw.",
     "backToHome": "Terug naar home",
     "notFound": "Bron niet gevonden",
+    "dmcaNotice": "Dit werk is verwijderd naar aanleiding van een DMCA-verwijderingsverzoek. Lezen en downloads zijn uitgeschakeld.",
     "returnToHome": "Terug naar home",
     "fromPrefix": "Van:",
     "visitSource": "Bron bezoeken",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - Lees op LNCrawler",
     "metaLoadingTitle": "Romanbron laden | LNCrawler",
     "metaDescription": "Lees {title} uit {source}. Samenvatting: {synopsis}",
-    "metaLoadingDescription": "Details van deze romanbron laden op LNCrawler.",
-    "dmcaNotice": "Dit werk is verwijderd naar aanleiding van een DMCA-verwijderingsverzoek. Lezen en downloads zijn uitgeschakeld."
+    "metaLoadingDescription": "Details van deze romanbron laden op LNCrawler."
   },
   "rating": {
     "noRatings": "Geen beoordelingen"
@@ -560,6 +562,7 @@
     "empty": "Reactie mag niet leeg zijn",
     "editFailed": "Reactie bewerken mislukt. Probeer het opnieuw.",
     "edited": "(bewerkt)",
+    "guest": "[gast]",
     "editTooltip": "Reactie bewerken",
     "postedAt": "Reactie geplaatst bij {chapter}",
     "fromSource": "van {source}",
@@ -571,8 +574,7 @@
     "showReplies": "Toon {count, plural, one {# antwoord} other {# antwoorden}}",
     "loadFailed": "Reacties laden mislukt. Probeer de pagina te vernieuwen.",
     "noComments": "Nog geen reacties. Wees de eerste die reageert!",
-    "mixedSourcesWarning": "Sommige reacties hieronder zijn geplaatst voor verschillende bronnen. Bronnen kunnen verschillende hoofdstuknummering gebruiken, dus er kunnen spoilers of ogenschijnlijk irrelevante reacties zijn.",
-    "guest": "[gast]"
+    "mixedSourcesWarning": "Sommige reacties hieronder zijn geplaatst voor verschillende bronnen. Bronnen kunnen verschillende hoofdstuknummering gebruiken, dus er kunnen spoilers of ogenschijnlijk irrelevante reacties zijn."
   },
   "chat": {
     "title": "Communitychat",
@@ -629,6 +631,12 @@
     "removeTooltip": "Klik om uit deze lijst te verwijderen",
     "novelsCount": "{count} romans",
     "createNewList": "Nieuwe lijst aanmaken"
+  },
+  "novelActions": {
+    "menu": "Romanacties",
+    "bookmark": "Bladwijzer toevoegen",
+    "removeBookmark": "Bladwijzer verwijderen",
+    "addToReadingList": "Toevoegen aan leeslijst"
   },
   "markAsRead": {
     "tooltip": "Markeren als gelezen",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Hoofdstukinhoud laden mislukt. Probeer het later opnieuw.",
     "notFound": "Hoofdstuk niet gevonden",
+    "dmcaUnavailable": "Dit werk is niet beschikbaar vanwege een DMCA-verwijderingsverzoek.",
     "chapters": "Hoofdstukken",
     "chapterTab": "Hoofdstuk",
     "commentsTab": "Reacties",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Scrollen ontgrendelen",
     "lockScrolling": "Scrollen vergrendelen",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Pagina {current} van {total}",
-    "dmcaUnavailable": "Dit werk is niet beschikbaar vanwege een DMCA-verwijderingsverzoek."
+    "pageOf": "Pagina {current} van {total}"
   },
   "readerControls": {
     "previousChapter": "Vorig hoofdstuk",
@@ -901,10 +909,9 @@
     "resultSummary": "{bookmarked} romans geïmporteerd ({already} al in bibliotheek). Voortgang ingesteld voor {progress}.",
     "goToLibrary": "Naar bibliotheek"
   },
-  "novelActions": {
-    "addToReadingList": "Toevoegen aan leeslijst",
-    "bookmark": "Bladwijzer toevoegen",
-    "menu": "Romanacties",
-    "removeBookmark": "Bladwijzer verwijderen"
+  "notifications": {
+    "novelNotFound": "Roman niet gevonden. Terug naar de startpagina.",
+    "pageNotFound": "Pagina niet gevonden. Terug naar de startpagina.",
+    "dismiss": "Sluiten"
   }
 }

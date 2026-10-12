@@ -5,8 +5,33 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
 
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.exceptions import AuthenticationFailed
+
 from ..services import DownloaderService
 from ..models import Job
+
+
+def _current_user(request):
+    """Resolve the authenticated user for this plain (non-DRF) view module.
+
+    Every other view is DRF, so ``request.user`` is populated by DRF's
+    authentication. These downloader endpoints predate that and stay plain
+    Django views, where AuthenticationMiddleware only sees sessions - and login
+    is token-only, so ``request.user`` is always anonymous here. Run the same
+    TokenAuthentication DRF would, so an authenticated download is attributed
+    to its submitter. Returns None for anonymous or invalid-token requests.
+    """
+    if request.user.is_authenticated:
+        return request.user
+    try:
+        authenticated = TokenAuthentication().authenticate(request)
+    except AuthenticationFailed:
+        return None
+    if authenticated is None:
+        return None
+    user, _ = authenticated
+    return user if user.is_authenticated else None
 
 
 @csrf_exempt
@@ -26,7 +51,7 @@ def start_search(request):
                 status=400,
             )
         
-        job = DownloaderService.start_search(query)
+        job = DownloaderService.start_search(query, user=_current_user(request))
 
         return JsonResponse(
             {"status": "success", "message": "Search started", "job_id": str(job.id)}
@@ -72,7 +97,8 @@ def start_download(request, job_id):
         result = DownloaderService.start_download(
             job_id,
             novel_index=novel_index,
-            source_index=source_index
+            source_index=source_index,
+            user=_current_user(request),
         )
 
         return JsonResponse(result)
@@ -165,7 +191,9 @@ def start_direct_download(request):
             )
         
         # Use the existing direct download method from the service
-        result = DownloaderService.start_direct_download(novel_url)
+        result = DownloaderService.start_direct_download(
+            novel_url, user=_current_user(request)
+        )
         return JsonResponse(result)
     
     except json.JSONDecodeError:

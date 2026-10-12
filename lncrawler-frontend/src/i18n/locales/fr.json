@@ -281,7 +281,9 @@
     "featured": "À la une",
     "noFeatured": "Aucun roman à la une disponible",
     "latestReviews": "Derniers avis",
-    "recentlyUpdated": "Romans récemment mis à jour"
+    "recentlyUpdated": "Romans récemment mis à jour",
+    "recentlyAdded": "Romans récemment ajoutés",
+    "novelsYouAdded": "Romans que vous avez ajoutés"
   },
   "library": {
     "loadFailed": "Échec du chargement de vos romans mis en favori. Veuillez réessayer plus tard.",
@@ -405,12 +407,12 @@
     "volume": "Tome {volume}",
     "contentUnavailable": "Contenu indisponible",
     "noChapters": "Aucun chapitre disponible.",
+    "dmcaNotice": "Cette œuvre a été supprimée à la suite d'une demande de retrait DMCA. Les chapitres ne sont plus disponibles.",
     "metaTitle": "Liste des chapitres - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Chargement des chapitres | LNCrawler",
     "metaDescription": "Parcourez les {count} chapitres de {novel} depuis la source {source} sur LNCrawler. Lisez des light novels en ligne avec une expérience de lecture épurée.",
     "metaLoadingDescription": "Chargement de la liste des chapitres. Découvrez des light novels sur LNCrawler.",
-    "keywords": "{novel}, {source}, liste des chapitres, tous les chapitres, chapitres de light novel, web novel",
-    "dmcaNotice": "Cette œuvre a été supprimée à la suite d'une demande de retrait DMCA. Les chapitres ne sont plus disponibles."
+    "keywords": "{novel}, {source}, liste des chapitres, tous les chapitres, chapitres de light novel, web novel"
   },
   "gallery": {
     "loadFailed": "Échec du chargement des images. Veuillez réessayer plus tard.",
@@ -474,6 +476,7 @@
     "loadFailed": "Échec du chargement des détails de la source. Veuillez réessayer plus tard.",
     "backToHome": "Retour à l'accueil",
     "notFound": "Source introuvable",
+    "dmcaNotice": "Cette œuvre a été supprimée à la suite d'une demande de retrait DMCA. La lecture et les téléchargements sont désactivés.",
     "returnToHome": "Retourner à l'accueil",
     "fromPrefix": "De :",
     "visitSource": "Visiter la source",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - À lire sur LNCrawler",
     "metaLoadingTitle": "Chargement de la source du roman | LNCrawler",
     "metaDescription": "Lisez {title} depuis {source}. Synopsis : {synopsis}",
-    "metaLoadingDescription": "Chargement des détails de cette source de roman sur LNCrawler.",
-    "dmcaNotice": "Cette œuvre a été supprimée à la suite d'une demande de retrait DMCA. La lecture et les téléchargements sont désactivés."
+    "metaLoadingDescription": "Chargement des détails de cette source de roman sur LNCrawler."
   },
   "rating": {
     "noRatings": "Aucune note"
@@ -560,6 +562,7 @@
     "empty": "Le commentaire ne peut pas être vide",
     "editFailed": "Échec de la modification du commentaire. Veuillez réessayer.",
     "edited": "(modifié)",
+    "guest": "[invité]",
     "editTooltip": "Modifier le commentaire",
     "postedAt": "Commentaire publié à {chapter}",
     "fromSource": "depuis {source}",
@@ -571,8 +574,7 @@
     "showReplies": "Afficher {count, plural, one {# réponse} other {# réponses}}",
     "loadFailed": "Échec du chargement des commentaires. Veuillez essayer d'actualiser la page.",
     "noComments": "Aucun commentaire pour le moment. Soyez le premier à commenter !",
-    "mixedSourcesWarning": "Certains commentaires ci-dessous ont été publiés pour différentes sources. Les sources peuvent utiliser une numérotation de chapitres différente, il peut donc y avoir des spoilers ou des commentaires apparemment hors sujet.",
-    "guest": "[invité]"
+    "mixedSourcesWarning": "Certains commentaires ci-dessous ont été publiés pour différentes sources. Les sources peuvent utiliser une numérotation de chapitres différente, il peut donc y avoir des spoilers ou des commentaires apparemment hors sujet."
   },
   "chat": {
     "title": "Chat communautaire",
@@ -629,6 +631,12 @@
     "removeTooltip": "Cliquez pour retirer de cette liste",
     "novelsCount": "{count} romans",
     "createNewList": "Créer une nouvelle liste"
+  },
+  "novelActions": {
+    "menu": "Actions du roman",
+    "bookmark": "Ajouter aux favoris",
+    "removeBookmark": "Retirer des favoris",
+    "addToReadingList": "Ajouter à la liste de lecture"
   },
   "markAsRead": {
     "tooltip": "Marquer comme lu",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Échec du chargement du contenu du chapitre. Veuillez réessayer plus tard.",
     "notFound": "Chapitre introuvable",
+    "dmcaUnavailable": "Cette œuvre est indisponible en raison d'une demande de retrait DMCA.",
     "chapters": "Chapitres",
     "chapterTab": "Chapitre",
     "commentsTab": "Commentaires",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Déverrouiller le défilement",
     "lockScrolling": "Verrouiller le défilement",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Page {current} sur {total}",
-    "dmcaUnavailable": "Cette œuvre est indisponible en raison d'une demande de retrait DMCA."
+    "pageOf": "Page {current} sur {total}"
   },
   "readerControls": {
     "previousChapter": "Chapitre précédent",
@@ -901,10 +909,9 @@
     "resultSummary": "{bookmarked} romans importés ({already} déjà dans la bibliothèque). Progression définie pour {progress}.",
     "goToLibrary": "Aller à la bibliothèque"
   },
-  "novelActions": {
-    "addToReadingList": "Ajouter à la liste de lecture",
-    "bookmark": "Ajouter aux favoris",
-    "menu": "Actions du roman",
-    "removeBookmark": "Retirer des favoris"
+  "notifications": {
+    "novelNotFound": "Roman introuvable. Retour à la page d'accueil.",
+    "pageNotFound": "Page introuvable. Retour à la page d'accueil.",
+    "dismiss": "Ignorer"
   }
 }

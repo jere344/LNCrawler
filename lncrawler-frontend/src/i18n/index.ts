@@ -4,30 +4,14 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import ICU from 'i18next-icu';
 import { availableLanguages } from '@utils/Misc';
 
-// One dynamic import per locale so Vite emits a separate chunk for each and the
-// browser only downloads the language actually in use.
-const localeLoaders: Record<string, () => Promise<{ default: Record<string, unknown> }>> = {
-    en: () => import('./locales/en.json'),
-    fr: () => import('./locales/fr.json'),
-    es: () => import('./locales/es.json'),
-    de: () => import('./locales/de.json'),
-    it: () => import('./locales/it.json'),
-    ja: () => import('./locales/ja.json'),
-    ko: () => import('./locales/ko.json'),
-    zh: () => import('./locales/zh.json'),
-    pt: () => import('./locales/pt.json'),
-    ru: () => import('./locales/ru.json'),
-    ar: () => import('./locales/ar.json'),
-    hi: () => import('./locales/hi.json'),
-    th: () => import('./locales/th.json'),
-    vi: () => import('./locales/vi.json'),
-    id: () => import('./locales/id.json'),
-    tr: () => import('./locales/tr.json'),
-    pl: () => import('./locales/pl.json'),
-    nl: () => import('./locales/nl.json'),
-    sv: () => import('./locales/sv.json'),
-    da: () => import('./locales/da.json'),
-};
+// One chunk per locale so the browser only downloads the language in use.
+// Keys are derived from the filenames, so adding a locale needs no edit here.
+type LocaleModule = () => Promise<{ default: Record<string, unknown> }>;
+const localeLoaders: Record<string, LocaleModule> = Object.fromEntries(
+    Object.entries(import.meta.glob('./locales/*.json') as Record<string, LocaleModule>).map(
+        ([path, load]) => [path.slice(path.lastIndexOf('/') + 1, -'.json'.length), load],
+    ),
+);
 
 const baseLanguage = (lng: string) => lng.toLowerCase().split('-')[0];
 

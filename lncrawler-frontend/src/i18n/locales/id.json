@@ -281,7 +281,9 @@
     "featured": "Unggulan",
     "noFeatured": "Tidak ada novel unggulan tersedia",
     "latestReviews": "Ulasan Terbaru",
-    "recentlyUpdated": "Novel yang Baru Diperbarui"
+    "recentlyUpdated": "Novel yang Baru Diperbarui",
+    "recentlyAdded": "Novel yang Baru Ditambahkan",
+    "novelsYouAdded": "Novel yang Anda Tambahkan"
   },
   "library": {
     "loadFailed": "Gagal memuat novel yang Anda tandai. Silakan coba lagi nanti.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "Cari di perpustakaan Anda...",
     "sortBy": "Urutkan berdasarkan",
     "mirrorHidden": "Pengguna ini menjaga catatan dan/atau peringkatnya tetap privat.",
+    "select": "Pilih",
+    "selectAll": "Pilih semua",
+    "selectedCount": "{count, plural, one {# dipilih} other {# dipilih}}",
+    "clearSelection": "Bersihkan",
+    "moveTo": "Pindahkan ke",
+    "moveToFolder": "Pindahkan ke folder",
+    "removeFromLibrary": "Hapus dari perpustakaan",
+    "removeConfirmTitle": "Hapus dari perpustakaan?",
+    "removeConfirmBody": "{count, plural, one {Hapus # novel dari perpustakaan Anda?} other {Hapus # novel dari perpustakaan Anda?}} Tindakan ini tidak dapat dibatalkan.",
+    "addNote": "Tambah catatan",
+    "moreActions": "Tindakan lainnya",
+    "dragToFolder": "Seret novel ke folder untuk menyimpannya",
     "sort": {
       "custom": "Urutan khusus",
       "title": "Judul",
       "date_added": "Tanggal ditambahkan",
       "rating": "Peringkat"
-    },
-    "addNote": "Tambah catatan",
-    "clearSelection": "Bersihkan",
-    "dragToFolder": "Seret novel ke folder untuk menyimpannya",
-    "moreActions": "Tindakan lainnya",
-    "moveTo": "Pindahkan ke",
-    "moveToFolder": "Pindahkan ke folder",
-    "removeConfirmBody": "{count, plural, one {Hapus # novel dari perpustakaan Anda?} other {Hapus # novel dari perpustakaan Anda?}} Tindakan ini tidak dapat dibatalkan.",
-    "removeConfirmTitle": "Hapus dari perpustakaan?",
-    "removeFromLibrary": "Hapus dari perpustakaan",
-    "select": "Pilih",
-    "selectAll": "Pilih semua",
-    "selectedCount": "{count, plural, one {# dipilih} other {# dipilih}}"
+    }
   },
   "history": {
     "loadFailed": "Gagal memuat riwayat bacaan Anda. Silakan coba lagi nanti.",
@@ -405,12 +407,12 @@
     "volume": "Volume {volume}",
     "contentUnavailable": "Konten tidak tersedia",
     "noChapters": "Tidak ada bab tersedia.",
+    "dmcaNotice": "Karya ini telah dihapus setelah permintaan penurunan DMCA. Bab tidak lagi tersedia.",
     "metaTitle": "Daftar Bab - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Memuat Bab | LNCrawler",
     "metaDescription": "Jelajahi semua {count} bab untuk {novel} dari sumber {source} di LNCrawler. Baca light novel online dengan pengalaman membaca yang bersih.",
     "metaLoadingDescription": "Memuat daftar bab. Temukan light novel di LNCrawler.",
-    "keywords": "{novel}, {source}, daftar bab, semua bab, bab light novel, web novel",
-    "dmcaNotice": "Karya ini telah dihapus setelah permintaan penurunan DMCA. Bab tidak lagi tersedia."
+    "keywords": "{novel}, {source}, daftar bab, semua bab, bab light novel, web novel"
   },
   "gallery": {
     "loadFailed": "Gagal memuat gambar. Silakan coba lagi nanti.",
@@ -474,6 +476,7 @@
     "loadFailed": "Gagal memuat detail sumber. Silakan coba lagi nanti.",
     "backToHome": "Kembali ke Beranda",
     "notFound": "Sumber tidak ditemukan",
+    "dmcaNotice": "Karya ini telah dihapus setelah permintaan penurunan DMCA. Membaca dan mengunduh dinonaktifkan.",
     "returnToHome": "Kembali ke Beranda",
     "fromPrefix": "Dari:",
     "visitSource": "Kunjungi Sumber",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - Baca di LNCrawler",
     "metaLoadingTitle": "Memuat Sumber Novel | LNCrawler",
     "metaDescription": "Baca {title} dari {source}. Sinopsis: {synopsis}",
-    "metaLoadingDescription": "Memuat detail sumber novel ini di LNCrawler.",
-    "dmcaNotice": "Karya ini telah dihapus setelah permintaan penurunan DMCA. Membaca dan mengunduh dinonaktifkan."
+    "metaLoadingDescription": "Memuat detail sumber novel ini di LNCrawler."
   },
   "rating": {
     "noRatings": "Tidak ada penilaian"
@@ -560,6 +562,7 @@
     "empty": "Komentar tidak boleh kosong",
     "editFailed": "Gagal mengedit komentar. Silakan coba lagi.",
     "edited": "(diedit)",
+    "guest": "[tamu]",
     "editTooltip": "Edit komentar",
     "postedAt": "Komentar diposting di {chapter}",
     "fromSource": "dari {source}",
@@ -571,8 +574,7 @@
     "showReplies": "Tampilkan {count, plural, one {# balasan} other {# balasan}}",
     "loadFailed": "Gagal memuat komentar. Silakan coba segarkan halaman.",
     "noComments": "Belum ada komentar. Jadilah yang pertama berkomentar!",
-    "mixedSourcesWarning": "Beberapa komentar di bawah diposting untuk sumber yang berbeda. Sumber mungkin menggunakan penomoran bab yang berbeda sehingga mungkin ada spoiler atau komentar yang tampak tidak relevan.",
-    "guest": "[tamu]"
+    "mixedSourcesWarning": "Beberapa komentar di bawah diposting untuk sumber yang berbeda. Sumber mungkin menggunakan penomoran bab yang berbeda sehingga mungkin ada spoiler atau komentar yang tampak tidak relevan."
   },
   "chat": {
     "title": "Chat Komunitas",
@@ -629,6 +631,12 @@
     "removeTooltip": "Klik untuk menghapus dari daftar ini",
     "novelsCount": "{count} novel",
     "createNewList": "Buat Daftar Baru"
+  },
+  "novelActions": {
+    "menu": "Tindakan novel",
+    "bookmark": "Tandai",
+    "removeBookmark": "Hapus tanda",
+    "addToReadingList": "Tambah ke daftar bacaan"
   },
   "markAsRead": {
     "tooltip": "Tandai sudah dibaca",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Gagal memuat konten bab. Silakan coba lagi nanti.",
     "notFound": "Bab tidak ditemukan",
+    "dmcaUnavailable": "Karya ini tidak tersedia karena permintaan penurunan DMCA.",
     "chapters": "Bab",
     "chapterTab": "Bab",
     "commentsTab": "Komentar",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Buka kunci gulir",
     "lockScrolling": "Kunci gulir",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Halaman {current} dari {total}",
-    "dmcaUnavailable": "Karya ini tidak tersedia karena permintaan penurunan DMCA."
+    "pageOf": "Halaman {current} dari {total}"
   },
   "readerControls": {
     "previousChapter": "Bab Sebelumnya",
@@ -901,10 +909,9 @@
     "resultSummary": "{bookmarked} novel diimpor ({already} sudah ada di pustaka). Kemajuan diatur untuk {progress}.",
     "goToLibrary": "Buka pustaka"
   },
-  "novelActions": {
-    "addToReadingList": "Tambah ke daftar bacaan",
-    "bookmark": "Tandai",
-    "menu": "Tindakan novel",
-    "removeBookmark": "Hapus tanda"
+  "notifications": {
+    "novelNotFound": "Novel tidak ditemukan. Kembali ke beranda.",
+    "pageNotFound": "Halaman tidak ditemukan. Kembali ke beranda.",
+    "dismiss": "Tutup"
   }
 }

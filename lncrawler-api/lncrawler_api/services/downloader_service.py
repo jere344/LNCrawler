@@ -257,7 +257,7 @@ class DownloaderService:
             from ..models import NovelFromSource
 
             # Use the NovelFromSource's method to import from meta.json
-            novel = NovelFromSource.from_meta_json(meta_json_path)
+            novel = NovelFromSource.from_meta_json(meta_json_path, added_by=job.user)
 
             if novel:
                 job.output_slug = novel.novel.slug + "/" + novel.source_slug
@@ -427,7 +427,7 @@ class DownloaderService:
                     pass
 
     @classmethod
-    def start_search(cls, query):
+    def start_search(cls, query, user=None):
         """
         Queue a search for novels with the given query.
         The dedicated crawler worker picks it up and runs it.
@@ -438,6 +438,7 @@ class DownloaderService:
             status=Job.STATUS_CREATED,
             job_type=Job.JOB_TYPE_SEARCH,
             query=query,
+            user=user,
         )
         return job
 
@@ -505,7 +506,7 @@ class DownloaderService:
             }
 
     @classmethod
-    def start_direct_download(cls, novel_url, job=None):
+    def start_direct_download(cls, novel_url, job=None, user=None):
         if not novel_url:
             return {
                 'status': 'error',
@@ -518,7 +519,12 @@ class DownloaderService:
                 status=Job.STATUS_CREATED,
                 job_type=Job.JOB_TYPE_DOWNLOAD,
                 query="Direct Download",
+                user=user,
             )
+        elif user is not None and job.user_id is None:
+            # Attribute a job started anonymously but downloaded by a logged-in
+            # user; never overwrite an existing owner.
+            job.user = user
 
         # Queue the download; the dedicated crawler worker runs it.
         job.status = Job.STATUS_CREATED
@@ -526,7 +532,7 @@ class DownloaderService:
         job.target_url = novel_url
         job.error_message = None
         job.save(update_fields=[
-            'status', 'job_type', 'target_url', 'error_message', 'updated_at',
+            'status', 'job_type', 'target_url', 'error_message', 'user', 'updated_at',
         ])
         logger.debug(f"Queued novel URL: {novel_url}")
 
@@ -537,7 +543,7 @@ class DownloaderService:
         }
 
     @classmethod
-    def start_download(cls, job_id, novel_index=0, source_index=0):
+    def start_download(cls, job_id, novel_index=0, source_index=0, user=None):
         """
         Start downloading a novel
 
@@ -575,7 +581,8 @@ class DownloaderService:
                     'status': 'error',
                     'message': 'Could not determine novel URL',
                 }
-            return cls.start_direct_download(novel_url, job)
+
+            return cls.start_direct_download(novel_url, job, user=user)
 
         except Job.DoesNotExist:
             return {

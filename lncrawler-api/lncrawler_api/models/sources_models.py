@@ -206,9 +206,12 @@ class NovelFromSource(models.Model):
         return source_dir, source_path, meta_json_path, cover_path
 
     @classmethod
-    def from_meta_json(cls, meta_json_path):
+    def from_meta_json(cls, meta_json_path, added_by=None):
         """
         Create a NovelFromSource instance from a meta.json file
+
+        ``added_by`` is recorded on a newly created Novel only; an update of an
+        existing novel never rewrites its original contributor.
         """
         with open(meta_json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -246,7 +249,8 @@ class NovelFromSource(models.Model):
                 slug=novel_slug,
                 defaults={
                     'title': title,
-                    'novel_path': novel_path
+                    'novel_path': novel_path,
+                    'added_by': added_by,
                 }
             )
         

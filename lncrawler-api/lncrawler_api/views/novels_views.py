@@ -491,6 +491,10 @@ def home_page(request):
         .order_by('-avg_rating', 'title')[:12]
     )
     
+    # Recently added novels, one entry per novel (by creation time). Distinct
+    # from recently_updated below, which lists per-source chapter updates.
+    recently_added = base_queryset.order_by('-created_at')[:12]
+    
     # Get featured novel (restricted to one available in the selected languages)
     featured_novel_data = None
     featured_qs = FeaturedNovel.objects.select_related('novel').filter(
@@ -565,15 +569,31 @@ def home_page(request):
                 exclude_ids=read_ids, languages=languages,
             )
     
+    # "Novels you added" (authenticated users only): novels whose download job
+    # was first started by this user. Deliberately built without the language
+    # filter so a user always sees everything they contributed. Anonymous
+    # visitors get an empty list.
+    novels_you_added = []
+    if request.user.is_authenticated:
+        novels_you_added = apply_novel_prefetches(
+            exclude_adult(
+                Novel.objects.filter(is_dmca=False, added_by=request.user),
+                request.user,
+            ),
+            request.user,
+        ).order_by('-created_at')[:12]
+
     # Serialize all the data
     response_data = {
         'top_novels': NovelSerializer(top_novels, many=True, context=serializer_context).data,
         'trending_novels': NovelSerializer(trending_novels, many=True, context=serializer_context).data,
         'top_rated_novels': NovelSerializer(top_rated_novels, many=True, context=serializer_context).data,
+        'recently_added': NovelSerializer(recently_added, many=True, context=serializer_context).data,
         'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context, profile='card').data,
         'featured_novel': featured_novel_data,
         'recent_reviews': ReviewSerializer(recent_reviews, many=True, context=serializer_context, profile='card').data,
         'recommended_novels': NovelSerializer(recommended_novels, many=True, context=serializer_context).data,
+        'novels_you_added': NovelSerializer(novels_you_added, many=True, context=serializer_context).data,
     }
     
     return Response(response_data)

@@ -9,6 +9,8 @@ import { getMuiLocale, muiDirection } from "./i18n/muiLocale";
 import Header from '@components/Header';
 import Footer from '@components/Footer';
 import ErrorBoundary from '@components/common/ErrorBoundary';
+import RedirectWithNotification from '@components/common/RedirectWithNotification';
+import { NotificationProvider } from '@context/NotificationContext';
 
 // Route-level code splitting: each page (and everything it alone imports, e.g.
 // the reader or mdxeditor) is fetched on navigation instead of on first paint.
@@ -52,7 +54,7 @@ const Wrapper = ({ children }: { children: React.ReactNode }) => {
 // App with theme context
 function AppWithTheme() {
     const { theme } = useTheme();
-    const { i18n } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { uiLanguage } = useLanguage();
 
     // Resolve the active code ('' means "browser" -> whatever i18next detected).
@@ -65,8 +67,9 @@ function AppWithTheme() {
 
     return (
         <MuiThemeProvider theme={localizedTheme}>
-            <Wrapper>
-                <ErrorBoundary>
+            <ErrorBoundary>
+                <NotificationProvider>
+                <Wrapper>
                 <Box
                     sx={{
                         display: 'flex',
@@ -135,7 +138,7 @@ function AppWithTheme() {
                             <Route path="/" element={<HomePage />} />
 
                             {/* Fallback route - redirect to home */}
-                            <Route path="*" element={<Navigate to="/" replace />} />
+                            <Route path="*" element={<RedirectWithNotification to="/" message={t('notifications.pageNotFound')} severity="warning" />} />
 
                             
                         </Routes>
@@ -143,8 +146,9 @@ function AppWithTheme() {
                     </Container>
                     <Footer />
                 </Box>
-                </ErrorBoundary>
-            </Wrapper>
+                </Wrapper>
+                </NotificationProvider>
+            </ErrorBoundary>
         </MuiThemeProvider>
     );
 }

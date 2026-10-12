@@ -281,7 +281,9 @@
     "featured": "精选",
     "noFeatured": "暂无精选小说",
     "latestReviews": "最新评论",
-    "recentlyUpdated": "最近更新小说"
+    "recentlyUpdated": "最近更新小说",
+    "recentlyAdded": "最近添加小说",
+    "novelsYouAdded": "你添加的小说"
   },
   "library": {
     "loadFailed": "加载您收藏的小说失败。请稍后重试。",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "搜索你的书库...",
     "sortBy": "排序方式",
     "mirrorHidden": "该用户将笔记和/或评分设为私密。",
+    "select": "选择",
+    "selectAll": "全选",
+    "selectedCount": "{count, plural, one {已选择 # 项} other {已选择 # 项}}",
+    "clearSelection": "清除",
+    "moveTo": "移动到",
+    "moveToFolder": "移动到文件夹",
+    "removeFromLibrary": "从书库中移除",
+    "removeConfirmTitle": "从书库中移除？",
+    "removeConfirmBody": "{count, plural, one {从您的书库中移除 # 部小说？} other {从您的书库中移除 # 部小说？}} 此操作无法撤销。",
+    "addNote": "添加备注",
+    "moreActions": "更多操作",
+    "dragToFolder": "将小说拖到文件夹中以归档",
     "sort": {
       "custom": "自定义顺序",
       "title": "标题",
       "date_added": "添加日期",
       "rating": "评分"
-    },
-    "addNote": "添加备注",
-    "clearSelection": "清除",
-    "dragToFolder": "将小说拖到文件夹中以归档",
-    "moreActions": "更多操作",
-    "moveTo": "移动到",
-    "moveToFolder": "移动到文件夹",
-    "removeConfirmBody": "{count, plural, one {从您的书库中移除 # 部小说？} other {从您的书库中移除 # 部小说？}} 此操作无法撤销。",
-    "removeConfirmTitle": "从书库中移除？",
-    "removeFromLibrary": "从书库中移除",
-    "select": "选择",
-    "selectAll": "全选",
-    "selectedCount": "{count, plural, one {已选择 # 项} other {已选择 # 项}}"
+    }
   },
   "history": {
     "loadFailed": "加载阅读历史失败。请稍后重试。",
@@ -405,12 +407,12 @@
     "volume": "第 {volume} 卷",
     "contentUnavailable": "内容不可用",
     "noChapters": "暂无可用章节。",
+    "dmcaNotice": "本作品已根据 DMCA 下架请求移除。章节不再可用。",
     "metaTitle": "章节列表 - {novel}（{source}）| LNCrawler",
     "metaLoadingTitle": "正在加载章节 | LNCrawler",
     "metaDescription": "在 LNCrawler 上浏览来源“{source}”的 {novel} 的全部 {count} 章。以清爽的阅读体验在线阅读轻小说。",
     "metaLoadingDescription": "正在加载章节列表。到 LNCrawler 发现轻小说。",
-    "keywords": "{novel}, {source}, 章节列表, 全部章节, 轻小说章节, 网络小说",
-    "dmcaNotice": "本作品已根据 DMCA 下架请求移除。章节不再可用。"
+    "keywords": "{novel}, {source}, 章节列表, 全部章节, 轻小说章节, 网络小说"
   },
   "gallery": {
     "loadFailed": "加载图片失败。请稍后重试。",
@@ -474,6 +476,7 @@
     "loadFailed": "加载来源详情失败。请稍后重试。",
     "backToHome": "返回首页",
     "notFound": "未找到来源",
+    "dmcaNotice": "本作品已根据 DMCA 下架请求移除。阅读和下载已被禁用。",
     "returnToHome": "返回首页",
     "fromPrefix": "来自：",
     "visitSource": "访问来源",
@@ -518,8 +521,7 @@
     "metaTitle": "{title}（{source}）- 在 LNCrawler 阅读",
     "metaLoadingTitle": "正在加载小说来源 | LNCrawler",
     "metaDescription": "阅读来自 {source} 的 {title}。简介：{synopsis}",
-    "metaLoadingDescription": "正在加载此小说来源在 LNCrawler 上的详情。",
-    "dmcaNotice": "本作品已根据 DMCA 下架请求移除。阅读和下载已被禁用。"
+    "metaLoadingDescription": "正在加载此小说来源在 LNCrawler 上的详情。"
   },
   "rating": {
     "noRatings": "暂无评分"
@@ -560,6 +562,7 @@
     "empty": "评论不能为空",
     "editFailed": "编辑评论失败。请重试。",
     "edited": "（已编辑）",
+    "guest": "[访客]",
     "editTooltip": "编辑评论",
     "postedAt": "评论发表于 {chapter}",
     "fromSource": "来自 {source}",
@@ -571,8 +574,7 @@
     "showReplies": "{count, plural, one {显示 # 条回复} other {显示 # 条回复}}",
     "loadFailed": "加载评论失败。请尝试刷新页面。",
     "noComments": "暂无评论。成为第一个评论的人吧！",
-    "mixedSourcesWarning": "下方部分评论来自不同来源。不同来源可能使用不同的章节编号，因此可能存在剧透或看似无关的评论。",
-    "guest": "[访客]"
+    "mixedSourcesWarning": "下方部分评论来自不同来源。不同来源可能使用不同的章节编号，因此可能存在剧透或看似无关的评论。"
   },
   "chat": {
     "title": "社区聊天",
@@ -629,6 +631,12 @@
     "removeTooltip": "点击从此列表中移除",
     "novelsCount": "{count} 部小说",
     "createNewList": "创建新列表"
+  },
+  "novelActions": {
+    "menu": "小说操作",
+    "bookmark": "收藏",
+    "removeBookmark": "取消收藏",
+    "addToReadingList": "添加到阅读列表"
   },
   "markAsRead": {
     "tooltip": "标记为已读",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "加载章节内容失败。请稍后重试。",
     "notFound": "未找到章节",
+    "dmcaUnavailable": "由于 DMCA 下架请求，本作品不可用。",
     "chapters": "章节",
     "chapterTab": "章节",
     "commentsTab": "评论",
@@ -749,8 +758,7 @@
     "unlockScrolling": "解锁滚动",
     "lockScrolling": "锁定滚动",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "第 {current} 页，共 {total} 页",
-    "dmcaUnavailable": "由于 DMCA 下架请求，本作品不可用。"
+    "pageOf": "第 {current} 页，共 {total} 页"
   },
   "readerControls": {
     "previousChapter": "上一章",
@@ -901,10 +909,9 @@
     "resultSummary": "已导入 {bookmarked} 部小说（{already} 部已在书库中）。已为 {progress} 设置进度。",
     "goToLibrary": "前往书库"
   },
-  "novelActions": {
-    "addToReadingList": "添加到阅读列表",
-    "bookmark": "收藏",
-    "menu": "小说操作",
-    "removeBookmark": "取消收藏"
+  "notifications": {
+    "novelNotFound": "未找到小说。正在返回首页。",
+    "pageNotFound": "未找到页面。正在返回首页。",
+    "dismiss": "关闭"
   }
 }

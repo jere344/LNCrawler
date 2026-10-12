@@ -281,7 +281,9 @@
     "featured": "Öne Çıkanlar",
     "noFeatured": "Öne çıkan roman yok",
     "latestReviews": "Son İncelemeler",
-    "recentlyUpdated": "Son Güncellenen Romanlar"
+    "recentlyUpdated": "Son Güncellenen Romanlar",
+    "recentlyAdded": "Son Eklenen Romanlar",
+    "novelsYouAdded": "Eklediğiniz Romanlar"
   },
   "library": {
     "loadFailed": "Yer imlerinize eklediğiniz romanlar yüklenemedi. Lütfen daha sonra tekrar deneyin.",
@@ -307,24 +309,24 @@
     "searchPlaceholder": "Kütüphanenizde ara...",
     "sortBy": "Sıralama ölçütü",
     "mirrorHidden": "Bu kullanıcı notlarını ve/veya puanlarını gizli tutuyor.",
+    "select": "Seç",
+    "selectAll": "Tümünü seç",
+    "selectedCount": "{count, plural, one {# seçildi} other {# seçildi}}",
+    "clearSelection": "Temizle",
+    "moveTo": "Şuraya taşı",
+    "moveToFolder": "Klasöre taşı",
+    "removeFromLibrary": "Kütüphaneden kaldır",
+    "removeConfirmTitle": "Kütüphaneden kaldırılsın mı?",
+    "removeConfirmBody": "{count, plural, one {# romanı kütüphanenizden kaldır?} other {# romanı kütüphanenizden kaldır?}} Bu işlem geri alınamaz.",
+    "addNote": "Not ekle",
+    "moreActions": "Diğer işlemler",
+    "dragToFolder": "Bir romanı bir klasöre sürükleyerek dosyalayın",
     "sort": {
       "custom": "Özel sıralama",
       "title": "Başlık",
       "date_added": "Eklenme tarihi",
       "rating": "Puan"
-    },
-    "addNote": "Not ekle",
-    "clearSelection": "Temizle",
-    "dragToFolder": "Bir romanı bir klasöre sürükleyerek dosyalayın",
-    "moreActions": "Diğer işlemler",
-    "moveTo": "Şuraya taşı",
-    "moveToFolder": "Klasöre taşı",
-    "removeConfirmBody": "{count, plural, one {# romanı kütüphanenizden kaldır?} other {# romanı kütüphanenizden kaldır?}} Bu işlem geri alınamaz.",
-    "removeConfirmTitle": "Kütüphaneden kaldırılsın mı?",
-    "removeFromLibrary": "Kütüphaneden kaldır",
-    "select": "Seç",
-    "selectAll": "Tümünü seç",
-    "selectedCount": "{count, plural, one {# seçildi} other {# seçildi}}"
+    }
   },
   "history": {
     "loadFailed": "Okuma geçmişiniz yüklenemedi. Lütfen daha sonra tekrar deneyin.",
@@ -405,12 +407,12 @@
     "volume": "Cilt {volume}",
     "contentUnavailable": "İçerik kullanılamıyor",
     "noChapters": "Kullanılabilir bölüm yok.",
+    "dmcaNotice": "Bu eser, bir DMCA kaldırma talebi üzerine kaldırılmıştır. Bölümler artık kullanılamıyor.",
     "metaTitle": "Bölüm Listesi - {novel} ({source}) | LNCrawler",
     "metaLoadingTitle": "Bölümler Yükleniyor | LNCrawler",
     "metaDescription": "LNCrawler'da {source} kaynağından {novel} için tüm {count} bölüme göz atın. Temiz bir okuma deneyimiyle light novel'ları çevrimiçi okuyun.",
     "metaLoadingDescription": "Bölüm listesi yükleniyor. LNCrawler'da light novel'ları keşfedin.",
-    "keywords": "{novel}, {source}, bölüm listesi, tüm bölümler, light novel bölümleri, web novel",
-    "dmcaNotice": "Bu eser, bir DMCA kaldırma talebi üzerine kaldırılmıştır. Bölümler artık kullanılamıyor."
+    "keywords": "{novel}, {source}, bölüm listesi, tüm bölümler, light novel bölümleri, web novel"
   },
   "gallery": {
     "loadFailed": "Görseller yüklenemedi. Lütfen daha sonra tekrar deneyin.",
@@ -474,6 +476,7 @@
     "loadFailed": "Kaynak ayrıntıları yüklenemedi. Lütfen daha sonra tekrar deneyin.",
     "backToHome": "Ana Sayfaya Dön",
     "notFound": "Kaynak bulunamadı",
+    "dmcaNotice": "Bu eser, bir DMCA kaldırma talebi üzerine kaldırılmıştır. Okuma ve indirmeler devre dışı.",
     "returnToHome": "Ana Sayfaya Dön",
     "fromPrefix": "Kaynak:",
     "visitSource": "Kaynağı Ziyaret Et",
@@ -518,8 +521,7 @@
     "metaTitle": "{title} ({source}) - LNCrawler'da Okuyun",
     "metaLoadingTitle": "Roman Kaynağı Yükleniyor | LNCrawler",
     "metaDescription": "{source} kaynağından {title} okuyun. Özet: {synopsis}",
-    "metaLoadingDescription": "LNCrawler'da bu roman kaynağının ayrıntıları yükleniyor.",
-    "dmcaNotice": "Bu eser, bir DMCA kaldırma talebi üzerine kaldırılmıştır. Okuma ve indirmeler devre dışı."
+    "metaLoadingDescription": "LNCrawler'da bu roman kaynağının ayrıntıları yükleniyor."
   },
   "rating": {
     "noRatings": "Puan yok"
@@ -560,6 +562,7 @@
     "empty": "Yorum boş olamaz",
     "editFailed": "Yorum düzenlenemedi. Lütfen tekrar deneyin.",
     "edited": "(düzenlendi)",
+    "guest": "[misafir]",
     "editTooltip": "Yorumu düzenle",
     "postedAt": "Yorum {chapter} bölümünde gönderildi",
     "fromSource": "{source} kaynağından",
@@ -571,8 +574,7 @@
     "showReplies": "Göster {count, plural, one {# yanıt} other {# yanıt}}",
     "loadFailed": "Yorumlar yüklenemedi. Lütfen sayfayı yenilemeyi deneyin.",
     "noComments": "Henüz yorum yok. İlk yorum yapan siz olun!",
-    "mixedSourcesWarning": "Aşağıdaki bazı yorumlar farklı kaynaklar için gönderilmiştir. Kaynaklar farklı bölüm numaralandırması kullanabilir, bu nedenle spoiler veya alakasız görünen yorumlar olabilir.",
-    "guest": "[misafir]"
+    "mixedSourcesWarning": "Aşağıdaki bazı yorumlar farklı kaynaklar için gönderilmiştir. Kaynaklar farklı bölüm numaralandırması kullanabilir, bu nedenle spoiler veya alakasız görünen yorumlar olabilir."
   },
   "chat": {
     "title": "Topluluk Sohbeti",
@@ -629,6 +631,12 @@
     "removeTooltip": "Bu listeden kaldırmak için tıklayın",
     "novelsCount": "{count} roman",
     "createNewList": "Yeni Liste Oluştur"
+  },
+  "novelActions": {
+    "menu": "Roman işlemleri",
+    "bookmark": "Yer imlerine ekle",
+    "removeBookmark": "Yer imini kaldır",
+    "addToReadingList": "Okuma listesine ekle"
   },
   "markAsRead": {
     "tooltip": "Okundu olarak işaretle",
@@ -740,6 +748,7 @@
   "reader": {
     "loadFailed": "Bölüm içeriği yüklenemedi. Lütfen daha sonra tekrar deneyin.",
     "notFound": "Bölüm bulunamadı",
+    "dmcaUnavailable": "Bu eser bir DMCA kaldırma talebi nedeniyle kullanılamıyor.",
     "chapters": "Bölümler",
     "chapterTab": "Bölüm",
     "commentsTab": "Yorumlar",
@@ -749,8 +758,7 @@
     "unlockScrolling": "Kaydırmayı aç",
     "lockScrolling": "Kaydırmayı kilitle",
     "pageIndicator": "{current} / {total}",
-    "pageOf": "Sayfa {current} / {total}",
-    "dmcaUnavailable": "Bu eser bir DMCA kaldırma talebi nedeniyle kullanılamıyor."
+    "pageOf": "Sayfa {current} / {total}"
   },
   "readerControls": {
     "previousChapter": "Önceki Bölüm",
@@ -901,10 +909,9 @@
     "resultSummary": "{bookmarked} roman içe aktarıldı ({already} zaten kitaplıkta). {progress} için ilerleme ayarlandı.",
     "goToLibrary": "Kitaplığa git"
   },
-  "novelActions": {
-    "addToReadingList": "Okuma listesine ekle",
-    "bookmark": "Yer imlerine ekle",
-    "menu": "Roman işlemleri",
-    "removeBookmark": "Yer imini kaldır"
+  "notifications": {
+    "novelNotFound": "Roman bulunamadı. Ana sayfaya dönülüyor.",
+    "pageNotFound": "Sayfa bulunamadı. Ana sayfaya dönülüyor.",
+    "dismiss": "Kapat"
   }
 }
