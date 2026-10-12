@@ -16,6 +16,7 @@ from ..services.split_service import (
     move_sources as move_sources_into_novel,
     split_novel,
 )
+from ..utils.slug import slugify
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
@@ -23,7 +24,6 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Sum
 from django.shortcuts import redirect, render
 from django.utils.html import format_html
-from django.utils.text import slugify
 from django.urls import path, reverse
 
 

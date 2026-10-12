@@ -8,7 +8,7 @@ import {
   ToggleButton, ToggleButtonGroup,
   Grid as Grid,
 } from '@mui/material';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLoaderData, useNavigation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -17,12 +17,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import { novelService } from '../../services/api';
 import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
 import { useDebounce } from '@utils/useDebounce';
-import { Novel } from '@models/novels_types';
 import { languageFlagUrl, availableLanguages, languageCodeToName, getNovelSourceLink } from '@utils/Misc';
 import { useTheme } from '@theme/ThemeContext';
 import { useLanguage } from '@context/LanguageContext';
 import { useAuth } from '@context/AuthContext';
 import SeoMeta from '../common/SeoMeta';
+import type { SearchLoaderData } from '../../router/loaders';
 
 type AdultFilter = 'hide' | 'show' | 'only';
 
@@ -41,8 +41,6 @@ interface Suggestion {
   alias?: string;
 }
 
-const ITEMS_PER_PAGE = 24;
-
 const SearchPage: React.FC = () => {
   const { t } = useTranslation();
   const { contentLanguages, languageFilterEnabled } = useLanguage();
@@ -54,20 +52,22 @@ const SearchPage: React.FC = () => {
   const defaultAdult: AdultFilter =
     user?.show_r18 === 'yes' || user?.show_r18 === 'blur' ? 'show' : 'hide';
   
-  // State for search results
-  const [novels, setNovels] = useState<Novel[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
-  
-  // State for filter options
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    tags: [],
-    authors: [],
-    statuses: [],
-    languages: availableLanguages,
-  });
+  // Results are owned by the route loader (started before the i18n gate).
+  const loaderData = useLoaderData() as SearchLoaderData;
+  const navigation = useNavigation();
+  const novels = loaderData.ok ? loaderData.data.results : [];
+  const loading = navigation.state === 'loading';
+  const totalCount = loaderData.ok ? loaderData.data.count : 0;
+  const totalPages = loaderData.ok ? loaderData.data.total_pages : 1;
+  const currentPage = loaderData.ok ? loaderData.data.current_page : 1;
+
+  // Filter options
+  const filterOptions: FilterOptions = {
+    tags: loaderData.ok ? loaderData.data.tags || [] : [],
+    authors: loaderData.ok ? loaderData.data.authors || [] : [],
+    statuses: loaderData.ok ? loaderData.data.statuses || [] : [],
+    languages: loaderData.ok ? loaderData.data.languages || availableLanguages : availableLanguages,
+  };
   
   // State for current filters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
@@ -99,6 +99,11 @@ const SearchPage: React.FC = () => {
     setAdult(defaultAdult);
   }, [defaultAdult, searchParams]);
 
+  // Keep the search box in sync when navigating (back/forward).
+  useEffect(() => {
+    setSearchQuery(searchParams.get('query') || '');
+  }, [searchParams]);
+
   // Pre-check the user's content languages once, on first arrival. After that
   // the URL is authoritative: unchecking everything shows all languages.
   const seededLanguages = useRef(searchParams.getAll('language').length > 0);
@@ -112,9 +117,6 @@ const SearchPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentLanguages, languageFilterEnabled]);
   
-  // Tags each search fetch so a slow older request can't overwrite a newer one
-  const searchRequestIdRef = useRef(0);
-
   // State for autocomplete options
   const [tagSuggestions, setTagSuggestions] = useState<Suggestion[]>([]);
   const [authorSuggestions, setAuthorSuggestions] = useState<Suggestion[]>([]);
@@ -172,62 +174,6 @@ const SearchPage: React.FC = () => {
       .finally(() => { if (!cancelled) setLoadingAuthors(false); });
     return () => { cancelled = true; };
   }, [debouncedAuthorInput]);
-  
-  // Load search results based on current parameters
-  useEffect(() => {
-    const requestId = ++searchRequestIdRef.current;
-    const fetchNovels = async () => {
-      setLoading(true);
-      try {
-        const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
-
-        // The selected languages (from the URL) are authoritative: none
-        // selected means no language filter, showing everything.
-        const selectedLanguages = searchParams.getAll('language');
-
-        const response = await novelService.searchNovels({
-          query: searchParams.get('query') || undefined,
-          page,
-          page_size: ITEMS_PER_PAGE,
-          tag: searchParams.getAll('tag'),
-          exclude_tag: searchParams.getAll('exclude_tag'),
-          author: searchParams.getAll('author'),
-          status: searchParams.get('status') || undefined,
-          languages: selectedLanguages.length > 0 ? selectedLanguages : undefined,
-          min_rating: searchParams.get('min_rating') ? 
-            Number(searchParams.get('min_rating')) : undefined,
-          sort_by: (searchParams.get('sort_by') as 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated') || 'title',
-          sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'asc',
-          adult: (searchParams.get('adult') as AdultFilter) || undefined,
-        });
-        
-        if (requestId !== searchRequestIdRef.current) return;
-        setNovels(response.results);
-        setTotalCount(response.count);
-        setTotalPages(response.total_pages);
-        setCurrentPage(response.current_page);
-        
-        // Store filter options (mainly for status options)
-        setFilterOptions(
-          {
-            tags: response.tags || [],
-            authors: response.authors || [],
-            statuses: response.statuses || [],
-            languages: response.languages || availableLanguages,
-          }
-        );
-      } catch (error) {
-        if (requestId !== searchRequestIdRef.current) return;
-        console.error('Error fetching search results:', error);
-      } finally {
-        if (requestId === searchRequestIdRef.current) {
-          setLoading(false);
-        }
-      }
-    };
-    
-    fetchNovels();
-  }, [searchParams]);
   
   // Update search params when filters change
   const updateSearchParams = (newParams: Record<string, string | string[] | number | null>) => {

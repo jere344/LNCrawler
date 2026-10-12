@@ -1,6 +1,6 @@
-import { Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { CssBaseline, ThemeProvider as MuiThemeProvider, Container, Box, CircularProgress, createTheme } from "@mui/material";
-import { lazy, Suspense, useLayoutEffect, useMemo } from "react";
+import { Suspense, useLayoutEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import "./App.css";
 import { ThemeProvider, useTheme } from "@theme/ThemeContext";
@@ -9,34 +9,7 @@ import { getMuiLocale, muiDirection } from "./i18n/muiLocale";
 import Header from '@components/Header';
 import Footer from '@components/Footer';
 import ErrorBoundary from '@components/common/ErrorBoundary';
-import RedirectWithNotification from '@components/common/RedirectWithNotification';
 import { NotificationProvider } from '@context/NotificationContext';
-
-// Route-level code splitting: each page (and everything it alone imports, e.g.
-// the reader or mdxeditor) is fetched on navigation instead of on first paint.
-const DownloaderHome = lazy(() => import('@components/downloader/DownloaderHome'));
-const SearchResults = lazy(() => import('@components/downloader/SearchResults'));
-const DownloadForm = lazy(() => import('@components/downloader/DownloadForm'));
-const DownloadStatus = lazy(() => import('@components/downloader/DownloadStatus'));
-const RunningJobsPage = lazy(() => import('@components/downloader/RunningJobsPage'));
-const NovelRedirect = lazy(() => import('@components/novels/NovelRedirect'));
-const SourceDetail = lazy(() => import('@components/novels/SourceDetail'));
-const ChapterList = lazy(() => import('@components/novels/ChapterList'));
-const ChapterReader = lazy(() => import('@components/reader/ChapterReader'));
-const SearchPage = lazy(() => import('@components/search/SearchPage'));
-const HomePage = lazy(() => import('@components/home/HomePage'));
-const LoginPage = lazy(() => import('@components/auth/LoginPage'));
-const RegisterPage = lazy(() => import('@components/auth/RegisterPage'));
-const SettingsPage = lazy(() => import('@components/auth/SettingsPage'));
-const PublicProfilePage = lazy(() => import('@components/profile/PublicProfilePage'));
-const ResetPasswordPage = lazy(() => import('@components/auth/ResetPasswordPage'));
-const LibraryPage = lazy(() => import('@components/library/LibraryPage'));
-const ReadingHistoryPage = lazy(() => import('@components/history/ReadingHistoryPage'));
-const ImageGallery = lazy(() => import('@components/novels/ImageGallery'));
-const ChatPage = lazy(() => import('@components/chat/ChatPage'));
-const ReadingListsPage = lazy(() => import('@components/readinglist/ReadingListsPage'));
-const ReadingListDetail = lazy(() => import('@components/readinglist/ReadingListDetail'));
-const NovelUpdatesImportPage = lazy(() => import('@components/import/NovelUpdatesImportPage'));
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
@@ -54,7 +27,7 @@ const Wrapper = ({ children }: { children: React.ReactNode }) => {
 // App with theme context
 function AppWithTheme() {
     const { theme } = useTheme();
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const { uiLanguage } = useLanguage();
 
     // Resolve the active code ('' means "browser" -> whatever i18next detected).
@@ -94,54 +67,7 @@ function AppWithTheme() {
                                 </Box>
                             }
                         >
-                        <Routes>
-                            {/* Authentication routes */}
-                            <Route path="/login" element={<LoginPage />} />
-                            <Route path="/register" element={<RegisterPage />} />
-                            <Route path="/settings" element={<SettingsPage />} />
-                            <Route path="/u/:username" element={<PublicProfilePage />} />
-                            <Route path="/reset-password" element={<ResetPasswordPage />} />
-                            
-                            {/* Library and History routes */}
-                            <Route path="/library" element={<LibraryPage />} />
-                            <Route path="/history" element={<ReadingHistoryPage />} />
-                            
-                            {/* Reading Lists routes */}
-                            <Route path="/reading-lists" element={<ReadingListsPage />} />
-                            <Route path="/reading-lists/:listId" element={<ReadingListDetail />} />
-
-                            {/* Import route */}
-                            <Route path="/import" element={<NovelUpdatesImportPage />} />
-
-                            {/* Chat route */}
-                            <Route path="/chat" element={<ChatPage />} />
-                            {/* Legacy board URLs */}
-                            <Route path="/boards" element={<Navigate to="/chat" replace />} />
-                            <Route path="/boards/:boardSlug" element={<Navigate to="/chat" replace />} />
-                            
-                            {/* Downloader routes */}
-                            <Route path="/download" element={<DownloaderHome />} />
-                            <Route path="/download/jobs" element={<RunningJobsPage />} />
-                            <Route path="/download/search/:jobId" element={<SearchResults />} />
-                            <Route path="/download/:jobId/:novelIndex/:sourceIndex" element={<DownloadForm />} />
-                            <Route path="/download/status/:jobId" element={<DownloadStatus />} />
-                            
-                            {/* Novel reading routes with new URL structure */}
-                            <Route path="/novels/search" element={<SearchPage />} />
-                            <Route path="/novels/:novelSlug" element={<NovelRedirect />} />
-                            <Route path="/novels/:novelSlug/:sourceSlug" element={<SourceDetail />} />
-                            <Route path="/novels/:novelSlug/:sourceSlug/chapterlist" element={<ChapterList />} />
-                            <Route path="/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber" element={<ChapterReader />} />
-                            <Route path="/novels/:novelSlug/:sourceSlug/gallery" element={<ImageGallery />} />
-                            
-                            {/* Home page */}
-                            <Route path="/" element={<HomePage />} />
-
-                            {/* Fallback route - redirect to home */}
-                            <Route path="*" element={<RedirectWithNotification to="/" message={t('notifications.pageNotFound')} severity="warning" />} />
-
-                            
-                        </Routes>
+                            <Outlet />
                         </Suspense>
                     </Container>
                     <Footer />

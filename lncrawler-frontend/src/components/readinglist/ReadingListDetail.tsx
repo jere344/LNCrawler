@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate, useLoaderData, useRevalidator, Link as RouterLink } from 'react-router-dom';
 import { 
   Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, CircularProgress,
+  TextField,
   Paper, Stack,
   Avatar,
   useTheme,
@@ -56,6 +56,7 @@ import { useTranslation } from 'react-i18next';
 import { ReadingListCollaborator } from '@models/readinglist_types';
 import { User } from '@models/user_types';
 import { useDebounce } from '@utils/useDebounce';
+import type { ReadingListDetailLoaderData } from '../../router/loaders';
 
 // Sortable novel item component
 const SortableNovelItem = ({ item, canEdit, onEditNote, onRemoveItem }: { 
@@ -141,8 +142,10 @@ const SortableNovelItem = ({ item, canEdit, onEditNote, onRemoveItem }: {
 
 const ReadingListDetail = () => {
   const { listId } = useParams<{ listId: string }>();
-  const [readingList, setReadingList] = useState<ReadingList | null>(null);
-  const [loading, setLoading] = useState(true);
+  const loaderData = useLoaderData() as ReadingListDetailLoaderData;
+  const revalidator = useRevalidator();
+  const detail = loaderData.ok ? loaderData.data : null;
+  const [readingList, setReadingList] = useState<ReadingList | null>(detail);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -188,29 +191,20 @@ const ReadingListDetail = () => {
     return isAuthenticated && (readingList?.user_role === 'owner' || readingList?.user_role === 'editor');
   }, [isAuthenticated, readingList]);
 
+  // Keep the local view in sync with the loader (initial load + revalidation).
   useEffect(() => {
-    if (listId) {
-      fetchReadingList();
+    setReadingList(detail);
+  }, [detail]);
+
+  // Seed the edit form once per list, not on every revalidation.
+  useEffect(() => {
+    if (detail) {
+      setEditTitle(detail.title);
+      setEditDescription(detail.description || '');
+      setEditIsPublic(detail.is_public);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; listId is the only input
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed only when the list changes
   }, [listId]);
-
-  const fetchReadingList = async (silent = false) => {
-    if (!listId) return;
-
-    try {
-      if (!silent) setLoading(true);
-      const data = await readingListService.getReadingListDetail(listId);
-      setReadingList(data);
-      setEditTitle(data.title);
-      setEditDescription(data.description || '');
-      setEditIsPublic(data.is_public);
-    } catch (error) {
-      console.error('Error fetching reading list:', error);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
 
   const handleUpdateList = async () => {
     if (!listId || !readingList || !canEdit()) return;
@@ -222,7 +216,7 @@ const ReadingListDetail = () => {
         ...(isOwner() ? { is_public: editIsPublic } : {}),
       });
       setEditDialogOpen(false);
-      fetchReadingList(true);
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error updating reading list:', error);
     }
@@ -252,7 +246,7 @@ const ReadingListDetail = () => {
       });
       setUserSearchInput('');
       setUserOptions([]);
-      fetchReadingList(true);
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error adding collaborator:', error);
     }
@@ -262,7 +256,7 @@ const ReadingListDetail = () => {
     if (!listId) return;
     try {
       await readingListService.updateCollaborator(listId, collaboratorId, role);
-      fetchReadingList(true);
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error updating collaborator:', error);
     }
@@ -272,7 +266,7 @@ const ReadingListDetail = () => {
     if (!listId) return;
     try {
       await readingListService.removeCollaborator(listId, collaboratorId);
-      fetchReadingList(true);
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error removing collaborator:', error);
     }
@@ -302,7 +296,7 @@ const ReadingListDetail = () => {
     try {
       await readingListService.updateListItem(listId, currentItemId, { note: editingNote });
       setEditNoteDialogOpen(false);
-      fetchReadingList();
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error updating note:', error);
     }
@@ -313,7 +307,7 @@ const ReadingListDetail = () => {
 
     try {
       await readingListService.removeNovelFromList(listId, itemId);
-      fetchReadingList();
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error removing novel:', error);
     }
@@ -372,17 +366,9 @@ const ReadingListDetail = () => {
     } catch (error) {
       console.error('Error reordering items:', error);
       // If there's an error, refresh the list to get the correct order
-      fetchReadingList();
+      revalidator.revalidate();
     }
   };
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   if (!readingList) {
     return (

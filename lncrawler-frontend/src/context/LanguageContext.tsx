@@ -79,6 +79,15 @@ const readStoredUiLanguage = (): string => {
     }
 };
 
+// Initial preferences as they are first read from storage/browser. Exported so
+// non-React callers (route loaders) can compute the exact same request key the
+// provider seeds its state with.
+export const getInitialContentLanguages = (): string[] =>
+    onlySupported(readLocalStorage(CONTENT_LANGUAGES_KEY, browserLanguages()));
+
+export const getInitialLanguageFilterEnabled = (): boolean =>
+    readLocalStorage(LANGUAGE_FILTER_KEY, true);
+
 interface ServerPreference {
     preferred_ui_language?: string;
     preferred_languages?: string[];
@@ -90,12 +99,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const [uiLanguage, setUiLanguageState] = useState<string>(() =>
         readStoredUiLanguage()
     );
-    const [contentLanguages, setContentLanguagesState] = useState<string[]>(() =>
-        onlySupported(readLocalStorage(CONTENT_LANGUAGES_KEY, browserLanguages()))
-    );
-    const [languageFilterEnabled, setLanguageFilterEnabledState] = useState<boolean>(() =>
-        readLocalStorage(LANGUAGE_FILTER_KEY, true)
-    );
+    const [contentLanguages, setContentLanguagesState] = useState<string[]>(getInitialContentLanguages);
+    const [languageFilterEnabled, setLanguageFilterEnabledState] = useState<boolean>(getInitialLanguageFilterEnabled);
 
     // Persist to localStorage on every change
     useEffect(() => {
@@ -137,6 +142,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     setUiLanguageState(serverUi);
                     setContentLanguagesState(serverContent);
                     setLanguageFilterEnabledState(serverFilter);
+                    // Mirror synchronously so route loaders see them immediately.
+                    localStorage.setItem(CONTENT_LANGUAGES_KEY, JSON.stringify(serverContent));
+                    localStorage.setItem(LANGUAGE_FILTER_KEY, JSON.stringify(serverFilter));
                 } else {
                     // First login: seed the empty account from what the browser knew
                     const localUi = readStoredUiLanguage();
@@ -173,7 +181,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Guests have no separate content preference, so keep content languages
         // in step with the interface language (automatic = follow the browser).
         if (!authService.isAuthenticated()) {
-            setContentLanguagesState(normalized ? [normalized] : browserLanguages());
+            const next = normalized ? [normalized] : browserLanguages();
+            setContentLanguagesState(next);
+            localStorage.setItem(CONTENT_LANGUAGES_KEY, JSON.stringify(next));
         }
         pushToServer({ [UI_LANGUAGE_KEY]: normalized });
     }, [pushToServer]);
@@ -182,11 +192,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Deduplicate, preserve order, drop unsupported codes
         const unique = onlySupported(codes.filter((c, i) => codes.indexOf(c) === i));
         setContentLanguagesState(unique);
+        localStorage.setItem(CONTENT_LANGUAGES_KEY, JSON.stringify(unique));
         pushToServer({ [CONTENT_LANGUAGES_KEY]: unique });
     }, [pushToServer]);
 
     const setLanguageFilterEnabled = useCallback((enabled: boolean) => {
         setLanguageFilterEnabledState(enabled);
+        localStorage.setItem(LANGUAGE_FILTER_KEY, JSON.stringify(enabled));
         pushToServer({ [LANGUAGE_FILTER_KEY]: enabled });
     }, [pushToServer]);
 

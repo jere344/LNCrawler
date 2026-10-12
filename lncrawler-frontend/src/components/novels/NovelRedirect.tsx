@@ -1,38 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
-import { Box, CircularProgress } from '@mui/material';
+import { useLoaderData } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { novelService } from '../../services/api';
-import { getNovelSourcePath } from '@utils/Misc';
 import RedirectWithNotification from '@components/common/RedirectWithNotification';
+import type { NovelRedirectLoaderData } from '../../router/loaders';
 
 const NovelRedirect = () => {
   const { t } = useTranslation();
-  const { novelSlug } = useParams<{ novelSlug: string }>();
-  const [target, setTarget] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const data = useLoaderData() as NovelRedirectLoaderData;
 
-  useEffect(() => {
-    const resolve = async () => {
-      if (!novelSlug) return;
-      try {
-        const novel = await novelService.getNovelDetail(novelSlug);
-        setTarget(getNovelSourcePath(novel) || null);
-      } catch {
-        setFailed(true);
-      }
-    };
-    resolve();
-  }, [novelSlug]);
+  if (!data.ok) {
+    return <RedirectWithNotification to="/" message={t('notifications.novelNotFound')} />;
+  }
 
-  if (failed) return <RedirectWithNotification to="/" message={t('notifications.novelNotFound')} />;
-  if (target) return <Navigate to={target} replace />;
-
-  return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
-      <CircularProgress />
-    </Box>
-  );
+  // A successful load threw a redirect in the loader; nothing to render.
+  return null;
 };
 
 export default NovelRedirect;

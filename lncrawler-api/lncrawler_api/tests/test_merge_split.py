@@ -598,15 +598,58 @@ class SplitNovelTests(MergeTestCase):
 
         # The slug must be exactly what slugify() derives from the folder,
         # otherwise a future import would derive a different novel identity.
-        self.assertEqual(new.slug, "rezero_wn")
-        self.assertEqual(new.novel_path, "rezero_wn")
+        self.assertEqual(new.slug, "rezero-wn")
+        self.assertEqual(new.novel_path, "rezero-wn")
 
         self.write_meta(self.web_source, "http://web/rezero", 2)
         updated = NovelFromSource.from_meta_json(
-            os.path.join(self.tmp, "rezero_wn", "webnovel", "meta.json")
+            os.path.join(self.tmp, "rezero-wn", "webnovel", "meta.json")
         )
         self.assertEqual(updated.novel, new)
-        self.assertEqual(Novel.objects.filter(slug="rezero_wn").count(), 1)
+        self.assertEqual(Novel.objects.filter(slug="rezero-wn").count(), 1)
+
+    def _import_folder(self, folder_name, title):
+        source_dir = os.path.join(self.tmp, folder_name, "webnovel")
+        os.makedirs(source_dir, exist_ok=True)
+        with open(
+            os.path.join(source_dir, "meta.json"), "w", encoding="utf-8"
+        ) as handle:
+            json.dump(
+                {"novel": {"title": title, "url": "http://web/hunter"}}, handle
+            )
+        return NovelFromSource.from_meta_json(
+            os.path.join(source_dir, "meta.json")
+        )
+
+    def test_non_latin_folder_slug_is_transliterated(self):
+        # A raw non-Latin folder must transliterate to a usable slug instead of
+        # collapsing to a stray Latin letter ("s급 헌터" -> "s").
+        source = self._import_folder("s급 헌터", "s급 헌터")
+        self.assertEqual(source.novel.slug, "sgeub-heonteo")
+
+    def test_existing_folder_with_legacy_slug_is_not_duplicated(self):
+        # A novel whose stored slug was derived the old ASCII-stripping way must
+        # still be found by its folder path, not duplicated, on the next import.
+        legacy = Novel.objects.create(
+            title="S급 헌터", slug="s", novel_path="s급 헌터"
+        )
+        source = self._import_folder("s급 헌터", "s급 헌터")
+        self.assertEqual(source.novel, legacy)
+        self.assertEqual(Novel.objects.filter(novel_path="s급 헌터").count(), 1)
+
+    def test_legacy_row_without_novel_path_matches_by_django_slug(self):
+        # Rows imported before novel_path existed have no path to match on, so
+        # the Django-derived slug fallback must still reattach them.
+        legacy = Novel.objects.create(
+            title="Earth's Greatest Magus",
+            slug="earths-greatest-magus",
+            novel_path=None,
+        )
+        source = self._import_folder("earth's greatest magus", "Earth's Greatest Magus")
+        self.assertEqual(source.novel, legacy)
+        self.assertEqual(
+            Novel.objects.filter(slug="earths-greatest-magus").count(), 1
+        )
 
     def test_split_form_validates_selection_and_slug(self):
         from ..admin.novel_admin import SplitNovelForm

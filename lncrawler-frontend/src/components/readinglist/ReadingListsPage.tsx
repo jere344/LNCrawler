@@ -1,56 +1,60 @@
 import { useState, useEffect } from 'react';
+import { useLoaderData, useNavigation, useRevalidator, useSearchParams } from 'react-router-dom';
 import { useDebounce } from '@utils/useDebounce';
 import { 
-  Typography, Box, Grid, Button, 
+    Typography,
+  Box,
+  Grid,
+  Alert, Button, 
   Dialog, DialogTitle, DialogContent, DialogActions, TextField,
   Pagination, InputAdornment, FormControlLabel, Switch
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { readingListService } from '@services/api';
-import { ReadingList } from '@models/readinglist_types';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useAuth } from '@context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import ReadingListCard from './ReadingListCard';
+import type { ReadingListsLoaderData } from '../../router/loaders';
 
 const ReadingListsPage = () => {
-  const [readingLists, setReadingLists] = useState<ReadingList[]>([]);
-  const [loading, setLoading] = useState(true);
+  const loaderData = useLoaderData() as ReadingListsLoaderData;
+  const navigation = useNavigation();
+  const revalidator = useRevalidator();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const searchQueryParam = searchParams.get('q') || '';
+  const page = Number(searchParams.get('page')) || 1;
+  const readingLists = loaderData.ok ? loaderData.data.results : [];
+  const totalPages = loaderData.ok ? loaderData.data.total_pages : 1;
+  const loading = navigation.state === 'loading';
+
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
   const [newListDescription, setNewListDescription] = useState('');
   const [newListIsPublic, setNewListIsPublic] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchQueryParam);
   const debouncedSearchQuery = useDebounce(searchQuery);
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
 
-  // Reset to page 1 when search changes
+  // Mirror the debounced search into the URL so the loader owns the request.
   useEffect(() => {
-    setPage(1);
+    if (debouncedSearchQuery === searchQueryParam) return;
+    const next = new URLSearchParams(searchParams);
+    if (debouncedSearchQuery) next.set('q', debouncedSearchQuery);
+    else next.delete('q');
+    next.delete('page');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the debounced value
   }, [debouncedSearchQuery]);
 
+  // Keep the input in sync when the URL changes (back/forward).
   useEffect(() => {
-    fetchReadingLists();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; page/search are the inputs
-  }, [page, debouncedSearchQuery]);
-
-  const fetchReadingLists = async () => {
-    try {
-      setLoading(true);
-      const response = await readingListService.getAllReadingLists(page, 20, debouncedSearchQuery);
-      setReadingLists(response.results);
-      setTotalPages(response.total_pages);
-    } catch (error) {
-      console.error('Error fetching reading lists:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setSearchQuery(searchQueryParam);
+  }, [searchQueryParam]);
 
   const handleCreateList = async () => {
     if (!newListTitle.trim()) return;
@@ -61,14 +65,16 @@ const ReadingListsPage = () => {
       setNewListTitle('');
       setNewListDescription('');
       setNewListIsPublic(true);
-      fetchReadingLists();
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error creating reading list:', error);
     }
   };
 
   const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
-    setPage(value);
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(value));
+    setSearchParams(next);
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,14 +122,18 @@ const ReadingListsPage = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
           <CircularProgress />
         </Box>
+      ) : !loaderData.ok ? (
+        <Alert severity="error" sx={{ my: 4 }}>
+          {t('readingLists.loadFailed', 'Failed to load reading lists. Please try again later.')}
+        </Alert>
       ) : readingLists.length === 0 ? (
         <Box sx={{ textAlign: 'center', my: 4 }}>
           <Typography variant="h6">
-            {debouncedSearchQuery 
-              ? t('readingLists.noResultsQuery', { query: debouncedSearchQuery })
+            {searchQueryParam 
+              ? t('readingLists.noResultsQuery', { query: searchQueryParam })
               : t('readingLists.noResults')}
           </Typography>
-          {isAuthenticated && !debouncedSearchQuery && (
+          {isAuthenticated && !searchQueryParam && (
             <Button 
               variant="contained" 
               startIcon={<AddIcon />}
@@ -133,7 +143,7 @@ const ReadingListsPage = () => {
               {t('readingLists.createFirst')}
             </Button>
           )}
-          {!isAuthenticated && !debouncedSearchQuery && (
+          {!isAuthenticated && !searchQueryParam && (
             <Button 
               variant="contained" 
               component={RouterLink} 

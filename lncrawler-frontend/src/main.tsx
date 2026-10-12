@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter as Router } from 'react-router-dom'
-import App from './App.tsx'
+import { RouterProvider } from 'react-router-dom'
+import { router } from './router'
 import { AuthProvider } from './context/AuthContext'
 import { AdultContentProvider } from './context/AdultContentContext'
 import { LanguageProvider } from './context/LanguageContext'
@@ -20,15 +20,13 @@ window.addEventListener('unhandledrejection', (event) => {
 i18nReady.finally(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <Router>
-        <AuthProvider>
-          <AdultContentProvider>
-            <LanguageProvider>
-              <App />
-            </LanguageProvider>
-          </AdultContentProvider>
-        </AuthProvider>
-      </Router>
+      <AuthProvider>
+        <AdultContentProvider>
+          <LanguageProvider>
+            <RouterProvider router={router} />
+          </LanguageProvider>
+        </AdultContentProvider>
+      </AuthProvider>
     </StrictMode>,
   )
 })

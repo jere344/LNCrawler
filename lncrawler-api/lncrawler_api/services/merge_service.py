@@ -21,8 +21,8 @@ from typing import Optional
 
 from django.db import transaction
 from django.db.models import Q
-from django.utils.text import slugify
 
+from ..utils.slug import slugify
 from ..models import (
     Comment,
     FeaturedNovel,

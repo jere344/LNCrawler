@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useLoaderData } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -22,8 +23,8 @@ import { ChatMessage } from '@models/chat_types';
 import { formatDateTime } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { CHAT_PAGE_SIZE, type ChatLoaderData } from '../../router/loaders';
 
-const PAGE_SIZE = 100;
 // ponytail: cap quote lookups so a click can't fetch unbounded history; raise if chains get deep.
 const MAX_QUOTE_LOOKUP_PAGES = 10;
 
@@ -308,12 +309,13 @@ const ChatComposer = ({ replyTo, onCancelReply, onSubmit }: ChatComposerProps) =
 const ChatPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const loaderData = useLoaderData() as ChatLoaderData;
+  const initial = loaderData.ok ? loaderData.data : null;
+  const [messages, setMessages] = useState<ChatMessage[]>(initial?.results ?? []);
+  const [page, setPage] = useState(initial?.current_page ?? 0);
+  const [totalPages, setTotalPages] = useState(Math.max(1, initial?.total_pages ?? 1));
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const error = loaderData.ok ? null : t('chat.loadFailed');
   const [notice, setNotice] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -338,35 +340,13 @@ const ChatPage = () => {
     }
   }, [messages]);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const data = await chatService.listChat(1, PAGE_SIZE);
-        if (!active) return;
-        setMessages(data.results);
-        setPage(data.current_page);
-        setTotalPages(Math.max(1, data.total_pages));
-      } catch (err) {
-        console.error('Failed to fetch chat:', err);
-        if (active) setError(t('chat.loadFailed'));
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only
-  }, []);
-
   const loadMore = async () => {
     if (loadingMore || page >= totalPages) return;
     setLoadingMore(true);
     const el = scrollRef.current;
     if (el) pendingScrollAdjust.current = el.scrollHeight;
     try {
-      const data = await chatService.listChat(page + 1, PAGE_SIZE);
+      const data = await chatService.listChat(page + 1, CHAT_PAGE_SIZE);
       setMessages((prev) => dedupById([...prev, ...data.results]));
       setPage(data.current_page);
       setTotalPages(Math.max(1, data.total_pages));
@@ -401,7 +381,7 @@ const ChatPage = () => {
     setLoadingMore(true);
     try {
       while (!found && nextPage <= totalPages && nextPage <= page + MAX_QUOTE_LOOKUP_PAGES) {
-        const data = await chatService.listChat(nextPage, PAGE_SIZE);
+        const data = await chatService.listChat(nextPage, CHAT_PAGE_SIZE);
         acc = acc.concat(data.results);
         found = acc.some((m) => m.id === id);
         nextPage += 1;
@@ -465,11 +445,7 @@ const ChatPage = () => {
         </Alert>
       )}
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
-          <CircularProgress />
-        </Box>
-      ) : error ? (
+      {error ? (
         <Alert severity="error" sx={{ my: 2 }}>
           {error}
         </Alert>
@@ -513,7 +489,7 @@ const ChatPage = () => {
         </Box>
       )}
 
-      {!loading && !error && (
+      {!error && (
         <Box sx={{ pt: 1 }}>
           <ChatComposer replyTo={replyTo} onCancelReply={() => setReplyTo(null)} onSubmit={handleSubmitMessage} />
         </Box>

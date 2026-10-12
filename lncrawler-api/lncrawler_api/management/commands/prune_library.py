@@ -42,7 +42,6 @@ from django.db import transaction
 from django.db.models import CharField, Count
 from django.db.models.functions import Cast, MD5, Substr
 from django.utils import timezone
-from django.utils.text import slugify
 
 from lncrawler_api.models import (
     Comment,
@@ -59,6 +58,7 @@ from lncrawler_api.services.novel_operations import (
 )
 from lncrawler_api.utils import chapter_utils
 from lncrawler_api.utils.lncrawler_paths import move_and_merge_directory, sanitize
+from lncrawler_api.utils.slug import slugify
 
 logger = logging.getLogger("lncrawler_api")
 

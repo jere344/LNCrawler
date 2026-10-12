@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useLoaderData, useNavigation, useRevalidator } from 'react-router-dom';
+import type { HomeLoaderData } from '../../router/loaders';
 import {
   Container,
   Typography,
@@ -12,9 +14,7 @@ import {
   Grid as Grid
 } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { novelService } from '@services/api';
-import { Novel, NovelFromSource, NovelFeaturedResponse } from '@models/novels_types';
-import { Review } from '@services/review.service';
+import { Novel, NovelFromSource } from '@models/novels_types';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
 import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCard';
 import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
@@ -24,29 +24,24 @@ import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSe
 import NovelRecommendation from '@components/common/NovelRecommendation';
 import { getNovelSourceLink, getSourceLink } from '@utils/Misc';
 import { useLanguage } from '@context/LanguageContext';
+import { useAuth } from '@context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
   const { t } = useTranslation();
   const { contentLanguages, languageFilterEnabled } = useLanguage();
+  const { isAuthenticated } = useAuth();
   
-  // State for different novel sections
-  const [homeData, setHomeData] = useState<{
-    top_novels: Novel[];
-    trending_novels: Novel[];
-    top_rated_novels: Novel[];
-    recently_added: Novel[];
-    recently_updated: NovelFromSource[];
-    featured_novel: NovelFeaturedResponse | null;
-    recent_reviews: Review[];
-    recommended_novels: Novel[];
-    novels_you_added: Novel[];
-  } | null>(null);
-  
-  // Loading and error states
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const loaderData = useLoaderData() as HomeLoaderData;
+  const navigation = useNavigation();
+  const revalidator = useRevalidator();
+
+  const homeData = loaderData.ok ? loaderData.data : null;
+  const error = loaderData.ok ? null : t('home.loadFailed');
+  // Initial load is covered by the route HydrateFallback; this only spins on a
+  // language-change revalidation.
+  const loading = navigation.state === 'loading' || revalidator.state === 'revalidating';
 
   // Rankings tab state
   const [rankingTab, setRankingTab] = useState<number>(1);
@@ -55,24 +50,15 @@ const HomePage: React.FC = () => {
     setRankingTab(newValue);
   };
 
+  // The loader reads the content languages from storage, so re-run it when the
+  // preferences change (LanguageContext mirrors them to storage synchronously).
+  const prefsKey = `${languageFilterEnabled}|${contentLanguages.join(',')}`;
+  const lastPrefsKey = useRef(prefsKey);
   useEffect(() => {
-    const fetchHomeData = async () => {
-      try {
-        setLoading(true);
-        const languages = languageFilterEnabled ? contentLanguages : [];
-        const data = await novelService.getHomePageData(languages);
-        setHomeData(data);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching home page data:', error);
-        setError(t('home.loadFailed'));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchHomeData();
-  }, [contentLanguages, languageFilterEnabled, t]);
+    if (lastPrefsKey.current === prefsKey) return;
+    lastPrefsKey.current = prefsKey;
+    revalidator.revalidate();
+  }, [prefsKey, revalidator]);
 
   // Helper function for error display
   const renderErrorMessage = (message: string) => (
@@ -133,7 +119,7 @@ const HomePage: React.FC = () => {
         </Box>
       </Box>
 
-      {!loading && (homeData?.recommended_novels?.length ?? 0) > 0 && (
+      {isAuthenticated && (loading || (homeData?.recommended_novels?.length ?? 0) > 0) && (
         <Box sx={{ mb: 6 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h5" component="h2" sx={{
@@ -145,8 +131,8 @@ const HomePage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <NovelRecommendation
-            similarNovels={homeData!.recommended_novels.map((novel) => ({ ...novel, similarity: 0 }))}
-            loading={false}
+            similarNovels={(homeData?.recommended_novels ?? []).map((novel) => ({ ...novel, similarity: 0 }))}
+            loading={loading}
           />
         </Box>
       )}
@@ -447,17 +433,27 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {!loading && homeData && (
+        {loading ? (
           <Grid container spacing={2}>
-            {homeData.recently_updated.slice(0, 12).map((source) => (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
-                <ChapterCard
-                  source={source}
-                  {...getSourceLink(source)}
-                />
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
+                <ChapterCard source={{} as NovelFromSource} isLoading />
               </Grid>
             ))}
           </Grid>
+        ) : (
+          homeData && (
+            <Grid container spacing={2}>
+              {homeData.recently_updated.slice(0, 12).map((source) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
+                  <ChapterCard
+                    source={source}
+                    {...getSourceLink(source)}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )
         )}
       </Box>
     </Container>

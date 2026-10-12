@@ -49,7 +49,9 @@ const request = async (
   const isFormData = body instanceof FormData;
 
   const headers: Record<string, string> = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    // Only declare a JSON body when there is one; Content-Type on bodyless
+    // GETs is not CORS-safelisted and forces an OPTIONS preflight.
+    ...(body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     ...defaults.headers.common,
     ...config?.headers,
   };

@@ -16,9 +16,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from django.db import transaction
-from django.utils.text import slugify
 
 from ..models import Novel, NovelAlias, ReadingHistory
+from ..utils.slug import slugify
 from .novel_operations import (
     dedupe_source,
     find_duplicate,

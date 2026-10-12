@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDebounce } from '@utils/useDebounce';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLoaderData, useNavigation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -26,91 +26,77 @@ import {
   Grid as Grid,
   Alert,
 } from '@mui/material';
-import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
-import { Chapter, ChapterListResponse as IChapterListResponse } from '@models/novels_types';
+import { Chapter } from '@models/novels_types';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
-
-interface IExtendedChapterListResponse extends IChapterListResponse {
-  count: number;
-  total_pages: number;
-  current_page: number;
-}
+import type { ChapterListLoaderData } from '../../router/loaders';
 
 const ChapterList = () => {
   const { t } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
-  
-  const [chapterData, setChapterData] = useState<IExtendedChapterListResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const loaderData = useLoaderData() as ChapterListLoaderData;
+  const navigation = useNavigation();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const chapterData = loaderData.ok ? loaderData.data : null;
+  const error = loaderData.ok ? null : t('chapterList.loadFailed');
+  const loading = navigation.state === 'loading';
+  const pageSize = Number(searchParams.get('page_size')) || 100;
+
+  const [searchTerm, setSearchTerm] = useState<string>(searchParams.get('q') || '');
   const debouncedSearch = useDebounce(searchTerm);
-  const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(100);
-  
-  // Organize chapters by volume
-  const [volumeChapters, setVolumeChapters] = useState<{ [key: number]: Chapter[] }>({});
-  const [volumes, setVolumes] = useState<number[]>([]);
 
+  // Mirror the debounced search into the URL so the loader owns the request.
   useEffect(() => {
-    setPage(1);
+    if (debouncedSearch === (searchParams.get('q') || '')) return;
+    const next = new URLSearchParams(searchParams);
+    if (debouncedSearch) next.set('q', debouncedSearch);
+    else next.delete('q');
+    next.delete('page');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the debounced value
   }, [debouncedSearch]);
-  
-  useEffect(() => {
-    const fetchChapters = async () => {
-      if (!novelSlug || !sourceSlug) return;
-      
-      setLoading(true);
-      try {
-        const response = await novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize, debouncedSearch);
-        setChapterData(response as IExtendedChapterListResponse);
-        
-        // Organize chapters by volume
-        const chaptersByVolume: { [key: number]: Chapter[] } = {};
-        const volumeList: Set<number> = new Set();
-        
-        response.chapters.forEach((chapter: Chapter) => {
-          const volume = chapter.volume || 0;
-          volumeList.add(volume);
-          
-          if (!chaptersByVolume[volume]) {
-            chaptersByVolume[volume] = [];
-          }
-          chaptersByVolume[volume].push(chapter);
-        });
-        
-        setVolumeChapters(chaptersByVolume);
-        setVolumes(Array.from(volumeList).sort((a, b) => a - b));
-        
-      } catch (err) {
-        console.error('Error fetching chapters:', err);
-        setError(t('chapterList.loadFailed'));
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchChapters();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
-  }, [novelSlug, sourceSlug, page, pageSize, debouncedSearch]);
+  // Keep the input in sync when the URL changes (back/forward or another source).
+  useEffect(() => {
+    setSearchTerm(searchParams.get('q') || '');
+  }, [novelSlug, sourceSlug, searchParams]);
+
+  // Organize chapters by volume
+  const { volumeChapters, volumes } = useMemo(() => {
+    const chaptersByVolume: { [key: number]: Chapter[] } = {};
+    const volumeList: Set<number> = new Set();
+
+    (chapterData?.chapters ?? []).forEach((chapter: Chapter) => {
+      const volume = chapter.volume || 0;
+      volumeList.add(volume);
+      if (!chaptersByVolume[volume]) {
+        chaptersByVolume[volume] = [];
+      }
+      chaptersByVolume[volume].push(chapter);
+    });
+
+    return { volumeChapters: chaptersByVolume, volumes: Array.from(volumeList).sort((a, b) => a - b) };
+  }, [chapterData]);
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
-    setPage(value);
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(value));
+    setSearchParams(next);
   };
 
   const handlePageSizeChange = (event: SelectChangeEvent<number>) => {
-    setPageSize(Number(event.target.value));
-    setPage(1);
+    const next = new URLSearchParams(searchParams);
+    next.set('page_size', String(Number(event.target.value)));
+    next.delete('page');
+    setSearchParams(next);
   };
-
-  const filteredVolumes = volumeChapters;
 
   const pageUrl = window.location.href;
 
@@ -272,10 +258,10 @@ const ChapterList = () => {
         
         {volumes.length > 0 ? (
           volumes.map(volume => {
-            if (!filteredVolumes[volume] || filteredVolumes[volume].length === 0) return null;
+            if (!volumeChapters[volume] || volumeChapters[volume].length === 0) return null;
             
-            const volumeTitle = filteredVolumes[volume][0].volume_title || t('chapterList.volume', { volume });
-            const showHeader = volume !== 0 || !!filteredVolumes[volume][0].volume_title;
+            const volumeTitle = volumeChapters[volume][0].volume_title || t('chapterList.volume', { volume });
+            const showHeader = volume !== 0 || !!volumeChapters[volume][0].volume_title;
             
             return (
               <Box key={volume} sx={{ mb: 4 }}>
@@ -289,7 +275,7 @@ const ChapterList = () => {
                 )}
                 
                 <List disablePadding>
-                  {filteredVolumes[volume].map((chapter) => (
+                  {volumeChapters[volume].map((chapter) => (
                     <ListItem disablePadding key={chapter.id} divider>
                       <ListItemButton 
                         component={Link}

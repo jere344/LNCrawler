@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLoaderData, useNavigation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -19,7 +19,6 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
-import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloseIcon from '@mui/icons-material/Close';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
@@ -30,26 +29,7 @@ import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
 import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
-
-interface GalleryImage {
-  chapter_id: number;
-  chapter_title: string;
-  image_url: string;
-  image_name: string;
-}
-
-interface GalleryResponse {
-  novel_id: string;
-  novel_title: string;
-  novel_slug: string;
-  source_id: string;
-  source_name: string;
-  source_slug: string;
-  count: number;
-  total_pages: number;
-  current_page: number;
-  images: GalleryImage[];
-}
+import type { GalleryLoaderData, GalleryImage } from '../../router/loaders';
 
 type ImageWithDimensions = GalleryImage & { width?: number; height?: number };
 
@@ -59,41 +39,28 @@ const ImageGallery = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [gallery, setGallery] = useState<GalleryResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState<number>(1);
+  const loaderData = useLoaderData() as GalleryLoaderData;
+  const navigation = useNavigation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const gallery = loaderData.ok ? loaderData.data : null;
+  const error = loaderData.ok ? null : t('gallery.loadFailed');
+  const loading = navigation.state === 'loading';
+  const page = Number(searchParams.get('page')) || 1;
   const [selectedImage, setSelectedImage] = useState<ImageWithDimensions | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState<boolean>(false);
 
   const [showSmallImages, setShowSmallImages] = useState<boolean>(false);
   const [dimensions, setDimensions] = useState<Record<string, { width: number; height: number }>>({});
 
+  // Reset recorded dimensions whenever the page or source changes.
   useEffect(() => {
-    const fetchGallery = async () => {
-      if (!novelSlug || !sourceSlug) return;
-      
-      setLoading(true);
-      setDimensions({}); // Reset for new page/source
-      setError(null); 
-      try {
-        const data = await novelService.getSourceGallery(novelSlug, sourceSlug, page);
-        setGallery(data);
-      } catch (err) {
-        console.error('Error fetching gallery:', err);
-        setError(t('gallery.loadFailed'));
-        setGallery(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchGallery();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
+    setDimensions({});
   }, [novelSlug, sourceSlug, page]);
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
-    setPage(value);
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(value));
+    setSearchParams(next);
   };
 
   // Dimensions are recorded from the grid <img> as the browser lazy-loads each image,
