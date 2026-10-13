@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, use } from 'react';
-import { useParams, useLoaderData, useNavigation, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useLoaderData, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -9,7 +9,6 @@ import {
   Button,
   ImageList,
   ImageListItem,
-  CircularProgress,
   Pagination,
   Dialog,
   IconButton,
@@ -41,11 +40,9 @@ const ImageGallery = () => {
 
   const { data: galleryPromise } = useLoaderData() as AsyncData<GalleryLoaderData>;
   const loaderData = use(galleryPromise);
-  const navigation = useNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   const gallery = loaderData.ok ? loaderData.data : null;
   const error = loaderData.ok ? null : t('gallery.loadFailed');
-  const loading = navigation.state === 'loading';
   const page = Number(searchParams.get('page')) || 1;
   const [selectedImage, setSelectedImage] = useState<ImageWithDimensions | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState<boolean>(false);
@@ -137,17 +134,7 @@ const ImageGallery = () => {
   const ogImage = (gallery && gallery.images.length > 1) ? gallery.images[1].image_url : gallery?.images[0]?.image_url || DEFAULT_OG_IMAGE;
 
 
-  if (loading && !gallery) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
-
-  if (error || (!gallery && !loading)) { // Adjusted error condition
+  if (error || !gallery) {
     return (
       <Container>
         <Button startIcon={<ArrowBackIcon />} component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} sx={{ mt: 2 }}>
@@ -258,70 +245,62 @@ const ImageGallery = () => {
         />
         
         <Box sx={{ mb: 3, mt: 1 }}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
+          {filteredImages.length > 0 ? (
+            <ImageList variant="masonry" cols={isMobile ? 2 : 3} gap={8} sx={{ overflow: 'hidden' }}>
+              {filteredImages.map((image) => (
+                <ImageListItem 
+                  key={image.image_url} 
+                  onClick={() => openLightbox(image)}
+                  sx={{
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    transition: 'transform 0.3s ease',
+                    '&:hover': {
+                      transform: 'scale(1.02)'
+                    }
+                  }}
+                >
+                  <img
+                    src={image.image_url}
+                    alt={t('gallery.imageAlt', { chapter: getChapterLabel(t, image.chapter_title, image.chapter_id), name: image.image_name })}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={(e) => handleImageLoad(image.image_url, e)}
+                    onError={() => handleImageError(image.image_url)}
+                    style={{ borderRadius: 8 }}
+                  />
+                  <Box 
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      bgcolor: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      p: 1,
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    <Typography variant="caption">
+                      {getChapterLabel(t, image.chapter_title, image.chapter_id)}
+                    </Typography>
+                  </Box>
+                </ImageListItem>
+              ))}
+            </ImageList>
           ) : (
-            <>
-              {filteredImages.length > 0 ? (
-                <ImageList variant="masonry" cols={isMobile ? 2 : 3} gap={8} sx={{ overflow: 'hidden' }}>
-                  {filteredImages.map((image) => (
-                    <ImageListItem 
-                      key={image.image_url} 
-                      onClick={() => openLightbox(image)}
-                      sx={{
-                        cursor: 'pointer',
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                        transition: 'transform 0.3s ease',
-                        '&:hover': {
-                          transform: 'scale(1.02)'
-                        }
-                      }}
-                    >
-                      <img
-                        src={image.image_url}
-                        alt={t('gallery.imageAlt', { chapter: getChapterLabel(t, image.chapter_title, image.chapter_id), name: image.image_name })}
-                        loading="lazy"
-                        decoding="async"
-                        onLoad={(e) => handleImageLoad(image.image_url, e)}
-                        onError={() => handleImageError(image.image_url)}
-                        style={{ borderRadius: 8 }}
-                      />
-                      <Box 
-                        sx={{
-                          position: 'absolute',
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          bgcolor: 'rgba(0,0,0,0.7)',
-                          color: 'white',
-                          p: 1,
-                          fontSize: '0.8rem',
-                        }}
-                      >
-                        <Typography variant="caption">
-                          {getChapterLabel(t, image.chapter_title, image.chapter_id)}
-                        </Typography>
-                      </Box>
-                    </ImageListItem>
-                  ))}
-                </ImageList>
-              ) : (
-                gallery && gallery.images.length > 0 && (
-                  <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
-                    {t('gallery.noImagesFiltered')}
-                  </Typography>
-                )
-              )}
-              {gallery && gallery.images.length === 0 && (
-                 <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
-                  {t('gallery.noImagesPage')}
-                </Typography>
-              )}
-            </>
+            gallery && gallery.images.length > 0 && (
+              <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
+                {t('gallery.noImagesFiltered')}
+              </Typography>
+            )
+          )}
+          {gallery && gallery.images.length === 0 && (
+             <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
+              {t('gallery.noImagesPage')}
+            </Typography>
           )}
         </Box>
         

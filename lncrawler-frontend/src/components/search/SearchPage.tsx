@@ -8,7 +8,7 @@ import {
   ToggleButton, ToggleButtonGroup,
   Grid as Grid,
 } from '@mui/material';
-import { useSearchParams, useLoaderData, useNavigation } from 'react-router-dom';
+import { useSearchParams, useLoaderData } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
@@ -55,9 +55,7 @@ const SearchPage: React.FC = () => {
   // Results are owned by the route loader (started before the i18n gate).
   const { data: searchDataPromise } = useLoaderData() as AsyncData<SearchLoaderData>;
   const loaderData = use(searchDataPromise);
-  const navigation = useNavigation();
   const novels = loaderData.ok ? loaderData.data.results : [];
-  const loading = navigation.state === 'loading';
   const totalCount = loaderData.ok ? loaderData.data.count : 0;
   const totalPages = loaderData.ok ? loaderData.data.total_pages : 1;
   const currentPage = loaderData.ok ? loaderData.data.current_page : 1;
@@ -260,7 +258,7 @@ const SearchPage: React.FC = () => {
   const baseTitle = t('search.metaDefaultTitle');
   const queryTitle = searchQuery ? t('search.metaQueryTitle', { query: searchQuery }) : baseTitle;
 
-  const metaTitle = loading ? t('search.metaSearchingTitle') : queryTitle;
+  const metaTitle = queryTitle;
   
   let description = t('search.metaDescription');
   if (searchQuery) {
@@ -850,20 +848,11 @@ const SearchPage: React.FC = () => {
 
       {/* Results Count */}
       <Typography variant="subtitle1" sx={{ mb: 2 }}>
-        {loading ? t('search.searching') : (
-          t('search.foundCount', { count: totalCount })
-        )}
+        {t('search.foundCount', { count: totalCount })}
       </Typography>
 
-      {/* Loading indicator */}
-      {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
-        </Box>
-      )}
-
       {/* Novel Grid */}
-      {!loading && novels.length > 0 && (
+      {novels.length > 0 && (
         <Grid container spacing={3}>
           {novels.map((novel) => (
             <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
@@ -877,7 +866,7 @@ const SearchPage: React.FC = () => {
       )}
 
       {/* No Results */}
-      {!loading && novels.length === 0 && (
+      {novels.length === 0 && (
         <Box sx={{ textAlign: 'center', my: 5 }}>
           <Typography variant="h6">{t('search.noResults')}</Typography>
           <Typography color="textSecondary">

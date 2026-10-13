@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, use } from 'react';
 import { useDebounce } from '@utils/useDebounce';
-import { useParams, useLoaderData, useNavigation, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useLoaderData, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -12,7 +12,6 @@ import {
   Paper,
   Box,
   Button,
-  CircularProgress,
   Divider,
   TextField,
   InputAdornment,
@@ -42,12 +41,10 @@ const ChapterList = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const { data: chapterListPromise } = useLoaderData() as AsyncData<ChapterListLoaderData>;
   const loaderData = use(chapterListPromise);
-  const navigation = useNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const chapterData = loaderData.ok ? loaderData.data : null;
   const error = loaderData.ok ? null : t('chapterList.loadFailed');
-  const loading = navigation.state === 'loading';
   const pageSize = Number(searchParams.get('page_size')) || 100;
 
   const [searchTerm, setSearchTerm] = useState<string>(searchParams.get('q') || '');
@@ -112,16 +109,6 @@ const ChapterList = () => {
     ? t('chapterList.keywords', { novel: chapterData.novel_title, source: chapterData.source_name })
     : "chapter list, light novel, web novel";
   const ogImage = chapterData?.source_overview_image_url || DEFAULT_OG_IMAGE;
-  if (loading && !chapterData) {
-    return (
-      <Container>
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
-
   if (error || !chapterData) {
     return (
       <Container>
@@ -145,25 +132,23 @@ const ChapterList = () => {
         canonical={pageUrl}
       />
 
-      {!loading && chapterData && (
-        <BreadcrumbNav
-          items={[
-            {
-              label: chapterData.novel_title,
-              icon: <BookIcon fontSize="inherit" />
-            },
-            {
-              label: chapterData.source_name,
-              link: `/novels/${novelSlug}/${sourceSlug}`,
-              icon: <LanguageIcon fontSize="inherit" />
-            },
-            {
-              label: t('chapterList.chapters'),
-              icon: <ListAltIcon fontSize="inherit" />
-            }
-          ]}
-        />
-      )}
+      <BreadcrumbNav
+        items={[
+          {
+            label: chapterData.novel_title,
+            icon: <BookIcon fontSize="inherit" />
+          },
+          {
+            label: chapterData.source_name,
+            link: `/novels/${novelSlug}/${sourceSlug}`,
+            icon: <LanguageIcon fontSize="inherit" />
+          },
+          {
+            label: t('chapterList.chapters'),
+            icon: <ListAltIcon fontSize="inherit" />
+          }
+        ]}
+      />
 
       <Button component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} startIcon={<ArrowBackIcon />} sx={{ mt: 2 }}>
         {t('chapterList.backToSource')}

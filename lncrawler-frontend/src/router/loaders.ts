@@ -1,4 +1,4 @@
-import { redirect, type LoaderFunctionArgs } from 'react-router-dom';
+import type { LoaderFunctionArgs } from 'react-router-dom';
 import { novelService } from '@services/api';
 import { chatService } from '@services/chat.service';
 import { readingListService } from '@services/readinglist.service';
@@ -43,19 +43,24 @@ export const homeLoader = (): AsyncData<HomeLoaderData> => {
   return { data: settle<HomeData>(novelService.getHomePageData(languages)) };
 };
 
-export type NovelRedirectLoaderData = { ok: false };
+export type NovelRedirectLoaderData = { ok: true; target: string } | { ok: false };
 
-export const novelRedirectLoader = async ({ params }: LoaderFunctionArgs) => {
+// Resolves to the novel's preferred source page. Un-awaited like the other
+// loaders, so the redirect page's skeleton shows while the lookup runs instead
+// of the previous page staying on screen.
+export const novelRedirectLoader = ({ params }: LoaderFunctionArgs): AsyncData<NovelRedirectLoaderData> => {
   const novelSlug = params.novelSlug;
-  if (!novelSlug) return redirect('/');
-  try {
-    const novel = await novelService.getNovelDetail(novelSlug);
-    const target = getNovelSourcePath(novel);
-    if (!target) return { ok: false } satisfies NovelRedirectLoaderData;
-    return redirect(target);
-  } catch {
-    return { ok: false } satisfies NovelRedirectLoaderData;
-  }
+  if (!novelSlug) return { data: Promise.resolve<NovelRedirectLoaderData>({ ok: false }) };
+  const resolve = async (): Promise<NovelRedirectLoaderData> => {
+    try {
+      const novel = await novelService.getNovelDetail(novelSlug);
+      const target = getNovelSourcePath(novel);
+      return target ? { ok: true, target } : { ok: false };
+    } catch {
+      return { ok: false };
+    }
+  };
+  return { data: resolve() };
 };
 
 export type ChatLoaderData = { ok: true; data: ChatPageResponse } | { ok: false };

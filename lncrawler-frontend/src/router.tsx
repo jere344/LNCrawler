@@ -4,7 +4,14 @@ import App from './App';
 import RouteSpinner from '@components/common/RouteSpinner';
 import RouteError from '@components/common/RouteError';
 import NotFoundRedirect from '@components/common/NotFoundRedirect';
+import PageBoundary from '@components/common/PageBoundary';
 import HomeSkeleton from '@components/home/HomeSkeleton';
+import ReadingListsSkeleton from '@components/readinglist/ReadingListsSkeleton';
+import ReadingListDetailSkeleton from '@components/readinglist/ReadingListDetailSkeleton';
+import ChatSkeleton from '@components/chat/ChatSkeleton';
+import SearchSkeleton from '@components/search/SearchSkeleton';
+import ChapterListSkeleton from '@components/novels/ChapterListSkeleton';
+import ImageGallerySkeleton from '@components/novels/ImageGallerySkeleton';
 import {
     homeLoader,
     novelRedirectLoader,
@@ -46,12 +53,11 @@ const NovelUpdatesImportPage = lazy(() => import('@components/import/NovelUpdate
 // route's loader is still pending, swapping only the Outlet for the fallback.
 const Layout = () => <Outlet />;
 
-// Wrapping the lazy page element in its own Suspense (instead of relying on the
-// App-level boundary) guarantees the fallback shows the instant navigation
-// commits: under a transition React only suppresses fallbacks for boundaries
-// that already have committed content, and this one is fresh every time.
+// Each page gets its own PageBoundary (keyed by pathname) so the fallback shows
+// the instant navigation commits, instead of the previous page staying on screen
+// until the lazy chunk or the data arrives. Pages with a loader pass their skeleton.
 const S = (Page: React.LazyExoticComponent<React.ComponentType>) =>
-    <Suspense fallback={<RouteSpinner />}><Page /></Suspense>;
+    <PageBoundary fallback={<RouteSpinner />}><Page /></PageBoundary>;
 
 export const router = createBrowserRouter([
     {
@@ -73,17 +79,18 @@ export const router = createBrowserRouter([
                     { path: '/history', element: S(ReadingHistoryPage) },
 
                     // Loader routes hand back an un-awaited promise (see AsyncData
-                    // in router/loaders.ts): navigation commits instantly and this
-                    // Suspense boundary shows the fallback until the request lands.
+                    // in router/loaders.ts): navigation commits instantly and the
+                    // page's skeleton shows until the request lands. The skeleton is
+                    // also the cold-load HydrateFallback.
                     // Reading Lists routes
-                    { path: '/reading-lists', element: <Suspense fallback={<RouteSpinner />}><ReadingListsPage /></Suspense>, loader: readingListsLoader, errorElement: <RouteError /> },
-                    { path: '/reading-lists/:listId', element: <Suspense fallback={<RouteSpinner />}><ReadingListDetail /></Suspense>, loader: readingListDetailLoader, errorElement: <RouteError /> },
+                    { path: '/reading-lists', element: <PageBoundary fallback={<ReadingListsSkeleton />}><ReadingListsPage /></PageBoundary>, loader: readingListsLoader, HydrateFallback: ReadingListsSkeleton, errorElement: <RouteError /> },
+                    { path: '/reading-lists/:listId', element: <PageBoundary fallback={<ReadingListDetailSkeleton />}><ReadingListDetail /></PageBoundary>, loader: readingListDetailLoader, HydrateFallback: ReadingListDetailSkeleton, errorElement: <RouteError /> },
 
                     // Import route
                     { path: '/import', element: S(NovelUpdatesImportPage) },
 
                     // Chat route
-                    { path: '/chat', element: <Suspense fallback={<RouteSpinner />}><ChatPage /></Suspense>, loader: chatLoader, errorElement: <RouteError /> },
+                    { path: '/chat', element: <PageBoundary fallback={<ChatSkeleton />}><ChatPage /></PageBoundary>, loader: chatLoader, HydrateFallback: ChatSkeleton, errorElement: <RouteError /> },
                     // Legacy board URLs
                     { path: '/boards', element: <Navigate to="/chat" replace /> },
                     { path: '/boards/:boardSlug', element: <Navigate to="/chat" replace /> },
@@ -96,17 +103,19 @@ export const router = createBrowserRouter([
                     { path: '/download/status/:jobId', element: S(DownloadStatus) },
 
                     // Novel reading routes with new URL structure
-                    { path: '/novels/search', element: <Suspense fallback={<RouteSpinner />}><SearchPage /></Suspense>, loader: searchLoader, errorElement: <RouteError /> },
-                    { path: '/novels/:novelSlug', element: <NovelRedirect />, loader: novelRedirectLoader, errorElement: <RouteError /> },
+                    { path: '/novels/search', element: <PageBoundary fallback={<SearchSkeleton />}><SearchPage /></PageBoundary>, loader: searchLoader, HydrateFallback: SearchSkeleton, errorElement: <RouteError /> },
+                    { path: '/novels/:novelSlug', element: <PageBoundary fallback={<RouteSpinner />}><NovelRedirect /></PageBoundary>, loader: novelRedirectLoader, HydrateFallback: RouteSpinner, errorElement: <RouteError /> },
                     { path: '/novels/:novelSlug/:sourceSlug', element: S(SourceDetail) },
-                    { path: '/novels/:novelSlug/:sourceSlug/chapterlist', element: <Suspense fallback={<RouteSpinner />}><ChapterList /></Suspense>, loader: chapterListLoader, errorElement: <RouteError /> },
-                    { path: '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber', element: S(ChapterReader) },
-                    { path: '/novels/:novelSlug/:sourceSlug/gallery', element: <Suspense fallback={<RouteSpinner />}><ImageGallery /></Suspense>, loader: galleryLoader, errorElement: <RouteError /> },
+                    { path: '/novels/:novelSlug/:sourceSlug/chapterlist', element: <PageBoundary fallback={<ChapterListSkeleton />}><ChapterList /></PageBoundary>, loader: chapterListLoader, HydrateFallback: ChapterListSkeleton, errorElement: <RouteError /> },
+                    // The reader keeps a plain Suspense: it stays mounted across chapter
+                    // changes (it preloads the next chapter) instead of remounting.
+                    { path: '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber', element: <Suspense fallback={<RouteSpinner />}><ChapterReader /></Suspense> },
+                    { path: '/novels/:novelSlug/:sourceSlug/gallery', element: <PageBoundary fallback={<ImageGallerySkeleton />}><ImageGallery /></PageBoundary>, loader: galleryLoader, HydrateFallback: ImageGallerySkeleton, errorElement: <RouteError /> },
 
                     // Home page: the loader returns an un-awaited promise so navigation
-                    // commits instantly; Suspense shows the skeleton until it resolves
-                    // (HydrateFallback covers the cold-load initialize tick).
-                    { path: '/', element: <Suspense fallback={<HomeSkeleton />}><HomePage /></Suspense>, loader: homeLoader, HydrateFallback: HomeSkeleton, errorElement: <RouteError /> },
+                    // commits instantly; the PageBoundary shows the skeleton until it
+                    // resolves (HydrateFallback covers the cold-load initialize tick).
+                    { path: '/', element: <PageBoundary fallback={<HomeSkeleton />}><HomePage /></PageBoundary>, loader: homeLoader, HydrateFallback: HomeSkeleton, errorElement: <RouteError /> },
 
                     // Fallback route - redirect to home
                     { path: '*', element: <NotFoundRedirect /> },

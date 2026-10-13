@@ -1,18 +1,19 @@
-import { useLoaderData } from 'react-router-dom';
+import { use } from 'react';
+import { Navigate, useLoaderData } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import RedirectWithNotification from '@components/common/RedirectWithNotification';
-import type { NovelRedirectLoaderData } from '../../router/loaders';
+import type { AsyncData, NovelRedirectLoaderData } from '../../router/loaders';
 
 const NovelRedirect = () => {
   const { t } = useTranslation();
-  const data = useLoaderData() as NovelRedirectLoaderData;
+  const { data: redirectPromise } = useLoaderData() as AsyncData<NovelRedirectLoaderData>;
+  const result = use(redirectPromise);
 
-  if (!data.ok) {
+  if (!result.ok) {
     return <RedirectWithNotification to="/" message={t('notifications.novelNotFound')} />;
   }
 
-  // A successful load threw a redirect in the loader; nothing to render.
-  return null;
+  return <Navigate to={result.target} replace />;
 };
 
 export default NovelRedirect;

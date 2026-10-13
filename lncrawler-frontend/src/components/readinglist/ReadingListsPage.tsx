@@ -1,5 +1,5 @@
 import { useState, useEffect, use } from 'react';
-import { useLoaderData, useNavigation, useRevalidator, useSearchParams } from 'react-router-dom';
+import { useLoaderData, useRevalidator, useSearchParams } from 'react-router-dom';
 import { useDebounce } from '@utils/useDebounce';
 import { 
     Typography,
@@ -13,7 +13,6 @@ import { Link as RouterLink } from 'react-router-dom';
 import { readingListService } from '@services/api';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
-import CircularProgress from '@mui/material/CircularProgress';
 import { useAuth } from '@context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import ReadingListCard from './ReadingListCard';
@@ -22,7 +21,6 @@ import type { AsyncData, ReadingListsLoaderData } from '../../router/loaders';
 const ReadingListsPage = () => {
   const { data: readingListsPromise } = useLoaderData() as AsyncData<ReadingListsLoaderData>;
   const loaderData = use(readingListsPromise);
-  const navigation = useNavigation();
   const revalidator = useRevalidator();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -30,7 +28,6 @@ const ReadingListsPage = () => {
   const page = Number(searchParams.get('page')) || 1;
   const readingLists = loaderData.ok ? loaderData.data.results : [];
   const totalPages = loaderData.ok ? loaderData.data.total_pages : 1;
-  const loading = navigation.state === 'loading';
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
@@ -119,11 +116,7 @@ const ReadingListsPage = () => {
         />
       </Box>
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : !loaderData.ok ? (
+      {!loaderData.ok ? (
         <Alert severity="error" sx={{ my: 4 }}>
           {t('readingLists.loadFailed', 'Failed to load reading lists. Please try again later.')}
         </Alert>
