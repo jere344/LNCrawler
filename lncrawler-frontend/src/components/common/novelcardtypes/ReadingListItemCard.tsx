@@ -389,10 +389,10 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 } 
               }}
             >
-              <Tooltip title={t('cards.totalChapters')}>
+              <Tooltip title={t('cards.availableChapters')}>
                 <Chip 
                   icon={<MenuBookIcon />}
-                  label={preferredSource?.chapters_count ? formatCount(preferredSource.chapters_count) : '?'}
+                  label={preferredSource?.available_chapters_count != null ? formatCount(preferredSource.available_chapters_count) : '?'}
                   size="small"
                   variant="outlined"
                 />

@@ -12,6 +12,17 @@ import type { ReadingList, ReadingListResponse } from '@models/readinglist_types
 // Shared with ChatPage so the loader's first page matches loadMore's pages.
 export const CHAT_PAGE_SIZE = 100;
 
+// A route loader hands its request back un-awaited so the navigation transition
+// isn't blocked: the component suspends on the promise (React 19 `use`) and
+// shows its Suspense fallback until it resolves. `settle` folds request errors
+// into the `{ ok: false }` shape the components already handle.
+export interface AsyncData<T> {
+  data: Promise<T>;
+}
+
+const settle = <T>(promise: Promise<T>): Promise<{ ok: true; data: T } | { ok: false }> =>
+  promise.then((data) => ({ ok: true, data })).catch(() => ({ ok: false }));
+
 export interface HomeData {
   top_novels: Novel[];
   trending_novels: Novel[];
@@ -25,15 +36,11 @@ export interface HomeData {
 
 export type HomeLoaderData = { ok: true; data: HomeData } | { ok: false };
 
-// Home is the cold-load path: this runs at module eval, before the i18n gate.
-export const homeLoader = async (): Promise<HomeLoaderData> => {
+// Still fires at module eval, before the i18n gate (the cold-load prefetch),
+// because createBrowserRouter initializes synchronously.
+export const homeLoader = (): AsyncData<HomeLoaderData> => {
   const languages = getInitialLanguageFilterEnabled() ? getInitialContentLanguages() : [];
-  try {
-    const data = (await novelService.getHomePageData(languages)) as HomeData;
-    return { ok: true, data };
-  } catch {
-    return { ok: false };
-  }
+  return { data: settle<HomeData>(novelService.getHomePageData(languages)) };
 };
 
 export type NovelRedirectLoaderData = { ok: false };
@@ -53,37 +60,25 @@ export const novelRedirectLoader = async ({ params }: LoaderFunctionArgs) => {
 
 export type ChatLoaderData = { ok: true; data: ChatPageResponse } | { ok: false };
 
-export const chatLoader = async (): Promise<ChatLoaderData> => {
-  try {
-    return { ok: true, data: await chatService.listChat(1, CHAT_PAGE_SIZE) };
-  } catch {
-    return { ok: false };
-  }
-};
+export const chatLoader = (): AsyncData<ChatLoaderData> => ({
+  data: settle(chatService.listChat(1, CHAT_PAGE_SIZE)),
+});
 
 export type ReadingListsLoaderData = { ok: true; data: ReadingListResponse } | { ok: false };
 
-export const readingListsLoader = async ({ request }: LoaderFunctionArgs): Promise<ReadingListsLoaderData> => {
+export const readingListsLoader = ({ request }: LoaderFunctionArgs): AsyncData<ReadingListsLoaderData> => {
   const url = new URL(request.url);
   const page = Number(url.searchParams.get('page')) || 1;
   const q = url.searchParams.get('q') || '';
-  try {
-    return { ok: true, data: await readingListService.getAllReadingLists(page, 20, q) };
-  } catch {
-    return { ok: false };
-  }
+  return { data: settle(readingListService.getAllReadingLists(page, 20, q)) };
 };
 
 export type ReadingListDetailLoaderData = { ok: true; data: ReadingList } | { ok: false };
 
-export const readingListDetailLoader = async ({ params }: LoaderFunctionArgs): Promise<ReadingListDetailLoaderData> => {
+export const readingListDetailLoader = ({ params }: LoaderFunctionArgs): AsyncData<ReadingListDetailLoaderData> => {
   const listId = params.listId;
-  if (!listId) return { ok: false };
-  try {
-    return { ok: true, data: await readingListService.getReadingListDetail(listId) };
-  } catch {
-    return { ok: false };
-  }
+  if (!listId) return { data: Promise.resolve<ReadingListDetailLoaderData>({ ok: false }) };
+  return { data: settle(readingListService.getReadingListDetail(listId)) };
 };
 
 export interface ChapterListData {
@@ -99,19 +94,16 @@ export interface ChapterListData {
 
 export type ChapterListLoaderData = { ok: true; data: ChapterListData } | { ok: false };
 
-export const chapterListLoader = async ({ params, request }: LoaderFunctionArgs): Promise<ChapterListLoaderData> => {
+export const chapterListLoader = ({ params, request }: LoaderFunctionArgs): AsyncData<ChapterListLoaderData> => {
   const { novelSlug, sourceSlug } = params;
-  if (!novelSlug || !sourceSlug) return { ok: false };
+  if (!novelSlug || !sourceSlug) return { data: Promise.resolve<ChapterListLoaderData>({ ok: false }) };
   const url = new URL(request.url);
   const page = Number(url.searchParams.get('page')) || 1;
   const pageSize = Number(url.searchParams.get('page_size')) || 100;
   const q = url.searchParams.get('q') || '';
-  try {
-    const data = (await novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize, q)) as ChapterListData;
-    return { ok: true, data };
-  } catch {
-    return { ok: false };
-  }
+  return {
+    data: settle<ChapterListData>(novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize, q)),
+  };
 };
 
 export interface GalleryImage {
@@ -136,16 +128,12 @@ export interface GalleryData {
 
 export type GalleryLoaderData = { ok: true; data: GalleryData } | { ok: false };
 
-export const galleryLoader = async ({ params, request }: LoaderFunctionArgs): Promise<GalleryLoaderData> => {
+export const galleryLoader = ({ params, request }: LoaderFunctionArgs): AsyncData<GalleryLoaderData> => {
   const { novelSlug, sourceSlug } = params;
-  if (!novelSlug || !sourceSlug) return { ok: false };
+  if (!novelSlug || !sourceSlug) return { data: Promise.resolve<GalleryLoaderData>({ ok: false }) };
   const url = new URL(request.url);
   const page = Number(url.searchParams.get('page')) || 1;
-  try {
-    return { ok: true, data: (await novelService.getSourceGallery(novelSlug, sourceSlug, page)) as GalleryData };
-  } catch {
-    return { ok: false };
-  }
+  return { data: settle<GalleryData>(novelService.getSourceGallery(novelSlug, sourceSlug, page)) };
 };
 
 export interface SearchData {
@@ -161,12 +149,12 @@ export interface SearchData {
 
 export type SearchLoaderData = { ok: true; data: SearchData } | { ok: false };
 
-export const searchLoader = async ({ request }: LoaderFunctionArgs): Promise<SearchLoaderData> => {
+export const searchLoader = ({ request }: LoaderFunctionArgs): AsyncData<SearchLoaderData> => {
   const sp = new URL(request.url).searchParams;
   const page = sp.get('page') ? parseInt(sp.get('page')!) : 1;
   const selectedLanguages = sp.getAll('language');
-  try {
-    const data = (await novelService.searchNovels({
+  return {
+    data: settle<SearchData>(novelService.searchNovels({
       query: sp.get('query') || undefined,
       page,
       page_size: 24,
@@ -179,9 +167,6 @@ export const searchLoader = async ({ request }: LoaderFunctionArgs): Promise<Sea
       sort_by: (sp.get('sort_by') as 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated') || 'title',
       sort_order: (sp.get('sort_order') as 'asc' | 'desc') || 'asc',
       adult: (sp.get('adult') as 'hide' | 'show' | 'only') || undefined,
-    })) as SearchData;
-    return { ok: true, data };
-  } catch {
-    return { ok: false };
-  }
+    })),
+  };
 };

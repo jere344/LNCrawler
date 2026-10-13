@@ -23,6 +23,14 @@ class NovelpiaGlobalCrawler(Crawler):
     base_url = "https://global.novelpia.com/"
     language = "en"
     has_mtl = False
+    is_disabled = True
+    disable_reason = (
+        "No crawler-accessible free tier: episode content is coin-gated. "
+        "The API's flag_free/flag_open are 0 for every episode on popular "
+        "titles, and anonymous episode-content requests are rejected (HTTP "
+        "400). Only first-chapter / daily-login access exists. Use the Korean "
+        "sources MUGEX/Kkaebi instead."
+    )
 
     def _headers(self, referer=None):
         return {

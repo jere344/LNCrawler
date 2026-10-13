@@ -127,27 +127,22 @@ const SourceDetail = () => {
       setLoading(true);
       setError(null);
 
-      const [sourceResult, novelResult] = await Promise.allSettled([
-        novelService.getSourceDetail(novelSlug, sourceSlug),
-        novelService.getNovelDetail(novelSlug),
-      ]);
-
-      if (sourceResult.status === 'fulfilled') {
-        setSource(sourceResult.value);
-      } else {
-        console.error('Error fetching source details:', sourceResult.reason);
+      try {
+        // The source response embeds the novel detail, so the page no longer
+        // needs a second request.
+        const data = await novelService.getSourceDetail(novelSlug, sourceSlug);
+        setSource(data);
+        setNovel(data.novel);
+        setNovelRating({
+          avg_rating: data.novel.avg_rating,
+          rating_count: data.novel.rating_count,
+          user_rating: data.novel.user_rating
+        });
+      } catch (err) {
+        console.error('Error fetching source details:', err);
         if (!prefetched) {
           setError(t('sourceDetail.loadFailed'));
         }
-      }
-
-      if (novelResult.status === 'fulfilled') {
-        setNovel(novelResult.value);
-        setNovelRating({
-          avg_rating: novelResult.value.avg_rating,
-          rating_count: novelResult.value.rating_count,
-          user_rating: novelResult.value.user_rating
-        });
       }
 
       setLoading(false);
@@ -228,7 +223,7 @@ const SourceDetail = () => {
     ? [source.title, source.source_name, ...source.tags, ...source.authors, "read light novel", "web novel"]
     : ["light novel", "web novel", "source details"];
   const metaKeywords = [...new Set(metaKeywordsList.filter(Boolean))].join(', '); // Unique keywords
-  const ogImage = source?.overview_url || source?.cover_url || DEFAULT_OG_IMAGE;
+  const ogImage = source?.overview_url || source?.cover_url || source?.cover_min_url || DEFAULT_OG_IMAGE;
 
   if (!source && !error) {
     return (
@@ -544,7 +539,7 @@ const SourceDetail = () => {
               width: '100%',
               height: '100%',
               opacity: 0.35,
-              backgroundImage: `url(${source.cover_url || defaultCover})`,
+              backgroundImage: `url(${source.cover_url || source.cover_min_url || defaultCover})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               filter: 'blur(20px)',
@@ -569,7 +564,7 @@ const SourceDetail = () => {
                   >
                     <CardMedia
                       component="img"
-                      image={source.cover_url || defaultCover}
+                      image={source.cover_url || source.cover_min_url || defaultCover}
                       alt={source.title}
                       onClick={coverBlurred ? revealHandler(source.novel_id) : undefined}
                       sx={{
@@ -832,7 +827,12 @@ const SourceDetail = () => {
                           {t('novelSources.chapters')}
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {source.chapters_count || 0}
+                          {source.available_chapters_count ?? 0}
+                          {(source.available_chapters_count ?? 0) !== (source.chapters_count ?? 0) && (
+                            <Box component="span" sx={{ color: alpha(theme.palette.common.white, 0.5), fontWeight: 400 }}>
+                              /{source.chapters_count ?? 0}
+                            </Box>
+                          )}
                         </Typography>
                       </Box>
                     </Box>

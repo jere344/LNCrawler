@@ -21,7 +21,7 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import CommentIcon from '@mui/icons-material/Comment';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { ChapterContent as IChapterContent } from '@models/novels_types';
+import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior } from './ReaderSettings';
 import { defaultSettings } from './readerDefaults';
 import { getCookie } from '@utils/cookies';
@@ -37,6 +37,7 @@ import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
 
 import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
+import UnavailableChapter from './UnavailableChapter';
 import ChapterSEO from '@components/reader/ChapterSEO';
 
 // Interface for our chapter cache
@@ -70,6 +71,7 @@ const ChapterReader = () => {
   const [chapter, setChapter] = useState<IChapterContent | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [unavailableChapter, setUnavailableChapter] = useState<UnavailableChapterInfo | null>(null);
   const [markingAsRead, setMarkingAsRead] = useState(false);
   const [markReadSuccess, setMarkReadSuccess] = useState(false);
   
@@ -305,6 +307,7 @@ const ChapterReader = () => {
       
       const requestId = ++loadRequestIdRef.current;
       setError(null);
+      setUnavailableChapter(null);
       setLoading(true);
       try {
         const chapterData = await fetchChapterContent(
@@ -323,8 +326,17 @@ const ChapterReader = () => {
       } catch (err) {
         if (requestId !== loadRequestIdRef.current) return;
         console.error('Error fetching chapter content:', err);
-        if ((err as { response?: { status?: number } })?.response?.status === 451) {
+        const response = (err as {
+          response?: { status?: number; data?: UnavailableChapterInfo };
+        })?.response;
+        const unavailable = response?.status === 404 ? response.data : undefined;
+        if (response?.status === 451) {
           setError(t('reader.dmcaUnavailable'));
+        } else if (unavailable && typeof unavailable.chapter_id === 'number') {
+          // The chapter exists but has no content: show the unavailable page
+          // instead of a generic error, with working next/prev navigation.
+          setChapter(null);
+          setUnavailableChapter(unavailable);
         } else {
           setError(t('reader.loadFailed'));
         }
@@ -420,8 +432,14 @@ const ChapterReader = () => {
     const targetChapter = direction === 'next' 
       ? chapter?.next_chapter 
       : chapter?.prev_chapter;
+
+    // The immediate neighbour exists but isn't the next *available* chapter:
+    // there's a gap. Route through the unavailable chapter's page so the skip
+    // is deliberate rather than silent.
+    const neighbor = direction === 'next' ? chapter?.next_chapter_id : chapter?.prev_chapter_id;
+    const gapChapter = neighbor != null && neighbor !== targetChapter ? neighbor : null;
     
-    if (!targetChapter) return;
+    if (!targetChapter && gapChapter == null) return;
     
     // For automatic marking settings, mark the current chapter as read when navigating away
     if (isAuthenticated && 
@@ -441,9 +459,9 @@ const ChapterReader = () => {
       }
     }
     
-    // Navigate to the target chapter
+    // Navigate to the target (or to the unavailable chapter that sits in between)
     setActiveTab(0);
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${targetChapter}`);
+    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${gapChapter ?? targetChapter}`);
   };
 
   const nonDefiniteHandleNextChapter = () => {
@@ -708,6 +726,25 @@ const ChapterReader = () => {
           <CircularProgress />
         </Box>
       </Container>
+    );
+  }
+
+  if (unavailableChapter) {
+    return (
+      <UnavailableChapter
+        info={unavailableChapter}
+        onNextAvailable={
+          unavailableChapter.next_chapter != null
+            ? () => navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${unavailableChapter.next_chapter}`)
+            : undefined
+        }
+        onPrevious={
+          unavailableChapter.prev_chapter != null
+            ? () => navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${unavailableChapter.prev_chapter}`)
+            : undefined
+        }
+        onChapterList={() => navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`)}
+      />
     );
   }
 

@@ -1,4 +1,5 @@
 import api from './api';
+import { SourceDetailResponse } from '@models/novels_types';
 
 // Novel service functions updated for the new URL structure
 export const novelService = {
@@ -14,7 +15,7 @@ export const novelService = {
   },
   
   // Get source details by slug
-  getSourceDetail: async (novelSlug: string, sourceSlug: string) => {
+  getSourceDetail: async (novelSlug: string, sourceSlug: string): Promise<SourceDetailResponse> => {
     const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/`);
     return response.data;
   },

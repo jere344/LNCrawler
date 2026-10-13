@@ -21,6 +21,7 @@ from lxml_html_clean import Cleaner
 from ..models import Novel, NovelFromSource, resolve_output_path
 from ..utils import build_media_url, resolve_novel_slug
 from ..utils.chapter_utils import get_chapter
+from ..utils.query_helpers import preferred_source_key
 
 SITE_URL = settings.SITE_URL.rstrip("/")
 SITE_NAME = "LNCrawler"
@@ -80,13 +81,10 @@ def _non_adult_sources():
 
 
 def _pick_default_source(sources):
-    """Mirror the serializer's preferred source: best vote score, then upvotes."""
+    """Mirror the serializer's preferred source (see preferred_source_key)."""
     if not sources:
         return None
-    return min(
-        sources,
-        key=lambda s: (-(s.upvotes - s.downvotes), -s.upvotes, s.title or ""),
-    )
+    return min(sources, key=preferred_source_key)
 
 
 def _source_image(source):
@@ -212,7 +210,13 @@ def seo_novel(request, novel_slug):
         novel.sources.select_related("external_source")
         .prefetch_related("authors", "tags", "alternative_titles")
         .exclude(Q(source_slug__isnull=True) | Q(source_slug=""))
-        .annotate(chapter_total=Count("chapters"))
+        .annotate(
+            chapter_total=Count("chapters"),
+            # Read by preferred_source_key so it doesn't COUNT per source.
+            annotated_available_chapters_count=Count(
+                "chapters", filter=Q(chapters__has_content=True)
+            ),
+        )
     )
     if not sources or _is_adult_novel(novel):
         raise Http404("Novel not available")

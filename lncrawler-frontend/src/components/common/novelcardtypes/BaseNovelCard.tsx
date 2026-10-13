@@ -57,17 +57,18 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   const { t } = useTranslation();
   const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => {
     if (novel.reading_history) {
-      const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
-      if (lastReadChapterId === undefined) {
+      // Only chapters with content count (backend supplies the count), so
+      // gaps left by failed downloads don't inflate the badge.
+      const unread = novel.reading_history.unread_chapters;
+      if (unread === undefined || unread === null) {
         return null;
       }
-      
-      const unread = latestChapterId - lastReadChapterId;
       return unread > 0 ? unread : null;
     }
-    else if (novel.is_bookmarked && novel.prefered_source?.latest_available_chapter) {
-      return novel.prefered_source.latest_available_chapter.chapter_id;
+    else if (novel.is_bookmarked && novel.prefered_source) {
+      const available = novel.prefered_source.available_chapters_count
+        ?? novel.prefered_source.latest_available_chapter?.chapter_id;
+      return available && available > 0 ? available : null;
     }
     return null;
   });
@@ -406,10 +407,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             }}
           >
             <Grid size={6}>
-              <Tooltip title={t('cards.totalChapters')}>
+              <Tooltip title={t('cards.availableChapters')}>
                 <Chip 
                   icon={<MenuBookIcon />}
-                  label={preferredSource?.chapters_count ? formatCount(preferredSource.chapters_count) : t('common.unknown')}
+                  label={preferredSource?.available_chapters_count != null ? formatCount(preferredSource.available_chapters_count) : t('common.unknown')}
                   size="small"
                   variant="outlined"
                 />

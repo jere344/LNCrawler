@@ -64,14 +64,16 @@ interface DndHandle {
 const CoverOverlays: React.FC<{ novel: Novel }> = ({ novel }) => {
   const unread = useMemo(() => {
     if (novel.reading_history) {
-      const latest = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const last = novel.reading_history.last_read_chapter?.chapter_id;
-      if (last === undefined) return null;
-      const diff = latest - last;
-      return diff > 0 ? diff : null;
+      // Only chapters with content count (backend supplies the count), so
+      // gaps left by failed downloads don't inflate the badge.
+      const unread = novel.reading_history.unread_chapters;
+      if (unread === undefined || unread === null) return null;
+      return unread > 0 ? unread : null;
     }
-    if (novel.is_bookmarked && novel.prefered_source?.latest_available_chapter) {
-      return novel.prefered_source.latest_available_chapter.chapter_id;
+    if (novel.is_bookmarked && novel.prefered_source) {
+      const available = novel.prefered_source.available_chapters_count
+        ?? novel.prefered_source.latest_available_chapter?.chapter_id;
+      return available && available > 0 ? available : null;
     }
     return null;
   }, [novel]);

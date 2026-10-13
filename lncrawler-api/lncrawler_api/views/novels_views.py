@@ -60,7 +60,7 @@ def novel_detail_by_slug(request, novel_slug):
     novel = resolve_novel_slug(novel_slug)
     novel = apply_novel_prefetches(
         Novel.objects.filter(pk=novel.pk), request.user,
-        detailed=True, ip=get_client_ip(request),
+        summary=True, ip=get_client_ip(request),
     ).get()
     serializer = NovelSerializer(novel, context={"request": request}, profile='detail')
     return Response(serializer.data)

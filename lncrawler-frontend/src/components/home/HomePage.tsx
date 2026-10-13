@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, use } from 'react';
 import { useLoaderData, useNavigation, useRevalidator } from 'react-router-dom';
-import type { HomeLoaderData } from '../../router/loaders';
+import type { AsyncData, HomeLoaderData } from '../../router/loaders';
 import {
   Container,
   Typography,
@@ -32,14 +32,15 @@ const HomePage: React.FC = () => {
   const { contentLanguages, languageFilterEnabled } = useLanguage();
   const { isAuthenticated } = useAuth();
   
-  const loaderData = useLoaderData() as HomeLoaderData;
+  const { data: homeDataPromise } = useLoaderData() as AsyncData<HomeLoaderData>;
+  const loaderData = use(homeDataPromise);
   const navigation = useNavigation();
   const revalidator = useRevalidator();
 
   const homeData = loaderData.ok ? loaderData.data : null;
   const error = loaderData.ok ? null : t('home.loadFailed');
-  // Initial load is covered by the route HydrateFallback; this only spins on a
-  // language-change revalidation.
+  // Cold load and navigation are covered by the route's HydrateFallback/Suspense
+  // skeleton; this only spins on a language-change revalidation.
   const loading = navigation.state === 'loading' || revalidator.state === 'revalidating';
 
   // Rankings tab state

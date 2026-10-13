@@ -121,11 +121,11 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                   sx={{ height: '100%' }}
                 >
                   {/* Source Cover Image */}
-                  {source.cover_url ? (
+                  {source.cover_min_url ? (
                     <CardMedia
                       component="img"
                       height="140"
-                      image={source.cover_url}
+                      image={source.cover_min_url}
                       alt={t('novelSources.coverAlt', { name: source.source_name })}
                       sx={{ 
                         objectFit: 'cover',
@@ -255,7 +255,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                                   {t('novelSources.chapters')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                                  {source.chapters_count || 0}
+                                  {source.available_chapters_count ?? source.chapters_count ?? 0}
                                 </Typography>
                               </Box>
                               {getChapterName(source.latest_available_chapter?.title || '') !== '' && (

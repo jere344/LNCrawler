@@ -14,6 +14,8 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     body = serializers.SerializerMethodField()
     prev_chapter = serializers.SerializerMethodField()
     next_chapter = serializers.SerializerMethodField()
+    prev_chapter_id = serializers.SerializerMethodField()
+    next_chapter_id = serializers.SerializerMethodField()
     novel_title = serializers.SerializerMethodField()
     novel_id = serializers.SerializerMethodField()
     novel_slug = serializers.SerializerMethodField()
@@ -31,7 +33,11 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         'content': [
             'id', 'chapter_id', 'title', 'novel_title', 'novel_id', 'novel_slug',
             'source_id', 'source_name', 'source_slug', 'body', 'prev_chapter', 'next_chapter',
+            'prev_chapter_id', 'next_chapter_id',
             'images_path', 'source_overview_image_url',
+        ],
+        'unavailable': [
+            'chapter_id', 'title', 'novel_title', 'prev_chapter', 'next_chapter',
         ],
     }
 
@@ -50,6 +56,20 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     def get_next_chapter(self, obj):
         next_chapter = obj.novel_from_source.chapters.filter(
             chapter_id__gt=obj.chapter_id, has_content=True
+        ).order_by('chapter_id').first()
+        return next_chapter.chapter_id if next_chapter else None
+
+    def get_prev_chapter_id(self, obj):
+        # Immediate neighbour regardless of content, so the reader can detect a
+        # gap between the current chapter and the next/prev *available* one.
+        previous_chapter = obj.novel_from_source.chapters.filter(
+            chapter_id__lt=obj.chapter_id
+        ).order_by('-chapter_id').first()
+        return previous_chapter.chapter_id if previous_chapter else None
+
+    def get_next_chapter_id(self, obj):
+        next_chapter = obj.novel_from_source.chapters.filter(
+            chapter_id__gt=obj.chapter_id
         ).order_by('chapter_id').first()
         return next_chapter.chapter_id if next_chapter else None
 

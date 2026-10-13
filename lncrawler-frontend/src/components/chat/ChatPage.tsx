@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, use } from 'react';
 import { useLoaderData } from 'react-router-dom';
 import {
   Box,
@@ -23,7 +23,7 @@ import { ChatMessage } from '@models/chat_types';
 import { formatDateTime } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { CHAT_PAGE_SIZE, type ChatLoaderData } from '../../router/loaders';
+import { CHAT_PAGE_SIZE, type AsyncData, type ChatLoaderData } from '../../router/loaders';
 
 // ponytail: cap quote lookups so a click can't fetch unbounded history; raise if chains get deep.
 const MAX_QUOTE_LOOKUP_PAGES = 10;
@@ -309,7 +309,8 @@ const ChatComposer = ({ replyTo, onCancelReply, onSubmit }: ChatComposerProps) =
 const ChatPage = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const loaderData = useLoaderData() as ChatLoaderData;
+  const { data: chatDataPromise } = useLoaderData() as AsyncData<ChatLoaderData>;
+  const loaderData = use(chatDataPromise);
   const initial = loaderData.ok ? loaderData.data : null;
   const [messages, setMessages] = useState<ChatMessage[]>(initial?.results ?? []);
   const [page, setPage] = useState(initial?.current_page ?? 0);

@@ -5,13 +5,13 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 import os
 
-from ..models import SourceVote, WeeklySourceView, resolve_output_path
-from ..serializers import NovelSourceSerializer, ChapterSerializer
+from ..models import Novel, SourceVote, WeeklySourceView, resolve_output_path
+from ..serializers import NovelSerializer, NovelSourceSerializer, ChapterSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
 from django.db.models import Q, Sum, Func, IntegerField
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
-from ..utils.query_helpers import sources_queryset
+from ..utils.query_helpers import apply_novel_prefetches, sources_queryset
 from ..utils.pagination import parse_page_size
 from ..services.epub_service import get_or_build_epub
 
@@ -48,6 +48,18 @@ def source_detail(request, novel_slug, source_slug):
             "novel_title": novel.title,
         }
     )
+
+    # Embed the novel detail so the source page renders the novel sections
+    # (rating, bookmark, similar novels, reading lists, other sources) from
+    # this one response instead of a second request. Nested sources use the
+    # lightweight summary profile.
+    novel = apply_novel_prefetches(
+        Novel.objects.filter(pk=novel.pk), request.user,
+        summary=True, ip=get_client_ip(request),
+    ).get()
+    data["novel"] = NovelSerializer(
+        novel, context={"request": request}, profile='detail'
+    ).data
 
     return Response(data)
 
@@ -158,9 +170,10 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
         )
 
     if not chapter.has_content:
-        return Response(
-            {"error": "Chapter content not available"}, status=status.HTTP_404_NOT_FOUND
-        )
+        # Return the neighbouring *available* chapters so the reader can show a
+        # "chapter unavailable" interstitial with working next/prev navigation.
+        serializer = ChapterSerializer(chapter, profile="unavailable")
+        return Response(serializer.data, status=status.HTTP_404_NOT_FOUND)
 
     # Increment views for the source (also updates its all-time projection)
     WeeklySourceView.increment_for_source(source)

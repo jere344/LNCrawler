@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, use } from 'react';
 import { useDebounce } from '@utils/useDebounce';
 import { useParams, useLoaderData, useNavigation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -35,12 +35,13 @@ import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
-import type { ChapterListLoaderData } from '../../router/loaders';
+import type { AsyncData, ChapterListLoaderData } from '../../router/loaders';
 
 const ChapterList = () => {
   const { t } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
-  const loaderData = useLoaderData() as ChapterListLoaderData;
+  const { data: chapterListPromise } = useLoaderData() as AsyncData<ChapterListLoaderData>;
+  const loaderData = use(chapterListPromise);
   const navigation = useNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
 

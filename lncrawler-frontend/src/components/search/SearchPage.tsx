@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, use } from 'react';
 import { 
   Box, Container, Typography, TextField, Paper, 
   FormControl, InputLabel, Select, MenuItem, Checkbox,
@@ -22,7 +22,7 @@ import { useTheme } from '@theme/ThemeContext';
 import { useLanguage } from '@context/LanguageContext';
 import { useAuth } from '@context/AuthContext';
 import SeoMeta from '../common/SeoMeta';
-import type { SearchLoaderData } from '../../router/loaders';
+import type { AsyncData, SearchLoaderData } from '../../router/loaders';
 
 type AdultFilter = 'hide' | 'show' | 'only';
 
@@ -53,7 +53,8 @@ const SearchPage: React.FC = () => {
     user?.show_r18 === 'yes' || user?.show_r18 === 'blur' ? 'show' : 'hide';
   
   // Results are owned by the route loader (started before the i18n gate).
-  const loaderData = useLoaderData() as SearchLoaderData;
+  const { data: searchDataPromise } = useLoaderData() as AsyncData<SearchLoaderData>;
+  const loaderData = use(searchDataPromise);
   const navigation = useNavigation();
   const novels = loaderData.ok ? loaderData.data.results : [];
   const loading = navigation.state === 'loading';

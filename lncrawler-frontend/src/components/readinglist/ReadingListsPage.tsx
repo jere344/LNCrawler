@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useLoaderData, useNavigation, useRevalidator, useSearchParams } from 'react-router-dom';
 import { useDebounce } from '@utils/useDebounce';
 import { 
@@ -17,10 +17,11 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { useAuth } from '@context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import ReadingListCard from './ReadingListCard';
-import type { ReadingListsLoaderData } from '../../router/loaders';
+import type { AsyncData, ReadingListsLoaderData } from '../../router/loaders';
 
 const ReadingListsPage = () => {
-  const loaderData = useLoaderData() as ReadingListsLoaderData;
+  const { data: readingListsPromise } = useLoaderData() as AsyncData<ReadingListsLoaderData>;
+  const loaderData = use(readingListsPromise);
   const navigation = useNavigation();
   const revalidator = useRevalidator();
   const [searchParams, setSearchParams] = useSearchParams();

@@ -9,10 +9,12 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ..models import (
+    Chapter,
     ExternalSource,
     Novel,
     NovelFromSource,
     NovelRating,
+    ReadingHistory,
     WeeklySourceView,
 )
 
@@ -30,7 +32,7 @@ class SerializerProfileTests(TestCase):
             "is_dmca",
         ],
         "detail": [
-            "id", "title", "slug", "sources", "created_at", "updated_at",
+            "id", "title", "slug", "sources",
             "avg_rating", "rating_count", "user_rating", "total_views",
             "weekly_views", "prefered_source", "is_adult", "is_bookmarked",
             "comment_count", "reading_history", "reading_source", "similar_novels",
@@ -48,19 +50,26 @@ class SerializerProfileTests(TestCase):
     SOURCE_FIELDS = {
         "card": [
             "id", "title", "source_slug", "novel_slug", "novel_id", "cover_min_url",
-            "authors", "tags", "chapters_count", "last_chapter_update",
-            "latest_available_chapter", "is_adult",
+            "authors", "tags", "chapters_count", "available_chapters_count",
+            "last_chapter_update", "latest_available_chapter", "is_adult",
         ],
         "detail": [
             "id", "title", "source_url", "source_name", "source_slug", "authors",
-            "tags", "language", "synopsis", "has_crawler", "cover_min_url",
-            "chapters_count", "volumes_count", "volumes", "last_chapter_update",
+            "tags", "language", "synopsis", "has_crawler",
+            "chapters_count", "available_chapters_count", "volumes",
+            "last_chapter_update",
             "upvotes", "downvotes", "vote_score", "user_vote", "novel_id",
             "novel_slug", "novel_title", "cover_url", "latest_available_chapter",
             "first_available_chapter", "reading_history", "overview_url",
             "novelupdates_url", "status", "editors", "translators",
             "alternative_titles", "original_publisher", "english_publisher",
             "is_adult",
+        ],
+        "summary": [
+            "id", "source_slug", "novel_slug", "source_name", "cover_min_url",
+            "language", "chapters_count", "available_chapters_count",
+            "latest_available_chapter",
+            "last_chapter_update", "vote_score", "user_vote",
         ],
     }
 
@@ -106,15 +115,21 @@ class SerializerProfileTests(TestCase):
                 "content": [
                     "id", "chapter_id", "title", "novel_title", "novel_id",
                     "novel_slug", "source_id", "source_name", "source_slug", "body",
-                    "prev_chapter", "next_chapter", "images_path",
+                    "prev_chapter", "next_chapter", "prev_chapter_id",
+                    "next_chapter_id", "images_path",
                     "source_overview_image_url",
+                ],
+                "unavailable": [
+                    "chapter_id", "title", "novel_title", "prev_chapter",
+                    "next_chapter",
                 ],
             },
             ReadingHistorySerializer: {
                 "card": ["id", "last_read_chapter", "last_read_at"],
                 "detail": [
                     "id", "novel_slug", "source_slug", "last_read_chapter",
-                    "last_read_at", "next_chapter", "source_latest_chapter",
+                    "last_read_at", "next_chapter", "unread_chapters",
+                    "source_latest_chapter",
                 ],
             },
             ReadingListSerializer: {
@@ -183,6 +198,35 @@ class SerializerProfileTests(TestCase):
         with self.assertRaises(ValueError):
             NovelSerializer(profile="nope")
 
+    def test_chapter_neighbour_ids_expose_unavailable_gap(self):
+        """With chapters [6 available, 7 unavailable, 8 available], the content
+        payload reports the *immediate* neighbour (7) separately from the next
+        *available* chapter (8), so the reader can detect the gap."""
+        from ..serializers import ChapterSerializer
+
+        novel = self._make_novel(1)
+        source = novel.sources.first()
+        for chapter_id, has_content in [(6, True), (7, False), (8, True)]:
+            Chapter.objects.create(
+                novel_from_source=source,
+                chapter_id=chapter_id,
+                url=f"http://site/1/{chapter_id}",
+                title=f"Chapter {chapter_id}",
+                has_content=has_content,
+            )
+
+        chapter_6 = ChapterSerializer(
+            source.chapters.get(chapter_id=6), profile="content"
+        ).data
+        self.assertEqual(chapter_6["next_chapter"], 8)
+        self.assertEqual(chapter_6["next_chapter_id"], 7)
+
+        unavailable = ChapterSerializer(
+            source.chapters.get(chapter_id=7), profile="unavailable"
+        ).data
+        self.assertEqual(unavailable["prev_chapter"], 6)
+        self.assertEqual(unavailable["next_chapter"], 8)
+
     def test_library_user_rating_reads_bookmark_without_query(self):
         """The library profile's ``user_rating`` is the pre-annotated owner
         rating on the attached bookmark; it must never hit the ratings table
@@ -250,6 +294,43 @@ class SerializerProfileTests(TestCase):
             self._list_queries(queryset[:4]),
         )
 
+    def test_unread_chapters_reads_prefetched_annotation(self):
+        """A prefetched history must answer ``unread_chapters`` from the
+        annotation, not one COUNT per row (the N+1 the prefetch removes).
+        Note ``next_chapter``/``source_latest_chapter`` remain per-row."""
+        from django.contrib.auth import get_user_model
+        from django.test.utils import CaptureQueriesContext
+
+        from ..serializers import ReadingHistorySerializer
+        from ..utils.query_helpers import apply_novel_prefetches
+
+        user = get_user_model().objects.create_user(username="reader", password="x")
+        novel = self._make_novel(1)
+        source = novel.sources.first()
+        read = Chapter.objects.create(
+            novel_from_source=source, chapter_id=1,
+            url="http://site/1", title="C1",
+        )
+        for chapter_id in (2, 3):
+            Chapter.objects.create(
+                novel_from_source=source, chapter_id=chapter_id,
+                url=f"http://site/{chapter_id}", title=f"C{chapter_id}",
+                has_content=True,
+            )
+        ReadingHistory.objects.create(
+            user=user, novel=novel, source=source, last_read_chapter=read,
+        )
+
+        prefetched = apply_novel_prefetches(
+            Novel.objects.filter(pk=novel.pk), user
+        ).get()
+        history = prefetched.user_histories[0]
+
+        with CaptureQueriesContext(connection) as captured:
+            value = ReadingHistorySerializer().get_unread_chapters(history)
+        self.assertEqual(value, 2)
+        self.assertEqual(len(captured), 0)
+
     def test_card_profile_serializes_without_extra_queries(self):
         """With the card fields annotated, serializing a source card must not
         touch the chapter/volume tables (the old detail-only fallbacks)."""
@@ -264,6 +345,31 @@ class SerializerProfileTests(TestCase):
         with CaptureQueriesContext(connection) as captured:
             NovelSourceSerializer(source, profile="card").data
         self.assertEqual(len(captured), 0)
+
+    def test_available_chapters_count_only_counts_content(self):
+        """``available_chapters_count`` must exclude chapters without content
+        while ``chapters_count`` keeps the total (the source page shows 25/500),
+        both from the annotation and the per-object fallback."""
+        from ..serializers import NovelSourceSerializer
+        from ..utils.query_helpers import sources_queryset
+
+        source = self._make_novel(1).sources.first()
+        for chapter_id, has_content in ((1, True), (2, False), (3, True)):
+            Chapter.objects.create(
+                novel_from_source=source, chapter_id=chapter_id,
+                url=f"http://site/{chapter_id}", title=f"C{chapter_id}",
+                has_content=has_content,
+            )
+
+        plain = NovelSourceSerializer(source, profile="card").data
+        self.assertEqual(plain["chapters_count"], 3)
+        self.assertEqual(plain["available_chapters_count"], 2)
+
+        annotated = NovelSourceSerializer(
+            sources_queryset(detailed=False).get(pk=source.pk), profile="card"
+        ).data
+        self.assertEqual(annotated["chapters_count"], 3)
+        self.assertEqual(annotated["available_chapters_count"], 2)
 
     def test_novel_detail_endpoint_serializes_nested_sources(self):
         novel = self._make_novel(1)
@@ -299,3 +405,139 @@ class SerializerProfileTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["synopsis"], "A long synopsis")
         self.assertIn("first_available_chapter", response.data)
+
+    def test_source_detail_embeds_novel_detail(self):
+        """The source response carries the novel detail (with lightweight
+        summary sources) so the page no longer needs a second request."""
+        self._make_novel(1)
+        response = self.client.get(
+            reverse("source_detail", kwargs={"novel_slug": "novel-1", "source_slug": "site-1"})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["novel"]["slug"], "novel-1")
+        self.assertEqual(len(response.data["novel"]["sources"]), 1)
+        self.assertNotIn("synopsis", response.data["novel"]["sources"][0])
+
+    def test_novel_detail_nested_sources_keep_viewer_vote(self):
+        """The summary profile reports the viewer's own vote, so a regression
+        in get_user_vote's profile guard silently drops the highlight."""
+        from ..models import SourceVote
+
+        novel = self._make_novel(1)
+        SourceVote.objects.create(
+            source=novel.sources.first(), ip_address="127.0.0.1", vote_type="up"
+        )
+        response = self.client.get(
+            reverse("novel_detail_by_slug", kwargs={"novel_slug": novel.slug})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["sources"][0]["user_vote"], "up")
+
+    def test_summary_sources_serialize_without_per_source_queries(self):
+        """Serializing more summary sources must cost the same: any growth is
+        an N+1 the summary prefetch failed to collapse."""
+        from django.test.utils import CaptureQueriesContext
+
+        from ..serializers import NovelSourceSerializer
+        from ..utils.query_helpers import sources_queryset
+
+        novel = self._make_novel(0)
+        for index in range(3):
+            NovelFromSource.objects.create(
+                novel=novel,
+                external_source=ExternalSource.objects.create(
+                    source_name=f"extra-{index}"
+                ),
+                title=f"Extra {index}",
+                source_url=f"http://extra/{index}",
+                source_slug=f"extra-{index}",
+                language="en",
+            )
+        queryset = sources_queryset(summary=True, ip="127.0.0.1").filter(novel=novel)
+
+        # The summary profile's user_vote must come from the prefetch, not a
+        # per-source query. With a bare request context a dropped prefetch
+        # would silently fall back to a query per source, so assert the to_attr
+        # is warm rather than trusting the flat count alone.
+        self.assertTrue(all(hasattr(s, "user_votes") for s in queryset))
+
+        def count(number):
+            with CaptureQueriesContext(connection) as captured:
+                NovelSourceSerializer(
+                    queryset[:number], many=True, context={"request": None},
+                    profile="summary",
+                ).data
+            return len(captured)
+
+        self.assertEqual(count(2), count(4))
+
+    def test_prefered_source_breaks_vote_ties_by_content_chapters(self):
+        """Two equally-voted sources: the one with more chapters that actually
+        have content wins, so the card isn't pointed at an empty source."""
+        from ..serializers import NovelSerializer
+
+        novel = Novel.objects.create(title="Tie", slug="tie", novel_path="tie")
+        weak = NovelFromSource.objects.create(
+            novel=novel,
+            external_source=ExternalSource.objects.create(source_name="weak"),
+            title="Weak", source_url="http://weak/1", source_slug="weak",
+            language="en", upvotes=2, downvotes=0,
+        )
+        strong = NovelFromSource.objects.create(
+            novel=novel,
+            external_source=ExternalSource.objects.create(source_name="strong"),
+            title="Strong", source_url="http://strong/1", source_slug="strong",
+            language="en", upvotes=2, downvotes=0,
+        )
+        for chapter_id, has_content in ((1, True), (2, False)):
+            Chapter.objects.create(
+                novel_from_source=weak, chapter_id=chapter_id,
+                url=f"http://weak/{chapter_id}", title=f"c{chapter_id}",
+                has_content=has_content,
+            )
+        for chapter_id in range(1, 4):
+            Chapter.objects.create(
+                novel_from_source=strong, chapter_id=chapter_id,
+                url=f"http://strong/{chapter_id}", title=f"c{chapter_id}",
+                has_content=True,
+            )
+
+        data = NovelSerializer(novel, context={"request": None}).data
+        self.assertEqual(data["prefered_source"]["source_slug"], "strong")
+
+    def test_unread_chapters_counts_only_content_after_last_read(self):
+        from django.contrib.auth import get_user_model
+
+        from ..serializers import ReadingHistorySerializer
+
+        novel = self._make_novel(1)
+        source = novel.sources.first()
+        chapters = {}
+        for chapter_id, has_content in ((1, True), (2, False), (3, True), (4, False)):
+            chapters[chapter_id] = Chapter.objects.create(
+                novel_from_source=source, chapter_id=chapter_id,
+                url=f"http://site/{chapter_id}", title=f"C{chapter_id}",
+                has_content=has_content,
+            )
+        user = get_user_model().objects.create_user(username="reader", password="x")
+        history = ReadingHistory.objects.create(
+            user=user, novel=novel, source=source, last_read_chapter=chapters[1],
+        )
+
+        data = ReadingHistorySerializer(history, profile="detail").data
+        # Only chapter 3 has content after chapter 1 (2 and 4 are gaps).
+        self.assertEqual(data["unread_chapters"], 1)
+
+    def test_unread_chapters_is_none_without_last_read_chapter(self):
+        from django.contrib.auth import get_user_model
+
+        from ..serializers import ReadingHistorySerializer
+
+        novel = self._make_novel(1)
+        user = get_user_model().objects.create_user(username="reader2", password="x")
+        history = ReadingHistory.objects.create(
+            user=user, novel=novel, source=novel.sources.first(),
+        )
+
+        data = ReadingHistorySerializer(history, profile="detail").data
+        self.assertIsNone(data["unread_chapters"])

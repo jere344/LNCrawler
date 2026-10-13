@@ -178,7 +178,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
                 textOverflow: 'ellipsis',
               }}
             >
-              {t('cards.chaptersCount', { count: displaySource?.chapters_count || 0 })}
+              {t('cards.chaptersCount', { count: displaySource?.available_chapters_count || 0 })}
             </Typography>
           </Box>
         </Box>

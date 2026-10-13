@@ -1,5 +1,5 @@
 import { createBrowserRouter, Outlet, Navigate } from 'react-router-dom';
-import { lazy } from 'react';
+import { lazy, Suspense } from 'react';
 import App from './App';
 import RouteSpinner from '@components/common/RouteSpinner';
 import RouteError from '@components/common/RouteError';
@@ -65,15 +65,18 @@ export const router = createBrowserRouter([
                     { path: '/library', element: <LibraryPage /> },
                     { path: '/history', element: <ReadingHistoryPage /> },
 
+                    // Loader routes hand back an un-awaited promise (see AsyncData
+                    // in router/loaders.ts): navigation commits instantly and this
+                    // Suspense boundary shows the fallback until the request lands.
                     // Reading Lists routes
-                    { path: '/reading-lists', element: <ReadingListsPage />, loader: readingListsLoader, errorElement: <RouteError /> },
-                    { path: '/reading-lists/:listId', element: <ReadingListDetail />, loader: readingListDetailLoader, errorElement: <RouteError /> },
+                    { path: '/reading-lists', element: <Suspense fallback={<RouteSpinner />}><ReadingListsPage /></Suspense>, loader: readingListsLoader, errorElement: <RouteError /> },
+                    { path: '/reading-lists/:listId', element: <Suspense fallback={<RouteSpinner />}><ReadingListDetail /></Suspense>, loader: readingListDetailLoader, errorElement: <RouteError /> },
 
                     // Import route
                     { path: '/import', element: <NovelUpdatesImportPage /> },
 
                     // Chat route
-                    { path: '/chat', element: <ChatPage />, loader: chatLoader, errorElement: <RouteError /> },
+                    { path: '/chat', element: <Suspense fallback={<RouteSpinner />}><ChatPage /></Suspense>, loader: chatLoader, errorElement: <RouteError /> },
                     // Legacy board URLs
                     { path: '/boards', element: <Navigate to="/chat" replace /> },
                     { path: '/boards/:boardSlug', element: <Navigate to="/chat" replace /> },
@@ -86,15 +89,17 @@ export const router = createBrowserRouter([
                     { path: '/download/status/:jobId', element: <DownloadStatus /> },
 
                     // Novel reading routes with new URL structure
-                    { path: '/novels/search', element: <SearchPage />, loader: searchLoader, errorElement: <RouteError /> },
+                    { path: '/novels/search', element: <Suspense fallback={<RouteSpinner />}><SearchPage /></Suspense>, loader: searchLoader, errorElement: <RouteError /> },
                     { path: '/novels/:novelSlug', element: <NovelRedirect />, loader: novelRedirectLoader, errorElement: <RouteError /> },
                     { path: '/novels/:novelSlug/:sourceSlug', element: <SourceDetail /> },
-                    { path: '/novels/:novelSlug/:sourceSlug/chapterlist', element: <ChapterList />, loader: chapterListLoader, errorElement: <RouteError /> },
+                    { path: '/novels/:novelSlug/:sourceSlug/chapterlist', element: <Suspense fallback={<RouteSpinner />}><ChapterList /></Suspense>, loader: chapterListLoader, errorElement: <RouteError /> },
                     { path: '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber', element: <ChapterReader /> },
-                    { path: '/novels/:novelSlug/:sourceSlug/gallery', element: <ImageGallery />, loader: galleryLoader, errorElement: <RouteError /> },
+                    { path: '/novels/:novelSlug/:sourceSlug/gallery', element: <Suspense fallback={<RouteSpinner />}><ImageGallery /></Suspense>, loader: galleryLoader, errorElement: <RouteError /> },
 
-                    // Home page
-                    { path: '/', element: <HomePage />, loader: homeLoader, HydrateFallback: HomeSkeleton, errorElement: <RouteError /> },
+                    // Home page: the loader returns an un-awaited promise so navigation
+                    // commits instantly; Suspense shows the skeleton until it resolves
+                    // (HydrateFallback covers the cold-load initialize tick).
+                    { path: '/', element: <Suspense fallback={<HomeSkeleton />}><HomePage /></Suspense>, loader: homeLoader, HydrateFallback: HomeSkeleton, errorElement: <RouteError /> },
 
                     // Fallback route - redirect to home
                     { path: '*', element: <NotFoundRedirect /> },

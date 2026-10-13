@@ -21,9 +21,10 @@ class NovelAggregatesMixin:
     @property
     def source_profile(self):
         # Which NovelSourceSerializer profile the preferred/reading source uses.
-        # detail = full source payload; anything else (card/library) = card.
+        # detail = the source page is separate; nested sources only need the
+        # lightweight summary; preview = thumbnail; anything else = card.
         if self.profile == 'detail':
-            return 'detail'
+            return 'summary'
         if self.profile == 'preview':
             return 'preview'
         return 'card'
@@ -51,16 +52,16 @@ class NovelAggregatesMixin:
         return cache[obj.pk]
 
     def get_prefered_source(self, obj):
+        from ..utils.query_helpers import preferred_source_key
+
         sources = self._context_sources(obj)
 
         if not sources:
             return None
 
-        # Highest vote score, then most upvotes, then title.
-        prefered = min(
-            sources,
-            key=lambda s: (-(s.upvotes - s.downvotes), -s.upvotes, s.title or ''),
-        )
+        # Highest vote score, then most upvotes, then most chapters with
+        # content, then title (see preferred_source_key).
+        prefered = min(sources, key=preferred_source_key)
         return NovelSourceSerializer(
             prefered, context=self.context, profile=self.source_profile
         ).data
@@ -123,7 +124,14 @@ class NovelAggregatesMixin:
             request = self.context.get('request')
             history = None
             if request and request.user.is_authenticated:
-                history = obj.reading_histories.select_related('source').filter(user=request.user).first()
+                from ..utils.query_helpers import unread_chapters_subquery
+                history = (
+                    obj.reading_histories
+                    .select_related('source', 'last_read_chapter')
+                    .filter(user=request.user)
+                    .annotate(annotated_unread_chapters=unread_chapters_subquery())
+                    .first()
+                )
             cache[obj.pk] = history
         return cache[obj.pk]
 
@@ -191,7 +199,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             'reading_history', 'reading_source', 'is_dmca',
         ],
         'detail': [
-            'id', 'title', 'slug', 'sources', 'created_at', 'updated_at',
+            'id', 'title', 'slug', 'sources',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
             'prefered_source', 'is_adult', 'is_bookmarked', 'comment_count', 'reading_history',
             'reading_source', 'similar_novels', 'reading_lists', 'is_dmca',
@@ -227,7 +235,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
 
     def get_sources(self, obj):
         return NovelSourceSerializer(
-            obj.sources.all(), many=True, context=self.context, profile='detail'
+            obj.sources.all(), many=True, context=self.context, profile='summary'
         ).data
 
     def get_user_rating(self, obj):

@@ -7,11 +7,13 @@ from .reading_history_serializers import ReadingHistorySerializer
 from .chapter_serializers import ChapterSerializer
 
 class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
-    """Serializes a novel source through one of three profiles.
+    """Serializes a novel source through one of four profiles.
 
     ``card`` is the trimmed payload novel cards read (default), which lets
     ``sources_queryset(detailed=False)`` skip the matching prefetches and
-    annotations; ``detail`` is everything the source page needs.
+    annotations; ``summary`` is the lighter per-source payload the source
+    page's "other sources" list and the novel detail's nested sources read;
+    ``detail`` is everything the current source's page needs.
     """
 
     authors = serializers.SerializerMethodField()
@@ -31,7 +33,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     first_available_chapter = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
     chapters_count = serializers.SerializerMethodField()
-    volumes_count = serializers.SerializerMethodField()
+    available_chapters_count = serializers.SerializerMethodField()
     volumes = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     synopsis = serializers.SerializerMethodField()
@@ -42,21 +44,32 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     field_profiles = {
         'card': [
             'id', 'title', 'source_slug', 'novel_slug', 'novel_id', 'cover_min_url',
-            'authors', 'tags', 'chapters_count', 'last_chapter_update',
-            'latest_available_chapter', 'is_adult',
+            'authors', 'tags', 'chapters_count', 'available_chapters_count',
+            'last_chapter_update', 'latest_available_chapter', 'is_adult',
         ],
         # Cover thumbnail for reading-list cards: only the blurred/first-item
         # cover the list card needs.
         'preview': ['id', 'cover_min_url'],
         'detail': [
             'id', 'title', 'source_url', 'source_name', 'source_slug',
-            'authors', 'tags', 'language', 'synopsis', 'has_crawler', 'cover_min_url',
-            'chapters_count', 'volumes_count', 'volumes', 'last_chapter_update',
+            'authors', 'tags', 'language', 'synopsis', 'has_crawler',
+            'chapters_count', 'available_chapters_count', 'volumes',
+            'last_chapter_update',
             'upvotes', 'downvotes', 'vote_score', 'user_vote', 'novel_id', 'novel_slug',
             'novel_title', 'cover_url', 'latest_available_chapter',
             'first_available_chapter', 'reading_history', 'overview_url',
             'novelupdates_url', 'status', 'editors', 'translators', 'alternative_titles',
             'original_publisher', 'english_publisher', 'is_adult',
+        ],
+        # Everything the source page's "other sources" list renders, plus the
+        # novel detail's nested source overview. Covers the scalars and the
+        # viewer's own vote, but not the heavy per-source detail (synopsis,
+        # volumes, editors, reading history).
+        'summary': [
+            'id', 'source_slug', 'novel_slug', 'source_name', 'cover_min_url',
+            'language', 'chapters_count', 'available_chapters_count',
+            'latest_available_chapter',
+            'last_chapter_update', 'vote_score', 'user_vote',
         ],
     }
 
@@ -106,9 +119,9 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return [title.name for title in obj.alternative_titles.all()]
 
     def get_user_vote(self, obj: NovelFromSource):
-        # Only detail views show the current user's vote; skipping the lookup
-        # in list contexts removes one query per source.
-        if self.profile != 'detail':
+        # Only detail and summary views show the current user's vote; skipping
+        # the lookup in list contexts removes one query per source.
+        if self.profile not in ('detail', 'summary'):
             return None
         # Detailed querysets prefetch the viewer's votes for the whole page.
         if hasattr(obj, 'user_votes'):
@@ -206,10 +219,10 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             return obj.annotated_chapters_count or 0
         return obj.chapters_count
 
-    def get_volumes_count(self, obj: NovelFromSource):
-        if 'annotated_volumes_count' in obj.__dict__:
-            return obj.annotated_volumes_count or 0
-        return obj.volumes_count
+    def get_available_chapters_count(self, obj: NovelFromSource):
+        if 'annotated_available_chapters_count' in obj.__dict__:
+            return obj.annotated_available_chapters_count or 0
+        return obj.chapters.filter(has_content=True).count()
 
     def get_volumes(self, obj: NovelFromSource):
         # Volume listing (id/title) is only needed for the download menu on the

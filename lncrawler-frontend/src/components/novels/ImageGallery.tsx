@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, use } from 'react';
 import { useParams, useLoaderData, useNavigation, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -29,7 +29,7 @@ import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
 import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
-import type { GalleryLoaderData, GalleryImage } from '../../router/loaders';
+import type { AsyncData, GalleryLoaderData, GalleryImage } from '../../router/loaders';
 
 type ImageWithDimensions = GalleryImage & { width?: number; height?: number };
 
@@ -39,7 +39,8 @@ const ImageGallery = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const loaderData = useLoaderData() as GalleryLoaderData;
+  const { data: galleryPromise } = useLoaderData() as AsyncData<GalleryLoaderData>;
+  const loaderData = use(galleryPromise);
   const navigation = useNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   const gallery = loaderData.ok ? loaderData.data : null;

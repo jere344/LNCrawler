@@ -57,7 +57,7 @@ export interface NovelFromSource {
   status: string;
   synopsis: string | null;
   chapters_count: number;
-  volumes_count: number;
+  available_chapters_count?: number;
   volumes?: NovelVolume[];
   last_chapter_update: string;
   upvotes: number;
@@ -95,8 +95,6 @@ export interface NovelDetail {
   title: string;
   slug: string;
   sources: NovelFromSource[];
-  created_at: string;
-  updated_at: string;
   avg_rating: number | null;
   rating_count: number;
   user_rating: number | null;
@@ -110,6 +108,10 @@ export interface NovelDetail {
   reading_lists?: ReadingList[];
   is_dmca?: boolean;
   is_adult?: boolean;
+}
+
+export interface SourceDetailResponse extends NovelFromSource {
+  novel: NovelDetail;
 }
 
 export interface SimilarNovel extends Novel {
@@ -129,8 +131,18 @@ export interface ChapterContent {
   body: string;
   prev_chapter?: number | null;
   next_chapter?: number | null;
+  prev_chapter_id?: number | null;
+  next_chapter_id?: number | null;
   images_path?: string;
   source_overview_image_url?: string | null;
+}
+
+export interface UnavailableChapterInfo {
+  chapter_id: number;
+  title: string;
+  novel_title: string;
+  prev_chapter?: number | null;
+  next_chapter?: number | null;
 }
 
 export interface Chapter {
@@ -165,8 +177,9 @@ export interface DetailedReadingHistory {
   id: string;
   last_read_chapter : Chapter | null;
   last_read_at: string;
-  next_chapter?: Chapter;
+  next_chapter?: Chapter | null;
+  unread_chapters?: number | null;
   source_slug?: string;
   novel_slug?: string;
-  source_latest_chapter?: Chapter;
+  source_latest_chapter?: Chapter | null;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import { useParams, useNavigate, useLoaderData, useRevalidator, Link as RouterLink } from 'react-router-dom';
 import { 
   Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -56,7 +56,7 @@ import { useTranslation } from 'react-i18next';
 import { ReadingListCollaborator } from '@models/readinglist_types';
 import { User } from '@models/user_types';
 import { useDebounce } from '@utils/useDebounce';
-import type { ReadingListDetailLoaderData } from '../../router/loaders';
+import type { AsyncData, ReadingListDetailLoaderData } from '../../router/loaders';
 
 // Sortable novel item component
 const SortableNovelItem = ({ item, canEdit, onEditNote, onRemoveItem }: { 
@@ -142,7 +142,8 @@ const SortableNovelItem = ({ item, canEdit, onEditNote, onRemoveItem }: {
 
 const ReadingListDetail = () => {
   const { listId } = useParams<{ listId: string }>();
-  const loaderData = useLoaderData() as ReadingListDetailLoaderData;
+  const { data: readingListPromise } = useLoaderData() as AsyncData<ReadingListDetailLoaderData>;
+  const loaderData = use(readingListPromise);
   const revalidator = useRevalidator();
   const detail = loaderData.ok ? loaderData.data : null;
   const [readingList, setReadingList] = useState<ReadingList | null>(detail);
