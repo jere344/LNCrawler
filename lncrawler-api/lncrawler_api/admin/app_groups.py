@@ -19,7 +19,10 @@ APP_GROUPS = [
         ],
     ),
     ("Chapters & Volumes", ["Chapter", "Volume"]),
-    ("Authors, Tags & Translators", ["Author", "Editor", "Translator", "Tag", "TagAlias"]),
+    (
+        "Authors, Tags & Translators",
+        ["Author", "Editor", "Translator", "Tag", "TagAlias", "TagCluster", "TagMerge", "TagNoMerge"],
+    ),
     ("Sources", ["ExternalSource", "NovelFromSource", "SourceVote"]),
     (
         "Community",

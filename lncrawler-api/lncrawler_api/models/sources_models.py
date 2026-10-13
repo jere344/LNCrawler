@@ -1,4 +1,5 @@
 from django.db import models, transaction
+import logging
 import os
 import re
 import json
@@ -10,11 +11,69 @@ from django.utils import timezone
 from django.utils.text import slugify as django_slugify
 
 from .novels_models import Novel, NovelAlias, Author, Editor, Translator, Tag, AlternativeTitle
+
+logger = logging.getLogger('lncrawler_api')
 from .chapter_models import Volume, Chapter
 from ..utils import chapter_utils, lncrawler_paths
 from ..utils.slug import slugify
 
 CHAPTER_BULK_CHUNK = 500
+
+
+def _lock_tag_pks(pks):
+    """Row-lock the given tags (ordered by pk) and return the pks that still exist."""
+    if not pks:
+        return set()
+    return set(
+        Tag.objects.select_for_update()
+        .filter(pk__in=sorted(pks))
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
+
+
+TAG_IMPORT_ATTEMPTS = 3
+
+
+class TagImportRetry(Exception):
+    """Internal per-attempt signal: a tag was merged away before it could be locked."""
+
+
+class TagImportError(Exception):
+    """Tags could not be linked after ``TAG_IMPORT_ATTEMPTS`` attempts."""
+
+
+def _set_source_tags(novel_from_source, names):
+    """Replace ``novel_from_source``'s tags with the tags named ``names``.
+
+    Each attempt is its own transaction when called without an outer atomic, or a
+    savepoint when called inside one: resolve the names, lock the sorted union of
+    their tags in one statement, then link. If a tag was merged away in the
+    meantime it is missing from the lock result; that attempt rolls back
+    (releasing its locks) and the names are resolved again. Locks are never taken
+    in two rounds, so two imports cannot wait on each other.
+
+    Raises ``TagImportError`` when every attempt failed; the caller decides
+    whether the rest of the import continues.
+    """
+    names = [name for name in names if name]
+    for _ in range(TAG_IMPORT_ATTEMPTS):
+        try:
+            with transaction.atomic():
+                tags = {}
+                for name in names:
+                    tag = Tag.resolve(name)
+                    tags[tag.pk] = tag
+                pks = sorted(tags)
+                if _lock_tag_pks(pks) != set(pks):
+                    raise TagImportRetry()
+                novel_from_source.tags.set([tags[pk] for pk in pks])
+                return
+        except TagImportRetry:
+            continue
+    raise TagImportError(
+        f"tags kept changing during import after {TAG_IMPORT_ATTEMPTS} attempts"
+    )
 
 
 def _bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):
@@ -355,10 +414,14 @@ class NovelFromSource(models.Model):
             tags_list = [tag.strip() for tag in novel_data['novel_tags'].split(',')]
         else:
             tags_list = novel_data.get('novel_tags', [])
-        novel_from_source.tags.clear()
-        for tag_name in tags_list:
-            if tag_name:
-                novel_from_source.tags.add(Tag.resolve(tag_name))
+        try:
+            _set_source_tags(novel_from_source, tags_list)
+        except TagImportError:
+            # Tags are metadata: never let them block the chapters and titles.
+            logger.warning(
+                "Skipped tags for source %s: they kept changing during import",
+                novel_from_source.pk,
+            )
         
         # Handle alternative titles (list of strings, tolerating a split string)
         alt_titles = novel_data.get('alternative_titles', [])

@@ -229,6 +229,36 @@ def judge_merge_candidates_task():
         logger.error(f"Error judging merge candidates: {str(e)}", exc_info=True)
         raise
 
+# Rebuild tag merge clusters daily: embeds new tags and groups likely duplicates.
+# Unchanged groups are skipped by signature, so a re-run only adds new work.
+@scheduler.register_task(interval=86400, name="find_tag_merge_candidates")  # daily
+def find_tag_merge_candidates_task():
+    logger.info("Scanning for duplicate tag candidates...")
+    try:
+        call_command('find_tag_merge_candidates')
+        logger.info("Duplicate tag scan completed successfully")
+    except Exception as e:
+        logger.error(f"Error scanning for duplicate tags: {str(e)}", exc_info=True)
+        raise
+
+# Ask the LLM to judge pending tag clusters, a few calls per tick, only when the
+# merge LLM key is configured. Bounded per tick and by a daily call budget.
+@scheduler.register_task(
+    interval=int(getattr(settings, "TAG_LLM_INTERVAL", 600)), name="judge_tag_clusters"
+)
+def judge_tag_clusters_task():
+    from django.conf import settings as _settings
+
+    if not getattr(_settings, "MERGE_LLM_API_KEY", ""):
+        return  # zero-LLM fallback: clusters stay pending until a key is set.
+    logger.info("Judging tag clusters with LLM...")
+    try:
+        call_command('judge_tag_clusters')
+        logger.info("Tag cluster LLM judging completed")
+    except Exception as e:
+        logger.error(f"Error judging tag clusters: {str(e)}", exc_info=True)
+        raise
+
 # Task to compress low traffic novels weekly.
 # Guardrails live in the command itself: single-threaded 7z (-mmt=1), low CPU
 # priority (nice), a pause between sources, and an id-batched scan. It targets

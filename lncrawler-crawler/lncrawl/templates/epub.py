@@ -29,6 +29,7 @@ import posixpath
 import re
 import shutil
 import tempfile
+import threading
 import xml.etree.ElementTree as ET
 import zipfile
 from io import BytesIO
@@ -209,6 +210,8 @@ class EpubCrawler(Crawler):
     def _init_state(self) -> None:
         if not hasattr(self, "_books"):
             self._books: Dict[str, _Epub] = {}
+            self._book_locks: Dict[str, threading.Lock] = {}
+            self._book_locks_guard = threading.Lock()
         if not hasattr(self, "_chapter_source"):
             self._chapter_source: Dict[int, Tuple[str, str]] = {}
         if not hasattr(self, "_volume_urls_by_key"):
@@ -278,15 +281,28 @@ class EpubCrawler(Crawler):
         return self.open_epub()
 
     def _ensure_book(self, key: str) -> Optional["_Epub"]:
-        """Return a parsed volume, fetching it from the network on first use."""
+        """Return a parsed volume, fetching it from the network on first use.
+
+        Chapters of one volume are downloaded concurrently, so the first access
+        is serialized per volume. Without this, every worker that reaches an
+        unloaded volume downloads and parses its own copy of the archive.
+        """
         book = self._books.get(key)
         if book is not None:
             return book
-        try:
-            return self.load_book(self.fetch_epub_bytes(key), key=key)
-        except Exception as e:
-            logger.debug("Cannot load EPUB %s: %s", key, e)
-            return None
+        with self._book_lock(key):
+            book = self._books.get(key)
+            if book is not None:
+                return book
+            try:
+                return self.load_book(self.fetch_epub_bytes(key), key=key)
+            except Exception as e:
+                logger.debug("Cannot load EPUB %s: %s", key, e)
+                return None
+
+    def _book_lock(self, key: str) -> threading.Lock:
+        with self._book_locks_guard:
+            return self._book_locks.setdefault(key, threading.Lock())
 
     def _existing_by_volume(self) -> Dict[str, List[dict]]:
         """Group the caller-provided previous chapters by their volume key."""

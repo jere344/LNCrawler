@@ -7,10 +7,5 @@
       <a href="{{ merge_button.url }}" class="addlink">{{ merge_button.label }}</a>
     </li>
   {% endif %}
-  {% if auto_merge_button %}
-    <li>
-      <a href="{{ auto_merge_button.url }}" class="addlink">{{ auto_merge_button.label }}</a>
-    </li>
-  {% endif %}
   {{ block.super }}
 {% endblock %}

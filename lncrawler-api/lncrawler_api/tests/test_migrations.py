@@ -81,3 +81,58 @@ class BoardToChatMigrationTests(TransactionTestCase):
             # Restore the schema to the latest migration for subsequent tests.
             executor = MigrationExecutor(connection)
             executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+class TagNormalizeMigrationTests(TransactionTestCase):
+    """Exercise the 0070 backfill: keys are set and tags sharing a key collapse."""
+
+    def test_duplicate_tags_collapse_onto_most_used(self):
+        migrate_from = [("lncrawler_api", "0069_tag_normalized_and_merge_models")]
+        migrate_to = [("lncrawler_api", "0070_normalize_and_collapse_tags")]
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(migrate_from)
+        old_apps = executor.loader.project_state(migrate_from).apps
+        Tag = old_apps.get_model("lncrawler_api", "Tag")
+        TagAlias = old_apps.get_model("lncrawler_api", "TagAlias")
+        Novel = old_apps.get_model("lncrawler_api", "Novel")
+        ExternalSource = old_apps.get_model("lncrawler_api", "ExternalSource")
+        NovelFromSource = old_apps.get_model("lncrawler_api", "NovelFromSource")
+        Through = NovelFromSource.tags.through
+
+        novel = Novel.objects.create(title="N", slug="n-mig")
+        external = ExternalSource.objects.create(source_name="mig-src")
+        sources = [
+            NovelFromSource.objects.create(
+                novel=novel, external_source=external, title="N", source_url=f"http://m/{i}"
+            )
+            for i in range(3)
+        ]
+        loser = Tag.objects.create(name="Isekai")  # lower id, but fewer sources
+        winner = Tag.objects.create(name="ISEKAI")
+        Through.objects.create(novelfromsource=sources[0], tag=loser)
+        for source in sources:
+            Through.objects.create(novelfromsource=source, tag=winner)
+        TagAlias.objects.create(name="Old Isekai", tag=loser)
+        winner_pk = winner.pk
+
+        try:
+            executor = MigrationExecutor(connection)
+            executor.migrate(migrate_to)
+            new_apps = executor.loader.project_state(migrate_to).apps
+            NewTag = new_apps.get_model("lncrawler_api", "Tag")
+            NewAlias = new_apps.get_model("lncrawler_api", "TagAlias")
+
+            self.assertEqual(NewTag.objects.filter(normalized="isekai").count(), 1)
+            survivor = NewTag.objects.get(normalized="isekai")
+            self.assertEqual(survivor.pk, winner_pk)
+            self.assertEqual(
+                NewAlias.objects.get(name="Isekai").tag_id, winner_pk
+            )
+            self.assertEqual(
+                NewAlias.objects.get(name="Old Isekai").tag_id, winner_pk
+            )
+            self.assertEqual(NewAlias.objects.get(name="Old Isekai").normalized, "old isekai")
+        finally:
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())

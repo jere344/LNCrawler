@@ -6,6 +6,7 @@ Writes:
 - <output>/cover.jpg             downloaded cover (absent when unavailable)
 """
 
+import contextlib
 import fcntl
 import html
 import itertools
@@ -16,17 +17,28 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 from collections import deque
 from pathlib import Path
+
+from PIL import Image
 
 from ..models.chapter import Chapter
 from .arguments import get_args
 
 logger = logging.getLogger(__name__)
 
-# Refuse to decode/save anything larger than this (decompression-bomb guard).
-# PIL exposes the size from the header before pixels are decoded.
-MAX_IMAGE_PIXELS = 64_000_000
+# Images above this are downscaled to fit. Decoding costs roughly 7 bytes per
+# pixel, so this bounds the per-image memory peak.
+MAX_IMAGE_PIXELS = 16_000_000
+
+# Refuse anything above this before decoding (decompression-bomb guard). PIL
+# exposes the size from the header, so nothing is decoded first.
+MAX_DECODE_PIXELS = 64_000_000
+
+# Oversized images are decoded one at a time: a 64M-pixel bitmap needs ~0.5 GB,
+# and several in parallel could exhaust the crawler container.
+_LARGE_DECODE_GATE = threading.Semaphore(1)
 
 # Must match chapter_utils.SOURCE_LOCK_FILE on the API side: both lock the same
 # file so a chapter write never races the API's compress/extract.
@@ -202,22 +214,50 @@ def fetch_chapter_body(app) -> None:
         chapter.body = None
 
 
+def _fit_to_budget(img: Image.Image) -> Image.Image:
+    """Return an RGB-or-grayscale image of at most MAX_IMAGE_PIXELS pixels.
+
+    A JPEG is shrunk by the decoder itself (``draft``), so the full-size bitmap
+    is never built. Intermediate images are closed here; the caller owns the
+    returned one.
+    """
+    pixels = img.width * img.height
+    if pixels > MAX_IMAGE_PIXELS and img.format == "JPEG":
+        size = _target_size(img.width, img.height)
+        img.draft("RGB", size)  # decodes at 1/2, 1/4 or 1/8 scale, then resizes below
+
+    if img.mode not in ("L", "RGB", "YCbCr", "RGBX"):
+        converted = img.convert("RGBA").convert("RGB") if img.mode == "RGBa" else img.convert("RGB")
+        img.close()
+        img = converted
+
+    if img.width * img.height > MAX_IMAGE_PIXELS:
+        resized = img.resize(_target_size(img.width, img.height), Image.Resampling.LANCZOS)
+        img.close()
+        img = resized
+    return img
+
+
+def _target_size(width: int, height: int) -> tuple:
+    scale = (MAX_IMAGE_PIXELS / (width * height)) ** 0.5
+    return (max(1, int(width * scale)), max(1, int(height * scale)))
+
+
 def _fetch_content_image(app, url: str, image_file: Path) -> None:
     if url and not (image_file.exists() and image_file.is_file()):
         img = None
         try:
             img = app.crawler.download_image(url)
-            if img.width * img.height > MAX_IMAGE_PIXELS:
+            if img.width * img.height > MAX_DECODE_PIXELS:
                 raise ValueError(
                     f"Image too large: {img.width}x{img.height} ({url})"
                 )
             image_file.parent.mkdir(parents=True, exist_ok=True)
-            if img.mode not in ("L", "RGB", "YCbCr", "RGBX"):
-                if img.mode == "RGBa":
-                    img = img.convert("RGBA").convert("RGB")
-                else:
-                    img = img.convert("RGB")
-            img.save(image_file.as_posix(), "JPEG", optimized=True)
+            oversized = img.width * img.height > MAX_IMAGE_PIXELS
+            gate = _LARGE_DECODE_GATE if oversized else contextlib.nullcontext()
+            with gate:
+                img = _fit_to_budget(img)
+                img.save(image_file.as_posix(), "JPEG", optimized=True)
         finally:
             if img is not None:
                 try:

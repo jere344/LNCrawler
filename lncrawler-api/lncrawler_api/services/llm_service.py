@@ -45,6 +45,10 @@ class LLMError(Exception):
     pass
 
 
+class LLMParseError(LLMError):
+    """The model answered, but the answer is not the JSON object we asked for."""
+
+
 class RateLimited(LLMError):
     def __init__(self, retry_after=None):
         super().__init__("rate limited")
@@ -150,8 +154,8 @@ def _parse_content(content):
     )
 
 
-def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session=None):
-    """Return ``{"same", "confidence", "reason"}`` for one candidate pair."""
+def _post_chat(messages, max_tokens, provider=None, model=None, timeout=None, session=None):
+    """POST one chat-completions request and return the assistant's text."""
     provider = provider or getattr(settings, "MERGE_LLM_PROVIDER", "gemini")
     url = provider_url(provider)
     if not url:
@@ -166,8 +170,8 @@ def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session
     body = {
         "model": model,
         "temperature": 0,
-        "max_tokens": 512,
-        "messages": build_messages(profile_a, profile_b),
+        "max_tokens": max_tokens,
+        "messages": messages,
     }
 
     poster = (session or requests).post
@@ -181,7 +185,34 @@ def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session
     except ValueError as exc:
         raise LLMError(f"non-JSON response (HTTP {resp.status_code}): {resp.text[:300]}") from exc
     try:
-        content = payload["choices"][0]["message"]["content"]
+        return payload["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise LLMError(f"unexpected response shape: {payload}") from exc
+
+
+def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session=None):
+    """Return ``{"same", "confidence", "reason"}`` for one candidate pair."""
+    content = _post_chat(
+        build_messages(profile_a, profile_b), 512, provider, model, timeout, session
+    )
     return _parse_content(content)
+
+
+def chat_json(messages, max_tokens=4096, provider=None, model=None, timeout=None, session=None):
+    """Return the JSON object the model wrote, for callers that need a richer shape.
+
+    Takes the text between the first "{" and the last "}" so code fences or a
+    short preamble do not matter. Raises ``LLMParseError`` if no object parses.
+    """
+    content = _post_chat(messages, max_tokens, provider, model, timeout, session)
+    text = (content or "").strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        raise LLMParseError(f"no JSON object in LLM content: {text[:300]!r}")
+    try:
+        data = json.loads(text[start : end + 1])
+    except ValueError as exc:
+        raise LLMParseError(f"invalid JSON in LLM content: {text[:300]!r}") from exc
+    if not isinstance(data, dict):
+        raise LLMParseError("LLM content is not a JSON object")
+    return data

@@ -218,14 +218,48 @@ MERGE_TRIGRAM_MIN = 0.4
 # LLM gray-band adjudication (judge_merge_candidates). The provider/model are
 # the only knobs used by services/llm_service.py; it accepts any OpenAI-compatible
 # chat-completions endpoint (see PROVIDER_URLS there to switch provider).
-MERGE_LLM_PROVIDER = "groq"
+MERGE_LLM_PROVIDER = os.environ.get("MERGE_LLM_PROVIDER", "groq")
 MERGE_LLM_API_KEY = os.environ.get("MERGE_LLM_API_KEY", "")
-MERGE_LLM_MODEL = "openai/gpt-oss-20b"
-MERGE_LLM_BASE_URL = ""  # non-empty overrides the provider's default endpoint
+MERGE_LLM_MODEL = os.environ.get("MERGE_LLM_MODEL", "openai/gpt-oss-20b")
+MERGE_LLM_BASE_URL = os.environ.get("MERGE_LLM_BASE_URL", "")  # non-empty overrides the provider's default endpoint
 MERGE_LLM_TIMEOUT = 30
-MERGE_LLM_DAILY_LIMIT = 500  # Groq free tier (1k RPD for this model)
+MERGE_LLM_DAILY_LIMIT = int(os.environ.get("MERGE_LLM_DAILY_LIMIT", "500"))  # Groq free tier (1k RPD for this model)
 MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
 MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
+
+# Automatic tag merging (find_tag_merge_candidates / judge_tag_clusters).
+# Embeddings: any OpenAI-compatible /embeddings endpoint; see services/embedding_service.py.
+TAG_EMBED_PROVIDER = os.environ.get("TAG_EMBED_PROVIDER", "jina")
+TAG_EMBED_API_KEY = os.environ.get("TAG_EMBED_API_KEY", "")
+# Calibrated on the real Jina API: on v5 true synonyms score 0.58-0.99 and
+# related-but-distinct tags score up to 0.90, so embeddings only propose
+# candidates and the LLM decides.
+TAG_EMBED_MODEL = os.environ.get("TAG_EMBED_MODEL", "jina-embeddings-v5-omni-small")
+TAG_EMBED_BASE_URL = os.environ.get("TAG_EMBED_BASE_URL", "")  # non-empty overrides the provider's default endpoint
+TAG_EMBED_BATCH = 128  # tag names per embeddings request
+TAG_EMBED_TIMEOUT = 30
+# Candidate generation: neighbours per tag and the cosine floor for embeddings.
+TAG_EMBED_TOP_K = 5
+TAG_EMBED_MIN = 0.6
+# Co-occurrence: tags sharing this many novels across different sources, at this
+# share of the rarer tag's novels, keeping at most TAG_COOC_TOP_K edges per tag.
+TAG_COOC_MIN_NOVELS = 2
+TAG_COOC_MIN = 0.3
+TAG_COOC_TOP_K = 5
+# Trigram similarity floor on the normalized keys.
+TAG_TRGM_MIN = 0.6
+# Largest group sent to the judge as one cluster.
+TAG_CLUSTER_MAX = 12
+# LLM judging reuses MERGE_LLM_PROVIDER/MODEL/API_KEY. Budget and batching:
+TAG_LLM_DAILY_LIMIT = int(os.environ.get("TAG_LLM_DAILY_LIMIT", "100"))  # judge calls per day
+TAG_LLM_CALLS_PER_TICK = 3  # judge calls per scheduler tick
+TAG_LLM_TAGS_PER_CALL = 60  # pack clusters until this many tags are in one call
+TAG_LLM_INTERVAL = 600  # seconds between judge ticks
+TAG_LLM_MAX_TOKENS = 4096
+# Safeguards: sets below this confidence, or joining two tags used by more than
+# TAG_BIG_TAG_USAGE sources, wait for review instead of being applied.
+TAG_AUTO_MIN_CONFIDENCE = 0.85
+TAG_BIG_TAG_USAGE = 200
 
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 

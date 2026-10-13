@@ -10,6 +10,7 @@ from . import (
     review_admin,
     scheduler_admin,
     source_admin,
+    tag_merge_admin,
     user_admin,
 )
 

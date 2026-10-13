@@ -123,6 +123,19 @@ def rate_novel(request, novel_slug):
     )
 
 
+def _canonical_tag_names(names):
+    """Map requested tag names onto the canonical tag names they now resolve to.
+
+    Old URLs can carry a merged-away or case/plural variant; the alias or key
+    lookup finds the surviving tag. Unknown names are kept as typed.
+    """
+    canonical = []
+    for name in names:
+        tag = Tag.find(name) if name.strip() else None
+        canonical.append(tag.name if tag is not None else name)
+    return canonical
+
+
 @api_view(["GET"])
 def search_novels(request):
     """
@@ -132,8 +145,8 @@ def search_novels(request):
     query = request.GET.get("query", "").strip()
 
     # Get filter parameters
-    tags = request.GET.getlist("tag", [])
-    exclude_tags = request.GET.getlist("exclude_tag", [])
+    tags = _canonical_tag_names(request.GET.getlist("tag", []))
+    exclude_tags = _canonical_tag_names(request.GET.getlist("exclude_tag", []))
     authors = request.GET.getlist("author", [])
     status = request.GET.get("status", "")
     # Accept either the multi-value "languages" (repeated or comma-separated) or

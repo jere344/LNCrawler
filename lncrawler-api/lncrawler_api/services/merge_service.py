@@ -14,15 +14,16 @@ DB failure can never leave files moved with the rows rolled back.
 """
 import logging
 import os
-import unicodedata
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
+from itertools import combinations
 from typing import Optional
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from ..utils.slug import slugify
+from ..utils.tag_utils import normalize_tag
 from ..models import (
     Comment,
     Novel,
@@ -36,6 +37,9 @@ from ..models import (
     Review,
     Tag,
     TagAlias,
+    TagCluster,
+    TagMerge,
+    TagNoMerge,
 )
 from .novel_operations import (
     dedupe_source,
@@ -277,12 +281,30 @@ def merge_novels(source_novel, target_novel, move_files=True):
     return target_novel
 
 
-def merge_tags(source_tag, target_tag):
+def lock_tags(pks):
+    """Row-lock tags in one statement, ordered by pk, and return the pks still present.
+
+    Callers must be inside a transaction. Taking every lock a unit of work needs
+    in one sorted call keeps two concurrent units from waiting on each other.
+    """
+    pks = sorted(set(pks))
+    if not pks:
+        return set()
+    return set(
+        Tag.objects.select_for_update()
+        .filter(pk__in=pks)
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
+
+
+def merge_tags(source_tag, target_tag, cluster=None):
     """Fold ``source_tag`` into ``target_tag`` and remember the old name.
 
     Every source tagged with the duplicate is retagged, and a ``TagAlias``
     records the discarded name so a future import of it resolves to the target
-    instead of recreating the duplicate.
+    instead of recreating the duplicate. The change is stored as a ``TagMerge``
+    so ``undo_tag_merge`` can reverse it.
     """
     if source_tag.pk == target_tag.pk:
         raise MergeError("A tag cannot be merged into itself.")
@@ -290,131 +312,272 @@ def merge_tags(source_tag, target_tag):
     name = source_tag.name
 
     with transaction.atomic():
-        TagAlias.objects.filter(tag=source_tag).update(tag=target_tag)
-        for novel_source in source_tag.novels.all():
-            target_tag.novels.add(novel_source)
+        # Lock both rows before reading links: a concurrent import must not attach
+        # new sources to the source tag between the read and the delete.
+        if len(lock_tags([source_tag.pk, target_tag.pk])) != 2:
+            raise MergeError("A tag was merged away concurrently; reload and try again.")
+
+        source_ids = list(source_tag.novels.values_list("pk", flat=True))
+        target_ids = set(target_tag.novels.values_list("pk", flat=True))
+        moved_alias_ids = list(
+            TagAlias.objects.filter(tag=source_tag).values_list("pk", flat=True)
+        )
+        TagAlias.objects.filter(pk__in=moved_alias_ids).update(tag=target_tag)
+        target_tag.novels.add(*source_ids)
+        _move_no_merge_pairs(source_tag, target_tag)
         source_tag.delete()
         TagAlias.objects.update_or_create(name=name, defaults={"tag": target_tag})
+        TagMerge.objects.create(
+            cluster=cluster,
+            kind=TagMerge.KIND_MERGE,
+            source_name=name,
+            target=target_tag,
+            target_name=target_tag.name,
+            all_source_ids=source_ids,
+            added_source_ids=[pk for pk in source_ids if pk not in target_ids],
+            moved_alias_ids=moved_alias_ids,
+        )
 
     logger.info("Merged tag '%s' into '%s'", name, target_tag.name)
     return target_tag
 
 
-# Tags closer than this are treated as the same. High enough to catch
-# case/plural/singular ("isekai"/"Isekai", "action"/"actions") but not distinct
-# tags ("isekai" vs "isekaijoucho", "action" vs "romance").
-AUTO_MERGE_TAG_RATIO = 0.9
+def _move_no_merge_pairs(source_tag, target_tag):
+    """Re-point the source's "not mergeable" pairs at the target.
 
-
-def _levenshtein(a, b):
-    """Edit distance; small strings so the O(len*len) DP is fine."""
-    if a == b:
-        return 0
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-    previous = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        current = [i]
-        for j, cb in enumerate(b, 1):
-            current.append(min(
-                previous[j] + 1,
-                current[j - 1] + 1,
-                previous[j - 1] + (ca != cb),
-            ))
-        previous = current
-    return previous[-1]
-
-
-def _word_matches(a, b):
-    """Whether two words are the same bar case or a plural "s".
-
-    ``a`` and ``b`` are already casefolded. Arbitrary single-letter swaps are
-    NOT accepted: that is what wrongly collapses "Eastern"/"Western" or
-    "Male"/"Female".
+    A pair that would become a self-pair, or duplicate one the target already has,
+    is dropped instead.
     """
-    if a == b:
-        return True
-    if a.rstrip("s") == b.rstrip("s"):
-        return True
-    return False
-
-
-def _tag_similarity(a, b):
-    """Conservative similarity, case-insensitive and phrase-aware.
-
-    Multi-word tags must match word for word (plural/case tolerant); a word
-    swapped for a different one ("Female Protagonist" vs "Male Protagonist")
-    or a one-letter stem change ("Manhua" vs "Manhwa") is treated as distinct.
-    Single-word tags get a small typo allowance (edit distance 1) on top of the
-    exact and plural forms. Accents are folded ('Réincarnation' == 'reincarnation').
-    """
-    def normalize(name):
-        decomposed = unicodedata.normalize("NFKD", name)
-        stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
-        return " ".join(stripped.casefold().split())
-
-    a, b = normalize(a), normalize(b)
-    if a == b:
-        return 1.0
-
-    a_words, b_words = a.split(" "), b.split(" ")
-    if len(a_words) != len(b_words):
-        return 0.0
-    if not all(_word_matches(wa, wb) for wa, wb in zip(a_words, b_words)):
-        return 0.0
-
-    if len(a_words) == 1 and _levenshtein(a, b) <= 1:
-        return 1.0
-
-    return SequenceMatcher(None, a, b).ratio()
-
-
-def merge_similar_tags(threshold=AUTO_MERGE_TAG_RATIO, dry_run=False):
-    """Merge tags that differ only trivially (case, plural, near-typo).
-
-    Groups tags whose names are at least ``threshold`` similar, then merges each
-    group into one survivor. The survivor is the tag with the most tagged
-    sources, so the canonical spelling with real data wins. Returns the list of
-    ``(survivor_name, [merged_names])`` pairs.
-    """
-    tags = list(Tag.objects.all())
-    # A union-find over near-identical pairs; tiny tag counts make the O(n^2)
-    # scan irrelevant. ponytail: O(n^2) compare, bucket by prefix if it ever bites.
-    parent = {tag.pk: tag.pk for tag in tags}
-
-    def find(pk):
-        while parent[pk] != pk:
-            parent[pk] = parent[parent[pk]]
-            pk = parent[pk]
-        return pk
-
-    def union(a, b):
-        ra, rb = find(a), find(b)
-        if ra != rb:
-            parent[rb] = ra
-
-    for i, a in enumerate(tags):
-        for b in tags[i + 1:]:
-            if _tag_similarity(a.name, b.name) >= threshold:
-                union(a.pk, b.pk)
-
-    groups = {}
-    for tag in tags:
-        groups.setdefault(find(tag.pk), []).append(tag)
-
-    merged = []
-    for group in groups.values():
-        if len(group) < 2:
+    for row in list(TagNoMerge.objects.filter(Q(tag_a=source_tag) | Q(tag_b=source_tag))):
+        other = row.tag_b_id if row.tag_a_id == source_tag.pk else row.tag_a_id
+        row.delete()
+        if other == target_tag.pk:
             continue
-        group.sort(key=lambda t: (-t.novels.count(), t.name))
-        survivor, duplicates = group[0], group[1:]
-        if dry_run:
-            merged.append((survivor.name, [d.name for d in duplicates]))
+        if TagNoMerge.objects.filter(
+            Q(tag_a_id=target_tag.pk, tag_b_id=other) | Q(tag_a_id=other, tag_b_id=target_tag.pk)
+        ).exists():
             continue
-        for duplicate in duplicates:
-            merge_tags(duplicate, survivor)
-        merged.append((survivor.name, [d.name for d in duplicates]))
+        TagNoMerge.objects.create(tag_a_id=target_tag.pk, tag_b_id=other)
 
-    return merged
+
+def rename_tag(tag, new_name, cluster=None):
+    """Give ``tag`` a new name, keeping the old name as an alias.
+
+    Raises ``MergeError`` when another tag, or an alias of another tag, already
+    has the new name's key, or when the save loses a race with such a tag. The
+    caller should merge into that tag instead.
+    """
+    new_name = new_name.strip()[: Tag._meta.get_field("name").max_length]
+    old_name = tag.name
+    if new_name == old_name:
+        return tag
+
+    key = normalize_tag(new_name)
+    if Tag.objects.filter(normalized=key).exclude(pk=tag.pk).exists():
+        raise MergeError(f"Another tag already matches '{new_name}'; merge into it instead.")
+    stray = TagAlias.objects.filter(normalized=key).exclude(tag_id=tag.pk).select_related("tag").first()
+    if stray is not None:
+        raise MergeError(
+            f"'{new_name}' is already an alias of '{stray.tag.name}'; merge into it instead."
+        )
+
+    with transaction.atomic():
+        if lock_tags([tag.pk]) != {tag.pk}:
+            raise MergeError(f"'{old_name}' was merged away; reload and try again.")
+        try:
+            # Nested savepoint: an IntegrityError rolls back only this write, and the
+            # caller still gets a MergeError from the outer block.
+            with transaction.atomic():
+                # Same key (case/accent/plural only): the old name already resolves to this tag.
+                if key != tag.normalized:
+                    TagAlias.objects.update_or_create(name=old_name, defaults={"tag": tag})
+                tag.name = new_name
+                # The stored vector described the old name; drop it so it is re-embedded.
+                tag.embedding = None
+                tag.embedding_model = ""
+                tag.save()
+        except IntegrityError as exc:
+            raise MergeError(
+                f"'{new_name}' conflicts with an existing tag or alias; merge into it instead."
+            ) from exc
+        TagMerge.objects.create(
+            cluster=cluster,
+            kind=TagMerge.KIND_RENAME,
+            source_name=old_name,
+            target=tag,
+            target_name=new_name,
+            renamed_from=old_name,
+        )
+
+    logger.info("Renamed tag '%s' to '%s'", old_name, new_name)
+    return tag
+
+
+def block_tag_pair(tag_a_id, tag_b_id):
+    """Record that two tags must never be proposed as duplicates again."""
+    if tag_a_id == tag_b_id:
+        return
+    exists = TagNoMerge.objects.filter(
+        Q(tag_a_id=tag_a_id, tag_b_id=tag_b_id) | Q(tag_a_id=tag_b_id, tag_b_id=tag_a_id)
+    ).exists()
+    if not exists:
+        TagNoMerge.objects.create(tag_a_id=tag_a_id, tag_b_id=tag_b_id)
+
+
+def _undo_merge(merge):
+    target = merge.target
+    key = normalize_tag(merge.source_name)
+    if key == target.normalized:
+        # Same key as the target: a separate row cannot coexist with it, and the
+        # alias already resolves the old name to the target.
+        raise MergeError(
+            f"'{merge.source_name}' has the same key as '{target.name}' and cannot "
+            "be restored as a separate tag."
+        )
+
+    # Reuse a tag that already carries the key (created since the merge), else
+    # recreate the merged-away one.
+    try:
+        source, _ = Tag.objects.get_or_create(normalized=key, defaults={"name": merge.source_name})
+    except IntegrityError as exc:
+        raise MergeError(f"'{merge.source_name}' could not be restored: {exc}") from exc
+
+    # Aliases first, then drop the alias the merge itself created for the old name
+    # (an alias that was moved back to the source keeps its row).
+    TagAlias.objects.filter(pk__in=merge.moved_alias_ids, tag=target).update(tag=source)
+    TagAlias.objects.filter(name=merge.source_name, tag=target).delete()
+
+    # A later merge may have taken this name away (this tag was its target). Point
+    # those records at the restored tag so they can be undone in turn.
+    TagMerge.objects.filter(
+        target__isnull=True, target_name=merge.source_name, undone_at__isnull=True
+    ).update(target=source)
+
+    restored = list(
+        NovelFromSource.objects.filter(pk__in=merge.all_source_ids).values_list("pk", flat=True)
+    )
+    source.novels.add(*restored)
+    target.novels.remove(*merge.added_source_ids)
+
+
+def _undo_rename(merge):
+    tag = merge.target
+    old_name = merge.renamed_from
+    key = normalize_tag(old_name)
+    if Tag.objects.filter(normalized=key).exclude(pk=tag.pk).exists():
+        raise MergeError(f"Cannot restore '{old_name}': another tag already uses that name.")
+
+    if key != normalize_tag(merge.target_name):
+        TagAlias.objects.filter(name=old_name, tag=tag).delete()
+    tag.name = old_name
+    tag.embedding = None
+    tag.embedding_model = ""
+    tag.save()
+
+
+def undo_tag_merge(merge):
+    """Reverse one ``TagMerge``: restore the merged-away tag or the old name."""
+    if merge.undone_at is not None:
+        raise MergeError("This change was already undone.")
+    if merge.target is None:
+        # The target was merged away later. Its own merge must be undone first.
+        later = (
+            TagMerge.objects.filter(
+                source_name=merge.target_name,
+                undone_at__isnull=True,
+                created_at__gt=merge.created_at,
+            )
+            .exclude(pk=merge.pk)
+            .order_by("created_at")
+            .first()
+        )
+        if later is not None:
+            raise MergeError(
+                f"Undo the later merge of '{later.source_name}' into "
+                f"'{later.target_name}' (#{later.pk}) first"
+            )
+        raise MergeError("The target tag no longer exists.")
+
+    with transaction.atomic():
+        # The target and (for a merge) the tag holding the source's key, in one
+        # statement ordered by pk. Inside undo_tag_cluster these rows are already
+        # locked by its single lock_tags call, so this is a no-op there.
+        filters = Q(pk=merge.target_id)
+        if merge.kind == TagMerge.KIND_MERGE:
+            filters |= Q(normalized=normalize_tag(merge.source_name))
+        locked = set(
+            Tag.objects.select_for_update()
+            .filter(filters)
+            .order_by("pk")
+            .values_list("pk", flat=True)
+        )
+        if merge.target_id not in locked:
+            raise MergeError("The target tag was merged away; reload and try again.")
+
+        if merge.kind == TagMerge.KIND_RENAME:
+            _undo_rename(merge)
+        else:
+            _undo_merge(merge)
+        merge.undone_at = timezone.now()
+        merge.save(update_fields=["undone_at"])
+
+    logger.info("Undid tag change: %s", merge)
+    return merge
+
+
+def undo_tag_cluster(cluster):
+    """Undo every live change a cluster made and keep its members apart.
+
+    Changes are reversed newest first, and each one is reloaded just before it is
+    undone so links that a newer undo repaired (chained merges) are seen. Each
+    merged set then gets a ``TagNoMerge`` pair for every two of its members, so
+    the same proposal is not made again.
+    """
+    with transaction.atomic():
+        merges = list(
+            cluster.merges.filter(undone_at__isnull=True).order_by("-created_at", "-pk")
+        )
+        # Lock every target and every live source-key tag in one sorted call before
+        # the first undo. Restored tags are new rows, so they need no lock.
+        wanted = {merge.target_id for merge in merges if merge.target_id is not None}
+        for merge in merges:
+            if merge.kind == TagMerge.KIND_MERGE:
+                key_pk = (
+                    Tag.objects.filter(normalized=normalize_tag(merge.source_name))
+                    .values_list("pk", flat=True)
+                    .first()
+                )
+                if key_pk is not None:
+                    wanted.add(key_pk)
+        lock_tags(wanted)
+
+        for merge in merges:
+            merge.refresh_from_db()
+            undo_tag_merge(merge)
+
+        # Each undo can re-point older merges (chains), so reload every merge now and
+        # read its final target. Restored sources have new ids: resolve them by key.
+        sets = {}
+        for merge in merges:
+            merge.refresh_from_db()
+            if merge.kind != TagMerge.KIND_MERGE:
+                continue
+            target_id = merge.target_id
+            if target_id is None:
+                found = Tag.objects.filter(normalized=normalize_tag(merge.target_name)).first()
+                target_id = found.pk if found is not None else None
+            if target_id is None:
+                continue
+            members = sets.setdefault(target_id, {target_id})
+            source = Tag.objects.filter(normalized=normalize_tag(merge.source_name)).first()
+            if source is not None:
+                members.add(source.pk)
+        for members in sets.values():
+            for a, b in combinations(sorted(members), 2):
+                block_tag_pair(a, b)
+
+        cluster.status = TagCluster.STATUS_UNDONE
+        cluster.save(update_fields=["status", "updated_at"])
+
+    logger.info("Undid tag cluster %s", cluster.pk)
+    return cluster

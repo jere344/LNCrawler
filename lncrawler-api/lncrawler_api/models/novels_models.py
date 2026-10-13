@@ -1,9 +1,11 @@
-from django.db import models
+from django.db import IntegrityError, models
 import uuid
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db.models import F
 from django.db.models.functions import Upper
+
+from ..utils.tag_utils import normalize_tag
 
 
 class Novel(models.Model):
@@ -112,32 +114,68 @@ class Translator(Person):
 class Tag(models.Model):
     """Tags for novels"""
     name = models.CharField(max_length=100, unique=True)
+    # Comparison key (case/accent/plural/punctuation-insensitive), always derived
+    # from ``name`` in save(). Unique, so two tags can never differ only trivially.
+    normalized = models.CharField(max_length=100, unique=True, editable=False)
+    # Float32 bytes of the name's embedding, and the model that produced them.
+    embedding = models.BinaryField(null=True, editable=False)
+    embedding_model = models.CharField(max_length=100, blank=True, default="", editable=False)
 
     class Meta:
         indexes = [
             GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='tag_name_trgm_idx'),
+            GinIndex(OpClass('normalized', name='gin_trgm_ops'), name='tag_normalized_trgm_idx'),
         ]
 
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self.normalized = normalize_tag(self.name)
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "name" in update_fields:
+            kwargs["update_fields"] = {*update_fields, "normalized"}
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def find(cls, name):
+        """Return the existing tag for ``name`` (or a merged-away alias of it), else None.
+
+        Never creates a tag, so read paths such as filters can use it safely.
+        """
+        key = normalize_tag(name)
+        tag = cls.objects.filter(normalized=key).first()
+        if tag is not None:
+            return tag
+        alias = TagAlias.objects.filter(normalized=key).select_related('tag').first()
+        return alias.tag if alias is not None else None
+
     @classmethod
     def resolve(cls, name):
-        """Return the tag named ``name``, following a merged-away alias first.
+        """Return the tag for ``name``, following a merged-away alias first.
 
-        Keeps re-imports from recreating a tag that was merged into another.
+        Keeps re-imports from recreating a tag that was merged into another, and
+        folds case/accent/plural variants onto the existing tag.
         """
-        name = name[: cls._meta.get_field('name').max_length]
-        alias = TagAlias.objects.filter(name=name).select_related('tag').first()
-        if alias is not None:
-            return alias.tag
-        tag, _ = cls.objects.get_or_create(name=name)
+        name = name.strip()[: cls._meta.get_field('name').max_length]
+        tag = cls.find(name)
+        if tag is not None:
+            return tag
+        key = normalize_tag(name)
+        try:
+            tag, _ = cls.objects.get_or_create(normalized=key, defaults={'name': name})
+        except IntegrityError:
+            # Lost a race with a concurrent import of the same tag (or alias).
+            tag = cls.find(name)
+            if tag is None:
+                raise
         return tag
 
 
 class TagAlias(models.Model):
     """A merged-away tag name pointing at its canonical Tag."""
     name = models.CharField(max_length=100, unique=True)
+    normalized = models.CharField(max_length=100, db_index=True, editable=False)
     tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name='aliases')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -151,6 +189,13 @@ class TagAlias(models.Model):
 
     def __str__(self):
         return f"{self.name} -> {self.tag.name}"
+
+    def save(self, *args, **kwargs):
+        self.normalized = normalize_tag(self.name)
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "name" in update_fields:
+            kwargs["update_fields"] = {*update_fields, "normalized"}
+        super().save(*args, **kwargs)
 
 
 class AlternativeTitle(models.Model):

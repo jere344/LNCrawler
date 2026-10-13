@@ -1,9 +1,10 @@
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, IntegerField, OuterRef, Subquery
 from django.db.models.functions import Coalesce
+from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from ..models import (
@@ -18,7 +19,8 @@ from ..models import (
     Volume,
     Chapter,
 )
-from ..services.merge_service import MergeError, merge_similar_tags, merge_tags
+from ..services.merge_service import MergeError, merge_tags, rename_tag
+from ..utils.tag_utils import normalize_tag
 from django.utils.html import format_html
 from .perf import CappedCountPaginator
 
@@ -47,12 +49,55 @@ class TranslatorAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
 
+class TagAdminForm(forms.ModelForm):
+    class Meta:
+        model = Tag
+        fields = ("name",)
+
+    def clean_name(self):
+        name = self.cleaned_data["name"].strip()
+        key = normalize_tag(name)
+        clash = Tag.objects.filter(normalized=key).exclude(pk=self.instance.pk).first()
+        if clash is not None:
+            raise ValidationError(f"'{name}' duplicates the existing tag '{clash.name}'.")
+        alias = (
+            TagAlias.objects.filter(normalized=key)
+            .exclude(tag_id=self.instance.pk)
+            .select_related("tag")
+            .first()
+        )
+        if alias is not None:
+            raise ValidationError(
+                f"'{name}' is already an alias of the tag '{alias.tag.name}'."
+            )
+        return name
+
+
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
+    form = TagAdminForm
     list_display = ("name", "source_count")
     search_fields = ("name",)
     ordering = ("name",)
+    readonly_fields = ("normalized",)
     change_list_template = "admin/lncrawler_api/tag/change_list.html"
+
+    def save_model(self, request, obj, form, change):
+        # Renames go through rename_tag so the old name becomes an alias and the
+        # change is recorded as a TagMerge (undoable).
+        if change and "name" in form.changed_data:
+            rename_tag(Tag.objects.get(pk=obj.pk), obj.name)
+            return
+        super().save_model(request, obj, form, change)
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        # changeform_view runs in a transaction, so a MergeError raised while saving
+        # rolls the whole change back; report it instead of returning a 500.
+        try:
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        except MergeError as exc:
+            self.message_user(request, str(exc), messages.ERROR)
+            return HttpResponseRedirect(request.path)
 
     def source_count(self, obj):
         return obj.novels.count()
@@ -66,10 +111,6 @@ class TagAdmin(admin.ModelAdmin):
                 "url": reverse("admin:lncrawler_api_tag_merge"),
                 "label": "Merge tags",
             }
-            extra_context["auto_merge_button"] = {
-                "url": reverse("admin:lncrawler_api_tag_merge_similar"),
-                "label": "Merge similar tags",
-            }
         return super().changelist_view(request, extra_context=extra_context)
 
     def get_urls(self):
@@ -80,11 +121,6 @@ class TagAdmin(admin.ModelAdmin):
                 "merge/",
                 self.admin_site.admin_view(self.merge_view),
                 name="lncrawler_api_tag_merge",
-            ),
-            path(
-                "merge-similar/",
-                self.admin_site.admin_view(self.merge_similar_view),
-                name="lncrawler_api_tag_merge_similar",
             ),
         ]
         return custom + super().get_urls()
@@ -127,31 +163,6 @@ class TagAdmin(admin.ModelAdmin):
 
         context["form"] = form
         return render(request, "admin/lncrawler_api/tag/merge.html", context)
-
-    def merge_similar_view(self, request):
-        if not self.has_change_permission(request):
-            raise PermissionDenied
-
-        context = {
-            **self.admin_site.each_context(request),
-            "title": "Merge similar tags",
-            "opts": self.model._meta,
-        }
-
-        if request.method == "POST" and "confirm" in request.POST:
-            results = merge_similar_tags()
-            if results:
-                messages.success(
-                    request,
-                    f"Merged {sum(len(d) for _, d in results)} tag(s) "
-                    f"into {len(results)} canonical tag(s).",
-                )
-            else:
-                messages.info(request, "No similar tags found.")
-            return redirect(reverse("admin:lncrawler_api_tag_changelist"))
-
-        context["results"] = merge_similar_tags(dry_run=True)
-        return render(request, "admin/lncrawler_api/tag/merge_similar.html", context)
 
 
 class MergeTagForm(forms.Form):
