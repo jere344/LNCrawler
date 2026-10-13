@@ -1,3 +1,5 @@
+"""SonicMTL (sonicmtl.com) - machine-translated novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
+
 import logging
 from bs4 import BeautifulSoup, Tag
 from lncrawl.models import SearchResult
@@ -8,6 +10,12 @@ logger = logging.getLogger(__name__)
 
 class SonicMTLCrawler(MadaraTemplate):
     has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
+
     base_url = [
         "https://sonicmtl.com",
         "https://www.sonicmtl.com/",

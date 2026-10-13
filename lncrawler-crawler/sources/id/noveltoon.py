@@ -100,13 +100,9 @@ class NovelsRockCrawler(Crawler):
 
         for a in soup.select("a.episodes-info-a-item"):
             chap_id = len(self.chapters) + 1
-            vol_id = chap_id // 100 + 1
-            if chap_id % 100 == 1:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "url": self.absolute_url(a["href"]),
                     "title": a.select_one(".episode-item-title").text.strip(),
                 }

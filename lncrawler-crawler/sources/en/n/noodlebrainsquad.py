@@ -30,6 +30,17 @@ _STATUSES = {
     "cancelled": NovelStatus.hiatus,
 }
 
+_EDITIONS = {
+    "web novel": "Web Novel",
+    "webnovel": "Web Novel",
+    "wn": "Web Novel",
+    "light novel": "Light Novel",
+    "ln": "Light Novel",
+    "lightnovel": "Light Novel",
+    "raw": "Raw",
+    "raw novel": "Raw",
+}
+
 
 class NoodleBrainSquadCrawler(Crawler):
     base_url = "https://noodlebrainsquad.org/"
@@ -126,6 +137,9 @@ class NoodleBrainSquadCrawler(Crawler):
         self.genres = genres
         self.tags = tags
         novel_type = self._rating_value(soup, "Type:")
+        edition = _EDITIONS.get(novel_type.lower())
+        if edition:
+            self.novel_edition = edition
         self.novel_tags = list(
             dict.fromkeys(genres + ([novel_type] if novel_type else []) + tags)
         )

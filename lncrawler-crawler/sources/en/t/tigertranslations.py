@@ -3,7 +3,7 @@ import logging
 
 from bs4.element import Tag
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Volume, Chapter, SearchResult
+from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,22 +59,11 @@ class TigerTranslations(Crawler):
             if not a.text.strip().lower().startswith("chapter"):
                 continue
             chap_id = 1 + len(self.chapters)
-            vol_id = 1 + len(self.chapters) // 100
-            vol_title = f"Volume {vol_id}"
-            if chap_id % 100 == 1:
-                self.volumes.append(
-                    Volume(
-                        id=vol_id,
-                        title=vol_title
-                    ))
-
             self.chapters.append(
                 Chapter(
                     id=chap_id,
                     url=self.absolute_url(a["href"]),
                     title=a.text,
-                    volume=vol_id,
-                    volume_title=vol_title
                 ),
             )
 

@@ -48,6 +48,7 @@ class NovelDaysCrawler(Crawler):
         return info
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         soup = self.get_soup(self.novel_url)
 
         title = soup.select_one("div.dspFbx.cover.top h2") or soup.select_one("h1")

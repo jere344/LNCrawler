@@ -439,7 +439,12 @@
     "updated": "Uppdaterad",
     "ratingLabel": "Betyg:",
     "upvote": "Rösta upp",
-    "downvote": "Rösta ner"
+    "downvote": "Rösta ner",
+    "edition": {
+      "wn": "Webbnovell",
+      "ln": "Light novel",
+      "raw": "Raw"
+    }
   },
   "reviews": {
     "loadFailed": "Det gick inte att ladda recensioner. Försök igen.",

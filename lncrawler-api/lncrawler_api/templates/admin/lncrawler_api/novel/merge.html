@@ -86,7 +86,6 @@
   <form method="post">{% csrf_token %}
     <input type="hidden" name="source_novel" value="{{ plan.source_novel.pk }}">
     <input type="hidden" name="target_novel" value="{{ plan.target_novel.pk }}">
-    {% if plan.move_files %}<input type="hidden" name="move_files" value="on">{% endif %}
     <div class="submit-row">
       <input type="submit" name="confirm" value="{% trans 'Confirm merge' %}">
       <a href="{% url 'admin:lncrawler_api_novel_merge' %}" class="button cancel-link">{% trans 'Back' %}</a>

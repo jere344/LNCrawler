@@ -439,7 +439,12 @@
     "updated": "Cập nhật",
     "ratingLabel": "Đánh giá:",
     "upvote": "Ủng hộ",
-    "downvote": "Phản đối"
+    "downvote": "Phản đối",
+    "edition": {
+      "wn": "Web novel",
+      "ln": "Light novel",
+      "raw": "Raw"
+    }
   },
   "reviews": {
     "loadFailed": "Tải đánh giá thất bại. Vui lòng thử lại.",

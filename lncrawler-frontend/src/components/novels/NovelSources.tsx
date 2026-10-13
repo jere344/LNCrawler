@@ -11,6 +11,7 @@ import {
   ListItem,
   ListItemText,
   Box,
+  Chip,
   IconButton,
   Tooltip,
   alpha,
@@ -26,7 +27,7 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import TranslateIcon from '@mui/icons-material/Translate';
 import ImageIcon from '@mui/icons-material/Image';
-import { getChapterName, languageFlagUrl, languageCodeToName, formatDate } from '@utils/Misc';
+import { getChapterName, languageFlagUrl, languageCodeToName, formatDate, editionLabel } from '@utils/Misc';
 import { novelService } from '../../services/api';
 import { NovelDetail, NovelFromSource } from '@models/novels_types';
 
@@ -40,6 +41,9 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
   const theme = useTheme();
   const [sources, setSources] = useState<NovelFromSource[]>(novel.sources);
   const [votingInProgress, setVotingInProgress] = useState<{ [key: string]: boolean }>({});
+  // The backend's primary is language-aware (then votes, then chapters), so it
+  // is not simply the first card once sorted by vote score.
+  const primarySourceSlug = novel.prefered_source?.source_slug;
 
   const handleVote = async (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => {
     event.stopPropagation();
@@ -75,7 +79,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
 
   return (
     <Grid container spacing={3}>
-      {sources.sort((a, b) => b.vote_score - a.vote_score).map((source, index) => (
+      {[...sources].sort((a, b) => b.vote_score - a.vote_score).map((source, index) => (
         <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
           <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }}>
             <Card
@@ -87,7 +91,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                 overflow: 'visible',
               }}
             >
-              {(index === 0 || source.source_slug === currentSourceSlug) && (
+              {(source.source_slug === primarySourceSlug || source.source_slug === currentSourceSlug) && (
                 <Box
                   sx={{
                     position: 'absolute',
@@ -153,17 +157,30 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                   )}
                   
                   <CardContent>
-                    <Typography
-                      variant="h6"
-                      gutterBottom
+                    {/* The chip sits beside the heading, not inside it: a div
+                        is not valid content of an h6. */}
+                    <Box
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
-                        color: theme.palette.primary.main,
+                        flexWrap: 'wrap',
+                        gap: 1,
+                        mb: '0.35em',
                       }}
                     >
-                      {source.source_name}
-                    </Typography>
+                      <Typography
+                        variant="h6"
+                        sx={{ color: theme.palette.primary.main }}
+                      >
+                        {source.source_name}
+                      </Typography>
+                      {source.edition && (
+                        <Chip
+                          size="small"
+                          label={editionLabel(source.edition, t)}
+                        />
+                      )}
+                    </Box>
 
                     <List dense disablePadding>
                       {/* Add language info before chapters */}

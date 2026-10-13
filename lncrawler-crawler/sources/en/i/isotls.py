@@ -64,13 +64,8 @@ class IsotlsCrawler(Crawler):
 
         for a in soup.select('main section:nth-child(3) nav ul li a'):
             chap_id = len(self.chapters) + 1
-            vol_id = len(self.chapters) // 100 + 1
-            if len(self.chapters) % 100 == 0:
-                self.volumes.append({'id': vol_id})
-
             self.chapters.append({
                 'id': chap_id,
-                'volume': vol_id,
                 'title': a.text.strip(),
                 'url': self.absolute_url(a['href']),
             })

@@ -109,17 +109,13 @@ class sixnineshu(Crawler):
             self.novel_url.replace("/txt/", "/").replace(".htm", "/"), encoding="gbk"
         )
 
-        volumes = set([])
         for li in soup.select("div#catalog ul li"):
             a = li.select_one("a")
             assert isinstance(a, Tag)
             ch_id = len(self.chapters) + 1
-            vol_id = 1 + len(self.chapters) // 100
-            volumes.add(vol_id)
             self.chapters.append(
                 {
                     "id": ch_id,
-                    "volume": vol_id,
                     "title": a.text.strip(),
                     "url": self.absolute_url(a["href"]),
                 }

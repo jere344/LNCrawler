@@ -1,6 +1,8 @@
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
+from django.db.models import Case, FloatField, IntegerField, Q, Value, When
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils.html import format_html
@@ -113,9 +115,7 @@ class MergeCandidateAdmin(admin.ModelAdmin):
         # A novel deleted outside a merge leaves its candidates with a NULL FK;
         # they are no longer actionable, so drop them out of the queue first.
         self._clear_stale_for()
-        pending = MergeCandidate.objects.filter(
-            status=MergeCandidate.STATUS_PENDING
-        ).order_by("-certainty")
+        pending = self._review_queue()
         remaining = pending.exclude(pk__in=skipped)
         candidate = remaining.select_related("novel_a", "novel_b").first()
         context = {
@@ -131,6 +131,34 @@ class MergeCandidateAdmin(admin.ModelAdmin):
             context["side_a"] = self._candidate_side(candidate.novel_a)
             context["side_b"] = self._candidate_side(candidate.novel_b)
         return render(request, "admin/lncrawler_api/mergecandidate/review.html", context)
+
+    def _review_queue(self):
+        """Pending candidates in the order the reviewer works through them.
+
+        LLM-confirmed matches come first (most confident first, then certainty),
+        so the likeliest merges are cleared in one pass. Unjudged candidates
+        follow by certainty, and the LLM's "different" verdicts go last: a
+        reviewer only meets those once the rest is done.
+        """
+        return MergeCandidate.objects.filter(
+            status=MergeCandidate.STATUS_PENDING
+        ).annotate(
+            queue_bucket=Case(
+                When(llm_verdict__same=True, then=Value(0)),
+                When(llm_checked_at__isnull=True, then=Value(1)),
+                default=Value(2),
+                output_field=IntegerField(),
+            ),
+            # Only the LLM-same bucket orders by confidence; elsewhere it is a constant.
+            same_confidence=Case(
+                When(
+                    llm_verdict__same=True,
+                    then=Cast(KeyTextTransform("confidence", "llm_verdict"), FloatField()),
+                ),
+                default=Value(0.0),
+                output_field=FloatField(),
+            ),
+        ).order_by("queue_bucket", "-same_confidence", "-certainty")
 
     def _candidate_side(self, novel):
         """Everything the reviewer needs about one side of a candidate."""

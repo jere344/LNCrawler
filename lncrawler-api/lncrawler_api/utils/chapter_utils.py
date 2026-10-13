@@ -225,6 +225,100 @@ def get_chapter(source_absolute_path: str, chapter_number: int) -> dict:
     return None
 
 
+class ChapterReadError(Exception):
+    """A chapter that is present but could not be read (strict reads only)."""
+
+
+# Upper bound on one 7z call, so a wedged archive cannot hang a prune run.
+ARCHIVE_READ_TIMEOUT = 300
+
+
+def _load_chapter_file(path, strict=False) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        if strict:
+            raise ChapterReadError(f"cannot parse {path}: {e}") from e
+        logger.warning("Skipping unreadable chapter file %s: %s", path, e)
+        return None
+
+
+def read_chapters_no_extract(source_absolute_path: str, chapter_numbers, strict=False) -> dict:
+    """
+    Returns ``{chapter_number: chapter}`` for the requested chapters without
+    touching the library: chapters only available in json.7z are extracted in a
+    single ``7z x`` call into a system temp dir, which is removed on exit.
+
+    A chapter that is simply absent (not on disk, not in the archive) is left
+    out of the result. With ``strict=True`` a chapter that is present but broken
+    raises ``ChapterReadError`` instead: a file that does not parse, a 7z exit
+    code of 2 or more, a timeout, or any other failure to read. 7z exits 0 when a
+    requested member is simply missing ("No files to process"); 1 is a warning;
+    2 or more is fatal. Callers that must tell "empty" from "unreadable" use
+    strict mode; otherwise failures are logged and treated as absent.
+    """
+    chapters = {}
+    if not source_absolute_path:
+        return chapters
+    source_dir = Path(source_absolute_path)
+    if not source_dir.is_dir():
+        return chapters
+    compressed_path = source_dir / "json.7z"
+    numbers = list(dict.fromkeys(chapter_numbers))
+    try:
+        with source_lock(source_dir):
+            missing = []
+            for number in numbers:
+                chapter_path = source_dir / "json" / f"{number:05}.json"
+                if chapter_path.exists():
+                    chapter = _load_chapter_file(chapter_path, strict=strict)
+                    if chapter is not None:
+                        chapters[number] = chapter
+                else:
+                    missing.append(number)
+
+            if missing and compressed_path.exists():
+                members = [f"json/{number:05}.json" for number in missing]
+                with tempfile.TemporaryDirectory(prefix="lncrawl_read_") as tmp:
+                    try:
+                        result = subprocess.run(
+                            ["7z", "x", str(compressed_path), f"-o{tmp}", "-y",
+                             "-bso0", "-bsp0", *members],
+                            capture_output=True,
+                            timeout=ARCHIVE_READ_TIMEOUT,
+                        )
+                    except subprocess.TimeoutExpired as e:
+                        if strict:
+                            raise ChapterReadError(f"timed out reading {compressed_path}") from e
+                        logger.warning("Timed out reading %s", compressed_path)
+                        result = None
+                    # 0 also covers a missing member; only 2+ is a read failure.
+                    if result is not None and result.returncode >= 2 and strict:
+                        raise ChapterReadError(
+                            f"7z failed ({result.returncode}) reading {compressed_path}"
+                        )
+                    for number in missing:
+                        extracted = Path(tmp) / "json" / f"{number:05}.json"
+                        if extracted.exists():
+                            chapter = _load_chapter_file(extracted, strict=strict)
+                            if chapter is not None:
+                                chapters[number] = chapter
+
+    except ChapterReadError:
+        raise
+    except Exception as e:
+        if strict:
+            raise ChapterReadError(f"cannot read {source_absolute_path}: {e}") from e
+        logger.error("Error reading chapters from %s: %s", source_absolute_path, e)
+    return chapters
+
+
+def read_chapter_no_extract(source_absolute_path: str, chapter_number: int) -> dict:
+    """Single-chapter form of ``read_chapters_no_extract``."""
+    return read_chapters_no_extract(source_absolute_path, [chapter_number]).get(chapter_number)
+
+
 def chapter_dict_has_content(chapter: dict) -> bool:
     """Whether a chapter dict has real content.
 

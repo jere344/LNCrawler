@@ -210,6 +210,7 @@ class PuzhaCrawler(Crawler):
     # -- novel details ------------------------------------------------- #
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         slug = self._slug_from_url(self.novel_url)
         posts = self._novel_posts()
         post = next((p for p in posts if _same_slug(p["slug"], slug)), None)

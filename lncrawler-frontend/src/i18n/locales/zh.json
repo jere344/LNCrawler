@@ -439,7 +439,12 @@
     "updated": "更新",
     "ratingLabel": "评分：",
     "upvote": "赞成",
-    "downvote": "反对"
+    "downvote": "反对",
+    "edition": {
+      "wn": "网络小说",
+      "ln": "轻小说",
+      "raw": "原文"
+    }
   },
   "reviews": {
     "loadFailed": "加载评论失败。请重试。",

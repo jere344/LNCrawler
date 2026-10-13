@@ -6,7 +6,7 @@ from django.test import override_settings
 from django.urls import reverse
 
 from ..management.commands.find_merge_candidates import combo_certainty, normalize_text
-from ..models import ExternalSource, MergeCandidate, Novel, NovelFromSource
+from ..models import Author, ExternalSource, MergeCandidate, Novel, NovelFromSource
 from .helpers import MergeTestCase
 
 
@@ -259,3 +259,141 @@ class MergeCandidateReviewViewTests(MergeTestCase):
             reverse("admin:lncrawler_api_mergecandidate_changelist")
         )
         self.assertContains(response, self.review_url())
+
+
+class DiscriminantTests(MergeTestCase):
+    """Sequel penalty and the path and chapter-length signals."""
+
+    def setUp(self):
+        super().setUp()
+        self.es = ExternalSource.objects.create(source_name="site")
+        self.other_es = ExternalSource.objects.create(source_name="other")
+
+    def _novel(self, title, slug, path=None):
+        return Novel.objects.create(title=title, slug=slug, novel_path=path or slug)
+
+    def _review_all(self, **options):
+        # review_low=0 keeps sub-threshold pairs so their signals can be checked.
+        call_command("find_merge_candidates", review_low=0.0, **options)
+
+    def test_wn_and_ln_editions_are_queued_for_merge(self):
+        # WN and LN of one story are one novel: the edition is no penalty.
+        self._novel("Foo (WN)", "foo-wn")
+        self._novel("Foo (LN)", "foo-ln")
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertNotIn("edition_mismatch", candidate.signals)
+        self.assertIn("title", candidate.signals)
+
+    def test_sequel_is_not_queued_on_title_plus_author(self):
+        # Trigram similarity plus a shared author would reach review; the sequel
+        # number on one side is what keeps the pair out.
+        a = self._novel("Dragon Quest", "dq")
+        b = self._novel("Dragon Quest 2", "dq-2")
+        for novel, es, title, url in (
+            (a, self.es, "Dragon Quest", "http://x/dq"),
+            (b, self.other_es, "Dragon Quest 2", "http://x/dq2"),
+        ):
+            self.make_source(novel, es, title, url, novel.slug, es.source_name)
+            NovelFromSource.objects.get(novel=novel).authors.add(
+                Author.objects.create(name="Shared Author")
+            )
+
+        call_command("find_merge_candidates")
+        self.assertFalse(MergeCandidate.objects.exists())
+
+        self._review_all()
+        candidate = MergeCandidate.objects.get()
+        self.assertIn("title", candidate.signals)
+        self.assertIn("sequel_mismatch", candidate.signals)
+        self.assertLess(candidate.certainty, 0.5)
+
+    def test_same_source_url_is_queued_despite_edition_markers(self):
+        a = self._novel("Foo (WN)", "foo-wn")
+        b = self._novel("Foo (LN)", "foo-ln")
+        self.make_source(a, self.es, "Foo (WN)", "http://x/1", "foo-wn", "site")
+        self.make_source(b, self.es, "Foo (LN)", "http://x/1", "foo-ln", "site")
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertIn("src", candidate.signals)
+        self.assertGreaterEqual(candidate.certainty, 0.99)
+
+    def test_shared_novel_path_is_queued(self):
+        self._novel("Alpha", "alpha", path="shared-folder")
+        self._novel("Zeta", "zeta", path="shared-folder")
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertIn("path", candidate.signals)
+        self.assertGreaterEqual(candidate.certainty, 0.99)
+
+    def test_author_with_matching_chapter_counts_is_queued(self):
+        self._add_translated_pair(chapters=10)
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertIn("author", candidate.signals)
+        self.assertIn("chapters", candidate.signals)
+
+    def test_author_alone_is_not_queued(self):
+        self._add_translated_pair(chapters=3)
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        self.assertFalse(MergeCandidate.objects.exists())
+
+    def test_same_site_different_titles_is_not_penalised(self):
+        # A shared novelupdates_url queues the pair; one site listing the two
+        # under different titles is no longer a reason to hold it back.
+        a = self._novel("Crimson Sky", "crimson")
+        b = self._novel("Silent Harbor", "silent")
+        for novel, title, url in (
+            (a, "Crimson Sky", "http://x/crimson"),
+            (b, "Silent Harbor", "http://x/silent"),
+        ):
+            NovelFromSource.objects.create(
+                novel=novel, external_source=self.es, title=title, source_url=url,
+                novelupdates_url="https://www.novelupdates.com/series/shared/",
+            )
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertNotIn("same_site", candidate.signals)
+        self.assertIn("nu", candidate.signals)
+        self.assertGreaterEqual(candidate.certainty, 0.9)
+
+    def test_trigram_still_yields_a_title_signal(self):
+        self._novel("Lord of the Mysteries", "lotm")
+        self._novel("Lord of Mysteries", "lotm-2")
+
+        self._review_all()
+
+        candidate = MergeCandidate.objects.get()
+        self.assertGreaterEqual(candidate.signals["title"], 0.4)
+
+    def test_rerunning_does_not_duplicate_rows(self):
+        self._novel("Alpha", "alpha", path="shared-folder")
+        self._novel("Zeta", "zeta", path="shared-folder")
+
+        call_command("find_merge_candidates", trigram_min=-1)
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        self.assertEqual(MergeCandidate.objects.count(), 1)
+
+    def _add_translated_pair(self, chapters):
+        # Different titles, so only the author and the chapter count connect them.
+        author = Author.objects.create(name="Shared Author")
+        for novel, es, title, url in (
+            (self._novel("Kingdom", "kingdom"), self.es, "Kingdom", "http://x/k"),
+            (self._novel("Wang Guo", "wang-guo"), self.other_es, "Wang Guo", "http://x/w"),
+        ):
+            self.make_source(novel, es, title, url, novel.slug, es.source_name, chapters=chapters)
+            NovelFromSource.objects.get(novel=novel).authors.add(author)
+

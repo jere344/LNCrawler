@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Volume, Chapter, SearchResult
+from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = "https://ixdzs8.tw/bsearch?q=%s"
@@ -106,10 +106,6 @@ class IxdzsCrawler(Crawler):
         logger.info(f"URL: {last_chap_url}, {last_chap_id}")
 
         for chap_id in range(1, last_chap_id + 1):
-            if len(self.chapters) % 100 == 0:
-                vol_id = chap_id // 100 + 1
-                vol_title = f"Volume {vol_id}"
-                self.volumes.append(Volume(vol_id, vol_title))
             self.chapters.append(Chapter(
                 id=chap_id,
                 title=f"Chapter {chap_id}",

@@ -161,6 +161,7 @@ class NovelLandCrawler(Crawler):
     # -- novel info ---------------------------------------------------- #
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         soup = self.get_soup(self.novel_url)
         data = self._read_data(soup)
         novel = data.get("novel") or {}

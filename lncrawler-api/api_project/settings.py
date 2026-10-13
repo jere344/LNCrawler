@@ -226,6 +226,10 @@ MERGE_LLM_TIMEOUT = 30
 MERGE_LLM_DAILY_LIMIT = int(os.environ.get("MERGE_LLM_DAILY_LIMIT", "500"))  # Groq free tier (1k RPD for this model)
 MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
 MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
+# A confident "different" verdict dismisses a low-certainty pair (status skipped)
+# so the reviewer never sees it. Certainty at/above the cap always stays queued.
+MERGE_LLM_DISMISS_CONFIDENCE = float(os.environ.get("MERGE_LLM_DISMISS_CONFIDENCE", "0.9"))
+MERGE_LLM_DISMISS_MAX_CERTAINTY = float(os.environ.get("MERGE_LLM_DISMISS_MAX_CERTAINTY", "0.8"))
 
 # Automatic tag merging (find_tag_merge_candidates / judge_tag_clusters).
 # Embeddings: any OpenAI-compatible /embeddings endpoint; see services/embedding_service.py.

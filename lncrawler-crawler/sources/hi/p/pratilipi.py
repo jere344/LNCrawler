@@ -237,6 +237,7 @@ class PratilipiCrawler(Crawler):
     # -- novel info ---------------------------------------------------- #
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         kind, slug = self._route(self.novel_url)
         if kind == "series" and slug:
             self._read_series(slug)

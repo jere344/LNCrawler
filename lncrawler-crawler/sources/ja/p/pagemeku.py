@@ -94,6 +94,7 @@ class PageMekuCrawler(Crawler):
         return self._items[offset : offset + limit]
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         soup = self.get_soup(self.novel_url)
 
         heading = soup.select_one("h1")

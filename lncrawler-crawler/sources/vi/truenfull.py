@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""TruyenFull (truyenfull.live / truyenfull.vn / truyenfull.vision) - Vietnamese novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
+
 import logging
 from typing import List, Optional
 from urllib.parse import quote_plus, urlencode
@@ -13,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 class TruenFull(Crawler):
     has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
     # truyenfull.io is intentionally omitted: its TLS chain is broken and it
     # only serves a JS redirect, so it cannot be crawled directly.
     base_url = [
@@ -185,13 +192,9 @@ class TruenFull(Crawler):
     def parse_all_links(self, links: List[Tag]):
         for a in links:
             chap_id = 1 + len(self.chapters)
-            vol_id = 1 + len(self.chapters) // 100
-            if len(self.chapters) % 100 == 0:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "title": a["title"],
                     "url": self.absolute_url(a["href"]),
                 }

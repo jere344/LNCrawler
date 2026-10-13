@@ -39,6 +39,7 @@ class Novel(Model):
         original_publisher: Optional[str] = None,
         english_publisher: Optional[str] = None,
         novelupdates_url: Optional[str] = None,
+        edition: Optional[str] = None,
         **kwargs,
     ) -> None:
         self.url = url
@@ -64,4 +65,5 @@ class Novel(Model):
         self.original_publisher = original_publisher
         self.english_publisher = english_publisher
         self.novelupdates_url = novelupdates_url
+        self.edition = edition
         self.update(kwargs)

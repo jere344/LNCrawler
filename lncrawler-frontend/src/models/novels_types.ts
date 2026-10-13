@@ -48,6 +48,8 @@ export interface NovelFromSource {
   title: string;
   source_url: string;
   source_name: string;
+  // Free-form edition label from the crawler (or its title); null when unknown.
+  edition?: string | null;
   source_slug: string;
   has_crawler: boolean | null;
   cover_path: string | null;

@@ -2,8 +2,11 @@
 
 from unittest import mock
 
+from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import override_settings
+from django.urls import reverse
+from django.utils import timezone
 
 from ..models import ExternalSource, MergeCandidate, Novel, NovelFromSource
 from ..services import llm_service
@@ -144,3 +147,77 @@ class JudgeCommandTests(MergeTestCase):
             call_command("judge_merge_candidates")
         self.candidate.refresh_from_db()
         self.assertIsNone(self.candidate.llm_verdict)
+
+
+@override_settings(MERGE_LLM_DISMISS_CONFIDENCE=0.9, MERGE_LLM_DISMISS_MAX_CERTAINTY=0.8)
+class JudgeDismissTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.a = Novel.objects.create(title="Alpha", slug="alpha", novel_path="alpha")
+        self.b = Novel.objects.create(title="Alpha!", slug="alpha-b", novel_path="alpha-b")
+        self.candidate = MergeCandidate.objects.create(
+            novel_a=self.a, novel_b=self.b, title_a=self.a.title, title_b=self.b.title,
+            certainty=0.7, decision=MergeCandidate.DECISION_REVIEW,
+        )
+
+    def _judge(self, verdict):
+        with mock.patch.object(llm_service, "judge", return_value=verdict):
+            with override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20):
+                call_command("judge_merge_candidates")
+        self.candidate.refresh_from_db()
+
+    def test_confident_different_on_weak_candidate_is_skipped(self):
+        self._judge({"same": False, "confidence": 0.95, "reason": "different works"})
+        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_SKIPPED)
+        self.assertIsNotNone(self.candidate.llm_checked_at)
+
+    def test_high_certainty_different_verdict_stays_pending(self):
+        self.candidate.certainty = 0.9
+        self.candidate.save(update_fields=["certainty"])
+        self._judge({"same": False, "confidence": 0.95, "reason": "different works"})
+        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
+
+    def test_unconfident_different_verdict_stays_pending(self):
+        self._judge({"same": False, "confidence": 0.5, "reason": "unsure"})
+        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
+
+    def test_same_verdict_stays_pending(self):
+        self._judge({"same": True, "confidence": 0.99, "reason": "same work"})
+        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
+
+
+class ReviewQueueOrderTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        user = get_user_model().objects.create_superuser("admin", "a@a.com", "pw")
+        self.client.force_login(user)
+        self.count = 0
+
+    def _candidate(self, certainty, verdict=None):
+        self.count += 1
+        a = Novel.objects.create(
+            title=f"Left {self.count}", slug=f"left-{self.count}", novel_path=f"left-{self.count}"
+        )
+        b = Novel.objects.create(
+            title=f"Right {self.count}", slug=f"right-{self.count}", novel_path=f"right-{self.count}"
+        )
+        return MergeCandidate.objects.create(
+            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title, certainty=certainty,
+            llm_verdict=verdict,
+            llm_checked_at=timezone.now() if verdict is not None else None,
+        )
+
+    def test_review_queue_order(self):
+        judged_same_high = self._candidate(0.5, {"same": True, "confidence": 0.95, "reason": ""})
+        judged_same_low = self._candidate(0.9, {"same": True, "confidence": 0.6, "reason": ""})
+        unjudged_high = self._candidate(0.95)
+        unjudged_low = self._candidate(0.6)
+        judged_different = self._candidate(0.99, {"same": False, "confidence": 0.3, "reason": ""})
+
+        url = reverse("admin:lncrawler_api_mergecandidate_review")
+        expected = [judged_same_high, judged_same_low, unjudged_high, unjudged_low, judged_different]
+        for candidate in expected:
+            response = self.client.get(url)
+            self.assertEqual(response.context["candidate"].pk, candidate.pk)
+            self.client.post(url, {"candidate": str(candidate.pk), "action": "skip"})
+

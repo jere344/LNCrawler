@@ -184,6 +184,7 @@ class ArmaellLibraryCrawler(EpubCrawler):
     # -- Crawler API --------------------------------------------------- #
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Light Novel"
         self._init_state()
         soup = self.get_soup(self.novel_url)
         self._parse_meta(soup)

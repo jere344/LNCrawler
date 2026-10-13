@@ -127,6 +127,7 @@ class AkatsukiCrawler(Crawler):
         return None
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         novel_id = self._novel_id(self.novel_url)
         if not novel_id:
             raise ValueError(f"Unsupported Akatsuki URL: {self.novel_url}")

@@ -439,7 +439,12 @@
     "updated": "업데이트",
     "ratingLabel": "평점:",
     "upvote": "추천",
-    "downvote": "비추천"
+    "downvote": "비추천",
+    "edition": {
+      "wn": "웹소설",
+      "ln": "라이트 노벨",
+      "raw": "원문"
+    }
   },
   "reviews": {
     "loadFailed": "리뷰를 불러오지 못했습니다. 다시 시도해 주세요.",

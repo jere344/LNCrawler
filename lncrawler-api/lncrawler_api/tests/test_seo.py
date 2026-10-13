@@ -17,7 +17,11 @@ def _ld(response):
 class SeoNovelJsonLdTests(LanguageAwareSourceTestCase):
     def setUp(self):
         super().setUp()
-        self.novel.sources.update(source_slug="src")
+        # Slugs must be distinct within a novel (unique per novel constraint).
+        self.en_source.source_slug = "src-en"
+        self.en_source.save(update_fields=["source_slug"])
+        self.fr_source.source_slug = "src-fr"
+        self.fr_source.save(update_fields=["source_slug"])
         # fr is the preferred source (best votes), so it drives the Book node.
         self.fr_source.refresh_from_db()
         self.fr_source.novelupdates_url = "https://www.novelupdates.com/series/bilingue/"

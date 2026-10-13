@@ -88,6 +88,7 @@ class RanobeMeCrawler(Crawler):
     # -- novel info ---------------------------------------------------- #
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Light Novel"
         soup = self.get_soup(self.novel_url)
 
         heading = soup.select_one("#site-content-center h1")

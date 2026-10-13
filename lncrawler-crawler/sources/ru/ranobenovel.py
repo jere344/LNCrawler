@@ -129,13 +129,9 @@ class RanobeNovel(Crawler):
         data.reverse()
         for item in data:
             chap_id = len(self.chapters) + 1
-            vol_id = len(self.chapters) // 100 + 1
-            if len(self.chapters) % 100 == 0:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "title": item["post_title"].strip(),
                     "url": self.absolute_url(f"/{item['post_name']}/"),
                 }

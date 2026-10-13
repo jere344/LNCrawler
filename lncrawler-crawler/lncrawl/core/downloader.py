@@ -4,6 +4,7 @@ Writes:
 - <output>/json/<id:05d>.json    one JSON file per chapter
 - <output>/images/<md5>.jpg      inline images referenced by chapters
 - <output>/cover.jpg             downloaded cover (absent when unavailable)
+- <output>/cover.url             source URL the cover was downloaded from
 """
 
 import contextlib
@@ -178,6 +179,39 @@ def _same_chapter(old_chapter: dict, chapter: Chapter) -> bool:
     return not old_url or old_url == (chapter.url or "").rstrip("/")
 
 
+def _restore_chapter(chapter: Chapter, old_chapter: dict, file_name: Path, output_path: str) -> None:
+    """Load a cached chapter without letting it override fresh TOC metadata.
+
+    The cache supplies the body, images and success flag. The title, volume and
+    url come from the current TOC, since the source may have renamed or
+    renumbered the chapter. An empty fresh value (None or "") keeps the cached
+    one. When the metadata differs, the cached file is rewritten so disk and DB
+    agree.
+    """
+    fields = ("id", "url", "title", "volume", "volume_title")
+    fresh = {key: getattr(chapter, key) for key in fields}
+    chapter.update(**old_chapter)
+    for key, value in fresh.items():
+        if value is not None and value != "":
+            setattr(chapter, key, value)
+
+    changed = any(
+        old_chapter.get(key) != getattr(chapter, key)
+        for key in fields if key != "id"
+    )
+    if not changed:
+        return
+
+    old_h1 = f"<h1>{html.escape(old_chapter.get('title') or '')}</h1>"
+    new_h1 = f"<h1>{html.escape(chapter.title or '')}</h1>"
+    if chapter.body and chapter.body.startswith(old_h1):
+        chapter.body = new_h1 + chapter.body[len(old_h1):]
+    try:
+        _write_chapter_json(output_path, file_name, chapter.to_dict())
+    except Exception:
+        logger.debug("Failed to rewrite chapter %s", chapter.id)
+
+
 def fetch_chapter_body(app) -> None:
     from .app import App
     from .crawler import Crawler
@@ -193,7 +227,7 @@ def fetch_chapter_body(app) -> None:
             with open(file_name, "r", encoding="utf-8") as file:
                 old_chapter = json.load(file)
             if old_chapter.get("success") and _same_chapter(old_chapter, chapter):
-                chapter.update(**old_chapter)
+                _restore_chapter(chapter, old_chapter, file_name, app.output_path)
                 logger.info(f"Restored chapter {chapter.id} from {file_name}")
                 # Already on disk: keep the buffer off-heap for the image phase.
                 chapter.body = None
@@ -243,9 +277,12 @@ def _target_size(width: int, height: int) -> tuple:
     return (max(1, int(width * scale)), max(1, int(height * scale)))
 
 
-def _fetch_content_image(app, url: str, image_file: Path) -> None:
-    if url and not (image_file.exists() and image_file.is_file()):
+def _fetch_content_image(app, url: str, image_file: Path, force: bool = False) -> None:
+    if url and (force or not (image_file.exists() and image_file.is_file())):
         img = None
+        # Encoded beside the target and renamed on success, so a failed save
+        # never truncates an existing file (e.g. the old cover.jpg).
+        tmp_file = image_file.with_name(image_file.name + ".part")
         try:
             img = app.crawler.download_image(url)
             if img.width * img.height > MAX_DECODE_PIXELS:
@@ -257,27 +294,49 @@ def _fetch_content_image(app, url: str, image_file: Path) -> None:
             gate = _LARGE_DECODE_GATE if oversized else contextlib.nullcontext()
             with gate:
                 img = _fit_to_budget(img)
-                img.save(image_file.as_posix(), "JPEG", optimized=True)
+                img.save(tmp_file.as_posix(), "JPEG", optimized=True)
+            os.replace(tmp_file, image_file)
         finally:
             if img is not None:
                 try:
                     img.close()
                 except Exception:
                     pass
+            with contextlib.suppress(OSError):
+                tmp_file.unlink(missing_ok=True)
             app.progress += 1
 
 
 def _fetch_cover_image(app) -> None:
     assert app.crawler is not None
 
-    if not app.crawler.novel_cover:
+    cover_url = (app.crawler.novel_cover or "").strip()
+    if not cover_url:
         return
 
     cover_file = Path(app.output_path) / "cover.jpg"
+    # Sidecar holding the URL cover.jpg was downloaded from, so a changed
+    # cover_url forces a refresh (existing images are otherwise skipped).
+    source_file = Path(app.output_path) / "cover.url"
     try:
-        _fetch_content_image(app, app.crawler.novel_cover, cover_file)
+        cached_url = source_file.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        cached_url = ""
+    try:
+        _fetch_content_image(
+            app,
+            cover_url,
+            cover_file,
+            force=cover_file.exists() and cached_url != cover_url,
+        )
     except Exception as e:
         logger.debug("Failed to download cover: %s", e)
+        return
+    if cached_url != cover_url:
+        try:
+            source_file.write_text(cover_url, encoding="utf-8")
+        except OSError as e:
+            logger.debug("Failed to save cover source url: %s", e)
 
 
 def _discard_failed_images(app, chapter, failed) -> None:

@@ -128,6 +128,7 @@ class MugexCrawler(Crawler):
             page += 1
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         soup = self.get_soup(self.novel_url)
 
         title = soup.select_one(".mx-novel-hero-copy h1")

@@ -439,7 +439,12 @@
     "updated": "Actualizado",
     "ratingLabel": "Valoración:",
     "upvote": "Voto positivo",
-    "downvote": "Voto negativo"
+    "downvote": "Voto negativo",
+    "edition": {
+      "wn": "Novela web",
+      "ln": "Novela ligera",
+      "raw": "Raw"
+    }
   },
   "reviews": {
     "loadFailed": "Error al cargar las reseñas. Inténtalo de nuevo.",

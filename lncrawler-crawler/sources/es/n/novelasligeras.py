@@ -69,6 +69,7 @@ class NovelasLigerasCrawler(Crawler):
         return results
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Light Novel"
         soup = self.get_soup(self.novel_url)
 
         title = soup.select_one("h1.product_title")

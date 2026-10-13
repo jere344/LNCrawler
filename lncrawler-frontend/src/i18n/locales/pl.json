@@ -439,7 +439,12 @@
     "updated": "Zaktualizowano",
     "ratingLabel": "Ocena:",
     "upvote": "Głosuj za",
-    "downvote": "Głosuj przeciw"
+    "downvote": "Głosuj przeciw",
+    "edition": {
+      "wn": "Powieść internetowa",
+      "ln": "Light novel",
+      "raw": "Raw"
+    }
   },
   "reviews": {
     "loadFailed": "Nie udało się wczytać recenzji. Spróbuj ponownie.",

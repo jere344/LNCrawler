@@ -60,6 +60,7 @@ class LinovelibCrawler(Crawler):
         return results[offset : offset + limit]
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Light Novel"
         match = re.search(r"/novel/(\d+)", self.novel_url)
         if not match:
             raise LNException(f"Cannot find novel id in {self.novel_url}")

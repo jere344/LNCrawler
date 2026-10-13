@@ -439,7 +439,12 @@
     "updated": "Diperbarui",
     "ratingLabel": "Penilaian:",
     "upvote": "Dukung",
-    "downvote": "Tolak"
+    "downvote": "Tolak",
+    "edition": {
+      "wn": "Novel web",
+      "ln": "Light novel",
+      "raw": "Raw"
+    }
   },
   "reviews": {
     "loadFailed": "Gagal memuat ulasan. Silakan coba lagi.",

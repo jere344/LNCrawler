@@ -120,6 +120,7 @@ class SolispiaCrawler(Crawler):
         return results[offset : offset + limit]
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         soup = self.get_soup(self.novel_url)
         gated = self._pass_r18_gate(soup)
         if gated is not None:

@@ -39,6 +39,10 @@ class TranslatinOtakuCrawler(MadaraTemplate):
     base_url = "https://translatinotaku.net/"
     language = "en"
 
+    def read_novel_info(self) -> None:
+        super().read_novel_info()
+        self.novel_edition = "Web Novel"
+
     def parse_genres(self, soup: BeautifulSoup):
         genres = list(super().parse_genres(soup))
         self.genres = genres

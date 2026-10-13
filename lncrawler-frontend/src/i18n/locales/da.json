@@ -439,7 +439,12 @@
     "updated": "Opdateret",
     "ratingLabel": "Bedømmelse:",
     "upvote": "Stem op",
-    "downvote": "Stem ned"
+    "downvote": "Stem ned",
+    "edition": {
+      "wn": "Webroman",
+      "ln": "Lysroman",
+      "raw": "Rå"
+    }
   },
   "reviews": {
     "loadFailed": "Kunne ikke indlæse anmeldelser. Prøv igen.",

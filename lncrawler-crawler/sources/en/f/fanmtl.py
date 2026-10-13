@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""FanMTL (fanmtl.com) - machine-translated novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
+
 import logging
 from typing import Generator
 from urllib.parse import urlparse, parse_qs
@@ -13,6 +15,12 @@ logger = logging.getLogger(__name__)
 
 class FanMTLCrawler(ChapterOnlyBrowserTemplate):
     has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
+
     base_url = "https://www.fanmtl.com/"
 
     def initialize(self):

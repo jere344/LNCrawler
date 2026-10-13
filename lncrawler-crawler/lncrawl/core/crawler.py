@@ -54,6 +54,9 @@ class Crawler(Scraper):
         # Alternative/alternate titles exposed by some sources. Written to
         # meta.json; not yet consumed by the DB importer.
         self.alternative_titles: List[str] = []
+        # Free-form edition label, e.g. 'Web Novel', 'Light Novel', 'Raw', 'Official translation'.
+        # Sources serving several editions of a story set it in read_novel_info.
+        self.novel_edition: str = ""
         self.volumes: List[Volume] = []
         self.chapters: List[Chapter] = []
 

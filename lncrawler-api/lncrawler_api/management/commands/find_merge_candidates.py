@@ -3,10 +3,12 @@
 Cheap deterministic funnel:
 
 1. Block — group novels by normalized title, alternative title, author,
-   ``novelupdates_url``, source URL and cover dHash. Only novels sharing a
-   block are ever compared, so this is not O(N^2).
+   ``novelupdates_url``, source URL, folder on disk (``novel_path``) and cover
+   dHash. Only novels sharing a block are ever compared, so this is not O(N^2).
 2. Score — combine the per-signal matches into a single 0..1 ``certainty``
-   (noisy-OR, so independent signals corroborate each other).
+   (noisy-OR, so independent signals corroborate each other). Penalty signals
+   (sequel mismatch) then scale it down, since titles are folded for blocking
+   and lose the sequel number.
 3. Store — write a ``MergeCandidate`` per pair. Nothing is merged unless
    ``certainty`` clears ``MERGE_AUTO_SCORE`` (default >1, so auto-merge is off
    until the threshold is tuned against real data); the rest wait for the admin
@@ -14,42 +16,44 @@ Cheap deterministic funnel:
 
 Re-running is safe: pairs a human already rejected/merged are left untouched.
 """
-import re
-import unicodedata
 from collections import defaultdict
 
 from django.conf import settings
-from django.contrib.postgres.search import TrigramSimilarity
-from django.db.models.functions import Upper
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import connection
+from django.db.models import Count
+from django.utils import timezone
 
 from lncrawler_api.models import MergeCandidate, Novel, NovelFromSource, NovelSimilarity
-
-_PAREN_RE = re.compile(r"[\(\[\{][^)\]\}]*[\)\]\}]")
-_NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
+from lncrawler_api.utils.title_signals import normalize_text, sequel_number
 
 # Per-signal weights fed into the noisy-OR. ``src`` (same source URL) and ``nu``
 # (novelupdates URL) are the strongest: both identify the exact same work, the
-# former because a source URL maps to exactly one story.
+# former because a source URL maps to exactly one story. ``path`` is the same
+# folder on disk, which the crawler only produces for one novel.
 SIGNAL_WEIGHTS = {
     "src": 0.99,
+    "path": 0.99,
     "nu": 0.95,
     "phash": 0.75,
     "title": 0.60,
     "alt": 0.55,
     "author": 0.45,
     "text": 0.40,
+    # Only meaningful next to an author or cover match: matching lengths alone
+    # say nothing about identity.
+    "chapters": 0.30,
 }
 
+# Penalties scale the certainty down instead of adding to it. They read the raw
+# (unfolded) titles, which the title block ignores on purpose.
+PENALTY_WEIGHTS = {
+    "sequel_mismatch": 0.7,
+}
 
-def normalize_text(value):
-    """Case/accent-fold, drop bracketed suffixes and punctuation."""
-    decomposed = unicodedata.normalize("NFKD", value or "")
-    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
-    stripped = _PAREN_RE.sub(" ", stripped)
-    stripped = _NON_WORD_RE.sub(" ", stripped.casefold())
-    return " ".join(stripped.split())
+# A chapter count this low is too noisy to say two novels have the same length.
+CHAPTER_MATCH_MIN = 10
+CHAPTER_MATCH_RATIO = 0.9
 
 
 def normalize_url(value):
@@ -57,12 +61,23 @@ def normalize_url(value):
 
 
 def combo_certainty(signals):
-    """Noisy-OR over the matched signals -> 0..1 certainty."""
+    """Noisy-OR over the matched signals, then penalties -> 0..1 certainty.
+
+    Penalties are skipped when the pair shares a definitive identity signal
+    (``src`` or ``path``): the same source URL or the same folder is the same
+    novel even when one raw title carries a different sequel number.
+    """
     remaining = 1.0
     for kind, score in signals.items():
         weight = SIGNAL_WEIGHTS.get(kind, 0.0)
         remaining *= 1.0 - weight * max(0.0, min(1.0, score))
-    return round(1.0 - remaining, 4)
+    certainty = 1.0 - remaining
+
+    if "src" not in signals and "path" not in signals:
+        for kind, score in signals.items():
+            weight = PENALTY_WEIGHTS.get(kind, 0.0)
+            certainty *= 1.0 - weight * max(0.0, min(1.0, score))
+    return round(certainty, 4)
 
 
 class Command(BaseCommand):
@@ -102,6 +117,7 @@ class Command(BaseCommand):
         if self.trigram_min >= 0:
             self._trigram_pairs(data, pair_signals, allowed)
         self._add_novel_similarity(pair_signals, allowed)
+        self._add_discriminants(pair_signals, data)
 
         stats = self._store(pair_signals)
         self.stdout.write(self.style.SUCCESS(
@@ -119,15 +135,24 @@ class Command(BaseCommand):
         allowed = set(novel_ids)
 
         titles = defaultdict(set)
+        # Raw (unfolded) titles keep the sequel numbers that the folded ones
+        # drop; they feed the sequel penalty only.
+        raw_titles = defaultdict(set)
         alts = defaultdict(set)
         authors = defaultdict(set)
         nus = defaultdict(set)
         urls = defaultdict(set)
         phashes = defaultdict(set)
+        paths = {}
 
-        for novel_id, title in Novel.objects.filter(pk__in=allowed).values_list("id", "title"):
+        for novel_id, title, novel_path in Novel.objects.filter(pk__in=allowed).values_list(
+            "id", "title", "novel_path"
+        ):
             if title:
                 titles[novel_id].add(normalize_text(title))
+                raw_titles[novel_id].add(title)
+            if novel_path and novel_path.strip():
+                paths[novel_id] = novel_path.strip()
 
         qs = NovelFromSource.objects.filter(novel_id__in=allowed).prefetch_related(
             "authors", "alternative_titles"
@@ -136,6 +161,7 @@ class Command(BaseCommand):
             nid = src.novel_id
             if src.title:
                 titles[nid].add(normalize_text(src.title))
+                raw_titles[nid].add(src.title)
             if src.novelupdates_url:
                 nus[nid].add(normalize_url(src.novelupdates_url))
             if src.source_url:
@@ -147,14 +173,25 @@ class Command(BaseCommand):
             for alt in src.alternative_titles.all():
                 alts[nid].add(normalize_text(alt.name))
 
+        # One aggregate for every novel instead of a COUNT per novel. A novel's
+        # length is its longest source: the others are often partial copies.
+        chapters = defaultdict(int)
+        totals = NovelFromSource.objects.filter(novel_id__in=allowed).annotate(
+            chapter_total=Count("chapters")
+        ).values_list("novel_id", "chapter_total")
+        for novel_id, total in totals:
+            chapters[novel_id] = max(chapters[novel_id], total)
+
         return {
             "titles": titles,
+            "raw_titles": raw_titles,
             "alts": alts,
             "authors": authors,
             "nus": nus,
             "urls": urls,
             "phashes": phashes,
-            "novel_title": dict(Novel.objects.filter(pk__in=allowed).values_list("id", "title")),
+            "paths": paths,
+            "chapters": chapters,
             "allowed": allowed,
             "blocks": defaultdict(set),
         }
@@ -182,6 +219,8 @@ class Command(BaseCommand):
         for nid, values in data["urls"].items():
             for key in values:
                 add("src", key, nid)
+        for nid, path in data["paths"].items():
+            add("path", path, nid)
 
         # A cover hash shared by too many novels is a site default placeholder,
         # not evidence of a duplicate -> drop it entirely.
@@ -209,27 +248,40 @@ class Command(BaseCommand):
         return pair_signals
 
     def _trigram_pairs(self, data, pair_signals, allowed):
-        for novel_id, title in data["novel_title"].items():
-            if not title or len(title) < 4:
-                continue
-            # Match against UPPER(title) so the GIN trigram index on
-            # Upper('title') can be used; filtering the raw column forces a
-            # sequential scan per novel.
-            upper = title.upper()
-            qs = (
-                Novel.objects.filter(pk__in=allowed)
-                .annotate(upper_title=Upper("title"))
-                .filter(upper_title__trigram_similar=upper)
-                .exclude(pk=novel_id)
-                .annotate(sim=TrigramSimilarity("upper_title", upper))
-                .order_by("-sim")
-                .values_list("id", "sim")[:20]
-            )
-            for other_id, sim in qs:
-                if sim < self.trigram_min:
-                    continue
-                pair = self._order(novel_id, other_id)
-                pair_signals[pair]["title"] = max(pair_signals[pair].get("title", 0.0), float(sim))
+        # One set-based query instead of a round trip per novel. For each novel
+        # the lateral subquery keeps the 20 closest titles among those matching
+        # under the trigram operator. The operator runs on UPPER(title) so the
+        # GIN trigram index on Upper('title') is usable; the raw column would
+        # force a sequential scan per novel.
+        if not allowed:
+            return
+        table = connection.ops.quote_name(Novel._meta.db_table)
+        pk = connection.ops.quote_name(Novel._meta.pk.column)
+        title = connection.ops.quote_name(Novel._meta.get_field("title").column)
+        sql = f"""
+            SELECT a.{pk}, near.other_id, near.sim
+            FROM {table} AS a
+            CROSS JOIN LATERAL (
+                SELECT b.{pk} AS other_id,
+                       similarity(UPPER(b.{title}), UPPER(a.{title})) AS sim
+                FROM {table} AS b
+                WHERE b.{pk} = ANY(%s::uuid[])
+                  AND b.{pk} <> a.{pk}
+                  AND UPPER(b.{title}) %% UPPER(a.{title})
+                ORDER BY sim DESC
+                LIMIT 20
+            ) AS near
+            WHERE a.{pk} = ANY(%s::uuid[])
+              AND LENGTH(a.{title}) >= 4
+              AND near.sim >= %s
+        """
+        ids = [str(novel_id) for novel_id in allowed]
+        with connection.cursor() as cursor:
+            cursor.execute(sql, [ids, ids, self.trigram_min])
+            rows = cursor.fetchall()
+        for novel_id, other_id, sim in rows:
+            pair = self._order(novel_id, other_id)
+            pair_signals[pair]["title"] = max(pair_signals[pair].get("title", 0.0), float(sim))
 
     def _add_novel_similarity(self, pair_signals, allowed):
         qs = NovelSimilarity.objects.filter(
@@ -242,6 +294,32 @@ class Command(BaseCommand):
             pair_signals[pair]["text"] = max(
                 pair_signals[pair].get("text", 0.0), float(similarity)
             )
+
+    def _add_discriminants(self, pair_signals, data):
+        """Add the chapter-length match and the penalty signals to every pair.
+
+        Penalties are written into ``signals`` rather than only applied, so the
+        reviewer can see why a pair was pushed down.
+        """
+        sequels = {
+            nid: {sequel_number(t) or 1 for t in titles}
+            for nid, titles in data["raw_titles"].items()
+        }
+        chapters = data["chapters"]
+
+        for (a_id, b_id), signals in pair_signals.items():
+            if "author" in signals or "phash" in signals:
+                low, high = sorted((chapters.get(a_id, 0), chapters.get(b_id, 0)))
+                if low >= CHAPTER_MATCH_MIN and low >= CHAPTER_MATCH_RATIO * high:
+                    signals["chapters"] = 1.0
+
+            # A title without a number counts as sequel 1 (see ``sequel_number``
+            # and the ``or 1`` above), so "Foo" against "Foo 2" is a mismatch on
+            # purpose. A mismatch is penalised only when the two sides share no
+            # sequel number at all.
+            sequel_a, sequel_b = sequels.get(a_id, set()), sequels.get(b_id, set())
+            if sequel_a and sequel_b and not (sequel_a & sequel_b):
+                signals["sequel_mismatch"] = 1.0
 
     @staticmethod
     def _order(a, b):
@@ -260,19 +338,27 @@ class Command(BaseCommand):
                 novel_b__isnull=True
             ).update(status=MergeCandidate.STATUS_SKIPPED)
 
-        terminal = {(str(a), str(b)) for a, b in MergeCandidate.objects.exclude(
-            status=MergeCandidate.STATUS_PENDING
-        ).values_list("novel_a_id", "novel_b_id")}
+        # One preload keyed by the unordered pair replaces a lookup per pair.
+        # Rows whose FK was SET_NULL by a merge are not live pairs.
+        existing = {
+            self._order(row.novel_a_id, row.novel_b_id): row
+            for row in MergeCandidate.objects.filter(novel_a__isnull=False, novel_b__isnull=False)
+        }
 
         involved = {nid for pair in pair_signals for nid in pair}
         novels = {n.pk: n for n in Novel.objects.filter(pk__in=involved)}
 
         auto_pairs = []
+        to_create = []
+        to_update = []
+        now = timezone.now()
         for (a_id, b_id), signals in pair_signals.items():
             certainty = combo_certainty(signals)
             if certainty < self.review_low:
                 continue
-            if (str(a_id), str(b_id)) in terminal:
+            row = existing.get((a_id, b_id))
+            # A pair a human (or the LLM dismissal) already settled stays as is.
+            if row is not None and row.status != MergeCandidate.STATUS_PENDING:
                 continue
             decision = (
                 MergeCandidate.DECISION_AUTO if certainty >= self.auto_score
@@ -284,37 +370,38 @@ class Command(BaseCommand):
                 auto_pairs.append((a_id, b_id))
             if self.dry_run:
                 continue
-            self._upsert(novels.get(a_id), novels.get(b_id), certainty, signals, decision)
+            if row is not None:
+                row.certainty = certainty
+                row.signals = signals
+                row.decision = decision
+                row.updated_at = now
+                to_update.append(row)
+                continue
+            novel_a, novel_b = novels.get(a_id), novels.get(b_id)
+            if novel_a is None or novel_b is None:
+                continue
+            to_create.append(MergeCandidate(
+                novel_a=novel_a,
+                novel_b=novel_b,
+                novel_a_id_snapshot=novel_a.pk,
+                novel_b_id_snapshot=novel_b.pk,
+                title_a=novel_a.title,
+                title_b=novel_b.title,
+                certainty=certainty,
+                signals=signals,
+                decision=decision,
+            ))
+
+        if to_create:
+            MergeCandidate.objects.bulk_create(to_create)
+        if to_update:
+            MergeCandidate.objects.bulk_update(
+                to_update, ["certainty", "signals", "decision", "updated_at"]
+            )
 
         if auto_pairs and not self.dry_run:
             stats["merged"] = self._auto_merge(auto_pairs)
         return stats
-
-    def _upsert(self, novel_a, novel_b, certainty, signals, decision):
-        if novel_a is None or novel_b is None:
-            return
-        existing = MergeCandidate.objects.filter(
-            novel_a=novel_a, novel_b=novel_b
-        ).first() or MergeCandidate.objects.filter(novel_a=novel_b, novel_b=novel_a).first()
-        if existing is not None and existing.status != MergeCandidate.STATUS_PENDING:
-            return
-        if existing is not None:
-            existing.certainty = certainty
-            existing.signals = signals
-            existing.decision = decision
-            existing.save(update_fields=["certainty", "signals", "decision", "updated_at"])
-            return
-        MergeCandidate.objects.create(
-            novel_a=novel_a,
-            novel_b=novel_b,
-            novel_a_id_snapshot=novel_a.pk,
-            novel_b_id_snapshot=novel_b.pk,
-            title_a=novel_a.title,
-            title_b=novel_b.title,
-            certainty=certainty,
-            signals=signals,
-            decision=decision,
-        )
 
     def _auto_merge(self, auto_pairs):
         """Merge only isolated pairs; multi-hop clusters are demoted to review."""
@@ -360,17 +447,19 @@ class Command(BaseCommand):
                 continue
             target = pick_merge_survivor(a, b)
             source = b if target.pk == a.pk else a
+            # merge_novels is atomic and moves files immediately (with its own
+            # undo journal), so no outer transaction here: a rollback of ours
+            # would leave the moved files behind.
             try:
-                with transaction.atomic():
-                    merge_novels(source, target)
-                    # Match on the snapshots: merge_novels deleted the source
-                    # novel, so its live FK is now NULL and would never match.
-                    MergeCandidate.objects.filter(
-                        novel_a_id_snapshot__in=(a_id, b_id),
-                        novel_b_id_snapshot__in=(a_id, b_id),
-                    ).update(status=MergeCandidate.STATUS_MERGED)
+                merge_novels(source, target)
             except MergeError as exc:
                 self.stderr.write(f"Auto-merge {a_id}/{b_id} failed: {exc}")
                 continue
+            # Match on the snapshots: merge_novels deleted the source novel, so
+            # its live FK is now NULL and would never match.
+            MergeCandidate.objects.filter(
+                novel_a_id_snapshot__in=(a_id, b_id),
+                novel_b_id_snapshot__in=(a_id, b_id),
+            ).update(status=MergeCandidate.STATUS_MERGED)
             merged += 1
         return merged

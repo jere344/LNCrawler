@@ -18,6 +18,7 @@ import {
   Menu,
   MenuItem,
   Alert,
+  Chip,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import { userService } from '@services/user.service';
@@ -48,7 +49,7 @@ import { AdultBadge } from '@components/common/AdultBadge';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import { getChapterLabel, languageFlagUrl, languageCodeToName, formatDate } from '@utils/Misc.tsx';
+import { getChapterLabel, languageFlagUrl, languageCodeToName, formatDate, editionLabel } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -675,11 +676,19 @@ const SourceDetail = () => {
                   </Typography>
                 )}
                 
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 1,
+                    mb: 3,
+                  }}
+                >
                 <Typography 
                   variant="h6" 
                   sx={{ 
                     color: alpha(theme.palette.common.white, 0.9),
-                    mb: 3,
                     textShadow: '0 1px 3px rgba(0,0,0,0.2)',
                     fontWeight: 500,
                     display: 'flex',
@@ -708,6 +717,15 @@ const SourceDetail = () => {
                     </Tooltip>
                   )}
                 </Typography>
+                {source.edition && (
+                  <Chip
+                    size="small"
+                    label={editionLabel(source.edition, t)}
+                    sx={{ color: 'inherit', borderColor: 'currentColor' }}
+                    variant="outlined"
+                  />
+                )}
+                </Box>
                 
                 {/* Author badges */}
                 <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>

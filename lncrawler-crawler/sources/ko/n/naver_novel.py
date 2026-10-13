@@ -174,6 +174,9 @@ class NaverNovelCrawler(Crawler):
         if not prefix or not novel_id:
             raise ValueError(f"Unsupported Naver novel URL: {self.novel_url}")
 
+        if prefix in ("/webnovel", "/challenge"):
+            self.novel_edition = "Web Novel"
+
         soup = self.get_soup(f"{SITE}{prefix}/list?novelId={novel_id}")
         title = soup.select_one("h2.title")
         self.novel_title = title.get_text(" ", strip=True) if title else ""

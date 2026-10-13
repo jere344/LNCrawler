@@ -2,15 +2,19 @@
 
 import json
 import os
-from datetime import date
+from datetime import date, timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 
 from django.db.models import Sum
 
 from django.urls import reverse
+from django.utils import timezone
 
 from ..models import (
+    Chapter,
     Comment,
     ExternalSource,
     Novel,
@@ -36,6 +40,7 @@ from ..services import (
     split_novel,
 )
 
+from ..services.novel_operations import dedupe_source
 from ..utils import resolve_novel_slug
 from .helpers import MergeTestCase, write_chapter
 
@@ -380,7 +385,6 @@ class MergeAdminTests(MergeTestCase):
             {
                 "source_novel": self.duplicate.pk,
                 "target_novel": self.target.pk,
-                "move_files": "on",
                 "confirm": "1",
             },
         )
@@ -529,7 +533,9 @@ class SplitNovelTests(MergeTestCase):
         existing = self.make_source(
             target,
             self.es_web,
-            "old",
+            # Same work as "Re:Zero WN" (a title that names another work would
+            # no longer be folded by the same-site fallback).
+            "Re:Zero WN (old)",
             "http://old/rezero",
             "rezero-wn",
             "webnovel",
@@ -674,6 +680,114 @@ class SplitNovelTests(MergeTestCase):
         )
 
 
+class SameSiteCoexistenceTests(MergeTestCase):
+    """One novel holds the WN and LN of one site, each in its own folder."""
+
+    def _crawl(self, novel_folder, title, url, marker):
+        source_dir = os.path.join(self.tmp, novel_folder, "site")
+        os.makedirs(source_dir, exist_ok=True)
+        with open(os.path.join(source_dir, "marker.txt"), "w", encoding="utf-8") as handle:
+            handle.write(marker)
+        meta_path = os.path.join(source_dir, "meta.json")
+        with open(meta_path, "w", encoding="utf-8") as handle:
+            json.dump(
+                {"novel": {"title": title, "url": url}, "session": {"completed": True}},
+                handle,
+            )
+        return meta_path
+
+    def _marker(self, *parts):
+        with open(os.path.join(self.tmp, *parts, "marker.txt"), encoding="utf-8") as handle:
+            return handle.read()
+
+    def test_wn_and_ln_of_one_site_coexist_and_reimport_is_stable(self):
+        wn = NovelFromSource.from_meta_json(self._crawl("foo", "Foo (WN)", "http://site/wn", "wn"))
+        novel = wn.novel
+        # The LN crawl writes under its own novel folder and reaches the merged
+        # novel through its alias, as it would after a merge.
+        NovelAlias.objects.create(slug="lnfoo", novel=novel)
+        ln = NovelFromSource.from_meta_json(self._crawl("lnfoo", "Foo (LN)", "http://site/ln", "ln"))
+
+        self.assertEqual(ln.novel, novel)
+        self.assertEqual(novel.sources.count(), 2)
+        self.assertEqual(ExternalSource.objects.filter(source_name="site").count(), 1)
+        self.assertEqual(wn.source_path, os.path.join("foo", "site"))
+        self.assertEqual(ln.source_path, os.path.join("foo", "site [light-novel]"))
+        self.assertNotEqual(wn.source_slug, ln.source_slug)
+        self.assertEqual(self._marker("foo", "site"), "wn")
+        self.assertEqual(self._marker("foo", "site [light-novel]"), "ln")
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "lnfoo")))
+
+        # Re-importing each folder resolves to the same row and keeps its folder.
+        wn_again = NovelFromSource.from_meta_json(
+            os.path.join(self.tmp, "foo", "site", "meta.json")
+        )
+        ln_again = NovelFromSource.from_meta_json(
+            os.path.join(self.tmp, "foo", "site [light-novel]", "meta.json")
+        )
+        self.assertEqual(wn_again.pk, wn.pk)
+        self.assertEqual(ln_again.pk, ln.pk)
+        self.assertEqual(novel.sources.count(), 2)
+        self.assertEqual(ln_again.source_path, os.path.join("foo", "site [light-novel]"))
+        self.assertEqual(self._marker("foo", "site [light-novel]"), "ln")
+
+        # A mirror that changed the LN URL still finds the LN row by its title.
+        ln_meta = os.path.join(self.tmp, "foo", "site [light-novel]", "meta.json")
+        with open(ln_meta, "w", encoding="utf-8") as handle:
+            json.dump(
+                {"novel": {"title": "Foo (LN)", "url": "http://mirror/ln"},
+                 "session": {"completed": True}},
+                handle,
+            )
+        mirror = NovelFromSource.from_meta_json(ln_meta)
+        self.assertEqual(mirror.pk, ln.pk)
+        self.assertEqual(novel.sources.count(), 2)
+
+
+    def test_site_folder_helpers_name_coexisting_sources(self):
+        from ..utils import lncrawler_paths
+
+        self.assertEqual(lncrawler_paths.site_name_from_folder("foo [ln]"), "foo")
+        self.assertEqual(lncrawler_paths.site_name_from_folder("foo [2]"), "foo")
+        self.assertEqual(lncrawler_paths.site_name_from_folder("foo"), "foo")
+
+        novel_dir = os.path.join(self.tmp, "foo")
+        self.assertEqual(
+            lncrawler_paths.free_source_folder(novel_dir, "site", "Web Novel", {"site"}),
+            "site [web-novel]",
+        )
+        self.assertEqual(
+            lncrawler_paths.free_source_folder(novel_dir, "site", "Official translation", {"site"}),
+            "site [official-translation]",
+        )
+        # No edition, or an edition whose folder is already on disk: a number.
+        self.assertEqual(
+            lncrawler_paths.free_source_folder(novel_dir, "site", "", {"site"}),
+            "site [2]",
+        )
+        os.makedirs(os.path.join(novel_dir, "site [light-novel]"))
+        self.assertEqual(
+            lncrawler_paths.free_source_folder(novel_dir, "site", "Light Novel", {"site"}),
+            "site [2]",
+        )
+
+    def test_edition_is_exposed_on_the_source_card(self):
+        from ..serializers import NovelSourceSerializer
+
+        novel = Novel.objects.create(title="Foo", slug="foo-edition", novel_path="foo")
+        external = ExternalSource.objects.create(source_name="site-edition")
+        ln = NovelFromSource.objects.create(
+            novel=novel, external_source=external, title="Foo (LN)", edition="Light Novel",
+            source_url="http://e/ln", source_slug="site-edition-ln",
+        )
+        unknown = NovelFromSource.objects.create(
+            novel=novel, external_source=external, title="Foo",
+            source_url="http://e/none", source_slug="site-edition-none",
+        )
+        self.assertEqual(NovelSourceSerializer(ln, profile="card").data["edition"], "Light Novel")
+        self.assertIsNone(NovelSourceSerializer(unknown, profile="card").data["edition"])
+
+
 class SplitAdminTests(MergeTestCase):
     def setUp(self):
         super().setUp()
@@ -743,3 +857,453 @@ class SplitAdminTests(MergeTestCase):
         self.web_source.refresh_from_db()
         self.assertEqual(self.web_source.novel, target)
         self.assertEqual(self.novel.sources.count(), 1)
+
+
+class MergeConflictRulesTests(MergeTestCase):
+    """Rules a merge must follow when both novels hold the same user's data."""
+
+    def setUp(self):
+        super().setUp()
+        self.target = Novel.objects.create(
+            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
+        )
+        self.duplicate = Novel.objects.create(
+            title="Lord of Mysteries", slug="lom", novel_path="lom"
+        )
+        self.es_a = ExternalSource.objects.create(source_name="novelfull")
+        self.es_b = ExternalSource.objects.create(source_name="novelbin")
+        self.user = get_user_model().objects.create_user(
+            username="reader", email="reader@example.com", password="x"
+        )
+        self.other = get_user_model().objects.create_user(
+            username="other", email="other@example.com", password="x"
+        )
+
+    def test_same_user_rated_both_novels_keeps_the_newer_rating(self):
+        now = timezone.now()
+        NovelRating.objects.create(novel=self.target, user=self.user, rating=2)
+        NovelRating.objects.create(novel=self.duplicate, user=self.user, rating=5)
+        NovelRating.objects.filter(novel=self.target, user=self.user).update(
+            updated_at=now - timedelta(days=3)
+        )
+        # Second reader: the target's rating is the newer one and must survive.
+        NovelRating.objects.create(novel=self.target, user=self.other, rating=1)
+        NovelRating.objects.create(novel=self.duplicate, user=self.other, rating=4)
+        NovelRating.objects.filter(novel=self.duplicate, user=self.other).update(
+            updated_at=now - timedelta(days=3)
+        )
+
+        merge_novels(self.duplicate, self.target, move_files=True)
+
+        self.assertEqual(
+            NovelRating.objects.get(novel=self.target, user=self.user).rating, 5
+        )
+        self.assertEqual(
+            NovelRating.objects.get(novel=self.target, user=self.other).rating, 1
+        )
+        self.assertEqual(NovelRating.objects.filter(novel=self.target).count(), 2)
+
+    def test_anonymous_ratings_still_dedupe_by_ip(self):
+        NovelRating.objects.create(novel=self.target, ip_address="1.1.1.1", rating=2)
+        NovelRating.objects.create(novel=self.duplicate, ip_address="1.1.1.1", rating=5)
+        NovelRating.objects.create(novel=self.duplicate, ip_address="2.2.2.2", rating=4)
+        NovelRating.objects.create(novel=self.duplicate, ip_address=None, rating=3)
+
+        merge_novels(self.duplicate, self.target, move_files=True)
+
+        anonymous = NovelRating.objects.filter(novel=self.target, user__isnull=True)
+        # The target keeps its row for 1.1.1.1; the NULL-IP row always moves.
+        self.assertEqual(anonymous.count(), 3)
+        self.assertEqual(anonymous.get(ip_address="1.1.1.1").rating, 2)
+        self.assertEqual(anonymous.get(ip_address="2.2.2.2").rating, 4)
+        self.assertTrue(anonymous.filter(ip_address__isnull=True, rating=3).exists())
+
+    def test_reading_history_keeps_the_most_recent_row_on_either_side(self):
+        target_src = self.make_source(
+            self.target, self.es_a, "LOTM", "http://a/lotm", "lotm", "novelfull"
+        )
+        dup_src = self.make_source(
+            self.duplicate, self.es_b, "lom", "http://b/lom", "lom", "novelbin"
+        )
+        now = timezone.now()
+        # First reader: the duplicate side was read most recently.
+        ReadingHistory.objects.create(user=self.user, novel=self.target, source=target_src)
+        dup_history = ReadingHistory.objects.create(
+            user=self.user, novel=self.duplicate, source=dup_src
+        )
+        ReadingHistory.objects.filter(user=self.user, novel=self.target).update(
+            last_read_at=now - timedelta(days=2)
+        )
+        ReadingHistory.objects.filter(pk=dup_history.pk).update(last_read_at=now)
+        # Second reader: the target side is the more recent one.
+        ReadingHistory.objects.create(user=self.other, novel=self.target, source=target_src)
+        ReadingHistory.objects.create(user=self.other, novel=self.duplicate, source=dup_src)
+        ReadingHistory.objects.filter(user=self.other, novel=self.duplicate).update(
+            last_read_at=now - timedelta(days=2)
+        )
+
+        merge_novels(self.duplicate, self.target, move_files=True)
+
+        survivor = ReadingHistory.objects.get(user=self.user)
+        self.assertEqual(survivor.novel, self.target)
+        self.assertEqual(survivor.source, dup_src)
+        # A queryset move must not bump last_read_at to the merge time.
+        self.assertEqual(survivor.last_read_at, now)
+        self.assertEqual(
+            ReadingHistory.objects.get(user=self.other).source, target_src
+        )
+
+    def test_newer_review_wins_on_either_side(self):
+        now = timezone.now()
+        Review.objects.create(
+            novel=self.target, user=self.user, title="old", content="x", rating=2
+        )
+        Review.objects.create(
+            novel=self.duplicate, user=self.user, title="new", content="y", rating=5
+        )
+        Review.objects.create(
+            novel=self.target, user=self.other, title="t", content="z", rating=1
+        )
+        Review.objects.create(
+            novel=self.duplicate, user=self.other, title="d", content="w", rating=4
+        )
+        Review.objects.filter(novel=self.target, user=self.user).update(
+            updated_at=now - timedelta(days=2)
+        )
+        Review.objects.filter(novel=self.duplicate, user=self.user).update(updated_at=now)
+        Review.objects.filter(novel=self.target, user=self.other).update(updated_at=now)
+        Review.objects.filter(novel=self.duplicate, user=self.other).update(
+            updated_at=now - timedelta(days=2)
+        )
+
+        merge_novels(self.duplicate, self.target, move_files=True)
+
+        self.assertEqual(Review.objects.get(novel=self.target, user=self.user).rating, 5)
+        self.assertEqual(Review.objects.get(novel=self.target, user=self.other).rating, 1)
+        self.assertEqual(Review.objects.filter(novel=self.target).count(), 2)
+
+    def test_same_site_different_works_coexist_after_merge(self):
+        target_src = self.make_source(
+            self.target, self.es_a, "Foo (WN)", "http://a/wn", "lotm", "novelfull", 2
+        )
+        dup_src = self.make_source(
+            self.duplicate, self.es_a, "Foo (LN)", "http://a/ln", "lom", "novelfull", 1
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            merge_novels(self.duplicate, self.target, move_files=True)
+
+        self.assertFalse(Novel.objects.filter(slug="lom").exists())
+        self.assertEqual(self.target.sources.count(), 2)
+        target_src.refresh_from_db()
+        dup_src.refresh_from_db()
+        self.assertEqual(dup_src.novel, self.target)
+        # Each work keeps its own folder, so the files are never mixed.
+        self.assertEqual(target_src.source_path, os.path.join("lotm", "novelfull"))
+        self.assertEqual(dup_src.source_path, os.path.join("lotm", "novelfull [light-novel]"))
+        self.assertNotEqual(target_src.source_slug, dup_src.source_slug)
+        self.assertEqual(
+            len(os.listdir(os.path.join(self.tmp, "lotm", "novelfull", "json"))), 2
+        )
+        self.assertEqual(
+            len(os.listdir(os.path.join(self.tmp, "lotm", "novelfull [light-novel]", "json"))), 1
+        )
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "lom")))
+
+    def test_same_site_different_works_coexist_after_split_into_existing_novel(self):
+        self.make_source(
+            self.target, self.es_a, "Foo (WN)", "http://a/wn", "lotm", "novelfull", 1
+        )
+        moving = self.make_source(
+            self.duplicate, self.es_a, "Foo (LN)", "http://a/ln", "lom", "novelfull", 1
+        )
+        self.make_source(
+            self.duplicate, self.es_b, "Other", "http://b/x", "lom", "novelbin", 1
+        )
+
+        move_sources(self.duplicate, [moving], self.target)
+
+        moving.refresh_from_db()
+        self.assertEqual(moving.novel, self.target)
+        self.assertEqual(moving.source_path, os.path.join("lotm", "novelfull [light-novel]"))
+        self.assertTrue(
+            os.path.isdir(os.path.join(self.tmp, "lotm", "novelfull [light-novel]"))
+        )
+        self.assertEqual(self.target.sources.count(), 2)
+
+    def test_compatible_titles_on_the_same_site_still_dedupe(self):
+        self.make_source(
+            self.target, self.es_a, "Foo (WN)", "http://a/wn", "lotm", "novelfull", 1
+        )
+        self.make_source(
+            self.duplicate, self.es_a, "Foo [WN]", "http://a/mirror", "lom", "novelfull", 2
+        )
+
+        merge_novels(self.duplicate, self.target, move_files=True)
+
+        survivors = self.target.sources.all()
+        self.assertEqual(survivors.count(), 1)
+        self.assertEqual(survivors.get().chapters.count(), 2)
+
+    def test_source_slug_collision_on_move_gets_a_suffix(self):
+        self.make_source(
+            self.target, self.es_b, "LOTM", "http://b/lotm", "lotm", "novelbin"
+        )
+        # Another work of the same site, in a folder with the target's name: the
+        # move takes a free "[2]" folder and the slug derived from it is suffixed.
+        moved = self.make_source(
+            self.duplicate, self.es_b, "Other Story", "http://b/other", "lom", "novelbin"
+        )
+
+        merge_novels(self.duplicate, self.target, move_files=True)
+
+        moved.refresh_from_db()
+        self.assertEqual(moved.novel, self.target)
+        self.assertEqual(moved.source_path, os.path.join("lotm", "novelbin [2]"))
+        self.assertEqual(moved.source_slug, "novelbin-2")
+
+
+class MergeConflictAdminTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.target = Novel.objects.create(
+            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
+        )
+        self.duplicate = Novel.objects.create(
+            title="Lord of Mysteries", slug="lom", novel_path="lom"
+        )
+        external = ExternalSource.objects.create(source_name="novelfull")
+        self.make_source(
+            self.target, external, "Foo (WN)", "http://a/wn", "lotm", "novelfull", 1
+        )
+        self.make_source(
+            self.duplicate, external, "Foo (LN)", "http://a/ln", "lom", "novelfull", 1
+        )
+        self.admin = get_user_model().objects.create_superuser(
+            username="admin", password="x"
+        )
+        self.client.force_login(self.admin)
+
+    def test_preview_offers_the_merge_for_same_site_works(self):
+        url = reverse("admin:lncrawler_api_novel_merge")
+        response = self.client.post(
+            url, {"source_novel": self.duplicate.pk, "target_novel": self.target.pk}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "lists both as separate works")
+        self.assertContains(response, 'name="confirm"')
+
+
+class DedupeChapterDataTests(MergeTestCase):
+    """Dedupe keeps the loser's comments and reading position on the winner."""
+
+    def setUp(self):
+        super().setUp()
+        self.target = Novel.objects.create(
+            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
+        )
+        self.duplicate = Novel.objects.create(
+            title="Lord of Mysteries", slug="lom", novel_path="lom"
+        )
+        external = ExternalSource.objects.create(source_name="novelfull")
+        self.winner = self.make_source(
+            self.target, external, "LOTM", "http://a/w", "lotm", "novelfull", 2
+        )
+        self.loser = self.make_source(
+            self.duplicate, external, "lom", "http://a/l", "lom", "novelfull", 2
+        )
+        # Chapter 2 of the loser shares its url with the winner's chapter 2;
+        # chapter 1 only matches by number, and chapter 3 has no counterpart.
+        self.loser.chapters.filter(chapter_id=2).update(url="http://a/w/ch2")
+        self.loser_orphan = Chapter.objects.create(
+            novel_from_source=self.loser, chapter_id=3, url="http://a/l/ch3", title="Chapter 3"
+        )
+        self.user = get_user_model().objects.create_user(username="reader", password="x")
+
+    def test_comments_and_reading_position_follow_the_winner_chapter(self):
+        loser_ch1 = self.loser.chapters.get(chapter_id=1)
+        loser_ch2 = self.loser.chapters.get(chapter_id=2)
+        winner_ch1 = self.winner.chapters.get(chapter_id=1)
+        winner_ch2 = self.winner.chapters.get(chapter_id=2)
+
+        on_one = Comment.objects.create(chapter=loser_ch1, author_name="a", message="one")
+        on_two = Comment.objects.create(chapter=loser_ch2, author_name="a", message="two")
+        on_three = Comment.objects.create(
+            chapter=self.loser_orphan, author_name="a", message="three"
+        )
+        history = ReadingHistory.objects.create(
+            user=self.user, novel=self.duplicate, source=self.loser,
+            last_read_chapter=loser_ch2,
+        )
+
+        dedupe_source(self.loser, self.winner, move_files=False, dest_novel=self.target)
+
+        on_one.refresh_from_db()
+        on_two.refresh_from_db()
+        self.assertEqual(on_one.chapter_id, winner_ch1.pk)
+        self.assertEqual(on_two.chapter_id, winner_ch2.pk)
+
+        history.refresh_from_db()
+        self.assertEqual(history.source_id, self.winner.pk)
+        self.assertEqual(history.last_read_chapter_id, winner_ch2.pk)
+
+        # No winner chapter matches: the comment survives as a novel comment.
+        on_three.refresh_from_db()
+        self.assertIsNone(on_three.chapter_id)
+        self.assertEqual(on_three.novel_id, self.target.pk)
+
+        self.assertFalse(NovelFromSource.objects.filter(pk=self.loser.pk).exists())
+        self.assertEqual(self.winner.chapters.count(), 2)
+
+
+class MoveSourcesCommentTests(MergeTestCase):
+    """A deduped loser's unmatched comments land on the destination novel (M2)."""
+
+    def test_unmatched_comment_of_a_deduped_loser_follows_the_destination(self):
+        origin = Novel.objects.create(title="Re:Zero", slug="rezero", novel_path="rezero")
+        target = Novel.objects.create(
+            title="Re:Zero WN", slug="rezero-wn", novel_path="rezero-wn"
+        )
+        web = ExternalSource.objects.create(source_name="webnovel")
+        # The incoming copy is the more complete one (2 chapters against 1), so it
+        # wins the dedupe while it still belongs to the original novel.
+        incoming = self.make_source(
+            origin, web, "Re:Zero WN", "http://web/rezero", "rezero", "webnovel", 2
+        )
+        self.make_source(
+            origin, ExternalSource.objects.create(source_name="lightnovel"),
+            "Re:Zero LN", "http://ln/rezero", "rezero", "lightnovel", 1,
+        )
+        loser = self.make_source(
+            target, web, "Re:Zero WN (old)", "http://old/rezero", "rezero-wn", "webnovel", 0
+        )
+        # Chapter 5 has no counterpart in the winner (no url, no number match).
+        orphan = Chapter.objects.create(
+            novel_from_source=loser, chapter_id=5, url="http://old/rezero/ch5",
+            title="Chapter 5",
+        )
+        comment = Comment.objects.create(
+            chapter=orphan, author_name="anon", message="orphan comment"
+        )
+
+        move_sources(origin, [incoming], target)
+
+        comment.refresh_from_db()
+        self.assertIsNone(comment.chapter_id)
+        self.assertEqual(comment.novel_id, target.pk)
+        self.assertFalse(NovelFromSource.objects.filter(pk=loser.pk).exists())
+        incoming.refresh_from_db()
+        self.assertEqual(incoming.novel_id, target.pk)
+
+        origin.refresh_from_db()
+        target.refresh_from_db()
+        self.assertEqual(target.comment_count, 1)
+        self.assertEqual(origin.comment_count, 0)
+
+
+class FileJournalTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.target = Novel.objects.create(
+            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
+        )
+        self.duplicate = Novel.objects.create(
+            title="Lord of Mysteries", slug="lom", novel_path="lom"
+        )
+        self.first = self.make_source(
+            self.duplicate, ExternalSource.objects.create(source_name="site-a"),
+            "Alpha", "http://a/x", "lom", "site-a", 1,
+        )
+        self.second = self.make_source(
+            self.duplicate, ExternalSource.objects.create(source_name="site-b"),
+            "Beta", "http://b/x", "lom", "site-b", 1,
+        )
+
+    def test_failed_second_move_restores_rows_and_the_first_folder(self):
+        real_rename = os.rename
+        calls = []
+
+        def flaky_rename(src, dst):
+            calls.append((src, dst))
+            if len(calls) == 2:
+                raise OSError("simulated failure")
+            return real_rename(src, dst)
+
+        with mock.patch("lncrawler_api.services.novel_operations.os.rename",
+                        side_effect=flaky_rename):
+            with self.assertRaises(MergeError):
+                merge_novels(self.duplicate, self.target, move_files=True)
+
+        self.assertEqual(len(calls), 3)  # two moves, then the undo of the first
+        self.assertTrue(Novel.objects.filter(slug="lom").exists())
+        self.assertFalse(NovelAlias.objects.filter(slug="lom").exists())
+        for source in (self.first, self.second):
+            source.refresh_from_db()
+            self.assertEqual(source.novel, self.duplicate)
+        self.assertEqual(self.first.source_path, "lom/site-a")
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "lom", "site-a")))
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "lom", "site-b")))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "lotm", "site-a")))
+
+
+class MergeRollbackTests(MergeTestCase):
+    """A database failure after a folder move reverses both."""
+
+    def setUp(self):
+        super().setUp()
+        self.target = Novel.objects.create(
+            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
+        )
+        self.duplicate = Novel.objects.create(
+            title="Lord of Mysteries", slug="lom", novel_path="lom"
+        )
+        self.first = self.make_source(
+            self.duplicate, ExternalSource.objects.create(source_name="site-a"),
+            "Alpha", "http://a/x", "lom", "site-a", 1,
+        )
+        self.second = self.make_source(
+            self.duplicate, ExternalSource.objects.create(source_name="site-b"),
+            "Beta", "http://b/x", "lom", "site-b", 1,
+        )
+
+    def test_failed_save_after_a_move_restores_the_folder_and_the_rows(self):
+        with mock.patch.object(
+            NovelFromSource, "save", side_effect=IntegrityError("simulated")
+        ):
+            with self.assertRaises(IntegrityError):
+                merge_novels(self.duplicate, self.target, move_files=True)
+
+        self.assertTrue(Novel.objects.filter(slug="lom").exists())
+        self.assertFalse(NovelAlias.objects.filter(slug="lom").exists())
+        for source, folder in ((self.first, "site-a"), (self.second, "site-b")):
+            source.refresh_from_db()
+            self.assertEqual(source.novel, self.duplicate)
+            self.assertEqual(source.source_path, os.path.join("lom", folder))
+            self.assertTrue(os.path.isdir(os.path.join(self.tmp, "lom", folder)))
+            self.assertFalse(os.path.exists(os.path.join(self.tmp, "lotm", folder)))
+
+
+class ReplacedFolderTrashTests(MergeTestCase):
+    def test_replaced_copy_is_trashed_until_commit_then_emptied(self):
+        target = Novel.objects.create(title="Lord of the Mysteries", slug="lotm", novel_path="lotm")
+        duplicate = Novel.objects.create(title="Lord of Mysteries", slug="lom", novel_path="lom")
+        external = ExternalSource.objects.create(source_name="novelfull")
+        self.make_source(target, external, "LOTM", "http://a/w", "lotm", "novelfull", 2)
+        self.make_source(duplicate, external, "lom", "http://a/l", "lom", "novelfull", 3)
+        trash = os.path.join(self.tmp, ".trash")
+
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            merge_novels(duplicate, target, move_files=True)
+
+        # Before commit the replaced copy is parked in the trash, not deleted.
+        parked = os.listdir(trash)
+        self.assertEqual(len(parked), 1)
+        self.assertTrue(os.path.isdir(os.path.join(trash, parked[0], "json")))
+        # The incoming, more complete copy now sits at the canonical path.
+        self.assertTrue(os.path.isfile(
+            os.path.join(self.tmp, "lotm", "novelfull", "json", "00003.json")
+        ))
+
+        for callback in callbacks:
+            callback()
+        self.assertEqual(os.listdir(trash), [])

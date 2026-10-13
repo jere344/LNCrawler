@@ -439,7 +439,12 @@
     "updated": "Aktualisiert",
     "ratingLabel": "Bewertung:",
     "upvote": "Dafürstimmen",
-    "downvote": "Dagegenstimmen"
+    "downvote": "Dagegenstimmen",
+    "edition": {
+      "wn": "Webnovel",
+      "ln": "Light Novel",
+      "raw": "Roh"
+    }
   },
   "reviews": {
     "loadFailed": "Bewertungen konnten nicht geladen werden. Bitte versuche es erneut.",

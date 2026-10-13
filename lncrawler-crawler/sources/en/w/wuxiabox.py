@@ -1,3 +1,5 @@
+"""Wuxiabox (wuxiabox.com) - machine-translated novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
+
 import logging
 
 from lncrawl.templates.novelmtl import NovelMTLTemplate
@@ -7,6 +9,12 @@ logger = logging.getLogger(__name__)
 
 class Wuxiabox(NovelMTLTemplate):
     has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
+
     has_manga = False
     base_url = ["https://www.wuxiabox.com/"]
 

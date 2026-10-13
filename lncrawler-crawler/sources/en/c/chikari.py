@@ -91,6 +91,7 @@ class ChikariCrawler(Crawler):
         return [self._search_result(item) for item in (items or [])][:limit]
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Light Novel"
         slug = self._slug()
         if not slug:
             raise ValueError(f"Cannot determine novel slug from {self.novel_url!r}")

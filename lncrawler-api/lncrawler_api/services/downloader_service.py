@@ -7,6 +7,7 @@ from pathlib import Path
 import django
 from ..utils import lncrawler_paths
 from ..utils import chapter_utils
+from ..utils.title_signals import edition_label_from_title, same_work
 
 from django.conf import settings
 
@@ -15,6 +16,54 @@ logger = logging.getLogger('lncrawler_api')
 
 # Set once the crawler package has been added to sys.path.
 _crawler_package_loaded = False
+
+
+def choose_crawl_output_path(source_host, title, edition="", source_url=""):
+    """Absolute folder a new crawl of ``title`` from ``source_host`` writes into.
+
+    A row already holding ``source_url`` keeps its recorded folder, even when
+    that folder is missing on disk (the caller recreates it). Otherwise the
+    default is ``<novel>/<site>``. A folder owned by another source row is reused
+    only when that row names the same work and no row holds ``source_url``;
+    otherwise the crawl gets a free ``<site> [..]`` folder in the same novel
+    folder. ``edition`` is the crawled edition label; the title marker is used
+    when it is empty. No folder is created here.
+    """
+    from ..models import NovelFromSource
+
+    url_known = False
+    if source_url:
+        url_rows = NovelFromSource.objects.filter(source_url=source_url).order_by('pk')
+        url_row = (
+            url_rows.exclude(source_path__isnull=True).exclude(source_path='').first()
+        )
+        if url_row is not None:
+            return os.path.join(settings.LNCRAWL_OUTPUT_PATH, url_row.source_path)
+        url_known = url_rows.exists()
+
+    default = lncrawler_paths.get_novel_output_path(
+        source=source_host, novel=title, create=False
+    )
+    rel = os.path.relpath(default, settings.LNCRAWL_OUTPUT_PATH)
+    owner = NovelFromSource.objects.filter(source_path=rel).order_by('pk').first()
+    if owner is None or (
+        not url_known and same_work(owner.title, owner.edition, title, edition)
+    ):
+        return default
+
+    novel_abs = os.path.dirname(default)
+    novel_rel = os.path.dirname(rel)
+    taken = {
+        os.path.basename(path)
+        for path in NovelFromSource.objects.filter(
+            source_path__startswith=novel_rel + os.sep
+        ).values_list('source_path', flat=True)
+        if os.path.dirname(path) == novel_rel
+    }
+    folder = lncrawler_paths.free_source_folder(
+        novel_abs, os.path.basename(default), edition or edition_label_from_title(title), taken
+    )
+    return os.path.join(novel_abs, folder)
 
 
 def _load_app():
@@ -130,14 +179,21 @@ class DownloaderService:
         Returns the matched ``NovelFromSource`` (or ``None``) so the caller can
         keep writing to the directory that source already lives in.
         """
+        from django.db.models import Count
         from ..models import NovelFromSource
-        try:
-            novel_source = (
-                NovelFromSource.objects.filter(source_url=novel_url).first()
-                or NovelFromSource.objects.filter(
-                    source_url=novel_url.rstrip("/")
-                ).first()
+
+        def _most_complete(url):
+            # The same url can exist on several novels. Prefer the row with the
+            # most chapters, then the lowest pk, so the choice is stable.
+            return (
+                NovelFromSource.objects.filter(source_url=url)
+                .annotate(chapter_total=Count('chapters'))
+                .order_by('-chapter_total', 'pk')
+                .first()
             )
+
+        try:
+            novel_source = _most_complete(novel_url) or _most_complete(novel_url.rstrip("/"))
             if novel_source is None:
                 return None
             app.crawler.existing_chapters = [
@@ -355,9 +411,13 @@ class DownloaderService:
                         getattr(app.crawler, "source_name", "")
                         or job.selected_novel["url"].split("/")[2]
                     )
-                    custom_output_path = lncrawler_paths.get_novel_output_path(
-                        source=source_host,
-                        novel=job.selected_novel["title"]
+                    # The crawled title is known now (get_novel_info ran), and it
+                    # decides whether an owned folder can be shared.
+                    custom_output_path = choose_crawl_output_path(
+                        source_host=source_host,
+                        title=job.selected_novel["title"],
+                        edition=getattr(app.crawler, "novel_edition", "") or "",
+                        source_url=app.crawler.novel_url,
                     )
 
                 # If the path exists and is compressed, decompress it

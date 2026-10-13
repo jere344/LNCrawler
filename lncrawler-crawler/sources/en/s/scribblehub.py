@@ -81,6 +81,10 @@ class ScribbleHubCrawler(SearchableBrowserTemplate):
             page += 1
         return results[offset : offset + limit]
 
+    def read_novel_info(self) -> None:
+        super().read_novel_info()
+        self.novel_edition = "Web Novel"
+
     def visit_novel_page_in_browser(self) -> BeautifulSoup:
         url_parts = self.novel_url.split("/")
         self.novel_url = f"{url_parts[0]}/{url_parts[2]}/{url_parts[3]}/{url_parts[4]}/"

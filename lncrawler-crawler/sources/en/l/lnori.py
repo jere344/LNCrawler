@@ -3,7 +3,7 @@ import json
 import logging
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import SearchResult, Volume
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class LnoriCrawler(Crawler):
             results.append(SearchResult(title=title, url=self.absolute_url(a["href"])))
         return results[offset : offset + limit]
 
-    def _add_chapters(self, book_url, data, soup):
+    def _add_chapters(self, book_url, data, soup, volume=None):
         for part in data.get("hasPart") or []:
             fragment = (part.get("url") or "").lstrip("#")
             if not fragment:
@@ -73,13 +73,14 @@ class LnoriCrawler(Crawler):
             section = soup.select_one('section.chapter[id="%s"]' % fragment)
             if section is None or len(section.get_text(strip=True)) < 200:
                 continue
-            self.chapters.append(
-                {
-                    "id": len(self.chapters) + 1,
-                    "title": (part.get("name") or "").strip(),
-                    "url": "%s#%s" % (book_url, fragment),
-                }
-            )
+            chapter = {
+                "id": len(self.chapters) + 1,
+                "title": (part.get("name") or "").strip(),
+                "url": "%s#%s" % (book_url, fragment),
+            }
+            if volume is not None:
+                chapter["volume"] = volume
+            self.chapters.append(chapter)
 
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url)
@@ -100,11 +101,14 @@ class LnoriCrawler(Crawler):
 
         parts = data.get("hasPart") or []
         if any(str(p.get("url", "")).startswith("http") for p in parts):
-            for book in parts:
+            for i, book in enumerate(parts, 1):
                 book_url = self.absolute_url(book["url"])
                 book_soup = self.get_soup(book_url)
                 self._book_cache[book_url] = book_soup
-                self._add_chapters(book_url, self._ld_json(book_soup), book_soup)
+                before = len(self.chapters)
+                self._add_chapters(book_url, self._ld_json(book_soup), book_soup, volume=i)
+                if len(self.chapters) > before:
+                    self.volumes.append(Volume(id=i, title=(book.get("name") or "").strip()))
         else:
             self._book_cache[self.novel_url] = soup
             self._add_chapters(self.novel_url, data, soup)

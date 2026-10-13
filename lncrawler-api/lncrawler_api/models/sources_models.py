@@ -16,6 +16,7 @@ logger = logging.getLogger('lncrawler_api')
 from .chapter_models import Volume, Chapter
 from ..utils import chapter_utils, lncrawler_paths
 from ..utils.slug import slugify
+from ..utils.title_signals import edition_label_from_title, same_work
 
 CHAPTER_BULK_CHUNK = 500
 
@@ -41,6 +42,10 @@ class TagImportRetry(Exception):
 
 class TagImportError(Exception):
     """Tags could not be linked after ``TAG_IMPORT_ATTEMPTS`` attempts."""
+
+
+class SourceFolderConflict(Exception):
+    """A source folder belongs to another source, so its import is refused."""
 
 
 def _set_source_tags(novel_from_source, names):
@@ -142,13 +147,16 @@ class NovelFromSource(models.Model):
     
     # Basic metadata
     title = models.CharField(max_length=500)
+    # Free-form edition label supplied by the crawler (e.g. "Web Novel",
+    # "Official translation"). Blank when unknown; see title_signals.effective_edition.
+    edition = models.CharField(max_length=100, blank=True, default="")
     source_url = models.CharField(max_length=500)
     external_source = models.ForeignKey(ExternalSource, on_delete=models.CASCADE, related_name='novels')
     source_slug = models.SlugField(max_length=100, blank=True)
     cover_url = models.CharField(max_length=500, null=True, blank=True)
     
     # Path information relative to settings.LNCRAWL_OUTPUT_PATH
-    source_path = models.CharField(max_length=500, null=True, blank=True)
+    source_path = models.CharField(max_length=500, null=True, blank=True, db_index=True)
     cover_path = models.CharField(max_length=500, null=True, blank=True)
     cover_min_path = models.CharField(max_length=500, null=True, blank=True)
     overview_picture_path = models.CharField(max_length=500, null=True, blank=True) 
@@ -198,6 +206,15 @@ class NovelFromSource(models.Model):
     
     class Meta:
         unique_together = ('novel', 'source_url')
+        constraints = [
+            # Views look sources up by (novel, source_slug); two rows sharing a
+            # slug would make that lookup raise MultipleObjectsReturned.
+            models.UniqueConstraint(
+                fields=['novel', 'source_slug'],
+                condition=~models.Q(source_slug=''),
+                name='unique_source_slug_per_novel',
+            ),
+        ]
         indexes = [
             models.Index(fields=['-last_chapter_update'], name='nfs_last_chapter_upd_idx'),
             models.Index(fields=['language'], name='nfs_language_idx'),
@@ -229,8 +246,52 @@ class NovelFromSource(models.Model):
     def vote_score(self):
         return self.upvotes - self.downvotes
     
-    @staticmethod
-    def _consolidate_source_directory(source_dir, output_path, novel, existing_source):
+    @classmethod
+    def unique_source_slug(cls, novel, base, exclude_pk=None):
+        """Return a slug that no other source of ``novel`` already uses.
+
+        The first claimant keeps ``base``; later ones get ``-2``, ``-3`` ...
+        appended, with ``base`` shortened so the result stays within the 100
+        character column. ``exclude_pk`` is the row being named, so it does not
+        collide with its own current slug. A blank slug is never suffixed: the
+        unique constraint does not apply to blanks.
+        """
+        base = (base or "")[:100]
+        if not base:
+            return base
+        taken = set(
+            cls.objects.filter(novel=novel)
+            .exclude(pk=exclude_pk)
+            .values_list("source_slug", flat=True)
+        )
+        if base not in taken:
+            return base
+        n = 2
+        while True:
+            suffix = f"-{n}"
+            candidate = base[: 100 - len(suffix)] + suffix
+            if candidate not in taken:
+                return candidate
+            n += 1
+
+    @classmethod
+    def _taken_folder_names(cls, novel, exclude_pk=None):
+        """Folder basenames already used by the sources of ``novel``."""
+        rows = cls.objects.filter(novel=novel).exclude(source_path__isnull=True).exclude(source_path='')
+        if exclude_pk is not None:
+            rows = rows.exclude(pk=exclude_pk)
+        return {os.path.basename(path) for path in rows.values_list('source_path', flat=True)}
+
+    @classmethod
+    def _folder_owner(cls, source_rel, exclude_pk=None):
+        """The row (other than ``exclude_pk``) whose folder is ``source_rel``, if any."""
+        rows = cls.objects.filter(source_path=source_rel)
+        if exclude_pk is not None:
+            rows = rows.exclude(pk=exclude_pk)
+        return rows.order_by('pk').first()
+
+    @classmethod
+    def _consolidate_source_directory(cls, source_dir, output_path, novel, existing_source, title='', edition=''):
         """
         Return the canonical ``(source_dir, source_path, meta_json_path,
         cover_path)`` for a source, relocating its files when needed.
@@ -238,20 +299,57 @@ class NovelFromSource(models.Model):
         Destination preference:
           1. where the existing ``NovelFromSource`` row already lives, so
              updates stay anchored to the canonical folder,
-          2. the canonical novel folder plus the source folder name, used for a
-             brand-new source whose old folder name was merged away.
+          2. the canonical novel folder plus the folder's own name (``site``,
+             ``site [ln]``, ``site [2]``), used for a brand-new source.
+
+        Whenever the preferred folder is owned by another row of the novel, a
+        free ``<site> [..]`` folder is chosen beside it instead, so two works of
+        one site never share files. A folder owned by another row is never
+        moved: that raises ``SourceFolderConflict``.
         """
+        own_pk = existing_source.pk if existing_source is not None else None
+        source_rel = os.path.relpath(source_dir, settings.LNCRAWL_OUTPUT_PATH)
+        owner = cls._folder_owner(source_rel, exclude_pk=own_pk)
+        if owner is not None:
+            # Moving it would carry another source's files away and leave that
+            # row pointing at nothing. Fail the import of this folder instead.
+            logger.error(
+                "Refusing to import '%s': it belongs to source %s ('%s')",
+                source_rel, owner.pk, owner.title,
+            )
+            raise SourceFolderConflict(
+                f"'{source_rel}' belongs to another source ('{owner.title}'); "
+                "the import was cancelled."
+            )
+
         target_abs = None
         if existing_source is not None and existing_source.source_path:
             target_abs = os.path.join(output_path, existing_source.source_path)
+            parent_abs = os.path.dirname(target_abs)
         else:
             # ``slug`` is the folder identity ``from_meta_json`` derives, so use
             # it when ``novel_path`` was never recorded.
             canonical_dir = novel.novel_path or novel.slug
             if canonical_dir:
-                target_abs = os.path.join(
-                    output_path, canonical_dir, os.path.basename(source_dir)
+                parent_abs = os.path.join(output_path, canonical_dir)
+                # Keep the folder's own name (``site [ln]``, ``site [2]``) unless
+                # another row of this novel already uses it.
+                target_abs = os.path.join(parent_abs, os.path.basename(source_dir))
+
+        if target_abs is not None:
+            taken = cls._taken_folder_names(novel, exclude_pk=own_pk)
+            target_rel = os.path.relpath(target_abs, settings.LNCRAWL_OUTPUT_PATH)
+            target_owned = cls._folder_owner(target_rel, exclude_pk=own_pk) is not None
+            name_taken = existing_source is None and os.path.basename(target_abs) in taken
+            if target_owned or name_taken:
+                # Never merge into another row's folder: pick a free one beside it.
+                folder = lncrawler_paths.free_source_folder(
+                    parent_abs,
+                    lncrawler_paths.site_name_from_folder(os.path.basename(source_dir)),
+                    edition or edition_label_from_title(title),
+                    taken,
                 )
+                target_abs = os.path.join(parent_abs, folder)
 
         old_novel_dir = os.path.dirname(source_dir)
         if target_abs and os.path.abspath(target_abs) != os.path.abspath(source_dir):
@@ -285,6 +383,9 @@ class NovelFromSource(models.Model):
         title = novel_data.get('title', '')
         if not title:
             raise ValueError("The meta.json file does not contain a novel title")
+        # Free-form edition from the crawler; the title marker is the fallback.
+        crawled_edition = (novel_data.get('edition') or '').strip()[:100]
+        edition = crawled_edition or edition_label_from_title(title)
         
         # Determine paths relative to settings.LNCRAWL_OUTPUT_PATH
         source_dir = os.path.dirname(meta_json_path)  # Directory containing meta.json
@@ -330,43 +431,66 @@ class NovelFromSource(models.Model):
                     }
                 )
         
-        # Create or get the external source
-        source_name = os.path.basename(source_dir)
+        # Create or get the external source. A " [..]" suffix on the folder
+        # marks a second source of the same site in this novel (e.g. "foo [ln]"),
+        # so the site is the folder name without it.
+        source_name = lncrawler_paths.site_name_from_folder(os.path.basename(source_dir))
         external_source, created = ExternalSource.objects.get_or_create(
             source_name=source_name
         )
         
         # Create or update the NovelFromSource.
-        # Identity is the canonical external source, not the exact URL, so the
-        # same novel fetched from a mirror domain updates the existing row
-        # instead of creating a duplicate.
+        # Identity: the exact URL first. Failing that, the same site with the
+        # same work: one site can list a web novel and a light novel under one
+        # novel, so the title decides between rows of that site. A mirror
+        # domain under a changed URL still updates its row.
         source_url = truncate(novel_data.get('url', ''))
-        source_slug = slugify(source_name)
 
-        novel_from_source = cls.objects.filter(novel=novel, external_source=external_source).first()
+        novel_from_source = cls.objects.filter(novel=novel, source_url=source_url).order_by('pk').first()
         if novel_from_source is None:
-            novel_from_source = cls.objects.filter(novel=novel, source_url=source_url).first()
+            for candidate in cls.objects.filter(novel=novel, external_source=external_source).order_by('pk'):
+                # A meta.json without an edition says nothing against the
+                # label the row already carries.
+                # The title's own edition comes before the stored one: an LN
+                # title must not adopt the WN row's label.
+                incoming = crawled_edition or edition or candidate.edition
+                if same_work(candidate.title, candidate.edition, title, incoming):
+                    novel_from_source = candidate
+                    break
+        if not crawled_edition and novel_from_source is not None and novel_from_source.edition:
+            # ...and must not wipe it either.
+            edition = novel_from_source.edition
         existing_source = novel_from_source
-        if novel_from_source is None:
-            novel_from_source = cls(novel=novel)
-        else:
-            # Drop a legacy duplicate alias row that would violate (novel, source_url).
-            cls.objects.filter(novel=novel, source_url=source_url).exclude(pk=novel_from_source.pk).delete()
 
         # Store files under the canonical novel folder (and keep an update in
-        # the folder it already lives in).
+        # the folder it already lives in). This runs before any row is deleted:
+        # a folder that belongs to another source refuses the import outright.
         source_dir, source_path, meta_json_path, cover_path = cls._consolidate_source_directory(
             source_dir=source_dir,
             output_path=output_path,
             novel=novel,
             existing_source=existing_source,
+            title=title,
+            edition=edition,
         )
+
+        if novel_from_source is None:
+            novel_from_source = cls(novel=novel)
+        else:
+            # Drop a legacy duplicate alias row that would violate (novel, source_url).
+            cls.objects.filter(novel=novel, source_url=source_url).exclude(pk=novel_from_source.pk).delete()
+        # Slug from the final folder name, so a second source of a site gets
+        # its own ("foo-ln") rather than sharing the plain site slug.
+        source_slug = slugify(os.path.basename(source_dir))
 
         novel_from_source.novel = novel
         novel_from_source.source_url = source_url
         novel_from_source.external_source = external_source
         novel_from_source.title = truncate(title)
-        novel_from_source.source_slug = truncate(source_slug, 100)
+        novel_from_source.edition = edition
+        novel_from_source.source_slug = cls.unique_source_slug(
+            novel, truncate(source_slug, 100), exclude_pk=novel_from_source.pk
+        )
         novel_from_source.source_path = truncate(source_path)
         # Only keep the path if the file actually exists: the crawler no longer
         # writes a placeholder cover, so a missing cover.jpg must stay NULL.
@@ -535,6 +659,26 @@ class NovelFromSource(models.Model):
                 ch for ch in existing_list
                 if ch.pk not in used_pks and ch.chapter_id in target_ids
             ]
+            # Rows no incoming chapter claims (e.g. removed from the tail of the
+            # source). Pruning (orphans and volumes) is skipped when a sizeable
+            # novel shrank by more than half: that looks like a partial scrape,
+            # not a real removal. Stale-collision deletion above is unaffected.
+            incoming_count = len(assigned_ids)
+            prune_allowed = not (
+                len(existing_list) >= 20 and incoming_count < len(existing_list) / 2
+            )
+            if not prune_allowed:
+                logger.warning(
+                    "Skipped pruning for source %s: %d incoming chapters vs %d existing",
+                    novel_from_source.pk, incoming_count, len(existing_list),
+                )
+            orphans = []
+            if target_ids and prune_allowed:
+                stale_pks = {ch.pk for ch in stale}
+                orphans = [
+                    ch for ch in existing_list
+                    if ch.pk not in used_pks and ch.pk not in stale_pks
+                ]
 
             with transaction.atomic():
                 if stale:
@@ -556,6 +700,35 @@ class NovelFromSource(models.Model):
                             last_read_chapter=target
                         )
                     Chapter.objects.filter(pk__in=[ch.pk for ch in stale]).delete()
+
+                if orphans:
+                    # Comment.chapter is CASCADE and ReadingHistory.last_read_chapter
+                    # is SET_NULL, so an orphan with user data is kept rather than
+                    # silently losing comments or reading progress. One query per
+                    # relation covers all orphans at once.
+                    orphan_pks = [ch.pk for ch in orphans]
+                    with_user_data = set()
+                    for rel in Chapter._meta.related_objects:
+                        field = rel.field.name
+                        with_user_data.update(
+                            rel.related_model._default_manager
+                            .filter(**{f"{field}__in": orphan_pks})
+                            .values_list(field, flat=True)
+                        )
+                    removable = [pk for pk in orphan_pks if pk not in with_user_data]
+                    kept = len(orphan_pks) - len(removable)
+                    if kept:
+                        logger.debug("Kept %d orphan chapters with user data", kept)
+                    if removable:
+                        Chapter.objects.filter(pk__in=removable).delete()
+
+                # Drop volumes the source no longer lists. Skipped together with
+                # the chapter prune, and when the list is empty.
+                volume_ids = [v.get('id') for v in (novel_data.get('volumes') or [])]
+                if prune_allowed and volume_ids:
+                    Volume.objects.filter(novel_from_source=novel_from_source).exclude(
+                        volume_id__in=volume_ids
+                    ).delete()
 
                 if reassigned:
                     # Park below every existing id so no orphan row can already

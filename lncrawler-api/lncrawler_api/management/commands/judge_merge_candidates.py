@@ -69,7 +69,9 @@ class Command(BaseCommand):
             return
 
         model = getattr(settings, "MERGE_LLM_MODEL", "openai/gpt-oss-20b")
-        judged = rate_limited = failed = 0
+        dismiss_confidence = getattr(settings, "MERGE_LLM_DISMISS_CONFIDENCE", 0.9)
+        dismiss_max_certainty = getattr(settings, "MERGE_LLM_DISMISS_MAX_CERTAINTY", 0.8)
+        judged = dismissed = rate_limited = failed = 0
         for candidate in candidates:
             if candidate.novel_a is None or candidate.novel_b is None:
                 continue
@@ -92,13 +94,25 @@ class Command(BaseCommand):
             candidate.llm_reason = verdict.get("reason", "")
             candidate.llm_model = model
             candidate.llm_checked_at = timezone.now()
-            candidate.save(update_fields=[
-                "llm_verdict", "llm_reason", "llm_model", "llm_checked_at", "updated_at"
-            ])
+            update_fields = ["llm_verdict", "llm_reason", "llm_model", "llm_checked_at", "updated_at"]
+            # A confident "different" on a weak candidate is noise for the
+            # reviewer: skip it. Strong deterministic matches stay queued even
+            # when the LLM disagrees, so a human still decides them.
+            confidence = float(verdict.get("confidence") or 0.0)
+            if (
+                not verdict.get("same")
+                and confidence >= dismiss_confidence
+                and candidate.certainty < dismiss_max_certainty
+            ):
+                candidate.status = MergeCandidate.STATUS_SKIPPED
+                update_fields.append("status")
+                dismissed += 1
+            candidate.save(update_fields=update_fields)
             judged += 1
 
         self.stdout.write(self.style.SUCCESS(
-            f"judged {judged} candidate(s); {failed} error(s); {rate_limited} rate-limited; "
+            f"judged {judged} candidate(s); {dismissed} dismissed as different; "
+            f"{failed} error(s); {rate_limited} rate-limited; "
             f"daily {used_today + judged}/{daily_limit}"
         ))
 

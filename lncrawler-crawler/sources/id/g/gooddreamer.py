@@ -99,6 +99,7 @@ class GoodDreamerCrawler(Crawler):
     # -- novel info ---------------------------------------------------- #
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         uri = self._novel_uri(self.novel_url)
         if not uri:
             raise ValueError(f"Cannot determine novel uri from {self.novel_url!r}")

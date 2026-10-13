@@ -44,6 +44,7 @@ class WanderingInnCrawler(Crawler):
         ]
 
     def read_novel_info(self):
+        self.novel_edition = "Web Novel"
         self._ensure_category()
 
         self.novel_title = "The Wandering Inn"

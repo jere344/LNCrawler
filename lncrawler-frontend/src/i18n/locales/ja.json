@@ -439,7 +439,12 @@
     "updated": "更新日",
     "ratingLabel": "評価：",
     "upvote": "高評価",
-    "downvote": "低評価"
+    "downvote": "低評価",
+    "edition": {
+      "wn": "Web小説",
+      "ln": "ライトノベル",
+      "raw": "原文"
+    }
   },
   "reviews": {
     "loadFailed": "レビューの読み込みに失敗しました。もう一度お試しください。",

@@ -61,19 +61,14 @@ class Virlyce(Crawler):
                 break
         logger.info("Novel tags: %s", self.novel_tags)
 
-        # Extract volume-wise chapter entries
         # Stops external links being selected as chapters
         chapters = soup.select('div.entry-content p [href*="virlyce.com/"]')
 
         for a in chapters:
             chap_id = len(self.chapters) + 1
-            vol_id = 1 + len(self.chapters) // 100
-            if len(self.volumes) < vol_id:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "url": self.absolute_url(a["href"]),
                     "title": a.text.strip() or ("Chapter %d" % chap_id),
                 }

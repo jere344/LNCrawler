@@ -47,5 +47,6 @@ class OceanOfEpubCrawler(EpubCrawler):
             self.novel_synopsis = desc["content"].strip()
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Light Novel"
         self._parse_meta(self.get_soup(self.novel_url))
         raise LNException(self.disable_reason)

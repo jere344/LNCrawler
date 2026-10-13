@@ -54,6 +54,7 @@ class RoyalRoadCrawler(Crawler):
         return results[offset : offset + limit]
 
     def read_novel_info(self):
+        self.novel_edition = "Web Novel"
         soup = self.get_soup(self.novel_url)
 
         self.novel_title = soup.select_one(".fic-header h1").text.strip()

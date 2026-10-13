@@ -92,13 +92,9 @@ class WuxiaClick(Crawler):
         chapter_data = self.get_response(api_novel_chapter_url + slug + "/?format=json").json()
         for chapter in chapter_data:
             chap_id = chapter["index"]
-            vol_id = len(self.chapters) // 100 + 1
-            if len(self.chapters) % 100 == 0:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "title": chapter["title"],
                     "url": home_url + "chapter/" + chapter["novSlugChapSlug"],
                 }

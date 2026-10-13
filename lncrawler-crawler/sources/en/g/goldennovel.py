@@ -124,6 +124,7 @@ class GoldenNovelCrawler(Crawler):
     # -- novel info -------------------------------------------------------
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         self.novel_url = self._novel_url_from(self.novel_url)
         soup = self.get_soup(self.novel_url)
 

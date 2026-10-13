@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""WuxiaCity (wuxia.city) - machine-translated novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
+
 import logging
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
@@ -20,6 +22,11 @@ class WuxiaCityCrawler(Crawler):
 
     # Set True if this source contains machine translations.
     has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
 
     def search_novel(self, query):
         query = quote_plus(str(query).lower())

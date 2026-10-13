@@ -91,6 +91,7 @@ class KkaebiCrawler(Crawler):
             page += 1
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Official translation"
         soup = self.get_soup(self.novel_url)
 
         title = soup.select_one("h1.hbl-novel-single-title")

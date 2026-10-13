@@ -153,6 +153,7 @@ class NovelbaCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
 
     def read_novel_info(self) -> None:
         super().read_novel_info()
+        self.novel_edition = "Web Novel"
         soup = self.last_soup
         if not isinstance(soup, BeautifulSoup):
             return

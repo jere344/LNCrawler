@@ -35,6 +35,17 @@ _STATUSES = {
     "dropped": NovelStatus.hiatus,
 }
 
+_EDITIONS = {
+    "web novel": "Web Novel",
+    "webnovel": "Web Novel",
+    "wn": "Web Novel",
+    "light novel": "Light Novel",
+    "ln": "Light Novel",
+    "lightnovel": "Light Novel",
+    "raw": "Raw",
+    "raw novel": "Raw",
+}
+
 _RSC_PUSH = re.compile(r'self\.__next_f\.push\(\[1,\s*"((?:[^"\\]|\\.)*)"\]\)')
 
 
@@ -187,6 +198,9 @@ class WoopReadCrawler(Crawler):
             self.status = _STATUSES.get(statuses[0].lower(), NovelStatus.unknown)
 
         types = self._labeled(soup, "Type")
+        edition = _EDITIONS.get(types[0].lower()) if types else None
+        if edition:
+            self.novel_edition = edition
 
         genres = [
             a.get_text(" ", strip=True)

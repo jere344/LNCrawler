@@ -108,13 +108,9 @@ class MeionovelCrawler(Crawler):
         soup = self.make_soup(response)
         for a in reversed(soup.select(".wp-manga-chapter a")):
             chap_id = len(self.chapters) + 1
-            vol_id = 1 + len(self.chapters) // 100
-            if chap_id % 100 == 1:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "title": a.text.strip(),
                     "url": self.absolute_url(a["href"]),
                 }

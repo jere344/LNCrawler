@@ -439,7 +439,12 @@
     "updated": "Bijgewerkt",
     "ratingLabel": "Beoordeling:",
     "upvote": "Omhoog stemmen",
-    "downvote": "Omlaag stemmen"
+    "downvote": "Omlaag stemmen",
+    "edition": {
+      "wn": "Webnovel",
+      "ln": "Light novel",
+      "raw": "Raw"
+    }
   },
   "reviews": {
     "loadFailed": "Beoordelingen laden mislukt. Probeer het opnieuw.",

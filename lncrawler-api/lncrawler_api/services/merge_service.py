@@ -8,9 +8,9 @@ reviews and user data are reassigned, duplicate sources are collapsed, and a
 ``NovelAlias`` is recorded so a future crawl of the discarded name attaches to
 the surviving novel instead of recreating the duplicate.
 
-Everything runs inside a single transaction; ``novel_operations`` queues the
-physical file moves/deletes to run only after that transaction commits, so a
-DB failure can never leave files moved with the rows rolled back.
+Everything runs inside a single transaction, and folder changes go through a
+``novel_operations`` file journal: a failure reverses the database writes and
+the folder moves together.
 """
 import logging
 import os
@@ -42,7 +42,9 @@ from ..models import (
     TagNoMerge,
 )
 from .novel_operations import (
+    FileOperationError,
     dedupe_source,
+    file_journal,
     find_duplicate,
     move_source_to_novel,
     recount_comment_count,
@@ -176,12 +178,41 @@ def _record_aliases(source_novel, target_novel):
 
 
 def _merge_novel_ratings(source, target):
+    """Move the source's ratings onto ``target``, keeping one rating per reader.
+
+    The database allows one logged-in rating per (novel, user) and one anonymous
+    rating per (novel, ip_address). When both novels rated the same user, the
+    newer rating is kept and the other is deleted before the move, so the
+    constraint never trips. Anonymous rows are compared by IP against the
+    target's anonymous rows only; a NULL IP never matches, so it always moves.
+    Anything not moved is deleted with the source.
+    """
+    target_users = {
+        rating.user_id: rating
+        for rating in NovelRating.objects.filter(novel=target, user__isnull=False)
+    }
     target_ips = set(
-        NovelRating.objects.filter(novel=target).values_list("ip_address", flat=True)
+        NovelRating.objects.filter(novel=target, user__isnull=True)
+        .exclude(ip_address__isnull=True)
+        .values_list("ip_address", flat=True)
     )
-    NovelRating.objects.filter(novel=source).exclude(
-        ip_address__in=target_ips
-    ).update(novel=target)
+
+    for rating in NovelRating.objects.filter(novel=source).order_by("pk"):
+        if rating.user_id is not None:
+            existing = target_users.get(rating.user_id)
+            if existing is not None:
+                if existing.updated_at >= rating.updated_at:
+                    # Ties keep the target's rating.
+                    continue
+                existing.delete()
+            target_users[rating.user_id] = rating
+        elif rating.ip_address is not None:
+            if rating.ip_address in target_ips:
+                continue
+            target_ips.add(rating.ip_address)
+        # A queryset update does not bump auto_now, so the rating keeps its time.
+        NovelRating.objects.filter(pk=rating.pk).update(novel=target)
+
     NovelRating.objects.filter(novel=source).delete()
 
 
@@ -213,14 +244,36 @@ def _merge_similarities(source, target):
         existing.add(remapped)
 
 
-def _merge_user_scoped(source, target, model):
-    """Move rows unique on (novel, user); drop ones the target already has."""
-    target_users = set(
-        model.objects.filter(novel=target).values_list("user_id", flat=True)
-    )
-    model.objects.filter(novel=source).exclude(user_id__in=target_users).update(
-        novel=target
-    )
+def _source_row_wins(source_value, target_value):
+    """Whether the incoming row's value beats the target's. ``None`` always loses."""
+    if source_value is None:
+        return False
+    if target_value is None:
+        return True
+    return source_value > target_value
+
+
+def _merge_user_scoped(source, target, model, newer_field=None):
+    """Move rows unique on (novel, user); on conflict keep one of the two.
+
+    Without ``newer_field`` the target's row wins. With it, the row with the
+    greater value wins and ties go to the target. The losing row is deleted
+    before the winner moves, so the unique constraint never trips. Moves use
+    ``.update()`` so ``auto_now`` fields such as ``ReadingHistory.last_read_at``
+    keep their real timestamps.
+    """
+    target_rows = {row.user_id: row for row in model.objects.filter(novel=target)}
+    for row in model.objects.filter(novel=source).order_by("pk"):
+        existing = target_rows.get(row.user_id)
+        if existing is not None:
+            wins = newer_field is not None and _source_row_wins(
+                getattr(row, newer_field), getattr(existing, newer_field)
+            )
+            if not wins:
+                row.delete()
+                continue
+            existing.delete()
+        model.objects.filter(pk=row.pk).update(novel=target)
     model.objects.filter(novel=source).delete()
 
 
@@ -237,42 +290,61 @@ def _merge_reading_list_items(source, target):
 
 
 def merge_novels(source_novel, target_novel, move_files=True):
-    """Merge ``source_novel`` into ``target_novel`` and delete the former."""
+    """Merge ``source_novel`` into ``target_novel`` and delete the former.
+
+    The database writes and the folder changes succeed or fail together. Sources
+    of one site that are different works coexist: each keeps its own folder.
+    """
     if source_novel.pk == target_novel.pk:
         raise MergeError("A novel cannot be merged into itself.")
 
     source_sources = list(source_novel.sources.all())
 
-    with transaction.atomic():
-        # Alias first, so the redirect never points at a deleted novel.
-        _record_aliases(source_novel, target_novel)
+    try:
+        with file_journal() as files:
+            with transaction.atomic():
+                # Alias first, so the redirect never points at a deleted novel.
+                _record_aliases(source_novel, target_novel)
 
-        for source in source_sources:
-            duplicate = find_duplicate(target_novel, source)
-            if duplicate is None:
-                move_source_to_novel(source, target_novel, move_files)
-            elif source_completeness(source) > source_completeness(duplicate):
-                # Keep the incoming copy: fold the target's weaker copy into it
-                # first, freeing the (novel, source_url) slot, then repoint.
-                dedupe_source(duplicate, source, move_files)
-                move_source_to_novel(source, target_novel, move_files)
-            else:
-                # Keep the existing target copy: drop the incoming one.
-                dedupe_source(source, duplicate, move_files)
+                for source in source_sources:
+                    duplicate = find_duplicate(target_novel, source)
+                    if duplicate is None:
+                        move_source_to_novel(source, target_novel, move_files, files=files)
+                    elif source_completeness(source) > source_completeness(duplicate):
+                        # Keep the incoming copy: fold the target's weaker copy into it
+                        # first, freeing the (novel, source_url) slot, then repoint.
+                        dedupe_source(
+                            duplicate, source, move_files, files=files,
+                            dest_novel=target_novel,
+                        )
+                        move_source_to_novel(source, target_novel, move_files, files=files)
+                    else:
+                        # Keep the existing target copy: drop the incoming one.
+                        dedupe_source(
+                            source, duplicate, move_files, files=files,
+                            dest_novel=target_novel,
+                        )
 
-        _merge_novel_ratings(source_novel, target_novel)
-        _merge_similarities(source_novel, target_novel)
+                _merge_novel_ratings(source_novel, target_novel)
+                _merge_similarities(source_novel, target_novel)
 
-        # Novel-level comments only; chapter comments follow their sources.
-        Comment.objects.filter(novel=source_novel).update(novel=target_novel)
+                # Novel-level comments only; chapter comments follow their sources.
+                Comment.objects.filter(novel=source_novel).update(novel=target_novel)
 
-        _merge_user_scoped(source_novel, target_novel, Review)
-        _merge_user_scoped(source_novel, target_novel, NovelBookmark)
-        _merge_user_scoped(source_novel, target_novel, ReadingHistory)
-        _merge_reading_list_items(source_novel, target_novel)
+                # Newest data wins on conflict: the later review, and the most
+                # recently read history row, whichever novel it came from.
+                _merge_user_scoped(source_novel, target_novel, Review, newer_field="updated_at")
+                _merge_user_scoped(source_novel, target_novel, NovelBookmark)
+                _merge_user_scoped(
+                    source_novel, target_novel, ReadingHistory, newer_field="last_read_at"
+                )
+                _merge_reading_list_items(source_novel, target_novel)
 
-        source_novel.delete()
-        recount_comment_count(target_novel)
+                source_novel.delete()
+                recount_comment_count(target_novel)
+                files.schedule()
+    except FileOperationError as exc:
+        raise MergeError(str(exc)) from exc
 
     logger.info(
         "Merged novel '%s' (%s) into '%s' (%s)",

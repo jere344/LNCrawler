@@ -439,7 +439,12 @@
     "updated": "Güncellendi",
     "ratingLabel": "Puan:",
     "upvote": "Olumlu Oy",
-    "downvote": "Olumsuz Oy"
+    "downvote": "Olumsuz Oy",
+    "edition": {
+      "wn": "Web romanı",
+      "ln": "Light novel",
+      "raw": "Ham"
+    }
   },
   "reviews": {
     "loadFailed": "İncelemeler yüklenemedi. Lütfen tekrar deneyin.",

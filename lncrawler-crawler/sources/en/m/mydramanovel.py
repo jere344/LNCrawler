@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""MyDramaNovel (mydramanovel.com) - machine-translated novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
 
 import logging
 
@@ -12,6 +13,11 @@ class MyDramaNovel(Crawler):
     base_url = ["https://mydramanovel.com/"]
     has_manga = False
     has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
 
     def initialize(self) -> None:
         self.init_executor(ratelimit=1)

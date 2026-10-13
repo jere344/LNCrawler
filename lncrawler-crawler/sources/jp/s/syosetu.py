@@ -11,7 +11,7 @@ search_url = "https://yomou.syosetu.com/search.php?word=%s"
 
 
 class SyosetuCrawler(Crawler):
-    has_mtl = True
+    has_mtl = False
     base_url = "https://ncode.syosetu.com/"
 
     def initialize(self) -> None:
@@ -61,6 +61,7 @@ class SyosetuCrawler(Crawler):
         return results[offset : offset + limit]
 
     def read_novel_info(self):
+        self.novel_edition = "Web Novel"
         self.init_parser('lxml')
         soup = self.get_soup(self.novel_url)
 

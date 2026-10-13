@@ -108,16 +108,6 @@ class MergeNovelForm(forms.Form):
         label="Canonical novel (kept)",
         widget=AutocompleteSelect(NOVEL_AUTOCOMPLETE_FIELD, admin.site),
     )
-    move_files = forms.BooleanField(
-        required=False,
-        initial=True,
-        label="Move source folders and record a redirect",
-        help_text=(
-            "Relocate the duplicate's files under the canonical novel and remember "
-            "the old name so future crawls attach to the canonical novel."
-        ),
-    )
-
     def clean(self):
         cleaned = super().clean()
         source = cleaned.get("source_novel")
@@ -320,11 +310,12 @@ class NovelAdmin(admin.ModelAdmin):
             if form.is_valid():
                 source = form.cleaned_data["source_novel"]
                 target = form.cleaned_data["target_novel"]
-                move_files = form.cleaned_data["move_files"]
 
+                # Folders always move: a merge that kept them in place would
+                # leave the crawler's novel identity out of step with the database.
                 if "confirm" in request.POST:
                     try:
-                        merge_novels(source, target, move_files=move_files)
+                        merge_novels(source, target, move_files=True)
                     except MergeError as e:
                         messages.error(request, str(e))
                     else:
@@ -338,7 +329,7 @@ class NovelAdmin(admin.ModelAdmin):
                             )
                         )
                 else:
-                    context["plan"] = build_merge_plan(source, target, move_files)
+                    context["plan"] = build_merge_plan(source, target, move_files=True)
                     context["preview"] = True
         else:
             form = MergeNovelForm()

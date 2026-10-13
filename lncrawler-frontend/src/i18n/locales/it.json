@@ -439,7 +439,12 @@
     "updated": "Aggiornato",
     "ratingLabel": "Valutazione:",
     "upvote": "Voto positivo",
-    "downvote": "Voto negativo"
+    "downvote": "Voto negativo",
+    "edition": {
+      "wn": "Web novel",
+      "ln": "Light novel",
+      "raw": "Raw"
+    }
   },
   "reviews": {
     "loadFailed": "Caricamento delle recensioni non riuscito. Riprova.",

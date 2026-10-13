@@ -24,6 +24,25 @@ export function formatTimeAgo(date: Date, t: TFunction): string {
     }
 }
 
+// Known edition spellings (lowercased, letters only) -> i18n key suffix under novelSources.edition.
+const KNOWN_EDITIONS: Record<string, 'wn' | 'ln' | 'raw'> = {
+    webnovel: 'wn',
+    wn: 'wn',
+    lightnovel: 'ln',
+    ln: 'ln',
+    raw: 'raw',
+};
+
+// Chip label for a source edition: known editions are translated, others shown as given.
+// A missing or blank edition gives '' (nothing to show).
+export function editionLabel(edition: string | null | undefined, t: TFunction): string {
+    if (!edition?.trim()) {
+        return '';
+    }
+    const key = KNOWN_EDITIONS[edition.toLowerCase().replace(/[^a-z]/g, '')];
+    return key ? t(`novelSources.edition.${key}`) : edition;
+}
+
 export function formatDate(dateString: string, locale?: string): string {
     return new Date(dateString).toLocaleDateString(locale, {
         year: 'numeric',

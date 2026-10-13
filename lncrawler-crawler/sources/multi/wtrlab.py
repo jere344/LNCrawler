@@ -4,7 +4,7 @@ import logging
 from urllib.parse import urlparse
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult, Volume
+from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -105,20 +105,13 @@ class WtrLab(Crawler):
         chapter_count = series_data["chapter_count"]
         for idx in range(chapter_count):
             chap_id = idx + 1
-            vol_id = 1 + len(self.chapters) // 100
-            vol_title = f"Volume {vol_id}"
             chapter_title = f"Chapter {chap_id}"
-
-            if chap_id % 100 == 1:
-                self.volumes.append(Volume(id=vol_id, title=vol_title))
 
             self.chapters.append(
                 Chapter(
                     id=chap_id,
                     url=raw_id,
                     title=chapter_title,
-                    volume=vol_id,
-                    volume_title=vol_title,
                 )
             )
 

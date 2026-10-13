@@ -70,6 +70,7 @@ class BakaTsukiCrawler(Crawler):
         return "https://baka-tsuki.org/project/index.php?title=" + title
 
     def read_novel_info(self):
+        self.novel_edition = "Light Novel"
         soup = self.get_soup(self.novel_url)
         self.novel_title = soup.select_one("h1.firstHeading").get_text(strip=True)
 

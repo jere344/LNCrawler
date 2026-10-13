@@ -16,7 +16,7 @@ search_url = "https://noc.syosetu.com/search/search/?word=%s"
 
 
 class SyosetuAdultCrawler(Crawler):
-    has_mtl = True
+    has_mtl = False
     is_adult = True
     base_url = [
         "https://novel18.syosetu.com/",
@@ -59,6 +59,7 @@ class SyosetuAdultCrawler(Crawler):
         return results[offset : offset + limit]
 
     def read_novel_info(self):
+        self.novel_edition = "Web Novel"
         soup = self.get_soup(self.novel_url)
 
         self.novel_title = soup.select_one(".p-novel__title").text.strip()

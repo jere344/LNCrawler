@@ -84,18 +84,13 @@ class DMTranslations(Crawler):
         self.novel_synopsis = "\n".join(synopsis)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
-        # Extract volume-wise chapter entries
         chapters = content.findAll("a") if content else []
 
         for a in chapters:
             chap_id = len(self.chapters) + 1
-            vol_id = 1 + len(self.chapters) // 100
-            if len(self.volumes) < vol_id:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "url": self.absolute_url(a["href"]),
                     "title": a.text.strip() or ("Chapter %d" % chap_id),
                 }

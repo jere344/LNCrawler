@@ -172,6 +172,7 @@ class NovelUpCrawler(Crawler):
         return self._cards[offset : offset + limit]
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         story_id = self._story_id()
         if not story_id:
             raise LNException(f"Cannot determine story id from {self.novel_url!r}")

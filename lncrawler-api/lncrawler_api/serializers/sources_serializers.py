@@ -36,6 +36,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     available_chapters_count = serializers.SerializerMethodField()
     volumes = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
+    edition = serializers.SerializerMethodField()
     synopsis = serializers.SerializerMethodField()
     has_crawler = serializers.SerializerMethodField()
     is_adult = serializers.SerializerMethodField()
@@ -45,13 +46,13 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         'card': [
             'id', 'title', 'source_slug', 'novel_slug', 'novel_id', 'cover_min_url',
             'authors', 'tags', 'chapters_count', 'available_chapters_count',
-            'last_chapter_update', 'latest_available_chapter', 'is_adult',
+            'last_chapter_update', 'latest_available_chapter', 'is_adult', 'edition',
         ],
         # Cover thumbnail for reading-list cards: only the blurred/first-item
         # cover the list card needs.
         'preview': ['id', 'cover_min_url'],
         'detail': [
-            'id', 'title', 'source_url', 'source_name', 'source_slug',
+            'id', 'title', 'source_url', 'source_name', 'source_slug', 'edition',
             'authors', 'tags', 'language', 'synopsis', 'has_crawler',
             'chapters_count', 'available_chapters_count', 'volumes',
             'last_chapter_update',
@@ -66,7 +67,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         # viewer's own vote, but not the heavy per-source detail (synopsis,
         # volumes, editors, reading history).
         'summary': [
-            'id', 'source_slug', 'novel_slug', 'source_name', 'cover_min_url',
+            'id', 'source_slug', 'novel_slug', 'source_name', 'edition', 'cover_min_url',
             'language', 'chapters_count', 'available_chapters_count',
             'latest_available_chapter',
             'last_chapter_update', 'vote_score', 'user_vote',
@@ -75,6 +76,10 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     class Meta:
         model = NovelFromSource
+
+    def get_edition(self, obj: NovelFromSource):
+        # Free-form edition label as stored; null when unknown.
+        return obj.edition or None
 
     def get_synopsis(self, obj: NovelFromSource):
         # Synopsis is a large text field; only load it for detail views so list

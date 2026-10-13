@@ -78,6 +78,7 @@ class JjwxcCrawler(Crawler):
         return out
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         m = NOVEL_ID_RE.search(self.novel_url)
         if not m:
             raise LNException(f"Cannot find novel id in {self.novel_url}")

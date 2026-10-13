@@ -20,12 +20,15 @@ from django.db import transaction
 from ..models import Novel, NovelAlias, ReadingHistory
 from ..utils.slug import slugify
 from .novel_operations import (
+    FileOperationError,
     dedupe_source,
+    file_journal,
     find_duplicate,
     move_source_to_novel,
     recount_comment_count,
     source_completeness,
 )
+
 
 logger = logging.getLogger('lncrawler_api')
 
@@ -193,17 +196,23 @@ def _apply_rename(novel, title):
         novel.save(update_fields=["title", "updated_at"])
 
 
-def _run_target_moves(plan):
+def _run_target_moves(plan, files):
     """Move/dedupe plan.sources into plan.target_novel."""
     for source in plan.sources:
         duplicate = find_duplicate(plan.target_novel, source)
         if duplicate is None:
-            move_source_to_novel(source, plan.target_novel, move_files=True)
+            move_source_to_novel(source, plan.target_novel, move_files=True, files=files)
         elif source_completeness(source) > source_completeness(duplicate):
-            dedupe_source(duplicate, source, move_files=True)
-            move_source_to_novel(source, plan.target_novel, move_files=True)
+            dedupe_source(
+                duplicate, source, move_files=True, files=files,
+                dest_novel=plan.target_novel,
+            )
+            move_source_to_novel(source, plan.target_novel, move_files=True, files=files)
         else:
-            dedupe_source(source, duplicate, move_files=True)
+            dedupe_source(
+                source, duplicate, move_files=True, files=files,
+                dest_novel=plan.target_novel,
+            )
 
 
 def split_novel(novel, sources, new_title, new_slug="", rename_title=""):
@@ -213,20 +222,25 @@ def split_novel(novel, sources, new_title, new_slug="", rename_title=""):
         rename_title=rename_title,
     )
 
-    with transaction.atomic():
-        # A real novel may not share a name with a merge redirect: imports check
-        # aliases before the novel table, so a stale alias would re-join them.
-        NovelAlias.objects.filter(slug=plan.new_slug).delete()
-        target = Novel.objects.create(
-            title=plan.new_title, slug=plan.new_slug, novel_path=plan.new_slug
-        )
-        for source in plan.sources:
-            move_source_to_novel(source, target, move_files=True)
+    try:
+        with file_journal() as files:
+            with transaction.atomic():
+                # A real novel may not share a name with a merge redirect: imports check
+                # aliases before the novel table, so a stale alias would re-join them.
+                NovelAlias.objects.filter(slug=plan.new_slug).delete()
+                target = Novel.objects.create(
+                    title=plan.new_title, slug=plan.new_slug, novel_path=plan.new_slug
+                )
+                for source in plan.sources:
+                    move_source_to_novel(source, target, move_files=True, files=files)
 
-        _repoint_reading_history(novel, target)
-        _apply_rename(novel, plan.rename_title)
-        recount_comment_count(novel)
-        recount_comment_count(target)
+                _repoint_reading_history(novel, target)
+                _apply_rename(novel, plan.rename_title)
+                recount_comment_count(novel)
+                recount_comment_count(target)
+                files.schedule()
+    except FileOperationError as exc:
+        raise SplitError(str(exc)) from exc
 
     logger.info(
         "Split %d source(s) from '%s' (%s) into new novel '%s' (%s)",
@@ -239,11 +253,16 @@ def move_sources(novel, sources, target_novel):
     """Move ``sources`` from ``novel`` into an existing novel."""
     plan = build_split_plan(novel, sources, target_novel=target_novel)
 
-    with transaction.atomic():
-        _run_target_moves(plan)
-        _repoint_reading_history(novel, target_novel)
-        recount_comment_count(novel)
-        recount_comment_count(target_novel)
+    try:
+        with file_journal() as files:
+            with transaction.atomic():
+                _run_target_moves(plan, files)
+                _repoint_reading_history(novel, target_novel)
+                recount_comment_count(novel)
+                recount_comment_count(target_novel)
+                files.schedule()
+    except FileOperationError as exc:
+        raise SplitError(str(exc)) from exc
 
     logger.info(
         "Moved %d source(s) from '%s' (%s) into '%s' (%s)",

@@ -99,6 +99,7 @@ class PiaotiaCrawler(Crawler):
         return aid // 1000, aid
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Web Novel"
         directory, aid = self._ids(self.novel_url)
         info_url = self.absolute_url(f"/bookinfo/{directory}/{aid}.html")
         soup = self.get_soup(info_url, encoding=ENCODING)

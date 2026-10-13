@@ -6,7 +6,7 @@ from typing import List
 from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult, Volume
+from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +94,9 @@ class NovelHiCrawler(Crawler):
         )
         for item in reversed((data.get("data") or {}).get("list", [])):
             chap_id = len(self.chapters) + 1
-            vol_id = len(self.chapters) // 100 + 1
-            if len(self.volumes) < vol_id:
-                self.volumes.append(Volume(id=vol_id))
             self.chapters.append(
                 Chapter(
                     id=chap_id,
-                    volume=vol_id,
                     title=item["indexName"],
                     url=self.absolute_url(f"{novel_path}/{item['indexNum']}"),
                 )

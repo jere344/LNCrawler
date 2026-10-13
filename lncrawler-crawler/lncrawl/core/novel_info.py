@@ -154,6 +154,7 @@ def save_metadata(app, completed: bool = False) -> None:
             editors=getattr(crawler, "editors", None) or [],
             translators=getattr(crawler, "translators", None) or [],
             novelupdates_url=getattr(crawler, "novelupdates_url", None),
+            edition=getattr(crawler, "novel_edition", "") or None,
             original_publisher=getattr(crawler, "original_publisher", None),
             english_publisher=getattr(crawler, "english_publisher", None),
             genres=getattr(crawler, "genres", None) or [],

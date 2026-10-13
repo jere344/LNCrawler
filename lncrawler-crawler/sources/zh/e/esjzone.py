@@ -160,6 +160,10 @@ class EsjZoneCrawler(Crawler):
         self.novel_tags = list(tags)
 
         novel_type = info.get("type", "")
+        if "原創" in novel_type or "原创" in novel_type:
+            self.novel_edition = "Web Novel"
+        elif "輕小說" in novel_type or "轻小说" in novel_type:
+            self.novel_edition = "Light Novel"
         if novel_type:
             self.tags = [novel_type]
 

@@ -68,6 +68,10 @@ class KakuyomuCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
 
     # -- novel info ---------------------------------------------------- #
 
+    def read_novel_info(self) -> None:
+        super().read_novel_info()
+        self.novel_edition = "Web Novel"
+
     def parse_title(self, soup: BeautifulSoup) -> str:
         tag = soup.select_one("h1")
         assert isinstance(tag, Tag)

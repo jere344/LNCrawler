@@ -9,7 +9,7 @@ of scanning the whole DB (and running for hours) at once:
 1. orphan novels (no NovelFromSource left)
 2. empty sources (no chapter, or no chapter with content)
 3. dead sources (no longer handled by the crawler) superseded by a live
-   source of the same novel with more chapters. Comments, reading history and
+   source of the same novel with at least as many chapters. Comments, reading history and
    votes attached to the discarded source are ported to the keeper first.
 
 Each phase walks its candidates in primary-key order and remembers where it
@@ -20,8 +20,9 @@ Deletions are naturally capped by the same limit: at most one per candidate.
 Deleting is destructive, so ``--apply`` is required; the default is a dry run.
 Source folders are moved to ``<LNCRAWL_OUTPUT_PATH>/.prune_trash`` instead of
 being removed in place, and every real deletion is appended to
-``audit.jsonl`` there. Neither the DB nor the files are ever modified by a
-dry run.
+``audit.jsonl`` there. A dry run never modifies the DB or moves/deletes files.
+Reads may create the usual ``.lncrawler.lock`` file in a source folder, as any
+chapter read does.
 """
 
 import json
@@ -31,6 +32,7 @@ import re
 import shutil
 import sys
 import time
+from collections import Counter
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -39,18 +41,20 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.db.models import CharField, Count
+from django.db.models import CharField, Count, Exists, OuterRef
 from django.db.models.functions import Cast, MD5, Substr
 from django.utils import timezone
 
 from lncrawler_api.models import (
     Comment,
+    Chapter,
     ExternalSource,
     Novel,
     NovelAlias,
     NovelFromSource,
     ReadingHistory,
     SourceVote,
+    resolve_output_path,
 )
 from lncrawler_api.services.novel_operations import (
     recount_comment_count,
@@ -67,6 +71,18 @@ FAIL_MESSAGE = "Failed to download chapter body"
 # A novel is never pruned before it has had time to settle, so a fresh crawl
 # (or a bad first import) cannot be wiped before it is even reviewed.
 MIN_NOVEL_AGE = timedelta(days=7)
+
+# Phase 3 compares at most this many words per chapter. Translations of the same
+# chapter share their prose either way, and the cap bounds SequenceMatcher's
+# worst case on very long chapters.
+MAX_COMPARE_WORDS = 4000
+
+# Phase 3 verdicts ("kept, nothing changed") persisted between runs.
+VERDICTS_FILE = "prune_phase3_kept.json"
+
+# A sample shorter than this is a placeholder (a failed download leaves a short
+# stub body), not content, so it is ignored instead of counted as a mismatch.
+MIN_SAMPLE_WORDS = 50
 
 
 def normalize_source_name(name: str) -> str:
@@ -86,6 +102,19 @@ def normalize_body(body) -> str:
     text = text.replace(FAIL_MESSAGE, "")
     text = re.sub(r"\s+", " ", text)
     return text.strip().lower()
+
+
+def tokenize_body(text) -> list:
+    """Word tokens of a normalized body, capped at ``MAX_COMPARE_WORDS``."""
+    return (text or "").split()[:MAX_COMPARE_WORDS]
+
+
+class _UnmappedComments(Exception):
+    """Porting a source would lose comments (no --force), so its deletion is refused."""
+
+    def __init__(self, count):
+        super().__init__(f"{count} comment(s) cannot be mapped to the keeper")
+        self.count = count
 
 
 class Command(BaseCommand):
@@ -127,13 +156,21 @@ class Command(BaseCommand):
             "--sleep", type=float, default=0.2,
             help="Seconds to sleep between deletions.",
         )
+        # Accepted for compatibility only; phase 3 no longer skips compressed sources.
         parser.add_argument(
             "--include-compressed", action="store_true",
-            help="Also examine compressed sources (extracts json.7z as a side effect).",
+            help=(
+                "No-op for phase 3: compressed sources are always examined, since "
+                "chapters are read without extracting json.7z."
+            ),
         )
         parser.add_argument(
             "--force", action="store_true",
             help="Delete even when attached user data exists.",
+        )
+        parser.add_argument(
+            "--recheck", action="store_true",
+            help="Ignore stored phase 3 verdicts and compare every dead source again.",
         )
         parser.add_argument(
             "--source", type=str, default=None,
@@ -166,8 +203,8 @@ class Command(BaseCommand):
         self.max_shift = max(0, options["max_shift"])
         self.min_chapters = options["min_chapters"]
         self.sleep = options["sleep"]
-        self.include_compressed = options["include_compressed"]
         self.force = options["force"]
+        self.recheck = options["recheck"]
         self.source_filter = options["source"]
         self.percent = options["percent"]
         self.sweep_unregistered = options["sweep_unregistered"]
@@ -185,6 +222,7 @@ class Command(BaseCommand):
         # manual --source/--percent run cannot resume the scheduler's position.
         self.cursor_scope = f"{self.source_filter or '-'}|{self.percent:g}"
         self.cursor = self._load_cursor()
+        self.verdicts = self._load_verdicts()
 
         mode = "APPLY" if self.apply else "DRY-RUN"
         self.stdout.write(self.style.WARNING(
@@ -290,6 +328,27 @@ class Command(BaseCommand):
             json.dump(self.cursor, fh)
         os.replace(tmp, path)
 
+    def _verdicts_path(self):
+        return os.path.join(self.trash_root, VERDICTS_FILE)
+
+    def _load_verdicts(self) -> dict:
+        try:
+            with open(self._verdicts_path(), encoding="utf-8") as fh:
+                data = json.load(fh)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_verdicts(self):
+        if not self.apply:
+            return
+        os.makedirs(self.trash_root, exist_ok=True)
+        path = self._verdicts_path()
+        tmp = f"{path}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(self.verdicts, fh)
+        os.replace(tmp, path)
+
     def _cursor_key(self, phase):
         return f"{phase}:{self.cursor_scope}"
 
@@ -324,7 +383,8 @@ class Command(BaseCommand):
         """Keep an MD5-bucket slice of the rows, so --percent N examines ~N%.
 
         Keys are UUIDs, so hash the key to a uniform hex bucket instead of
-        sorting randomly: the subset is stable across runs and index-friendly.
+        sorting randomly: the subset is stable across runs. The bucket is a
+        computed predicate, so it cannot use an index.
         """
         if self.percent >= 100:
             return queryset
@@ -363,26 +423,36 @@ class Command(BaseCommand):
 
     # -- file handling -------------------------------------------------- #
 
-    def _trash_source_folder(self, source):
-        """Move the source folder aside and null the path so delete() won't rmtree it."""
-        rel = source.source_path
+    def _move_to_trash(self, rel):
+        """Move a source folder under ``.prune_trash``; returns the new path or None.
+
+        ``rel`` comes from the DB, so it is resolved the same way the model
+        resolves it, and refused unless it lies strictly inside the library root
+        and outside the trash itself.
+        """
         if not rel:
             return None
-        abs_src = os.path.join(self.root, rel)
-        if not os.path.isdir(abs_src):
-            source.source_path = None
-            source.save(update_fields=["source_path"])
+        root = os.path.realpath(self.root)
+        trash = os.path.realpath(self.trash_root)
+        abs_src = resolve_output_path(rel)
+        if (
+            abs_src is None
+            or abs_src == root
+            or abs_src == trash
+            or abs_src.startswith(trash + os.sep)
+        ):
+            logger.error("prune_library: refusing to trash %r: outside the library", rel)
             return None
-
-        dest = os.path.join(self.trash_root, rel)
+        if not os.path.isdir(abs_src):
+            return None
+        clean_rel = os.path.relpath(abs_src, root)
+        dest = os.path.join(self.trash_root, clean_rel)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         if os.path.exists(dest):
             stamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            dest = os.path.join(self.trash_root, f"{stamp}_{rel}")
+            dest = os.path.join(self.trash_root, f"{stamp}_{clean_rel}")
             os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.move(abs_src, dest)
-        source.source_path = None
-        source.save(update_fields=["source_path"])
         return dest
 
     def _audit(self, entry):
@@ -396,8 +466,9 @@ class Command(BaseCommand):
     def _phase_orphan_novels(self):
         self.stdout.write("Phase 1: orphan novels")
         orphans = self._sample(
-            Novel.objects.annotate(_n=Count("sources")).filter(
-                _n=0, created_at__lt=self.age_cutoff
+            Novel.objects.filter(
+                ~Exists(NovelFromSource.objects.filter(novel_id=OuterRef("pk"))),
+                created_at__lt=self.age_cutoff,
             )
         )
         examined, last_pk = 0, None
@@ -425,31 +496,61 @@ class Command(BaseCommand):
 
     # -- phase 2: empty sources ---------------------------------------- #
 
-    def _source_has_content_on_disk(self, source) -> bool:
-        """Verify a source flagged empty really is, repairing stale has_content.
+    def _chapter_files_on_disk(self, base) -> bool:
+        """Whether the source folder holds chapter files (loose json or archive)."""
+        root = Path(base)
+        if (root / "json.7z").is_file():
+            return True
+        json_dir = root / "json"
+        return json_dir.is_dir() and any(json_dir.glob("*.json"))
+
+    def _repair_has_content(self, source, base) -> bool:
+        """Re-check the flagged chapters on disk; repair has_content only on --apply.
+
+        Strict read: an archive that cannot be read raises ChapterReadError, so
+        the caller keeps the source instead of treating it as empty.
+        """
+        pending = list(source.chapters.filter(has_content=False).values_list("pk", "chapter_id"))
+        if not pending:
+            return True  # every chapter already has content
+        # One batch read; archived chapters are never extracted into the library.
+        data = chapter_utils.read_chapters_no_extract(
+            base, [cid for _, cid in pending], strict=True
+        )
+        repaired = [
+            pk for pk, cid in pending
+            if cid in data and chapter_utils.chapter_dict_has_content(data[cid])
+        ]
+        if repaired and self.apply:
+            Chapter.objects.filter(pk__in=repaired).update(has_content=True)
+        return bool(repaired)
+
+    def _keep_reason(self, source):
+        """Why a source flagged empty must be kept, or None when it may be deleted.
 
         ``has_content`` is a cached column written at import time, so an import
-        that ran before the bodies landed (or a chapter added since) leaves it
-        False while the files are on disk. Deletion is destructive, so re-check
-        the files and repair the column for every chapter found.
+        that ran before the bodies landed leaves it False while the files are on
+        disk. Deletion is destructive, so the files are re-checked first.
         """
         base = source.absolute_source_path
         if not base:
-            return False
-        found = False
-        for chapter in source.chapters.all():
-            if chapter.has_content:
-                found = True
-            elif chapter_utils.check_chapter_has_content(base, chapter.chapter_id):
-                chapter.has_content = True
-                chapter.save(update_fields=["has_content"])
-                found = True
-        return found
+            return None
+        if not source.chapters.exists():
+            if self._chapter_files_on_disk(base):
+                return "chapter files on disk but no rows"
+            return None
+        try:
+            found = self._repair_has_content(source, base)
+        except chapter_utils.ChapterReadError as exc:
+            return f"unreadable ({exc})"
+        return "content present on disk" if found else None
 
     def _phase_empty_sources(self):
         self.stdout.write("Phase 2: empty sources")
         empties = self._sample(
-            NovelFromSource.objects.exclude(chapters__has_content=True)
+            NovelFromSource.objects.filter(
+                ~Exists(Chapter.objects.filter(novel_from_source_id=OuterRef("pk"), has_content=True))
+            )
             .filter(novel__created_at__lt=self.age_cutoff)
             .select_related("novel", "external_source"),
             field="novel_id",
@@ -458,10 +559,9 @@ class Command(BaseCommand):
         for source in self._window(empties, "empty").iterator():
             last_pk = source.pk
             examined += 1
-            if self._source_has_content_on_disk(source):
-                self.stdout.write(
-                    f"  KEEP source {source.id} {source.title!r}: content present on disk"
-                )
+            keep = self._keep_reason(source)
+            if keep:
+                self.stdout.write(f"  KEEP source {source.id} {source.title!r}: {keep}")
                 continue
             if not self.force and self._source_has_user_data(source):
                 self.stdout.write(
@@ -474,6 +574,12 @@ class Command(BaseCommand):
     # -- phase 3: dead-source duplicates ------------------------------- #
 
     def _load_handled_sources(self):
+        """Names and hosts served by an enabled crawler.
+
+        Disabled crawlers (``is_disabled`` / ``disable_reason``, same test as
+        ``crawler_registry.has_crawler``) are skipped entirely, so their sources
+        count as dead. A host also served by an enabled crawler stays live.
+        """
         handled = set()
         try:
             crawler_dir = Path(settings.BASE_DIR).parent / "lncrawler-crawler"
@@ -483,6 +589,8 @@ class Command(BaseCommand):
 
             load_sources()
             for cls in crawler_list:
+                if getattr(cls, "is_disabled", False) or getattr(cls, "disable_reason", None):
+                    continue
                 name = getattr(cls, "source_name", "") or ""
                 if name:
                     handled.add(normalize_source_name(name))
@@ -517,13 +625,20 @@ class Command(BaseCommand):
             pk for pk, name in ext_names.items()
             if name and name not in handled and (filter_name is None or name == filter_name)
         ]
-        if not dead_ids:
+        live_ext_ids = [pk for pk, name in ext_names.items() if name in handled]
+        if not dead_ids or not live_ext_ids:
             self.stdout.write("  no dead sources to examine")
             return
 
+        # Only dead sources whose novel has a live sibling can be superseded, so
+        # the others are filtered out here and never use up --limit.
+        has_live_sibling = Exists(NovelFromSource.objects.filter(
+            novel_id=OuterRef("novel_id"), external_source_id__in=live_ext_ids,
+        ))
         dead_qs = self._sample(
             NovelFromSource.objects.filter(external_source_id__in=dead_ids)
             .filter(novel__created_at__lt=self.age_cutoff)
+            .filter(has_live_sibling)
             .select_related("novel", "external_source"),
             field="novel_id",
         )
@@ -534,6 +649,7 @@ class Command(BaseCommand):
             examined += 1
             self._consider_dead_source(dead, handled, ext_names)
         self._advance("dead", last_pk, examined)
+        self._save_verdicts()
         self.stdout.write(f"  examined {examined} dead source(s)")
 
     def _is_live(self, source, handled, ext_names) -> bool:
@@ -543,28 +659,33 @@ class Command(BaseCommand):
         return name in handled
 
     def _find_keepers(self, dead, handled, ext_names):
-        """Live sources of the same novel that hold more chapters than ``dead``.
+        """Live sources of the same novel that hold at least as many chapters as ``dead``.
+
+        A dead source can never grow, so an equal-length live source with
+        matching content is a valid replacement.
 
         Only siblings are considered: a different novel is a different story,
         even when metadata similarity says otherwise, so its sources are never
         used to justify deleting one of this novel's sources.
         """
-        count = dead.chapters_count
+        count = self._chapter_count(dead)
+        siblings = (
+            dead.novel.sources.exclude(pk=dead.pk)
+            .select_related("external_source")
+            .annotate(_chapters=Count("chapters"))
+        )
         return [
             sibling
-            for sibling in dead.novel.sources.exclude(pk=dead.pk)
+            for sibling in siblings
             if self._is_live(sibling, handled, ext_names)
-            and sibling.chapters_count > count
+            and sibling._chapters >= count
         ]
 
-    def _is_compressed(self, source) -> bool:
-        base = source.absolute_source_path
-        if not base:
-            return False
-        return (
-            not os.path.isdir(os.path.join(base, "json"))
-            and os.path.isfile(os.path.join(base, "json.7z"))
-        )
+    @staticmethod
+    def _chapter_count(source) -> int:
+        """Chapter count from the query annotation when present (no N+1)."""
+        count = getattr(source, "_chapters", None)
+        return count if count is not None else source.chapters_count
 
     @staticmethod
     def _sample_positions(total: int, samples: int):
@@ -576,52 +697,134 @@ class Command(BaseCommand):
             return list(range(total))
         return sorted({round(i * (total - 1) / (samples - 1)) for i in range(samples)})
 
-    def _read_body(self, cache, source, chapter_id) -> str:
-        key = (source.pk, chapter_id)
-        if key not in cache:
-            data = chapter_utils.get_chapter(source.absolute_source_path, chapter_id)
-            cache[key] = normalize_body(data.get("body") if data else None)
-        return cache[key]
+    def _prefetch_bodies(self, cache, source, chapter_ids):
+        """Read ``chapter_ids`` of ``source`` in one batch into ``cache`` as word tokens."""
+        data = chapter_utils.read_chapters_no_extract(source.absolute_source_path, chapter_ids)
+        for chapter_id in chapter_ids:
+            chapter = data.get(chapter_id)
+            cache[(source.pk, chapter_id)] = tokenize_body(
+                normalize_body(chapter.get("body") if chapter else None)
+            )
 
-    def _content_similarity(self, dead, keeper):
-        """Best content match over a small chapter alignment window.
+    def _read_body(self, cache, source, chapter_id) -> list:
+        return cache.get((source.pk, chapter_id), [])
 
-        Sources rarely align 1:1 (an intro/synopsis chapter prepended to one of
-        them shifts every position), so instead of comparing ``dead[pos]`` to
-        ``keeper[pos]`` we try every shift in ``[-max_shift, max_shift]`` and
-        keep the best mean.  A shift must still be backed by at least half the
-        samples, so a single lucky pair cannot pass on its own.
-        """
+    def _dead_context(self, dead) -> dict:
+        """Tokenize the dead source once: its sampled chapters that are real content."""
         dead_ids = list(dead.chapters.order_by("chapter_id").values_list("chapter_id", flat=True))
-        keeper_ids = list(keeper.chapters.order_by("chapter_id").values_list("chapter_id", flat=True))
-        total = min(len(dead_ids), len(keeper_ids))
-        base = self._sample_positions(total, self.samples)
-        if not base:
+        base = self._sample_positions(len(dead_ids), self.samples)
+        cache: dict = {}
+        self._prefetch_bodies(cache, dead, [dead_ids[pos] for pos in base])
+        samples = []
+        for pos in base:
+            tokens = self._read_body(cache, dead, dead_ids[pos])
+            if len(tokens) >= MIN_SAMPLE_WORDS:
+                samples.append((pos, tokens))
+        return {"chapters": len(dead_ids), "base": base, "samples": samples}
+
+    def _shift_order(self):
+        """Alignments to try, nearest first: 0, +1, -1, +2, -2, ... up to ``max_shift``."""
+        order = [0]
+        for distance in range(1, self.max_shift + 1):
+            order.extend((distance, -distance))
+        return order
+
+    def _content_similarity(self, dead_ctx, keeper):
+        """Mean content match of a dead source's samples against one keeper.
+
+        Each sample is aligned on its own, since keeper chapters can be inserted,
+        dropped or prepended: sample ``pos`` is compared with keeper positions
+        ``pos + shift`` for every shift in ``_shift_order()`` and keeps its best
+        ratio, stopping early once that reaches ``self.threshold``. The result is
+        the mean of those per-sample bests, so one bad sample is not hidden by
+        the others and a single lucky pair cannot pass on its own.
+
+        Returns ``(mean, shift, count)``. ``count`` is the number of valid
+        samples (dead chapters with at least ``MIN_SAMPLE_WORDS`` words).
+        Only samples whose best ratio reaches the threshold vote for ``shift``,
+        and the winning shift needs a strict majority of those votes. Samples are
+        not required to agree (chapters drift), but with no majority the result is
+        ``(mean, 0, 0)``: the caller keeps the source. At least
+        ``min(sampled, max(2, sampled // 2 + 1))`` samples must be valid, so a
+        one-chapter source passes on its single sample, while six sampled
+        positions need four valid ones; otherwise ``(0.0, 0, 0)``.
+
+        Chapters are compared as word tokens with ``autojunk=False``: the
+        character-level matcher scores identical translations too low. A
+        ``quick_ratio`` upper bound skips a pair that cannot beat the sample's
+        current best without the exact comparison.
+        """
+        samples = dead_ctx["samples"]
+        sampled = len(dead_ctx["base"])
+        min_pairs = min(sampled, max(2, sampled // 2 + 1))
+        if not samples or len(samples) < min_pairs:
             return 0.0, 0, 0
 
+        keeper_ids = list(keeper.chapters.order_by("chapter_id").values_list("chapter_id", flat=True))
+        keeper_needed = sorted({
+            keeper_ids[pos + shift]
+            for pos, _ in samples
+            for shift in self._shift_order()
+            if 0 <= pos + shift < len(keeper_ids)
+        })
         cache: dict = {}
-        dead_texts = {pos: self._read_body(cache, dead, dead_ids[pos]) for pos in base}
-        min_pairs = max(2, len(base) // 2 + 1)
+        self._prefetch_bodies(cache, keeper, keeper_needed)
 
-        best_mean, best_shift, best_pairs = 0.0, 0, 0
-        for shift in range(-self.max_shift, self.max_shift + 1):
-            ratios = []
-            for pos in base:
+        bests, matched_shifts = [], []
+        for pos, a in samples:
+            best, best_shift = 0.0, None
+            for shift in self._shift_order():
                 kpos = pos + shift
                 if not 0 <= kpos < len(keeper_ids):
                     continue
-                a = dead_texts[pos]
                 b = self._read_body(cache, keeper, keeper_ids[kpos])
-                if a and b:
-                    ratios.append(SequenceMatcher(None, a[:20000], b[:20000]).ratio())
-            if len(ratios) >= min_pairs:
-                mean = sum(ratios) / len(ratios)
-                if mean > best_mean:
-                    best_mean, best_shift, best_pairs = mean, shift, len(ratios)
-        return best_mean, best_shift, best_pairs
+                if len(b) < MIN_SAMPLE_WORDS:
+                    continue
+                matcher = SequenceMatcher(None, a, b, autojunk=False)
+                if matcher.real_quick_ratio() <= best or matcher.quick_ratio() <= best:
+                    continue
+                ratio = matcher.ratio()
+                if ratio > best:
+                    best, best_shift = ratio, shift
+                if best >= self.threshold:
+                    break
+            bests.append(best)
+            if best_shift is not None and best >= self.threshold:
+                matched_shifts.append(best_shift)
+
+        mean = sum(bests) / len(bests)
+        if not matched_shifts:
+            return mean, 0, 0
+        # Only samples that matched vote, and the winner needs a strict majority of
+        # them. Without one there is no consistent alignment, so the positional
+        # user-data mapping would be unreliable: report count=0 so the caller keeps.
+        votes = Counter(matched_shifts)
+        top_shift, top_votes = min(votes.items(), key=lambda kv: (-kv[1], abs(kv[0]), kv[0]))
+        if top_votes * 2 <= len(matched_shifts):
+            return mean, 0, 0
+        return mean, top_shift, len(samples)
+
+    @staticmethod
+    def _updated_key(source):
+        updated = source.last_chapter_update
+        return updated.isoformat() if updated else None
+
+    def _verdict_signature(self, dead, keepers) -> dict:
+        """What a kept verdict depends on; any change re-runs the comparison."""
+        return {
+            "dead_chapters": self._chapter_count(dead),
+            "dead_updated": self._updated_key(dead),
+            "threshold": self.threshold,
+            "samples": self.samples,
+            "max_shift": self.max_shift,
+            "keepers": sorted(
+                [sibling.pk, self._chapter_count(sibling), self._updated_key(sibling)]
+                for sibling in keepers
+            ),
+        }
 
     def _consider_dead_source(self, dead, handled, ext_names):
-        if dead.chapters_count < self.min_chapters:
+        if self._chapter_count(dead) < self.min_chapters:
             return
 
         # Never delete the only source of a novel here; it is still readable.
@@ -629,57 +832,49 @@ class Command(BaseCommand):
             self.kept_phase3 += 1
             return
 
-        if not self.include_compressed and self._is_compressed(dead):
+        keepers = self._find_keepers(dead, handled, ext_names)
+        key = str(dead.pk)
+        signature = self._verdict_signature(dead, keepers)
+        # Nothing changed since the last kept verdict: skip without reading chapters.
+        if not self.recheck and self.verdicts.get(key) == signature:
             self.kept_phase3 += 1
-            self.stdout.write(
-                f"  KEEP {dead.external_source.source_name} {dead.title!r}: compressed source"
-            )
+            return
+        if not keepers:
+            self.verdicts[key] = signature
+            self.kept_phase3 += 1
             return
 
-        for keeper in self._find_keepers(dead, handled, ext_names):
-            if not self.include_compressed and (
-                self._is_compressed(dead) or self._is_compressed(keeper)
-            ):
+        dead_ctx = self._dead_context(dead)
+        for keeper in keepers:
+            mean, shift, count = self._content_similarity(dead_ctx, keeper)
+            if not (count and mean >= self.threshold):
                 continue
-            mean, shift, count = self._content_similarity(dead, keeper)
-            if count and mean >= self.threshold:
-                offset = f", shift {shift:+d}" if shift else ""
-                self._delete_source_named(
-                    dead,
-                    f"superseded by {keeper.external_source.source_name} "
-                    f"(similarity {mean:.3f}{offset})",
-                    keeper=keeper,
-                    shift=shift,
-                )
+            offset = f", shift {shift:+d}" if shift else ""
+            self.verdicts.pop(key, None)
+            if self._delete_source_named(
+                dead,
+                f"superseded by {keeper.external_source.source_name} "
+                f"(similarity {mean:.3f}{offset})",
+                keeper=keeper,
+                shift=shift,
+            ):
                 return
+            # Refused (unmapped comments) or failed: try the next keeper.
 
+        self.verdicts[key] = signature
         self.kept_phase3 += 1
 
     # -- deletion ------------------------------------------------------- #
 
-    def _port_user_data(self, loser, keeper, shift=0):
-        """Hand a discarded source's user data to the keeper before deletion.
+    def _chapter_mapper(self, loser, keeper, shift=0):
+        """Map a loser chapter to its keeper chapter, or None when there is none.
 
-        Votes and reading history would otherwise cascade away with the source,
-        and chapter comments with its chapters. Because the keeper is a sibling
-        of the same novel, reading history stays unique per (user, novel).
-
-        ``shift`` is the positional offset ``_content_similarity`` found (the
-        dead source may prepend an intro chapter, moving every chapter by one),
-        so chapter-keyed data lands on the right chapter instead of off by N.
+        Chapter identity across sources is positional (ids are per-source). A
+        shared url is the strongest match, so try it first; otherwise map loser
+        position -> keeper position + shift, the same alignment
+        ``_content_similarity`` uses. Chapters that are not the loser's are left
+        untouched.
         """
-        from lncrawler_api.models import SourceVote
-
-        existing_voters = set(keeper.votes.values_list("ip_address", flat=True))
-        SourceVote.objects.filter(source=loser).exclude(
-            ip_address__in=existing_voters
-        ).update(source=keeper)
-        SourceVote.objects.filter(source=loser).delete()
-
-        # Chapter identity across sources is positional (ids are per-source).
-        # A shared url is the strongest match, so try it first; otherwise map
-        # loser position -> keeper position + shift. Same ordering as
-        # _content_similarity uses to compute the shift.
         loser_pos = {
             cid: pos for pos, cid in enumerate(
                 loser.chapters.order_by("chapter_id").values_list("chapter_id", flat=True)
@@ -693,8 +888,6 @@ class Command(BaseCommand):
         def map_chapter(chapter):
             if chapter is None:
                 return None
-            # Only the loser's chapters are remapped; one already on the keeper
-            # (e.g. ported by an earlier run) must be left untouched.
             if chapter.novel_from_source_id != loser.pk:
                 return chapter
             if chapter.url:
@@ -708,6 +901,43 @@ class Command(BaseCommand):
                     return keeper_by_id[keeper_ids[kpos]]
             return None
 
+        return map_chapter
+
+    def _unmapped_comments(self, loser, keeper, shift=0) -> list:
+        """Comments on ``loser`` that would have no chapter on ``keeper`` (read only)."""
+        map_chapter = self._chapter_mapper(loser, keeper, shift)
+        comments = Comment.objects.filter(chapter__novel_from_source=loser).select_related("chapter")
+        return [comment for comment in comments if map_chapter(comment.chapter) is None]
+
+    def _port_user_data(self, loser, keeper, shift=0) -> int:
+        """Hand a discarded source's user data to the keeper before deletion.
+
+        Votes and reading history would otherwise cascade away with the source,
+        and chapter comments with its chapters. Because the keeper is a sibling
+        of the same novel, reading history stays unique per (user, novel).
+
+        ``shift`` is the positional offset ``_content_similarity`` found (the
+        dead source may prepend an intro chapter, moving every chapter by one),
+        so chapter-keyed data lands on the right chapter instead of off by N.
+
+        A comment with no keeper chapter is lost if it is deleted, so without
+        ``--force`` this raises ``_UnmappedComments`` before writing anything.
+        Returns the number of comments dropped (only non-zero with ``--force``).
+        """
+        map_chapter = self._chapter_mapper(loser, keeper, shift)
+        comments = list(
+            Comment.objects.filter(chapter__novel_from_source=loser).select_related("chapter")
+        )
+        unmapped = [comment for comment in comments if map_chapter(comment.chapter) is None]
+        if unmapped and not self.force:
+            raise _UnmappedComments(len(unmapped))
+
+        existing_voters = set(keeper.votes.values_list("ip_address", flat=True))
+        SourceVote.objects.filter(source=loser).exclude(
+            ip_address__in=existing_voters
+        ).update(source=keeper)
+        SourceVote.objects.filter(source=loser).delete()
+
         # Move the history row and repoint its progress marker: last_read_chapter
         # points at one of the loser's chapters, which is about to be deleted
         # (SET_NULL), so without this the user keeps the history but loses their
@@ -719,12 +949,12 @@ class Command(BaseCommand):
             history.last_read_chapter = map_chapter(history.last_read_chapter)
             history.save(update_fields=["source", "last_read_chapter"])
 
-        for comment in Comment.objects.filter(
-            chapter__novel_from_source=loser
-        ).select_related("chapter"):
+        dropped = 0
+        for comment in comments:
             target = map_chapter(comment.chapter)
             if target is None:
                 comment.delete()
+                dropped += 1
             else:
                 comment.chapter = target
                 comment.save(update_fields=["chapter"])
@@ -732,41 +962,80 @@ class Command(BaseCommand):
         keeper.refresh_from_db()
         recount_source_votes(keeper)
         recount_comment_count(keeper.novel)
+        return dropped
 
-    def _delete_source_named(self, source, reason, keeper=None, shift=0):
+    def _delete_source_named(self, source, reason, keeper=None, shift=0) -> bool:
+        """Delete one source, porting its user data to ``keeper`` first.
+
+        Returns True when the source is (or in a dry run would be) deleted. The
+        row goes first, inside a transaction. The folder is moved to the trash
+        only after the commit, so a failed delete never leaves a folder moved for
+        a row that still exists. If the move itself fails the row is already
+        gone and the folder stays where it is, for the opt-in unregistered sweep.
+        """
         title = source.title
         source_name = source.external_source.source_name
         source_id = source.id
+        port = " and port user data" if keeper is not None else ""
         if not self.apply:
-            port = " and port user data" if keeper else ""
+            if keeper is not None:
+                unmapped = len(self._unmapped_comments(source, keeper, shift))
+                if unmapped and not self.force:
+                    self.stdout.write(
+                        f"  [DRY-RUN] would KEEP source {source_id} {title!r}: "
+                        f"{unmapped} comment(s) cannot be mapped (--force would drop them)"
+                    )
+                    return False
+                if unmapped:
+                    port += f" (would drop {unmapped} unmapped comment(s))"
             self.stdout.write(
                 f"  [DRY-RUN] would delete source {source_id} {title!r} "
                 f"({source_name}){port}: {reason}"
             )
         else:
+            rel = source.source_path
+            dropped = 0
             try:
                 with transaction.atomic():
                     if keeper is not None:
-                        self._port_user_data(source, keeper, shift)
-                    trash_path = self._trash_source_folder(source)
+                        dropped = self._port_user_data(source, keeper, shift)
+                    # Unlink the folder first: delete() would rmtree it otherwise.
+                    source.source_path = None
+                    source.save(update_fields=["source_path"])
                     source.delete()
-                    self._audit({
-                        "kind": "source",
-                        "id": source_id,
-                        "title": title,
-                        "source_name": source_name,
-                        "reason": reason,
-                        "keeper_id": keeper.id if keeper else None,
-                        "trash_path": trash_path,
-                    })
+            except _UnmappedComments as exc:
                 self.stdout.write(
-                    self.style.SUCCESS(f"  deleted source {source_id} {title!r} ({source_name}): {reason}")
+                    f"  KEEP source {source_id} {title!r}: {exc} (--force would drop them)"
                 )
+                return False
             except Exception as exc:
                 logger.error("prune_library: failed deleting source %s: %s", source_id, exc)
-                return
+                return False
+
+            trash_path = None
+            try:
+                trash_path = self._move_to_trash(rel)
+            except Exception as exc:
+                logger.error(
+                    "prune_library: deleted source %s but could not move %s to trash: %s",
+                    source_id, rel, exc,
+                )
+            self._audit({
+                "kind": "source",
+                "id": source_id,
+                "title": title,
+                "source_name": source_name,
+                "reason": reason,
+                "keeper_id": keeper.id if keeper else None,
+                "dropped_comments": dropped,
+                "trash_path": trash_path,
+            })
+            self.stdout.write(
+                self.style.SUCCESS(f"  deleted source {source_id} {title!r} ({source_name}): {reason}")
+            )
         self.deleted += 1
         self._maybe_sleep()
+        return True
 
     def _maybe_sleep(self):
         if self.apply and self.sleep > 0:

@@ -348,6 +348,7 @@ class CyrisiaCrawler(EpubCrawler):
     # -- Crawler API --------------------------------------------------- #
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Light Novel"
         self._init_state()
         self._ensure_login()
 

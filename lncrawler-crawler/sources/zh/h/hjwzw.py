@@ -85,6 +85,7 @@ class HjwzwCrawler(Crawler):
         return list(found.items())
 
     def read_novel_info(self) -> None:
+        self.novel_edition = "Raw"
         match = re.search(r"/Book(?:/Read)?/(\d+)", self.novel_url)
         if not match:
             raise LNException(f"Cannot find book id in {self.novel_url}")

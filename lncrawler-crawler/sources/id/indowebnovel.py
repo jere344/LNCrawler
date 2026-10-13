@@ -103,20 +103,15 @@ class IndowebnovelCrawler(Crawler):
             self.novel_synopsis = synopsis_tag.get_text("\n", strip=True)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
-        # Extract volume-wise chapter entries
         chapters = soup.select("div.series-chapter ul li a")
 
         chapters.reverse()
 
         for a in chapters:
             chap_id = len(self.chapters) + 1
-            vol_id = 1 + len(self.chapters) // 100
-            if len(self.volumes) < vol_id:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "url": self.absolute_url(a["href"]),
                     "title": a.get_text(" - ", strip=True) or ("Chapter %d" % chap_id),
                 }

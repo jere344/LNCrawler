@@ -132,10 +132,8 @@ class BabelNovelCrawler(Crawler):
             list_url = chapter_list_url % (self.novel_id, self.novel_id, page)
             calls.append((self.parse_chapter_item, list_url))
 
-        for page, chapters in enumerate(self.resolve_bounded(calls)):
-            self.volumes.append({'id': page + 1})
+        for chapters in self.resolve_bounded(calls):
             for chap in chapters:
-                chap['volume'] = page + 1
                 chap['id'] = 1 + len(self.chapters)
                 self.chapters.append(chap)
 

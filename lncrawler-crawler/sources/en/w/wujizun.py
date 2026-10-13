@@ -52,17 +52,12 @@ class Wujizun(Crawler):
         ):
             notoc.extract()
 
-        # Extract volume-wise chapter entries
         # Stops external links being selected as chapters
         for a in soup.select('div.entry-content p a[href*="wujizun.com/2"]'):
             chap_id = len(self.chapters) + 1
-            vol_id = chap_id // 100 + 1
-            if len(self.chapters) % 100 == 0:
-                self.volumes.append({"id": vol_id})
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "volume": vol_id,
                     "url": self.absolute_url(a["href"]),
                     "title": a.text.strip() or ("Chapter %d" % chap_id),
                 }

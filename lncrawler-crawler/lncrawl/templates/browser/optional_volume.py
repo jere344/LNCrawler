@@ -32,19 +32,13 @@ class OptionalVolumeBrowserTemplate(GeneralBrowserTemplate, OptionalVolumeSoupTe
         if chap_id > 0:
             return
 
-        vol_id = 0
         chap_id = 0
         parent = self.browser.soup.select_one("html")
         for tag in self.select_chapter_tags_in_browser(parent):
             if not isinstance(tag, Tag):
                 continue
-            if chap_id % 100 == 0:
-                vol_id = chap_id // 100 + 1
-                vol_item = self.parse_volume_item_in_browser(parent, vol_id)
-                yield vol_item
             chap_id += 1
-            item = self.parse_chapter_item_in_browser(tag, chap_id, vol_item)
-            item.volume = vol_id
+            item = self.parse_chapter_item_in_browser(tag, chap_id, None)
             yield item
 
     def select_volume_tags_in_browser(self) -> Generator[Tag, None, None]:
