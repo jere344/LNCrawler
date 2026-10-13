@@ -360,7 +360,7 @@ LOGGING = {
             'level': LOG_LEVEL,
         },
         'service_file': {
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'api_project.logging_handlers.ReopeningRotatingFileHandler',
             'filename': SERVICE_LOG_FILE,
             'formatter': 'lncrawler_api_formatter',
             'encoding': 'utf-8',
@@ -369,7 +369,7 @@ LOGGING = {
             'backupCount': 5,
         },
         'harvest_file': {
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'api_project.logging_handlers.ReopeningRotatingFileHandler',
             'filename': HARVEST_LOG_FILE,
             'formatter': 'lncrawler_api_formatter',
             'encoding': 'utf-8',

@@ -9,6 +9,7 @@ and ``github_details`` extras.
 """
 
 import logging
+import logging.handlers
 import os
 import queue
 import threading
@@ -20,6 +21,43 @@ from .github_issues import create_issue, fingerprint
 from .redaction import redact
 
 _QUEUE_SIZE = 100
+
+
+class ReopeningRotatingFileHandler(logging.handlers.RotatingFileHandler):
+    """RotatingFileHandler that recreates its file if it is deleted at runtime.
+
+    Without this, a deleted log file keeps receiving writes into an orphaned
+    inode. Before each record we check that the path still refers to the same
+    file we have open, and if not we drop the stream so that the base
+    FileHandler reopens (and recreates) it.
+    """
+
+    def emit(self, record):
+        # Best-effort pre-check: must never raise, the record is written regardless.
+        try:
+            self._reopen_if_needed()
+        except Exception:
+            pass
+        super().emit(record)
+
+    def _reopen_if_needed(self):
+        if self.stream is None:
+            # Rare path (delay=True or a previous failed reopen): make sure the
+            # directory exists so the base class can open the file again.
+            os.makedirs(os.path.dirname(self.baseFilename), exist_ok=True)
+            return
+        try:
+            st = os.stat(self.baseFilename)
+        except FileNotFoundError:
+            stale = True
+        else:
+            fst = os.fstat(self.stream.fileno())
+            stale = (st.st_dev, st.st_ino) != (fst.st_dev, fst.st_ino)
+        if stale:
+            # Ensure the directory exists before dropping the stream so the base class can reopen.
+            os.makedirs(os.path.dirname(self.baseFilename), exist_ok=True)
+            stream, self.stream = self.stream, None
+            stream.close()
 
 
 class GitHubIssueHandler(logging.Handler):

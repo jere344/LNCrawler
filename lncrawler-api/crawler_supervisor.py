@@ -9,9 +9,13 @@ atomic PostgreSQL statement, then runs the job in a short-lived
 cannot accumulate here. Isolation is preserved at both the job (fresh process)
 and container (separate cgroup) level.
 
+Each supervisor holds a session-level PostgreSQL advisory lock while connected,
+which serves as a live worker registry: a dead supervisor drops out automatically
+and fair spreading needs no replica count configuration.
+
 Env: POSTGRES_* (connection), CRAWLER_CONCURRENCY (default 1),
-CRAWLER_POLL (seconds, default 2), CRAWLER_STALE_MINUTES (default 10),
-CRAWLER_REQUEUE_EVERY (seconds, default 300).
+CRAWLER_POLL (seconds, default 2),
+CRAWLER_STALE_MINUTES (default 10), CRAWLER_REQUEUE_EVERY (seconds, default 300).
 
 Self-check: ``python crawler_supervisor.py --self-check`` (needs the DB; rolls
 back its transaction).
@@ -19,6 +23,7 @@ back its transaction).
 
 import logging
 import os
+import random
 import signal
 import subprocess
 import sys
@@ -33,6 +38,10 @@ logging.basicConfig(
 log = logging.getLogger("crawler_supervisor")
 
 TABLE = "lncrawler_api_job"
+
+# Session-level advisory lock namespace for the worker registry. Each supervisor
+# takes (WORKER_LOCK_KEY, worker_key) for the life of its connection.
+WORKER_LOCK_KEY = 0x4C4E4357
 
 # A crashed or stalled job is requeued at most this many times before it is
 # marked failed, so a permanently broken job cannot loop forever.
@@ -91,6 +100,15 @@ WHERE id = %s AND status IN ('searching', 'downloading')
 RETURNING status
 """
 
+# Running jobs and live supervisors (granted advisory locks in our namespace,
+# objsubid = 2 marks the two-int4 key form) in one round trip.
+FAIR_SHARE_SQL = f"""
+SELECT
+    (SELECT count(*) FROM {TABLE} WHERE status IN ('searching', 'downloading')),
+    (SELECT count(*) FROM pg_locks
+     WHERE locktype = 'advisory' AND classid = %s AND objsubid = 2 AND granted)
+"""
+
 
 def connect(autocommit=True):
     return psycopg.connect(
@@ -116,6 +134,14 @@ def requeue_stale(conn, age_seconds):
         return cur.rowcount
 
 
+def fair_share_counts(conn):
+    """Return (running_jobs, live_workers)."""
+    with conn.cursor() as cur:
+        cur.execute(FAIR_SHARE_SQL, (WORKER_LOCK_KEY,))
+        running, live = cur.fetchone()
+        return running, live
+
+
 def release_failed_job(conn, job_id):
     """Requeue the job for one more attempt, or fail it; return the new status."""
     with conn.cursor() as cur:
@@ -127,6 +153,7 @@ def release_failed_job(conn, job_id):
 class Supervisor:
     def __init__(self, concurrency=1, poll=2.0, stale_minutes=10.0, requeue_every=300.0):
         self.concurrency = max(1, concurrency)
+        self.worker_key = random.randrange(1, 2**31 - 1)  # identity in the worker registry
         self.poll = poll
         self.stale_seconds = stale_minutes * 60
         self.requeue_every = requeue_every
@@ -148,6 +175,20 @@ class Supervisor:
             self.conn = connect()
         except Exception:
             log.exception("DB connection failed; retrying in %ss", self.poll)
+            self.conn = None
+            time.sleep(self.poll)
+            return self.conn
+        # Register as a live worker. The lock is held by this session, so it is
+        # released automatically if the process dies; a reconnect re-registers.
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_lock(%s, %s)", (WORKER_LOCK_KEY, self.worker_key))
+        except Exception:
+            log.exception("Worker registration failed; retrying in %ss", self.poll)
+            try:
+                self.conn.close()
+            except Exception:
+                pass
             self.conn = None
             time.sleep(self.poll)
         return self.conn
@@ -250,6 +291,22 @@ class Supervisor:
                 time.sleep(self.poll)
                 continue
 
+            # Fair spreading: with k jobs here, T running jobs across W live workers,
+            # skip claiming when k > T/W. The least-loaded worker is always <= the
+            # mean, so the queue never stalls. The live worker count comes from
+            # advisory locks, so scaling needs no config. Counts are approximate:
+            # races only over-claim, bounded by CRAWLER_CONCURRENCY.
+            try:
+                total_running, live_workers = fair_share_counts(conn)
+            except Exception:
+                log.exception("Fair-share count failed; reconnecting")
+                self.conn = None
+                continue
+            workers = max(1, live_workers)
+            if len(self.children) * workers > total_running:
+                time.sleep(self.poll)
+                continue
+
             try:
                 row = claim(conn)
             except Exception:
@@ -304,6 +361,9 @@ def self_check():
         with conn.cursor() as cur:
             cur.execute(f"SELECT status FROM {TABLE} WHERE id = %s", (job_id,))
             assert cur.fetchone()[0] == "searching", "status not set to searching"
+        running, live = fair_share_counts(conn)
+        # self_check does not register as a worker, so live may be 0.
+        assert running >= 1 and live >= 0, f"fair_share_counts returned {(running, live)}"
         print("self-check OK")
     finally:
         conn.rollback()
