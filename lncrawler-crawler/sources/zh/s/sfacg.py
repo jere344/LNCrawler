@@ -68,7 +68,7 @@ class SfacgCrawler(Crawler):
             self.novel_synopsis = synopsis.get_text("\n", strip=True)
 
         index = self.get_soup(base + "MainIndex/")
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         seen = set()
         for a in index.select("a[href]"):
             href = a.get("href", "")
@@ -81,7 +81,7 @@ class SfacgCrawler(Crawler):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "volume": 0,
+                    "volume": 1,
                     "title": a.get_text(" ", strip=True),
                     "url": url,
                 }

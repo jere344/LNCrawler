@@ -143,7 +143,12 @@ class TsundokuCrawler(Crawler):
         logger.info("Novel synopsis: %d chars", len(self.novel_synopsis or ""))
 
         # Chapter list is rendered newest-first; reverse into reading order.
-        vol_titles = {}
+        # Only some titles carry a volume label ("Vol. 02 – Cap. 130"); the
+        # unlabelled leading chapters belong to the first volume, so track the
+        # current volume while walking in reading order instead of dropping the
+        # unlabelled ones to volume 0.
+        vol_titles = {1: "Vol. 01"}
+        current_vol = 1
         for a in reversed(soup.select("#chapterlist .eph-num a[href]")):
             node = a.select_one(".chapternum")
             title = self._clean_title(
@@ -151,17 +156,16 @@ class TsundokuCrawler(Crawler):
             )
             if not title:
                 continue
-            vol_id = 0
             match = _VOLUME_RE.search(title)
             if match:
-                vol_id = int(match.group(1))
-                vol_titles.setdefault(vol_id, f"Vol. {vol_id:02d}")
+                current_vol = int(match.group(1))
+                vol_titles.setdefault(current_vol, f"Vol. {current_vol:02d}")
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
                     url=self.absolute_url(a["href"], page_url=self.novel_url),
                     title=title,
-                    volume=vol_id,
+                    volume=current_vol,
                 )
             )
         self.volumes = [Volume(id=vid, title=title) for vid, title in sorted(vol_titles.items())]

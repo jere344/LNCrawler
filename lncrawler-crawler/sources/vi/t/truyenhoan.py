@@ -94,7 +94,7 @@ class TruyenHoanCrawler(Crawler):
         pages = [int(x) for x in re.findall(r"/trang-(\d+)/", str(soup))]
         last_page = max(pages) if pages else 1
 
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         seen = set()
         for page in range(1, last_page + 1):
             page_soup = soup if page == 1 else self.get_soup(f"{base}trang-{page}/")
@@ -108,7 +108,7 @@ class TruyenHoanCrawler(Crawler):
                 self.chapters.append(
                     {
                         "id": len(self.chapters) + 1,
-                        "volume": 0,
+                        "volume": 1,
                         "title": a.get_text(" ", strip=True),
                         "url": href,
                     }

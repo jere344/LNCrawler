@@ -161,13 +161,13 @@ class ProjectMaduraiCrawler(Crawler):
         if isinstance(meta, Tag) and meta.get("content"):
             self.novel_synopsis = html.unescape(meta["content"]).strip()
 
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         for index, link in enumerate(links, start=1):
             title = self.novel_title
             if len(links) > 1:
                 title = f"{self.novel_title} ({index})"
             self.chapters.append(
-                Chapter(id=index, volume=0, title=title, url=link)
+                Chapter(id=index, volume=1, title=title, url=link)
             )
 
     def _fallback_title(self) -> None:

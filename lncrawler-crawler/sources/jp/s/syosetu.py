@@ -93,7 +93,6 @@ class SyosetuCrawler(Crawler):
 
         volume_id = 0
         chapter_id = 0
-        self.volumes.append({'id': 0})
         for page_soup in pages:
             for tag in page_soup.select_one(".p-eplist"):
 
@@ -117,6 +116,13 @@ class SyosetuCrawler(Crawler):
                         "title": tag.text.strip(),
                         "url": self.absolute_url(tag["href"]),
                     })
+
+        # Novels without 部分 (parts) have no volume markers; keep them in a
+        # single volume instead of leaving every chapter at volume 0.
+        if not self.volumes:
+            self.volumes.append({"id": 1, "title": "Volume 1"})
+            for chapter in self.chapters:
+                chapter["volume"] = 1
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])

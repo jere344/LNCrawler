@@ -187,8 +187,10 @@ class EsjZoneCrawler(Crawler):
         for item in chapter_list.find_all(["p", "a"]):
             classes = item.get("class") or []
             if item.name == "p" and "non" in classes:
-                volume = Volume(id=len(self.volumes) + 1, title=item.get_text(" ", strip=True))
-                self.volumes.append(volume)
+                title_txt = item.get_text(" ", strip=True)
+                if title_txt:
+                    volume = Volume(id=len(self.volumes) + 1, title=title_txt)
+                    self.volumes.append(volume)
                 continue
             if item.name != "a" or not item.get("href"):
                 continue

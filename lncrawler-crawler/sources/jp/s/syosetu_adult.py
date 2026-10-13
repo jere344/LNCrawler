@@ -88,7 +88,6 @@ class SyosetuAdultCrawler(Crawler):
 
         volume_id = 0
         chapter_id = 0
-        self.volumes.append({"id": 0})
         for page in soups:
             eplist = page.select_one(".p-eplist")
             if not eplist:
@@ -113,6 +112,11 @@ class SyosetuAdultCrawler(Crawler):
                             "url": self.absolute_url(link["href"]),
                         }
                     )
+
+        if not self.volumes:
+            self.volumes.append({"id": 1, "title": "Volume 1"})
+            for chapter in self.chapters:
+                chapter["volume"] = 1
 
     def _parse_infotop(self):
         match = re.search(r"/(n[a-z0-9]+)/?$", self.novel_url.rstrip("/"))

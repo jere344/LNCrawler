@@ -144,7 +144,7 @@ class AozoraCrawler(Crawler):
                     translators.append(name)
         self.translators = translators
 
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         seen = set()
         for anchor in soup.select('table.download a[href$=".html"]'):
             href = anchor.get("href") or ""
@@ -157,7 +157,7 @@ class AozoraCrawler(Crawler):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "volume": 0,
+                    "volume": 1,
                     "title": self.novel_title,
                     "url": self.absolute_url(href),
                 }

@@ -87,23 +87,48 @@ class Chireads(Crawler):
                 self.novel_author = dd.text.strip()
                 break
 
+        # Chapters are grouped into tome (volume) segments. Each segment is a
+        # <button aria-controls="refresh-detail-volume-N"> whose text holds the
+        # tome title, followed by a <div class="refresh-detail-segment-panel">
+        # with its own <ul class="refresh-detail-chapter-list">.
         seen = set()
-        for chapter in content.select(".refresh-detail-chapter-list a"):
-            url = self.absolute_url(chapter.get("href"))
-            if url in seen:
-                continue
-            seen.add(url)
-            chap_id = len(self.chapters) + 1
-            self.chapters.append(
-                {
-                    "id": chap_id,
-                    "volume": 1,
-                    "url": url,
-                    "title": (chapter.get("title") or chapter.text)
-                    .replace("\xa0", " ")
-                    .strip(),
-                }
-            )
+        segments = content.select(".refresh-detail-segment-panel")
+        if segments:
+            groups = []
+            for vol_id, segment in enumerate(segments, start=1):
+                title = ""
+                panel_id = segment.get("id")
+                if panel_id:
+                    button = content.select_one(
+                        'button[aria-controls="%s"]' % panel_id
+                    )
+                    span = button.select_one("span") if button else None
+                    if span:
+                        title = span.get_text(" ", strip=True)
+                self.volumes.append({"id": vol_id, "title": title})
+                groups.append(
+                    (vol_id, segment.select(".refresh-detail-chapter-list a"))
+                )
+        else:
+            self.volumes.append({"id": 1, "title": ""})
+            groups = [(1, content.select(".refresh-detail-chapter-list a"))]
+
+        for vol_id, anchors in groups:
+            for chapter in anchors:
+                url = self.absolute_url(chapter.get("href"))
+                if url in seen:
+                    continue
+                seen.add(url)
+                self.chapters.append(
+                    {
+                        "id": len(self.chapters) + 1,
+                        "volume": vol_id,
+                        "url": url,
+                        "title": (chapter.get("title") or chapter.text)
+                        .replace("\xa0", " ")
+                        .strip(),
+                    }
+                )
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])

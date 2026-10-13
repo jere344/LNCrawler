@@ -133,7 +133,7 @@ class NovelpiaGlobalCrawler(Crawler):
         if episodes:
             self._apply_status(episodes[0].get("episode_no"))
 
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         for index, episode in enumerate(episodes):
             episode_no = episode.get("episode_no")
             if not episode_no:
@@ -141,7 +141,7 @@ class NovelpiaGlobalCrawler(Crawler):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "volume": 0,
+                    "volume": 1,
                     "title": (episode.get("epi_title") or f"#{index + 1}").strip(),
                     "url": f"{self.home_url}viewer/{episode_no}",
                 }

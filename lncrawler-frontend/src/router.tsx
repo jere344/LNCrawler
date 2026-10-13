@@ -46,6 +46,13 @@ const NovelUpdatesImportPage = lazy(() => import('@components/import/NovelUpdate
 // route's loader is still pending, swapping only the Outlet for the fallback.
 const Layout = () => <Outlet />;
 
+// Wrapping the lazy page element in its own Suspense (instead of relying on the
+// App-level boundary) guarantees the fallback shows the instant navigation
+// commits: under a transition React only suppresses fallbacks for boundaries
+// that already have committed content, and this one is fresh every time.
+const S = (Page: React.LazyExoticComponent<React.ComponentType>) =>
+    <Suspense fallback={<RouteSpinner />}><Page /></Suspense>;
+
 export const router = createBrowserRouter([
     {
         element: <App />,
@@ -55,15 +62,15 @@ export const router = createBrowserRouter([
                 HydrateFallback: RouteSpinner,
                 children: [
                     // Authentication routes
-                    { path: '/login', element: <LoginPage />, errorElement: <RouteError /> },
-                    { path: '/register', element: <RegisterPage />, errorElement: <RouteError /> },
-                    { path: '/settings', element: <SettingsPage /> },
-                    { path: '/u/:username', element: <PublicProfilePage /> },
-                    { path: '/reset-password', element: <ResetPasswordPage /> },
+                    { path: '/login', element: <S LoginPage />, errorElement: <RouteError /> },
+                    { path: '/register', element: <S RegisterPage />, errorElement: <RouteError /> },
+                    { path: '/settings', element: <S SettingsPage /> },
+                    { path: '/u/:username', element: <S PublicProfilePage /> },
+                    { path: '/reset-password', element: <S ResetPasswordPage /> },
 
                     // Library and History routes
-                    { path: '/library', element: <LibraryPage /> },
-                    { path: '/history', element: <ReadingHistoryPage /> },
+                    { path: '/library', element: <S LibraryPage /> },
+                    { path: '/history', element: <S ReadingHistoryPage /> },
 
                     // Loader routes hand back an un-awaited promise (see AsyncData
                     // in router/loaders.ts): navigation commits instantly and this
@@ -73,7 +80,7 @@ export const router = createBrowserRouter([
                     { path: '/reading-lists/:listId', element: <Suspense fallback={<RouteSpinner />}><ReadingListDetail /></Suspense>, loader: readingListDetailLoader, errorElement: <RouteError /> },
 
                     // Import route
-                    { path: '/import', element: <NovelUpdatesImportPage /> },
+                    { path: '/import', element: <S NovelUpdatesImportPage /> },
 
                     // Chat route
                     { path: '/chat', element: <Suspense fallback={<RouteSpinner />}><ChatPage /></Suspense>, loader: chatLoader, errorElement: <RouteError /> },
@@ -82,18 +89,18 @@ export const router = createBrowserRouter([
                     { path: '/boards/:boardSlug', element: <Navigate to="/chat" replace /> },
 
                     // Downloader routes
-                    { path: '/download', element: <DownloaderHome /> },
-                    { path: '/download/jobs', element: <RunningJobsPage /> },
-                    { path: '/download/search/:jobId', element: <SearchResults /> },
-                    { path: '/download/:jobId/:novelIndex/:sourceIndex', element: <DownloadForm /> },
-                    { path: '/download/status/:jobId', element: <DownloadStatus /> },
+                    { path: '/download', element: <S DownloaderHome /> },
+                    { path: '/download/jobs', element: <S RunningJobsPage /> },
+                    { path: '/download/search/:jobId', element: <S SearchResults /> },
+                    { path: '/download/:jobId/:novelIndex/:sourceIndex', element: <S DownloadForm /> },
+                    { path: '/download/status/:jobId', element: <S DownloadStatus /> },
 
                     // Novel reading routes with new URL structure
                     { path: '/novels/search', element: <Suspense fallback={<RouteSpinner />}><SearchPage /></Suspense>, loader: searchLoader, errorElement: <RouteError /> },
                     { path: '/novels/:novelSlug', element: <NovelRedirect />, loader: novelRedirectLoader, errorElement: <RouteError /> },
-                    { path: '/novels/:novelSlug/:sourceSlug', element: <SourceDetail /> },
+                    { path: '/novels/:novelSlug/:sourceSlug', element: <S SourceDetail /> },
                     { path: '/novels/:novelSlug/:sourceSlug/chapterlist', element: <Suspense fallback={<RouteSpinner />}><ChapterList /></Suspense>, loader: chapterListLoader, errorElement: <RouteError /> },
-                    { path: '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber', element: <ChapterReader /> },
+                    { path: '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber', element: <S ChapterReader /> },
                     { path: '/novels/:novelSlug/:sourceSlug/gallery', element: <Suspense fallback={<RouteSpinner />}><ImageGallery /></Suspense>, loader: galleryLoader, errorElement: <RouteError /> },
 
                     // Home page: the loader returns an un-awaited promise so navigation

@@ -113,7 +113,7 @@ class NovelpiaCrawler(Crawler):
         max_page = re.search(r"max_page\s*=\s*['\"](\d+)['\"]", str(first))
         pages = int(max_page.group(1)) if max_page else 1
 
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         for page in range(pages):
             page_soup = first if page == 0 else self._episode_page(novel_no, page)
             for row in page_soup.select("tr[data-episode-no]"):
@@ -125,7 +125,7 @@ class NovelpiaCrawler(Crawler):
                 self.chapters.append(
                     {
                         "id": chapter_id,
-                        "volume": 0,
+                        "volume": 1,
                         "title": EP_TITLE_NOISE.sub("", b.get_text(" ", strip=True)).strip(),
                         "url": f"https://novelpia.com/viewer/{ep_no}",
                     }

@@ -287,11 +287,12 @@ def get_crawler_by_url(url: str) -> Optional[Type[Crawler]]:
                 if host_key == registered or host_key.endswith("." + registered):
                     path = candidate
                     break
-        if path is not None:
-            _load_source_file(path)
-            cls = _lookup(host)
-            if cls is not None and _is_usable(cls):
-                return cls
+        if path is None:
+            # The index covers every literal base_url, so no source owns this host.
+            return None
+        _load_source_file(path)
+        cls = _lookup(host)
+        return cls if cls is not None and _is_usable(cls) else None
 
     load_sources()
     cls = _lookup(host)

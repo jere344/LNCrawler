@@ -83,7 +83,7 @@ class FujossyCrawler(Crawler):
         if author:
             self.novel_author = author.get_text(strip=True)
 
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         seen = set()
         for a in soup.select("a[href*='/stories/']"):
             url = self.absolute_url(a["href"])
@@ -96,7 +96,7 @@ class FujossyCrawler(Crawler):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "volume": 0,
+                    "volume": 1,
                     "title": title,
                     "url": url,
                 }

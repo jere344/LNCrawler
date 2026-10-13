@@ -85,7 +85,7 @@ class NovelismCrawler(Crawler):
         ]
         self.novel_tags = list(dict.fromkeys(genres + tags))
 
-        self.volumes.append({"id": 0})
+        self.volumes.append({"id": 1, "title": "Volume 1"})
         seen = set()
         for a in soup.select("a[href*='/article/']"):
             url = self.absolute_url(a["href"])
@@ -95,7 +95,7 @@ class NovelismCrawler(Crawler):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "volume": 0,
+                    "volume": 1,
                     "title": a.get_text(" ", strip=True),
                     "url": url,
                 }

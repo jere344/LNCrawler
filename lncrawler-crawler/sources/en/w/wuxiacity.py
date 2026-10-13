@@ -68,7 +68,7 @@ class WuxiaCityCrawler(Crawler):
             if span.get_text(strip=True)
         ]
 
-        vol_id = 0
+        vol_id = 1
         self.volumes.append({"id": vol_id})
         chapterItems = soup.find("ul", class_="chapters").find_all(
             "li", class_="oneline"

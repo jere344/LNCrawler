@@ -473,20 +473,18 @@ const SourceDetail = () => {
           {source?.tags?.length > 0 && source.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
         </SeoMeta>
 
-        {!loading && source && (
-          <BreadcrumbNav
-            items={[
-              {
-                label: source.novel_title,
-                icon: <BookIcon fontSize="inherit" />
-              },
-              {
-                label: source.source_name,
-                icon: <LanguageIcon fontSize="inherit" />
-              }
-            ]}
-          />
-        )}
+        <BreadcrumbNav
+          items={[
+            {
+              label: source.novel_title,
+              icon: <BookIcon fontSize="inherit" />
+            },
+            {
+              label: source.source_name,
+              icon: <LanguageIcon fontSize="inherit" />
+            }
+          ]}
+        />
         
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 4 }}>
           <Button 

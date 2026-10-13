@@ -74,8 +74,8 @@ class MyDramaNovel(Crawler):
 
         self.volumes.append(
             {
-                "id": 0,
-                "title": self.novel_title,
+                "id": 1,
+                "title": "Volume 1",
             }
         )
 
@@ -86,7 +86,7 @@ class MyDramaNovel(Crawler):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "volume": 0,
+                    "volume": 1,
                     "url": self.absolute_url(preview_chapter.get("href")),
                     "title": preview_chapter.get("title"),
                 }
@@ -101,7 +101,7 @@ class MyDramaNovel(Crawler):
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "volume": 0,
+                    "volume": 1,
                     "url": self.absolute_url(chapter_title.get("href")),
                     "title": chapter_title.text,
                 }
