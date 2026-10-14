@@ -21,6 +21,9 @@ from lncrawler_api.services import llm_service
 
 logger = logging.getLogger("lncrawler_api.merge")
 
+# Prompt tokens allowed for on top of MERGE_LLM_MAX_TOKENS before a call is made.
+PROMPT_TOKEN_RESERVE = 1500
+
 
 class Command(BaseCommand):
     help = "Ask the LLM to adjudicate pending merge candidates (gray band)."
@@ -75,6 +78,14 @@ class Command(BaseCommand):
         for candidate in candidates:
             if candidate.novel_a is None or candidate.novel_b is None:
                 continue
+            # Checked before every call: one call can spend many tokens.
+            reserve = settings.MERGE_LLM_MAX_TOKENS + PROMPT_TOKEN_RESERVE
+            if llm_service.token_budget_left() < reserve:
+                self.stdout.write(
+                    f"LLM daily token budget too low ({llm_service.tokens_used_today()}"
+                    f"/{settings.MERGE_LLM_DAILY_TOKENS} used); stopping this tick."
+                )
+                break
             try:
                 verdict = llm_service.judge(
                     self._profile(candidate.novel_a), self._profile(candidate.novel_b)

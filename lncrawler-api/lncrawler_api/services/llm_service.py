@@ -17,6 +17,10 @@ import re
 
 import requests
 from django.conf import settings
+from django.db.models import Sum
+from django.utils import timezone
+
+from ..models import LLMUsage
 
 logger = logging.getLogger("lncrawler_api.merge")
 
@@ -47,6 +51,14 @@ class LLMError(Exception):
 
 class LLMParseError(LLMError):
     """The model answered, but the answer is not the JSON object we asked for."""
+
+
+class LLMTruncated(LLMParseError):
+    """The reply was cut off (finish_reason "length") or came back empty.
+
+    Reasoning models spend hidden tokens against max_tokens, so this usually
+    means the reply budget ran out before the answer was written.
+    """
 
 
 class RateLimited(LLMError):
@@ -154,8 +166,24 @@ def _parse_content(content):
     )
 
 
-def _post_chat(messages, max_tokens, provider=None, model=None, timeout=None, session=None):
-    """POST one chat-completions request and return the assistant's text."""
+def _total_tokens(payload):
+    usage = payload.get("usage") if isinstance(payload, dict) else None
+    if not isinstance(usage, dict):
+        return 0
+    try:
+        return int(usage.get("total_tokens") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout=None, session=None):
+    """POST one chat-completions request. Returns ``(content, total_tokens)``.
+
+    Every response the provider returned (HTTP 200, truncated ones included)
+    is written to ``LLMUsage`` under ``purpose``. A 429 or other HTTP error is
+    not charged and writes nothing. A reply cut off by the token cap, or
+    empty, raises ``LLMTruncated``.
+    """
     provider = provider or getattr(settings, "MERGE_LLM_PROVIDER", "gemini")
     url = provider_url(provider)
     if not url:
@@ -173,6 +201,9 @@ def _post_chat(messages, max_tokens, provider=None, model=None, timeout=None, se
         "max_tokens": max_tokens,
         "messages": messages,
     }
+    reasoning_effort = getattr(settings, "MERGE_LLM_REASONING_EFFORT", "low")
+    if reasoning_effort:
+        body["reasoning_effort"] = reasoning_effort
 
     poster = (session or requests).post
     resp = poster(url, headers=headers, json=body, timeout=timeout)
@@ -183,28 +214,62 @@ def _post_chat(messages, max_tokens, provider=None, model=None, timeout=None, se
     try:
         payload = resp.json()
     except ValueError as exc:
+        LLMUsage.objects.create(purpose=purpose, tokens=0)
         raise LLMError(f"non-JSON response (HTTP {resp.status_code}): {resp.text[:300]}") from exc
+
+    total_tokens = _total_tokens(payload)
+    LLMUsage.objects.create(purpose=purpose, tokens=total_tokens)
     try:
-        return payload["choices"][0]["message"]["content"]
+        choice = payload["choices"][0]
+        content = choice["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         raise LLMError(f"unexpected response shape: {payload}") from exc
+    finish_reason = choice.get("finish_reason")
+    if finish_reason == "length" or not isinstance(content, str) or not content.strip():
+        completion = (payload.get("usage") or {}).get("completion_tokens")
+        raise LLMTruncated(
+            f"LLM reply truncated or empty (finish_reason={finish_reason!r}, "
+            f"completion_tokens={completion}, total_tokens={total_tokens})"
+        )
+    return content, total_tokens
+
+
+def tokens_used_today():
+    """Tokens charged today across both judges (novel and tag)."""
+    today = timezone.localdate()
+    used = LLMUsage.objects.filter(created_at__date=today).aggregate(total=Sum("tokens"))
+    return used["total"] or 0
+
+
+def token_budget_left():
+    """Tokens left in today's shared budget. Negative once it is overspent."""
+    return settings.MERGE_LLM_DAILY_TOKENS - tokens_used_today()
 
 
 def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session=None):
     """Return ``{"same", "confidence", "reason"}`` for one candidate pair."""
-    content = _post_chat(
-        build_messages(profile_a, profile_b), 512, provider, model, timeout, session
+    content, _tokens = _post_chat(
+        build_messages(profile_a, profile_b),
+        getattr(settings, "MERGE_LLM_MAX_TOKENS", 2048),
+        LLMUsage.PURPOSE_NOVEL,
+        provider,
+        model,
+        timeout,
+        session,
     )
     return _parse_content(content)
 
 
-def chat_json(messages, max_tokens=4096, provider=None, model=None, timeout=None, session=None):
+def chat_json(messages, max_tokens=4096, provider=None, model=None, timeout=None, session=None,
+              purpose=LLMUsage.PURPOSE_TAG):
     """Return the JSON object the model wrote, for callers that need a richer shape.
 
     Takes the text between the first "{" and the last "}" so code fences or a
     short preamble do not matter. Raises ``LLMParseError`` if no object parses.
     """
-    content = _post_chat(messages, max_tokens, provider, model, timeout, session)
+    content, _tokens = _post_chat(
+        messages, max_tokens, purpose, provider, model, timeout, session
+    )
     text = (content or "").strip()
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end <= start:

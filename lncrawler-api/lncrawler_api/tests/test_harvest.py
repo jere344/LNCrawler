@@ -110,3 +110,25 @@ class HarvestServiceTests(TestCase):
         self.assertEqual(self.harvest_service.reconcile(), 1)
         candidate.refresh_from_db()
         self.assertEqual(candidate.status, "failed")
+
+
+class HarvestCreateCandidatesTests(TestCase):
+    def test_long_url_is_stored_and_overlong_url_and_title_are_handled(self):
+        from ..management.commands.harvest_browse import (
+            MAX_TITLE_LEN, MAX_URL_LEN, _create_candidates,
+        )
+        from ..models import HarvestCandidate
+
+        long_url = "https://a.example/" + "x" * 1500
+        too_long_url = "https://a.example/" + "x" * MAX_URL_LEN
+        long_title = "T" * (MAX_TITLE_LEN + 100)
+
+        created = _create_candidates([
+            ("srcA", long_title, long_url),
+            ("srcA", "short", too_long_url),
+        ])
+
+        self.assertEqual(created, 1)
+        self.assertFalse(HarvestCandidate.objects.filter(novel_url=too_long_url).exists())
+        candidate = HarvestCandidate.objects.get(novel_url=long_url)
+        self.assertEqual(candidate.title, "T" * MAX_TITLE_LEN)

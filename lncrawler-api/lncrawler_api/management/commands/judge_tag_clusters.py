@@ -26,6 +26,8 @@ logger = logging.getLogger("lncrawler_api.merge")
 
 # Pending clusters inspected per packing pass.
 PACK_WINDOW = 200
+# Prompt tokens allowed for on top of TAG_LLM_MAX_TOKENS before a call is made.
+PROMPT_TOKEN_RESERVE = 3000
 
 
 class Command(BaseCommand):
@@ -65,10 +67,21 @@ class Command(BaseCommand):
         model = settings.MERGE_LLM_MODEL
         tally = Counter()
         made = 0
+        # Clusters already sent to the model this run. A cluster requeued by a
+        # failed call is not picked again until the next run.
+        attempted = set()
         for _ in range(calls):
-            batch = self._next_batch(pending)
+            # Checked before every call: one call can spend many tokens.
+            reserve = settings.TAG_LLM_MAX_TOKENS + PROMPT_TOKEN_RESERVE
+            if llm_service.token_budget_left() < reserve:
+                self.stdout.write(
+                    f"LLM daily token budget too low ({llm_service.tokens_used_today()}"
+                    f"/{settings.MERGE_LLM_DAILY_TOKENS} used); stopping this tick."
+                )
+                break
+            batch = self._next_batch(pending, attempted)
             if not batch:
-                if not pending.exists():
+                if not pending.exclude(pk__in=attempted).exists():
                     break
                 continue
             outcome = self._judge(batch, model, tally)
@@ -84,18 +97,28 @@ class Command(BaseCommand):
         ))
 
     @staticmethod
-    def _next_batch(pending):
-        """Pack the oldest pending clusters until the call holds enough tags."""
+    def _next_batch(pending, attempted):
+        """Pack the oldest pending clusters until the call holds enough tags.
+
+        A cluster that was requeued after a failed call (``requeue_count > 0``)
+        is judged alone, so a truncation caused by packing heals itself.
+        Clusters whose ids are in ``attempted`` are skipped, and every cluster
+        put in the batch is added to ``attempted``.
+        """
         batch, total = [], 0
-        for cluster in list(pending[:PACK_WINDOW]):
+        for cluster in list(pending.exclude(pk__in=attempted)[:PACK_WINDOW]):
             tags = tms.refresh_cluster_members(cluster)
             if len(tags) < 2:
                 cluster.status = TagCluster.STATUS_NO_MERGE
                 cluster.save(update_fields=["status", "updated_at"])
                 continue
+            if cluster.requeue_count and batch:
+                # Left for a call of its own; requeued clusters sort to the back.
+                break
             batch.append((cluster, tags))
+            attempted.add(cluster.pk)
             total += len(tags)
-            if total >= settings.TAG_LLM_TAGS_PER_CALL:
+            if cluster.requeue_count or total >= settings.TAG_LLM_TAGS_PER_CALL:
                 break
         return batch
 
@@ -121,17 +144,11 @@ class Command(BaseCommand):
             return "rate_limited"
         except llm_service.LLMParseError as exc:
             # The call was made and paid for, so it counts against the budget.
+            # The whole batch goes back to pending; at MAX_REQUEUES it becomes error.
             TagLLMCall.objects.create(batch=batch_id)
+            reason = f"LLM answer unusable, re-queued: {exc}"[:500]
             for cluster, _tags in batch:
-                cluster.status = TagCluster.STATUS_ERROR
-                cluster.error = str(exc)[:500]
-                cluster.llm_model = model
-                cluster.llm_batch = batch_id
-                cluster.judged_at = now
-                cluster.save(update_fields=[
-                    "status", "error", "llm_model", "llm_batch", "judged_at", "updated_at"
-                ])
-                tally[TagCluster.STATUS_ERROR] += 1
+                tally[tms._requeue(cluster, reason)] += 1
             return "ok"
         except llm_service.LLMError as exc:
             TagLLMCall.objects.create(batch=batch_id)

@@ -8,9 +8,16 @@ from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from ..models import ExternalSource, MergeCandidate, Novel, NovelFromSource
+from ..models import ExternalSource, LLMUsage, MergeCandidate, Novel, NovelFromSource
 from ..services import llm_service
 from .helpers import MergeTestCase
+
+
+def _chat_payload(content, finish_reason="stop", total_tokens=120):
+    return {
+        "choices": [{"message": {"content": content}, "finish_reason": finish_reason}],
+        "usage": {"total_tokens": total_tokens, "completion_tokens": total_tokens - 20},
+    }
 
 
 class _Response:
@@ -221,3 +228,127 @@ class ReviewQueueOrderTests(MergeTestCase):
             self.assertEqual(response.context["candidate"].pk, candidate.pk)
             self.client.post(url, {"candidate": str(candidate.pk), "action": "skip"})
 
+
+
+class RequestBodyTests(MergeTestCase):
+    @staticmethod
+    def _body(session):
+        return session.calls[0][1]["json"]
+
+    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_REASONING_EFFORT="low")
+    def test_reasoning_effort_sent_when_set(self):
+        session = _Session(_Response(200, _chat_payload('{"same": true}')))
+        llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        self.assertEqual(self._body(session)["reasoning_effort"], "low")
+
+    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_REASONING_EFFORT="")
+    def test_reasoning_effort_omitted_when_empty(self):
+        session = _Session(_Response(200, _chat_payload('{"same": true}')))
+        llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        self.assertNotIn("reasoning_effort", self._body(session))
+
+    @override_settings(MERGE_LLM_API_KEY="key")
+    def test_judge_uses_merge_llm_max_tokens(self):
+        session = _Session(_Response(200, _chat_payload('{"same": true}')))
+        llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        self.assertEqual(self._body(session)["max_tokens"], 2048)
+
+
+class TruncationTests(MergeTestCase):
+    def test_length_finish_reason_raises_truncated(self):
+        session = _Session(_Response(200, _chat_payload('{"same": tr', finish_reason="length")))
+        with self.assertRaises(llm_service.LLMTruncated) as ctx:
+            llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        self.assertIn("finish_reason='length'", str(ctx.exception))
+        self.assertIn("completion_tokens=100", str(ctx.exception))
+        self.assertIsInstance(ctx.exception, llm_service.LLMParseError)
+
+    def test_empty_content_raises_truncated(self):
+        session = _Session(_Response(200, _chat_payload("", finish_reason="stop")))
+        with self.assertRaises(llm_service.LLMTruncated):
+            llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+
+    def test_null_content_raises_truncated(self):
+        session = _Session(_Response(200, _chat_payload(None, finish_reason="stop")))
+        with self.assertRaises(llm_service.LLMTruncated):
+            llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+
+
+class UsageLedgerTests(MergeTestCase):
+    def test_row_written_for_success_and_truncated_replies(self):
+        session = _Session(_Response(200, _chat_payload('{"same": true}', total_tokens=900)))
+        llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        session = _Session(_Response(200, _chat_payload("", "length", total_tokens=2048)))
+        with self.assertRaises(llm_service.LLMTruncated):
+            llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        rows = list(LLMUsage.objects.order_by("pk").values_list("purpose", "tokens"))
+        self.assertEqual(rows, [("novel", 900), ("novel", 2048)])
+
+    def test_no_row_on_rate_limit_or_http_error(self):
+        for response in (_Response(429, headers={}), _Response(500, text="boom")):
+            session = _Session(response)
+            with self.assertRaises(llm_service.LLMError):
+                llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        self.assertFalse(LLMUsage.objects.exists())
+
+    def test_missing_usage_records_zero(self):
+        payload = {"choices": [{"message": {"content": '{"same": true}'}, "finish_reason": "stop"}]}
+        session = _Session(_Response(200, payload))
+        llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
+        self.assertEqual(LLMUsage.objects.get().tokens, 0)
+
+    @override_settings(MERGE_LLM_DAILY_TOKENS=1000)
+    def test_budget_left_counts_all_purposes(self):
+        LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_NOVEL, tokens=300)
+        LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=200)
+        self.assertEqual(llm_service.tokens_used_today(), 500)
+        self.assertEqual(llm_service.token_budget_left(), 500)
+
+
+class JudgeTokenBudgetTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.candidates = []
+        for n in (1, 2):
+            a = Novel.objects.create(title=f"A{n}", slug=f"a{n}", novel_path=f"a{n}")
+            b = Novel.objects.create(title=f"B{n}", slug=f"b{n}", novel_path=f"b{n}")
+            self.candidates.append(MergeCandidate.objects.create(
+                novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
+                certainty=0.9 - n / 10, decision=MergeCandidate.DECISION_REVIEW,
+            ))
+
+    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20,
+                       MERGE_LLM_MAX_TOKENS=2048, MERGE_LLM_DAILY_TOKENS=171000)
+    def test_stops_before_call_when_budget_below_reserve(self):
+        LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=170000)
+        with mock.patch.object(llm_service, "judge") as judge:
+            call_command("judge_merge_candidates")
+        judge.assert_not_called()
+
+    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20,
+                       MERGE_LLM_MAX_TOKENS=2048, MERGE_LLM_DAILY_TOKENS=4000)
+    def test_budget_checked_before_every_call(self):
+        def spend(*args, **kwargs):
+            LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_NOVEL, tokens=5000)
+            return {"same": True, "confidence": 0.9, "reason": "same"}
+
+        with mock.patch.object(llm_service, "judge", side_effect=spend) as judge:
+            call_command("judge_merge_candidates")
+        self.assertEqual(judge.call_count, 1)
+        self.candidates[0].refresh_from_db()
+        self.candidates[1].refresh_from_db()
+        self.assertIsNotNone(self.candidates[0].llm_checked_at)
+        self.assertIsNone(self.candidates[1].llm_checked_at)
+
+    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20,
+                       MERGE_LLM_MAX_TOKENS=2048, MERGE_LLM_DAILY_TOKENS=180000)
+    def test_truncated_reply_leaves_candidate_unchecked(self):
+        payload = _chat_payload("", "length", total_tokens=2048)
+        with mock.patch.object(llm_service.requests, "post",
+                               return_value=_Response(200, payload)):
+            call_command("judge_merge_candidates")
+        for candidate in self.candidates:
+            candidate.refresh_from_db()
+            self.assertIsNone(candidate.llm_checked_at)
+            self.assertIsNone(candidate.llm_verdict)
+        self.assertEqual(LLMUsage.objects.get().tokens, 2048)

@@ -20,6 +20,7 @@ from ..models import (
     Tag,
     TagAlias,
     TagCluster,
+    LLMUsage,
     TagLLMCall,
     TagMerge,
     TagNoMerge,
@@ -363,14 +364,17 @@ class JudgeTagClustersTests(TestCase):
         self.assertEqual(TagMerge.objects.count(), 1)
         self.assertEqual(cluster.llm_response["sets"][0]["members"], [self.isekai.pk, self.another.pk])
 
-    def test_unparseable_answer_marks_cluster_error(self):
+    def test_unparseable_answer_requeues_cluster(self):
         cluster = self._cluster(self.isekai, self.another)
-        self._judge(side_effect=llm_service.LLMParseError("no json"))
+        # One call per tick: a persistent failure would otherwise reach MAX_REQUEUES in one run.
+        with override_settings(TAG_LLM_CALLS_PER_TICK=1):
+            self._judge(side_effect=llm_service.LLMParseError("no json"))
 
         cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_ERROR)
+        self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(cluster.requeue_count, 1)
         self.assertIn("no json", cluster.error)
-        self.assertIsNotNone(cluster.llm_batch)
+        self.assertIsNone(cluster.llm_batch)
 
     def test_force_applies_review_cluster(self):
         cluster = self._cluster(self.isekai, self.another)
@@ -978,7 +982,8 @@ class TagJudgeBudgetTests(_JudgeFixture):
         self._run_judge(llm_service.LLMParseError("bad"))
         self.assertEqual(TagLLMCall.objects.count(), 1)
         self.cluster_a.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_ERROR)
+        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_a.requeue_count, 1)
 
 
 class TagJudgeOrderTests(_JudgeFixture):
@@ -989,8 +994,66 @@ class TagJudgeOrderTests(_JudgeFixture):
         self.assertEqual(mocked.call_count, 1)
         self.cluster_a.refresh_from_db()
         self.cluster_b.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_ERROR)
+        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_a.requeue_count, 1)
         self.assertEqual(self.cluster_b.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_b.requeue_count, 1)
+
+
+class TagJudgeFailureTests(_JudgeFixture):
+    def test_parse_failure_requeues_every_cluster_in_the_batch(self):
+        # Both clusters fit one call (4 tags), so one bad reply hits both.
+        mocked = self._run_judge(llm_service.LLMTruncated("cut off"), TAG_LLM_TAGS_PER_CALL=4)
+        self.assertEqual(mocked.call_count, 1)
+        self.assertEqual(TagLLMCall.objects.count(), 1)
+        for cluster in (self.cluster_a, self.cluster_b):
+            cluster.refresh_from_db()
+            self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
+            self.assertEqual(cluster.requeue_count, 1)
+            self.assertIn("cut off", cluster.error)
+            self.assertIsNone(cluster.llm_batch)
+
+    def test_requeued_cluster_is_judged_alone(self):
+        TagCluster.objects.filter(pk=self.cluster_b.pk).update(requeue_count=1)
+        # Both clusters would fit one call; the requeued one must get its own.
+        mocked = self._run_judge(lambda *a, **k: {"groups": []},
+                                 TAG_LLM_TAGS_PER_CALL=10, TAG_LLM_CALLS_PER_TICK=2)
+        self.assertEqual(mocked.call_count, 2)
+        first, second = (call.args[0][-1]["content"] for call in mocked.call_args_list)
+        self.assertIn("Isekai", first)
+        self.assertNotIn("Foo", first)
+        self.assertIn("Foo", second)
+        self.assertNotIn("Isekai", second)
+
+
+    def test_failed_cluster_is_not_retried_within_the_same_run(self):
+        # Three calls allowed, two clusters: each is tried once, then the run stops.
+        mocked = self._run_judge(llm_service.LLMParseError("bad"),
+                                 TAG_LLM_CALLS_PER_TICK=3, TAG_LLM_TAGS_PER_CALL=2)
+        self.assertEqual(mocked.call_count, 2)
+        self.cluster_a.refresh_from_db()
+        self.cluster_b.refresh_from_db()
+        self.assertEqual(self.cluster_a.requeue_count, 1)
+        self.assertEqual(self.cluster_b.requeue_count, 1)
+        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_b.status, TagCluster.STATUS_PENDING)
+
+
+class TagJudgeTokenBudgetTests(_JudgeFixture):
+    def test_stops_before_any_call_when_budget_below_reserve(self):
+        mocked = self._run_judge(lambda *a, **k: {"groups": []}, MERGE_LLM_DAILY_TOKENS=100)
+        self.assertEqual(mocked.call_count, 0)
+        self.assertEqual(TagLLMCall.objects.count(), 0)
+
+    def test_budget_checked_before_every_call(self):
+        def spend(*args, **kwargs):
+            LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=7000)
+            return {"groups": []}
+
+        # Reserve is TAG_LLM_MAX_TOKENS (4096) + 3000: the first call fits, the second does not.
+        mocked = self._run_judge(spend, MERGE_LLM_DAILY_TOKENS=8000,
+                                 TAG_LLM_CALLS_PER_TICK=3, TAG_LLM_TAGS_PER_CALL=2)
+        self.assertEqual(mocked.call_count, 1)
 
 
 class ReplanUnderLockTests(TestCase):

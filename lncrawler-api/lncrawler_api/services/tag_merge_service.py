@@ -565,8 +565,12 @@ def _plan_signature(plans):
     )
 
 
-def _requeue(cluster):
-    """Send a cluster whose plan changed back to pending, or give up after MAX_REQUEUES."""
+def _requeue(cluster, reason=None):
+    """Send a cluster back to pending, or give up after MAX_REQUEUES.
+
+    ``reason`` explains why the cluster is going back (for example a failed LLM
+    reply); without it the plan-changed messages are used.
+    """
     cluster.requeue_count += 1
     cluster.llm_response = None
     cluster.llm_model = ""
@@ -574,10 +578,10 @@ def _requeue(cluster):
     cluster.judged_at = None
     if cluster.requeue_count >= MAX_REQUEUES:
         cluster.status = TagCluster.STATUS_ERROR
-        cluster.error = REQUEUE_LIMIT_MESSAGE
+        cluster.error = reason or REQUEUE_LIMIT_MESSAGE
     else:
         cluster.status = TagCluster.STATUS_PENDING
-        cluster.error = REQUEUE_MESSAGE
+        cluster.error = reason or REQUEUE_MESSAGE
     cluster.save(update_fields=[
         "status", "error", "requeue_count", "llm_response", "llm_model",
         "llm_batch", "judged_at", "updated_at",

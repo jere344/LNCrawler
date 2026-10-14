@@ -18,6 +18,8 @@ from django.utils import timezone
 logger = logging.getLogger("lncrawler_api")
 
 BULK_CHUNK = 1000
+MAX_URL_LEN = 2048  # matches HarvestCandidate.novel_url / Job.target_url max_length
+MAX_TITLE_LEN = 512  # matches HarvestCandidate.title max_length
 
 
 def _load_browse_crawlers():
@@ -84,11 +86,22 @@ def _create_candidates(found):
         )
 
     known = existing_db_urls | existing_candidate_urls
-    to_create = [
-        HarvestCandidate(source_name=source_name, title=title, novel_url=url)
-        for source_name, title, url in found
-        if url not in known
-    ]
+    to_create = []
+    for source_name, title, url in found:
+        if url in known:
+            continue
+        if len(url) > MAX_URL_LEN:
+            logger.warning(
+                "Skipping harvest candidate from %s: URL is %d chars (max %d): %s",
+                source_name,
+                len(url),
+                MAX_URL_LEN,
+                url[:80],
+            )
+            continue
+        to_create.append(
+            HarvestCandidate(source_name=source_name, title=title[:MAX_TITLE_LEN], novel_url=url)
+        )
     created = 0
     for start in range(0, len(to_create), BULK_CHUNK):
         batch = to_create[start:start + BULK_CHUNK]

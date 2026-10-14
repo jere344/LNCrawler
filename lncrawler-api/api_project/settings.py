@@ -221,9 +221,16 @@ MERGE_TRIGRAM_MIN = 0.4
 MERGE_LLM_PROVIDER = os.environ.get("MERGE_LLM_PROVIDER", "groq")
 MERGE_LLM_API_KEY = os.environ.get("MERGE_LLM_API_KEY", "")
 MERGE_LLM_MODEL = os.environ.get("MERGE_LLM_MODEL", "openai/gpt-oss-20b")
+# Reasoning models spend hidden tokens against max_tokens; "low" keeps replies short.
+# Empty omits the field for providers that reject it.
+MERGE_LLM_REASONING_EFFORT = os.environ.get("MERGE_LLM_REASONING_EFFORT", "low")
 MERGE_LLM_BASE_URL = os.environ.get("MERGE_LLM_BASE_URL", "")  # non-empty overrides the provider's default endpoint
 MERGE_LLM_TIMEOUT = 30
+MERGE_LLM_MAX_TOKENS = 2048  # novel-judge reply cap (reasoning counts toward it)
 MERGE_LLM_DAILY_LIMIT = int(os.environ.get("MERGE_LLM_DAILY_LIMIT", "500"))  # Groq free tier (1k RPD for this model)
+# Token budget per day, shared by both judges. Groq's free tier caps this model
+# at 200k tokens/day; the default keeps a margin under that.
+MERGE_LLM_DAILY_TOKENS = int(os.environ.get("MERGE_LLM_DAILY_TOKENS", "180000"))
 MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
 MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
 # A confident "different" verdict dismisses a low-certainty pair (status skipped)
@@ -257,7 +264,7 @@ TAG_CLUSTER_MAX = 12
 # LLM judging reuses MERGE_LLM_PROVIDER/MODEL/API_KEY. Budget and batching:
 TAG_LLM_DAILY_LIMIT = int(os.environ.get("TAG_LLM_DAILY_LIMIT", "100"))  # judge calls per day
 TAG_LLM_CALLS_PER_TICK = 3  # judge calls per scheduler tick
-TAG_LLM_TAGS_PER_CALL = 60  # pack clusters until this many tags are in one call
+TAG_LLM_TAGS_PER_CALL = 30  # pack clusters until this many tags are in one call
 TAG_LLM_INTERVAL = 600  # seconds between judge ticks
 TAG_LLM_MAX_TOKENS = 4096
 # Safeguards: sets below this confidence, or joining two tags used by more than

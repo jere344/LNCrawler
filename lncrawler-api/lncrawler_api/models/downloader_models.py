@@ -44,7 +44,7 @@ class Job(models.Model):
         max_length=20, choices=JOB_TYPE_CHOICES, default=JOB_TYPE_SEARCH
     )
     query = models.CharField(max_length=255, blank=True, null=True)
-    target_url = models.CharField(max_length=512, blank=True, null=True)
+    target_url = models.CharField(max_length=2048, blank=True, null=True)
 
     # Who started the job, when the request was authenticated. Kept so a novel
     # imported by this job can be attributed to its submitter.

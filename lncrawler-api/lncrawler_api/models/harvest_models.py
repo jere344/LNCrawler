@@ -23,7 +23,7 @@ class HarvestCandidate(models.Model):
     ]
 
     source_name = models.CharField(max_length=255, db_index=True)
-    novel_url = models.CharField(max_length=512, unique=True)
+    novel_url = models.CharField(max_length=2048, unique=True)
     title = models.CharField(max_length=512, blank=True, default="")
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True

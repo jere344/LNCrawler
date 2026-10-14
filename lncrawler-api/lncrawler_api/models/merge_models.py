@@ -118,3 +118,29 @@ class MergeCandidate(models.Model):
     def mark_skipped(self):
         self.status = self.STATUS_SKIPPED
         self.save(update_fields=["status", "updated_at"])
+
+
+class LLMUsage(models.Model):
+    """Tokens one LLM response cost. The shared daily token budget sums these rows.
+
+    Written for every response the provider returned, truncated ones included,
+    by both the novel judge and the tag judge. Failed requests (429, HTTP errors)
+    write nothing because the provider did not charge for them.
+    """
+
+    PURPOSE_NOVEL = "novel"
+    PURPOSE_TAG = "tag"
+    PURPOSE_CHOICES = [
+        (PURPOSE_NOVEL, "Novel judge"),
+        (PURPOSE_TAG, "Tag judge"),
+    ]
+
+    purpose = models.CharField(max_length=10, choices=PURPOSE_CHOICES)
+    tokens = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.purpose}: {self.tokens} tokens at {self.created_at}"
