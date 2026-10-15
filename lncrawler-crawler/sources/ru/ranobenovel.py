@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
+"""Ranobe-Novels (ranobe-novels.ru) - Russian fan translations, mostly by
+GoblinTeam and similar teams (credited in titles and tags). WordPress theme:
+novel pages are server-rendered, chapter lists come from a theme AJAX endpoint,
+and search uses a theme JSON endpoint. Bodies are free without login."""
 import logging
+
 from bs4 import Tag
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 chapter_ajax_url = "https://ranobe-novels.ru/wp-content/themes/ranobe-novels/template-parts/category/chapters-query.php"
@@ -10,13 +15,8 @@ search_url = "https://ranobe-novels.ru/wp-content/themes/ranobe-novels/template-
 
 
 class RanobeNovel(Crawler):
-    base_url = "https://ranobe-novels.ru/"
-
-    is_disabled = True
-    disable_reason = (
-        "Site owner blocks this host's IP (HTTP 503, retry-after 3600). Needs "
-        "a proxy."
-    )
+    base_url = ["https://ranobe-novels.ru/", "https://www.ranobe-novels.ru/"]
+    language = "ru"
 
     def search_novel(self, query):
         logger.debug("Searching for %s", query)
@@ -81,7 +81,7 @@ class RanobeNovel(Crawler):
         possible_image = soup.select_one("img.category-img") or soup.select_one(
             'img[itemprop="image"]'
         )
-        if isinstance(possible_image, Tag):
+        if isinstance(possible_image, Tag) and possible_image.get("src"):
             self.novel_cover = self.absolute_url(possible_image["src"])
         logger.info("Novel cover: %s", self.novel_cover)
 
@@ -95,9 +95,18 @@ class RanobeNovel(Crawler):
             self.novel_synopsis = self.cleaner.extract_contents(possible_synopsis)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        # Genres, type and translator credit (e.g. "Перевод GoblinTeam").
         self.novel_tags = [
-            a.text.strip() for a in soup.select('.post_tags a[href*="/novels/"]')
+            a.get_text(" ", strip=True) for a in soup.select(".post_tags a")
         ]
+
+        status_tag = soup.select_one("span.cat-status .completed")
+        if status_tag:
+            self.status = (
+                NovelStatus.completed
+                if "завершен" in status_tag.get_text(strip=True).lower()
+                else NovelStatus.ongoing
+            )
 
         alternate = soup.select_one(
             'link[rel="alternate"][type="application/json"][href*="/wp-json/wp/v2/categories/"]'
@@ -126,14 +135,20 @@ class RanobeNovel(Crawler):
             logger.error("No chapters found for category ID %s", cat_id)
             return
 
+        # The endpoint returns newest first; reverse to reading order.
         data.reverse()
+        seen = set()
         for item in data:
+            url = self.absolute_url(f"/{item['post_name']}/")
+            if url in seen:
+                continue
+            seen.add(url)
             chap_id = len(self.chapters) + 1
             self.chapters.append(
                 {
                     "id": chap_id,
                     "title": item["post_title"].strip(),
-                    "url": self.absolute_url(f"/{item['post_name']}/"),
+                    "url": url,
                 }
             )
         logger.info("Found %d chapters", len(self.chapters))
@@ -141,4 +156,7 @@ class RanobeNovel(Crawler):
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
         contents = soup.select_one("#js-full-content")
+        if not isinstance(contents, Tag):
+            logger.warning("No chapter body at %s", chapter["url"])
+            return ""
         return self.cleaner.extract_contents(contents)

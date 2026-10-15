@@ -40,11 +40,16 @@ class MunpiaCrawler(Crawler):
 
     is_disabled = True
     disable_reason = (
-        "Chapter bodies require login for all episodes (free included): the "
-        "content API returns A002_19006 '로그인 후 이용해주세요' and the viewer "
-        "uses a WASM ECDH-encrypted stream with an auth hash. Free-list "
-        "metadata and chapter lists are anonymous, but no chapter text is "
-        "readable without an account."
+        "Chapter bodies require login, free episodes included. Re-tested with "
+        "curl_cffi browser impersonation (chrome) and the SPA's headers "
+        "(JSON, Origin/Referer novel.munpia.com): POST "
+        "/api/v1/pc/novel-detail/{novelId}/entries/{entryId}/content returns "
+        "400 A002_19006 '로그인 후 이용해주세요' (please log in) for anonymous "
+        "requests on a free episode. The viewer's real request is an ECDH "
+        "handshake (publicKey/timestamp/salt/signature signed by a WASM module) "
+        "answered with an encrypted octet-stream, which is not usable anonymously. "
+        "Free-list, metadata and chapter lists stay public, but no chapter text "
+        "is readable without an account."
     )
 
     # -- Crawler API --------------------------------------------------- #

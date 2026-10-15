@@ -142,6 +142,9 @@ class BasicBrowserTemplate(Crawler):
 
         window = max(self.workers, 1) * 2
         queue: deque = deque()
+        # Exceptions from the native batch pass, keyed by id(chapter), so the
+        # fallback loop can tell backend failures from other errors.
+        native_errors: dict = {}
 
         def _collect(chapter, future) -> Chapter:
             result = None
@@ -150,6 +153,7 @@ class BasicBrowserTemplate(Crawler):
             except Exception as e:
                 if isinstance(e, KeyboardInterrupt):
                     raise
+                native_errors[id(chapter)] = e
                 logger.warning("%s: %s", type(e).__name__, e)
             chapter.body = result or ""
             chapter.images = {}
@@ -174,7 +178,15 @@ class BasicBrowserTemplate(Crawler):
                 chapter.body = ""
                 chapter.images = {}
                 try:
-                    chapter.body = self.download_chapter_body(chapter)
+                    err = native_errors.get(id(chapter))
+                    if err is not None and not isinstance(err, ScraperErrorGroup):
+                        # Not a backend failure the browser can fix (for example a
+                        # parser bug). Handle it the same way as before.
+                        raise err
+                    # The batch pass already tried the native backend for this
+                    # chapter, so go straight to the browser.
+                    self.init_browser()
+                    chapter.body = self.download_chapter_body_in_browser(chapter)
                     self.extract_chapter_images(chapter)
                     chapter.success = True
                 except Exception as e:

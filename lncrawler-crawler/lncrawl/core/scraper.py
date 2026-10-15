@@ -6,7 +6,7 @@ import random
 import socket
 from functools import lru_cache
 from io import BytesIO
-from typing import Any, Callable, Dict, MutableMapping, Optional, Tuple, Union
+from typing import Any, Callable, Dict, MutableMapping, Optional, Tuple, Union, get_args
 from urllib.parse import ParseResult, urlparse
 
 from bs4 import BeautifulSoup
@@ -31,8 +31,26 @@ except Exception:  # pragma: no cover
     except Exception:
         _CurlError = Exception  # type: ignore[assignment,misc]
 
+
+def _resolve_impersonate() -> str:
+    target = os.getenv("LNCRAWL_IMPERSONATE", "chrome")
+    try:
+        from curl_cffi.requests.impersonate import BrowserTypeLiteral
+        supported = get_args(BrowserTypeLiteral)
+    except Exception:  # pragma: no cover - curl_cffi layout changed
+        logger.warning(
+            "Cannot validate LNCRAWL_IMPERSONATE (curl_cffi layout changed?); "
+            "using 'chrome'"
+        )
+        return "chrome"
+    if target in supported:
+        return target
+    logger.warning("Unknown LNCRAWL_IMPERSONATE=%r; falling back to 'chrome'", target)
+    return "chrome"
+
+
 # curl_cffi sentence about the browser TLS fingerprint to impersonate.
-DEFAULT_IMPERSONATE = os.getenv("LNCRAWL_IMPERSONATE", "chrome")
+DEFAULT_IMPERSONATE = _resolve_impersonate()
 
 
 @lru_cache(maxsize=2048)
@@ -95,6 +113,8 @@ def _retry_wait(retry_state) -> float:
 class Scraper(TaskManager, SoupMaker):
     """Native request backend built on curl_cffi (TLS impersonation)."""
 
+    impersonating: bool = False
+
     def __init__(
         self,
         origin: str,
@@ -133,14 +153,21 @@ class Scraper(TaskManager, SoupMaker):
         ):
             try:
                 self.scraper = cffi.Session(**kwargs)
+                self.impersonating = "impersonate" in kwargs
                 return
             except Exception:
                 continue
         logger.exception("Failed to initialize curl_cffi session")
         self.scraper = cffi.Session()
+        self.impersonating = False
 
     def change_user_agent(self) -> None:
         self.user_agent = random.choice(user_agents)
+        if self.impersonating:
+            # curl_cffi's impersonation already sends a UA that matches its TLS
+            # fingerprint. Overriding it here would create a detectable mismatch.
+            # self.user_agent is still set for the browser tier.
+            return
         try:
             self.scraper.headers["User-Agent"] = self.user_agent
         except Exception:
@@ -205,8 +232,9 @@ class Scraper(TaskManager, SoupMaker):
         default_headers = {
             "Origin": self.home_url.strip("/"),
             "Referer": self.last_soup_url or self.home_url,
-            "User-Agent": self.user_agent,
         }
+        if not self.impersonating:
+            default_headers["User-Agent"] = self.user_agent
         request_headers = merge_headers(default_headers, headers)
 
         def _is_retryable(exc: BaseException) -> bool:

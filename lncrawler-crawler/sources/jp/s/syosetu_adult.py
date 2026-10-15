@@ -22,6 +22,8 @@ class SyosetuAdultCrawler(Crawler):
         "https://novel18.syosetu.com/",
         "https://nocturne.syosetu.com/",
         "https://moonlight.syosetu.com/",
+        "https://mnlt.syosetu.com/",
+        "https://noc.syosetu.com/",
     ]
     language = "ja"
 

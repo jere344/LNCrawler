@@ -13,4 +13,4 @@ class NovelGoIdCrawler(Crawler):
     has_mtl = False
 
     is_disabled = True
-    disable_reason = "Cloudflare 'Just a moment...' 403 on the root and HTTP probe"
+    disable_reason = "Cloudflare 'Just a moment...' 403 on the root and HTTP probe; also blocked in headless chromium 25s"

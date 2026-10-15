@@ -35,8 +35,10 @@ class OmoFictionsCrawler(Crawler):
 
     is_disabled = True
     disable_reason = (
-        "Chapter bodies are login-gated: GET /api/v1/books/{id}/chapters/{id}/"
-        "content returns HTTP 401 login_required for every chapter (even free "
-        "ones), and the /viewer reader is client-rendered against the same "
-        "endpoint. Official licensed/paywalled content — no anonymous prose."
+        "Chapter bodies are login-gated, not blocked: tested with curl_cffi "
+        "browser impersonation (chrome), the API returns 200 for metadata but "
+        "GET /api/v1/books/{id}/chapters/{id}/content is HTTP 401 login_required "
+        "for every chapter, including the 3 is_free ones. The /viewer page has no "
+        "prose in its HTML. Chapter files are EPUB-backed (content_file_url null). "
+        "Not tested in a full headless browser. Still unusable anonymously."
     )

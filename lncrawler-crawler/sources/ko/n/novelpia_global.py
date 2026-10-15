@@ -17,20 +17,19 @@ class NovelpiaGlobalCrawler(Crawler):
     """Novelpia Global (English UI), backed by its JSON API.
 
     The reader token is minted by the SSR viewer page, so each chapter costs
-    one viewer-page GET plus one content API GET.
+    one viewer-page GET plus one content API GET. The content API requires the
+    session cookies set by the viewer page, so the shared scraper session must
+    be used (impersonation is required for the site to respond).
+
+    Locked (coin-gated) episodes mint no reader token; their body is returned
+    empty and they are skipped. Only free episodes yield text.
     """
 
     base_url = "https://global.novelpia.com/"
     language = "en"
     has_mtl = False
     is_disabled = True
-    disable_reason = (
-        "No crawler-accessible free tier: episode content is coin-gated. "
-        "The API's flag_free/flag_open are 0 for every episode on popular "
-        "titles, and anonymous episode-content requests are rejected (HTTP "
-        "400). Only first-chapter / daily-login access exists. Use the Korean "
-        "sources MUGEX/Kkaebi instead."
-    )
+    disable_reason = "(Most chapters after the first few are coin-locked, so bodies are empty for most of the catalogue; too much paywalled content)"
 
     def _headers(self, referer=None):
         return {
@@ -196,7 +195,7 @@ class NovelpiaGlobalCrawler(Crawler):
         viewer = self.get_response(chapter["url"])
         match = TOKEN_RE.search(viewer.text)
         if not match:
-            logger.warning("No reader token on %s", chapter["url"])
+            logger.info("Locked (no reader token), skipping %s", chapter["url"])
             return ""
 
         response = self.get_response(

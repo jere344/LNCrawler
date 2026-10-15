@@ -18,11 +18,12 @@ from functools import lru_cache
 from typing import Optional
 from urllib.parse import urlencode
 
+from ..core.scraper import DEFAULT_IMPERSONATE as _IMPERSONATE
+
 logger = logging.getLogger(__name__)
 
 NU_HOME = "https://www.novelupdates.com"
 NU_SERIES = NU_HOME + "/series/"
-_IMPERSONATE = os.getenv("LNCRAWL_IMPERSONATE", "chrome")
 _VERIFY = os.getenv("LNCRAWL_VERIFY", "1").lower() not in ("0", "false", "no")
 
 # Bounded LRU (title -> series url or None) so repeated metadata writes /
