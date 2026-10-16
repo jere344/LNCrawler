@@ -2,6 +2,8 @@ import time
 import threading
 import logging
 import os
+import subprocess
+import sys
 import uuid
 from django.conf import settings
 from django.core.management import call_command
@@ -10,6 +12,16 @@ from typing import Optional, Callable, Dict
 from .models import ScheduledTask
 
 logger = logging.getLogger('lncrawler_api')
+
+
+def call_command_isolated(*args):
+    """Run a management command in a child process.
+
+    Heavy batch jobs (dense similarity matrices, embedding scans) peak at
+    hundreds of MB; run in-process, that memory stays with this long-lived
+    scheduler after the job ends. A child process gives it back to the OS.
+    """
+    subprocess.run([sys.executable, "manage.py", *args], cwd=settings.BASE_DIR, check=True)
 
 
 def scheduler_enabled():
@@ -191,7 +203,7 @@ def calculate_novel_similarities():
     """Run the calculate_similarities command to update novel recommendations weekly."""
     logger.info("Starting weekly novel similarity calculation...")
     try:
-        call_command('calculate_similarities')
+        call_command_isolated('calculate_similarities')
         logger.info("Weekly novel similarity calculation completed successfully")
     except Exception as e:
         logger.error(f"Error in weekly novel similarity calculation: {str(e)}", exc_info=True)
@@ -203,7 +215,7 @@ def calculate_novel_similarities():
 def find_merge_candidates_task():
     logger.info("Scanning for duplicate novel candidates...")
     try:
-        call_command('find_merge_candidates')
+        call_command_isolated('find_merge_candidates')
         logger.info("Duplicate novel scan completed successfully")
     except Exception as e:
         logger.error(f"Error scanning for duplicate novels: {str(e)}", exc_info=True)
@@ -235,7 +247,7 @@ def judge_merge_candidates_task():
 def find_tag_merge_candidates_task():
     logger.info("Scanning for duplicate tag candidates...")
     try:
-        call_command('find_tag_merge_candidates')
+        call_command_isolated('find_tag_merge_candidates')
         logger.info("Duplicate tag scan completed successfully")
     except Exception as e:
         logger.error(f"Error scanning for duplicate tags: {str(e)}", exc_info=True)
@@ -331,6 +343,20 @@ def prune_jobs_task():
     except Exception as e:
         logger.error(f"Error pruning old jobs: {str(e)}", exc_info=True)
         raise
+
+# Refresh the projected ranking columns that search sorts read. One set-based
+# UPDATE; only rows whose values changed are written, so frequent runs are cheap.
+@scheduler.register_task(interval=300, name="refresh_novel_rankings")  # 5 minutes
+def refresh_novel_rankings_task():
+    from .services.novel_rankings import refresh_novel_rankings
+
+    logger.info("Refreshing novel ranking projections...")
+    try:
+        updated = refresh_novel_rankings()
+        logger.info("Novel ranking refresh completed: %s row(s) updated", updated)
+    except Exception as e:
+        logger.error(f"Error refreshing novel rankings: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
 
 def start_scheduler():
     """Start the scheduler if it's not already running."""

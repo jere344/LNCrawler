@@ -1,187 +1,188 @@
-# LNCrawler
+<p align="center">
+  <img src=".github/assets/banner.jpg" alt="LNCrawler" width="100%">
+</p>
 
-Self-hosted light novel reader. It has its own crawler: search a supported
-source, download a novel with its chapters and metadata, and it lands in your
-library. Everything runs with Docker Compose — Django REST API, React frontend,
-PostgreSQL, background workers and an Nginx proxy.
+<h1 align="center">LNCrawler</h1>
 
-## Architecture
+<p align="center">
+  <b>Self-hosted light novel reader with its own crawler.</b><br>
+  Search a source, download a novel, read it in your browser — all on your own server.
+</p>
 
-Docker Compose runs six services:
+<p align="center">
+  <a href="https://lncrawler.monster"><img src="https://img.shields.io/badge/demo-lncrawler.monster-8b5cf6?style=flat-square" alt="Live demo"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/jere344/LNCrawler?style=flat-square" alt="License"></a>
+  <a href="https://github.com/jere344/LNCrawler/stargazers"><img src="https://img.shields.io/github/stars/jere344/LNCrawler?style=flat-square" alt="Stars"></a>
+  <a href="https://github.com/jere344/LNCrawler/commits"><img src="https://img.shields.io/github/last-commit/jere344/LNCrawler?style=flat-square" alt="Last commit"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Django-6-092E20?style=flat-square&logo=django" alt="Django">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React">
+  <img src="https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker Compose">
+</p>
 
-| Service       | Role                                                                                     |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| `db`          | PostgreSQL 17                                                                            |
-| `api`         | Django + Gunicorn. REST API, admin, static/media/library files. Migrates and seeds the superuser on boot. |
-| `crawler`     | Job workers. Each claims search/download jobs from the DB-backed queue and runs them isolated from the web. Scale with `CRAWLER_REPLICAS` or `--scale crawler=N`. |
-| `scheduler`   | Singleton maintenance process. Runs periodic tasks (DB-locked) and the harvest feeder thread. Keep exactly one. |
-| `frontend`    | React SPA, built at image build time and served by Nginx.                                 |
-| `nginx-proxy` | Public entry point. Routes by `Host` to the API or frontend and serves `/static`, `/media`, `/lightnovels`. |
+<p align="center">
+  <a href="#-quick-start">Quick start</a> ·
+  <a href="#-features">Features</a> ·
+  <a href="#-architecture">Architecture</a> ·
+  <a href="#%EF%B8%8F-configuration">Configuration</a> ·
+  <a href="#-contributing">Contributing</a>
+</p>
 
-The crawler engine lives in `lncrawler-crawler/` (the `lncrawl` package plus
-ported `sources/`). The API imports it and drives it through
-`lncrawler-api/lncrawler_api/services/downloader_service.py`.
+---
 
-## Features
+<p align="center">
+  <img src=".github/assets/screenshot-novel.webp" alt="Novel page (dark theme)" width="100%">
+</p>
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/screenshot-search.webp" alt="Search"></td>
+    <td width="50%"><img src=".github/assets/screenshot-reader.webp" alt="Reader"></td>
+  </tr>
+</table>
 
-- Browse, search and read light novels in the browser.
-- Download novels from supported sources straight into the library.
-- Accounts: registration, login, password reset, profiles.
-- Reader with configurable font, colors, margins, scroll/pagination and chapter
-  preloading.
-- Library, reading history with resume, and custom reading lists.
-- Reviews, per-chapter comments, forums, friends.
-- Admin panel for novels, sources, jobs and users.
-- Sitemap, robots.txt, multi-language UI.
-- Optional GitHub issue creation for unexpected errors.
+## ✨ Features
 
-## Requirements
+- **📚 Library** — browse, search and filter novels; download from supported sources in 30+ languages straight into the library, or let the harvest feeder fill it automatically.
+- **📖 Reader** — configurable font, colors, margins, scroll or pagination, chapter preloading, resume where you left off.
+- **🔊 Text-to-speech** — browser voices or in-browser neural voices (Kokoro, Piper), no server cost.
+- **👥 Community** — accounts, reading lists, history, reviews, per-chapter comments, forums, friends.
+- **🧹 Self-maintaining** — duplicate novel and tag detection with an optional LLM tie-breaker, scheduled pruning, imports from a drop folder.
+- **🛠️ Admin** — novels, sources, jobs, users and on-demand maintenance tasks.
+- **🌍 Everywhere** — 20 UI languages, sitemap, robots.txt, SEO pre-rendering, optional GitHub issue per unexpected error.
 
-- [Docker](https://docs.docker.com/get-docker/)
-- Docker Compose (the `docker compose` plugin)
+## 🚀 Quick start
 
-## Quick Start
+Requires [Docker](https://docs.docker.com/get-docker/) with the `docker compose` plugin.
 
 ```bash
 git clone https://github.com/jere344/LNCrawler.git
 cd LNCrawler
-cp .env.example .env
-# set at least SECRET_KEY, POSTGRES_*, SITE_URL and SITE_API_URL
+cp .env.example .env        # set at least SECRET_KEY, POSTGRES_*, SITE_URL, SITE_API_URL
 docker compose up -d --build
 ```
 
-On first boot `api` applies migrations, collects static files and creates the
-superuser from `DJANGO_SUPERUSER_*` if missing. Logs:
+On first boot the API migrates, collects static files and creates the superuser from `DJANGO_SUPERUSER_*`. With the default `.env`:
+
+| What     | URL                          |
+| -------- | ---------------------------- |
+| Frontend | http://localhost             |
+| API      | http://api.localhost         |
+| Admin    | http://api.localhost/admin (`admin` / `admin`) |
+
+> [!TIP]
+> If `*.localhost` doesn't resolve, add `127.0.0.1 localhost api.localhost` to `/etc/hosts`. If port 80 is taken, change `NGINX_PORT`.
 
 ```bash
-docker compose logs -f api
-docker compose down          # add -v to also drop the database volume
+docker compose logs -f api   # follow logs
+docker compose down          # stop (add -v to drop the database)
 ```
 
-## Accessing the Application
+## 🏗️ Architecture
 
-With the default `.env` the proxy listens on port 80:
-
-- Frontend: http://localhost
-- API: http://api.localhost
-- Admin: http://api.localhost/admin (default `admin` / `admin` from `.env`)
-
-If `*.localhost` doesn't resolve on your machine, add it to `/etc/hosts`:
-
-```
-127.0.0.1  localhost api.localhost
-```
-
-Change `NGINX_PORT` in `.env` if port 80 is taken.
-
-## Public Deployment
-
-`nginx-proxy` only speaks HTTP. Terminate TLS in front of it (Caddy, etc.) and
-forward to `NGINX_PORT`. The proxy passes `X-Forwarded-Proto` to Django, so set
-`SITE_URL` / `SITE_API_URL` to your public HTTPS URLs, plus `DEBUG=False` and
-`CORS_ALLOW_ALL_ORIGINS=False`. `API_HOST`, `FRONTEND_HOST` and the frontend's
-baked-in `VITE_API_BASE_URL` are derived from those URLs; nothing else to sync.
-Rebuild the frontend image after changing `SITE_API_URL` (the URL is compiled
-in).
-
-## Scaling
-
-Crawler workers are independent and safe to replicate:
-
-```bash
-CRAWLER_REPLICAS=4                              # in .env
-docker compose up -d --scale crawler=4          # or one-off
+```mermaid
+flowchart LR
+    U([Browser]) --> P[nginx-proxy]
+    P --> F[frontend<br/>React SPA]
+    P --> A[api<br/>Django + Gunicorn]
+    A --> D[(PostgreSQL)]
+    C[crawler × N] --> D
+    S[scheduler × 1] --> D
+    C --> L[/Lightnovels/]
+    P --> L
 ```
 
-Keep `scheduler` at one instance. It and the feeder use DB-level locking, so a
-duplicate won't double-run work.
+| Service       | Role |
+| ------------- | ---- |
+| `db`          | PostgreSQL 17. |
+| `api`         | REST API, admin, static/media/library files. |
+| `crawler`     | Workers claiming search/download jobs from the DB-backed queue. Scale freely. |
+| `scheduler`   | Periodic maintenance and the harvest feeder. Keep exactly one. |
+| `frontend`    | React + Vite SPA, built into the image and served by Nginx. |
+| `nginx-proxy` | Public entry point; routes by `Host` and serves `/static`, `/media`, `/lightnovels`. |
 
-## Configuration
+The crawler engine (`lncrawl` + `sources/`) lives in [`lncrawler-crawler/`](lncrawler-crawler) and is driven by the API through [`downloader_service.py`](lncrawler-api/lncrawler_api/services/downloader_service.py).
 
-Everything lives in `.env`; `.env.example` documents the defaults.
-
-**Database** — `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
-`POSTGRES_HOST` (`db`), `POSTGRES_PORT` (`5432`).
-
-**Django** — `SITE_URL` (public frontend URL, also used for absolute media and
-library URLs), `SITE_API_URL`, `SECRET_KEY` (change it), `DEBUG` (`True` uses
-the dev server, `False` uses Gunicorn), `CORS_ALLOW_ALL_ORIGINS`,
-`LOG_LEVEL` (default `INFO`, or `DEBUG` when `DEBUG=True`).
-
-**Superuser** — `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`,
-`DJANGO_SUPERUSER_PASSWORD` (first boot only).
-
-**Email** — password reset goes over standard SMTP. `EMAIL_HOST`, `EMAIL_PORT`,
-`EMAIL_USE_TLS` (defaults to MailPace, which uses the domain API token as both
-user and password), `DEFAULT_FROM_EMAIL`, `EMAIL_SENDER_NAME`. With no
-credentials, dev mode prints reset emails to the console.
-
-**Nginx proxy** — `NGINX_PORT` (default `80`). `API_HOST`, `FRONTEND_HOST` and
-`VITE_API_BASE_URL` are derived; don't set them.
-
-**Crawler** — `CRAWLER_REPLICAS`, `CRAWLER_CONCURRENCY` (jobs per worker,
-default `5`), `CRAWLER_MEM_LIMIT` (per-crawler cgroup cap, default `2g`),
-`CRAWLER_POLL` / `CRAWLER_STALE_MINUTES` / `CRAWLER_REQUEUE_EVERY` (queue
-tuning). For login-gated sources, `LNCRAWL_<KEY>_USERNAME` /
-`LNCRAWL_<KEY>_PASSWORD` where `<KEY>` is the source's canonical domain label
-uppercased.
-
-**Scheduled maintenance** — `SCHEDULER_ENABLED` (default `True`; set `False` to
-run tasks by hand, container stays up), `LNCRAWL_PRUNE_APPLY` (set `False` to
-skip the destructive scheduled prune).
-
-**Harvest feeder** — discovers novels from each source's browse page and queues
-downloads. Runs inside `scheduler`, inert until enabled in the admin
-(**Maintenance → Harvest**) — no restart needed. `HARVEST_INTERVAL`,
-`HARVEST_REFRESH_SECONDS`, `HARVEST_SCAN_TIMEOUT` tune it.
-
-**Error reporting** — `GITHUB_REPO` (`owner/repo`), `GITHUB_TOKEN`
-(`issues:write` for a classic PAT), `GITHUB_ISSUES_ENABLED` to open a
-deduplicated issue per unexpected error.
-
-## Common Operations
-
-The admin **Scheduled tasks → Maintenance** page can start/stop the harvest
-feeder, trigger a scan, import from `imports/`, test a source and run any
-scheduled task on demand. Otherwise, run management commands inside the API
-container:
-
-```bash
-docker compose exec api python manage.py shell
-docker compose exec api python manage.py run_import --action copy
-docker compose exec api python manage.py check_source --url NOVEL_URL
-docker compose exec api python manage.py help      # list all commands
-```
-
-## Project Structure
+<details>
+<summary><b>Project structure</b></summary>
 
 ```
 lncrawler/
 ├── docker-compose.yml
 ├── .env.example
-├── nginx-proxy/             # public reverse proxy
-├── lncrawler-api/           # Django REST API, workers, maintenance
-│   ├── api_project/         # settings, URLs, logging, GitHub reporting
-│   ├── lncrawler_api/       # models, views, services, management commands
-│   ├── auth_app/            # user model, auth, email
-│   └── start*.sh            # api / crawler / scheduler entrypoints
-├── lncrawler-frontend/      # React + Vite SPA
-├── lncrawler-crawler/       # crawler engine (lncrawl) and sources
-├── Lightnovels/             # downloaded library files (volume)
-└── imports/                 # drop folder for run_import (volume)
+├── nginx-proxy/         # public reverse proxy
+├── lncrawler-api/       # Django API, workers, maintenance commands
+├── lncrawler-frontend/  # React + Vite SPA
+├── lncrawler-crawler/   # crawler engine and sources
+├── Lightnovels/         # downloaded library (volume)
+└── imports/             # drop folder for run_import (volume)
 ```
 
-## Contributing
+</details>
 
-Issues and pull requests are welcome. Before adding or changing a crawler
-source, run the source harness:
+## 🌐 Deployment
+
+`nginx-proxy` speaks plain HTTP: terminate TLS in front of it (Caddy, Traefik…) and forward to `NGINX_PORT`. Then set:
+
+```env
+SITE_URL=https://your.domain
+SITE_API_URL=https://api.your.domain
+DEBUG=False
+CORS_ALLOW_ALL_ORIGINS=False
+```
+
+Hosts and the frontend's API URL are derived from these. Rebuild the frontend image after changing `SITE_API_URL` (it is compiled in).
+
+**Scaling** — crawler workers are independent: set `CRAWLER_REPLICAS=4` or run `docker compose up -d --scale crawler=4`. Keep a single `scheduler`; DB locks prevent double runs anyway.
+
+## ⚙️ Configuration
+
+Everything lives in `.env`; [`.env.example`](.env.example) documents every default.
+
+<details>
+<summary><b>All settings</b></summary>
+
+| Group | Variables |
+| ----- | --------- |
+| Database | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST` (`db`), `POSTGRES_PORT` (`5432`) |
+| Django | `SITE_URL`, `SITE_API_URL`, `SECRET_KEY`, `DEBUG` (`True` = dev server, `False` = Gunicorn), `CORS_ALLOW_ALL_ORIGINS`, `LOG_LEVEL` |
+| Superuser | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD` (first boot only) |
+| Email | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL`, `EMAIL_SENDER_NAME` — SMTP for password reset; printed to console without credentials |
+| Proxy | `NGINX_PORT` (`80`). `API_HOST`, `FRONTEND_HOST`, `VITE_API_BASE_URL` are derived — don't set them |
+| Crawler | `CRAWLER_REPLICAS`, `CRAWLER_CONCURRENCY` (`5`), `CRAWLER_MEM_LIMIT` (`2g`), `CRAWLER_POLL`, `CRAWLER_STALE_MINUTES`, `CRAWLER_REQUEUE_EVERY` |
+| Source logins | `LNCRAWL_<KEY>_USERNAME` / `LNCRAWL_<KEY>_PASSWORD`, `<KEY>` = source domain label uppercased |
+| Maintenance | `SCHEDULER_ENABLED` (`True`), `LNCRAWL_PRUNE_APPLY` (`False` skips the destructive prune) |
+| Harvest feeder | `HARVEST_INTERVAL`, `HARVEST_REFRESH_SECONDS`, `HARVEST_SCAN_TIMEOUT` — enable it in **Admin → Maintenance → Harvest** |
+| LLM (optional) | `MERGE_LLM_*`, `TAG_LLM_DAILY_LIMIT` — any OpenAI-compatible endpoint for merge/tag decisions |
+| Error reporting | `GITHUB_REPO`, `GITHUB_TOKEN` (`issues:write`), `GITHUB_ISSUES_ENABLED` |
+
+</details>
+
+## 🧰 Common operations
+
+Most tasks are one click away in **Admin → Scheduled tasks → Maintenance** (harvest, imports, source tests, any scheduled task). From the shell:
+
+```bash
+docker compose exec api python manage.py run_import --action copy
+docker compose exec api python manage.py check_source --url NOVEL_URL
+docker compose exec api python manage.py help    # list all commands
+```
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome. Adding or fixing a source? Read the [source guide](lncrawler-crawler/SOURCE_GUIDE.md) and run the harness before opening a PR:
 
 ```bash
 docker compose exec api python manage.py check_source --url NOVEL_URL
-# or against a file before it is registered:
 docker compose exec api python manage.py check_source --file sources/en/x/foo.py --query "reincarnation"
 ```
 
-## License
+## 🙏 Acknowledgements
 
-See [LICENSE](LICENSE).
+The crawler engine and many sources are ported from [lightnovel-crawler](https://github.com/dipu-bd/lightnovel-crawler).
+
+## ⚖️ License & disclaimer
+
+Released under the [GPL-3.0](LICENSE). LNCrawler is a tool: you are responsible for respecting the terms and copyright of the sites you crawl and the content you host.
+
+<p align="center"><sub>If LNCrawler is useful to you, a ⭐ helps others find it.</sub></p>

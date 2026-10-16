@@ -4,8 +4,7 @@ from ..models import (
     WeeklySourceView,
     NovelBookmark
 )
-from django.db.models import Avg, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Avg, Sum
 from .mixins import ProfileFieldsMixin
 from .sources_serializers import NovelSourceSerializer
 from .reading_history_serializers import ReadingHistorySerializer
@@ -261,9 +260,10 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         return rating.rating if rating else None
 
     def get_similar_novels(self, obj):
+        from django.core.cache import cache
         from ..utils.query_helpers import (
             adult_allowed, apply_novel_prefetches, exclude_adult,
-            novel_prefetch_objects, sources_total_views_subquery
+            novel_prefetch_objects,
         )
 
         # Get the top 12 similar novels (list() so len() is accurate; a sliced
@@ -285,18 +285,31 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             existing_ids = [item.to_novel_id for item in similar_novels]
             needed_count = 12 - len(existing_ids)
 
-            # Get the most viewed novels not already in our list. Coalesce so
-            # source-less novels (NULL sum) sort last instead of first on
-            # Postgres DESC, and a dedup subquery so the sum isn't inflated.
-            most_viewed = apply_novel_prefetches(
-                exclude_adult(
-                    Novel.objects.exclude(id=obj.id).exclude(id__in=existing_ids),
-                    user,
+            # Most-viewed novel ids, cached briefly: ordering every novel on each
+            # detail page scales with the catalogue size. Reads the indexed
+            # rank_total_views projection (refreshed by the scheduler).
+            most_viewed_key = f"similar:most_viewed:v2:{int(adult_allowed(user))}"
+            most_viewed_ids = cache.get(most_viewed_key)
+            if most_viewed_ids is None:
+                most_viewed_ids = list(
+                    exclude_adult(Novel.objects.all(), user)
+                    .order_by('-rank_total_views', 'title')
+                    .values_list('pk', flat=True)[:40]
                 )
-                .annotate(total_views=Coalesce(sources_total_views_subquery(), Value(0)))
-                .order_by('-total_views'),
-                user,
-            )[:needed_count]
+                cache.set(most_viewed_key, most_viewed_ids, 600)
+
+            # Pick the most viewed novels not already in our list, keeping the cached order
+            excluded_ids = set(existing_ids) | {obj.id}
+            picked_ids = [
+                pk for pk in most_viewed_ids if pk not in excluded_ids
+            ][:needed_count]
+            fetched = {
+                novel.pk: novel
+                for novel in apply_novel_prefetches(
+                    exclude_adult(Novel.objects.filter(pk__in=picked_ids), user), user,
+                )
+            }
+            most_viewed = [fetched[pk] for pk in picked_ids if pk in fetched]
 
             # Combine the results
             for novel in most_viewed:

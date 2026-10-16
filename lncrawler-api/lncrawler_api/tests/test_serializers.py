@@ -1,5 +1,6 @@
 """Tests for serializer profiles and query counts."""
 
+from django.core.cache import cache
 from django.db import connection
 
 from django.test import TestCase
@@ -72,6 +73,10 @@ class SerializerProfileTests(TestCase):
             "last_chapter_update", "vote_score", "user_vote",
         ],
     }
+
+    def setUp(self):
+        # Similar-novel fallbacks are cached; start every test from a cold cache.
+        cache.clear()
 
     def test_novel_profiles_match_legacy_field_sets(self):
         from ..serializers import NovelSerializer
@@ -389,6 +394,8 @@ class SerializerProfileTests(TestCase):
         for index in range(3):
             self._make_novel(index).sources.update(total_views=10)
         Novel.objects.create(title="No Source", slug="no-source", novel_path="ns")
+        from ..services.novel_rankings import refresh_novel_rankings
+        refresh_novel_rankings()
 
         data = NovelSerializer(target, profile="detail", context={"request": None}).data
         titles = [item["title"] for item in data["similar_novels"]]

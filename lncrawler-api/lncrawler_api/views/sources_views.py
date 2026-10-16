@@ -160,8 +160,11 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     Get content for a specific chapter by its number
     """
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    source = get_object_or_404(novel.sources.select_related('external_source'), source_slug=source_slug)
     chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
+    # Attach the already-loaded parents so the serializer does not re-query them
+    source.novel = novel
+    chapter.novel_from_source = source
 
     if novel.is_dmca:
         return Response(

@@ -35,13 +35,15 @@ class Chapter(models.Model):
     has_content = models.BooleanField(default=False)  # New field to track content availability
     
     class Meta:
-        unique_together = ('novel_from_source', 'chapter_id')
         ordering = ['chapter_id']
-        indexes = [
-            models.Index(
+        # One covering unique index serves both the uniqueness check and the
+        # has_content neighbour/count lookups (index-only), replacing a separate
+        # partial index that duplicated it.
+        constraints = [
+            models.UniqueConstraint(
                 fields=['novel_from_source', 'chapter_id'],
-                name='chapter_source_chapter_idx',
-                condition=models.Q(has_content=True),
+                include=['has_content'],
+                name='chapter_source_chapter_uniq',
             ),
         ]
     

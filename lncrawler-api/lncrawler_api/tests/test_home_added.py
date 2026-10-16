@@ -7,6 +7,7 @@ import tempfile
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -178,6 +179,8 @@ class FromMetaJsonAttributionTests(TestCase):
 
 class HomeAddedSectionsTests(TestCase):
     def setUp(self):
+        # Home rankings are cached; start every test from a cold cache.
+        cache.clear()
         self.user = get_user_model().objects.create_user(
             username="u1", email="u1@example.com", password="x"
         )
@@ -289,6 +292,8 @@ class HomeAddedSectionsTests(TestCase):
                     language="en",
                 )
             self.client.force_login(self.user)
+            # Compare cold requests: a warm ranking cache skips those queries.
+            cache.clear()
             with CaptureQueriesContext(connection) as captured:
                 self.client.get(reverse("home_page"))
             return len(captured)

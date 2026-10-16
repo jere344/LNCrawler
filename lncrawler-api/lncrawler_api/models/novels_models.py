@@ -21,6 +21,14 @@ class Novel(models.Model):
     comment_count = models.PositiveIntegerField(default=0)
     is_dmca = models.BooleanField(default=False, db_index=True)
 
+    # Periodic projections of the sources' views and the ratings, used only for
+    # search ordering; refreshed by the refresh_novel_rankings scheduler task
+    # (cards still show live values). The rank_ prefix avoids clashing with the
+    # total_views/week_views/avg_rating annotations used across the code.
+    rank_total_views = models.BigIntegerField(default=0)
+    rank_week_views = models.BigIntegerField(default=0)
+    rank_avg_rating = models.FloatField(default=0.0)
+
     # The user whose download job first imported this novel (null for
     # anonymous submissions and for novels imported before this was tracked).
     # Set once on creation and never rewritten by later updates.
@@ -38,6 +46,9 @@ class Novel(models.Model):
             models.Index(fields=['-created_at'], name='novel_created_at_idx'),
             models.Index(fields=['added_by', '-created_at'], name='novel_added_by_idx'),
             GinIndex(OpClass(Upper('title'), name='gin_trgm_ops'), name='novel_title_trgm_idx'),
+            models.Index(fields=['-rank_total_views', 'title'], name='novel_rank_views_idx'),
+            models.Index(fields=['-rank_week_views', 'title'], name='novel_rank_week_idx'),
+            models.Index(fields=['-rank_avg_rating', 'title'], name='novel_rank_rating_idx'),
         ]
     
     def __str__(self):
@@ -306,29 +317,33 @@ class WeeklySourceView(models.Model):
     def increment_for_source(cls, source):
         """
         Increment today's view count for a source and its all-time projection.
+
+        Today's bucket is bumped with a single upsert (no read-back), so the
+        transaction stays two statements long.
         """
         from datetime import date
-        from django.db import transaction
+        from django.db import connection, transaction
 
         from .sources_models import NovelFromSource
 
-        today = date.today()
-        with transaction.atomic():
-            daily_view, _ = cls.objects.get_or_create(
-                source=source,
-                granularity=cls.DAY,
-                day=today,
-                defaults={'views': 0}
-            )
-            cls.objects.filter(pk=daily_view.pk).update(views=F('views') + 1)
+        table = cls._meta.db_table
+        source_col = cls._meta.get_field('source').column
+        granularity_col = cls._meta.get_field('granularity').column
+        day_col = cls._meta.get_field('day').column
+        views_col = cls._meta.get_field('views').column
 
+        today = date.today()
+        with transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {table} ({source_col}, {granularity_col}, {day_col}, {views_col}) "
+                f"VALUES (%s, %s, %s, 1) "
+                f"ON CONFLICT ({source_col}, {granularity_col}, {day_col}) "
+                f"DO UPDATE SET {views_col} = {table}.{views_col} + 1",
+                [source.pk, cls.DAY, today],
+            )
             NovelFromSource.objects.filter(pk=source.pk).update(
                 total_views=F('total_views') + 1
             )
-
-        # Refresh from database to get the latest values
-        daily_view.refresh_from_db()
-        return daily_view
 
 
 class NovelSimilarity(models.Model):

@@ -1,6 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import F, Avg, Q, Case, When, IntegerField, Count, Sum, Value, Max, Min
 from django.db.models.functions import Coalesce, Upper
@@ -23,8 +24,6 @@ from ..utils.query_helpers import (
     apply_novel_prefetches,
     exclude_adult,
     sources_queryset,
-    sources_total_views_subquery,
-    weekly_views_subquery,
 )
 from ..utils.pagination import paginated_response
 from ..serializers import (
@@ -235,19 +234,15 @@ def search_novels(request):
         except (TypeError, ValueError):
             min_rating_val = None
         if min_rating_val is not None:
-            # Get novels with average rating >= min_rating
-            novels_with_min_rating = Novel.objects.annotate(
-                avg_rating=Avg("ratings__rating")
-            ).filter(avg_rating__gte=min_rating_val)
-            novels_query = novels_query.filter(id__in=novels_with_min_rating)
+            # Average rating >= min_rating, read from the scheduler-refreshed
+            # projection. Unrated novels project to 0 and every real average is
+            # >= 1, so the floor of 1 keeps them excluded as before.
+            novels_query = novels_query.filter(rank_avg_rating__gte=max(min_rating_val, 1))
 
     # Apply sorting
+    # The popularity, trending and rating sorts read scheduler-refreshed projections (up to ~5 min stale).
     if sort_by == "rating":
-        # Sort by rating requires annotation
-        novels_query = novels_query.annotate(
-            avg_rating=Coalesce(Avg("ratings__rating"), Value(0.0))
-        )
-        order_field = "-avg_rating" if sort_order == "desc" else "avg_rating"
+        order_field = "-rank_avg_rating" if sort_order == "desc" else "rank_avg_rating"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "title":
         order_field = "-title" if sort_order == "desc" else "title"
@@ -256,19 +251,12 @@ def search_novels(request):
         order_field = "-created_at" if sort_order == "desc" else "created_at"
         novels_query = novels_query.order_by(order_field)
     elif sort_by == "popularity":
-        # Use total view count for popularity, summed over a deduplicated
-        # subquery so tag/author filters joining sources don't inflate it.
-        novels_query = novels_query.annotate(
-            total_views=Coalesce(sources_total_views_subquery(), Value(0))
-        )
-        order_field = "-total_views" if sort_order == "desc" else "total_views"
+        # Total view count for popularity, from the rank_total_views projection
+        order_field = "-rank_total_views" if sort_order == "desc" else "rank_total_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "trending":
-        # Use the rolling 7-day view count for trending (deduplicated subquery)
-        novels_query = novels_query.annotate(
-            week_views=Coalesce(weekly_views_subquery(), Value(0))
-        )
-        order_field = "-week_views" if sort_order == "desc" else "week_views"
+        # Rolling 7-day view count for trending, from the rank_week_views projection
+        order_field = "-rank_week_views" if sort_order == "desc" else "rank_week_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "last_updated":
         # Annotate with the most recent last_updated date among all sources.
@@ -388,6 +376,16 @@ def autocomplete_suggestion(request):
     return Response(suggestions)
 
 
+# How long the home page's ranking id lists are reused before being recomputed
+HOME_RANKING_CACHE_SECONDS = 120
+
+
+def _in_order(queryset, ids):
+    """Evaluate ``queryset`` and return its objects in the order of ``ids``."""
+    by_pk = {obj.pk: obj for obj in queryset}
+    return [by_pk[pk] for pk in ids if pk in by_pk]
+
+
 @api_view(["GET"])
 def home_page(request):
     """
@@ -476,7 +474,45 @@ def home_page(request):
     if languages:
         recently_updated_qs = recently_updated_qs.filter(language__in=languages)
     recently_updated = recently_updated_qs[:12]
-    
+
+    # The ranking id lists are the expensive part and are shared by every viewer
+    # with the same language set and adult setting, so only those are cached.
+    # The cards are re-fetched per request so per-viewer fields (bookmarks,
+    # reading history) stay current.
+    rank_key = f"home:rank:v1:{','.join(sorted(languages))}:{int(adult_allowed(request.user))}"
+    rankings = cache.get(rank_key)
+    if rankings is None:
+        rankings = {
+            'top_novels': list(top_novels.prefetch_related(None).values_list('pk', flat=True)),
+            'trending_novels': list(trending_novels.prefetch_related(None).values_list('pk', flat=True)),
+            'top_rated_novels': list(top_rated_novels.prefetch_related(None).values_list('pk', flat=True)),
+            'recently_added': list(recently_added.prefetch_related(None).values_list('pk', flat=True)),
+            'recently_updated': list(recently_updated.prefetch_related(None).values_list('pk', flat=True)),
+        }
+        cache.set(rank_key, rankings, HOME_RANKING_CACHE_SECONDS)
+
+    def novels_in_order(ids):
+        # DMCA and adult filters are re-applied so a takedown or a newly adult
+        # novel drops off immediately instead of lingering for the cache TTL.
+        return _in_order(
+            apply_novel_prefetches(
+                exclude_adult(Novel.objects.filter(pk__in=ids, is_dmca=False), request.user),
+                request.user,
+            ),
+            ids,
+        )
+
+    top_novels = novels_in_order(rankings['top_novels'])
+    trending_novels = novels_in_order(rankings['trending_novels'])
+    top_rated_novels = novels_in_order(rankings['top_rated_novels'])
+    recently_added = novels_in_order(rankings['recently_added'])
+    recently_updated_fresh = sources_queryset().filter(
+        pk__in=rankings['recently_updated'], novel__is_dmca=False
+    )
+    if not adult_allowed(request.user):
+        recently_updated_fresh = recently_updated_fresh.exclude(novel__sources__is_adult=True)
+    recently_updated = _in_order(recently_updated_fresh, rankings['recently_updated'])
+
     # Get recent reviews (restricted to novels in the selected languages)
     recent_reviews_qs = Review.objects.select_related('user', 'novel').filter(
         novel__is_dmca=False

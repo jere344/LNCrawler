@@ -17,6 +17,16 @@ map $http_x_forwarded_proto $forwarded_proto {
 # file (00-render-seo-map.conf) so the UA list can be updated without touching
 # this template. See update-render-seo-map.sh.
 
+# Disk cache for anonymous, shared API reads (home, search, novel list,
+# autocomplete) and the SEO renderer. The server is RAM/CPU-poor but has disk:
+# only the key index (10 MB) lives in memory. Logged-in requests (Token header
+# or Django session cookie) always go to the API, so per-user fields stay exact.
+proxy_cache_path /var/cache/nginx/api levels=1:2 keys_zone=api_cache:10m max_size=2g inactive=30m use_temp_path=off;
+map "$http_authorization$cookie_sessionid" $api_private {
+    ""      0;
+    default 1;
+}
+
 server {
     listen 80;
     server_name ${API_HOST};
@@ -29,6 +39,26 @@ server {
     # do not expose them as duplicate content on the API host.
     location /seo/ {
         return 404;
+    }
+
+    # Shared anonymous reads: cached briefly (see proxy_cache_path above).
+    # Accept and Origin are in the key because the API varies on them.
+    location ~ ^/novels/((home|search|autocomplete)/)?$ {
+        set $api api:8000;
+        proxy_pass http://$api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        proxy_cache api_cache;
+        proxy_cache_key "$scheme$host$request_uri|$http_accept|$http_origin";
+        proxy_cache_valid 200 60s;
+        proxy_cache_bypass $api_private;
+        proxy_no_cache $api_private;
+        proxy_ignore_headers Vary;
+        proxy_cache_lock on;
+        proxy_cache_use_stale updating error timeout;
+        add_header X-Cache $upstream_cache_status always;
     }
 
     # Proxy to API container
@@ -82,6 +112,8 @@ server {
     # are rewritten here from the public content URLs, which stay unchanged.
     location /_seo/ {
         internal;
+        # Crawler traffic is always anonymous, so the SEO renderer output is cached.
+        proxy_cache api_cache; proxy_cache_key "$scheme$host$request_uri"; proxy_cache_valid 200 10m; proxy_ignore_headers Vary; proxy_cache_lock on; proxy_cache_use_stale updating error timeout;
         set $api api:8000;
         rewrite ^/_seo/(.*)$ /seo/$1 break;
         proxy_pass http://$api;

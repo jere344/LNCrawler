@@ -22,9 +22,10 @@ TOP_K = 12
 BOOKMARK_CHUNK = 100_000
 
 # Fixed tuning: text vs bookmark weight, and matrix/bulk batch sizes.
+# The dense similarity block is CHUNK_SIZE x novel_count floats; 64 keeps the peak around 440 MB at 70k novels (512 peaked at 1.2 GB) with the same runtime.
 TEXT_WEIGHT = 0.7
 BOOKMARK_WEIGHT = 0.3
-CHUNK_SIZE = 512
+CHUNK_SIZE = 64
 BATCH_SIZE = 2000
 
 
