@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, use } from 'react';
+import { useLoaderData, useNavigation, useRevalidator } from 'react-router-dom';
+import type { AsyncData, HomeLoaderData } from '../../router/loaders';
 import {
   Container,
   Typography,
@@ -9,35 +11,37 @@ import {
   Paper,
   Tabs,
   Tab,
-  Grid2 as Grid
+  Grid as Grid
 } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { novelService } from '@services/api';
 import { Novel, NovelFromSource } from '@models/novels_types';
-import { Review } from '@services/review.service';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
-import FeaturedNovelCard from '@components/common/novelcardtypes/FeaturedNovelCard';
 import ChapterCard from '@components/common/novelcardtypes/ChapterCard';
 import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
+import NovelRecommendation from '@components/common/NovelRecommendation';
+import { getNovelSourceLink, getSourceLink } from '@utils/Misc';
+import { useLanguage } from '@context/LanguageContext';
+import { useAuth } from '@context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
+  const { contentLanguages, languageFilterEnabled } = useLanguage();
+  const { isAuthenticated } = useAuth();
   
-  // State for different novel sections
-  const [homeData, setHomeData] = useState<{
-    top_novels: Novel[];
-    trending_novels: Novel[];
-    top_rated_novels: Novel[];
-    recently_updated: NovelFromSource[];
-    featured_novel: any;
-    recent_reviews: Review[];
-  } | null>(null);
-  
-  // Loading and error states
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: homeDataPromise } = useLoaderData() as AsyncData<HomeLoaderData>;
+  const loaderData = use(homeDataPromise);
+  const navigation = useNavigation();
+  const revalidator = useRevalidator();
+
+  const homeData = loaderData.ok ? loaderData.data : null;
+  const error = loaderData.ok ? null : t('home.loadFailed');
+  // Cold load and navigation are covered by the route's HydrateFallback/Suspense
+  // skeleton; this only spins on a language-change revalidation.
+  const loading = navigation.state === 'loading' || revalidator.state === 'revalidating';
 
   // Rankings tab state
   const [rankingTab, setRankingTab] = useState<number>(1);
@@ -46,23 +50,15 @@ const HomePage: React.FC = () => {
     setRankingTab(newValue);
   };
 
+  // The loader reads the content languages from storage, so re-run it when the
+  // preferences change (LanguageContext mirrors them to storage synchronously).
+  const prefsKey = `${languageFilterEnabled}|${contentLanguages.join(',')}`;
+  const lastPrefsKey = useRef(prefsKey);
   useEffect(() => {
-    const fetchHomeData = async () => {
-      try {
-        setLoading(true);
-        const data = await novelService.getHomePageData();
-        setHomeData(data);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching home page data:', error);
-        setError('Failed to load home page data. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchHomeData();
-  }, []);
+    if (lastPrefsKey.current === prefsKey) return;
+    lastPrefsKey.current = prefsKey;
+    revalidator.revalidate();
+  }, [prefsKey, revalidator]);
 
   // Helper function for error display
   const renderErrorMessage = (message: string) => (
@@ -107,26 +103,70 @@ const HomePage: React.FC = () => {
           borderRadius: 2,
           mb: 4
         }}>
-          <Typography paragraph>
-            Looking for a great place to read Light Novels?
+          <Typography sx={{
+            marginBottom: "16px"
+          }}>
+            {t('home.introHeading')}
           </Typography>
-          <Typography paragraph>
-            LNCrawler is a very special platform where you can read the translated versions of world famous Asian light novels from hundreds of differents sources in multiple languages. 
+          <Typography sx={{
+            marginBottom: "16px"
+          }}>
+            {t('home.introBody')}
           </Typography>
           <Typography>
-            If you can't find your novel here, you can instantly and automatically add it to our database from the Add Novel page.
+            {t('home.introAddNovel')}
           </Typography>
         </Box>
       </Box>
 
+      {isAuthenticated && (loading || (homeData?.recommended_novels?.length ?? 0) > 0) && (
+        <Box sx={{ mb: 6 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" component="h2" sx={{
+              fontWeight: "bold"
+            }}>
+              {t('library.recommended')}
+            </Typography>
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          <NovelRecommendation
+            similarNovels={(homeData?.recommended_novels ?? []).map((novel) => ({ ...novel, similarity: 0 }))}
+            loading={loading}
+          />
+        </Box>
+      )}
+
+      {/* Novels You Added Section (connected users who added novels) */}
+      {!loading && (homeData?.novels_you_added?.length ?? 0) > 0 && (
+        <Box sx={{ mb: 6 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
+              {t('home.novelsYouAdded')}
+            </Typography>
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          <Grid container spacing={2}>
+            {homeData!.novels_you_added.slice(0, 12).map((novel) => (
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
+                <NovelItemCard novel={novel} forceAdultBlur {...getNovelSourceLink(novel)} />
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
+
       {/* Weekly Trending Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
-            This Week's Hottest Novels 🔥
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
+            {t('home.hottest')}
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=trending&sort_order=desc" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -145,7 +185,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 6, sm: 3 }} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
-                  to={`/novels/${novel.slug}`}
+                  {...getNovelSourceLink(novel)}
                   rank={index + 1}
                 />
               </Grid>
@@ -157,11 +197,13 @@ const HomePage: React.FC = () => {
       {/* Best of All Time Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
-            Best of all time
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
+            {t('home.bestOfAllTime')}
           </Typography>
           <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
@@ -180,7 +222,7 @@ const HomePage: React.FC = () => {
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
                 <NovelItemCard 
                   novel={novel} 
-                  to={`/novels/${novel.slug}`}
+                  {...getNovelSourceLink(novel)}
                   rank={rank + 1}
                 />
               </Grid>
@@ -192,20 +234,22 @@ const HomePage: React.FC = () => {
       {/* Ranking Section with Tabs */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
-            Ranking
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
+            {t('home.ranking')}
           </Typography>
           <Button component={Link} to="/novels/search" variant="text">
-            View More
+            {t('common.viewMore')}
           </Button>
         </Box>
         <Divider sx={{ mb: 1 }} />
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={rankingTab} onChange={handleRankingTabChange} aria-label="novel rankings">
-            <Tab label="Most Read" id="tab-most-read" aria-controls="tabpanel-most-read" />
-            <Tab label="New Trends" id="tab-new-trends" aria-controls="tabpanel-new-trends" />
-            <Tab label="User Rated" id="tab-user-rated" aria-controls="tabpanel-user-rated" />
+          <Tabs value={rankingTab} onChange={handleRankingTabChange} aria-label={t('home.rankingsAria')}>
+            <Tab label={t('home.mostRead')} id="tab-most-read" aria-controls="tabpanel-most-read" />
+            <Tab label={t('home.newTrends')} id="tab-new-trends" aria-controls="tabpanel-new-trends" />
+            <Tab label={t('home.userRated')} id="tab-user-rated" aria-controls="tabpanel-user-rated" />
           </Tabs>
         </Box>
         
@@ -231,7 +275,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={`/novels/${novel.slug}`}
+                    {...getNovelSourceLink(novel)}
                     showClicks
                   />
                 </Grid>
@@ -262,7 +306,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={`/novels/${novel.slug}`}
+                    {...getNovelSourceLink(novel)}
                     showTrends
                   />
                 </Grid>
@@ -293,7 +337,7 @@ const HomePage: React.FC = () => {
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
-                    to={`/novels/${novel.slug}`}
+                    {...getNovelSourceLink(novel)}
                     showRating
                   />
                 </Grid>
@@ -303,42 +347,14 @@ const HomePage: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Featured Novel Section */}
-      <Box sx={{ mb: 6 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
-            Featured
-          </Typography>
-          <Button component={Link} to="/novels/search?sort_by=popularity&sort_order=desc" variant="text">
-            View More
-          </Button>
-        </Box>
-        <Divider sx={{ mb: 3 }} />
-        
-        {loading ? (
-          <FeaturedNovelCard source={{} as NovelFromSource} isLoading={true} onClick={() => {}} />
-        ) : homeData?.featured_novel ? (
-          <FeaturedNovelCard 
-            source={homeData.featured_novel.novel.prefered_source}
-            to={homeData.featured_novel.novel.prefered_source?.novel_slug && homeData.featured_novel.novel.prefered_source?.source_slug ? 
-              `/novels/${homeData.featured_novel.novel.prefered_source.novel_slug}/${homeData.featured_novel.novel.prefered_source.source_slug}` : 
-              homeData.featured_novel.novel.prefered_source?.novel_slug ? 
-                `/novels/${homeData.featured_novel.novel.prefered_source.novel_slug}` : undefined}
-          />
-        ) : (
-          <Typography variant="body1" align="center">No featured novel available</Typography>
-        )}
-      </Box>
-
       {/* Recent Reviews Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
-            Latest Reviews
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
+            {t('home.latestReviews')}
           </Typography>
-          <Button component={Link} to="/reviews" variant="text">
-            View More
-          </Button>
         </Box>
         <Divider sx={{ mb: 3 }} />
         
@@ -349,26 +365,68 @@ const HomePage: React.FC = () => {
         />
       </Box>
 
+      {/* Recently Added Novels Section */}
+      <Box sx={{ mb: 6 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
+            {t('home.recentlyAdded')}
+          </Typography>
+        </Box>
+        <Divider sx={{ mb: 3 }} />
+
+        {loading ? (
+          <Grid container spacing={2}>
+            {[...Array(12)].map((_, index) => (
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`recently-added-skeleton-${index}`}>
+                <NovelItemCard novel={{} as Novel} isLoading={true} onClick={() => {}} />
+              </Grid>
+            ))}
+          </Grid>
+        ) : (
+          <Grid container spacing={2}>
+            {homeData?.recently_added?.slice(0, 12).map((novel) => (
+              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
+                <NovelItemCard novel={novel} {...getNovelSourceLink(novel)} />
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </Box>
+
       {/* Recently Added Chapters Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" component="h2" fontWeight="bold">
-            Recently Updated Novels
+          <Typography variant="h5" component="h2" sx={{
+            fontWeight: "bold"
+          }}>
+            {t('home.recentlyUpdated')}
           </Typography>
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        {!loading && homeData && (
+        {loading ? (
           <Grid container spacing={2}>
-            {homeData.recently_updated.slice(0, 12).map((source) => (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
-                <ChapterCard
-                  source={source}
-                  to={source.source_slug ? `/novels/${source.novel_slug}/${source.source_slug}` : undefined}
-                />
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
+                <ChapterCard source={{} as NovelFromSource} isLoading />
               </Grid>
             ))}
           </Grid>
+        ) : (
+          homeData && (
+            <Grid container spacing={2}>
+              {homeData.recently_updated.slice(0, 12).map((source) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
+                  <ChapterCard
+                    source={source}
+                    {...getSourceLink(source)}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )
         )}
       </Box>
     </Container>

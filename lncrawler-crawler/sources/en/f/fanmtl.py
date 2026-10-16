@@ -1,0 +1,119 @@
+# -*- coding: utf-8 -*-
+"""FanMTL (fanmtl.com) - machine-translated novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
+
+import logging
+from typing import Generator
+from urllib.parse import urlparse, parse_qs
+
+from bs4 import BeautifulSoup, Tag
+
+from lncrawl.models import Chapter, SearchResult
+from lncrawl.templates.browser.chapter_only import ChapterOnlyBrowserTemplate
+
+logger = logging.getLogger(__name__)
+
+
+class FanMTLCrawler(ChapterOnlyBrowserTemplate):
+    has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
+
+    base_url = "https://www.fanmtl.com/"
+
+    def initialize(self):
+        self.cleaner.bad_css.update(
+            {
+                'div[align="center"]',
+            }
+        )
+
+    def search_novel(self, query):
+        soup = self.post_soup(
+            f"{self.base_url[0]}/e/search/index.php",
+            data={
+                "show": "title",
+                "tempid": "1",
+                "tbname": "news",
+                "keyboard": query,
+            },
+        )
+        return [
+            {
+                "title": a.get("title") or a.text.strip(),
+                "url": self.absolute_url(a["href"]),
+            }
+            for a in soup.select("ul.novel-list li.novel-item a[href]")
+        ][:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 0
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"{self.home_url}list/all/all-onclick-{page}.html"
+            )
+            items = soup.select("ul.novel-list li.novel-item a[href]")
+            if not items:
+                break
+            for a in items:
+                results.append(
+                    SearchResult(
+                        title=(a.get("title") or a.text).strip(),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 200:
+                break
+        return results[offset : offset + limit]
+
+    def parse_title(self, soup: BeautifulSoup) -> str:
+        possible_title = soup.select_one(".novel-info .novel-title")
+        assert possible_title, "No novel title"
+        return possible_title.text.strip()
+
+    def parse_cover(self, soup: BeautifulSoup) -> str:
+        possible_image = soup.select_one(".novel-header figure.cover img")
+        if possible_image:
+            return self.absolute_url(possible_image["src"])
+
+    def parse_authors(self, soup: BeautifulSoup) -> Generator[str, None, None]:
+        possible_author = soup.select_one('.novel-info .author span[itemprop="author"]')
+        if possible_author:
+            yield possible_author.text.strip()
+
+    def parse_genres(self, soup: BeautifulSoup) -> Generator[str, None, None]:
+        alt = soup.select_one(".novel-info h2.alternative-title")
+        if alt:
+            self.alternative_titles = [alt.get_text(strip=True)]
+        for a in soup.select(".novel-info .categories ul li a"):
+            yield a.get_text(strip=True)
+
+    def select_chapter_tags(self, soup: BeautifulSoup) -> Generator[Tag, None, None]:
+        pages = soup.select('.pagination a[data-ajax-update="#chpagedlist"]')
+        if not pages:
+            yield from soup.select("ul.chapter-list li a")
+            return
+        last_page_url = self.absolute_url(pages[-1]["href"])
+        common_page_url = last_page_url.split("?")[0]
+        params = parse_qs(urlparse(last_page_url).query)
+        page_count = int(params["page"][0]) + 1
+        calls = []
+        for page in range(page_count):
+            page_url = f"{common_page_url}?page={page}&wjm={params['wjm'][0]}"
+            calls.append((self.get_soup, page_url))
+        for soup in self.resolve_bounded(calls):
+            yield from soup.select("ul.chapter-list li a")
+
+    def parse_chapter_item(self, tag: Tag, id: int) -> Chapter:
+        return Chapter(
+            id=id,
+            url=self.absolute_url(tag["href"]),
+            title=tag.select_one(".chapter-title").text.strip(),
+        )
+
+    def select_chapter_body(self, soup: BeautifulSoup) -> Tag:
+        return soup.select_one("#chapter-article .chapter-content")

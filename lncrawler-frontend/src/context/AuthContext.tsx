@@ -1,19 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/api';
+import { User } from '../models/user_types';
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: any;
-  login: (username: string, password: string) => Promise<any>;
+  user: User | null;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => void;
-  updateProfile: (profileData: any) => Promise<void>;
+  updateProfile: (profileData: Parameters<typeof authService._updateProfile>[0]) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   user: null,
-  login: async () => ({}),
+  login: async () => {},
   logout: async () => {},
   refreshUser: () => {},
   updateProfile: async () => {},
@@ -23,10 +24,12 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   const checkAuthStatus = () => {
     const isLoggedIn = authService.isAuthenticated();
+    // Keep the API auth header in sync (covers cross-tab login/logout).
+    authService.syncAuthHeader();
     setIsAuthenticated(isLoggedIn);
     
     if (isLoggedIn) {
@@ -40,14 +43,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuthStatus();
     
     // Listen for storage events (for when user logs in/out in another tab)
-    window.addEventListener('storage', (event) => {
+    const handleStorage = (event: StorageEvent) => {
       if (event.key === 'authToken' || event.key === 'user') {
         checkAuthStatus();
       }
-    });
+    };
+    window.addEventListener('storage', handleStorage);
     
     return () => {
-      window.removeEventListener('storage', checkAuthStatus);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
@@ -75,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateProfile = async (profileData: any) => {
+  const updateProfile = async (profileData: Parameters<typeof authService._updateProfile>[0]) => {
     try {
       const updatedUser = await authService._updateProfile(profileData);
       setUser(updatedUser);
@@ -83,6 +87,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     catch (error) {
       console.error('Error updating profile:', error);
+      throw error;
     }
   }
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Box, 
   Button, 
@@ -11,8 +12,10 @@ import {
   CircularProgress 
 } from '@mui/material';
 import { authService } from '../../services/auth.service';
+import type { ApiError } from '../../services/api';
 
 const ResetPasswordPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -25,20 +28,21 @@ const ResetPasswordPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid reset link.');
+      setError(t('auth.invalidResetLink'));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; token is the only input
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!token) {
-      setError('Invalid reset link.');
+      setError(t('auth.invalidResetLink'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('auth.passwordsNoMatchDot'));
       return;
     }
 
@@ -55,13 +59,14 @@ const ResetPasswordPage: React.FC = () => {
       setTimeout(() => {
         navigate('/login');
       }, 3000);
-    } catch (err: any) {
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else if (err.response?.data?.new_password) {
-        setError(err.response.data.new_password[0]);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.response?.data?.error) {
+        setError(apiErr.response.data.error);
+      } else if (apiErr.response?.data?.new_password) {
+        setError(apiErr.response.data.new_password[0]);
       } else {
-        setError('Failed to reset password. Please try again.');
+        setError(t('auth.resetFailed'));
       }
     } finally {
       setLoading(false);
@@ -72,14 +77,23 @@ const ResetPasswordPage: React.FC = () => {
     return (
       <Container maxWidth="sm">
         <Paper elevation={3} sx={{ mt: 4, p: 4, textAlign: 'center' }}>
-          <Typography variant="h4" component="h1" gutterBottom color="success.main">
-            Password Reset Successful!
+          <Typography variant="h4" component="h1" gutterBottom sx={{
+            color: "success.main"
+          }}>
+            {t('auth.resetSuccessHeading')}
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-            Your password has been successfully reset.
+          <Typography
+            variant="body1"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
+            {t('auth.resetSuccessBody')}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Redirecting to login page...
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
+            {t('auth.redirecting')}
           </Typography>
           <CircularProgress sx={{ mt: 2 }} />
         </Paper>
@@ -91,7 +105,7 @@ const ResetPasswordPage: React.FC = () => {
     <Container maxWidth="sm">
       <Paper elevation={3} sx={{ mt: 4, p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom align="center">
-          Reset Password
+          {t('auth.resetPassword')}
         </Typography>
         
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -102,7 +116,7 @@ const ResetPasswordPage: React.FC = () => {
             required
             fullWidth
             name="newPassword"
-            label="New Password"
+            label={t('auth.newPassword')}
             type="password"
             id="newPassword"
             value={newPassword}
@@ -114,7 +128,7 @@ const ResetPasswordPage: React.FC = () => {
             required
             fullWidth
             name="confirmPassword"
-            label="Confirm New Password"
+            label={t('auth.confirmNewPassword')}
             type="password"
             id="confirmPassword"
             value={confirmPassword}
@@ -129,7 +143,7 @@ const ResetPasswordPage: React.FC = () => {
             sx={{ mt: 3, mb: 2 }}
             disabled={loading || !token || !newPassword || !confirmPassword}
           >
-            {loading ? <CircularProgress size={24} /> : 'Reset Password'}
+            {loading ? <CircularProgress size={24} /> : t('auth.resetPassword')}
           </Button>
           
           <Box sx={{ textAlign: 'center' }}>
@@ -138,7 +152,7 @@ const ResetPasswordPage: React.FC = () => {
               onClick={() => navigate('/login')}
               disabled={loading}
             >
-              Back to Login
+              {t('auth.backToLogin')}
             </Button>
           </Box>
         </Box>

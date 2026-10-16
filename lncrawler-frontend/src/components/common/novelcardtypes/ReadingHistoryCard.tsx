@@ -16,7 +16,10 @@ import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, getChapterName } from '@utils/Misc';
+import { formatTimeAgo, formatDate, getChapterName, getNovelSourceLink } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface ReadingHistoryCardProps {
   novel: Novel;
@@ -24,7 +27,13 @@ interface ReadingHistoryCardProps {
 }
 
 const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete }) => {
+  const { t, i18n } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const continue_chapter = novel.reading_history?.next_chapter || novel.reading_history?.last_read_chapter;
+  const lastReadChapter = novel.reading_history?.last_read_chapter;
+  const displaySource = novel.reading_source ?? novel.prefered_source;
+  const sourceLink = getNovelSourceLink(novel);
 
   return (
     <Card 
@@ -40,7 +49,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
       }}
     >
       {/* Delete button positioned absolutely in the top right */}
-      <Tooltip title="Remove from history">
+      <Tooltip title={t('cards.removeFromHistory')}>
         <IconButton 
           size="medium" 
           onClick={() => onDelete(novel.id)}
@@ -61,18 +70,35 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           width: 120,
           minWidth: 120,
           height: '100%',
-          backgroundImage: novel.prefered_source?.cover_min_url 
-            ? `url(${novel.prefered_source.cover_min_url})` 
+          backgroundImage: displaySource?.cover_min_url 
+            ? `url(${displaySource.cover_min_url})` 
             : 'linear-gradient(to bottom right, #6a11cb, #2575fc)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           borderTopLeftRadius: 4,
           borderBottomLeftRadius: 4,
+          opacity: novel.is_dmca ? 0.55 : 1,
+          cursor: blurred ? 'pointer' : undefined,
+          filter: [
+            novel.is_dmca ? 'grayscale(100%)' : null,
+            blurred ? 'blur(16px)' : null,
+          ].filter(Boolean).join(' ') || 'none',
         }}
+        onClick={blurred ? revealHandler(novel.id) : undefined}
         component={Link}
-        to={`/novels/${novel.slug}`}
+        to={sourceLink.to ?? ''} state={sourceLink.state}
         className="clickable"
       />
+      <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
+
+      {novel.is_dmca && (
+        <Chip
+          label="DMCA"
+          color="error"
+          size="small"
+          sx={{ position: 'absolute', bottom: 8, left: 8, zIndex: 2, fontWeight: 'bold' }}
+        />
+      )}
 
       {/* Content area */}
       <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, width: '100%' }}>
@@ -80,7 +106,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
           <Typography 
             variant="h6" 
             component={Link}
-            to={`/novels/${novel.slug}`}
+            to={sourceLink.to ?? ''} state={sourceLink.state}
             sx={{ 
               fontWeight: 'bold',
               cursor: 'pointer',
@@ -92,34 +118,48 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             {novel.title}
           </Typography>
           
-          {novel.reading_history && continue_chapter && (
+          {novel.reading_history && lastReadChapter && (
             <Box sx={{ mt: 1 }}>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Last read:
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: "center",
+                  mb: 1
+                }}>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
+                  {t('cards.lastRead')}
                 </Typography>
                 <Chip 
                   size="small" 
-                  label={formatTimeAgo(new Date(novel.reading_history.last_read_at))}
+                  label={formatTimeAgo(new Date(novel.reading_history.last_read_at), t)}
                   color="primary" 
                   variant="outlined"
                 />
               </Stack>
               
               <Typography variant="body2" gutterBottom>
-                <strong>Chapter:</strong> {novel.reading_history.last_read_chapter.chapter_id} 
-                {getChapterName(novel.reading_history.last_read_chapter.title) != '' ? ' - ' : ''}
-                {getChapterName(novel.reading_history.last_read_chapter.title)}
+                <strong>{t('cards.chapterLabel')}</strong> {lastReadChapter.chapter_id} 
+                {getChapterName(lastReadChapter.title) != '' ? ' - ' : ''}
+                {getChapterName(lastReadChapter.title)}
               </Typography>
               
-              {novel.reading_history.last_read_chapter.volume_title && (
+              {lastReadChapter.volume_title && (
                 <Typography variant="body2" gutterBottom>
-                  <strong>Volume:</strong> {novel.reading_history.last_read_chapter.volume_title}
+                  <strong>{t('cards.volumeLabel')}</strong> {lastReadChapter.volume_title}
                 </Typography>
               )}
               
-              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                {new Date(novel.reading_history.last_read_at).toLocaleString()}
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  color: "text.secondary",
+                  mt: 1
+                }}>
+                {formatDate(novel.reading_history.last_read_at, i18n.language)}
               </Typography>
             </Box>
           )}
@@ -131,12 +171,12 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             color="primary" 
             variant="contained"
             startIcon={<MenuBookIcon />}
-            disabled={!novel.reading_history}
+            disabled={!novel.reading_history || novel.is_dmca}
             sx={{ mr: 1 }}
             component={Link}
             to={novel.reading_history && continue_chapter ? `/novels/${novel.reading_history.novel_slug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}` : ''}
           >
-            Continue
+            {t('cards.continue')}
           </Button>
           <Button
             size="small"
@@ -144,9 +184,9 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             variant="outlined"
             startIcon={<InfoIcon />}
             component={Link}
-            to={`/novels/${novel.slug}`}
+            to={sourceLink.to ?? ''} state={sourceLink.state}
           >
-            Details
+            {t('cards.details')}
           </Button>
         </CardActions>
       </Box>

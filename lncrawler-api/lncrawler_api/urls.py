@@ -1,8 +1,9 @@
-from django.urls import path, include
+from django.urls import path, re_path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import novels_views, comments_views, sources_views, users_views, boards_views, reviews_views, reading_lists_views
+from .views import novels_views, comments_views, sources_views, users_views, chat_views, reviews_views, reading_lists_views, profile_views, friends_views, import_views, seo_views
 from .views.csrf import get_csrf_token
+from .views.errors_views import report_error
 from django.contrib.sitemaps.views import sitemap, index
 from django.views.decorators.cache import cache_page
 from .views.sitemap import (
@@ -31,11 +32,9 @@ urlpatterns = [
     # API base routes
     path('', include(router.urls)),
 
-    # Board endpoints
-    path('boards/', boards_views.list_boards, name='list_boards'),
-    path('boards/<slug:board_slug>/', boards_views.board_detail, name='board_detail'),
-    path('boards/<slug:board_slug>/comments/', boards_views.board_comments, name='board_comments'),
-    path('boards/<slug:board_slug>/comments/add/', boards_views.add_board_comment, name='add_board_comment'),
+    # Chat endpoints
+    path('chat/', chat_views.list_chat, name='list_chat'),
+    path('chat/add/', chat_views.add_chat_message, name='add_chat_message'),
 
     # Novel comments
     path('novels/<slug:novel_slug>/comments/', comments_views.novel_comments, name='novel_comments'),
@@ -58,12 +57,17 @@ urlpatterns = [
     path('novels/home/', novels_views.home_page, name='home_page'),  # Add this new endpoint
     path('novels/search/', novels_views.search_novels, name='search_novels'),  # Add this new endpoint
     path('novels/autocomplete/', novels_views.autocomplete_suggestion, name='autocomplete_suggestion'),  # Add this new endpoint
-    path('novels/featured/random/', novels_views.random_featured_novel, name='random_featured_novel'),  # Add this new endpoint
     
     # User-specific Novel Bookmarking
     path('users/bookmarks/novels/', users_views.list_bookmarked_novels, name='list_bookmarked_novels'),
     path('users/bookmarks/novels/<slug:novel_slug>/add/', users_views.add_novel_bookmark, name='add_novel_bookmark'),
     path('users/bookmarks/novels/<slug:novel_slug>/remove/', users_views.remove_novel_bookmark, name='remove_novel_bookmark'),
+
+    # Library folders / items / custom order
+    path('users/library/folders/', users_views.library_folders, name='library_folders'),
+    path('users/library/folders/<uuid:folder_id>/', users_views.library_folder_detail, name='library_folder_detail'),
+    path('users/library/items/<uuid:bookmark_id>/', users_views.update_library_item, name='update_library_item'),
+    path('users/library/reorder/', users_views.reorder_library, name='reorder_library'),
     
     # User Reading History
     path('users/reading-history/', users_views.list_reading_history, name='list_reading_history'),
@@ -88,6 +92,7 @@ urlpatterns = [
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapters/', sources_views.novel_chapters_by_source, name='novel_chapters_by_source'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', sources_views.chapter_content_by_number, name='chapter_content_by_number'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/gallery/', sources_views.source_image_gallery, name='source_image_gallery'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/download/', sources_views.download_source_epub, name='download_source_epub'),
 
     # downloader endpoints
     path('downloader/search/start/', views.start_search, name='start_search'),
@@ -105,10 +110,22 @@ urlpatterns = [
 
     # CSRF token endpoint
     path('csrf-token/', get_csrf_token, name='csrf_token'),
+
+    # Frontend error reporting (browser -> backend -> GitHub issue)
+    path('report-error/', report_error, name='report_error'),
     
     # sitemap - 100h cache
     path('sitemap.xml', cache_page(360000)(index), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.index'),
     path('sitemap-<section>.xml', cache_page(360000)(sitemap), {'sitemaps': sitemaps}, name='django.contrib.sitemaps.views.sitemap'),
+
+    # Server-rendered pages for crawlers/social scrapers. Reached through an
+    # internal nginx rewrite of the public content URLs (see nginx-proxy).
+    # Trailing slash is optional so APPEND_SLASH never leaks the internal prefix.
+    re_path(r'^seo/$', seo_views.seo_home, name='seo_home'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/?$', seo_views.seo_novel, name='seo_novel'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/?$', seo_views.seo_source, name='seo_source'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/chapterlist/?$', seo_views.seo_chapterlist, name='seo_chapterlist'),
+    re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/chapter/(?P<chapter_number>\d+)/?$', seo_views.seo_chapter, name='seo_chapter'),
 
     # Reading List endpoints
     path('reading-lists/', reading_lists_views.list_all_reading_lists, name='list_all_reading_lists'),
@@ -120,5 +137,28 @@ urlpatterns = [
     path('reading-lists/<uuid:list_id>/reorder/', reading_lists_views.reorder_list_items, name='reorder_list_items'),
     path('reading-lists/<uuid:list_id>/items/<uuid:item_id>/update/', reading_lists_views.update_list_item, name='update_list_item'),
     path('reading-lists/<uuid:list_id>/items/<uuid:item_id>/remove/', reading_lists_views.remove_novel_from_list, name='remove_novel_from_list'),
+    path('reading-lists/<uuid:list_id>/collaborators/', reading_lists_views.manage_collaborators, name='manage_collaborators'),
+    path('reading-lists/<uuid:list_id>/collaborators/<uuid:collaborator_id>/', reading_lists_views.collaborator_detail, name='collaborator_detail'),
     path('users/reading-lists/', reading_lists_views.get_user_reading_lists, name='get_user_reading_lists'),
+    path('users/search/', users_views.search_users, name='search_users'),
+
+    # NovelUpdates reading-list import (read-only, user-initiated)
+    path('imports/novelupdates/parse/', import_views.parse_novelupdates_import, name='parse_novelupdates_import'),
+    path('imports/novelupdates/apply/', import_views.apply_novelupdates_import, name='apply_novelupdates_import'),
+
+    # Public profiles
+    path('users/profile/pinned/<uuid:novel_id>/', profile_views.pinned_novel, name='pinned_novel'),
+    path('users/profile/<str:username>/', profile_views.user_public_profile, name='user_public_profile'),
+    path('users/profile/<str:username>/library/', profile_views.user_library, name='user_library'),
+    path('users/profile/<str:username>/reviews/', profile_views.user_reviews, name='profile_user_reviews'),
+    path('users/profile/<str:username>/comments/', profile_views.user_comments, name='profile_user_comments'),
+    path('users/profile/<str:username>/reading-lists/', profile_views.user_reading_lists, name='profile_user_reading_lists'),
+    path('users/profile/<str:username>/friends/', profile_views.user_friends, name='user_friends'),
+
+    # Friends
+    path('friends/', friends_views.list_friends, name='list_friends'),
+    path('friends/requests/', friends_views.list_friend_requests, name='list_friend_requests'),
+    path('friends/requests/<str:username>/send/', friends_views.send_friend_request, name='send_friend_request'),
+    path('friends/requests/<uuid:friendship_id>/respond/', friends_views.respond_friend_request, name='respond_friend_request'),
+    path('friends/<str:username>/remove/', friends_views.remove_friend, name='remove_friend'),
 ]

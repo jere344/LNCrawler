@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Typography, 
   Box, 
-  Grid2 as Grid, 
+  Grid as Grid, 
   Avatar, 
   Rating, 
   Card, 
@@ -13,11 +13,13 @@ import {
   Skeleton
 } from '@mui/material';
 import { Link } from 'react-router-dom';
+import UserLink from '@components/profile/UserLink';
 import { Review } from '@services/review.service';
 import ReadOnlyMDXEditor from '@components/common/reviews/ReadOnlyMDXEditor';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { formatTimeAgo } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
 
 interface OverviewReviewsSectionProps {
   reviews?: Review[];
@@ -32,6 +34,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
 }) => {
   const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({});
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const handleExpandToggle = (reviewId: string) => {
     setExpandedReviews(prev => ({
@@ -88,17 +91,23 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Avatar 
+                      component={Link}
+                      to={`/u/${encodeURIComponent(review.user.username)}`}
                       src={review.user.profile_pic} 
                       alt={review.user.username}
                     >
                       {review.user.username.charAt(0).toUpperCase()}
                     </Avatar>
                     <Box sx={{ ml: 1 }}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {review.user.username}
+                      <Typography variant="body2" sx={{
+                        fontWeight: "bold"
+                      }}>
+                        <UserLink username={review.user.username} />
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {formatTimeAgo(new Date(review.created_at))}
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
+                        {formatTimeAgo(new Date(review.created_at), t)}
                       </Typography>
                     </Box>
                   </Box>
@@ -111,14 +120,21 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                   </Box>
                 </Box>
                 
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                <Typography variant="subtitle1" gutterBottom sx={{
+                  fontWeight: "bold"
+                }}>
                   {review.title}
                 </Typography>
                 
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Rating value={review.rating} readOnly size="small" />
-                  <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                    {review.rating} stars
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      ml: 1
+                    }}>
+                    {t('units.stars', { count: review.rating })}
                   </Typography>
                 </Box>
                 
@@ -151,7 +167,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                     variant="text"
                     size="small"
                   >
-                    {isExpanded ? 'Show Less' : 'Show More'}
+                    {isExpanded ? t('common.showLess') : t('common.showMore')}
                   </Button>
                 </Box>
               </CardContent>

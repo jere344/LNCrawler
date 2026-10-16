@@ -1,23 +1,30 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useRef, use } from 'react';
 import { 
   Box, Container, Typography, TextField, Paper, 
   FormControl, InputLabel, Select, MenuItem, Checkbox,
   Chip, Button, FormGroup,
   FormControlLabel, Rating, IconButton, InputAdornment,
   CircularProgress, Pagination, Stack, Autocomplete,
-  Grid2 as Grid,
+  ToggleButton, ToggleButtonGroup,
+  Grid as Grid,
 } from '@mui/material';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLoaderData } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
 import SortIcon from '@mui/icons-material/Sort';
 import CloseIcon from '@mui/icons-material/Close';
 import { novelService } from '../../services/api';
 import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
-import { debounce } from 'lodash';
-import { Novel } from '@models/novels_types';
-import { languageCodeToFlag, availableLanguages, languageCodeToName } from '@utils/Misc';
+import { useDebounce } from '@utils/useDebounce';
+import { languageFlagUrl, availableLanguages, languageCodeToName, getNovelSourceLink } from '@utils/Misc';
 import { useTheme } from '@theme/ThemeContext';
+import { useLanguage } from '@context/LanguageContext';
+import { useAuth } from '@context/AuthContext';
+import SeoMeta from '../common/SeoMeta';
+import type { AsyncData, SearchLoaderData } from '../../router/loaders';
+
+type AdultFilter = 'hide' | 'show' | 'only';
 
 
 interface FilterOptions {
@@ -31,29 +38,35 @@ interface FilterOptions {
 interface Suggestion {
   name: string;
   count: number;
+  alias?: string;
 }
 
-const ITEMS_PER_PAGE = 24;
-const DEBOUNCE_TIME = 300; // milliseconds
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
-
 const SearchPage: React.FC = () => {
+  const { t } = useTranslation();
+  const { contentLanguages, languageFilterEnabled } = useLanguage();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Default the adult filter from the account preference: users who allow
+  // adult content (yes/blur) start on 'show', everyone else on 'hide'.
+  const defaultAdult: AdultFilter =
+    user?.show_r18 === 'yes' || user?.show_r18 === 'blur' ? 'show' : 'hide';
   
-  // State for search results
-  const [novels, setNovels] = useState<Novel[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
-  
-  // State for filter options
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    tags: [],
-    authors: [],
-    statuses: [],
-    languages: availableLanguages,
-  });
+  // Results are owned by the route loader (started before the i18n gate).
+  const { data: searchDataPromise } = useLoaderData() as AsyncData<SearchLoaderData>;
+  const loaderData = use(searchDataPromise);
+  const novels = loaderData.ok ? loaderData.data.results : [];
+  const totalCount = loaderData.ok ? loaderData.data.count : 0;
+  const totalPages = loaderData.ok ? loaderData.data.total_pages : 1;
+  const currentPage = loaderData.ok ? loaderData.data.current_page : 1;
+
+  // Filter options
+  const filterOptions: FilterOptions = {
+    tags: loaderData.ok ? loaderData.data.tags || [] : [],
+    authors: loaderData.ok ? loaderData.data.authors || [] : [],
+    statuses: loaderData.ok ? loaderData.data.statuses || [] : [],
+    languages: loaderData.ok ? loaderData.data.languages || availableLanguages : availableLanguages,
+  };
   
   // State for current filters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('query') || '');
@@ -61,12 +74,47 @@ const SearchPage: React.FC = () => {
   const [excludedTags, setExcludedTags] = useState<string[]>(searchParams.getAll('exclude_tag'));
   const [selectedAuthors, setSelectedAuthors] = useState<string[]>(searchParams.getAll('author'));
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
-  const [selectedLanguage, setSelectedLanguage] = useState(searchParams.get('language') || '');
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(
+    searchParams.getAll('language').length > 0
+      ? searchParams.getAll('language')
+      : languageFilterEnabled
+        ? contentLanguages
+        : []
+  );
   const [minRating, setMinRating] = useState<number | null>(
     searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
   );
   const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'title');
-  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'desc');
+  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'asc');
+  const [adult, setAdult] = useState<AdultFilter>(
+    (searchParams.get('adult') as AdultFilter) || defaultAdult
+  );
+
+  // The profile loads after the first render, so re-align the toggle with its
+  // default once it does (results are already correct from the server). Bail
+  // out when the URL pins an explicit choice, i.e. the user touched the toggle.
+  useEffect(() => {
+    if (searchParams.get('adult')) return;
+    setAdult(defaultAdult);
+  }, [defaultAdult, searchParams]);
+
+  // Keep the search box in sync when navigating (back/forward).
+  useEffect(() => {
+    setSearchQuery(searchParams.get('query') || '');
+  }, [searchParams]);
+
+  // Pre-check the user's content languages once, on first arrival. After that
+  // the URL is authoritative: unchecking everything shows all languages.
+  const seededLanguages = useRef(searchParams.getAll('language').length > 0);
+  useEffect(() => {
+    if (seededLanguages.current) return;
+    if (!languageFilterEnabled || contentLanguages.length === 0) return;
+    seededLanguages.current = true;
+    const params = new URLSearchParams(searchParams);
+    contentLanguages.forEach((code) => params.append('language', code));
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentLanguages, languageFilterEnabled]);
   
   // State for autocomplete options
   const [tagSuggestions, setTagSuggestions] = useState<Suggestion[]>([]);
@@ -76,6 +124,9 @@ const SearchPage: React.FC = () => {
   const [tagInput, setTagInput] = useState('');
   const [excludeTagInput, setExcludeTagInput] = useState('');
   const [authorInput, setAuthorInput] = useState('');
+  const debouncedTagInput = useDebounce(tagInput);
+  const debouncedExcludeTagInput = useDebounce(excludeTagInput);
+  const debouncedAuthorInput = useDebounce(authorInput);
   
   // State for loading suggestions
   const [loadingTags, setLoadingTags] = useState(false);
@@ -84,96 +135,44 @@ const SearchPage: React.FC = () => {
   // UI state
   const [showFilters, setShowFilters] = useState(false);
   
-  // Create debounced functions for fetching suggestions
-  const fetchTagSuggestions = useCallback(
-    debounce(async (query: string) => {
-      if (query.length < 1) {
-        setTagSuggestions([]);
-        setLoadingTags(false);
-        return;
-      }
-      
-      setLoadingTags(true);
-      try {
-        const response = await novelService.getAutocompleteSuggestions('tag', query);
-        setTagSuggestions(response);
-      } catch (error) {
-        console.error('Error fetching tag suggestions:', error);
-        setTagSuggestions([]);
-      } finally {
-        setLoadingTags(false);
-      }
-    }, DEBOUNCE_TIME),
-    []
-  );
-  
-  const fetchAuthorSuggestions = useCallback(
-    debounce(async (query: string) => {
-      if (query.length < 1) {
-        setAuthorSuggestions([]);
-        setLoadingAuthors(false);
-        return;
-      }
-      
-      setLoadingAuthors(true);
-      try {
-        const response = await novelService.getAutocompleteSuggestions('author', query);
-        setAuthorSuggestions(response);
-      } catch (error) {
-        console.error('Error fetching author suggestions:', error);
-        setAuthorSuggestions([]);
-      } finally {
-        setLoadingAuthors(false);
-      }
-    }, DEBOUNCE_TIME),
-    []
-  );
-  
-  // Load search results based on current parameters
+  // Fetch tag suggestions whenever the debounced input changes
   useEffect(() => {
-    const fetchNovels = async () => {
-      setLoading(true);
-      try {
-        const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
-        
-        const response = await novelService.searchNovels({
-          query: searchParams.get('query') || undefined,
-          page,
-          page_size: ITEMS_PER_PAGE,
-          tag: searchParams.getAll('tag'),
-          exclude_tag: searchParams.getAll('exclude_tag'),
-          author: searchParams.getAll('author'),
-          status: searchParams.get('status') || undefined,
-          language: searchParams.get('language') || undefined,
-          min_rating: searchParams.get('min_rating') ? 
-            Number(searchParams.get('min_rating')) : undefined,
-          sort_by: (searchParams.get('sort_by') as any) || 'title',
-          sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
-        });
-        
-        setNovels(response.results);
-        setTotalCount(response.count);
-        setTotalPages(response.total_pages);
-        setCurrentPage(response.current_page);
-        
-        // Store filter options (mainly for status options)
-        setFilterOptions(
-          {
-            tags: response.tags || [],
-            authors: response.authors || [],
-            statuses: response.statuses || [],
-            languages: response.languages || availableLanguages,
-          }
-        );
-      } catch (error) {
-        console.error('Error fetching search results:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchNovels();
-  }, [searchParams]);
+    const query = debouncedTagInput || debouncedExcludeTagInput;
+    if (query.length < 1) {
+      setTagSuggestions([]);
+      setLoadingTags(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingTags(true);
+    novelService.getAutocompleteSuggestions('tag', query)
+      .then((response) => { if (!cancelled) setTagSuggestions(response); })
+      .catch((error) => {
+        console.error('Error fetching tag suggestions:', error);
+        if (!cancelled) setTagSuggestions([]);
+      })
+      .finally(() => { if (!cancelled) setLoadingTags(false); });
+    return () => { cancelled = true; };
+  }, [debouncedTagInput, debouncedExcludeTagInput]);
+
+  // Fetch author suggestions whenever the debounced input changes
+  useEffect(() => {
+    if (debouncedAuthorInput.length < 1) {
+      setAuthorSuggestions([]);
+      setLoadingAuthors(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingAuthors(true);
+    novelService.getAutocompleteSuggestions('author', debouncedAuthorInput)
+      .then((response) => { if (!cancelled) setAuthorSuggestions(response); })
+      .catch((error) => {
+        console.error('Error fetching author suggestions:', error);
+        if (!cancelled) setAuthorSuggestions([]);
+      })
+      .finally(() => { if (!cancelled) setLoadingAuthors(false); });
+    return () => { cancelled = true; };
+  }, [debouncedAuthorInput]);
   
   // Update search params when filters change
   const updateSearchParams = (newParams: Record<string, string | string[] | number | null>) => {
@@ -228,10 +227,11 @@ const SearchPage: React.FC = () => {
     setExcludedTags([]);
     setSelectedAuthors([]);
     setSelectedStatus('');
-    setSelectedLanguage('');
+    setSelectedLanguages([]);
     setMinRating(null);
     setSortBy('title');
-    setSortOrder('desc');
+    setSortOrder('asc');
+    setAdult(defaultAdult);
     
     // Reset URL params to default
     setSearchParams(new URLSearchParams({ page: '1' }));
@@ -245,57 +245,54 @@ const SearchPage: React.FC = () => {
       exclude_tag: excludedTags,
       author: selectedAuthors,
       status: selectedStatus,
-      language: selectedLanguage,
+      language: selectedLanguages,
       min_rating: minRating,
       sort_by: sortBy,
       sort_order: sortOrder,
+      adult: adult === defaultAdult ? null : adult,
     });
     setShowFilters(false);
   };
   
   const pageUrl = window.location.href;
-  const siteName = "LNCrawler";
-  const baseTitle = `Search Light Novels | ${siteName}`;
-  const queryTitle = searchQuery ? `Search results for "${searchQuery}" | ${siteName}` : baseTitle;
+  const baseTitle = t('search.metaDefaultTitle');
+  const queryTitle = searchQuery ? t('search.metaQueryTitle', { query: searchQuery }) : baseTitle;
 
-  const metaTitle = loading ? `Searching... | ${siteName}` : queryTitle;
+  const metaTitle = queryTitle;
   
-  let description = `Search and discover a vast collection of Asian light novels on ${siteName}. Filter by tags, authors, language, and more.`;
+  let description = t('search.metaDescription');
   if (searchQuery) {
-    description = `Find light novels matching "${searchQuery}". ${totalCount > 0 ? `Found ${totalCount} results.` : ''} Explore on ${siteName}.`;
+    description = t('search.metaQueryDescription', { query: searchQuery, count: totalCount });
   }
   const metaDescription = description.substring(0, 160);
 
-  const keywordsList = ["search light novels", "find web novels", "LNCrawler search", "novel discovery"];
+  const keywordsList = t('search.metaKeywords').split(', ');
   if (searchQuery) keywordsList.push(searchQuery);
   selectedTags.forEach(tag => keywordsList.push(tag));
   selectedAuthors.forEach(author => keywordsList.push(author));
-  if (selectedLanguage) keywordsList.push(languageCodeToName(selectedLanguage));
+  selectedLanguages.forEach(code => keywordsList.push(languageCodeToName(t, code)));
   const metaKeywords = keywordsList.join(', ');
+
+  // Tag suggestions may carry a merged-away alias; show it as a hint while the
+  // canonical name stays the value used for filtering.
+  const suggestionLabel = (option: string | Suggestion) => {
+    if (typeof option === 'string') return option;
+    return t('search.optionWithCount', { name: option.name, count: option.count });
+  };
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <title>{metaTitle}</title>
-      <meta name="description" content={metaDescription} />
-      <meta name="keywords" content={metaKeywords} />
-      <link rel="canonical" href={pageUrl} />
-
-      <meta property="og:title" content={metaTitle} />
-      <meta property="og:description" content={metaDescription} />
-      <meta property="og:type" content="website" />
-      <meta property="og:url" content={pageUrl} />
-      <meta property="og:site_name" content={siteName} />
-      <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={metaTitle} />
-      <meta name="twitter:description" content={metaDescription} />
-      <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+      <SeoMeta
+        title={metaTitle}
+        description={metaDescription}
+        keywords={metaKeywords}
+        canonical={pageUrl}
+      />
 
       <Typography variant="h4" component="h1" gutterBottom>
-        Search Novels
+        {t('search.heading')}
       </Typography>
-      
+
       {/* Search Box */}
       <Paper 
         component="form" 
@@ -305,28 +302,30 @@ const SearchPage: React.FC = () => {
         <TextField
           fullWidth
           variant="outlined"
-          placeholder="Search by title, author, or keywords..."
+          placeholder={t('search.placeholder')}
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-            endAdornment: searchQuery && (
-              <InputAdornment position="end">
-                <IconButton 
-                  size="small"
-                  onClick={() => {
-                    setSearchQuery('');
-                    updateSearchParams({ query: null });
-                  }}
-                >
-                  <CloseIcon />
-                </IconButton>
-              </InputAdornment>
-            )
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton 
+                    size="small"
+                    onClick={() => {
+                      setSearchQuery('');
+                      updateSearchParams({ query: null });
+                    }}
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }
           }}
         />
         <Button 
@@ -335,7 +334,7 @@ const SearchPage: React.FC = () => {
           type="submit"
           sx={{ ml: 2 }}
         >
-          Search
+          {t('search.search')}
         </Button>
         <Button
           variant="outlined"
@@ -344,35 +343,34 @@ const SearchPage: React.FC = () => {
           startIcon={<TuneIcon />}
           sx={{ ml: 2 }}
         >
-          Filters
+          {t('search.filters')}
         </Button>
       </Paper>
-      
+
       {/* Filters */}
       {showFilters && (
         <Paper sx={{ p: 3, mb: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6">Filters & Sort</Typography>
+            <Typography variant="h6">{t('search.filtersAndSort')}</Typography>
             <Button 
               variant="text" 
               color="secondary" 
               onClick={handleClearFilters}
             >
-              Clear All
+              {t('search.clearAll')}
             </Button>
           </Box>
           
           <Grid container spacing={3}>
             {/* Tags - Autocomplete */}
             <Grid size={{ xs: 12, md: 6 }}> 
-              <Autocomplete
+              <Autocomplete<string | Suggestion, true>
                 multiple
                 options={tagSuggestions}
                 value={selectedTags}
                 inputValue={tagInput}
                 onInputChange={(_, newInputValue) => {
                   setTagInput(newInputValue);
-                  fetchTagSuggestions(newInputValue);
                 }}
                 onChange={(_, newValue) => {
                   setSelectedTags(newValue.map(item => typeof item === 'string' ? item : item.name));
@@ -381,20 +379,20 @@ const SearchPage: React.FC = () => {
                   if (typeof option === 'string') {
                     return option;
                   }
-                  return `${option.name} (${option.count})`;
+                  return suggestionLabel(option);
                 }}
                 isOptionEqualToValue={(option, value) => {
                   const optionName = typeof option === 'string' ? option : option.name;
                   const valueName = typeof value === 'string' ? value : value.name;
                   return optionName === valueName;
                 }}
-                renderTags={(value, getTagProps) =>
+                renderValue={(value, getItemProps) =>
                   value.map((option, index) => {
                     const tagName = typeof option === 'string' ? option : option.name;
                     return (
                       <Chip
                         label={tagName}
-                        {...getTagProps({ index })}
+                        {...getItemProps({ index })}
                       />
                     );
                   })
@@ -402,16 +400,20 @@ const SearchPage: React.FC = () => {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Include Tags"
-                    placeholder="Type to search tags to include..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <React.Fragment>
-                          {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </React.Fragment>
-                      ),
+                    label={t('search.includeTags')}
+                    placeholder={t('search.includeTagsPlaceholder')}
+                    slotProps={{
+                      ...params.slotProps,
+
+                      input: {
+                        ...params.slotProps.input,
+                        endAdornment: (
+                          <React.Fragment>
+                            {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.slotProps.input.endAdornment}
+                          </React.Fragment>
+                        ),
+                      }
                     }}
                   />
                 )}
@@ -419,27 +421,26 @@ const SearchPage: React.FC = () => {
                   <li {...props}>
                     {typeof option === 'string' ? 
                       option : 
-                      `${option.name} (${option.count})`
+                      suggestionLabel(option)
                     }
                   </li>
                 )}
                 filterOptions={(x) => x} // Don't filter options client-side
-                noOptionsText="No tags found"
+                noOptionsText={t('search.noTags')}
                 loading={loadingTags}
-                loadingText="Loading..."
+                loadingText={t('search.loading')}
               />
             </Grid>
             
             {/* Excluded Tags - Autocomplete */}
             <Grid size={{ xs: 12, md: 6 }}> 
-              <Autocomplete
+              <Autocomplete<string | Suggestion, true>
                 multiple
                 options={tagSuggestions}
                 value={excludedTags}
                 inputValue={excludeTagInput}
                 onInputChange={(_, newInputValue) => {
                   setExcludeTagInput(newInputValue);
-                  fetchTagSuggestions(newInputValue);
                 }}
                 onChange={(_, newValue) => {
                   setExcludedTags(newValue.map(item => typeof item === 'string' ? item : item.name));
@@ -448,14 +449,14 @@ const SearchPage: React.FC = () => {
                   if (typeof option === 'string') {
                     return option;
                   }
-                  return `${option.name} (${option.count})`;
+                  return suggestionLabel(option);
                 }}
                 isOptionEqualToValue={(option, value) => {
                   const optionName = typeof option === 'string' ? option : option.name;
                   const valueName = typeof value === 'string' ? value : value.name;
                   return optionName === valueName;
                 }}
-                renderTags={(value, getTagProps) =>
+                renderValue={(value, getItemProps) =>
                   value.map((option, index) => {
                     const tagName = typeof option === 'string' ? option : option.name;
                     return (
@@ -463,7 +464,7 @@ const SearchPage: React.FC = () => {
                         label={tagName}
                         color="error"
                         variant="outlined"
-                        {...getTagProps({ index })}
+                        {...getItemProps({ index })}
                       />
                     );
                   })
@@ -471,16 +472,20 @@ const SearchPage: React.FC = () => {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Exclude Tags"
-                    placeholder="Type to search tags to exclude..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <React.Fragment>
-                          {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </React.Fragment>
-                      ),
+                    label={t('search.excludeTags')}
+                    placeholder={t('search.excludeTagsPlaceholder')}
+                    slotProps={{
+                      ...params.slotProps,
+
+                      input: {
+                        ...params.slotProps.input,
+                        endAdornment: (
+                          <React.Fragment>
+                            {loadingTags ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.slotProps.input.endAdornment}
+                          </React.Fragment>
+                        ),
+                      }
                     }}
                   />
                 )}
@@ -488,27 +493,26 @@ const SearchPage: React.FC = () => {
                   <li {...props}>
                     {typeof option === 'string' ? 
                       option : 
-                      `${option.name} (${option.count})`
+                      suggestionLabel(option)
                     }
                   </li>
                 )}
                 filterOptions={(x) => x}
-                noOptionsText="No tags found"
+                noOptionsText={t('search.noTags')}
                 loading={loadingTags}
-                loadingText="Loading..."
+                loadingText={t('search.loading')}
               />
             </Grid>
             
             {/* Authors - Autocomplete */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <Autocomplete
+              <Autocomplete<string | Suggestion, true>
                 multiple
                 options={authorSuggestions}
                 value={selectedAuthors}
                 inputValue={authorInput}
                 onInputChange={(_, newInputValue) => {
                   setAuthorInput(newInputValue);
-                  fetchAuthorSuggestions(newInputValue);
                 }}
                 onChange={(_, newValue) => {
                   setSelectedAuthors(newValue.map(item => typeof item === 'string' ? item : item.name));
@@ -517,20 +521,20 @@ const SearchPage: React.FC = () => {
                   if (typeof option === 'string') {
                     return option;
                   }
-                  return `${option.name} (${option.count})`;
+                  return suggestionLabel(option);
                 }}
                 isOptionEqualToValue={(option, value) => {
                   const optionName = typeof option === 'string' ? option : option.name;
                   const valueName = typeof value === 'string' ? value : value.name;
                   return optionName === valueName;
                 }}
-                renderTags={(value, getTagProps) =>
+                renderValue={(value, getItemProps) =>
                   value.map((option, index) => {
                     const tagName = typeof option === 'string' ? option : option.name;
                     return (
                       <Chip
                         label={tagName}
-                        {...getTagProps({ index })}
+                        {...getItemProps({ index })}
                       />
                     );
                   })
@@ -538,16 +542,20 @@ const SearchPage: React.FC = () => {
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Authors"
-                    placeholder="Type to search authors..."
-                    InputProps={{
-                      ...params.InputProps,
-                      endAdornment: (
-                        <React.Fragment>
-                          {loadingAuthors ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </React.Fragment>
-                      ),
+                    label={t('search.authors')}
+                    placeholder={t('search.authorsPlaceholder')}
+                    slotProps={{
+                      ...params.slotProps,
+
+                      input: {
+                        ...params.slotProps.input,
+                        endAdornment: (
+                          <React.Fragment>
+                            {loadingAuthors ? <CircularProgress color="inherit" size={20} /> : null}
+                            {params.slotProps.input.endAdornment}
+                          </React.Fragment>
+                        ),
+                      }
                     }}
                   />
                 )}
@@ -555,35 +563,58 @@ const SearchPage: React.FC = () => {
                   <li {...props}>
                     {typeof option === 'string' ? 
                       option : 
-                      `${option.name} (${option.count})`
+                      suggestionLabel(option)
                     }
                   </li>
                 )}
                 filterOptions={(x) => x} // Don't filter options client-side
-                noOptionsText="No authors found"
+                noOptionsText={t('search.noAuthors')}
                 loading={loadingAuthors}
-                loadingText="Loading..."
+                loadingText={t('search.loading')}
               />
             </Grid>
             
             {/* Language Filter */}
             <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
-                <InputLabel>Language</InputLabel>
+                <InputLabel>{t('search.language')}</InputLabel>
                 <Select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  label="Language"
+                  multiple
+                  value={selectedLanguages}
+                  onChange={(e) =>
+                    setSelectedLanguages(
+                      typeof e.target.value === 'string'
+                        ? e.target.value.split(',')
+                        : (e.target.value as string[])
+                    )
+                  }
+                  label={t('search.language')}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((langCode) => (
+                        <Chip
+                          key={langCode}
+                          size="small"
+                          label={languageCodeToName(t, langCode)}
+                          avatar={
+                            <img
+                              src={languageFlagUrl(langCode)}
+                              alt={languageCodeToName(t, langCode)}
+                              style={{ width: '20px', height: '15px', objectFit: 'cover' }}
+                            />
+                          }
+                        />
+                      ))}
+                    </Box>
+                  )}
                 >
-                  <MenuItem value="">
-                    <em>Any</em>
-                  </MenuItem>
                   {filterOptions.languages.map((langCode) => (
                     <MenuItem key={langCode} value={langCode}>
+                      <Checkbox checked={selectedLanguages.indexOf(langCode) > -1} />
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <img 
-                          src={`/flags/${languageCodeToFlag(langCode)}.svg`} 
-                          alt={languageCodeToName(langCode)}
+                          src={languageFlagUrl(langCode)} 
+                          alt={languageCodeToName(t, langCode)}
                           style={{ 
                             width: '20px',
                             height: '15px',
@@ -592,7 +623,7 @@ const SearchPage: React.FC = () => {
                             marginRight: '8px',
                           }}
                         />
-                        {languageCodeToName(langCode)}
+                        {languageCodeToName(t, langCode)}
                       </Box>
                     </MenuItem>
                   ))}
@@ -602,7 +633,7 @@ const SearchPage: React.FC = () => {
             
             {/* Minimum Rating */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <Typography component="legend">Minimum Rating</Typography>
+              <Typography component="legend">{t('search.minimumRating')}</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Rating
                   value={minRating || 0}
@@ -616,7 +647,7 @@ const SearchPage: React.FC = () => {
                     startIcon={<CloseIcon />}
                     sx={{ ml: 1 }}
                   >
-                    Clear
+                    {t('search.clear')}
                   </Button>
                 )}
               </Box>
@@ -625,23 +656,23 @@ const SearchPage: React.FC = () => {
             {/* Sort Options */}
             <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
-                <InputLabel>Sort By</InputLabel>
+                <InputLabel>{t('search.sortBy')}</InputLabel>
                 <Select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  label="Sort By"
+                  label={t('search.sortBy')}
                   startAdornment={
                     <InputAdornment position="start">
                       <SortIcon />
                     </InputAdornment>
                   }
                 >
-                  <MenuItem value="title">Title</MenuItem>
-                  <MenuItem value="rating">Rating</MenuItem>
-                  <MenuItem value="date_added">Date Added</MenuItem>
-                  <MenuItem value="popularity">All-time Views</MenuItem>
-                  <MenuItem value="trending">Trending (Weekly Views)</MenuItem>
-                  <MenuItem value="last_updated">Last Updated</MenuItem>
+                  <MenuItem value="title">{t('search.sortTitle')}</MenuItem>
+                  <MenuItem value="rating">{t('search.sortRating')}</MenuItem>
+                  <MenuItem value="date_added">{t('search.sortDateAdded')}</MenuItem>
+                  <MenuItem value="popularity">{t('search.sortAllTimeViews')}</MenuItem>
+                  <MenuItem value="trending">{t('search.sortTrending')}</MenuItem>
+                  <MenuItem value="last_updated">{t('search.sortLastUpdated')}</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -656,9 +687,26 @@ const SearchPage: React.FC = () => {
                       onChange={(e) => setSortOrder(e.target.checked ? 'desc' : 'asc')}
                     />
                   }
-                  label="Sort Descending"
+                  label={t('search.sortDescending')}
                 />
               </FormGroup>
+            </Grid>
+            
+            {/* Adult (R18) content */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="body2" sx={{ mb: 0.5, color: 'text.secondary' }}>
+                {t('search.adultContent')}
+              </Typography>
+              <ToggleButtonGroup
+                value={adult}
+                exclusive
+                size="small"
+                onChange={(_, value: AdultFilter | null) => { if (value) setAdult(value); }}
+              >
+                <ToggleButton value="hide">{t('search.adultHide')}</ToggleButton>
+                <ToggleButton value="show">{t('search.adultShow')}</ToggleButton>
+                <ToggleButton value="only">{t('search.adultOnly')}</ToggleButton>
+              </ToggleButtonGroup>
             </Grid>
             
             {/* Apply Filters Button */}
@@ -669,22 +717,22 @@ const SearchPage: React.FC = () => {
                 onClick={applyFilters}
                 fullWidth
               >
-                Apply Filters
+                {t('search.applyFilters')}
               </Button>
             </Grid>
           </Grid>
         </Paper>
       )}
-      
+
       {/* Active Filters Display */}
       {(selectedTags.length > 0 || excludedTags.length > 0 ||
-       selectedAuthors.length > 0 || selectedStatus || selectedLanguage || 
-       minRating || sortBy !== 'title' || sortOrder !== 'asc') && (
+       selectedAuthors.length > 0 || selectedStatus || selectedLanguages.length > 0 || 
+       minRating || sortBy !== 'title' || sortOrder !== 'asc' || adult !== defaultAdult) && (
         <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {selectedTags.map(tag => (
             <Chip 
               key={`tag-${tag}`} 
-              label={`Tag: ${tag}`}
+              label={t('search.tagFilter', { tag })}
               color="primary"
               onDelete={() => {
                 setSelectedTags(selectedTags.filter(t => t !== tag));
@@ -698,7 +746,7 @@ const SearchPage: React.FC = () => {
           {excludedTags.map(tag => (
             <Chip 
               key={`exclude-tag-${tag}`} 
-              label={`Exclude: ${tag}`}
+              label={t('search.excludeFilter', { tag })}
               color="error"
               variant="outlined"
               onDelete={() => {
@@ -713,7 +761,7 @@ const SearchPage: React.FC = () => {
           {selectedAuthors.map(author => (
             <Chip 
               key={`author-${author}`} 
-              label={`Author: ${author}`}
+              label={t('search.authorFilter', { author })}
               onDelete={() => {
                 setSelectedAuthors(selectedAuthors.filter(a => a !== author));
                 updateSearchParams({ 
@@ -725,7 +773,7 @@ const SearchPage: React.FC = () => {
           
           {selectedStatus && (
             <Chip 
-              label={`Status: ${selectedStatus}`}
+              label={t('search.statusFilter', { status: selectedStatus })}
               onDelete={() => {
                 setSelectedStatus('');
                 updateSearchParams({ status: null });
@@ -733,14 +781,15 @@ const SearchPage: React.FC = () => {
             />
           )}
           
-          {selectedLanguage && (
+          {selectedLanguages.map((langCode) => (
             <Chip 
+              key={langCode}
               label={
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  Language:&nbsp;
+                  {t('search.languageFilter')}&nbsp;
                   <img 
-                    src={`/flags/${languageCodeToFlag(selectedLanguage)}.svg`} 
-                    alt={languageCodeToName(selectedLanguage)}
+                    src={languageFlagUrl(langCode)} 
+                    alt={languageCodeToName(t, langCode)}
                     style={{ 
                       width: '20px', 
                       height: '15px', 
@@ -750,19 +799,20 @@ const SearchPage: React.FC = () => {
                       marginLeft: '4px',
                     }}
                   />
-                  {languageCodeToName(selectedLanguage)}
+                  {languageCodeToName(t, langCode)}
                 </Box>
               }
               onDelete={() => {
-                setSelectedLanguage('');
-                updateSearchParams({ language: null });
+                const next = selectedLanguages.filter((code) => code !== langCode);
+                setSelectedLanguages(next);
+                updateSearchParams({ language: next });
               }}
             />
-          )}
+          ))}
           
           {minRating !== null && (
             <Chip 
-              label={`Min Rating: ${minRating}`}
+              label={t('search.ratingFilter', { rating: minRating })}
               onDelete={() => {
                 setMinRating(null);
                 updateSearchParams({ min_rating: null });
@@ -772,7 +822,7 @@ const SearchPage: React.FC = () => {
           
           {(sortBy !== 'title' || sortOrder !== 'asc') && (
             <Chip 
-              label={`Sort: ${sortBy} (${sortOrder})`}
+              label={t('search.sortFilter', { sortBy, sortOrder })}
               onDelete={() => {
                 setSortBy('title');
                 setSortOrder('asc');
@@ -783,49 +833,48 @@ const SearchPage: React.FC = () => {
               }}
             />
           )}
+
+          {adult !== defaultAdult && (
+            <Chip
+              label={t(`search.adult${adult === 'hide' ? 'Hide' : adult === 'show' ? 'Show' : 'Only'}`)}
+              onDelete={() => {
+                setAdult(defaultAdult);
+                updateSearchParams({ adult: defaultAdult });
+              }}
+            />
+          )}
         </Box>
       )}
-      
+
       {/* Results Count */}
       <Typography variant="subtitle1" sx={{ mb: 2 }}>
-        {loading ? 'Searching...' : (
-          totalCount > 0 ? 
-            `Found ${totalCount} novel${totalCount !== 1 ? 's' : ''}` : 
-            'No novels found'
-        )}
+        {t('search.foundCount', { count: totalCount })}
       </Typography>
-      
-      {/* Loading indicator */}
-      {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
-        </Box>
-      )}
-      
+
       {/* Novel Grid */}
-      {!loading && novels.length > 0 && (
+      {novels.length > 0 && (
         <Grid container spacing={3}>
           {novels.map((novel) => (
             <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
               <BaseNovelCard 
                 novel={novel} 
-                to={`/novels/${novel.slug}`}
+                {...getNovelSourceLink(novel)}
               />
             </Grid>
           ))}
         </Grid>
       )}
-      
+
       {/* No Results */}
-      {!loading && novels.length === 0 && (
+      {novels.length === 0 && (
         <Box sx={{ textAlign: 'center', my: 5 }}>
-          <Typography variant="h6">No novels found matching your criteria</Typography>
+          <Typography variant="h6">{t('search.noResults')}</Typography>
           <Typography color="textSecondary">
-            Try adjusting your filters or search terms
+            {t('search.noResultsHint')}
           </Typography>
         </Box>
       )}
-      
+
       {/* Pagination */}
       {totalPages > 1 && (
         <Stack spacing={2} sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>

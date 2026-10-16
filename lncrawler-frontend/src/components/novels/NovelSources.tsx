@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Typography,
   Divider,
@@ -10,11 +11,12 @@ import {
   ListItem,
   ListItemText,
   Box,
+  Chip,
   IconButton,
   Tooltip,
   alpha,
   useTheme,
-  Grid2 as Grid,
+  Grid as Grid,
   CardMedia,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
@@ -25,17 +27,23 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import TranslateIcon from '@mui/icons-material/Translate';
 import ImageIcon from '@mui/icons-material/Image';
-import { getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { getChapterName, languageFlagUrl, languageCodeToName, formatDate, editionLabel } from '@utils/Misc';
 import { novelService } from '../../services/api';
+import { NovelDetail, NovelFromSource } from '@models/novels_types';
 
 interface NovelSourcesProps {
-  novel: any;
+  novel: NovelDetail;
+  currentSourceSlug?: string;
 }
 
-const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
+const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug }) => {
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
-  const [sources, setSources] = useState<any[]>(novel.sources);
+  const [sources, setSources] = useState<NovelFromSource[]>(novel.sources);
   const [votingInProgress, setVotingInProgress] = useState<{ [key: string]: boolean }>({});
+  // The backend's primary is language-aware (then votes, then chapters), so it
+  // is not simply the first card once sorted by vote score.
+  const primarySourceSlug = novel.prefered_source?.source_slug;
 
   const handleVote = async (sourceSlug: string, voteType: 'up' | 'down', event: React.MouseEvent) => {
     event.stopPropagation();
@@ -69,19 +77,9 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
     }
   };
 
-  // Format date to readable format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    }).format(date);
-  };
-
   return (
     <Grid container spacing={3}>
-      {sources.sort((a: any, b: any) => b.vote_score - a.vote_score).map((source: any, index: number) => (
+      {[...sources].sort((a, b) => b.vote_score - a.vote_score).map((source, index) => (
         <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
           <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }}>
             <Card
@@ -93,14 +91,16 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                 overflow: 'visible',
               }}
             >
-              {index === 0 && (
+              {(source.source_slug === primarySourceSlug || source.source_slug === currentSourceSlug) && (
                 <Box
                   sx={{
                     position: 'absolute',
                     top: -12,
                     right: 20,
                     zIndex: 2,
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    background: source.source_slug === currentSourceSlug
+                      ? `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`
+                      : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                     color: 'white',
                     px: 2,
                     py: 0.5,
@@ -113,7 +113,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                   }}
                 >
                   <PriorityHighIcon fontSize="small" sx={{ mr: 0.5, fontSize: '1rem' }} />
-                  PRIMARY
+                  {source.source_slug === currentSourceSlug ? t('novelSources.current') : t('novelSources.primary')}
                 </Box>
               )}
 
@@ -125,12 +125,12 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                   sx={{ height: '100%' }}
                 >
                   {/* Source Cover Image */}
-                  {source.cover_url ? (
+                  {source.cover_min_url ? (
                     <CardMedia
                       component="img"
                       height="140"
-                      image={source.cover_url}
-                      alt={`${source.source_name} cover`}
+                      image={source.cover_min_url}
+                      alt={t('novelSources.coverAlt', { name: source.source_name })}
                       sx={{ 
                         objectFit: 'cover',
                         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`
@@ -157,17 +157,30 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                   )}
                   
                   <CardContent>
-                    <Typography
-                      variant="h6"
-                      gutterBottom
+                    {/* The chip sits beside the heading, not inside it: a div
+                        is not valid content of an h6. */}
+                    <Box
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
-                        color: theme.palette.primary.main,
+                        flexWrap: 'wrap',
+                        gap: 1,
+                        mb: '0.35em',
                       }}
                     >
-                      {source.source_name}
-                    </Typography>
+                      <Typography
+                        variant="h6"
+                        sx={{ color: theme.palette.primary.main }}
+                      >
+                        {source.source_name}
+                      </Typography>
+                      {source.edition && (
+                        <Chip
+                          size="small"
+                          label={editionLabel(source.edition, t)}
+                        />
+                      )}
+                    </Box>
 
                     <List dense disablePadding>
                       {/* Add language info before chapters */}
@@ -198,13 +211,13 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                           primary={
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                                Language
+                                {t('novelSources.language')}
                               </Typography>
                               {source.language ? (
                                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                   <img 
-                                    src={`/flags/${languageCodeToFlag(source.language)}.svg`} 
-                                    alt={languageCodeToName(source.language)}
+                                    src={languageFlagUrl(source.language)} 
+                                    alt={languageCodeToName(t, source.language)}
                                     style={{ 
                                       width: '20px',
                                       height: '15px',
@@ -214,12 +227,12 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                                     }}
                                   />
                                   <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
-                                    {languageCodeToName(source.language)}
+                                    {languageCodeToName(t, source.language)}
                                   </Typography>
                                 </Box>
                               ) : (
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
-                                  Unknown
+                                  {t('common.unknown')}
                                 </Typography>
                               )}
                             </Box>
@@ -256,10 +269,10 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                             <Box>
                               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                                  Chapters
+                                  {t('novelSources.chapters')}
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
-                                  {source.latest_available_chapter?.chapter_id || 0}
+                                  {source.available_chapters_count ?? source.chapters_count ?? 0}
                                 </Typography>
                               </Box>
                               {getChapterName(source.latest_available_chapter?.title || '') !== '' && (
@@ -309,10 +322,10 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                           primary={
                             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                               <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                                Updated
+                                {t('novelSources.updated')}
                               </Typography>
                               <Typography variant="body2" sx={{ fontStyle: 'italic', fontSize: '0.7rem' }}>
-                                {formatDate(source.last_chapter_update)}
+                                {formatDate(source.last_chapter_update, i18n.language)}
                               </Typography>
                             </Box>
                           }
@@ -335,7 +348,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                     color: theme.palette.text.secondary,
                   }}
                 >
-                  Rating:
+                  {t('novelSources.ratingLabel')}
                   <Box
                     component="span"
                     sx={{
@@ -352,7 +365,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                 </Typography>
 
                 <Box>
-                  <Tooltip title="Upvote">
+                  <Tooltip title={t('novelSources.upvote')}>
                     <IconButton
                       size="small"
                       color={source.user_vote === 'up' ? 'primary' : 'default'}
@@ -370,7 +383,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel }) => {
                     </IconButton>
                   </Tooltip>
 
-                  <Tooltip title="Downvote">
+                  <Tooltip title={t('novelSources.downvote')}>
                     <IconButton
                       size="small"
                       color={source.user_vote === 'down' ? 'error' : 'default'}

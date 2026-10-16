@@ -1,0 +1,33 @@
+import type { ReaderSettings } from './ReaderSettings';
+import { defaultTtsPrefs } from './tts/ttsTypes';
+
+export const defaultSettings: ReaderSettings = {
+    fontSize: 18,
+    fontFamily: null,
+    textAlign: 'justify',
+    fontColor: null,
+    backgroundColor: null,
+    margin: 0,
+    lineSpacing: 1.6,
+    wordSpacing: 0,
+    letterSpacing: 0,
+    dimLevel: 0,
+    leftEdgeTapBehavior: 'none',
+    rightEdgeTapBehavior: 'none',
+    textSelectable: true,
+    savePosition: true,
+    markReadBehavior: 'buttonAutomatic',
+    keyboardNavigation: true,
+    swipeLeftGesture: 'nextChapter',
+    swipeRightGesture: 'prevChapter',
+    hideScrollbar: false,
+    paragraphIndent: false,
+    paragraphSpacing: 1,
+    centerTapToOpenSettings: true,
+    nightMode: false,
+    nightModeStrength: 50,
+    nightModeScheduleEnabled: false,
+    nightModeStartTime: '20:00',
+    nightModeEndTime: '06:00',
+    ...defaultTtsPrefs,
+};

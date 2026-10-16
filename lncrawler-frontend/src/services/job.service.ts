@@ -6,8 +6,8 @@ export const jobService = {
     return response.data;
   },
   
-  listJobs: async () => {
-    const response = await api.get('/downloader/jobs/');
+  listJobs: async (activeOnly = false) => {
+    const response = await api.get('/downloader/jobs/', activeOnly ? { params: { active: 1 } } : undefined);
     return response.data;
   },
   

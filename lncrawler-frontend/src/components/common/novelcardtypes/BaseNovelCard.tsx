@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
   Typography, Box, Rating, Chip, Skeleton, Tooltip,
-  Grid2 as Grid
+  Grid as Grid
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -11,47 +11,64 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, formatCount, getChapterName, languageFlagUrl, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
 import MarkAsReadButton from '@components/common/MarkAsReadButton';
 import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
+import { useTranslation } from 'react-i18next';
 
 export interface BaseNovelCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
-  to?: string;
-}
-
-export function formatCount(count: number): string {
-  if (count >= 1000000) {
-    return `${(count / 1000000).toFixed(1)}M`;
-  } else if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}K`;
-  }
-  return `${count}`;
+  to?: To;
+  state?: unknown;
+  hideUserState?: boolean;
+  // Show the per-user rating instead of the community average (library views).
+  ratingMode?: 'average' | 'user';
+  // When provided, the rating becomes interactive and calls back with the value.
+  onRate?: (value: number | null) => void;
+  ratingLabel?: string;
+  // Hide the rating row entirely (e.g. public mirror when ratings are private).
+  showRating?: boolean;
 }
 
 export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({ 
   novel, 
   onClick, 
   isLoading = false,
-  to
+  to,
+  state,
+  hideUserState = false,
+  ratingMode = 'average',
+  onRate,
+  ratingLabel,
+  showRating = true
 }) => {
-  const preferredSource = novel.prefered_source;
+  const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
+  const { t } = useTranslation();
   const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => {
     if (novel.reading_history) {
-      const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const lastReadChapterId = novel.reading_history.last_read_chapter.chapter_id;
-      
-      const unread = latestChapterId - lastReadChapterId;
+      // Only chapters with content count (backend supplies the count), so
+      // gaps left by failed downloads don't inflate the badge.
+      const unread = novel.reading_history.unread_chapters;
+      if (unread === undefined || unread === null) {
+        return null;
+      }
       return unread > 0 ? unread : null;
     }
-    else if (novel.is_bookmarked && novel.prefered_source?.latest_available_chapter) {
-      return novel.prefered_source.latest_available_chapter.chapter_id;
+    else if (novel.is_bookmarked && novel.prefered_source) {
+      const available = novel.prefered_source.available_chapters_count
+        ?? novel.prefered_source.latest_available_chapter?.chapter_id;
+      return available && available > 0 ? available : null;
     }
     return null;
   });
@@ -64,10 +81,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
 
   let tooltip = "";
   if (unreadChapters) {
-    tooltip = `${unreadChapters} unread chapter${unreadChapters > 1 ? 's' : ''}`;
-  }
-  if (novel.reading_history?.next_chapter) {
-    tooltip += `. Next : ${getChapterName(novel.reading_history.next_chapter.title)}`;
+    const unreadLabel = t('units.unreadChapters', { count: unreadChapters });
+    tooltip = novel.reading_history?.next_chapter
+      ? t('cards.unreadTooltip', { unread: unreadLabel, next: getChapterName(novel.reading_history.next_chapter.title) })
+      : unreadLabel;
   }
   
   if (isLoading) {
@@ -133,18 +150,19 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         '&:hover': {
           transform: 'translateY(-5px)',
           boxShadow: '0px 10px 15px -3px rgba(0,0,0,0.1)',
+          zIndex: 2,
         },
         position: 'relative',
         overflow: 'visible',
       }}
     >
-      {unreadChapters && (
+      {unreadChapters && !hideUserState && (
         <Tooltip title={tooltip} arrow>
           <Box
             sx={{
               position: 'absolute',
-              top: -8,
-              left: -8,
+              top: 8,
+              left: 8,
               zIndex: 2,
               backgroundColor: 'primary.main',
               color: 'primary.contrastText',
@@ -159,7 +177,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         </Tooltip>
       )}
 
-      {isAuthenticated && (
+      {isAuthenticated && !hideUserState && (
         <>
           <BookmarkButton 
             isBookmarked={novel.is_bookmarked || false}
@@ -184,12 +202,14 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         onClick={onClick}
         component={to ? Link : 'div'}
         to={to}
+        state={to ? state : undefined}
       >
         <Box sx={{ position: 'relative', paddingTop: '150%' }}>
           <CardMedia
             component="img"
-            image={novel.prefered_source?.cover_min_url || defaultCover}
+            image={preferredSource?.cover_min_url || defaultCover}
             alt={novel.title}
+            onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               position: 'absolute',
               top: 0,
@@ -197,8 +217,29 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
+              opacity: novel.is_dmca ? 0.55 : 1,
+              cursor: blurred ? 'pointer' : undefined,
+              filter: [
+                novel.is_dmca ? 'grayscale(100%)' : null,
+                blurred ? 'blur(16px)' : null,
+              ].filter(Boolean).join(' ') || 'none',
             }}
           />
+          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
+          {novel.is_dmca && (
+            <Chip
+              label="DMCA"
+              color="error"
+              size="small"
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                left: 8,
+                zIndex: 2,
+                fontWeight: 'bold',
+              }}
+            />
+          )}
           {/* Language flags */}
           <Box
             sx={{
@@ -215,10 +256,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           >
             {novel.languages.length > 0 ? (
               novel.languages.map((lang) => (
-                <Tooltip key={lang} title={languageCodeToName(lang)}>
+                <Tooltip key={lang} title={languageCodeToName(t, lang)}>
                   <img 
-                    src={`/flags/${languageCodeToFlag(lang)}.svg`} 
-                    alt={languageCodeToName(lang)}
+                    src={languageFlagUrl(lang)} 
+                    alt={languageCodeToName(t, lang)}
                     style={{ 
                       width: '30px',
                       height: '20px',
@@ -229,7 +270,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
                 </Tooltip>
               ))
             ) : (
-              <Tooltip title="Unknown language">
+              <Tooltip title={t('cards.unknownLanguage')}>
                 <Typography
                   sx={{
                     fontSize: '0.8rem', // Adjusted size for consistency
@@ -266,47 +307,81 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           
           {/* Author */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <Tooltip title="Authors">
+            <Tooltip title={t('cards.authors')}>
               <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 16, height: 16 }} />
             </Tooltip>
-            <Typography variant="body2" color="text.secondary" noWrap>
+            <Typography variant="body2" noWrap sx={{
+              color: "text.secondary"
+            }}>
               {preferredSource?.authors && preferredSource.authors.length > 0 
                 ? preferredSource.authors.join(', ') 
-                : 'Unknown'}
+                : t('common.unknown')}
             </Typography>
           </Box>
           
           {/* Tags */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-            <Tooltip title="Tags">
+            <Tooltip title={t('cards.tags')}>
               <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 16, height: 16 }} />
             </Tooltip>
-            <Typography variant="body2" color="text.secondary" noWrap>
+            <Typography variant="body2" noWrap sx={{
+              color: "text.secondary"
+            }}>
               {preferredSource?.tags && preferredSource.tags.length > 0 ? 
                 `${preferredSource.tags.slice(0, 3).join(', ')}${preferredSource.tags.length > 3 ? '...' : ''}` 
-                : 'Unknown'}
+                : t('common.unknown')}
             </Typography>
           </Box>
           
           {/* Rating */}
+          {showRating && (
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-            <Rating 
-              value={novel.avg_rating || 0} 
-              precision={0.5} 
-              readOnly 
-              size="small" 
-            />
-            <Typography variant="body2" color="text.secondary" 
-            sx={{ 
-              ml: 0.25,
-              fontSize: '0.875rem',
-              overflow: 'hidden',
-              height: '1.2em'
-            }}>
-              {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
-              {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
-            </Typography>
+            {ratingMode === 'user' ? (
+              <>
+                <Rating
+                  value={novel.user_rating || 0}
+                  readOnly={!onRate}
+                  size="small"
+                  onChange={(_, value) => onRate?.(value)}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 0.25,
+                    fontSize: '0.75rem',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    height: '1.2em'
+                  }}>
+                  {novel.user_rating ? `${novel.user_rating}/5` : (ratingLabel ?? '—')}
+                </Typography>
+              </>
+            ) : (
+              <>
+                <Rating 
+                  value={novel.avg_rating || 0} 
+                  precision={0.5} 
+                  readOnly 
+                  size="small" 
+                />
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 0.25,
+                    fontSize: '0.875rem',
+                    overflow: 'hidden',
+                    height: '1.2em'
+                  }}>
+                  {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
+                  {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
+                </Typography>
+              </>
+            )}
           </Box>
+          )}
           
           {/* Metadata grid using a proper Grid for alignment */}
           <Grid 
@@ -332,10 +407,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             }}
           >
             <Grid size={6}>
-              <Tooltip title="Total Chapters">
+              <Tooltip title={t('cards.availableChapters')}>
                 <Chip 
                   icon={<MenuBookIcon />}
-                  label={novel.prefered_source?.chapters_count ? formatCount(novel.prefered_source.chapters_count) : 'Unknown'}
+                  label={preferredSource?.available_chapters_count != null ? formatCount(preferredSource.available_chapters_count) : t('common.unknown')}
                   size="small"
                   variant="outlined"
                 />
@@ -343,10 +418,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             </Grid>
 
             <Grid size={6}>
-              <Tooltip title="Views">
+              <Tooltip title={t('cards.views')}>
                 <Chip 
                   icon={<VisibilityIcon />}
-                  label={novel.total_views !== undefined ? formatCount(novel.total_views) : 'Unknown'}
+                  label={novel.total_views !== undefined ? formatCount(novel.total_views) : t('common.unknown')}
                   size="small"
                   variant="outlined"
                 />
@@ -354,10 +429,10 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             </Grid>
             
             <Grid size={12}>
-              <Tooltip title="Last Updated">
+              <Tooltip title={t('cards.lastUpdated')}>
                 <Chip 
                   icon={<UpdateIcon />}
-                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update)) : 'Unknown'}
+                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update), t) : t('common.unknown')}
                   size="small"
                   variant="outlined"
                 />

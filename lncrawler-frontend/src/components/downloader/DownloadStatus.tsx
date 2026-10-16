@@ -10,6 +10,7 @@ import {
   Divider,
   Container
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { downloadService } from '@services/api';
 import { DownloadStatus as DownloadStatusType, DownloadResults } from '@models/downloader_types';
 import DownloadStepper from './DownloadStepper';
@@ -17,6 +18,7 @@ import DownloadStepper from './DownloadStepper';
 const POLLING_INTERVAL = 2000; // 2 seconds
 
 const DownloadStatus = () => {
+  const { t } = useTranslation();
   const { jobId } = useParams<{ jobId: string }>();
   
   const [status, setStatus] = useState<DownloadStatusType | null>(null);
@@ -38,11 +40,11 @@ const DownloadStatus = () => {
           setResults(resultsResponse);
         }
       } else {
-        setError(statusResponse.message || 'Failed to fetch download status');
+        setError(statusResponse.message || t('downloader.fetchStatusFailed'));
       }
     } catch (err) {
       console.error('Error fetching download status:', err);
-      setError('An error occurred while checking download status.');
+      setError(t('downloader.statusError'));
     } finally {
       setLoading(false);
     }
@@ -61,6 +63,7 @@ const DownloadStatus = () => {
     }, POLLING_INTERVAL);
     
     return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- polling keyed to jobId/completion, not loader identity
   }, [jobId, status?.download_completed]);
 
   if (loading && !status) {
@@ -69,7 +72,7 @@ const DownloadStatus = () => {
         <DownloadStepper activeStep="download" />
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
           <LinearProgress sx={{ width: '100%', maxWidth: 400 }} />
-          <Typography sx={{ mt: 2 }}>Loading download status...</Typography>
+          <Typography sx={{ mt: 2 }}>{t('downloader.loadingStatus')}</Typography>
         </Box>
       </Container>
     );
@@ -82,7 +85,7 @@ const DownloadStatus = () => {
         <Box sx={{ p: 2, maxWidth: 'md', mx: 'auto' }}>
           <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
           <Button variant="contained" component={Link} to="/download/">
-            Return Home
+            {t('downloader.returnHome')}
           </Button>
         </Box>
       </Container>
@@ -95,10 +98,10 @@ const DownloadStatus = () => {
         <DownloadStepper activeStep="download" />
         <Box sx={{ p: 2, maxWidth: 'md', mx: 'auto' }}>
           <Alert severity="error" sx={{ mb: 2 }}>
-            Download failed. Please try again.
+            {t('downloader.downloadFailed')}
           </Alert>
           <Button variant="contained" component={Link} to="/download/">
-            Return Home
+            {t('downloader.returnHome')}
           </Button>
         </Box>
       </Container>
@@ -111,15 +114,19 @@ const DownloadStatus = () => {
         <DownloadStepper activeStep="complete" />
         <Paper sx={{ p: 3, maxWidth: 'md', mx: 'auto', mt: 2 }}>
           <Typography variant="h5" gutterBottom color="primary">
-            Download Complete
+            {t('downloader.downloadComplete')}
           </Typography>
           
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" fontWeight="bold">
+            <Typography variant="subtitle1" sx={{
+              fontWeight: "bold"
+            }}>
               {results.selected_novel.title}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {results.selected_novel.chapters} chapters in {results.selected_novel.volumes} volumes
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
+              {results.selected_novel.chapters} chapters
             </Typography>
           </Box>
           
@@ -130,7 +137,7 @@ const DownloadStatus = () => {
               component={Link}
               to="/download/"
             >
-              New Search
+              {t('downloader.newSearch')}
             </Button>
           </Box>
           <Box sx={{ mt: 3 }}>
@@ -139,7 +146,7 @@ const DownloadStatus = () => {
               component={Link}
               to={`/novels/${results.output_slug}`}
             >
-              View Downloaded Novel
+              {t('downloader.viewDownloaded')}
             </Button>
           </Box>
         </Paper>
@@ -153,15 +160,19 @@ const DownloadStatus = () => {
       <DownloadStepper activeStep="download" />
       <Paper sx={{ p: 3, maxWidth: 'md', mx: 'auto', mt: 2 }}>
         <Typography variant="h5" gutterBottom>
-          Download in Progress
+          {t('downloader.downloadInProgress')}
         </Typography>
         
         {status?.selected_novel && (
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" fontWeight="bold">
+            <Typography variant="subtitle1" sx={{
+              fontWeight: "bold"
+            }}>
               {status.selected_novel.title}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {status.selected_novel.chapters} chapters
             </Typography>
           </Box>
@@ -169,20 +180,27 @@ const DownloadStatus = () => {
         
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" gutterBottom>
-            {status?.status_display || 'Initializing...'}
+            {status?.status_display || t('downloader.initializing')}
           </Typography>
           <LinearProgress 
             variant="determinate" 
             value={status?.progress_percentage || 0} 
             sx={{ height: 10, borderRadius: 1 }}
           />
-          <Typography variant="body2" sx={{ mt: 1 }} textAlign="right">
-            {status?.progress || 0} / {status?.total_chapters || 0} chapters
+          <Typography
+            variant="body2"
+            sx={{
+              textAlign: "right",
+              mt: 1
+            }}>
+            {status?.progress || 0} / {status?.total_chapters || 0} {status?.progress_unit || t('units.chapters', { count: 2 })}
           </Typography>
         </Box>
         
-        <Typography variant="body2" color="text.secondary">
-          You can close the page if you do not wish to monitor the progress, the download will continue in the background.
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
+          {t('downloader.backgroundNote')}
         </Typography>
       </Paper>
     </Container>

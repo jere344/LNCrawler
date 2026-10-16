@@ -1,5 +1,6 @@
 import { Box, Container, Typography, Link, Divider, Grid } from "@mui/material";
 import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { useTranslation } from "react-i18next";
 import GitHubIcon from '@mui/icons-material/GitHub';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EmailIcon from '@mui/icons-material/Email';
@@ -7,6 +8,7 @@ import EmailIcon from '@mui/icons-material/Email';
 // Footer component with developer information and links
 const Footer = () => {
     const muiTheme = useMuiTheme();
+    const { t } = useTranslation();
     const currentYear = new Date().getFullYear();
 
     return (
@@ -23,41 +25,63 @@ const Footer = () => {
             }}
         >
             <Container maxWidth="lg">
-                <Grid container spacing={4} justifyContent="space-between">
-                    <Grid item xs={12} sm={6} md={4}>
-                        <Typography variant="h6" color="text.primary" gutterBottom fontWeight="bold">
+                <Grid container spacing={4} sx={{
+                    justifyContent: "space-between"
+                }}>
+                    <Grid
+                        size={{
+                            xs: 12,
+                            sm: 6,
+                            md: 4
+                        }}>
+                        <Typography
+                            variant="h6"
+                            gutterBottom
+                            sx={{
+                                color: "text.primary",
+                                fontWeight: "bold"
+                            }}>
                             LNCrawler
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Read Asian Light Novels from 300+ Sources
+                        <Typography
+                            variant="body2"
+                            sx={{
+                                color: "text.secondary",
+                                mb: 2
+                            }}>
+                            {t('footer.tagline')}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                            MIT License © {currentYear} LNCrawler.
+                        <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                        }}>
+                            {t('footer.copyright', { year: currentYear })}
                         </Typography>
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={4}>
-                        <Typography variant="subtitle1" color="text.primary" gutterBottom fontWeight="bold">
-                            Links
+                    <Grid
+                        size={{
+                            xs: 12,
+                            sm: 6,
+                            md: 4
+                        }}>
+                        <Typography
+                            variant="subtitle1"
+                            gutterBottom
+                            sx={{
+                                color: "text.primary",
+                                fontWeight: "bold"
+                            }}>
+                            {t('footer.links')}
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <Link href="https://discord.gg/a2b4Mfr4cU" target="_blank" rel="noopener noreferrer" 
+                            <Link href="https://github.com/jere344/LNCrawler" target="_blank" rel="noopener noreferrer" 
                                 sx={{ 
                                     display: 'inline-flex', 
                                     alignItems: 'center',
                                     color: 'text.secondary',
                                     '&:hover': { color: 'primary.main' },
                                 }}>
-                                Discord Community
-                            </Link>
-                            <Link href="https://github.com/jere344/lightnovel-crawler-website" target="_blank" rel="noopener noreferrer" 
-                                sx={{ 
-                                    display: 'inline-flex', 
-                                    alignItems: 'center',
-                                    color: 'text.secondary',
-                                    '&:hover': { color: 'primary.main' },
-                                }}>
-                                GitHub Repository
+                                {t('footer.githubRepository')}
                             </Link>
                             <Link href="mailto:jeremy.guerin34@yahoo.com?subject=DMCA%20Notice" 
                                 sx={{ 
@@ -67,14 +91,25 @@ const Footer = () => {
                                     '&:hover': { color: 'primary.main' },
                                 }}>
                                 <EmailIcon fontSize="small" sx={{ mr: 0.5 }} />
-                                DMCA Contact
+                                {t('footer.dmcaContact')}
                             </Link>
                         </Box>
                     </Grid>
 
-                    <Grid item xs={12} sm={6} md={4}>
-                        <Typography variant="subtitle1" color="text.primary" gutterBottom fontWeight="bold">
-                            Developed by jere344
+                    <Grid
+                        size={{
+                            xs: 12,
+                            sm: 6,
+                            md: 4
+                        }}>
+                        <Typography
+                            variant="subtitle1"
+                            gutterBottom
+                            sx={{
+                                color: "text.primary",
+                                fontWeight: "bold"
+                            }}>
+                            {t('footer.developedBy')}
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                             <Link href="https://github.com/jere344" target="_blank" rel="noopener noreferrer" 
@@ -85,7 +120,7 @@ const Footer = () => {
                                     '&:hover': { color: 'primary.main' },
                                 }}>
                                 <GitHubIcon fontSize="small" sx={{ mr: 1 }} />
-                                GitHub
+                                {t('footer.github')}
                             </Link>
                             <Link href="https://www.linkedin.com/in/jérémy-guerin-b9019b255/" target="_blank" rel="noopener noreferrer" 
                                 sx={{ 
@@ -95,7 +130,7 @@ const Footer = () => {
                                     '&:hover': { color: 'primary.main' },
                                 }}>
                                 <LinkedInIcon fontSize="small" sx={{ mr: 1 }} />
-                                LinkedIn
+                                {t('footer.linkedin')}
                             </Link>
                         </Box>
                     </Grid>
@@ -104,9 +139,10 @@ const Footer = () => {
                 <Divider sx={{ mt: 4, mb: 3 }} />
 
                 <Box sx={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', textAlign: 'center' }}>
-                    <Typography variant="caption" color="text.secondary">
-                        LNCrawler is not affiliated with any of the sources. All content belongs to their respective owners.
-                        We are not responsible for the content of external sites and will do our best to remove infringing content upon request.
+                    <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                    }}>
+                        {t('footer.disclaimer')}
                     </Typography>
                 </Box>
             </Container>

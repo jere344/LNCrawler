@@ -5,7 +5,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import DoneIcon from '@mui/icons-material/Done';
 import CommentIcon from '@mui/icons-material/Comment';
 import CircularProgress from '@mui/material/CircularProgress';
-import { Link as RouterLink } from 'react-router-dom'; // Import RouterLink
+import { useTranslation } from 'react-i18next';
 
 interface ReaderControlsProps {
   prevChapter?: number | null;
@@ -38,9 +38,8 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
   onNext,
   onGoToComments,
   variant = 'full',
-  prevUrl,
-  nextUrl,
 }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -58,12 +57,10 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
             startIcon={<ArrowBackIcon />} 
             onClick={onPrevious}
             variant="outlined"
-            component={prevUrl ? RouterLink : "a"}
-            to={prevUrl}
             fullWidth={isMobile}
             size={isMobile ? "medium" : "large"}
           >
-            Previous Chapter
+            {t('readerControls.previousChapter')}
           </Button>
         ) : <div></div>}
         
@@ -72,12 +69,10 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
             endIcon={<ArrowForwardIcon />} 
             onClick={onNext}
             variant="contained"
-            component={nextUrl ? RouterLink : "a"}
-            to={nextUrl}
             fullWidth={isMobile}
             size={isMobile ? "medium" : "large"}
           >
-            Next Chapter
+            {t('readerControls.nextChapter')}
           </Button>
         )}
       </Box>
@@ -103,12 +98,10 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
               startIcon={<ArrowBackIcon />} 
               onClick={onPrevious}
               variant="outlined"
-              component={prevUrl ? RouterLink : "a"}
-              to={prevUrl}
               fullWidth={isMobile}
               size={isMobile ? "medium" : "large"}
             >
-              Previous Chapter
+              {t('readerControls.previousChapter')}
             </Button>
           ) : <div></div>}
         </Box>
@@ -131,12 +124,12 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
               fullWidth={isMobile}
               size={isMobile ? "medium" : "large"}
             >
-              {markReadSuccess ? "Marked as Read" : "Mark as Read"}
+              {markReadSuccess ? t('readerControls.markedAsRead') : t('readerControls.markAsRead')}
             </Button>
           )}
           
           {onGoToComments && (
-            <Tooltip title="View chapter comments">
+            <Tooltip title={t('readerControls.viewComments')}>
               <Button
                 variant="outlined"
                 color="primary"
@@ -145,7 +138,7 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
                 fullWidth={isMobile}
                 size={isMobile ? "medium" : "large"}
               >
-                Comments
+                {t('readerControls.comments')}
               </Button>
             </Tooltip>
           )}
@@ -158,12 +151,10 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
               endIcon={<ArrowForwardIcon />} 
               onClick={onNext}
               variant="contained"
-              component={nextUrl ? RouterLink : "a"}
-              to={nextUrl}
               fullWidth={isMobile}
               size={isMobile ? "medium" : "large"}
             >
-              Next Chapter
+              {t('readerControls.nextChapter')}
             </Button>
           )}
         </Box>

@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useMemo, use } from 'react';
+import { useParams, useLoaderData, useSearchParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Container,
   Typography,
@@ -8,7 +9,6 @@ import {
   Button,
   ImageList,
   ImageListItem,
-  CircularProgress,
   Pagination,
   Dialog,
   IconButton,
@@ -18,7 +18,6 @@ import {
   Switch,
   FormControlLabel,
 } from '@mui/material';
-import { novelService } from '../../services/api';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloseIcon from '@mui/icons-material/Close';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
@@ -27,103 +26,56 @@ import BreadcrumbNav from '../common/BreadcrumbNav';
 import LanguageIcon from '@mui/icons-material/Language';
 import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
-
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
-
-interface GalleryImage {
-  chapter_id: number;
-  chapter_title: string;
-  image_url: string;
-  image_name: string;
-}
-
-interface GalleryResponse {
-  novel_id: string;
-  novel_title: string;
-  novel_slug: string;
-  source_id: string;
-  source_name: string;
-  source_slug: string;
-  count: number;
-  total_pages: number;
-  current_page: number;
-  images: GalleryImage[];
-}
+import { getChapterLabel } from '@utils/Misc';
+import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
+import type { AsyncData, GalleryLoaderData, GalleryImage } from '../../router/loaders';
 
 type ImageWithDimensions = GalleryImage & { width?: number; height?: number };
 
 const ImageGallery = () => {
+  const { t } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [gallery, setGallery] = useState<GalleryResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState<number>(1);
+  const { data: galleryPromise } = useLoaderData() as AsyncData<GalleryLoaderData>;
+  const loaderData = use(galleryPromise);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const gallery = loaderData.ok ? loaderData.data : null;
+  const error = loaderData.ok ? null : t('gallery.loadFailed');
+  const page = Number(searchParams.get('page')) || 1;
   const [selectedImage, setSelectedImage] = useState<ImageWithDimensions | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState<boolean>(false);
 
   const [showSmallImages, setShowSmallImages] = useState<boolean>(false);
-  const [imagesWithDimensions, setImagesWithDimensions] = useState<ImageWithDimensions[]>([]);
-  const [allDimensionsLoaded, setAllDimensionsLoaded] = useState<boolean>(false);
+  const [dimensions, setDimensions] = useState<Record<string, { width: number; height: number }>>({});
 
+  // Reset recorded dimensions whenever the page or source changes.
   useEffect(() => {
-    const fetchGallery = async () => {
-      if (!novelSlug || !sourceSlug) return;
-      
-      setLoading(true);
-      setImagesWithDimensions([]); // Reset for new page/source
-      setAllDimensionsLoaded(false);
-      setError(null); 
-      try {
-        const data = await novelService.getSourceGallery(novelSlug, sourceSlug, page);
-        setGallery(data);
-        // Dimension loading will be triggered by the effect below watching `gallery`
-      } catch (err) {
-        console.error('Error fetching gallery:', err);
-        setError('Failed to load images. Please try again later.');
-        setGallery(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchGallery();
+    setDimensions({});
   }, [novelSlug, sourceSlug, page]);
 
-  useEffect(() => {
-    if (!gallery || gallery.images.length === 0) {
-      setImagesWithDimensions([]);
-      setAllDimensionsLoaded(true); // No images to load dimensions for
-      return;
-    }
-
-    setAllDimensionsLoaded(false);
-    const promises = gallery.images.map(image => {
-      return new Promise<ImageWithDimensions>((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve({ ...image, width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = () => resolve({ ...image, width: 0, height: 0 }); // Resolve with 0,0 on error
-        img.src = image.image_url;
-      });
-    });
-
-    Promise.all(promises).then(results => {
-      setImagesWithDimensions(results);
-      setAllDimensionsLoaded(true);
-    });
-  }, [gallery]); // Trigger when gallery data (and thus its images) changes
-
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
-    setPage(value);
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(value));
+    setSearchParams(next);
+  };
+
+  // Dimensions are recorded from the grid <img> as the browser lazy-loads each image,
+  // so the small-image filter no longer requires an eager full-page prefetch.
+  const handleImageLoad = (url: string, event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+    setDimensions(prev =>
+      prev[url]?.width === width && prev[url]?.height === height ? prev : { ...prev, [url]: { width, height } }
+    );
+  };
+
+  const handleImageError = (url: string) => {
+    setDimensions(prev => (prev[url] ? prev : { ...prev, [url]: { width: 0, height: 0 } }));
   };
 
   const openLightbox = (imageToOpen: GalleryImage) => {
-    const fullImageDetails = imagesWithDimensions.find(
-      img => img.image_url === imageToOpen.image_url
-    );
-    setSelectedImage(fullImageDetails || { ...imageToOpen });
+    setSelectedImage(imageToOpen);
     setLightboxOpen(true);
   };
 
@@ -146,59 +98,47 @@ const ImageGallery = () => {
     }
 
     if (nextIndexInGallery !== -1) {
-      const nextImageFromGallery = gallery.images[nextIndexInGallery];
-      const fullNextImageDetails = imagesWithDimensions.find(
-        img => img.image_url === nextImageFromGallery.image_url
-      );
-      setSelectedImage(fullNextImageDetails || { ...nextImageFromGallery });
+      setSelectedImage(gallery.images[nextIndexInGallery]);
     }
   };
 
   const filteredImages = useMemo(() => {
-    return imagesWithDimensions.filter(image => {
-      if (showSmallImages) {
-        return true;
-      }
-      // If dimensions are not loaded (undefined), or if image is small, filter it out
-      if (typeof image.width === 'number' && typeof image.height === 'number') {
-        return image.width >= 50 && image.height >= 50;
-      }
-      // If dimensions are not yet available (should not happen with Promise.all approach unless error)
-      // or if we want to show images while dimensions are loading (not current strategy)
-      return true; // Default to show if dimensions are somehow undefined after loading
+    if (!gallery) return [];
+    if (showSmallImages) return gallery.images;
+    return gallery.images.filter(image => {
+      const d = dimensions[image.image_url];
+      return !d || (d.width >= 50 && d.height >= 50);
     });
-  }, [imagesWithDimensions, showSmallImages]);
+  }, [gallery, showSmallImages, dimensions]);
+
+  const hiddenSmallCount = useMemo(() => {
+    if (!gallery) return 0;
+    return gallery.images.filter(image => {
+      const d = dimensions[image.image_url];
+      return !!d && (d.width < 50 || d.height < 50);
+    }).length;
+  }, [gallery, dimensions]);
 
   const pageUrl = window.location.href;
-  const siteName = "LNCrawler";
 
   const metaTitle = gallery 
-    ? `Image Gallery: ${gallery.novel_title} (${gallery.source_name}) | ${siteName}`
-    : `Loading Image Gallery | ${siteName}`;
+    ? t('gallery.metaTitle', { novel: gallery.novel_title, source: gallery.source_name })
+    : t('gallery.metaLoadingTitle');
   const metaDescription = gallery
-    ? `View image gallery for ${gallery.novel_title} from source ${gallery.source_name} on ${siteName}. ${gallery.count} illustrations and covers.`
-    : `Explore images from light novels on ${siteName}.`;
+    ? t('gallery.metaDescription', { novel: gallery.novel_title, source: gallery.source_name, count: gallery.count })
+    : t('gallery.metaLoadingDescription');
+  // i18n-missing: no catalog key for the gallery fallback keywords
   const metaKeywords = gallery
-    ? `${gallery.novel_title}, ${gallery.source_name}, image gallery, illustrations, light novel art, covers, novel images`
+    ? t('gallery.keywords', { novel: gallery.novel_title, source: gallery.source_name })
     : "image gallery, light novel, illustrations, art";
   const ogImage = (gallery && gallery.images.length > 1) ? gallery.images[1].image_url : gallery?.images[0]?.image_url || DEFAULT_OG_IMAGE;
 
 
-  if (loading && !gallery) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
-
-  if (error || (!gallery && !loading)) { // Adjusted error condition
+  if (error || !gallery) {
     return (
       <Container>
         <Button startIcon={<ArrowBackIcon />} component={Link} to={`/novels/${novelSlug}/${sourceSlug}`} sx={{ mt: 2 }}>
-          Back to Source
+          {t('gallery.backToSource')}
         </Button>
         <Paper 
           elevation={3} 
@@ -211,7 +151,7 @@ const ImageGallery = () => {
           }}
         >
           <Typography color="error" variant="h5" gutterBottom>
-            {error || 'No images found for this source'}
+            {error || t('gallery.notFound')}
           </Typography>
           <Button 
             variant="contained" 
@@ -220,7 +160,7 @@ const ImageGallery = () => {
             to={`/novels/${novelSlug}/${sourceSlug}`} // navigation using Link
             sx={{ mt: 2 }}
           >
-            Return to Source
+            {t('gallery.returnToSource')}
           </Button>
         </Paper>
       </Container>
@@ -229,29 +169,20 @@ const ImageGallery = () => {
 
   return (
     <Container maxWidth="lg">
-      <title>{metaTitle}</title>
-      <meta name="description" content={metaDescription.substring(0, 160)} />
-      <meta name="keywords" content={metaKeywords} />
-      <link rel="canonical" href={pageUrl} />
-
-      <meta property="og:title" content={metaTitle} />
-      <meta property="og:description" content={metaDescription.substring(0, 160)} />
-      <meta property="og:type" content="image.gallery" />
-      <meta property="og:url" content={pageUrl} />
-      <meta property="og:site_name" content={siteName} />
-      <meta property="og:image" content={ogImage} />
-
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={metaTitle} />
-      <meta name="twitter:description" content={metaDescription.substring(0, 160)} />
-      <meta name="twitter:image" content={ogImage} />
+      <SeoMeta
+        title={metaTitle}
+        description={metaDescription.substring(0, 160)}
+        keywords={metaKeywords}
+        image={ogImage}
+        type="image.gallery"
+        canonical={pageUrl}
+      />
 
       {gallery && (
         <BreadcrumbNav
           items={[
             {
               label: gallery.novel_title,
-              link: `/novels/${novelSlug}`,
               icon: <BookIcon fontSize="inherit" />
             },
             {
@@ -260,13 +191,13 @@ const ImageGallery = () => {
               icon: <LanguageIcon fontSize="inherit" />
             },
             {
-              label: "Image Gallery",
+              label: t('gallery.heading'),
               icon: <ImageIcon fontSize="inherit" />
             }
           ]}
         />
       )}
-      
+
       <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
         <Button 
           startIcon={<ArrowBackIcon />} 
@@ -278,7 +209,7 @@ const ImageGallery = () => {
             px: 2,
           }}
         >
-          Back to Source
+          {t('gallery.backToSource')}
         </Button>
       </Box>
 
@@ -294,10 +225,12 @@ const ImageGallery = () => {
         }}
       >
         <Typography variant="h4" gutterBottom>
-          Image Gallery
+          {t('gallery.heading')}
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-          {gallery?.count} images from {gallery?.novel_title}
+        <Typography variant="subtitle1" gutterBottom sx={{
+          color: "text.secondary"
+        }}>
+          {t('gallery.countFrom', { count: gallery?.count ?? 0, novel: gallery?.novel_title })}
         </Typography>
 
         <FormControlLabel
@@ -307,79 +240,67 @@ const ImageGallery = () => {
               onChange={(e) => setShowSmallImages(e.target.checked)}
             />
           }
-          label={`Show small images (${imagesWithDimensions.length - filteredImages.length} filtered)`}
+          label={t('gallery.showSmall', { count: hiddenSmallCount })}
           sx={{ mt: 1, mb: 2, display: 'block' }}
         />
         
         <Box sx={{ mb: 3, mt: 1 }}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : !allDimensionsLoaded && gallery && gallery.images.length > 0 ? (
-            <Box sx={{ textAlign: 'center', p: 4 }}>
-              <CircularProgress size={24} sx={{ mr: 1, verticalAlign: 'middle' }} />
-              <Typography variant="body2" component="span" sx={{ verticalAlign: 'middle' }}>
-                Loading image dimensions...
-              </Typography>
-            </Box>
+          {filteredImages.length > 0 ? (
+            <ImageList variant="masonry" cols={isMobile ? 2 : 3} gap={8} sx={{ overflow: 'hidden' }}>
+              {filteredImages.map((image) => (
+                <ImageListItem 
+                  key={image.image_url} 
+                  onClick={() => openLightbox(image)}
+                  sx={{
+                    cursor: 'pointer',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    transition: 'transform 0.3s ease',
+                    '&:hover': {
+                      transform: 'scale(1.02)'
+                    }
+                  }}
+                >
+                  <img
+                    src={image.image_url}
+                    alt={t('gallery.imageAlt', { chapter: getChapterLabel(t, image.chapter_title, image.chapter_id), name: image.image_name })}
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={(e) => handleImageLoad(image.image_url, e)}
+                    onError={() => handleImageError(image.image_url)}
+                    style={{ borderRadius: 8 }}
+                  />
+                  <Box 
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      bgcolor: 'rgba(0,0,0,0.7)',
+                      color: 'white',
+                      p: 1,
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    <Typography variant="caption">
+                      {getChapterLabel(t, image.chapter_title, image.chapter_id)}
+                    </Typography>
+                  </Box>
+                </ImageListItem>
+              ))}
+            </ImageList>
           ) : (
-            <>
-              {filteredImages.length > 0 ? (
-                <ImageList variant="masonry" cols={isMobile ? 2 : 3} gap={8} sx={{ overflow: 'hidden' }}>
-                  {filteredImages.map((image) => (
-                    <ImageListItem 
-                      key={image.image_url} 
-                      onClick={() => openLightbox(image)}
-                      sx={{
-                        cursor: 'pointer',
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                        transition: 'transform 0.3s ease',
-                        '&:hover': {
-                          transform: 'scale(1.02)'
-                        }
-                      }}
-                    >
-                      <img
-                        src={image.image_url}
-                        alt={`Chapter ${image.chapter_id}: ${image.image_name}`}
-                        loading="lazy"
-                        style={{ borderRadius: 8 }}
-                      />
-                      <Box 
-                        sx={{
-                          position: 'absolute',
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          bgcolor: 'rgba(0,0,0,0.7)',
-                          color: 'white',
-                          p: 1,
-                          fontSize: '0.8rem',
-                        }}
-                      >
-                        <Typography variant="caption">
-                          Chapter {image.chapter_id}
-                        </Typography>
-                      </Box>
-                    </ImageListItem>
-                  ))}
-                </ImageList>
-              ) : (
-                gallery && gallery.images.length > 0 && allDimensionsLoaded && (
-                  <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
-                    No images to display with current filter settings.
-                  </Typography>
-                )
-              )}
-              {gallery && gallery.images.length === 0 && allDimensionsLoaded && (
-                 <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
-                  No images found in this gallery page.
-                </Typography>
-              )}
-            </>
+            gallery && gallery.images.length > 0 && (
+              <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
+                {t('gallery.noImagesFiltered')}
+              </Typography>
+            )
+          )}
+          {gallery && gallery.images.length === 0 && (
+             <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary' }}>
+              {t('gallery.noImagesPage')}
+            </Typography>
           )}
         </Box>
         
@@ -396,23 +317,25 @@ const ImageGallery = () => {
           </Box>
         )}
       </Paper>
-      
+
       {/* Lightbox Modal */}
       <Dialog
         open={lightboxOpen}
         onClose={closeLightbox}
         maxWidth="xl"
         fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: 'rgba(0,0,0,0.9)',
-            boxShadow: 'none',
-            height: '100%',
-            m: 0,
-            borderRadius: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'rgba(0,0,0,0.9)',
+              boxShadow: 'none',
+              height: '100%',
+              m: 0,
+              borderRadius: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+            }
           }
         }}
       >
@@ -430,7 +353,7 @@ const ImageGallery = () => {
         {selectedImage && (
           <Box sx={{ textAlign: 'center', p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="subtitle1" sx={{ color: 'white', mb: 2 }}>
-              Chapter {selectedImage.chapter_id}: {selectedImage.chapter_title}
+              {getChapterLabel(t, selectedImage.chapter_title, selectedImage.chapter_id)}
             </Typography>
 
             <Box sx={{ 

@@ -1,12 +1,17 @@
 from django.core.management.base import BaseCommand
-from lncrawler_api.models import Novel, WeeklyNovelView
+from django.db.models import Sum
+from lncrawler_api.models import Novel, WeeklySourceView
 from lncrawler_api.utils import chapter_utils
 from pathlib import Path
-from datetime import datetime
+import shutil
 import time
 
+# Process novels in small id-batches so a huge catalogue never loads at once.
+CHUNK_SIZE = 200
+
+
 class Command(BaseCommand):
-    help = 'Compresses novels with less than 10 views this week to save disk space'
+    help = 'Compresses novels with less than 10 views in the last 7 days to save disk space'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -20,103 +25,165 @@ class Command(BaseCommand):
             action='store_true',
             help='Show which novels would be compressed without actually compressing them',
         )
+        parser.add_argument(
+            '--nice',
+            type=int,
+            default=19,
+            help='nice level for the 7z compressor (higher = lower priority, 0 disables)',
+        )
+        parser.add_argument(
+            '--sleep',
+            type=float,
+            default=1.0,
+            help='Seconds to sleep between sources so compression stays low-impact',
+        )
+        parser.add_argument(
+            '--max-sources',
+            type=int,
+            default=0,
+            help='Stop after compressing this many sources (0 = no limit)',
+        )
 
     def handle(self, *args, **options):
         min_views = options['min_views']
         dry_run = options['dry_run']
-        
-        # Get current ISO year and week number
-        current_date = datetime.now()
-        current_year_week = f"{current_date.isocalendar()[0]}{current_date.isocalendar()[1]:02d}"
-        
+        nice_level = options['nice']
+        pause = max(options['sleep'], 0.0)
+        max_sources = options['max_sources']
+
+        window_start = WeeklySourceView.window_start()
+
         self.stdout.write(
-            self.style.SUCCESS(f'Finding novels with less than {min_views} views in week {current_year_week}')
+            self.style.SUCCESS(
+                f'Finding novels with less than {min_views} views in the last '
+                f'{WeeklySourceView.WINDOW_DAYS} days'
+            )
         )
-        
-        # Get all novels and their weekly view counts
-        novels_to_compress = []
-        
-        # Get all novels that have sources
-        novels_with_sources = Novel.objects.filter(sources__isnull=False).distinct()
-        
-        for novel in novels_with_sources:
-            # Get weekly views for current week
-            try:
-                weekly_view = WeeklyNovelView.objects.get(
-                    novel=novel,
-                    year_week=current_year_week
-                )
-                weekly_views = weekly_view.views
-            except WeeklyNovelView.DoesNotExist:
-                weekly_views = 0
-            
-            # If views are below threshold, add to compression list
-            if weekly_views < min_views:
-                novels_to_compress.append(novel)
-        
-        self.stdout.write(
-            self.style.SUCCESS(f'Found {len(novels_to_compress)} novels to compress')
+
+        # Novels whose rolling 7-day total meets the threshold are excluded;
+        # anything without a row (or below the threshold) counts as low-traffic.
+        # Done as a subquery so we never materialize a list of high-traffic ids.
+        popular_ids = (
+            WeeklySourceView.objects.filter(
+                granularity=WeeklySourceView.DAY, day__gte=window_start
+            )
+            .values('source__novel_id')
+            .annotate(total_views=Sum('views'))
+            .filter(total_views__gte=min_views)
+            .values('source__novel_id')
         )
-        
+
+        base_qs = (
+            Novel.objects.filter(sources__isnull=False)
+            .exclude(id__in=popular_ids)
+            .distinct()
+            .order_by('id')
+        )
+
         if dry_run:
             self.stdout.write(self.style.WARNING('DRY RUN - No actual compression will be performed'))
-            for novel in novels_to_compress:
-                self.stdout.write(f'Would compress: {novel.title}')
-            return
-        
-        # Initialize counters
+
         compressed_count = 0
         failed_count = 0
+        seen_count = 0
         start_time = time.time()
-        
-        for novel in novels_to_compress:
-            self.stdout.write(f'Processing: {novel.title}')
-            
-            # Process each source of the novel
-            for source in novel.sources.all():
-                if source.absolute_source_path:
+        last_id = None
+        stop = False
+
+        # Page through the queryset by primary key, prefetching sources per batch.
+        while not stop:
+            qs = base_qs
+            if last_id is not None:
+                qs = qs.filter(id__gt=last_id)
+            batch = list(qs.prefetch_related('sources__external_source')[:CHUNK_SIZE])
+            if not batch:
+                break
+
+            for novel in batch:
+                last_id = novel.id
+                seen_count += 1
+
+                if dry_run:
+                    self.stdout.write(f'Would compress: {novel.title}')
+                    continue
+
+                self.stdout.write(f'Processing: {novel.title}')
+
+                for source in novel.sources.all():
+                    if max_sources and compressed_count >= max_sources:
+                        stop = True
+                        break
+
+                    if not source.absolute_source_path:
+                        continue
+
                     source_path = Path(source.absolute_source_path)
                     json_folder_path = source_path / "json"
                     compressed_file_path = source_path / "json.7z"
-                    
-                    # Only compress if json folder exists and compressed file doesn't exist
-                    if json_folder_path.exists() and not compressed_file_path.exists():
-                        self.stdout.write(f'  Compressing source: {source.external_source.source_name}')
-                        
-                        try:
-                            success = chapter_utils.compress_folder_to_tar_7zip(
-                                source_absolute_path=source_path,
-                                json_folder="json",
-                                tarfile_path=compressed_file_path
-                            )
-                            
-                            if success:
-                                compressed_count += 1
-                                self.stdout.write(
-                                    self.style.SUCCESS(f'    Successfully compressed {source.external_source.source_name}')
-                                )
-                            else:
-                                failed_count += 1
-                                self.stdout.write(
-                                    self.style.ERROR(f'    Failed to compress {source.external_source.source_name}')
-                                )
-                        except Exception as e:
-                            failed_count += 1
-                            self.stdout.write(
-                                self.style.ERROR(f'    Error compressing {source.external_source.source_name}: {str(e)}')
-                            )
-                    elif compressed_file_path.exists():
-                        self.stdout.write(f'    Source {source.external_source.source_name} already compressed')
+
+                    # Hold the per-source lock across the whole check-and-act so
+                    # a crawler write cannot delete the archive between the
+                    # existence check and the reclaim/compress.
+                    outcome = "skip"
+                    error = None
+                    try:
+                        with chapter_utils.source_lock(source_path):
+                            if json_folder_path.exists():
+                                if compressed_file_path.exists():
+                                    # A write deletes the archive, so an existing
+                                    # archive is authoritative: the extracted copy
+                                    # is redundant. Drop it, don't recompress.
+                                    shutil.rmtree(json_folder_path)
+                                    outcome = "reclaimed"
+                                else:
+                                    self.stdout.write(
+                                        f'  Compressing source: {source.external_source.source_name}'
+                                    )
+                                    outcome = "compressed" if chapter_utils.compress_folder_to_tar_7zip(
+                                        source_absolute_path=source_path,
+                                        json_folder="json",
+                                        tarfile_path=compressed_file_path,
+                                        nice_level=nice_level,
+                                    ) else "failed"
+                    except Exception as e:
+                        outcome = "error"
+                        error = e
+
+                    if outcome == "skip":
+                        continue
+                    if outcome == "reclaimed":
+                        compressed_count += 1
+                        self.stdout.write(self.style.SUCCESS(
+                            f'    Reclaimed extracted copy of {source.external_source.source_name}'
+                        ))
+                    elif outcome == "compressed":
+                        compressed_count += 1
+                        self.stdout.write(
+                            self.style.SUCCESS(f'    Successfully compressed {source.external_source.source_name}')
+                        )
+                    elif outcome == "failed":
+                        failed_count += 1
+                        self.stdout.write(
+                            self.style.ERROR(f'    Failed to compress {source.external_source.source_name}')
+                        )
                     else:
-                        self.stdout.write(f'    No json folder found for {source.external_source.source_name}')
-        
-        # Final summary
+                        failed_count += 1
+                        self.stdout.write(
+                            self.style.ERROR(
+                                f'    Error compressing {source.external_source.source_name}: {str(error)}'
+                            )
+                        )
+
+                    # Deliberate pause: this task is for cold, rarely-read novels,
+                    # so it should never compete with live traffic.
+                    time.sleep(pause)
+
         elapsed = time.time() - start_time
         self.stdout.write(
             self.style.SUCCESS(
                 f'Compression completed in {elapsed:.1f} seconds.\n'
                 f'Successfully compressed: {compressed_count} sources\n'
                 f'Failed compressions: {failed_count} sources\n'
-                f'Processed {len(novels_to_compress)} novels with less than {min_views} views this week'
+                f'Scanned {seen_count} low-traffic novels (< {min_views} views in the last 7 days)'
             )
         )

@@ -15,6 +15,7 @@ import {
   LinearProgress,
   Container
 } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { searchService } from '@services/api';
 import { SearchStatus, SearchResults as SearchResultsType } from '@models/downloader_types';
 import DownloadStepper from './DownloadStepper';
@@ -22,6 +23,7 @@ import DownloadStepper from './DownloadStepper';
 const POLLING_INTERVAL = 2000; // 2 seconds
 
 const SearchResults = () => {
+  const { t } = useTranslation();
   const { jobId } = useParams<{ jobId: string }>();
   const [status, setStatus] = useState<SearchStatus | null>(null);
   const [results, setResults] = useState<SearchResultsType | null>(null);
@@ -49,7 +51,7 @@ const SearchResults = () => {
       }
     } catch (err) {
       console.error('Error fetching search status:', err);
-      setError('Failed to fetch search status. Please try again later.');
+      setError(t('downloader.fetchSearchFailed'));
       if (loading) { // Ensure loading is false on error during initial phase
         setLoading(false);
       }
@@ -98,7 +100,7 @@ const SearchResults = () => {
         <DownloadStepper activeStep="search" />
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
           <CircularProgress size={40} />
-          <Typography sx={{ mt: 2 }}>Initializing search...</Typography>
+          <Typography sx={{ mt: 2 }}>{t('downloader.initializingSearch')}</Typography>
         </Box>
       </Container>
     );
@@ -108,7 +110,7 @@ const SearchResults = () => {
     return (
       <Container maxWidth="md">
         <DownloadStepper activeStep="search" />
-        <Alert severity="error">{error || status?.error || 'An error occurred'}</Alert>
+        <Alert severity="error">{error || status?.error || t('downloader.errorOccurred')}</Alert>
       </Container>
     );
   }
@@ -120,12 +122,12 @@ const SearchResults = () => {
         <DownloadStepper activeStep="search" />
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4, maxWidth: 'md', mx: 'auto' }}>
           <Typography variant="h5" gutterBottom>
-            Searching for novels...
+            {t('downloader.searchingForNovels')}
           </Typography>
           
           <Box sx={{ width: '100%', mb: 3 }}>
             <Typography variant="body2" gutterBottom>
-              {status?.status_display || 'Initializing...'}
+              {status?.status_display || t('downloader.initializing')}
             </Typography>
             
             <LinearProgress 
@@ -135,14 +137,21 @@ const SearchResults = () => {
             />
             
             {status?.progress !== undefined && status?.total_items !== undefined && (
-              <Typography variant="body2" sx={{ mt: 1 }} textAlign="right">
-                {status.progress} / {status.total_items} items
+              <Typography
+                variant="body2"
+                sx={{
+                  textAlign: "right",
+                  mt: 1
+                }}>
+                {t('downloader.itemsProgress', { progress: status.progress, total: status.total_items })}
               </Typography>
             )}
           </Box>
           
-          <Typography variant="body2" color="text.secondary">
-            Please wait while we search for your novel. This may take a few moments.
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
+            {t('downloader.pleaseWait')}
           </Typography>
           
           <Button 
@@ -151,7 +160,7 @@ const SearchResults = () => {
             component={Link}
             to="/download/"
           >
-            Cancel Search
+            {t('downloader.cancelSearch')}
           </Button>
         </Box>
       </Container>
@@ -162,27 +171,28 @@ const SearchResults = () => {
     return (
       <Container maxWidth="md">
         <DownloadStepper activeStep="select" />
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h5" gutterBottom>
-            Search Results
-          </Typography>
-          
-          <Button 
-            variant="outlined" 
-            sx={{ mb: 2 }} 
-            component={Link}
-            to="/download/"
-          >
-            New Search
-          </Button>
+        <Box sx={{ p: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Typography variant="h6">
+              {t('downloader.searchResults')}
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              component={Link}
+              to="/download/"
+            >
+              {t('downloader.newSearch')}
+            </Button>
+          </Box>
 
           {results.results && results.results.length > 0 ? (
             results.results.map((source, sourceIndex) => (
-              <Card key={`source-${sourceIndex}`} sx={{ mb: 3 }}>
-                <CardContent>
-                  <Typography variant="h6">{source.title}</Typography>
+              <Card key={`source-${sourceIndex}`} sx={{ mb: 0.5 }}>
+                <CardContent sx={{ py: 0.5, '&:last-child': { pb: 0.5 } }}>
+                  <Typography variant="subtitle2">{source.title}</Typography>
                   
-                  <List>
+                  <List dense disablePadding>
                     {source.sources.map((novel, novelIndex) => (
                       <Box key={`novel-${novelIndex}`}>
                         {novelIndex > 0 && <Divider />}
@@ -202,7 +212,7 @@ const SearchResults = () => {
               </Card>
             ))
           ) : (
-            <Alert severity="info">No novels found matching your query. Please try a different search term.</Alert>
+            <Alert severity="info">{t('downloader.noResults')}</Alert>
           )}
         </Box>
       </Container>
@@ -213,7 +223,7 @@ const SearchResults = () => {
     <Container maxWidth="md">
       <DownloadStepper activeStep="search" />
       <Alert severity="warning">
-        Unexpected response format. Please try searching again.
+        {t('downloader.unexpectedResponse')}
       </Alert>
     </Container>
   );

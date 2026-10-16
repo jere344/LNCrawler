@@ -3,6 +3,7 @@ import { Breadcrumbs, Link, Typography, Box } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
 import { Link as RouterLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export interface BreadcrumbItem {
   label: string;
@@ -15,11 +16,12 @@ interface BreadcrumbNavProps {
 }
 
 const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items }) => {
+  const { t } = useTranslation();
   return (
     <Box sx={{ mb: 3, mt: 1 }}>
       <Breadcrumbs 
         separator={<NavigateNextIcon fontSize="small" />} 
-        aria-label="breadcrumb"
+        aria-label={t('common.breadcrumb')}
       >
         <Link 
           component={RouterLink}
@@ -29,7 +31,7 @@ const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items }) => {
           sx={{ display: 'flex', alignItems: 'center' }}
         >
           <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-          Home
+          {t('common.home')}
         </Link>
         
         {items.map((item, index) => {

@@ -1,0 +1,117 @@
+# -*- coding: utf-8 -*-
+import logging
+
+from bs4.element import Tag
+
+from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
+
+logger = logging.getLogger(__name__)
+search_url = "https://wuxiaworld.site/?s=%s&post_type=wp-manga"
+
+
+class WuxiaSiteCrawler(Crawler):
+    base_url = "https://wuxiaworld.site/"
+
+    def search_novel(self, query):
+        query = query.lower().replace(' ', '+')
+        soup = self.get_soup(search_url % query)
+
+        results = []
+        for tab in soup.select('.c-tabs-item__content'):
+            a = tab.select_one('.post-title h3 a')
+            latest = tab.select_one('.latest-chap .chapter a').text
+            votes = tab.select_one('.rating .total_votes').text
+            results.append({
+                'title': a.text.strip(),
+                'url': self.absolute_url(a['href']),
+                'info': '%s | Rating: %s' % (latest, votes),
+            })
+        # end for
+
+        return results
+    # end def
+
+    def browse_novels(self, offset: int = 0, limit: int = 50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            url = self.home_url if page == 1 else "%spage/%d/" % (self.home_url, page)
+            soup = self.get_soup(url, params={"m_orderby": "views"})
+            items = soup.select(".page-item-detail")
+            if not items:
+                break
+            for tab in items:
+                a = tab.select_one(".post-title h3 a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+            if page > 40:
+                break
+        return results[offset : offset + limit]
+
+    def read_novel_info(self):
+        logger.debug("Visiting %s", self.novel_url)
+        soup = self.get_soup(self.novel_url)
+
+        possible_title = soup.select_one(".post-title")
+        assert isinstance(possible_title, Tag)
+        possible_title = possible_title.select_one("h1, h2, h3")
+        assert isinstance(possible_title, Tag)
+        self.novel_title = " ".join(
+            [str(x) for x in possible_title.contents if not isinstance(x, Tag)]
+        ).strip()
+        logger.info("Novel title: %s", self.novel_title)
+
+        possible_image = soup.select_one(".summary_image a img")
+        if isinstance(possible_image, Tag):
+            self.novel_cover = self.absolute_url(
+                possible_image.get("data-src") or possible_image["src"]
+            )
+        logger.info("Novel cover: %s", self.novel_cover)
+
+        authors = soup.select(".author-content a")
+        if len(authors) == 2:
+            self.novel_author = authors[0].text + " (" + authors[1].text + ")"
+        elif len(authors) == 1:
+            self.novel_author = authors[0].text
+        logger.info("Novel author: %s", self.novel_author)
+
+        self.novel_tags = [tag.text.strip() for tag in soup.select(".genres-content a")]
+        logger.info("Novel tags: %s", self.novel_tags)
+
+        synopsis_tag = soup.select_one(".summary__content")
+        if synopsis_tag:
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis_tag)
+        logger.info("Novel synopsis: %s", self.novel_synopsis)
+
+        chapters = self.submit_form_for_soup(
+            self.novel_url.rstrip("/") + "/ajax/chapters/"
+        ).select(".wp-manga-chapter a")
+
+        for a in reversed(chapters):
+            chap_id = len(self.chapters) + 1
+            self.chapters.append(
+                {
+                    "id": chap_id,
+                    "title": a.text.strip(),
+                    "url": self.absolute_url(a["href"]),
+                }
+            )
+
+    def download_chapter_body(self, chapter):
+        soup = self.get_soup(chapter["url"])
+
+        content = soup.select_one(".text-left")
+        if not isinstance(content, Tag):
+            content = soup.select_one(".cha-words")
+        if not isinstance(content, Tag):
+            content = soup.select_one(".reading-content")
+
+        return self.cleaner.extract_contents(content)

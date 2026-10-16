@@ -14,7 +14,23 @@ export interface Novel {
   is_bookmarked?: boolean | null;
   comment_count: number;
   reading_history?: DetailedReadingHistory | null;
+  reading_source?: NovelFromSource | null;
   similar_novels?: SimilarNovel[];
+  is_dmca?: boolean;
+  is_adult?: boolean;
+  // Library-only fields (present when serialized as a library item)
+  bookmark_id?: string;
+  note?: string | null;
+  folder?: string | null;
+  folder_name?: string | null;
+  position?: number;
+  user_rating?: number | null;
+}
+
+export interface LibraryFolder {
+  id: string;
+  name: string;
+  count: number;
 }
 
 export interface NovelListResponse {
@@ -23,6 +39,8 @@ export interface NovelListResponse {
   current_page: number;
   results: Novel[];
   recommendations?: Novel[];
+  folders?: LibraryFolder[];
+  sort?: string;
 }
 
 export interface NovelFromSource {
@@ -30,15 +48,19 @@ export interface NovelFromSource {
   title: string;
   source_url: string;
   source_name: string;
+  // Free-form edition label from the crawler (or its title); null when unknown.
+  edition?: string | null;
   source_slug: string;
+  has_crawler: boolean | null;
   cover_path: string | null;
   authors: string[];
   tags: string[];
   language: string;
   status: string;
-  synopsis: string;
+  synopsis: string | null;
   chapters_count: number;
-  volumes_count: number;
+  available_chapters_count?: number;
+  volumes?: NovelVolume[];
   last_chapter_update: string;
   upvotes: number;
   downvotes: number;
@@ -51,7 +73,23 @@ export interface NovelFromSource {
   cover_min_url: string | null;
   overview_url: string | null;
   latest_available_chapter: Chapter | null;
-  reading_history?: ReadingHistory | null;
+  first_available_chapter: Chapter | null;
+  reading_history?: DetailedReadingHistory | null;
+  novelupdates_url: string | null;
+  editors: string[];
+  translators: string[];
+  alternative_titles: string[];
+  original_publisher: string | null;
+  english_publisher: string | null;
+  is_adult?: boolean;
+}
+
+export interface NovelVolume {
+  volume_id: number;
+  title: string;
+  start_chapter: number;
+  final_chapter: number;
+  chapter_count: number;
 }
 
 export interface NovelDetail {
@@ -59,8 +97,6 @@ export interface NovelDetail {
   title: string;
   slug: string;
   sources: NovelFromSource[];
-  created_at: string;
-  updated_at: string;
   avg_rating: number | null;
   rating_count: number;
   user_rating: number | null;
@@ -72,18 +108,17 @@ export interface NovelDetail {
   reading_history?: DetailedReadingHistory | null;
   similar_novels?: SimilarNovel[];
   reading_lists?: ReadingList[];
+  is_dmca?: boolean;
+  is_adult?: boolean;
+}
+
+export interface SourceDetailResponse extends NovelFromSource {
+  novel: NovelDetail;
 }
 
 export interface SimilarNovel extends Novel {
   similarity: number;
 }
-
-export interface NovelFeaturedResponse {
-  novel: Novel;
-  description: string;
-  featured_since: string;
-}
-
 
 export interface ChapterContent {
   id: string;
@@ -98,8 +133,19 @@ export interface ChapterContent {
   body: string;
   prev_chapter?: number | null;
   next_chapter?: number | null;
+  prev_chapter_id?: number | null;
+  next_chapter_id?: number | null;
   images_path?: string;
   source_overview_image_url?: string | null;
+  language?: string | null;
+}
+
+export interface UnavailableChapterInfo {
+  chapter_id: number;
+  title: string;
+  novel_title: string;
+  prev_chapter?: number | null;
+  next_chapter?: number | null;
 }
 
 export interface Chapter {
@@ -121,20 +167,22 @@ export interface ChapterListResponse {
   source_slug: string;
   chapters: Chapter[];
   source_overview_image_url?: string | null;
+  is_dmca?: boolean;
 }
 
 export interface ReadingHistory {
   id: string;
-  last_read_chapter : Chapter;
+  last_read_chapter : Chapter | null;
   last_read_at: string;
 }
 
 export interface DetailedReadingHistory {
   id: string;
-  last_read_chapter : Chapter;
+  last_read_chapter : Chapter | null;
   last_read_at: string;
-  next_chapter?: Chapter;
+  next_chapter?: Chapter | null;
+  unread_chapters?: number | null;
   source_slug?: string;
   novel_slug?: string;
-  source_latest_chapter?: Chapter;
+  source_latest_chapter?: Chapter | null;
 }

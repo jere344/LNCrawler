@@ -2,180 +2,233 @@ import { Card, Typography, Box, Chip, Avatar, CardMedia } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { ReadingList } from "@models/readinglist_types";
 import BookIcon from "@mui/icons-material/Book";
+import LockIcon from "@mui/icons-material/Lock";
+import PublicIcon from "@mui/icons-material/Public";
 import { formatTimeAgo } from "@utils/Misc";
+import { useTranslation } from "react-i18next";
+import UserLink from "@components/profile/UserLink";
+import { useAdultContent } from "@context/AdultContentContext";
+import { AdultBadge } from "@components/common/AdultBadge";
 
 interface ReadingListCardProps {
     list: ReadingList;
 }
 
 const ReadingListCard = ({ list }: ReadingListCardProps) => {
+    const { t } = useTranslation();
+    const { isBlurred, revealHandler } = useAdultContent();
+    const firstItemNovel = list.first_item?.novel;
+    const blurred = isBlurred(firstItemNovel?.is_adult, firstItemNovel?.id);
     const firstItemCover = list.first_item?.novel.prefered_source?.cover_min_url;
     const defaultCoverBg = "linear-gradient(135deg, #0a3d91 0%, #1e88e5 100%)";
     const coverHeight = 160;
     const coverWidth = 120;
 
     return (
-        <Box
-            sx={{
-                display: "flex",
-                justifyContent: "flex-start",
-                height: coverHeight + "px",
-                width: "100%",
-                transition: "transform 0.2s",
-                textDecoration: "none",
-                "&:hover": {
-                    borderColor: "primary.main",
-                },
-            }}
-        >
-            {/* Left side - Cover Image in Card */}
-            <Card
-                sx={{
-                    width: coverWidth,
-                    minWidth: coverWidth,
-                    height: "100%",
-                    flexShrink: 0,
-                    borderRadius: 1.5,
-                    overflow: "hidden",
-                    boxShadow: 2,
-                    position: "relative",
-                }}
-                component={RouterLink}
-                to={`/reading-lists/${list.id}`}
-            >
-                {firstItemCover ? (
-                    <CardMedia
-                        component="img"
-                        sx={{
-                            height: "100%",
-                            width: "100%",
-                            objectFit: "cover",
-                        }}
-                        image={firstItemCover}
-                        alt={`${list.title} cover`}
-                    />
-                ) : (
-                    <Box
-                        sx={{
-                            height: "100%",
-                            width: "100%",
-                            background: defaultCoverBg,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <BookIcon sx={{ fontSize: 40, color: "white" }} />
-                    </Box>
-                )}
-
-                {/* Book count badge */}
-                <Chip
-                    icon={<BookIcon />}
-                    label={`${list.items_count || 0}`}
-                    size="small"
-                    sx={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        backgroundColor: "rgba(0,0,0,0.6)",
-                        backdropFilter: "blur(4px)",
-                        color: "white",
-                        fontWeight: "bold",
-                        "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
-                    }}
-                />
-            </Card>
-
-            {/* Right side - Content */}
+        <Box sx={{ containerType: "inline-size", width: "100%" }}>
             <Box
                 sx={{
-                    flexGrow: 1,
-                    flexShrink: 1,
-                    overflow: "hidden",
-                    p: 2,
                     display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    height: "100%",
+                    justifyContent: "flex-start",
+                    height: coverHeight + "px",
+                    width: "100%",
+                    transition: "transform 0.2s",
+                    textDecoration: "none",
+                    "&:hover": {
+                        borderColor: "primary.main",
+                    },
+                    "@container (max-width: 18rem)": {
+                        flexDirection: "column",
+                        height: "auto",
+                    },
                 }}
             >
-                {/* Title and description */}
-                <Box>
-                    <Typography
-                        component={RouterLink}
-                        to={`/reading-lists/${list.id}`}
-                        variant="h6"
-                        sx={{
-                            fontWeight: 600,
-                            mb: 0.5,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 1,
-                            WebkitBoxOrient: "vertical",
-                            color: "text.primary",
-                            textDecoration: "none",
-                            "&:hover": {
-                                textDecoration: "underline",
-                            },
-                        }}
-                    >
-                        {list.title}
-                    </Typography>
-
-                    {list.description && (
-                        <Typography
-                            variant="body2"
-                            color="text.secondary"
+                {/* Left side - Cover Image in Card */}
+                <Card
+                    sx={{
+                        width: coverWidth,
+                        minWidth: coverWidth,
+                        height: "100%",
+                        flexShrink: 0,
+                        borderRadius: 1.5,
+                        overflow: "hidden",
+                        boxShadow: 2,
+                        position: "relative",
+                        "@container (max-width: 18rem)": {
+                            width: "100%",
+                            minWidth: 0,
+                            height: 150,
+                        },
+                    }}
+                    component={RouterLink}
+                    to={`/reading-lists/${list.id}`}
+                >
+                    {firstItemCover ? (
+                        <CardMedia
+                            component="img"
                             sx={{
+                                height: "100%",
+                                width: "100%",
+                                objectFit: "cover",
+                                cursor: blurred ? "pointer" : undefined,
+                                filter: blurred ? "blur(16px)" : "none",
+                            }}
+                            image={firstItemCover}
+                            alt={t("readingLists.coverAlt", { title: list.title })}
+                            onClick={blurred ? revealHandler(firstItemNovel?.id) : undefined}
+                        />
+                    ) : (
+                        <Box
+                            sx={{
+                                height: "100%",
+                                width: "100%",
+                                background: defaultCoverBg,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                            }}
+                        >
+                            <BookIcon sx={{ fontSize: 40, color: "white" }} />
+                        </Box>
+                    )}
+
+                    {/* Book count badge */}
+                    <Chip
+                        icon={<BookIcon />}
+                        label={`${list.items_count || 0}`}
+                        size="small"
+                        sx={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            backgroundColor: "rgba(0,0,0,0.6)",
+                            backdropFilter: "blur(4px)",
+                            color: "white",
+                            fontWeight: "bold",
+                            "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
+                        }}
+                    />
+                    {/* Visibility badge */}
+                    <Chip
+                        icon={list.is_public ? <PublicIcon /> : <LockIcon />}
+                        label={list.is_public ? t("readingLists.public") : t("readingLists.private")}
+                        size="small"
+                        sx={{
+                            position: "absolute",
+                            top: 8,
+                            left: 8,
+                            backgroundColor: "rgba(0,0,0,0.6)",
+                            backdropFilter: "blur(4px)",
+                            color: "white",
+                            fontWeight: "bold",
+                            "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
+                        }}
+                    />
+                    <AdultBadge isAdult={firstItemNovel?.is_adult} novelId={firstItemNovel?.id} />
+                </Card>
+
+                {/* Right side - Content */}
+                <Box
+                    sx={{
+                        flexGrow: 1,
+                        flexShrink: 1,
+                        overflow: "hidden",
+                        p: 2,
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        height: "100%",
+                    }}
+                >
+                    {/* Title and description */}
+                    <Box>
+                        <Typography
+                            component={RouterLink}
+                            to={`/reading-lists/${list.id}`}
+                            variant="h6"
+                            sx={{
+                                fontWeight: 600,
+                                mb: 0.5,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 display: "-webkit-box",
-                                WebkitLineClamp: 2,
+                                WebkitLineClamp: 1,
                                 WebkitBoxOrient: "vertical",
-                                mb: 1,
+                                color: "text.primary",
+                                textDecoration: "none",
+                                "&:hover": {
+                                    textDecoration: "underline",
+                                },
                             }}
                         >
-                            {list.description}
+                            {list.title}
                         </Typography>
-                    )}
-                </Box>
 
-                {/* Footer with user and update time */}
-                <Box
-                    sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        mt: "auto",
-                    }}
-                >
-                    {/* User info */}
-                    <Box sx={{ display: "flex", alignItems: "center" }}>
-                        <Avatar
-                            sx={{
-                                width: 24,
-                                height: 24,
-                                mr: 1,
-                                bgcolor: "primary.main",
-                                fontSize: "0.8rem",
-                            }}
-                            alt={list.user.username}
-                            title={list.user.username}
-                            src={list.user.profile_pic || undefined}
-                        >
-                            {list.user.username[0].toUpperCase()}
-                        </Avatar>
-                        <Typography variant="body2" color="text.secondary">
-                            {list.user.username}
-                        </Typography>
+                        {list.description && (
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: "text.secondary",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    mb: 1
+                                }}>
+                                {list.description}
+                            </Typography>
+                        )}
                     </Box>
 
-                    {/* Update time */}
-                    <Typography variant="caption" color="text.secondary">
-                        {formatTimeAgo(new Date(list.updated_at))}
-                    </Typography>
+                    {/* Footer with user and update time */}
+                    <Box
+                        sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            columnGap: 1,
+                            rowGap: 0.5,
+                            mt: "auto",
+                        }}
+                    >
+                        {/* User info */}
+                        <Box sx={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+                            <Avatar
+                                sx={{
+                                    width: 24,
+                                    height: 24,
+                                    mr: 1,
+                                    flexShrink: 0,
+                                    bgcolor: "primary.main",
+                                    fontSize: "0.8rem",
+                                }}
+                                alt={list.user.username}
+                                title={list.user.username}
+                                src={list.user.profile_pic || undefined}
+                            >
+                                {list.user.username[0].toUpperCase()}
+                            </Avatar>
+                            <Typography variant="body2" sx={{
+                                color: "text.secondary",
+                                minWidth: 0,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                            }}>
+                                <UserLink username={list.user.username} />
+                            </Typography>
+                        </Box>
+
+                        {/* Update time */}
+                        <Typography variant="caption" sx={{
+                            color: "text.secondary",
+                            whiteSpace: "nowrap",
+                        }}>
+                            {t("readingLists.updatedAgo", { time: formatTimeAgo(new Date(list.updated_at), t) })}
+                        </Typography>
+                    </Box>
                 </Box>
             </Box>
         </Box>

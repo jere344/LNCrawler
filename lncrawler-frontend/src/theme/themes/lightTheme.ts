@@ -114,18 +114,26 @@ export const getLightTheme = () =>
                         fontSize: "0.875rem",
                         fontWeight: 600,
                     },
-                    containedPrimary: {
-                        boxShadow: "0 4px 12px rgba(93, 58, 142, 0.25)",
-                        background: "linear-gradient(135deg, #5d3a8e 0%, #7952b3 100%)",
-                        "&:hover": {
-                            boxShadow: "0 6px 16px rgba(93, 58, 142, 0.35)",
-                            background: "linear-gradient(135deg, #5d3a8e 10%, #6e47a6 100%)",
+                },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                boxShadow: "0 4px 12px rgba(93, 58, 142, 0.25)",
+                                background: "linear-gradient(135deg, #5d3a8e 0%, #7952b3 100%)",
+                                "&:hover": {
+                                    boxShadow: "0 6px 16px rgba(93, 58, 142, 0.35)",
+                                    background: "linear-gradient(135deg, #5d3a8e 10%, #6e47a6 100%)",
+                                },
                         },
                     },
-                    outlinedPrimary: {
-                        borderWidth: 2,
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 2,
+                        },
                     },
-                },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

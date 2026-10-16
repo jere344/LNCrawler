@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   Box, 
   Button, 
@@ -14,11 +15,15 @@ import {
   CircularProgress,
   FormHelperText
 } from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
-import { authService } from '../../services/api';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { authService, type ApiError } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const RegisterPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -29,8 +34,13 @@ const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [usernameDebounceTimer, setUsernameDebounceTimer] = useState<NodeJS.Timeout | null>(null);
-  const [emailDebounceTimer, setEmailDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const usernameDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emailDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (usernameDebounceTimer.current) clearTimeout(usernameDebounceTimer.current);
+    if (emailDebounceTimer.current) clearTimeout(emailDebounceTimer.current);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -47,15 +57,13 @@ const RegisterPage: React.FC = () => {
     
     // Check username/email availability with debounce
     if (name === 'username' && value.length >= 3) {
-      if (usernameDebounceTimer) clearTimeout(usernameDebounceTimer);
-      const timer = setTimeout(() => checkUsername(value), 500);
-      setUsernameDebounceTimer(timer);
+      if (usernameDebounceTimer.current) clearTimeout(usernameDebounceTimer.current);
+      usernameDebounceTimer.current = setTimeout(() => checkUsername(value), 500);
     }
     
     if (name === 'email' && value.includes('@')) {
-      if (emailDebounceTimer) clearTimeout(emailDebounceTimer);
-      const timer = setTimeout(() => checkEmail(value), 500);
-      setEmailDebounceTimer(timer);
+      if (emailDebounceTimer.current) clearTimeout(emailDebounceTimer.current);
+      emailDebounceTimer.current = setTimeout(() => checkEmail(value), 500);
     }
   };
   
@@ -63,7 +71,7 @@ const RegisterPage: React.FC = () => {
     try {
       const { username_exists } = await authService.checkUserExists({ username });
       if (username_exists) {
-        setErrors(prev => ({ ...prev, username: 'This username is already taken' }));
+        setErrors(prev => ({ ...prev, username: t('auth.usernameTaken') }));
       }
     } catch (error) {
       console.error('Error checking username:', error);
@@ -74,7 +82,7 @@ const RegisterPage: React.FC = () => {
     try {
       const { email_exists } = await authService.checkUserExists({ email });
       if (email_exists) {
-        setErrors(prev => ({ ...prev, email: 'This email is already registered' }));
+        setErrors(prev => ({ ...prev, email: t('auth.emailRegistered') }));
       }
     } catch (error) {
       console.error('Error checking email:', error);
@@ -85,25 +93,25 @@ const RegisterPage: React.FC = () => {
     const newErrors: Record<string, string> = {};
     
     if (!formData.username.trim()) {
-      newErrors.username = 'Username is required';
+      newErrors.username = t('auth.usernameRequired');
     } else if (formData.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters long';
+      newErrors.username = t('auth.usernameTooShort');
     }
     
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = t('auth.emailRequired');
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = t('auth.emailInvalid');
     }
     
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = t('auth.passwordRequired');
     } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters long';
+      newErrors.password = t('auth.passwordTooShort');
     }
     
     if (formData.password !== formData.password2) {
-      newErrors.password2 = 'Passwords do not match';
+      newErrors.password2 = t('auth.passwordsNoMatch');
     }
     
     setErrors(newErrors);
@@ -119,16 +127,15 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
     try {
       await authService.register(formData);
-      // Login automatically after successful registration
-      await authService._login({
-        username: formData.username,
-        password: formData.password
-      });
+      // Login automatically after successful registration; go through the auth
+      // context so the header/UI update immediately.
+      await login(formData.username, formData.password);
       navigate('/'); // Redirect to home after successful registration and login
-    } catch (error: any) {
-      if (error.response?.data) {
+    } catch (error) {
+      const apiErr = error as ApiError;
+      if (apiErr.response?.data) {
         // Handle validation errors from the server
-        const serverErrors = error.response.data;
+        const serverErrors = apiErr.response.data;
         const newErrors: Record<string, string> = {};
         
         Object.entries(serverErrors).forEach(([key, value]) => {
@@ -142,10 +149,10 @@ const RegisterPage: React.FC = () => {
         if (Object.keys(newErrors).length > 0) {
           setErrors(newErrors);
         } else {
-          setGeneralError('Registration failed. Please try again.');
+          setGeneralError(t('auth.registrationFailed'));
         }
       } else {
-        setGeneralError('Registration failed. Please try again.');
+        setGeneralError(t('auth.registrationFailed'));
       }
       console.error('Registration error:', error);
     } finally {
@@ -166,7 +173,7 @@ const RegisterPage: React.FC = () => {
         }}
       >
         <Typography variant="h4" component="h1" gutterBottom align="center">
-          Create Account
+          {t('auth.createAccount')}
         </Typography>
         
         {generalError && <Alert severity="error" sx={{ mb: 2 }}>{generalError}</Alert>}
@@ -177,7 +184,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             id="username"
-            label="Username"
+            label={t('auth.username')}
             name="username"
             autoComplete="username"
             autoFocus
@@ -193,7 +200,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             id="email"
-            label="Email Address"
+            label={t('auth.emailAddress')}
             name="email"
             autoComplete="email"
             value={formData.email}
@@ -208,7 +215,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             name="password"
-            label="Password"
+            label={t('auth.password')}
             type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="new-password"
@@ -217,18 +224,20 @@ const RegisterPage: React.FC = () => {
             error={!!errors.password}
             helperText={errors.password}
             disabled={loading}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={t('auth.togglePassword')}
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }
             }}
           />
           
@@ -237,7 +246,7 @@ const RegisterPage: React.FC = () => {
             required
             fullWidth
             name="password2"
-            label="Confirm Password"
+            label={t('auth.confirmPassword')}
             type={showPassword ? 'text' : 'password'}
             id="password2"
             autoComplete="new-password"
@@ -249,7 +258,7 @@ const RegisterPage: React.FC = () => {
           />
           
           <FormHelperText>
-            Password must be at least 8 characters long
+            {t('auth.passwordTooShort')}
           </FormHelperText>
           
           <Button
@@ -259,14 +268,16 @@ const RegisterPage: React.FC = () => {
             sx={{ mt: 3, mb: 2 }}
             disabled={loading || Object.keys(errors).length > 0}
           >
-            {loading ? <CircularProgress size={24} /> : 'Create Account'}
+            {loading ? <CircularProgress size={24} /> : t('auth.createAccount')}
           </Button>
           
           <Divider sx={{ my: 2 }} />
           
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              Already have an account?
+            <Typography variant="body2" gutterBottom sx={{
+              color: "text.secondary"
+            }}>
+              {t('auth.alreadyHaveAccount')}
             </Typography>
             <Button
               component={Link}
@@ -274,7 +285,7 @@ const RegisterPage: React.FC = () => {
               variant="outlined"
               disabled={loading}
             >
-              Sign In
+              {t('auth.signIn')}
             </Button>
           </Box>
         </Box>

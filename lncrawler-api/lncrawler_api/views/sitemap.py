@@ -2,13 +2,25 @@ from django.contrib.sitemaps import Sitemap
 from django.conf import settings
 from urllib.parse import urlparse
 from django.db import models
+from django.db.models.functions import Coalesce
 
-from ..models import Novel, NovelFromSource, Chapter
+from ..models import Novel, NovelFromSource
 
 # Parse SITE_URL once
 parsed_site_url = urlparse(settings.SITE_URL)
 SITEMAP_PROTOCOL = parsed_site_url.scheme
 SITEMAP_DOMAIN = parsed_site_url.netloc
+
+
+def _non_adult_novels():
+    # A novel is adult if any of its sources is; keep R18 pages out of the index.
+    return Novel.objects.filter(is_dmca=False).exclude(sources__is_adult=True)
+
+
+def _non_adult_sources():
+    return NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
+        novel__sources__is_adult=True
+    )
 
 
 class BaseSitemap(Sitemap):
@@ -29,9 +41,6 @@ class StaticViewSitemap(BaseSitemap):
         # These correspond to paths in your App.tsx
         return [
             '/',
-            '/login',
-            '/register',
-            '/profile',
             '/library',
             '/history',
             '/reading-lists',
@@ -47,10 +56,19 @@ class NovelSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return Novel.objects.only('slug', 'updated_at').order_by('slug')
+        return _non_adult_novels().only('slug', 'updated_at').order_by('slug')
 
     def lastmod(self, obj):
         return obj.updated_at
+
+    def get_latest_lastmod(self):
+        # One indexed query for the sitemap index instead of evaluating every
+        # novel just to take max(updated_at).
+        return (
+            _non_adult_novels().order_by('-updated_at')
+            .values_list('updated_at', flat=True)
+            .first()
+        )
 
     def location(self, obj):
         return f'/novels/{obj.slug}/'
@@ -60,12 +78,23 @@ class SourceSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return NovelFromSource.objects.select_related('novel').only(
+        return _non_adult_sources().exclude(
+            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+        ).select_related('novel').only(
             'source_slug', 'updated_at', 'novel__slug'
         ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
         return obj.updated_at
+
+    def get_latest_lastmod(self):
+        return (
+            _non_adult_sources().exclude(
+                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+            ).order_by('-updated_at')
+            .values_list('updated_at', flat=True)
+            .first()
+        )
 
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/'
@@ -75,12 +104,24 @@ class ChapterListSitemap(BaseSitemap):
     changefreq = 'daily'
 
     def items(self):
-        return NovelFromSource.objects.select_related('novel').only(
+        return _non_adult_sources().exclude(
+            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+        ).select_related('novel').only(
             'source_slug', 'updated_at', 'last_chapter_update', 'novel__slug'
         ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
         return obj.last_chapter_update or obj.updated_at
+
+    def get_latest_lastmod(self):
+        return (
+            _non_adult_sources().exclude(
+                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+            ).annotate(_lastmod=Coalesce('last_chapter_update', 'updated_at'))
+            .order_by('-_lastmod')
+            .values_list('_lastmod', flat=True)
+            .first()
+        )
 
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/chapterlist/'
@@ -134,12 +175,23 @@ class ImageGallerySitemap(BaseSitemap):
     def items(self):
         # Consider only sources that actually have images (e.g., cover or chapter images)
         # For simplicity, linking all sources; frontend can handle empty galleries.
-        return NovelFromSource.objects.select_related('novel').only(
+        return _non_adult_sources().exclude(
+            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+        ).select_related('novel').only(
             'source_slug', 'updated_at', 'novel__slug'
         ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
         return obj.updated_at
+
+    def get_latest_lastmod(self):
+        return (
+            _non_adult_sources().exclude(
+                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
+            ).order_by('-updated_at')
+            .values_list('updated_at', flat=True)
+            .first()
+        )
 
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/gallery/'

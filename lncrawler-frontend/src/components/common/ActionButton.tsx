@@ -32,7 +32,7 @@ interface ActionButtonProps {
   /**
    * Function to call when the button is clicked
    */
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   
   /**
    * URL to navigate to when button is clicked (alternative to onClick)
@@ -63,6 +63,11 @@ interface ActionButtonProps {
    * Full width button
    */
   fullWidth?: boolean;
+
+  /**
+   * Render a smaller, content-sized button without subtitle or background icon
+   */
+  compact?: boolean;
 }
 
 /**
@@ -83,32 +88,44 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   tooltipPlacement = "top",
   sx = {},
   fullWidth = true,
+  compact = false,
 }) => {
   const buttonProps = {
     variant: "contained" as const,
     color,
-    size: "large" as const,
+    size: compact ? ("medium" as const) : ("large" as const),
     fullWidth,
     startIcon,
     disabled,
-    component: to ? Link : undefined,
-    to: to || undefined,
-    onClick: to ? undefined : onClick,
-    sx: {
-      borderRadius: '12px',
-      p: 1.5,
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      display: 'flex',
-      justifyContent: 'flex-start',
-      alignItems: 'center',
-      textAlign: 'left',
-      position: 'relative',
-      overflow: 'hidden',
-      ...sx
-    }
+    sx: [
+      compact
+        ? {
+            borderRadius: '10px',
+            py: 0.75,
+            px: 1.5,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            whiteSpace: 'nowrap',
+          }
+        : {
+            borderRadius: '12px',
+            p: 1.5,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            display: 'flex',
+            justifyContent: 'flex-start',
+            alignItems: 'center',
+            textAlign: 'left',
+            position: 'relative',
+            overflow: 'hidden',
+          },
+      sx,
+    ] as SxProps<Theme>,
   };
 
-  const buttonContent = (
+  const buttonContent = compact ? (
+    <Typography variant="button" sx={{ fontWeight: 600 }}>
+      {title}
+    </Typography>
+  ) : (
     <>
       <Box sx={{ zIndex: 1 }}>
         <Typography variant="button" sx={{ display: 'block', fontWeight: 700 }}>
@@ -120,7 +137,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
           </Typography>
         )}
       </Box>
-      {React.cloneElement((backgroundIcon || startIcon) as React.ReactElement, { 
+      {React.cloneElement((backgroundIcon || startIcon) as React.ReactElement<{ sx?: SxProps<Theme> }>, { 
         sx: { 
           position: 'absolute', 
           right: '5px', 
@@ -132,7 +149,15 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     </>
   );
 
-  const button = <Button {...buttonProps}>{buttonContent}</Button>;
+  const button = to ? (
+    <Button {...buttonProps} component={Link} to={to}>
+      {buttonContent}
+    </Button>
+  ) : (
+    <Button {...buttonProps} onClick={onClick}>
+      {buttonContent}
+    </Button>
+  );
 
   if (tooltip) {
     return (

@@ -7,12 +7,10 @@ export interface Comment {
   contains_spoiler: boolean;
   created_at: string;
   source_name?: string;
-  type?: 'novel' | 'chapter' | 'board';
+  type?: 'novel' | 'chapter';
   chapter_title?: string;
   chapter_id?: number;
   source_slug?: string;
-  board_name?: string;
-  board_slug?: string;
   replies?: Comment[];
   has_replies?: boolean;
   upvotes: number;
@@ -21,4 +19,17 @@ export interface Comment {
   user: User;
   user_vote?: 'up' | 'down';
   edited: boolean;
+  target_type?: 'novel' | 'chapter';
+  target_title?: string;
+  target_slug?: string;
+  target_novel_slug?: string;
+  target_source_slug?: string;
+  target_chapter_number?: number;
+}
+
+export interface CommentFormData {
+  author_name: string;
+  message: string;
+  contains_spoiler: boolean;
+  parent_id?: string;
 }

@@ -1,0 +1,14 @@
+{% extends "seo/base.html" %}
+{% block content %}
+<h1>Read Light Novels Online on LNCrawler</h1>
+<p>{{ description }}</p>
+
+<h2>Browse novels</h2>
+<ul class="sources">
+{% for novel in novels %}
+  <li><a href="{{ site_url }}/novels/{{ novel.slug }}/">{{ novel.title }}</a></li>
+{% endfor %}
+</ul>
+
+<p><a href="{{ site_url }}/novels/search">Search all light novels &raquo;</a></p>
+{% endblock %}

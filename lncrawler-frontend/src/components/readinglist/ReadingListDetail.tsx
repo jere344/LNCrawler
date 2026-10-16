@@ -1,13 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useState, useEffect, useCallback, use } from 'react';
+import { useParams, useNavigate, useLoaderData, useRevalidator, Link as RouterLink } from 'react-router-dom';
 import { 
   Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, CircularProgress,
+  TextField,
   Paper, Stack,
   Avatar,
   useTheme,
   useMediaQuery,
-  IconButton
+  IconButton,
+  Chip,
+  Switch,
+  FormControlLabel,
+  Autocomplete,
+  Select,
+  MenuItem,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Divider,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   DndContext, 
@@ -34,14 +47,22 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ShareIcon from '@mui/icons-material/Share';
+import LockIcon from '@mui/icons-material/Lock';
+import PublicIcon from '@mui/icons-material/Public';
+import GroupIcon from '@mui/icons-material/Group';
 import ReadingListCard from '@components/common/novelcardtypes/ReadingListItemCard';
-import { formatTimeAgo } from '@utils/Misc';
+import { formatTimeAgo, getNovelSourceLink } from '@utils/Misc';
+import { useTranslation } from 'react-i18next';
+import { ReadingListCollaborator } from '@models/readinglist_types';
+import { User } from '@models/user_types';
+import { useDebounce } from '@utils/useDebounce';
+import type { AsyncData, ReadingListDetailLoaderData } from '../../router/loaders';
 
 // Sortable novel item component
-const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: { 
+const SortableNovelItem = ({ item, canEdit, onEditNote, onRemoveItem }: { 
   item: ReadingListItem; 
   index: number;
-  isOwner: boolean;
+  canEdit: boolean;
   onEditNote: (itemId: string, note?: string) => void;
   onRemoveItem: (itemId: string) => void;
 }) => {
@@ -54,7 +75,7 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
     isDragging
   } = useSortable({
     id: item.id,
-    disabled: !isOwner
+    disabled: !canEdit
   });
 
   const style = {
@@ -77,7 +98,7 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
         minWidth: 0,
       }}
     >
-      {isOwner && (
+      {canEdit && (
         <Box 
           sx={{ 
             width: 40,
@@ -107,9 +128,9 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
       }}>
         <ReadingListCard 
           novel={item.novel} 
-          to={`/novels/${item.novel.slug}`} 
+          {...getNovelSourceLink(item.novel)} 
           note={item.note}
-          isOwner={isOwner}
+          canEdit={canEdit}
           onEditNote={onEditNote}
           onRemoveItem={onRemoveItem}
           itemId={item.id}
@@ -121,16 +142,26 @@ const SortableNovelItem = ({ item, isOwner, onEditNote, onRemoveItem }: {
 
 const ReadingListDetail = () => {
   const { listId } = useParams<{ listId: string }>();
-  const [readingList, setReadingList] = useState<ReadingList | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: readingListPromise } = useLoaderData() as AsyncData<ReadingListDetailLoaderData>;
+  const loaderData = use(readingListPromise);
+  const revalidator = useRevalidator();
+  const detail = loaderData.ok ? loaderData.data : null;
+  const [readingList, setReadingList] = useState<ReadingList | null>(detail);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [editIsPublic, setEditIsPublic] = useState(true);
+  const [collaboratorsDialogOpen, setCollaboratorsDialogOpen] = useState(false);
+  const [userOptions, setUserOptions] = useState<User[]>([]);
+  const [userSearchInput, setUserSearchInput] = useState('');
+  const debouncedUserSearchInput = useDebounce(userSearchInput);
+  const [newCollaboratorRole, setNewCollaboratorRole] = useState<'editor' | 'reader'>('editor');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editNoteDialogOpen, setEditNoteDialogOpen] = useState(false);
   const [currentItemId, setCurrentItemId] = useState<string>('');
   const [editingNote, setEditingNote] = useState('');
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -154,43 +185,91 @@ const ReadingListDetail = () => {
   );
 
   const isOwner = useCallback(() => {
-    return isAuthenticated && readingList?.user.id === user?.id;
-  }, [isAuthenticated, readingList, user]);
+    return isAuthenticated && readingList?.user_role === 'owner';
+  }, [isAuthenticated, readingList]);
 
+  const canEdit = useCallback(() => {
+    return isAuthenticated && (readingList?.user_role === 'owner' || readingList?.user_role === 'editor');
+  }, [isAuthenticated, readingList]);
+
+  // Keep the local view in sync with the loader (initial load + revalidation).
   useEffect(() => {
-    if (listId) {
-      fetchReadingList();
+    setReadingList(detail);
+  }, [detail]);
+
+  // Seed the edit form once per list, not on every revalidation.
+  useEffect(() => {
+    if (detail) {
+      setEditTitle(detail.title);
+      setEditDescription(detail.description || '');
+      setEditIsPublic(detail.is_public);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed only when the list changes
   }, [listId]);
 
-  const fetchReadingList = async () => {
-    if (!listId) return;
-
-    try {
-      setLoading(true);
-      const data = await readingListService.getReadingListDetail(listId);
-      setReadingList(data);
-      setEditTitle(data.title);
-      setEditDescription(data.description || '');
-    } catch (error) {
-      console.error('Error fetching reading list:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleUpdateList = async () => {
-    if (!listId || !readingList || !isOwner()) return;
+    if (!listId || !readingList || !canEdit()) return;
 
     try {
       await readingListService.updateReadingList(listId, {
         title: editTitle,
-        description: editDescription
+        description: editDescription,
+        ...(isOwner() ? { is_public: editIsPublic } : {}),
       });
       setEditDialogOpen(false);
-      fetchReadingList();
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error updating reading list:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (debouncedUserSearchInput.trim().length < 2) {
+      setUserOptions([]);
+      return;
+    }
+    let cancelled = false;
+    readingListService.searchUsers(debouncedUserSearchInput.trim())
+      .then((users) => { if (!cancelled) setUserOptions(users); })
+      .catch((error) => {
+        console.error('Error searching users:', error);
+        if (!cancelled) setUserOptions([]);
+      });
+    return () => { cancelled = true; };
+  }, [debouncedUserSearchInput]);
+
+  const handleAddCollaborator = async (selected: User | null) => {
+    if (!listId || !selected) return;
+    try {
+      await readingListService.addCollaborator(listId, {
+        username: selected.username,
+        role: newCollaboratorRole,
+      });
+      setUserSearchInput('');
+      setUserOptions([]);
+      revalidator.revalidate();
+    } catch (error) {
+      console.error('Error adding collaborator:', error);
+    }
+  };
+
+  const handleUpdateCollaboratorRole = async (collaboratorId: string, role: 'editor' | 'reader') => {
+    if (!listId) return;
+    try {
+      await readingListService.updateCollaborator(listId, collaboratorId, role);
+      revalidator.revalidate();
+    } catch (error) {
+      console.error('Error updating collaborator:', error);
+    }
+  };
+
+  const handleRemoveCollaborator = async (collaboratorId: string) => {
+    if (!listId) return;
+    try {
+      await readingListService.removeCollaborator(listId, collaboratorId);
+      revalidator.revalidate();
+    } catch (error) {
+      console.error('Error removing collaborator:', error);
     }
   };
 
@@ -213,23 +292,23 @@ const ReadingListDetail = () => {
   };
 
   const handleSaveNote = async () => {
-    if (!listId || !currentItemId || !isOwner()) return;
+    if (!listId || !currentItemId || !canEdit()) return;
 
     try {
       await readingListService.updateListItem(listId, currentItemId, { note: editingNote });
       setEditNoteDialogOpen(false);
-      fetchReadingList();
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error updating note:', error);
     }
   };
 
   const handleRemoveNovel = async (itemId: string) => {
-    if (!listId || !isOwner()) return;
+    if (!listId || !canEdit()) return;
 
     try {
       await readingListService.removeNovelFromList(listId, itemId);
-      fetchReadingList();
+      revalidator.revalidate();
     } catch (error) {
       console.error('Error removing novel:', error);
     }
@@ -238,14 +317,14 @@ const ReadingListDetail = () => {
   const handleShareList = () => {
     if (navigator.share) {
       navigator.share({
-        title: readingList?.title || 'Reading List',
-        text: readingList?.description || 'Check out this reading list!',
+        title: readingList?.title || t('readingLists.shareTitle'),
+        text: readingList?.description || t('readingLists.shareText'),
         url: window.location.href,
       }).catch((error) => console.log('Error sharing:', error));
     } else {
       // Fallback for browsers that don't support the Web Share API
       navigator.clipboard.writeText(window.location.href)
-        .then(() => alert('Link copied to clipboard!'))
+        .then(() => alert(t('readingLists.linkCopied')))
         .catch((error) => console.error('Error copying link:', error));
     }
   };
@@ -253,7 +332,7 @@ const ReadingListDetail = () => {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     
-    if (!over || active.id === over.id || !readingList?.items || !listId || !isOwner()) {
+    if (!over || active.id === over.id || !readingList?.items || !listId || !canEdit()) {
       return;
     }
     
@@ -288,24 +367,16 @@ const ReadingListDetail = () => {
     } catch (error) {
       console.error('Error reordering items:', error);
       // If there's an error, refresh the list to get the correct order
-      fetchReadingList();
+      revalidator.revalidate();
     }
   };
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   if (!readingList) {
     return (
       <Box sx={{ textAlign: 'center', my: 4 }}>
-        <Typography variant="h6">Reading list not found</Typography>
+        <Typography variant="h6">{t('readingLists.notFound')}</Typography>
         <Button component={RouterLink} to="/reading-lists" sx={{ mt: 2 }}>
-          Back to Reading Lists
+          {t('readingLists.backToLists')}
         </Button>
       </Box>
     );
@@ -315,12 +386,21 @@ const ReadingListDetail = () => {
     <Box sx={{ maxWidth: 1000, mx: 'auto', px: 3, py: 4 }}>
       {/* Header Section */}
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h4" component="h1" gutterBottom>
-              {readingList?.title}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+          <Box sx={{ flex: '1 1 280px', minWidth: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+              <Typography variant="h4" component="h1">
+                {readingList?.title}
+              </Typography>
+              <Chip
+                size="small"
+                icon={readingList.is_public ? <PublicIcon /> : <LockIcon />}
+                label={readingList.is_public ? t('readingLists.public') : t('readingLists.private')}
+                color={readingList.is_public ? 'success' : 'default'}
+                variant="outlined"
+              />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', mb: 2 }}>
               <Box sx={{ display: "flex", alignItems: "center" }}>
                 <Avatar
                     sx={{
@@ -336,49 +416,74 @@ const ReadingListDetail = () => {
                 >
                     {readingList?.user.username[0].toUpperCase()}
                 </Avatar>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                     {readingList?.user.username}
                 </Typography>
               </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mx: 1 }}>•</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {readingList && formatTimeAgo(new Date(readingList.updated_at))}
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mx: 1
+                }}>•</Typography>
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
+                {readingList && t('readingLists.updatedAgo', { time: formatTimeAgo(new Date(readingList.updated_at), t) })}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mx: 1 }}>•</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {readingList?.items?.length || 0} novels
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mx: 1
+                }}>•</Typography>
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
+                {t('readingLists.novelsCount', { count: readingList?.items?.length || 0 })}
               </Typography>
             </Box>
             {readingList?.description && (
-              <Typography variant="body1" color="text.secondary">
+              <Typography variant="body1" sx={{
+                color: "text.secondary"
+              }}>
                 {readingList.description}
               </Typography>
             )}
           </Box>
 
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
             {isMobile ? (
               <>
                 <IconButton
                   onClick={handleShareList}
                   color="primary"
-                  title="Share"
+                  title={t('common.share')}
                 >
                   <ShareIcon />
                 </IconButton>
                 {isOwner() && (
                   <>
                     <IconButton
+                      onClick={() => setCollaboratorsDialogOpen(true)}
+                      color="primary"
+                      title={t('readingLists.manageCollaborators')}
+                    >
+                      <GroupIcon />
+                    </IconButton>
+                    <IconButton
                       onClick={() => setEditDialogOpen(true)}
                       color="primary"
-                      title="Edit"
+                      title={t('common.edit')}
                     >
                       <EditIcon />
                     </IconButton>
                     <IconButton
                       color="error"
                       onClick={() => setDeleteDialogOpen(true)}
-                      title="Delete"
+                      title={t('common.delete')}
                     >
                       <DeleteIcon />
                     </IconButton>
@@ -392,16 +497,23 @@ const ReadingListDetail = () => {
                   onClick={handleShareList}
                   variant="outlined"
                 >
-                  Share
+                  {t('common.share')}
                 </Button>
                 {isOwner() && (
                   <>
+                    <Button
+                      startIcon={<GroupIcon />}
+                      onClick={() => setCollaboratorsDialogOpen(true)}
+                      variant="outlined"
+                    >
+                      {t('readingLists.manageCollaborators')}
+                    </Button>
                     <Button
                       startIcon={<EditIcon />}
                       onClick={() => setEditDialogOpen(true)}
                       variant="outlined"
                     >
-                      Edit
+                      {t('common.edit')}
                     </Button>
                     <Button
                       startIcon={<DeleteIcon />}
@@ -409,7 +521,7 @@ const ReadingListDetail = () => {
                       onClick={() => setDeleteDialogOpen(true)}
                       variant="outlined"
                     >
-                      Delete
+                      {t('common.delete')}
                     </Button>
                   </>
                 )}
@@ -423,12 +535,14 @@ const ReadingListDetail = () => {
       {readingList?.items?.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="h6" gutterBottom>
-            This reading list is empty
+            {t('readingLists.empty')}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {isOwner() ? 
-              "Start adding novels by clicking the 'Add to Reading List' button on any novel page." :
-              "No novels have been added to this list yet."}
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
+            {canEdit() ? 
+              t('readingLists.emptyOwnerHint') :
+              t('readingLists.emptyOtherHint')}
           </Typography>
         </Paper>
       ) : (
@@ -446,7 +560,7 @@ const ReadingListDetail = () => {
                 key={item.id}
                 item={item} 
                 index={index}
-                isOwner={isOwner()}
+                canEdit={canEdit()}
                 onEditNote={handleOpenNoteDialog}
                 onRemoveItem={handleRemoveNovel}
               />
@@ -462,13 +576,13 @@ const ReadingListDetail = () => {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Edit Reading List</DialogTitle>
+        <DialogTitle>{t('readingLists.editTitle')}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             id="edit-title"
-            label="List Title"
+            label={t('readingLists.listTitle')}
             type="text"
             fullWidth
             variant="outlined"
@@ -480,7 +594,7 @@ const ReadingListDetail = () => {
           <TextField
             margin="dense"
             id="edit-description"
-            label="Description (Optional)"
+            label={t('readingLists.descriptionOptional')}
             type="text"
             fullWidth
             variant="outlined"
@@ -489,15 +603,27 @@ const ReadingListDetail = () => {
             value={editDescription}
             onChange={(e) => setEditDescription(e.target.value)}
           />
+          {isOwner() && (
+            <FormControlLabel
+              sx={{ mt: 1 }}
+              control={
+                <Switch
+                  checked={editIsPublic}
+                  onChange={(e) => setEditIsPublic(e.target.checked)}
+                />
+              }
+              label={editIsPublic ? t('readingLists.public') : t('readingLists.private')}
+            />
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setEditDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button 
             onClick={handleUpdateList} 
             variant="contained"
             disabled={!editTitle.trim()}
           >
-            Save Changes
+            {t('common.save')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -507,20 +633,20 @@ const ReadingListDetail = () => {
         open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
       >
-        <DialogTitle>Delete Reading List</DialogTitle>
+        <DialogTitle>{t('readingLists.deleteTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete "{readingList.title}"? This action cannot be undone.
+            {t('readingLists.deleteBody', { title: readingList.title })}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button 
             onClick={handleDeleteList} 
             variant="contained" 
             color="error"
           >
-            Delete
+            {t('common.delete')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -532,13 +658,13 @@ const ReadingListDetail = () => {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Edit Note</DialogTitle>
+        <DialogTitle>{t('readingLists.editNoteTitle')}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             id="note"
-            label="Your Note"
+            label={t('readingLists.yourNote')}
             type="text"
             fullWidth
             variant="outlined"
@@ -549,13 +675,99 @@ const ReadingListDetail = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setEditNoteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setEditNoteDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button 
             onClick={handleSaveNote} 
             variant="contained"
           >
-            Save Note
+            {t('readingLists.saveNote')}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Collaborators Dialog */}
+      <Dialog
+        open={collaboratorsDialogOpen}
+        onClose={() => setCollaboratorsDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>{t('readingLists.manageCollaborators')}</DialogTitle>
+        <DialogContent>
+          <Stack direction="row" spacing={1} sx={{ mt: 1, mb: 2 }}>
+            <Autocomplete
+              fullWidth
+              size="small"
+              options={userOptions}
+              getOptionLabel={(option) => option.username}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              value={null}
+              inputValue={userSearchInput}
+              onInputChange={(_, value) => setUserSearchInput(value)}
+              onChange={(_, value) => handleAddCollaborator(value)}
+              renderInput={(params) => (
+                <TextField {...params} label={t('readingLists.searchUsers')} />
+              )}
+            />
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>{t('readingLists.role')}</InputLabel>
+              <Select
+                value={newCollaboratorRole}
+                label={t('readingLists.role')}
+                onChange={(e) => setNewCollaboratorRole(e.target.value as 'editor' | 'reader')}
+              >
+                <MenuItem value="editor">{t('readingLists.roleEditor')}</MenuItem>
+                <MenuItem value="reader">{t('readingLists.roleReader')}</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+
+          <Divider sx={{ mb: 1 }} />
+
+          {readingList.collaborators && readingList.collaborators.length > 0 ? (
+            <List>
+              {readingList.collaborators.map((collaborator: ReadingListCollaborator) => (
+                <ListItem
+                  key={collaborator.id}
+                  secondaryAction={
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Select
+                        size="small"
+                        value={collaborator.role}
+                        onChange={(e) => handleUpdateCollaboratorRole(
+                          collaborator.id, e.target.value as 'editor' | 'reader')}
+                      >
+                        <MenuItem value="editor">{t('readingLists.roleEditor')}</MenuItem>
+                        <MenuItem value="reader">{t('readingLists.roleReader')}</MenuItem>
+                      </Select>
+                      <IconButton
+                        edge="end"
+                        color="error"
+                        onClick={() => handleRemoveCollaborator(collaborator.id)}
+                        title={t('readingLists.removeCollaborator')}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Stack>
+                  }
+                >
+                  <ListItemAvatar>
+                    <Avatar src={collaborator.user.profile_pic || undefined}>
+                      {collaborator.user.username[0]?.toUpperCase()}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText primary={collaborator.user.username} />
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Typography variant="body2" sx={{ color: 'text.secondary', py: 2 }}>
+              {t('readingLists.noCollaborators')}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCollaboratorsDialogOpen(false)}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
     </Box>

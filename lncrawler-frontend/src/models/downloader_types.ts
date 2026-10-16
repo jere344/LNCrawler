@@ -51,6 +51,13 @@ export interface DownloadResponse {
   job_id: string;
 }
 
+export interface SelectedNovel {
+  title: string;
+  volumes: number;
+  chapters: number;
+  url: string;
+}
+
 export interface DownloadStatus {
   status: string;
   job_status: string;
@@ -58,25 +65,16 @@ export interface DownloadStatus {
   download_completed: boolean;
   progress: number;
   total_chapters: number;
+  progress_unit?: string;
   progress_percentage: number;
-  selected_novel: {
-    title: string;
-    volumes: number;
-    chapters: number;
-    url: string;
-  };
+  selected_novel: SelectedNovel;
 }
 
 export interface DownloadResults {
   status: string;
   output_path: string;
   output_files: string[];
-  selected_novel: {
-    title: string;
-    volumes: number;
-    chapters: number;
-    url: string;
-  };
+  selected_novel: SelectedNovel;
   output_slug: string;
 }
 
@@ -85,14 +83,16 @@ export interface Job {
   id: string;
   status: string;
   status_display: string;
+  job_type: string;
   query: string;
   created_at: string;
   updated_at: string;
   progress: number;
   total_items: number;
+  progress_unit: string;
   progress_percentage: number;
-  search_results: any;
-  selected_novel: any;
+  search_results: SearchResult[] | null;
+  selected_novel: SelectedNovel | null;
   output_path: string | null;
   output_files: string[] | null;
   error_message: string | null;

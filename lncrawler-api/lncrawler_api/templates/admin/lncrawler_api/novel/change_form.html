@@ -1,0 +1,13 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  {% if original %}
+    <li>
+      <a href="{% url 'admin:lncrawler_api_novel_split' %}?novel={{ original.pk }}" class="addlink">
+        {% trans "Split sources" %}
+      </a>
+    </li>
+  {% endif %}
+{% endblock %}

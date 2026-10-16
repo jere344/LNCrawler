@@ -1,9 +1,9 @@
 import React from 'react';
-import { Box, Button, Typography, Grid2 as Grid } from '@mui/material';
+import { Box, Button, Typography, Grid as Grid } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import HomeIcon from '@mui/icons-material/Home';
-import { Link as RouterLink } from 'react-router-dom'; // Import RouterLink
+import { useTranslation } from 'react-i18next';
 
 interface ReaderNavigationProps {
   prevChapter?: number | null;
@@ -31,10 +31,9 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
   onHome,
   variant = 'buttons',
   showLabels = true,
-  prevUrl,
-  nextUrl,
-  homeUrl,
 }) => {
+  const { t } = useTranslation();
+
   if (variant === 'compact') {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -43,10 +42,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             startIcon={<ArrowBackIcon />} 
             onClick={onPrevious}
             variant="outlined"
-            component={prevUrl ? RouterLink : "a"}
-            to={prevUrl}
           >
-            {showLabels ? 'Previous Chapter' : ''}
+            {showLabels ? t('readerControls.previousChapter') : ''}
           </Button>
         ) : <></>}
         
@@ -55,10 +52,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             endIcon={<ArrowForwardIcon />} 
             onClick={onNext}
             variant="contained"
-            component={nextUrl ? RouterLink : "a"}
-            to={nextUrl}
           >
-            {showLabels ? 'Next Chapter' : ''}
+            {showLabels ? t('readerControls.nextChapter') : ''}
           </Button>
         )}
       </Box>
@@ -67,7 +62,7 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
 
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>Chapter Navigation</Typography>
+      <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'medium' }}>{t('readerControls.chapterNavigation')}</Typography>
       <Grid container spacing={1}>
         <Grid size={4}>
           <Button 
@@ -78,10 +73,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             onClick={onPrevious}
             disabled={!prevChapter}
             size="medium"
-            component={prevUrl ? RouterLink : "a"}
-            to={prevUrl}
           >
-            Prev
+            {t('readerControls.prev')}
           </Button>
         </Grid>
         <Grid size={4}>
@@ -91,10 +84,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             startIcon={<HomeIcon />}
             onClick={onHome}
             size="medium"
-            component={homeUrl ? RouterLink : "a"}
-            to={homeUrl}
           >
-            Home
+            {t('readerControls.home')}
           </Button>
         </Grid>
         <Grid size={4}>
@@ -106,10 +97,8 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             onClick={onNext}
             disabled={!nextChapter}
             size="medium"
-            component={nextUrl ? RouterLink : "a"}
-            to={nextUrl}
           >
-            Next
+            {t('readerControls.next')}
           </Button>
         </Grid>
       </Grid>

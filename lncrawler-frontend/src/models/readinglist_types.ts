@@ -9,11 +9,23 @@ export interface ReadingListItem {
   added_at: string;
 }
 
+export type ReadingListRole = 'owner' | 'editor' | 'reader';
+
+export interface ReadingListCollaborator {
+  id: string;
+  user: User;
+  role: 'editor' | 'reader';
+  created_at: string;
+}
+
 export interface ReadingList {
   id: string;
   title: string;
   description?: string;
+  is_public: boolean;
   user: User;
+  user_role?: ReadingListRole | null;
+  collaborators?: ReadingListCollaborator[];
   items_count?: number;
   created_at: string;
   updated_at: string;

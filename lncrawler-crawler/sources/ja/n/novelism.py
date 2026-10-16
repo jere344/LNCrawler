@@ -1,0 +1,126 @@
+# -*- coding: utf-8 -*-
+import json
+import logging
+import re
+
+from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
+
+logger = logging.getLogger(__name__)
+
+CONTENT_RE = re.compile(r'content:"((?:[^"\\]|\\.)*)"')
+
+
+class NovelismCrawler(Crawler):
+    base_url = "https://novelism.jp/"
+    has_mtl = False
+
+    def search_novel(self, query):
+        soup = self.get_soup("https://novelism.jp/search", params={"search": query})
+        results = []
+        seen = set()
+        for a in soup.select("a[href]"):
+            href = a.get("href", "")
+            if not re.match(r"^/novel/[A-Za-z0-9_-]{10,}/?$", href):
+                continue
+            title = a.get_text(" ", strip=True)
+            if not title or href in seen:
+                continue
+            seen.add(href)
+            results.append({"title": title, "url": self.absolute_url(href)})
+        return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        seen = set()
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                "https://novelism.jp/novel/ranking/pt/daily/",
+                params={"novel_length": 50, "page": page},
+            )
+            added = 0
+            for a in soup.select("a.novel-card-title-link"):
+                url = self.absolute_url(a["href"])
+                if url in seen:
+                    continue
+                seen.add(url)
+                results.append(
+                    SearchResult(title=a.get_text(" ", strip=True), url=url)
+                )
+                added += 1
+            if not added:
+                break
+            page += 1
+        return results[offset : offset + limit]
+
+    def read_novel_info(self):
+        soup = self.get_soup(self.novel_url)
+
+        title = soup.select_one("h1")
+        if title:
+            self.novel_title = title.get_text(" ", strip=True)
+
+        synopsis = soup.select_one('meta[name="description"]')
+        if synopsis:
+            self.novel_synopsis = synopsis.get("content", "").strip()
+
+        author = soup.select_one("a[href*='/user/'] span.sr-only")
+        if not author:
+            author = soup.select_one("a[href*='/user/']")
+        if author:
+            self.novel_author = author.get_text(strip=True)
+
+        cover = soup.select_one('meta[property="og:image"], meta[name="og:image"]')
+        if cover and cover.get("content"):
+            self.novel_cover = cover["content"]
+
+        genres = [
+            a.get_text(strip=True)
+            for a in soup.select("a[href*='/novel/genre/']")
+        ]
+        tags = [
+            a.get_text(strip=True)
+            for a in soup.select("a[href*='/novel/keyword/tag/']")
+        ]
+        self.novel_tags = list(dict.fromkeys(genres + tags))
+
+        self.volumes.append({"id": 1, "title": "Volume 1"})
+        seen = set()
+        for a in soup.select("a[href*='/article/']"):
+            url = self.absolute_url(a["href"])
+            if url in seen:
+                continue
+            seen.add(url)
+            self.chapters.append(
+                {
+                    "id": len(self.chapters) + 1,
+                    "volume": 1,
+                    "title": a.get_text(" ", strip=True),
+                    "url": url,
+                }
+            )
+
+    def download_chapter_body(self, chapter):
+        response = self.get_response(chapter["url"])
+        matches = CONTENT_RE.findall(response.text)
+        if not matches:
+            return ""
+        raw = max(matches, key=len)
+        try:
+            content = json.loads('"' + raw + '"')
+            ops = json.loads(content)
+        except Exception:
+            logger.debug("Could not parse Novelism content", exc_info=True)
+            return ""
+        text = "".join(
+            op.get("insert", "")
+            for op in ops
+            if isinstance(op.get("insert"), str)
+        )
+        text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+        return "".join(
+            "<p>%s</p>" % line.strip()
+            for line in text.split("\n")
+            if line.strip()
+        )

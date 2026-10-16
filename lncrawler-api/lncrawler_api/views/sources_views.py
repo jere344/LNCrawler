@@ -1,19 +1,26 @@
-from datetime import datetime
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 import os
-from urllib.parse import quote
 
-from ..models import Novel, SourceVote, NovelViewCount, WeeklyNovelView
-from ..serializers import NovelSourceSerializer, ChapterSerializer, ChapterContentSerializer
+from ..models import Novel, SourceVote, WeeklySourceView, resolve_output_path
+from ..serializers import NovelSerializer, NovelSourceSerializer, ChapterSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
-from django.db.models import F, Avg, Q, Count, Value, Max, Min
-from django.db.models.functions import Coalesce
-from ..utils import get_client_ip
-from django.conf import settings
+from django.db.models import Q, Sum, Func, IntegerField
+from django.http import FileResponse
+from ..utils import build_media_url, get_client_ip, resolve_novel_slug
+from ..utils.query_helpers import apply_novel_prefetches, sources_queryset
+from ..utils.pagination import parse_page_size
+from ..services.epub_service import get_or_build_epub
+
+
+class ArrayLength(Func):
+    """Postgres array length (Django has no built-in array Length)."""
+    function = 'CARDINALITY'
+    arity = 1
+    output_field = IntegerField()
 
 
 @api_view(["GET"])
@@ -21,10 +28,17 @@ def source_detail(request, novel_slug, source_slug):
     """
     Get details for a specific novel source
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    novel = resolve_novel_slug(novel_slug)
+    # Resolve every field the serializer reads (chapters, volumes, viewer vote
+    # and reading history) in the initial queryset instead of one fallback
+    # query per field.
+    source = get_object_or_404(
+        sources_queryset(detailed=True, ip=get_client_ip(request), user=request.user)
+        .filter(novel=novel),
+        source_slug=source_slug,
+    )
 
-    serializer = NovelSourceSerializer(source, context={"request": request})
+    serializer = NovelSourceSerializer(source, context={"request": request}, profile='detail')
     # Add novel info to the response
     data = serializer.data
     data.update(
@@ -34,6 +48,18 @@ def source_detail(request, novel_slug, source_slug):
             "novel_title": novel.title,
         }
     )
+
+    # Embed the novel detail so the source page renders the novel sections
+    # (rating, bookmark, similar novels, reading lists, other sources) from
+    # this one response instead of a second request. Nested sources use the
+    # lightweight summary profile.
+    novel = apply_novel_prefetches(
+        Novel.objects.filter(pk=novel.pk), request.user,
+        summary=True, ip=get_client_ip(request),
+    ).get()
+    data["novel"] = NovelSerializer(
+        novel, context={"request": request}, profile='detail'
+    ).data
 
     return Response(data)
 
@@ -50,7 +76,7 @@ def vote_source(request, novel_slug, source_slug):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
     client_ip = get_client_ip(request)
 
@@ -84,14 +110,20 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     """
     Get all chapters for a specific novel source using slugs with pagination
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
     chapters = source.chapters.all().order_by("chapter_id")
 
+    search = request.GET.get("search", "").strip()
+    if search:
+        chapters = chapters.filter(
+            Q(title__icontains=search) | Q(chapter_id__icontains=search)
+        )
+
     # Pagination parameters
     page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 100)  # Higher default for chapters
+    page_size = parse_page_size(request, 100, 500)  # Higher default for chapters
 
     paginator = Paginator(chapters, page_size)
     page_obj = paginator.get_page(page_number)
@@ -106,14 +138,15 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
             "source_id": str(source.id),
             "source_name": source.external_source.source_name,
             "source_slug": source.source_slug,
+            "is_dmca": novel.is_dmca,
             "count": paginator.count,
             "total_pages": paginator.num_pages,
-            "current_page": int(page_number),
+            "current_page": page_obj.number,
             "chapters": serializer.data,
             "source_overview_image_url": (
-                f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
+                build_media_url(source.overview_picture_path)
                 if source.overview_picture_path and os.path.exists(
-                    os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path)
+                    resolve_output_path(source.overview_picture_path) or ""
                 )
                 else None
             ),
@@ -126,23 +159,29 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     """
     Get content for a specific chapter by its number
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    novel = resolve_novel_slug(novel_slug)
+    source = get_object_or_404(novel.sources.select_related('external_source'), source_slug=source_slug)
     chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
+    # Attach the already-loaded parents so the serializer does not re-query them
+    source.novel = novel
+    chapter.novel_from_source = source
 
-    if not chapter.has_content:
+    if novel.is_dmca:
         return Response(
-            {"error": "Chapter content not available"}, status=status.HTTP_404_NOT_FOUND
+            {"error": "This work is unavailable due to a DMCA takedown request."},
+            status=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
         )
 
-    # Increment view count for the novel
-    view_count, created = NovelViewCount.objects.get_or_create(novel=novel)
-    view_count.increment()
+    if not chapter.has_content:
+        # Return the neighbouring *available* chapters so the reader can show a
+        # "chapter unavailable" interstitial with working next/prev navigation.
+        serializer = ChapterSerializer(chapter, profile="unavailable")
+        return Response(serializer.data, status=status.HTTP_404_NOT_FOUND)
 
-    # Increment weekly view count
-    WeeklyNovelView.increment_for_novel(novel)
+    # Increment views for the source (also updates its all-time projection)
+    WeeklySourceView.increment_for_source(source)
 
-    serializer = ChapterContentSerializer(chapter)
+    serializer = ChapterSerializer(chapter, profile='content')
     return Response(serializer.data)
 
 
@@ -151,53 +190,70 @@ def source_image_gallery(request, novel_slug, source_slug):
     """
     Get all images from a specific source for gallery display
     """
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
     # Get chapters with images
-    chapters_with_images = source.chapters.filter(images__isnull=False)
+    chapters_with_images = (
+        source.chapters.exclude(images=[])
+        .order_by("chapter_id")
+        .values_list("chapter_id", "title", "images")
+    )
 
     # Check if there are any images available
-    has_overview = source.overview_picture_path and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, source.overview_picture_path))
-    if not chapters_with_images.exists() and not has_overview:
+    has_overview = source.overview_picture_path and os.path.exists(resolve_output_path(source.overview_picture_path) or "")
+    total_images = chapters_with_images.aggregate(total=Sum(ArrayLength("images")))["total"] or 0
+    if has_overview:
+        total_images += 1
+    if total_images == 0:
         return Response({"detail": "No images found for this source"}, status=status.HTTP_404_NOT_FOUND)
 
     # Pagination parameters
-    page_number = int(request.GET.get("page", 1))
-    page_size = int(request.GET.get("page_size", 20))
+    page_size = parse_page_size(request, 20, 100)
 
-    # Prepare image data
+    # Paginate over the image count only; rows are streamed below, so a source
+    # with tens of thousands of images never lands in memory all at once.
+    paginator = Paginator(range(total_images), page_size)
+    page_obj = paginator.get_page(int(request.GET.get("page", 1)))
+    start = (page_obj.number - 1) * page_size
+    end = start + page_size
+
+    # Prepare image data for the requested page
     image_data = []
-    
+    index = 0
+
     # Add the overview image if it exists
     if has_overview:
-        overview_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.overview_picture_path}"
-        image_data.append({
-            "chapter_id": 0,  # Special ID for overview
-            "chapter_title": "Novel Overview",
-            "image_url": quote(overview_image_url, safe=':/'),
-            "image_name": "overview.png"
-        })
-
-    # Add chapter images
-    for chapter in chapters_with_images:
-        base_image_url = f"{settings.SITE_API_URL}/{settings.LNCRAWL_URL}{source.source_path}/images/"
-        for image_name in chapter.images:
+        if start <= index < end:
             image_data.append({
-                "chapter_id": chapter.chapter_id,
-                "chapter_title": chapter.title,
-                "image_url": quote(f"{base_image_url}{image_name}", safe=':/'),
-                "image_name": image_name
+                "chapter_id": 0,  # Special ID for overview
+                "chapter_title": "Novel Overview",
+                "image_url": build_media_url(source.overview_picture_path),
+                "image_name": "overview.png"
             })
+        index += 1
 
-    # Paginate the results
-    paginator = Paginator(image_data, page_size)
-    page_obj = paginator.get_page(page_number)
-    
-    # Get all images for the current page
-    current_page_images = list(page_obj)
-    
-    serializer = GalleryImageSerializer(current_page_images, many=True)
+    # Add chapter images, expanding only the slice for this page.
+    image_dir = resolve_output_path(source.source_path, "images") or ""
+    for chapter_id, chapter_title, images in chapters_with_images.iterator(chunk_size=500):
+        for image_name in images:
+            if index >= end:
+                break
+            # Skip files removed from disk so the gallery never links to a 404.
+            # ponytail: total_images stays DB-derived, so a page can show gaps;
+            # scan the directory if an exact count ever matters.
+            if index >= start and os.path.exists(os.path.join(image_dir, image_name)):
+                image_data.append({
+                    "chapter_id": chapter_id,
+                    "chapter_title": chapter_title,
+                    "image_url": build_media_url(f"{source.source_path}/images/{image_name}"),
+                    "image_name": image_name
+                })
+            index += 1
+        if index >= end:
+            break
+
+    serializer = GalleryImageSerializer(image_data, many=True)
 
     return Response({
         "novel_id": str(novel.id),
@@ -208,6 +264,50 @@ def source_image_gallery(request, novel_slug, source_slug):
         "source_slug": source.source_slug,
         "count": paginator.count,
         "total_pages": paginator.num_pages,
-        "current_page": int(page_number),
+        "current_page": page_obj.number,
         "images": serializer.data
     })
+
+
+@api_view(["GET"])
+def download_source_epub(request, novel_slug, source_slug):
+    """
+    Download the source as an EPUB. Pass ?volume=N for a single volume,
+    omit it for the full novel. The book is generated on first request and
+    cached inside the source folder.
+    """
+    novel = resolve_novel_slug(novel_slug)
+    source = get_object_or_404(novel.sources, source_slug=source_slug)
+
+    if novel.is_dmca:
+        return Response(
+            {"error": "This work is unavailable due to a DMCA takedown request."},
+            status=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
+        )
+
+    raw_volume = request.GET.get("volume")
+    if raw_volume in (None, ""):
+        volume = None
+    else:
+        try:
+            volume = int(raw_volume)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Invalid volume."}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not source.volumes.filter(volume_id=volume).exists():
+            return Response(
+                {"error": "Volume not found for this source."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    try:
+        path, filename = get_or_build_epub(source, volume)
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+    response = FileResponse(
+        open(path, "rb"), content_type="application/epub+zip", as_attachment=True
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response

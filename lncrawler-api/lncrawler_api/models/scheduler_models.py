@@ -47,11 +47,11 @@ class ScheduledTask(models.Model):
         
         with transaction.atomic():
             try:
-                # Try to get a task that's ready to run and not locked
+                # Try to get a task that's ready to run and is not currently held
+                # by a live worker (never locked, or the previous lock expired).
                 task = cls.objects.select_for_update(nowait=True).get(
-                    name=task_name,
-                    next_run_at__lte=now,
-                    locked_until__isnull=True
+                    models.Q(name=task_name, next_run_at__lte=now),
+                    models.Q(locked_until__isnull=True) | models.Q(locked_until__lte=now),
                 )
                 
                 # Lock the task
@@ -70,27 +70,63 @@ class ScheduledTask(models.Model):
                 logger.warning(f"Failed to acquire lock for task '{task_name}': {str(e)}")
                 return None
     
-    def release_lock(self, success: bool = True, error_message: str = ""):
+    def heartbeat(self, lock_timeout_minutes: int = 30) -> bool:
         """
-        Release the lock on this task and schedule next run.
+        Extend this task's lock while it is still running, so a long task is not
+        reclaimed by another worker. Returns False if the lock is no longer ours.
         """
-        with transaction.atomic():
-            if success:
-                self.status = 'completed'
-                self.last_run_at = timezone.now()
-                self.next_run_at = timezone.now() + timedelta(seconds=self.interval_seconds)
-                self.error_message = ""
-                logger.info(f"Task '{self.name}' completed successfully. Next run: {self.next_run_at}")
-            else:
-                self.status = 'failed'
-                self.error_message = error_message
+        updated = ScheduledTask.objects.filter(
+            pk=self.pk, status='running', worker_id=self.worker_id
+        ).update(locked_until=timezone.now() + timedelta(minutes=lock_timeout_minutes))
+        return bool(updated)
+    
+    def release_lock(self, success: bool = True, error_message: str = "", no_github: bool = False):
+        """
+        Release the lock on this task and schedule next run. Only the worker that
+        currently owns the lock may release it, so a worker whose lock was
+        reclaimed after a stall cannot clobber the new owner.
+
+        ``no_github`` suppresses the auto-issue for expected failures (a stale
+        lock reclaimed after a restart), while genuine task errors still report.
+        """
+        worker_id = self.worker_id
+        now = timezone.now()
+        fields = {
+            'locked_until': None,
+            'worker_id': None,
+            'updated_at': now,
+        }
+        if success:
+            fields.update(
+                status='completed',
+                last_run_at=now,
+                next_run_at=now + timedelta(seconds=self.interval_seconds),
+                error_message="",
+            )
+        else:
+            fields.update(
+                status='failed',
+                error_message=error_message,
                 # Still schedule next run even if failed (tasks should retry)
-                self.next_run_at = timezone.now() + timedelta(seconds=self.interval_seconds)
-                logger.error(f"Task '{self.name}' failed: {error_message}")
-            
-            self.locked_until = None
-            self.worker_id = None
-            self.save()
+                next_run_at=now + timedelta(seconds=self.interval_seconds),
+            )
+        
+        updated = ScheduledTask.objects.filter(
+            pk=self.pk, status='running', worker_id=worker_id
+        ).update(**fields)
+        
+        if not updated:
+            logger.warning(
+                f"Task '{self.name}': release ignored, lock no longer held by worker '{worker_id}'"
+            )
+            return
+        if success:
+            logger.info(f"Task '{self.name}' completed successfully")
+        else:
+            logger.error(
+                f"Task '{self.name}' failed: {error_message}",
+                extra={"no_github": True} if no_github else None,
+            )
     
     @classmethod
     def cleanup_stale_locks(cls, stale_timeout_minutes: int = 60):
@@ -100,13 +136,17 @@ class ScheduledTask(models.Model):
         cutoff_time = timezone.now() - timedelta(minutes=stale_timeout_minutes)
         stale_tasks = cls.objects.filter(
             status='running',
-            locked_until__lt=timezone.now()
+            locked_until__lt=cutoff_time
         )
         
         count = 0
         for task in stale_tasks:
             logger.warning(f"Cleaning up stale lock for task '{task.name}' (locked by worker '{task.worker_id}')")
-            task.release_lock(success=False, error_message="Lock expired - worker may have crashed")
+            task.release_lock(
+                success=False,
+                error_message="Lock expired - worker may have crashed",
+                no_github=True,
+            )
             count += 1
         
         if count > 0:
@@ -121,7 +161,9 @@ class ScheduledTask(models.Model):
             name=name,
             defaults={
                 'interval_seconds': interval_seconds,
-                'next_run_at': timezone.now() + timedelta(seconds=interval_seconds),
+                # Due immediately so a new task (or a scheduler that was down)
+                # runs on the next poll instead of waiting a full interval.
+                'next_run_at': timezone.now(),
                 'status': 'pending'
             }
         )

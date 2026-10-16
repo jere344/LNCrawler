@@ -3,48 +3,32 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
-from ..models.novels_models import Novel
 from ..models.reviews_models import Review, ReviewReaction
 from ..serializers.reviews_serializers import (
-    ReviewListSerializer, ReviewCreateSerializer, ReactionCreateSerializer
+    ReviewSerializer, ReviewCreateSerializer, ReactionCreateSerializer
 )
 from ..utils.ip_utils import get_client_ip
+from ..utils.pagination import paginated_reviews_response
+from ..utils import resolve_novel_slug
+from ..utils.query_helpers import adult_allowed
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def novel_reviews(request, novel_slug):
     """Get all reviews for a novel with pagination"""
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     reviews = Review.objects.filter(novel=novel).select_related('user', 'novel').prefetch_related('reactions__user')
-    
-    # Pagination
-    page_number = request.GET.get('page', 1)
-    page_size = min(int(request.GET.get('page_size', 4)), 50) 
-    
-    paginator = Paginator(reviews, page_size)
-    page_obj = paginator.get_page(page_number)
-    
-    serializer = ReviewListSerializer(page_obj, many=True, context={'request': request})
-    
-    return Response({
-        'reviews': serializer.data,
-        'pagination': {
-            'current_page': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'total_reviews': paginator.count,
-            'has_next': page_obj.has_next(),
-            'has_previous': page_obj.has_previous(),
-        }
-    })
+    return paginated_reviews_response(
+        request, reviews, ReviewSerializer, default_size=4
+    )
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_review(request, novel_slug):
     """Add a new review for a novel"""
-    novel = get_object_or_404(Novel, slug=novel_slug)
+    novel = resolve_novel_slug(novel_slug)
     
     # Check if user already reviewed this novel
     if Review.objects.filter(novel=novel, user=request.user).exists():
@@ -56,7 +40,7 @@ def add_review(request, novel_slug):
     serializer = ReviewCreateSerializer(data=request.data)
     if serializer.is_valid():
         review = serializer.save(novel=novel, user=request.user)
-        response_serializer = ReviewListSerializer(review, context={'request': request})
+        response_serializer = ReviewSerializer(review, context={'request': request})
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -69,7 +53,7 @@ def review_detail(request, review_id):
     review = get_object_or_404(Review, id=review_id)
     
     if request.method == 'GET':
-        serializer = ReviewListSerializer(review, context={'request': request})
+        serializer = ReviewSerializer(review, context={'request': request})
         return Response(serializer.data)
     
     # Only the review author can modify or delete
@@ -83,7 +67,7 @@ def review_detail(request, review_id):
         serializer = ReviewCreateSerializer(review, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            response_serializer = ReviewListSerializer(review, context={'request': request})
+            response_serializer = ReviewSerializer(review, context={'request': request})
             return Response(response_serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -98,7 +82,13 @@ def add_reaction(request, review_id):
     """Add or update a reaction to a review"""
     review = get_object_or_404(Review, id=review_id)
     ip_address = get_client_ip(request)
-    
+
+    if not ip_address:
+        return Response(
+            {'error': 'Could not determine client IP address'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     serializer = ReactionCreateSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -159,23 +149,6 @@ def remove_reaction(request, review_id):
 def user_reviews(request):
     """Get all reviews by the authenticated user"""
     reviews = Review.objects.filter(user=request.user).select_related('novel').prefetch_related('reactions__user')
-    
-    # Pagination
-    page_number = request.GET.get('page', 1)
-    page_size = min(int(request.GET.get('page_size', 20)), 50)
-    
-    paginator = Paginator(reviews, page_size)
-    page_obj = paginator.get_page(page_number)
-    
-    serializer = ReviewListSerializer(page_obj, many=True, context={'request': request})
-    
-    return Response({
-        'reviews': serializer.data,
-        'pagination': {
-            'current_page': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'total_reviews': paginator.count,
-            'has_next': page_obj.has_next(),
-            'has_previous': page_obj.has_previous(),
-        }
-    })
+    if not adult_allowed(request.user):
+        reviews = reviews.exclude(novel__sources__is_adult=True)
+    return paginated_reviews_response(request, reviews, ReviewSerializer)

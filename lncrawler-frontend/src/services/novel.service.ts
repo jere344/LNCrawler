@@ -1,4 +1,5 @@
 import api from './api';
+import { SourceDetailResponse } from '@models/novels_types';
 
 // Novel service functions updated for the new URL structure
 export const novelService = {
@@ -14,15 +15,15 @@ export const novelService = {
   },
   
   // Get source details by slug
-  getSourceDetail: async (novelSlug: string, sourceSlug: string) => {
+  getSourceDetail: async (novelSlug: string, sourceSlug: string): Promise<SourceDetailResponse> => {
     const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/`);
     return response.data;
   },
   
   // Get chapters by novel and source slugs with pagination
-  getNovelChapters: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 100) => {
+  getNovelChapters: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 100, search = '') => {
     const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`, {
-      params: { page, page_size: pageSize }
+      params: { page, page_size: pageSize, search }
     });
     return response.data;
   },
@@ -103,9 +104,11 @@ export const novelService = {
     author?: string[];
     status?: string;
     language?: string;
+    languages?: string[];
     min_rating?: number;
     sort_by?: 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated';
     sort_order?: 'asc' | 'desc';
+    adult?: 'hide' | 'show' | 'only';
   }) => {
     // Build query string
     const queryParams = new URLSearchParams();
@@ -115,9 +118,13 @@ export const novelService = {
     if (params.page_size) queryParams.append('page_size', params.page_size.toString());
     if (params.status) queryParams.append('status', params.status);
     if (params.language) queryParams.append('language', params.language);
+    if (params.languages && params.languages.length) {
+      params.languages.forEach(language => queryParams.append('languages', language));
+    }
     if (params.min_rating) queryParams.append('min_rating', params.min_rating.toString());
     if (params.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params.sort_order) queryParams.append('sort_order', params.sort_order);
+    if (params.adult) queryParams.append('adult', params.adult);
     
     if (params.tag && params.tag.length) {
       params.tag.forEach(tag => queryParams.append('tag', tag));
@@ -147,15 +154,14 @@ export const novelService = {
     return response.data;
   },
 
-  // Get a random featured novel
-  getRandomFeaturedNovel: async () => {
-    const response = await api.get('/novels/featured/random/');
-    return response.data;
-  },
-
   // Get all home page data in a single request
-  getHomePageData: async () => {
-    const response = await api.get('/novels/home/');
+  // `languages` filters every section to those content languages; when the
+  // list is empty no language parameter is sent and the sections stay global.
+  getHomePageData: async (languages: string[] = []) => {
+    const queryParams = new URLSearchParams();
+    languages.forEach((language) => queryParams.append('languages', language));
+    const suffix = queryParams.toString() ? `?${queryParams}` : '';
+    const response = await api.get(`/novels/home/${suffix}`);
     return response.data;
   },
 
@@ -165,5 +171,13 @@ export const novelService = {
       params: { page, page_size: pageSize }
     });
     return response.data;
+  },
+
+  // URL for downloading a source as EPUB. Pass a volume to get only that
+  // volume; omit it for the full novel. Used as a plain link, not via api.get.
+  getSourceEpubUrl: (novelSlug: string, sourceSlug: string, volume?: number) => {
+    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
+    const query = volume !== undefined ? `?volume=${volume}` : '';
+    return `${base}/novels/${encodeURIComponent(novelSlug)}/${encodeURIComponent(sourceSlug)}/download/${query}`;
   },
 };

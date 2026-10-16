@@ -1,4 +1,7 @@
-export function formatTimeAgo(date : Date): string {
+import type { TFunction } from 'i18next';
+import type { Novel, NovelFromSource } from '@models/novels_types';
+
+export function formatTimeAgo(date: Date, t: TFunction): string {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -7,19 +10,68 @@ export function formatTimeAgo(date : Date): string {
     const years = Math.floor(months / 12);
 
     if (seconds < 60) {
-        return `${seconds} seconds ago`;
+        return t('units.timeAgo', { count: seconds });
     } else if (minutes < 60) {
-        return `${minutes} minutes ago`;
+        return t('units.timeAgoMinutes', { count: minutes });
     } else if (hours < 24) {
-        return `${hours} hours ago`;
+        return t('units.timeAgoHours', { count: hours });
     } else if (days < 30) {
-        return `${days} days ago`;
+        return t('units.timeAgoDays', { count: days });
     } else if (months < 12) {
-        return `${months} months ago`;
+        return t('units.timeAgoMonths', { count: months });
     } else {
-        return `${years} years ago`;
+        return t('units.timeAgoYears', { count: years });
     }
 }
+
+// Known edition spellings (lowercased, letters only) -> i18n key suffix under novelSources.edition.
+const KNOWN_EDITIONS: Record<string, 'wn' | 'ln' | 'raw'> = {
+    webnovel: 'wn',
+    wn: 'wn',
+    lightnovel: 'ln',
+    ln: 'ln',
+    raw: 'raw',
+};
+
+// Chip label for a source edition: known editions are translated, others shown as given.
+// A missing or blank edition gives '' (nothing to show).
+export function editionLabel(edition: string | null | undefined, t: TFunction): string {
+    if (!edition?.trim()) {
+        return '';
+    }
+    const key = KNOWN_EDITIONS[edition.toLowerCase().replace(/[^a-z]/g, '')];
+    return key ? t(`novelSources.edition.${key}`) : edition;
+}
+
+export function formatDate(dateString: string, locale?: string): string {
+    return new Date(dateString).toLocaleDateString(locale, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+}
+
+export function formatDateTime(dateString: string, locale?: string): string {
+    return new Date(dateString).toLocaleDateString(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+    });
+}
+
+export function formatCount(count: number): string {
+    if (count >= 1000000) {
+        return `${(count / 1000000).toFixed(1)}M`;
+    } else if (count >= 1000) {
+        return `${(count / 1000).toFixed(1)}K`;
+    }
+    return `${count}`;
+}
+
+export const formatNumber = (value: number, locale?: string): string =>
+    value.toLocaleString(locale);
 
 export const getChapterName = (title: string): string => {
     const chapterMarkers = [
@@ -42,16 +94,46 @@ export const getChapterName = (title: string): string => {
     return latestChapterTitle || "";
 };
 
-export const getChapterNameWithNumber = (title?: string, chapterNumber?: number): string => {
-    if (!chapterNumber) {
-        return "";
+export interface NovelSourceTarget {
+    slug: string;
+    prefered_source?: { source_slug?: string | null } | null;
+    reading_history?: { source_slug?: string | null } | null;
+    reading_source?: { source_slug?: string | null } | null;
+}
+
+export const getNovelSourcePath = (novel: NovelSourceTarget): string | undefined => {
+    const sourceSlug = novel.reading_source?.source_slug
+        || novel.reading_history?.source_slug
+        || novel.prefered_source?.source_slug;
+    return sourceSlug ? `/novels/${novel.slug}/${sourceSlug}` : undefined;
+};
+
+export interface SourceLinkProps {
+    to?: string;
+    state?: unknown;
+}
+
+export const getNovelSourceLink = (novel: Novel): SourceLinkProps => {
+    const to = getNovelSourcePath(novel);
+    if (!to) return {};
+    return { to, state: { novel, source: novel.reading_source ?? novel.prefered_source ?? null } };
+};
+
+export const getSourceLink = (source: NovelFromSource): SourceLinkProps =>
+    source?.novel_slug && source?.source_slug
+        ? { to: `/novels/${source.novel_slug}/${source.source_slug}`, state: { source } }
+        : {};
+
+export const getChapterLabel = (t: TFunction, title?: string | null, chapterId?: number | null): string => {
+    const trimmed = title?.trim();
+    if (trimmed) {
+        return trimmed;
     }
-    title = getChapterName(title || "");
-    return "Chapter " + chapterNumber + (title ? " - " + title : "");
+    return chapterId != null ? t('units.chapter', { number: chapterId }) : "";
 }
 
 
-export const languageCodeToFlag = (language: string): string => {
+export const languageCodeToFlag = (language?: string | null): string => {
     const languageMap: { [key: string]: string } = {
         'en': 'gb',
         'fr': 'fr',
@@ -74,33 +156,15 @@ export const languageCodeToFlag = (language: string): string => {
         'sv': 'se',
         'da': 'dk',
     };
-    return languageMap[language.toLowerCase()] || 'unknown';
+    return languageMap[(language || '').toLowerCase()] || 'unknown';
 }
 
-export const languageCodeToName = (language: string): string => {
-    const languageMap: { [key: string]: string } = {
-        'en': 'English',
-        'fr': 'French',
-        'es': 'Spanish',
-        'de': 'German',
-        'it': 'Italian',
-        'ja': 'Japanese',
-        'ko': 'Korean',
-        'zh': 'Chinese',
-        'pt': 'Portuguese',
-        'ru': 'Russian',
-        'ar': 'Arabic',
-        'hi': 'Hindi',
-        'th': 'Thai',
-        'vi': 'Vietnamese',
-        'id': 'Indonesian',
-        'tr': 'Turkish',
-        'pl': 'Polish',
-        'nl': 'Dutch',
-        'sv': 'Swedish',
-        'unknown': 'Unknown',
-    };
-    return languageMap[language] || '?';
+export const languageFlagUrl = (language: string): string =>
+    `/flags/${languageCodeToFlag(language)}.svg`;
+
+export const languageCodeToName = (t: TFunction, language: string): string => {
+    const code = (language || '').toLowerCase();
+    return availableLanguages.includes(code) ? t(`languages.${code}`) : t('common.unknown');
 }
 
 export const availableLanguages = [

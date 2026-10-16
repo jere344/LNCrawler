@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { TextField, Button, Box, Typography, Alert } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { searchService, downloadService } from '@services/api';
 import { useNavigate } from 'react-router-dom';
 
 const SearchForm = () => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +20,7 @@ const SearchForm = () => {
     e.preventDefault();
     
     if (!query || query.trim().length < 3) {
-      setError('Search query must be at least 3 characters');
+      setError(t('downloader.queryTooShort'));
       return;
     }
     
@@ -32,7 +34,7 @@ const SearchForm = () => {
         if (response.status === 'success') {
           navigate(`/download/status/${response.job_id}`);
         } else {
-          setError(response.message || 'Failed to start direct download');
+          setError(response.message || t('downloader.directDownloadFailed'));
         }
       } else {
         // Regular search flow
@@ -40,12 +42,12 @@ const SearchForm = () => {
         if (response.status === 'success') {
           navigate(`/download/search/${response.job_id}`);
         } else {
-          setError(response.message || 'Failed to start search');
+          setError(response.message || t('downloader.searchFailed'));
         }
       }
     } catch (err) {
       console.error('Search error:', err);
-      setError('An error occurred while processing your request. Please try again.');
+      setError(t('downloader.genericError'));
     } finally {
       setLoading(false);
     }
@@ -58,26 +60,25 @@ const SearchForm = () => {
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 2,
+        gap: 1.5,
         maxWidth: 'sm',
         mx: 'auto',
-        p: 2,
       }}
     >
-      <Typography variant="h5" component="h2" gutterBottom>
-        Search for a Novel
+      <Typography variant="h6" component="h2" gutterBottom>
+        {t('downloader.searchForNovel')}
       </Typography>
       
       {error && <Alert severity="error">{error}</Alert>}
       
       <TextField
-        label="Novel Title or URL"
+        label={t('downloader.novelTitleOrUrl')}
         variant="outlined"
         fullWidth
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         disabled={loading}
-        placeholder="Enter novel title or direct URL"
+        placeholder={t('downloader.titleOrUrlPlaceholder')}
       />
       
       <Button 
@@ -86,7 +87,7 @@ const SearchForm = () => {
         color="primary" 
         disabled={loading || query.length < 3}
       >
-        {loading ? 'Searching...' : 'Search'}
+        {loading ? t('downloader.searching') : t('downloader.search')}
       </Button>
     </Box>
   );

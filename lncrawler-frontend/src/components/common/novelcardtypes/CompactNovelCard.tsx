@@ -7,6 +7,11 @@ import CommentIcon from '@mui/icons-material/Comment';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import NovelActionsMenu from '@components/common/NovelActionsMenu';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface CompactNovelCardProps {
   novel: Novel;
@@ -15,7 +20,8 @@ interface CompactNovelCardProps {
   showClicks?: boolean;
   showTrends?: boolean;
   showRating?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
 }
 
 const CompactNovelCard: React.FC<CompactNovelCardProps> = ({ 
@@ -25,8 +31,12 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   showClicks = false,
   showTrends = false,
   showRating = false,
-  to
+  to,
+  state
 }) => {
+  const { t, i18n } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
   const coverHeight = 90; 
   const coverWidth = coverHeight * 2/3;
 
@@ -59,17 +69,27 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
     );
   }
 
-  const formatter = Intl.NumberFormat('en', { notation: 'compact' });
+  const formatter = Intl.NumberFormat(i18n.language, { notation: 'compact' });
 
   // Fixed dimensions for 2:3 ratio
   const coverHeightFixed = 90; 
   const coverWidthFixed = coverHeightFixed * 2/3;
 
   return (
+    <Box sx={{ position: 'relative', width: '100%' }}>
+    <NovelActionsMenu
+      novelId={novel.id}
+      novelTitle={novel.title}
+      slug={novel.slug}
+      isBookmarked={novel.is_bookmarked}
+      customSx={{ position: 'absolute', top: 4, right: 4, zIndex: 2 }}
+      buttonSize={26}
+    />
     <ButtonBase 
       onClick={onClick}
       component={to ? Link : 'button'}
       to={to}
+      state={to ? state : undefined}
       sx={{
         display: 'flex', 
         justifyContent: 'flex-start', 
@@ -92,12 +112,15 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       >
         <Box
           component="img"
-          src={novel.prefered_source?.cover_min_url || defaultCover}
+          src={(novel.reading_source ?? novel.prefered_source)?.cover_min_url || defaultCover}
           alt={novel.title}
+          onClick={blurred ? revealHandler(novel.id) : undefined}
           sx={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            cursor: blurred ? 'pointer' : undefined,
+            filter: blurred ? 'blur(16px)' : 'none',
           }}
         />
       </Card>
@@ -107,6 +130,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
         flexShrink: 1,
         overflow: 'hidden',
         p: 1.5,
+        pr: 4,
         display: 'flex', 
         flexDirection: 'column', 
         justifyContent: 'space-between',
@@ -162,7 +186,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
               }}
             >
               {formatter.format(showTrends ? (novel.weekly_views || 0) : (novel.total_views || 0))}
-              {showTrends ? ' (Weekly)' : ' (All times)'}
+              {showTrends ? ` ${t('cards.weekly')}` : ` ${t('cards.allTimes')}`}
             </Typography>
           </Box>
           {(showClicks || showTrends) && (
@@ -177,13 +201,15 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
                   textOverflow: 'ellipsis',
                 }}
               >
-                {formatter.format(novel.comment_count)} comments
+                {t('units.comments', { count: novel.comment_count })}
               </Typography>
             </Box>
           )}
         </Box>
       </Box>
     </ButtonBase>
+    <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
+    </Box>
   );
 };
 

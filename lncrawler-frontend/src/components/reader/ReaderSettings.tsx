@@ -3,8 +3,9 @@ import {
   useTheme, useMediaQuery, Stack, Dialog, DialogTitle, 
   DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
-import { useState } from 'react';
-import Cookies from 'js-cookie';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { setCookie } from '@utils/cookies';
 import CloseIcon from '@mui/icons-material/Close';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
@@ -13,7 +14,7 @@ import PaletteIcon from '@mui/icons-material/Palette';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import SettingsIcon from '@mui/icons-material/Settings';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 
 // Import our new components
 import FontSettings from './settings/FontSettings';
@@ -21,9 +22,12 @@ import ColorSettings from './settings/ColorSettings';
 import LayoutSettings from './settings/LayoutSettings';
 import BehaviorSettings from './settings/BehaviorSettings';
 import GestureSettings from './settings/GestureSettings';
-import PageSettings from './settings/PageSettings';
 import ReaderNavigation from './controls/ReaderNavigation';
 import SettingsSection from './SettingsSection';
+import { defaultSettings } from './readerDefaults';
+import TtsSettings from './settings/TtsSettings';
+import { TTS_NUMERIC_RANGES, TTS_ENUM_VALUES, TTS_RECORD_KEYS, type TtsPrefs } from './tts/ttsTypes';
+import { availableLanguages } from '@utils/Misc';
 
 // Define constants for cookie names
 const COOKIE_PREFIX = 'lncrawler_reader_';
@@ -33,7 +37,7 @@ export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
 export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter';
 
-export interface ReaderSettings {
+export interface ReaderSettings extends TtsPrefs {
   fontSize: number;
   fontFamily: string | null;
   textAlign: 'left' | 'center' | 'justify' | 'right';
@@ -56,9 +60,6 @@ export interface ReaderSettings {
   paragraphIndent: boolean;
   paragraphSpacing: number;
   centerTapToOpenSettings: boolean;
-  pageMode: boolean;
-  showPages: boolean;
-  showPageSlider: boolean;
   nightMode: boolean;
   nightModeStrength: number;
   nightModeScheduleEnabled: boolean;
@@ -66,38 +67,26 @@ export interface ReaderSettings {
   nightModeEndTime: string;
 }
 
-// Default settings
-export const defaultSettings: ReaderSettings = {
-  fontSize: 18,
-  fontFamily: null,
-  textAlign: 'justify',
-  fontColor: null,
-  backgroundColor: null,
-  margin: 0,
-  lineSpacing: 1.6,
-  wordSpacing: 0,
-  letterSpacing: 0,
-  dimLevel: 0,
-  leftEdgeTapBehavior: 'none',
-  rightEdgeTapBehavior: 'none',
-  textSelectable: true,
-  savePosition: true,
-  markReadBehavior: 'buttonAutomatic',
-  keyboardNavigation: true,
-  swipeLeftGesture: 'nextChapter',
-  swipeRightGesture: 'prevChapter',
-  hideScrollbar: false,
-  paragraphIndent: false,
-  paragraphSpacing: 1,
-  centerTapToOpenSettings: true,
-  pageMode: false,
-  showPages: true,
-  showPageSlider: true,
-  nightMode: false,
-  nightModeStrength: 50,
-  nightModeScheduleEnabled: false,
-  nightModeStartTime: '20:00',
-  nightModeEndTime: '06:00',
+const NUMERIC_RANGES: Partial<Record<keyof ReaderSettings, [number, number]>> = {
+  ...(TTS_NUMERIC_RANGES as Partial<Record<keyof ReaderSettings, [number, number]>>),
+  fontSize: [12, 32],
+  margin: [-2, 22],
+  lineSpacing: [1, 3],
+  wordSpacing: [-2, 10],
+  letterSpacing: [-1, 5],
+  paragraphSpacing: [1, 3],
+  dimLevel: [0, 90],
+  nightModeStrength: [10, 90],
+};
+
+const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
+  ...(TTS_ENUM_VALUES as Partial<Record<keyof ReaderSettings, readonly string[]>>),
+  textAlign: ['left', 'center', 'justify', 'right'],
+  leftEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
+  rightEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
+  markReadBehavior: ['none', 'button', 'automatic', 'buttonAutomatic'],
+  swipeLeftGesture: ['none', 'prevChapter', 'nextChapter'],
+  swipeRightGesture: ['none', 'prevChapter', 'nextChapter'],
 };
 
 export interface ChapterInfo {
@@ -118,6 +107,9 @@ interface ReaderSettingsProps {
   prevUrl?: string;
   nextUrl?: string;
   homeUrl?: string;
+  novelLanguage: string;
+  onTtsBeforePreview?: () => void;
+  focusTts?: boolean;
 }
 
 const ReaderSettings = ({
@@ -131,14 +123,28 @@ const ReaderSettings = ({
   prevUrl,
   nextUrl,
   homeUrl,
+  novelLanguage,
+  onTtsBeforePreview,
+  focusTts = false,
 }: ReaderSettingsProps) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const ttsSectionRef = useRef<HTMLDivElement>(null);
+
+  // Opened from the TTS player: bring its section into view.
+  useEffect(() => {
+    if (!open || !focusTts) return;
+    const id = window.setTimeout(() => {
+      ttsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [open, focusTts]);
 
   // Helper function to save setting to cookie
-  const saveSetting = (key: string, value: any) => {
-    Cookies.set(COOKIE_PREFIX + key, JSON.stringify(value), { expires: COOKIE_EXPIRY, sameSite: 'Strict' });
+  const saveSetting = (key: string, value: unknown) => {
+    setCookie(COOKIE_PREFIX + key, JSON.stringify(value), COOKIE_EXPIRY);
   };
 
   // Font Settings Handlers
@@ -299,23 +305,10 @@ const ReaderSettings = ({
     saveSetting(key, gesture);
   };
 
-  // Page Settings Handlers
-  const handlePageModeChange = (enabled: boolean) => {
-    const newSettings = { ...settings, pageMode: enabled };
-    onSettingChange(newSettings);
-    saveSetting('pageMode', enabled);
-  };
-
-  const handleShowPagesChange = (show: boolean) => {
-    const newSettings = { ...settings, showPages: show };
-    onSettingChange(newSettings);
-    saveSetting('showPages', show);
-  };
-
-  const handleShowPageSliderChange = (show: boolean) => {
-    const newSettings = { ...settings, showPageSlider: show };
-    onSettingChange(newSettings);
-    saveSetting('showPageSlider', show);
+  // TTS Settings Handlers
+  const handleTtsChange = <K extends keyof TtsPrefs>(key: K, value: TtsPrefs[K]) => {
+    onSettingChange({ ...settings, [key]: value });
+    saveSetting(key, value);
   };
 
   const resetDefaults = () => {
@@ -371,13 +364,55 @@ const ReaderSettings = ({
         try {
           const importedData = JSON.parse(e.target?.result as string);
           
-          // Validate that the imported data has the expected structure
-          const validKeys = Object.keys(defaultSettings);
+          // Validate/coerce each known key against the default's type and range
           const importedSettings: Partial<ReaderSettings> = {};
+          const setImported = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
+            importedSettings[key] = value;
+          };
           
-          validKeys.forEach(key => {
-            if (key in importedData) {
-              importedSettings[key as keyof ReaderSettings] = importedData[key];
+          (Object.keys(defaultSettings) as (keyof ReaderSettings)[]).forEach(key => {
+            if (!(key in importedData)) return;
+            const value = importedData[key];
+            const def = defaultSettings[key];
+
+            if ((TTS_RECORD_KEYS as readonly string[]).includes(key)) {
+              if (value === null || typeof value !== 'object' || Array.isArray(value)) return;
+              const cleaned: Record<string, string> = {};
+              Object.entries(value as Record<string, unknown>).forEach(([lang, voice]) => {
+                if (availableLanguages.includes(lang) && typeof voice === 'string' && voice.length <= 300) {
+                  cleaned[lang] = voice;
+                }
+              });
+              setImported(key, cleaned as never);
+              return;
+            }
+
+            if (def === null) {
+              if (typeof value === 'string' || value === null) setImported(key, value);
+              return;
+            }
+            if (typeof def === 'boolean') {
+              if (typeof value === 'boolean') setImported(key, value);
+              return;
+            }
+            if (typeof def === 'number') {
+              const num = typeof value === 'number' ? value : Number(value);
+              const range = NUMERIC_RANGES[key];
+              if (Number.isFinite(num) && (!range || (num >= range[0] && num <= range[1]))) {
+                setImported(key, num);
+              }
+              return;
+            }
+            if (typeof def === 'string') {
+              if (typeof value !== 'string') return;
+              const allowed = ENUM_VALUES[key];
+              if (allowed) {
+                if (allowed.includes(value)) setImported(key, value);
+              } else if (key === 'nightModeStartTime' || key === 'nightModeEndTime') {
+                if (/^\d{2}:\d{2}$/.test(value)) setImported(key, value);
+              } else if (key === 'ttsLanguage') {
+                if (value === '' || availableLanguages.includes(value)) setImported(key, value);
+              }
             }
           });
           
@@ -392,7 +427,7 @@ const ReaderSettings = ({
           
         } catch (error) {
           console.error('Failed to import settings:', error);
-          alert('Failed to import settings. Please check that the file is a valid settings export.');
+          alert(t('readerSettings.importFailed'));
         }
       };
       
@@ -409,18 +444,20 @@ const ReaderSettings = ({
         anchor={isMobile ? "bottom" : "right"} 
         open={open} 
         onClose={onClose}
-        PaperProps={{
-          sx: {
-            width: isMobile ? '100%' : '350px',
-            maxHeight: isMobile ? '60vh' : '100%',
-            borderTopLeftRadius: isMobile ? '16px' : 0,
-            borderTopRightRadius: isMobile ? '16px' : 0,
-            padding: 2,
-            paddingRight: 3,
-            overflow: 'auto',
-            zIndex: theme.zIndex.drawer,
-            boxShadow: 3,
-            backgroundColor: theme.palette.background.default,
+        slotProps={{
+          paper: {
+            sx: {
+              width: isMobile ? '100%' : '350px',
+              maxHeight: isMobile ? '60vh' : '100%',
+              borderTopLeftRadius: isMobile ? '16px' : 0,
+              borderTopRightRadius: isMobile ? '16px' : 0,
+              padding: 2,
+              paddingRight: 3,
+              overflow: 'auto',
+              zIndex: theme.zIndex.drawer,
+              boxShadow: 3,
+              backgroundColor: theme.palette.background.default,
+            }
           }
         }}
       >
@@ -438,7 +475,7 @@ const ReaderSettings = ({
           zIndex: 2,
           backgroundColor: theme.palette.background.paper,
         }}>
-          <Typography variant="h6">Reader Settings</Typography>
+          <Typography variant="h6">{t('readerSettings.heading')}</Typography>
           <IconButton onClick={onClose}>
             <CloseIcon />
           </IconButton>
@@ -462,9 +499,9 @@ const ReaderSettings = ({
 
         {/* Font Settings */}
         <SettingsSection 
-          title="Font" 
+          title={t('readerSettings.font')} 
           icon={<TextFieldsIcon color="primary" />}
-          defaultExpanded
+          defaultExpanded={!focusTts}
         >
           <FontSettings 
             fontSize={settings.fontSize}
@@ -478,7 +515,7 @@ const ReaderSettings = ({
 
         {/* Color Settings */}
         <SettingsSection 
-          title="Colors" 
+          title={t('readerSettings.colors')} 
           icon={<PaletteIcon color="primary" />}
         >
           <ColorSettings 
@@ -503,7 +540,7 @@ const ReaderSettings = ({
 
         {/* Layout Settings */}
         <SettingsSection 
-          title="Layout" 
+          title={t('readerSettings.layout')} 
           icon={<ViewColumnIcon color="primary" />}
         >
           <LayoutSettings 
@@ -526,7 +563,7 @@ const ReaderSettings = ({
 
         {/* Gesture Settings */}
         <SettingsSection 
-          title="Gestures" 
+          title={t('readerSettings.gestures')} 
           icon={<TouchAppIcon color="primary" />}
         >
           <GestureSettings
@@ -538,7 +575,7 @@ const ReaderSettings = ({
 
         {/* Behavior Settings */}
         <SettingsSection 
-          title="Behavior" 
+          title={t('readerSettings.behavior')} 
           icon={<SettingsIcon color="primary" />}
         >
           <BehaviorSettings 
@@ -559,20 +596,21 @@ const ReaderSettings = ({
           />
         </SettingsSection>
 
-        {/* Page Mode Settings */}
-        <SettingsSection 
-          title="Page Mode" 
-          icon={<MenuBookIcon color="primary" />}
-        >
-          <PageSettings 
-            pageMode={settings.pageMode}
-            showPages={settings.showPages}
-            showPageSlider={settings.showPageSlider}
-            onPageModeChange={handlePageModeChange}
-            onShowPagesChange={handleShowPagesChange}
-            onShowPageSliderChange={handleShowPageSliderChange}
-          />
-        </SettingsSection>
+        {/* Text-to-speech Settings */}
+        <Box ref={ttsSectionRef}>
+          <SettingsSection
+            title={t('readerSettings.tts')}
+            icon={<RecordVoiceOverIcon color="primary" />}
+            defaultExpanded={focusTts}
+          >
+            <TtsSettings
+              prefs={settings}
+              onChange={handleTtsChange}
+              novelLanguage={novelLanguage}
+              onBeforePreview={onTtsBeforePreview}
+            />
+          </SettingsSection>
+        </Box>
 
         {/* Import/Export Buttons - Always visible */}
         <Stack spacing={1} sx={{ mt: 3 }}>
@@ -583,7 +621,7 @@ const ReaderSettings = ({
               onClick={importSettings}
               sx={{ flex: 1 }}
             >
-              Import
+              {t('readerSettings.import')}
             </Button>
             <Button
               variant="outlined"
@@ -591,7 +629,7 @@ const ReaderSettings = ({
               onClick={exportSettings}
               sx={{ flex: 1 }}
             >
-              Export
+              {t('readerSettings.export')}
             </Button>
           </Stack>
           {/* Reset Button */}
@@ -601,7 +639,7 @@ const ReaderSettings = ({
             fullWidth
             onClick={handleResetClick}
           >
-            Reset to Defaults
+            {t('readerSettings.resetDefaults')}
           </Button>
         </Stack>
       </Drawer>
@@ -614,19 +652,19 @@ const ReaderSettings = ({
         aria-describedby="reset-dialog-description"
       >
         <DialogTitle id="reset-dialog-title">
-          Reset Settings to Defaults?
+          {t('readerSettings.resetTitle')}
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="reset-dialog-description">
-            This will reset all reader settings to their default values. This action cannot be undone.
+            {t('readerSettings.resetBody')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleResetCancel} color="primary">
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={resetDefaults} color="secondary" variant="contained">
-            Reset
+            {t('readerSettings.reset')}
           </Button>
         </DialogActions>
       </Dialog>

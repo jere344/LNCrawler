@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { Typography } from '@mui/material';
 import { ReaderSettings } from '../ReaderSettings';
 import { ChapterContent } from '@models/novels_types';
@@ -13,6 +14,17 @@ const bodyStyles = `
   #reader-content img { 
     max-width: 100%; 
     height: auto; 
+    break-inside: avoid;
+  }
+  #reader-content figure,
+  #reader-content table,
+  #reader-content pre {
+    break-inside: avoid;
+  }
+  #reader-content h1,
+  #reader-content h2,
+  #reader-content h3 {
+    break-after: avoid;
   }
   #reader-content a {
     pointer-events: none;
@@ -64,6 +76,14 @@ const arePropsEqual = (prevProps: ReaderContentProps, nextProps: ReaderContentPr
 };
 
 const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
+  const safeBody = React.useMemo(() => {
+    const withImages = (chapter.body || '').replace(
+      /src="images\//g,
+      `src="${chapter.images_path || ''}/`
+    );
+    return DOMPurify.sanitize(withImages, { USE_PROFILES: { html: true } });
+  }, [chapter.body, chapter.images_path]);
+
   return (
     <Typography 
       sx={{ 
@@ -83,7 +103,7 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
       }}
       id="reader-content"
       className={settings.paragraphIndent ? 'paragraph-indent' : ''}
-      dangerouslySetInnerHTML= {{ __html: bodyStyles + chapter.body.replace(/src=\"images\//g, `src="${chapter.images_path}/`) }}
+      dangerouslySetInnerHTML= {{ __html: bodyStyles + safeBody }}
     />
   );
 };

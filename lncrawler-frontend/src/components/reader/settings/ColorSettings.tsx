@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Box,
   Typography,
   Button,
   IconButton,
-  Popover,
-  Grid2 as Grid,
+  Grid as Grid,
   useTheme,
   Switch,
   FormControlLabel,
   TextField,
   Divider,
 } from '@mui/material';
-import { ChromePicker, ColorResult } from 'react-color';
 import ClearIcon from '@mui/icons-material/Clear';
+import { useTranslation } from 'react-i18next';
 import MobileSafeSlider from '../../common/MobileSafeSlider';
 
 interface ColorSettingsProps {
@@ -56,50 +55,17 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
   onNightModeStartTimeChange,
   onNightModeEndTimeChange,
 }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
-  const [showFontColorPicker, setShowFontColorPicker] = useState(false);
-  const [showBgColorPicker, setShowBgColorPicker] = useState(false);
-  const [fontColorAnchor, setFontColorAnchor] = useState<HTMLButtonElement | null>(null);
-  const [bgColorAnchor, setBgColorAnchor] = useState<HTMLButtonElement | null>(null);
-
-  const handleFontColorClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setFontColorAnchor(event.currentTarget);
-    setShowFontColorPicker(true);
-  };
-
-  const handleBgColorClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setBgColorAnchor(event.currentTarget);
-    setShowBgColorPicker(true);
-  };
-
-  const closeFontColorPicker = () => {
-    setShowFontColorPicker(false);
-    setFontColorAnchor(null);
-  };
-
-  const closeBgColorPicker = () => {
-    setShowBgColorPicker(false);
-    setBgColorAnchor(null);
-  };
-
-  const handleFontColorChange = (color: ColorResult) => {
-    onFontColorChange(color.hex);
-  };
-
-  const handleBackgroundColorChange = (color: ColorResult) => {
-    onBackgroundColorChange(color.hex);
-  };
 
   const resetFontColor = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onFontColorChange(null);
-    setShowFontColorPicker(false);
   };
 
   const resetBackgroundColor = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     onBackgroundColorChange(null);
-    setShowBgColorPicker(false);
   };
 
   const handleDimLevelChange = (_event: Event, newValue: number | number[]) => {
@@ -128,14 +94,14 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
 
   return (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" gutterBottom>Colors</Typography>
+      <Typography variant="subtitle1" gutterBottom>{t('colorSettings.heading')}</Typography>
       <Grid container spacing={2}>
         <Grid size={6}>
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <Button
+              component="label"
               variant="outlined"
               fullWidth
-              onClick={handleFontColorClick}
               sx={{
                 borderColor: fontColor || theme.palette.text.primary,
                 color: fontColor || theme.palette.text.primary,
@@ -145,7 +111,23 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                 pr: fontColor ? 5 : 2,
               }}
             >
-              Text Color
+              {t('colorSettings.textColor')}
+              <Box
+                component="input"
+                type="color"
+                value={fontColor || '#000000'}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onFontColorChange(e.target.value)}
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  border: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                }}
+              />
             </Button>
             {fontColor && (
               <IconButton 
@@ -163,39 +145,13 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               </IconButton>
             )}
           </Box>
-          <Popover
-            open={showFontColorPicker}
-            anchorEl={fontColorAnchor}
-            onClose={closeFontColorPicker}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'center',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'center',
-            }}
-            sx={{ 
-              zIndex: theme.zIndex.drawer + 1,
-              '& .chrome-picker': {
-                boxShadow: 'none !important',
-              }
-            }}
-            disablePortal={false}
-          >
-            <ChromePicker 
-              color={fontColor || theme.palette.text.primary} 
-              onChange={handleFontColorChange}
-              disableAlpha={true}
-            />
-          </Popover>
         </Grid>
         <Grid size={6}>
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <Button
+              component="label"
               variant="outlined"
               fullWidth
-              onClick={handleBgColorClick}
               sx={{
                 borderColor: backgroundColor || theme.palette.background.paper,
                 backgroundColor: backgroundColor || theme.palette.background.paper,
@@ -206,7 +162,23 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                 pr: backgroundColor ? 5 : 2,
               }}
             >
-              Background
+              {t('colorSettings.background')}
+              <Box
+                component="input"
+                type="color"
+                value={backgroundColor || '#ffffff'}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onBackgroundColorChange(e.target.value)}
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  border: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                }}
+              />
             </Button>
             {backgroundColor && (
               <IconButton 
@@ -225,38 +197,12 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               </IconButton>
             )}
           </Box>
-          <Popover
-            open={showBgColorPicker}
-            anchorEl={bgColorAnchor}
-            onClose={closeBgColorPicker}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'center',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'center',
-            }}
-            sx={{ 
-              zIndex: theme.zIndex.drawer + 1,
-              '& .chrome-picker': {
-                boxShadow: 'none !important',
-              }
-            }}
-            disablePortal={false}
-          >
-            <ChromePicker 
-              color={backgroundColor || theme.palette.background.paper} 
-              onChange={handleBackgroundColorChange}
-              disableAlpha={true}
-            />
-          </Popover>
         </Grid>
       </Grid>
 
       {/* Dim Level Slider */}
       <Box sx={{ mt: 2 }}>
-        <Typography variant="subtitle1" gutterBottom>Screen Dim: {dimLevel}%</Typography>
+        <Typography variant="subtitle1" gutterBottom>{t('colorSettings.screenDim', { level: dimLevel })}</Typography>
         <MobileSafeSlider
           value={dimLevel}
           onChange={handleDimLevelChange}
@@ -284,14 +230,14 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               color="primary"
             />
           }
-          label="Night Mode (Blue Light Filter)"
+          label={t('colorSettings.nightMode')}
         />
         
         {nightMode && (
           <Box sx={{ mt: 2, pl: 2 }}>
             {/* Night Mode Strength */}
             <Typography variant="subtitle2" gutterBottom>
-              Filter Strength: {nightModeStrength}%
+              {t('colorSettings.filterStrength', { strength: nightModeStrength })}
             </Typography>
             <MobileSafeSlider
               value={nightModeStrength}
@@ -317,7 +263,7 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
                   color="primary"
                 />
               }
-              label="Enable Schedule"
+              label={t('colorSettings.enableSchedule')}
               sx={{ mb: 2 }}
             />
             
@@ -326,35 +272,39 @@ const ColorSettings: React.FC<ColorSettingsProps> = ({
               <Grid container spacing={2}>
                 <Grid size={6}>
                   <TextField
-                    label="Start Time"
+                    label={t('colorSettings.startTime')}
                     type="time"
                     value={nightModeStartTime}
                     onChange={handleStartTimeChange}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    inputProps={{
-                      step: 300, // 5 min
-                    }}
                     size="small"
                     fullWidth
-                  />
+                    slotProps={{
+                      htmlInput: {
+                        step: 300, // 5 min
+                      },
+
+                      inputLabel: {
+                        shrink: true,
+                      }
+                    }} />
                 </Grid>
                 <Grid size={6}>
                   <TextField
-                    label="End Time"
+                    label={t('colorSettings.endTime')}
                     type="time"
                     value={nightModeEndTime}
                     onChange={handleEndTimeChange}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    inputProps={{
-                      step: 300, // 5 min
-                    }}
                     size="small"
                     fullWidth
-                  />
+                    slotProps={{
+                      htmlInput: {
+                        step: 300, // 5 min
+                      },
+
+                      inputLabel: {
+                        shrink: true,
+                      }
+                    }} />
                 </Grid>
               </Grid>
             )}

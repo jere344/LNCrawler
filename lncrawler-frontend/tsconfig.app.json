@@ -23,17 +23,16 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
-    /* Path aliases */
-    "baseUrl": ".",
+    /* Path aliases (resolved relative to this tsconfig; baseUrl removed for TS 6/7) */
     "paths": {
-      "@assets/*": ["src/assets/*"],
-      "@components/*": ["src/components/*"],
-      "@models/*": ["src/models/*"],
-      "@services/*": ["src/services/*"],
-      "@theme/*": ["src/theme/*"],
-      "@config/*": ["src/config/*"],
-      "@utils/*": ["src/utils/*"],
-      "@context/*": ["src/context/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@components/*": ["./src/components/*"],
+      "@models/*": ["./src/models/*"],
+      "@services/*": ["./src/services/*"],
+      "@theme/*": ["./src/theme/*"],
+      "@config/*": ["./src/config/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@context/*": ["./src/context/*"],
     }
   },
   "include": ["src"]

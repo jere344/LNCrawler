@@ -1,0 +1,120 @@
+# -*- coding: utf-8 -*-
+"""MyDramaNovel (mydramanovel.com) - machine-translated novels. Disabled: Machine-translated (MTL) content — extremely low quality, intentionally excluded."""
+
+import logging
+
+from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
+
+logger = logging.getLogger(__name__)
+
+
+class MyDramaNovel(Crawler):
+    base_url = ["https://mydramanovel.com/"]
+    has_manga = False
+    has_mtl = True
+
+    is_disabled = True
+    disable_reason = (
+        "Machine-translated (MTL) content — extremely low quality, intentionally excluded"
+    )
+
+    def initialize(self) -> None:
+        self.init_executor(ratelimit=1)
+
+    def search_novel(self, query):
+        url = f"{self.base_url[0]}/novels/"
+        soup = self.submit_task(self.get_soup, url).result()
+        query = query.lower()
+        results = []
+        seen = set()
+        for a in soup.select(".td_block_categories_tags a.td-ct-item[href]"):
+            name = a.select_one(".td-ct-item-name")
+            title = name.text.strip() if name else a.text.strip()
+            if query in title.lower():
+                link = self.absolute_url(a["href"])
+                if link in seen:
+                    continue
+                seen.add(link)
+                results.append({"title": title, "url": link})
+        return results[:10]
+
+    def browse_novels(self, offset=0, limit=50):
+        soup = self.get_soup(f"{self.home_url}novels/")
+        results = []
+        seen = set()
+        for a in soup.select(".td_block_categories_tags a.td-ct-item[href]"):
+            name = a.select_one(".td-ct-item-name")
+            title = name.text.strip() if name else a.text.strip()
+            url = self.absolute_url(a["href"])
+            if not title or url in seen:
+                continue
+            seen.add(url)
+            results.append(SearchResult(title=title, url=url))
+        return results[offset : offset + limit]
+
+    def read_novel_info(self):
+        soup = self.get_soup(self.novel_url)
+
+        self.novel_synopsis = self.cleaner.extract_contents(
+            soup.find("div", {"class": "tagdiv-type"})
+        )
+
+        self.novel_cover = self.absolute_url(
+            soup.find("span", {"class": "entry-thumb"}).get("data-img-url")
+        )
+
+        self.novel_title = soup.find("h1", {"class": "tdb-title-text"}).text
+
+        # the synopsis may start like this :
+        # "<p>Original Title: 春花厌</p><p>Author: Hei Yan</p><p>Raw Link : Chun Hua Yan</p><p>Mal..."
+        parts = self.novel_synopsis.split("<p>Author:")
+        if len(parts) > 1:
+            author_part = parts[1].split("</p>")
+            if len(author_part) > 0:
+                self.novel_author = author_part[0].strip()
+            else:
+                self.novel_author = None
+        else:
+            self.novel_author = None
+
+        self.volumes.append(
+            {
+                "id": 1,
+                "title": "Volume 1",
+            }
+        )
+
+        # the first five chapters are the first five a.td-image-wrap
+        # The rest are normal divs
+        preview_chapters = soup.select("a.td-image-wrap")[0:5]
+        for preview_chapter in preview_chapters:
+            self.chapters.append(
+                {
+                    "id": len(self.chapters) + 1,
+                    "volume": 1,
+                    "url": self.absolute_url(preview_chapter.get("href")),
+                    "title": preview_chapter.get("title"),
+                }
+            )
+
+        for chapter in soup.select(
+            "div.tdb_module_loop.td_module_wrap.td-animation-stack.td-cpt-post"
+        ):
+            chapter_title = chapter.select_one("h3.entry-title a")
+            if not chapter_title:
+                continue
+            self.chapters.append(
+                {
+                    "id": len(self.chapters) + 1,
+                    "volume": 1,
+                    "url": self.absolute_url(chapter_title.get("href")),
+                    "title": chapter_title.text,
+                }
+            )
+
+    def download_chapter_body(self, chapter):
+        soup = self.get_soup(chapter["url"])
+
+        content = soup.find("div", {"class": "tagdiv-type"})
+        return self.cleaner.extract_contents(content)

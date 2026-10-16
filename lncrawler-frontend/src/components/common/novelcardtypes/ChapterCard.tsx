@@ -2,18 +2,26 @@ import React from 'react';
 import { Box, Card, Typography, ButtonBase, Skeleton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgo, getChapterNameWithNumber } from '@utils/Misc';
+import { formatTimeAgo, getChapterLabel } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
+import type { To } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 interface ChapterCardProps {
   source: NovelFromSource;
   onClick?: () => void;
   isLoading?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
 }
 
-const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = false, to }) => {
+const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = false, to, state }) => {
+  const { t } = useTranslation();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(source.is_adult, source.id);
   const coverHeight = 90;
   const coverWidth = coverHeight * 2/3;
 
@@ -40,6 +48,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
       onClick={onClick}
       component={to ? Link : 'button'}
       to={to}
+      state={to ? state : undefined}
       sx={{ 
         display: 'flex', 
         justifyContent: 'flex-start', 
@@ -60,17 +69,22 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
         borderRadius: 1.5,
         overflow: 'hidden',
         boxShadow: 2, 
+        position: 'relative',
       }}>
         <Box
           component="img"
           src={source.cover_min_url || defaultCover}
           alt={source.title}
+          onClick={blurred ? revealHandler(source.id) : undefined}
           sx={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
+            cursor: blurred ? 'pointer' : undefined,
+            filter: blurred ? 'blur(16px)' : 'none',
           }}
         />
+        <AdultBadge isAdult={source.is_adult} novelId={source.id} />
       </Card>
       
       <Box sx={{ 
@@ -113,7 +127,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
               mb: 0.5
             }}
           >
-            {getChapterNameWithNumber(source.latest_available_chapter?.title, source.latest_available_chapter?.chapter_id)}
+            {getChapterLabel(t, source.latest_available_chapter?.title, source.latest_available_chapter?.chapter_id)}
           </Typography>
         </Box>
         
@@ -132,7 +146,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
               textOverflow: 'ellipsis',
             }}
           >
-            {source.last_chapter_update ? formatTimeAgo(new Date(source.last_chapter_update)) : 'Unknown'}
+            {source.last_chapter_update ? formatTimeAgo(new Date(source.last_chapter_update), t) : t('common.unknown')}
           </Typography>
         </Box>
       </Box>

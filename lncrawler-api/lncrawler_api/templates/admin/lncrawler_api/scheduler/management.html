@@ -1,0 +1,105 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_scheduledtask_changelist' %}">{% translate 'Scheduled tasks' %}</a>
+  &rsaquo; {% translate 'Maintenance' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Harvest</h2>
+    <p>
+      Status: <strong>{% if config.enabled %}ENABLED{% else %}DISABLED{% endif %}</strong>
+      &middot; Max concurrent: {{ config.max_concurrent }}
+      &middot; Last scan: {{ config.last_harvest_at|default:"never" }}
+      &middot; Muted sources: {{ config.muted_sources|length }}
+    </p>
+    <p>
+      Candidates:
+      pending {{ counts.pending }} &middot; queued {{ counts.queued }}
+      &middot; done {{ counts.done }} &middot; failed {{ counts.failed }}
+    </p>
+    <form method="post" style="display:inline;">{% csrf_token %}
+      <input type="hidden" name="action" value="toggle_harvest">
+      <button type="submit">{% if config.enabled %}Stop harvest{% else %}Start harvest{% endif %}</button>
+    </form>
+    <form method="post" style="display:inline;">{% csrf_token %}
+      <input type="hidden" name="action" value="run_scan">
+      <button type="submit">Run scan now</button>
+    </form>
+    <form method="post" style="display:inline;">{% csrf_token %}
+      <input type="hidden" name="action" value="set_concurrency">
+      <label>Max concurrent:
+        <input type="number" name="max_concurrent" value="{{ config.max_concurrent }}" min="1" style="width:5em;">
+      </label>
+      <button type="submit">Save</button>
+    </form>
+    <p style="margin-top:8px;">
+      <a href="{{ harvest_config_url }}">Harvest settings</a> &middot;
+      <a href="{{ harvest_candidate_url }}">Harvest candidates</a>
+      (retry failed / mute sources from there)
+    </p>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Library import</h2>
+    <p>Import novels from the <code>imports/</code> drop folder into the library.</p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="run_import">
+      <button type="submit">Import now</button>
+    </form>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Test a source</h2>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" value="test_source">
+      <input type="url" name="url" placeholder="https://source.example/book/123" style="width:40em;" required>
+      <button type="submit">Run smoke test</button>
+    </form>
+    {% if result %}
+      <pre style="margin-top:8px; padding:8px; background:#f8f8f8; border:1px solid #ddd; overflow:auto;">{{ result }}</pre>
+    {% endif %}
+  </div>
+
+  <div class="module" style="padding:12px;">
+    <h2>Scheduled tasks</h2>
+    {% if not scheduler_enabled %}
+      <p style="padding:8px; background:#fcf3cf; border:1px solid #f1c40f;">
+        Automatic tasks are <strong>disabled</strong> (<code>SCHEDULER_ENABLED=False</code>);
+        "Run now" will not execute until the scheduler is re-enabled.
+      </p>
+    {% endif %}
+    <p>Run now pulls <code>next_run_at</code> forward; the scheduler executes it on its next pass.</p>
+    <table style="width:100%;">
+      <thead><tr><th>Task</th><th>Status</th><th>Next run</th><th></th></tr></thead>
+      <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td>{{ task.name }}</td>
+          <td>{{ task.status }}</td>
+          <td>{{ task.next_run_at }}</td>
+          <td>
+            <form method="post">{% csrf_token %}
+              <input type="hidden" name="action" value="run_task">
+              <input type="hidden" name="name" value="{{ task.name }}">
+              <button type="submit">Run now</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">No scheduled tasks registered yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}

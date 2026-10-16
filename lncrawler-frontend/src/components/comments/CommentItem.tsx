@@ -25,17 +25,20 @@ import ThumbDownAltIcon from '@mui/icons-material/ThumbDownAlt';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
+import { Link } from 'react-router-dom';
 
 import CommentForm from './CommentForm';
-import { commentService } from '../../services/api';
-import { Comment as IComment } from '@models/comments_types';
-import { getChapterNameWithNumber } from '@utils/Misc';
+import UserLink from '@components/profile/UserLink';
+import { commentService, type ApiError } from '../../services/api';
+import { Comment as IComment, CommentFormData } from '@models/comments_types';
+import { getChapterLabel, formatDateTime } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface CommentItemProps {
   comment: IComment;
   depth?: number;
-  onAddReply?: (commentData: any) => Promise<void>;
+  onAddReply?: (commentData: CommentFormData) => Promise<void>;
   fromOtherSource?: boolean;
 }
 
@@ -46,6 +49,7 @@ const CommentItem = ({
   fromOtherSource = false,
 }: CommentItemProps) => {
   const { isAuthenticated, user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [isSpoilerRevealed, setSpoilerRevealed] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
@@ -72,18 +76,9 @@ const CommentItem = ({
   const displayName = (comment.user != undefined && comment.user.username) ? comment.user.username : comment.author_name;
 
   // Format date to readable format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric'
-    }).format(date);
-  };
+  const formatDate = (dateString: string) => formatDateTime(dateString, i18n.language);
   
-  const handleReplySubmit = async (data: any) => {
+  const handleReplySubmit = async (data: CommentFormData) => {
     if (onAddReply) {
       await onAddReply({
         ...data,
@@ -123,7 +118,7 @@ const CommentItem = ({
 
   const handleEditSave = async () => {
     if (!editMessage.trim()) {
-      setEditError('Comment cannot be empty');
+      setEditError(t('comments.empty'));
       return;
     }
 
@@ -142,9 +137,10 @@ const CommentItem = ({
       comment.edited = true;
       
       setIsEditing(false);
-    } catch (error: any) {
+    } catch (error) {
+      const apiErr = error as ApiError;
       console.error('Failed to edit comment:', error);
-      setEditError(error?.response?.data?.error || 'Failed to edit comment. Please try again.');
+      setEditError(apiErr?.response?.data?.error || t('comments.editFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -165,6 +161,8 @@ const CommentItem = ({
             {/* Show avatar only if it's an authenticated user's comment and they have a profile pic */}
             {comment.user != undefined && comment.user.profile_pic && (
               <Avatar 
+                component={Link}
+                to={`/u/${encodeURIComponent(comment.user.username)}`}
                 alt={displayName} // Use determined displayName
                 src={comment.user.profile_pic} 
                 sx={{ width: 24, height: 24, mr: 1 }} 
@@ -172,13 +170,24 @@ const CommentItem = ({
             )}
             {/* Show initial-based avatar if authenticated user but no profile pic */}
             {comment.user != undefined && !comment.user.profile_pic && (
-              <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main' }}>
+              <Avatar
+                component={Link}
+                to={`/u/${encodeURIComponent(comment.user.username)}`}
+                sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main' }}>
                 {displayName ? displayName.charAt(0).toUpperCase() : '?'}
               </Avatar>
             )}
-            <Typography variant="subtitle1" fontWeight="bold">
-              {displayName}
+            <Typography variant="subtitle1" sx={{
+              fontWeight: "bold"
+            }}>
+              {comment.user ? <UserLink username={comment.user.username} /> : displayName}
             </Typography>
+
+            {!comment.user && (
+              <Typography variant="caption" sx={{ ml: 0.5, color: "text.secondary" }}>
+                {t('comments.guest')}
+              </Typography>
+            )}
             
             {hasReplies && (
               <IconButton 
@@ -192,17 +201,25 @@ const CommentItem = ({
           </Box>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {formatDate(comment.created_at)}
               {comment.edited && (
-                <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                  (edited)
+                <Typography
+                  component="span"
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 1
+                  }}>
+                  {t('comments.edited')}
                 </Typography>
               )}
             </Typography>
             
             {canEdit && !isEditing && (
-              <Tooltip title="Edit comment">
+              <Tooltip title={t('comments.editTooltip')}>
                 <IconButton size="small" onClick={handleEditStart}>
                   <EditIcon fontSize="small" />
                 </IconButton>
@@ -211,22 +228,16 @@ const CommentItem = ({
           </Box>
         </Box>
         
-        {comment.type && (
-          <Box sx={{ mb: 1 }}>
-            {comment.type === 'novel' ? (
-              <Chip size="small" label="Novel Comment" color="primary" variant="outlined" />
-            ) : comment.type === 'board' ? (
-              <Chip size="small" label="Board Comment" color="secondary" variant="outlined" />
-            ) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Chip size="small" label={getChapterNameWithNumber(comment.chapter_title, comment.chapter_id)} color="secondary" variant="outlined" />
-                <Typography variant="body2" color="text.secondary">
-                  from {comment.source_name}
-                </Typography>
-              </Box>
-            )}
+        {comment.type && comment.type !== 'novel' ? (
+          <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip size="small" label={t('comments.postedAt', { chapter: getChapterLabel(t, comment.chapter_title, comment.chapter_id) })} color="secondary" variant="outlined" />
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
+              {t('comments.fromSource', { source: comment.source_name })}
+            </Typography>
           </Box>
-        )}
+        ) : null}
 
         {/* Comment content section - normal view or edit view */}
         {isEditing ? (
@@ -239,7 +250,7 @@ const CommentItem = ({
             
             <TextField
               fullWidth
-              label="Edit your comment"
+              label={t('comments.editPlaceholder')}
               multiline
               rows={4}
               value={editMessage}
@@ -255,7 +266,7 @@ const CommentItem = ({
                   color="primary"
                 />
               }
-              label="This comment contains spoilers"
+              label={t('comments.containsSpoilers')}
               sx={{ mt: 1 }}
             />
             
@@ -267,7 +278,7 @@ const CommentItem = ({
                 onClick={handleEditSave}
                 disabled={isSubmitting}
               >
-                Save
+                {t('common.save')}
               </Button>
               <Button
                 variant="outlined"
@@ -275,7 +286,7 @@ const CommentItem = ({
                 onClick={handleEditCancel}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
             </Box>
           </Box>
@@ -297,12 +308,15 @@ const CommentItem = ({
                 {comment.message}
               </Typography>
               {!isSpoilerRevealed && (
-                <Typography 
-                  variant="caption" 
-                  color="warning.main" 
-                  sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}
-                >
-                  (spoiler)
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "warning.main",
+                    display: 'block',
+                    mt: 0.5,
+                    fontStyle: 'italic'
+                  }}>
+                  {t('comments.spoiler')}
                 </Typography>
               )}
             </Box>
@@ -316,7 +330,7 @@ const CommentItem = ({
         {!isEditing && (
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Tooltip title="Upvote">
+              <Tooltip title={t('novelSources.upvote')}>
                 <IconButton 
                   size="small" 
                   onClick={() => handleVote('up')} 
@@ -328,7 +342,7 @@ const CommentItem = ({
               </Tooltip>
               <Typography variant="body2">{votes.upvotes}</Typography>
               
-              <Tooltip title="Downvote">
+              <Tooltip title={t('novelSources.downvote')}>
                 <IconButton 
                   size="small" 
                   onClick={() => handleVote('down')} 
@@ -350,17 +364,19 @@ const CommentItem = ({
                 color="primary"
                 sx={{ borderRadius: 2 }}
               >
-                {isReplying ? 'Cancel Reply' : 'Reply'}
+                {isReplying ? t('comments.cancelReply') : t('comments.reply')}
               </Button>
             ) : (
-              <Typography variant="caption" color="text.secondary">
-                Replies disabled
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
+                {t('comments.repliesDisabled')}
               </Typography>
             )}
           </Box>
         )}
       </Paper>
-      
+
       {/* Reply form */}
       {isReplying && (
         <Box sx={{ ml: 4, mt: 1, mb: 2 }}>
@@ -372,7 +388,7 @@ const CommentItem = ({
           />
         </Box>
       )}
-      
+
       {/* Render replies if not collapsed */}
       {hasReplies && !isCollapsed && (
         <Box sx={{ mt: 1, ml: 4 }}>
@@ -387,7 +403,7 @@ const CommentItem = ({
           ))}
         </Box>
       )}
-      
+
       {/* Show collapsed replies indicator */}
       {hasReplies && isCollapsed && (
         <Button 
@@ -397,7 +413,7 @@ const CommentItem = ({
           color="primary"
           size="small"
         >
-          Show {comment.replies!.length} {comment.replies!.length === 1 ? 'reply' : 'replies'}
+          {t('comments.showReplies', { count: comment.replies!.length })}
         </Button>
       )}
     </Box>

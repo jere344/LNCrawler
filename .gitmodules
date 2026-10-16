@@ -1,4 +1,0 @@
-[submodule "dipudb-lncrawler-jere344-patches"]
-	path = dipudb-lncrawler-jere344-patches
-	url = https://github.com/jere344/lightnovel-crawler-website.git
-	branch = progress-fix

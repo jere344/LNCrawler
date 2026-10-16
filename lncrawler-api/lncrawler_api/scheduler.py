@@ -2,13 +2,38 @@ import time
 import threading
 import logging
 import os
+import subprocess
+import sys
 import uuid
+from django.conf import settings
 from django.core.management import call_command
-from django.utils import timezone
+from django.db import close_old_connections
 from typing import Optional, Callable, Dict
 from .models import ScheduledTask
 
 logger = logging.getLogger('lncrawler_api')
+
+
+def call_command_isolated(*args):
+    """Run a management command in a child process.
+
+    Heavy batch jobs (dense similarity matrices, embedding scans) peak at
+    hundreds of MB; run in-process, that memory stays with this long-lived
+    scheduler after the job ends. A child process gives it back to the OS.
+    """
+    subprocess.run([sys.executable, "manage.py", *args], cwd=settings.BASE_DIR, check=True)
+
+
+def scheduler_enabled():
+    """Master switch for automatic maintenance tasks.
+
+    Set SCHEDULER_ENABLED=False to keep the scheduler process running (so it
+    still cleans up stale locks) while suppressing every registered task, e.g.
+    so they can be triggered manually from the admin instead.
+    """
+    value = os.environ.get("SCHEDULER_ENABLED", "True").strip().lower()
+    return value not in ("0", "false", "no", "off", "")
+
 
 class DatabaseScheduler:
     """
@@ -50,14 +75,40 @@ class DatabaseScheduler:
             return func
         return decorator
     
+    def _remove_orphan_tasks(self):
+        """Delete scheduler rows whose task is no longer registered.
+
+        Removing a command leaves its ScheduledTask row behind; the loop only
+        ever executes registered names, so those rows are dead weight.
+        """
+        deleted, _ = ScheduledTask.objects.exclude(
+            name__in=self.registered_tasks.keys()
+        ).delete()
+        if deleted:
+            logger.info("Removed %s orphaned scheduled task row(s)", deleted)
+
     def _run_task_loop(self):
         """Main loop that checks for and executes scheduled tasks."""
         logger.info(f"Scheduler worker {self.worker_id} started")
+        self._remove_orphan_tasks()
         
         while self.running:
             try:
+                # This is a plain background thread, so Django's per-request
+                # connection cleanup never runs here. Revalidate the connection
+                # each iteration: CONN_MAX_AGE closes it by age and a DB
+                # restart/failover leaves a dead wrapper that would otherwise
+                # raise "the connection is closed" forever.
+                close_old_connections()
+
                 # Clean up stale locks periodically
                 ScheduledTask.cleanup_stale_locks()
+                
+                # Master switch: when disabled, keep the worker alive (stale-lock
+                # cleanup above still runs) but never pick up a task.
+                if not scheduler_enabled():
+                    time.sleep(5)
+                    continue
                 
                 # Check each registered task
                 for task_name in self.registered_tasks.keys():
@@ -90,6 +141,22 @@ class DatabaseScheduler:
         
         logger.info(f"Executing task '{task.name}' (worker: {self.worker_id})")
         
+        # Keep extending the lock while the task runs so another worker cannot
+        # reclaim it and run the same task twice concurrently.
+        heartbeat_stop = threading.Event()
+        
+        def _heartbeat_loop():
+            while not heartbeat_stop.wait(300):
+                close_old_connections()
+                if not task.heartbeat():
+                    logger.warning(f"Task '{task.name}': lost lock while running, stopping heartbeat")
+                    break
+        
+        heartbeat_thread = threading.Thread(
+            target=_heartbeat_loop, name=f"heartbeat-{task.name}", daemon=True
+        )
+        heartbeat_thread.start()
+        
         try:
             # Execute the task
             task_function()
@@ -102,6 +169,8 @@ class DatabaseScheduler:
             error_msg = f"Task execution failed: {str(e)}"
             logger.error(f"Error executing task '{task.name}': {error_msg}", exc_info=True)
             task.release_lock(success=False, error_message=error_msg)
+        finally:
+            heartbeat_stop.set()
     
     def start(self):
         """Start the scheduler."""
@@ -128,29 +197,166 @@ class DatabaseScheduler:
 # Get the singleton scheduler instance
 scheduler = DatabaseScheduler()
 
-# Task to calculate novel similarities daily
-@scheduler.register_task(interval=86400, name="calculate_similarities")  # 86400 seconds = 24 hours
+# Rebuild novel recommendations weekly (heavy O(N^2)-ish sweep; weekly is plenty).
+@scheduler.register_task(interval=604800, name="calculate_similarities")  # 604800 seconds = 7 days
 def calculate_novel_similarities():
-    """Run the calculate_similarities command to update novel recommendations daily."""
-    logger.info("Starting daily novel similarity calculation...")
+    """Run the calculate_similarities command to update novel recommendations weekly."""
+    logger.info("Starting weekly novel similarity calculation...")
     try:
-        call_command('calculate_similarities')
-        logger.info("Daily novel similarity calculation completed successfully")
+        call_command_isolated('calculate_similarities')
+        logger.info("Weekly novel similarity calculation completed successfully")
     except Exception as e:
-        logger.error(f"Error in daily novel similarity calculation: {str(e)}", exc_info=True)
+        logger.error(f"Error in weekly novel similarity calculation: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
-# Task to compress low traffic novels daily
-# @scheduler.register_task(interval=86400, name="compress_low_traffic")  # 86400 seconds = 24 hours
-# def compress_low_traffic_novels():
-#     """Run the compress_low_traffic_novels command to compress novels with low weekly views."""
-#     logger.info("Starting daily compression of low traffic novels...")
-#     try:
-#         call_command('compress_low_traffic_novels')
-#         logger.info("Daily compression of low traffic novels completed successfully")
-#     except Exception as e:
-#         logger.error(f"Error in daily compression task: {str(e)}", exc_info=True)
-#         raise  # Re-raise to mark task as failed
+# Rebuild the cross-source duplicate queue weekly, after similarities so the
+# text signal is fresh. Auto-merge stays off until MERGE_AUTO_SCORE is tuned.
+@scheduler.register_task(interval=604800, name="find_merge_candidates")  # 7 days
+def find_merge_candidates_task():
+    logger.info("Scanning for duplicate novel candidates...")
+    try:
+        call_command_isolated('find_merge_candidates')
+        logger.info("Duplicate novel scan completed successfully")
+    except Exception as e:
+        logger.error(f"Error scanning for duplicate novels: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Adjudicate the gray band with the LLM, a few calls per tick, only when an API
+# key is configured. Bounded per tick (settings.MERGE_LLM_LIMIT_PER_TICK) and by
+# a daily budget tracked on MergeCandidate.llm_checked_at, so a slow or
+# rate-limited provider cannot block the rest of the maintenance loop.
+@scheduler.register_task(
+    interval=int(getattr(settings, "MERGE_LLM_INTERVAL", 300)), name="judge_merge_candidates"
+)
+def judge_merge_candidates_task():
+    from django.conf import settings as _settings
+
+    if not getattr(_settings, "MERGE_LLM_API_KEY", ""):
+        return  # zero-LLM fallback: the review queue still works.
+    logger.info("Judging merge candidates with LLM...")
+    try:
+        call_command('judge_merge_candidates')
+        logger.info("Merge candidate LLM judging completed")
+    except Exception as e:
+        logger.error(f"Error judging merge candidates: {str(e)}", exc_info=True)
+        raise
+
+# Rebuild tag merge clusters daily: embeds new tags and groups likely duplicates.
+# Unchanged groups are skipped by signature, so a re-run only adds new work.
+@scheduler.register_task(interval=86400, name="find_tag_merge_candidates")  # daily
+def find_tag_merge_candidates_task():
+    logger.info("Scanning for duplicate tag candidates...")
+    try:
+        call_command_isolated('find_tag_merge_candidates')
+        logger.info("Duplicate tag scan completed successfully")
+    except Exception as e:
+        logger.error(f"Error scanning for duplicate tags: {str(e)}", exc_info=True)
+        raise
+
+# Ask the LLM to judge pending tag clusters, a few calls per tick, only when the
+# merge LLM key is configured. Bounded per tick and by a daily call budget.
+@scheduler.register_task(
+    interval=int(getattr(settings, "TAG_LLM_INTERVAL", 600)), name="judge_tag_clusters"
+)
+def judge_tag_clusters_task():
+    from django.conf import settings as _settings
+
+    if not getattr(_settings, "MERGE_LLM_API_KEY", ""):
+        return  # zero-LLM fallback: clusters stay pending until a key is set.
+    logger.info("Judging tag clusters with LLM...")
+    try:
+        call_command('judge_tag_clusters')
+        logger.info("Tag cluster LLM judging completed")
+    except Exception as e:
+        logger.error(f"Error judging tag clusters: {str(e)}", exc_info=True)
+        raise
+
+# Task to compress low traffic novels weekly.
+# Guardrails live in the command itself: single-threaded 7z (-mmt=1), low CPU
+# priority (nice), a pause between sources, and an id-batched scan. It targets
+# cold novels only and is allowed to run for a long time.
+@scheduler.register_task(interval=604800, name="compress_low_traffic")  # 604800 seconds = 7 days
+def compress_low_traffic_novels():
+    """Run the compress_low_traffic_novels command to compress novels with low weekly views."""
+    logger.info("Starting compression of low traffic novels...")
+    try:
+        # Bound each run so a cold catalogue can never turn the first execution
+        # into a multi-day job; leftovers are picked up on the next weekly run.
+        call_command('compress_low_traffic_novels', max_sources=500)
+        logger.info("Compression of low traffic novels completed successfully")
+    except Exception as e:
+        logger.error(f"Error in compression task: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Roll daily view buckets older than the retention window into weekly buckets.
+# Daily granularity only matters for the rolling 7-day display; older history
+# is kept as one row per ISO week so the table doesn't grow forever.
+@scheduler.register_task(interval=604800, name="consolidate_source_views")  # 604800 seconds = 7 days
+def consolidate_source_views():
+    """Run the consolidate_source_views command to roll old daily views into weekly buckets."""
+    logger.info("Starting consolidation of old daily view buckets...")
+    try:
+        call_command('consolidate_source_views')
+        logger.info("Daily view bucket consolidation completed successfully")
+    except Exception as e:
+        logger.error(f"Error consolidating daily view buckets: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Top up the popular-source refresh queue. Runs often but queues at most one job
+# per tick and skips sources refreshed in the last 6 days, so each source ends up
+# updated about weekly while the batch always stays on a single crawler thread
+# (even with several crawler replicas).
+@scheduler.register_task(interval=3600, name="update_popular_sources")  # hourly
+def update_popular_sources():
+    """Queue the next update for the most popular sources."""
+    logger.info("Queueing next popular source update...")
+    try:
+        call_command('update_popular_sources', top=20)
+        logger.info("Popular source update queue check completed")
+    except Exception as e:
+        logger.error(f"Error queueing popular source update: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Progressively prune orphan novels, empty sources and dead-source duplicates.
+# Bounded --limit per run so a 40k-novel first pass spreads over many runs.
+@scheduler.register_task(interval=600, name="prune_library")
+def prune_library_task():
+    import os
+    if os.getenv("LNCRAWL_PRUNE_APPLY", "1").lower() in ("0", "false", "no"):
+        return
+    logger.info("Pruning library (bounded batch)...")
+    try:
+        call_command('prune_library', apply=True, limit=200)
+        logger.info("Library prune batch completed")
+    except Exception as e:
+        logger.error(f"Error pruning library: {str(e)}", exc_info=True)
+        raise
+
+# Trim terminal Job rows so a continuously running harvest feeder cannot grow
+# the job table without bound. Keeps jobs still referenced by queued candidates.
+@scheduler.register_task(interval=86400, name="prune_jobs")  # daily
+def prune_jobs_task():
+    logger.info("Pruning old finished jobs...")
+    try:
+        call_command('prune_jobs')
+        logger.info("Old job prune completed")
+    except Exception as e:
+        logger.error(f"Error pruning old jobs: {str(e)}", exc_info=True)
+        raise
+
+# Refresh the projected ranking columns that search sorts read. One set-based
+# UPDATE; only rows whose values changed are written, so frequent runs are cheap.
+@scheduler.register_task(interval=300, name="refresh_novel_rankings")  # 5 minutes
+def refresh_novel_rankings_task():
+    from .services.novel_rankings import refresh_novel_rankings
+
+    logger.info("Refreshing novel ranking projections...")
+    try:
+        updated = refresh_novel_rankings()
+        logger.info("Novel ranking refresh completed: %s row(s) updated", updated)
+    except Exception as e:
+        logger.error(f"Error refreshing novel rankings: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
 
 def start_scheduler():
     """Start the scheduler if it's not already running."""

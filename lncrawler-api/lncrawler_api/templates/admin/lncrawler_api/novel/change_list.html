@@ -2,14 +2,14 @@
 {% load i18n admin_urls %}
 
 {% block object-tools-items %}
-  {% if import_button %}
+  {% if merge_button %}
     <li>
-      <a href="{{ import_button.url }}" class="addlink">{{ import_button.label }}</a>
+      <a href="{{ merge_button.url }}" class="addlink">{{ merge_button.label }}</a>
     </li>
   {% endif %}
-  {% if mass_import_button %}
+  {% if split_button %}
     <li>
-      <a href="{{ mass_import_button.url }}" class="addlink">{{ mass_import_button.label }}</a>
+      <a href="{{ split_button.url }}" class="addlink">{{ split_button.label }}</a>
     </li>
   {% endif %}
   {{ block.super }}

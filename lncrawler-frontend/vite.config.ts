@@ -7,15 +7,25 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@assets': path.resolve(__dirname, './src/assets'),
-      '@components': path.resolve(__dirname, './src/components'),
-      '@models': path.resolve(__dirname, './src/models'),
-      '@services': path.resolve(__dirname, './src/services'),
-      '@theme': path.resolve(__dirname, './src/theme'),
-      '@config': path.resolve(__dirname, './src/config'),
-      '@utils': path.resolve(__dirname, './src/utils'),
-      '@context': path.resolve(__dirname, './src/context'),
+      '@assets': path.resolve(import.meta.dirname, './src/assets'),
+      '@components': path.resolve(import.meta.dirname, './src/components'),
+      '@models': path.resolve(import.meta.dirname, './src/models'),
+      '@services': path.resolve(import.meta.dirname, './src/services'),
+      '@theme': path.resolve(import.meta.dirname, './src/theme'),
+      '@config': path.resolve(import.meta.dirname, './src/config'),
+      '@utils': path.resolve(import.meta.dirname, './src/utils'),
+      '@context': path.resolve(import.meta.dirname, './src/context'),
     }
+  },
+  // ES module workers can code-split, so the TTS worker only loads the
+  // Kokoro/transformers.js chunk when a Kokoro voice is used.
+  worker: {
+    format: 'es',
+  },
+  // Pre-bundle the TTS worker deps so the dev server doesn't reload the page
+  // the first time someone presses "Listen".
+  optimizeDeps: {
+    include: ['onnxruntime-web/wasm', 'kokoro-js'],
   },
   build: {
     // Output directory
@@ -24,8 +34,8 @@ export default defineConfig({
     // Ensure JavaScript files are properly emitted with correct types
     assetsDir: 'assets',
     
-    // Configure rollup options
-    rollupOptions: {
+    // Configure rolldown options (Vite 8 uses Rolldown instead of Rollup)
+    rolldownOptions: {
       output: {
         // Ensure proper file extensions and MIME types
         entryFileNames: 'assets/[name]-[hash].js',
@@ -34,17 +44,12 @@ export default defineConfig({
       },
     },
     
-    // Minify options
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: false, // Keep console logs for debugging
-        drop_debugger: true,
-      },
-    },
+    // Minify with rolldown's native oxc minifier (much faster than terser)
+    minify: 'oxc',
     
-    // Sourcemaps for easier debugging
-    sourcemap: true,
+    // No sourcemaps in production: they double build time and would ship the
+    // full readable source in the served image.
+    sourcemap: false,
   },
   // Server options
   server: {

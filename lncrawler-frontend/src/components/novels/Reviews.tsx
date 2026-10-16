@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Paper,
@@ -26,7 +27,9 @@ import { reviewService } from '@services/api';
 import { Review, ReviewsResponse } from '@services/review.service';
 import ReviewReactions from '../common/reviews/ReviewReactions';
 import ReviewForm from '../common/reviews/ReviewForm';
+import UserLink from '@components/profile/UserLink';
 import { useAuth } from '@context/AuthContext';
+import { Link, useNavigate } from 'react-router-dom';
 import ReadOnlyMDXEditor from '../common/reviews/ReadOnlyMDXEditor';
 
 interface ReviewsProps {
@@ -40,7 +43,9 @@ const Reviews: React.FC<ReviewsProps> = ({
   initialReviews,
   showAddReview = true 
 }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [reviews, setReviews] = useState<Review[]>(initialReviews || []);
   const [loading, setLoading] = useState(!initialReviews);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +70,7 @@ const Reviews: React.FC<ReviewsProps> = ({
       setTotalReviews(response.pagination.total_reviews);
     } catch (err) {
       console.error('Error loading reviews:', err);
-      setError('Failed to load reviews. Please try again.');
+      setError(t('reviews.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -75,6 +80,7 @@ const Reviews: React.FC<ReviewsProps> = ({
     if (!initialReviews) {
       loadReviews();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; novelSlug/initialReviews are the inputs
   }, [novelSlug, initialReviews]);
 
   const handleReviewAdded = (newReview: Review) => {
@@ -121,7 +127,7 @@ const Reviews: React.FC<ReviewsProps> = ({
       handleMenuClose();
     } catch (error) {
       console.error('Error deleting review:', error);
-      setError('Failed to delete review. Please try again.');
+      setError(t('reviews.deleteFailed'));
     }
   };
 
@@ -146,14 +152,18 @@ const Reviews: React.FC<ReviewsProps> = ({
       )}
 
       {/* Add Review Section */}
-      {showAddReview && user && !showReviewForm && (
+      {showAddReview && !showReviewForm && (user || reviews.length > 0) && (
         <Box sx={{ mb: 3 }}>
           <Button
             variant="contained"
-            onClick={() => setShowReviewForm(true)}
+            onClick={() =>
+              user
+                ? setShowReviewForm(true)
+                : navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))
+            }
             sx={{ borderRadius: 2 }}
           >
-            Write a Review
+            {user ? t('reviews.writeReview') : t('reviews.loginToReview')}
           </Button>
         </Box>
       )}
@@ -174,16 +184,27 @@ const Reviews: React.FC<ReviewsProps> = ({
       {/* Reviews Header */}
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Reviews ({totalReviews})
+          {t('reviews.heading', { count: totalReviews })}
         </Typography>
       </Box>
 
       {/* Reviews List */}
       {reviews.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
-            No reviews yet. Be the first to review this novel!
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
+            {t('reviews.empty')}
           </Typography>
+          {showAddReview && !user && (
+            <Button
+              variant="contained"
+              onClick={() => navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))}
+              sx={{ borderRadius: 2, mt: 2 }}
+            >
+              {t('reviews.loginToReview')}
+            </Button>
+          )}
         </Paper>
       ) : (
         <Box>
@@ -202,6 +223,8 @@ const Reviews: React.FC<ReviewsProps> = ({
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Avatar 
+                    component={Link}
+                    to={`/u/${encodeURIComponent(review.user.username)}`}
                     src={review.user.profile_pic} 
                     alt={review.user.username}
                     sx={{ width: 40, height: 40 }}
@@ -209,11 +232,15 @@ const Reviews: React.FC<ReviewsProps> = ({
                     {review.user.username.charAt(0).toUpperCase()}
                   </Avatar>
                   <Box>
-                    <Typography variant="subtitle1" fontWeight="bold">
-                      {review.user.username}
+                    <Typography variant="subtitle1" sx={{
+                      fontWeight: "bold"
+                    }}>
+                      <UserLink username={review.user.username} />
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {formatTimeAgo(new Date(review.created_at))}
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
+                      {formatTimeAgo(new Date(review.created_at), t)}
                     </Typography>
                   </Box>
                 </Box>
@@ -234,8 +261,13 @@ const Reviews: React.FC<ReviewsProps> = ({
 
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Rating value={review.rating} readOnly size="small" />
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                  {review.rating} stars
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    ml: 1
+                  }}>
+                  {t('units.stars', { count: review.rating })}
                 </Typography>
               </Box>
 
@@ -274,26 +306,26 @@ const Reviews: React.FC<ReviewsProps> = ({
       >
         <MenuItem onClick={handleEditReview}>
           <EditIcon sx={{ mr: 1 }} fontSize="small" />
-          Edit Review
+          {t('reviews.editReview')}
         </MenuItem>
         <MenuItem onClick={() => setDeleteDialogOpen(true)}>
           <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
-          Delete Review
+          {t('reviews.deleteReview')}
         </MenuItem>
       </Menu>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Review</DialogTitle>
+        <DialogTitle>{t('reviews.deleteTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete this review? This action cannot be undone.
+            {t('reviews.deleteBody')}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t('common.cancel')}</Button>
           <Button onClick={handleDeleteReview} color="error" variant="contained">
-            Delete
+            {t('common.delete')}
           </Button>
         </DialogActions>
       </Dialog>

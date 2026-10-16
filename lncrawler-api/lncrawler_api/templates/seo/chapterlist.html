@@ -1,0 +1,17 @@
+{% extends "seo/base.html" %}
+{% block content %}
+<h1>Chapter List &mdash; {{ source.title }} ({{ source_name }})</h1>
+<p class="meta">{{ count }} chapters. <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/">Novel details</a></p>
+
+<ol class="chapters">
+{% for chapter in chapters %}
+  <li>
+    {% if chapter.has_content %}
+      <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/chapter/{{ chapter.chapter_id }}/">{{ chapter.chapter_id }}. {{ chapter.title }}</a>
+    {% else %}
+      {{ chapter.chapter_id }}. {{ chapter.title }}
+    {% endif %}
+  </li>
+{% endfor %}
+</ol>
+{% endblock %}

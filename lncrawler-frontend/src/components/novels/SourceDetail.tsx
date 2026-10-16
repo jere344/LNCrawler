@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useLocation, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Container,
   Typography,
@@ -13,9 +14,17 @@ import {
   alpha,
   Skeleton,
   Zoom,
-  Grid2 as Grid,
+  Grid as Grid,
+  Menu,
+  MenuItem,
+  Alert,
+  Chip,
 } from '@mui/material';
 import { novelService } from '../../services/api';
+import { userService } from '@services/user.service';
+import { useAuth } from '@context/AuthContext';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
+import AddToListDialog from '../readinglist/AddToListDialog';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LanguageIcon from '@mui/icons-material/Language';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
@@ -30,60 +39,118 @@ import SkipNextIcon from '@mui/icons-material/SkipNext';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import defaultCover from '@assets/default-cover.jpg';
 import CommentSection from '../comments/CommentSection';
-import { NovelFromSource as ISourceDetail } from '@models/novels_types';
+import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail, Novel as INovel } from '@models/novels_types';
 import NovelSynopsis from './common/NovelSynopsis';
 import NovelRating from './common/NovelRating';
 import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
-import { getChapterNameWithNumber, languageCodeToFlag, languageCodeToName } from '@utils/Misc.tsx';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import { getChapterLabel, languageFlagUrl, languageCodeToName, formatDate, editionLabel } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
+import DownloadIcon from '@mui/icons-material/Download';
 import ActionButton from '../common/ActionButton';
 import SectionContainer from '@components/common/SectionContainer.tsx';
+import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
+import NovelSources from './NovelSources';
+import NovelRecommendation from '../common/NovelRecommendation';
+import Reviews from './Reviews';
+import ReadingListCard from '../readinglist/ReadingListCard';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import InfoIcon from '@mui/icons-material/Info';
+import ShareIcon from '@mui/icons-material/Share';
 
-const DEFAULT_OG_IMAGE = '/og-image.jpg';
+const DetailRow = ({ label, value }: { label: string; value: string }) => (
+  <Box>
+    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+      {label}
+    </Typography>
+    <Typography variant="body1">{value}</Typography>
+  </Box>
+);
 
 const SourceDetail = () => {
+  const { t, i18n } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const theme = useTheme();
-  const [source, setSource] = useState<ISourceDetail | null>(null);
+  const location = useLocation();
+  const linkState = location.state as { novel?: INovel; source?: ISourceDetail | null } | null;
+
+  // Metadata already fetched by the list card that navigated here. Only trust
+  // it when it matches the URL, since the card link may point to the source the
+  // user has a reading history on rather than the preferred source.
+  const getPrefetchedSource = useCallback((): ISourceDetail | null => {
+    if (!novelSlug || !sourceSlug) return null;
+    const s = linkState?.source;
+    if (s && s.source_slug === sourceSlug && s.novel_slug === novelSlug) return s;
+    const n = linkState?.novel;
+    if (n && n.slug === novelSlug) {
+      return [n.reading_source, n.prefered_source].find(
+        (cand) => cand?.source_slug === sourceSlug && cand?.novel_slug === novelSlug
+      ) ?? null;
+    }
+    return null;
+  }, [linkState, novelSlug, sourceSlug]);
+
+  const [source, setSource] = useState<ISourceDetail | null>(getPrefetchedSource);
+  const [novel, setNovel] = useState<INovelDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
-  const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>({
-    avg_rating: null, 
-    rating_count: 0, 
+  const [downloadAnchor, setDownloadAnchor] = useState<null | HTMLElement>(null);
+  const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>(() => ({
+    avg_rating: linkState?.novel?.avg_rating ?? null,
+    rating_count: linkState?.novel?.rating_count ?? 0,
     user_rating: null
-  });
+  }));
+  const { isAuthenticated } = useAuth();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const coverBlurred = isBlurred(source?.is_adult, source?.novel_id);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarking, setBookmarking] = useState(false);
+  const [addToListOpen, setAddToListOpen] = useState(false);
+
+  useEffect(() => {
+    if (novel) setIsBookmarked(!!novel.is_bookmarked);
+  }, [novel]);
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
       if (!novelSlug || !sourceSlug) return;
-      
+
+      const prefetched = getPrefetchedSource();
+      setSource(prefetched);
       setLoading(true);
+      setError(null);
+
       try {
+        // The source response embeds the novel detail, so the page no longer
+        // needs a second request.
         const data = await novelService.getSourceDetail(novelSlug, sourceSlug);
         setSource(data);
-        
-        // Get novel details to fetch rating
-        const novelDetails = await novelService.getNovelDetail(novelSlug);
+        setNovel(data.novel);
         setNovelRating({
-          avg_rating: novelDetails.avg_rating,
-          rating_count: novelDetails.rating_count,
-          user_rating: novelDetails.user_rating
+          avg_rating: data.novel.avg_rating,
+          rating_count: data.novel.rating_count,
+          user_rating: data.novel.user_rating
         });
       } catch (err) {
         console.error('Error fetching source details:', err);
-        setError('Failed to load source details. Please try again later.');
-      } finally {
-        setLoading(false);
+        if (!prefetched) {
+          setError(t('sourceDetail.loadFailed'));
+        }
       }
+
+      setLoading(false);
     };
 
     fetchSourceDetail();
-  }, [novelSlug, sourceSlug]);
+  }, [novelSlug, sourceSlug, getPrefetchedSource, t]);
 
   const handleVote = async (voteType: 'up' | 'down') => {
     if (!novelSlug || !sourceSlug || votingInProgress || !source) return;
@@ -105,36 +172,67 @@ const SourceDetail = () => {
     }
   };
 
+  const handleToggleBookmark = async () => {
+    if (!novelSlug || bookmarking) return;
+    setBookmarking(true);
+    try {
+      if (isBookmarked) {
+        await userService.removeNovelBookmark(novelSlug);
+        setIsBookmarked(false);
+      } else {
+        await userService.addNovelBookmark(novelSlug);
+        setIsBookmarked(true);
+      }
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+    } finally {
+      setBookmarking(false);
+    }
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: source?.title || t('common.share'),
+        url: window.location.href,
+      }).catch((error) => console.log('Error sharing:', error));
+    } else {
+      navigator.clipboard.writeText(window.location.href)
+        .then(() => alert(t('readingLists.linkCopied')))
+        .catch((error) => console.error('Error copying link:', error));
+    }
+  };
+
   const continue_chapter = source?.reading_history?.next_chapter || source?.reading_history?.last_read_chapter;
 
-  // Format date to readable format
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    }).format(date);
-  };
+  const isDmca = Boolean(novel?.is_dmca);
 
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
 
   const metaTitle = source 
-    ? `${source.title} (${source.source_name}) - Read on ${siteName}`
-    : `Loading Novel Source | ${siteName}`;
+    ? t('sourceDetail.metaTitle', { title: source.title, source: source.source_name })
+    : t('sourceDetail.metaLoadingTitle');
+  const metaSynopsis = source?.synopsis
+    ? source.synopsis.substring(0, 120).replace(/<[^>]+>/g, '') + '...'
+    : `Discover this light novel on ${siteName}.`; // i18n-missing: no catalog key for the synopsis fallback
   const metaDescription = source
-    ? `Read ${source.title} from ${source.source_name}. Synopsis: ${source.synopsis ? source.synopsis.substring(0, 120).replace(/<[^>]+>/g, '') + '...' : `Discover this light novel on ${siteName}.`} Chapters, ratings, and more.`
-    : `Loading details for this novel source on ${siteName}.`;
+    ? t('sourceDetail.metaDescription', { title: source.title, source: source.source_name, synopsis: metaSynopsis })
+    : t('sourceDetail.metaLoadingDescription');
+  // i18n-missing: no catalog key for the source-detail generic meta keywords
   const metaKeywordsList = source
     ? [source.title, source.source_name, ...source.tags, ...source.authors, "read light novel", "web novel"]
     : ["light novel", "web novel", "source details"];
   const metaKeywords = [...new Set(metaKeywordsList.filter(Boolean))].join(', '); // Unique keywords
-  const ogImage = source?.overview_url || source?.cover_url || DEFAULT_OG_IMAGE;
+  const ogImage = source?.overview_url || source?.cover_url || source?.cover_min_url || DEFAULT_OG_IMAGE;
 
-  if (loading) {
+  if (!source && !error) {
     return (
       <Container maxWidth="lg">
+        <Box sx={{ mb: 3, mt: 1 }}>
+          <Skeleton variant="text" width={220} height={24} animation="wave" />
+        </Box>
+
         <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
           <Skeleton variant="rectangular" width={120} height={36} sx={{ borderRadius: '20px' }} />
         </Box>
@@ -329,11 +427,11 @@ const SourceDetail = () => {
     );
   }
 
-  if (error || !source) {
+  if (!source) {
     return (
       <Container>
-        <Button startIcon={<ArrowBackIcon />} component={Link} to={`/novels/${novelSlug}`} variant="outlined" sx={{ mt: 2 }}>
-          Back to Novel
+        <Button startIcon={<ArrowBackIcon />} component={Link} to="/" variant="outlined" sx={{ mt: 2 }}>
+          {t('sourceDetail.backToHome')}
         </Button>
         <Paper 
           elevation={3} 
@@ -346,16 +444,16 @@ const SourceDetail = () => {
           }}
         >
           <Typography color="error" variant="h5" gutterBottom>
-            {error || 'Source not found'}
+            {error || t('sourceDetail.notFound')}
           </Typography>
           <Button 
             variant="contained" 
             color="primary" 
             component={Link}
-            to={`/novels/${novelSlug}`}
+            to="/"
             sx={{ mt: 2 }}
           >
-            Return to Novel
+            {t('sourceDetail.returnToHome')}
           </Button>
         </Paper>
       </Container>
@@ -364,55 +462,61 @@ const SourceDetail = () => {
 
   return (
       <Container maxWidth="lg">
-        <title>{metaTitle}</title>
-        <meta name="description" content={metaDescription} />
-        <meta name="keywords" content={metaKeywords} />
-        <link rel="canonical" href={pageUrl} />
+        <SeoMeta
+          title={metaTitle}
+          description={metaDescription}
+          keywords={metaKeywords}
+          image={ogImage}
+          type="book"
+          canonical={pageUrl}
+        >
+          {source?.authors?.length > 0 && <meta property="book:author" content={source.authors.join(', ')} />}
+          {source?.tags?.length > 0 && source.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
+        </SeoMeta>
 
-        <meta property="og:title" content={metaTitle} />
-        <meta property="og:description" content={metaDescription} />
-        <meta property="og:type" content="book" />
-        <meta property="og:url" content={pageUrl} />
-        <meta property="og:site_name" content={siteName} />
-        <meta property="og:image" content={ogImage} />
-        {source?.authors?.length > 0 && <meta property="book:author" content={source.authors.join(', ')} />}
-        {source?.tags?.length > 0 && source.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
+        <BreadcrumbNav
+          items={[
+            {
+              label: source.novel_title,
+              icon: <BookIcon fontSize="inherit" />
+            },
+            {
+              label: source.source_name,
+              icon: <LanguageIcon fontSize="inherit" />
+            }
+          ]}
+        />
         
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={metaTitle} />
-        <meta name="twitter:description" content={metaDescription} />
-        <meta name="twitter:image" content={ogImage} />
-
-        {!loading && source && (
-          <BreadcrumbNav
-            items={[
-              {
-                label: source.novel_title,
-                link: `/novels/${novelSlug}`,
-                icon: <BookIcon fontSize="inherit" />
-              },
-              {
-                label: source.source_name,
-                icon: <LanguageIcon fontSize="inherit" />
-              }
-            ]}
-          />
-        )}
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 4 }}>
           <Button 
             startIcon={<ArrowBackIcon />}
             component={Link}
-            to={`/novels/${novelSlug}`}
+            to="/"
             variant="outlined"
             sx={{ 
               borderRadius: '20px',
               px: 2,
             }}
           >
-            Back to Novel
+            {t('sourceDetail.backToHome')}
           </Button>
+          <Tooltip title={t('common.share')}>
+            <Button
+              startIcon={<ShareIcon />}
+              onClick={handleShare}
+              variant="outlined"
+              sx={{ borderRadius: '20px', px: 2 }}
+            >
+              {t('common.share')}
+            </Button>
+          </Tooltip>
         </Box>
+
+        {isDmca && (
+          <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+            {t('sourceDetail.dmcaNotice')}
+          </Alert>
+        )}
 
         <Paper 
           elevation={0}
@@ -434,7 +538,7 @@ const SourceDetail = () => {
               width: '100%',
               height: '100%',
               opacity: 0.35,
-              backgroundImage: `url(${source.cover_url || defaultCover})`,
+              backgroundImage: `url(${source.cover_url || source.cover_min_url || defaultCover})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               filter: 'blur(20px)',
@@ -459,8 +563,9 @@ const SourceDetail = () => {
                   >
                     <CardMedia
                       component="img"
-                      image={source.cover_url || defaultCover}
+                      image={source.cover_url || source.cover_min_url || defaultCover}
                       alt={source.title}
+                      onClick={coverBlurred ? revealHandler(source.novel_id) : undefined}
                       sx={{
                         position: 'absolute',
                         top: 0,
@@ -468,12 +573,15 @@ const SourceDetail = () => {
                         width: '100%',
                         height: '100%',
                         objectFit: 'cover',
+                        cursor: coverBlurred ? 'pointer' : undefined,
+                        filter: coverBlurred ? 'blur(16px)' : 'none',
                       }}
-                      onError={(e: any) => {
-                        e.target.onerror = null;
-                        e.target.src = defaultCover;
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = defaultCover;
                       }}
                     />
+                    <AdultBadge isAdult={source.is_adult} novelId={source.novel_id} />
                     
                     {/* Language indicator */}
                     <Box
@@ -495,8 +603,8 @@ const SourceDetail = () => {
                       }}
                     >
                       <img 
-                        src={`/flags/${languageCodeToFlag(source.language)}.svg`} 
-                        alt={languageCodeToName(source.language)}
+                        src={languageFlagUrl(source.language)} 
+                        alt={languageCodeToName(t, source.language)}
                         style={{ 
                           width: '20px',
                           height: '15px',
@@ -511,23 +619,76 @@ const SourceDetail = () => {
               </Grid>
               
               <Grid size={{ xs: 12, md: 6, lg: 7 }}>
-                <Typography 
-                  variant="h3" 
-                  gutterBottom 
-                  sx={{ 
-                    color: 'common.white',
-                    textShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                    fontWeight: 700,
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                  <Typography 
+                    variant="h3" 
+                    gutterBottom 
+                    sx={{ 
+                      color: 'common.white',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {source.title}
+                  </Typography>
+                  {isAuthenticated && (
+                    <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                      <Tooltip title={isBookmarked ? t('novelActions.removeBookmark') : t('novelActions.bookmark')}>
+                        <IconButton
+                          onClick={handleToggleBookmark}
+                          disabled={bookmarking || !novelSlug}
+                          sx={{
+                            color: 'common.white',
+                            bgcolor: alpha(theme.palette.common.black, 0.3),
+                            '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.5) },
+                          }}
+                        >
+                          {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title={t('novelActions.addToReadingList')}>
+                        <IconButton
+                          onClick={() => setAddToListOpen(true)}
+                          disabled={!source?.novel_id}
+                          sx={{
+                            color: 'common.white',
+                            bgcolor: alpha(theme.palette.common.black, 0.3),
+                            '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.5) },
+                          }}
+                        >
+                          <PlaylistAddIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  )}
+                </Box>
+                
+                {source.alternative_titles?.length > 0 && (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: alpha(theme.palette.common.white, 0.85),
+                      textShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                      mb: 1.5,
+                    }}
+                  >
+                    <strong>{t('sourceDetail.alternativeTitles')}:</strong> {source.alternative_titles.join(', ')}
+                  </Typography>
+                )}
+                
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 1,
+                    mb: 3,
                   }}
                 >
-                  {source.title}
-                </Typography>
-                
                 <Typography 
                   variant="h6" 
                   sx={{ 
                     color: alpha(theme.palette.common.white, 0.9),
-                    mb: 3,
                     textShadow: '0 1px 3px rgba(0,0,0,0.2)',
                     fontWeight: 500,
                     display: 'flex',
@@ -535,9 +696,9 @@ const SourceDetail = () => {
                     gap: 1
                   }}
                 >
-                  From: {source.source_name}
-                  {source.source_url.startsWith('http') && (
-                    <Tooltip title="Visit Source">
+                  {t('sourceDetail.fromPrefix')} {source.source_name}
+                  {source.source_url?.startsWith('http') && (
+                    <Tooltip title={t('sourceDetail.visitSource')}>
                       <IconButton
                         size="small"
                         href={source.source_url}
@@ -556,6 +717,15 @@ const SourceDetail = () => {
                     </Tooltip>
                   )}
                 </Typography>
+                {source.edition && (
+                  <Chip
+                    size="small"
+                    label={editionLabel(source.edition, t)}
+                    sx={{ color: 'inherit', borderColor: 'currentColor' }}
+                    variant="outlined"
+                  />
+                )}
+                </Box>
                 
                 {/* Author badges */}
                 <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -572,19 +742,60 @@ const SourceDetail = () => {
                           borderRadius: 6,
                         }}
                       >
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
+                        <PersonIcon sx={{ mr: 1, fontSize: '1rem', color: theme.palette.common.white }} />
+                        <Typography
+                          variant="body1"
+                          sx={{
                             color: theme.palette.common.white,
                             fontWeight: 600,
                             display: 'flex',
+                            flexWrap: 'wrap',
                             alignItems: 'center',
                           }}
                         >
-                          <PersonIcon sx={{ mr: 1, fontSize: '1rem' }} />
-                          {source.authors.join(', ')}
+                          {source.authors.map((author, index) => (
+                            <Box key={index} component="span">
+                              <Box
+                                component={Link}
+                                to={`/novels/search?author=${encodeURIComponent(author)}`}
+                                sx={{
+                                  color: theme.palette.common.white,
+                                  textDecoration: 'none',
+                                  '&:hover': { textDecoration: 'underline' },
+                                }}
+                              >
+                                {author}
+                              </Box>
+                              {index < source.authors.length - 1 ? ',\u00a0' : ''}
+                            </Box>
+                          ))}
                         </Typography>
                       </Box>
+                    )}
+                    {source.novelupdates_url && source.novelupdates_url.startsWith('http') && (
+                      <Tooltip title={t('sourceDetail.viewOnNovelUpdates')}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          href={source.novelupdates_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          startIcon={<MenuBookIcon fontSize="small" />}
+                          sx={{
+                            color: alpha(theme.palette.common.white, 0.9),
+                            borderColor: alpha(theme.palette.common.white, 0.5),
+                            textTransform: 'none',
+                            borderRadius: 6,
+                            '&:hover': {
+                              color: theme.palette.common.white,
+                              borderColor: theme.palette.common.white,
+                              bgcolor: alpha(theme.palette.common.white, 0.1),
+                            },
+                          }}
+                        >
+                          {t('sourceDetail.novelUpdates')}
+                        </Button>
+                      </Tooltip>
                     )}
                   </Box>
                   
@@ -629,10 +840,15 @@ const SourceDetail = () => {
                       <ListAltIcon sx={{ color: alpha('#3498db', 0.9), mr: 1 }} />
                       <Box>
                         <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
-                          Chapters
+                          {t('novelSources.chapters')}
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {source.latest_available_chapter?.chapter_id || 0}
+                          {source.available_chapters_count ?? 0}
+                          {(source.available_chapters_count ?? 0) !== (source.chapters_count ?? 0) && (
+                            <Box component="span" sx={{ color: alpha(theme.palette.common.white, 0.5), fontWeight: 400 }}>
+                              /{source.chapters_count ?? 0}
+                            </Box>
+                          )}
                         </Typography>
                       </Box>
                     </Box>
@@ -653,20 +869,27 @@ const SourceDetail = () => {
                       <CalendarTodayIcon sx={{ color: alpha('#9b59b6', 0.9), mr: 1 }} />
                       <Box>
                         <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
-                          Last Updated
+                          {t('sourceDetail.lastUpdated')}
                         </Typography>
                         <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {formatDate(source.last_chapter_update)}
+                          {formatDate(source.last_chapter_update, i18n.language)}
                         </Typography>
                       </Box>
                     </Box>
                   </Grid>
                 </Grid>
-                
+
+                {/* Tags */}
+                {source.tags.length > 0 && (
+                  <Box sx={{ mb: 3 }}>
+                    <NovelTags tags={source.tags} chipSize="small" />
+                  </Box>
+                )}
+
                 {/* Source vote actions*/}
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.8), mb: 1 }}>
-                    Rate this source:
+                    {t('sourceDetail.rateSource')}
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Button
@@ -684,7 +907,7 @@ const SourceDetail = () => {
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        Upvote
+                        {t('sourceDetail.upvote')}
                         <Typography
                           variant="body2"
                           sx={{
@@ -715,7 +938,7 @@ const SourceDetail = () => {
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        Downvote
+                        {t('sourceDetail.downvote')}
                         <Typography
                           variant="body2"
                           sx={{
@@ -733,70 +956,106 @@ const SourceDetail = () => {
                   </Box>
                 </Box>
                 
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                  {continue_chapter && (
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: {
+                      xs: '1fr',
+                      lg: continue_chapter && !isDmca ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+                    },
+                    gap: 1,
+                    mb: 1.5,
+                  }}
+                >
+                  <ActionButton
+                    title={t('sourceDetail.startReading')}
+                    subtitle={t('sourceDetail.fromBeginning')}
+                    startIcon={<PlayArrowIcon />}
+                    color="success"
+                    to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source.first_available_chapter?.chapter_id}`}
+                    disabled={isDmca || !source.first_available_chapter}
+                    tooltip={t('sourceDetail.startFromFirst')}
+                  />
+
+                  {continue_chapter && !isDmca && (
                     <ActionButton
-                      title="Continue Reading"
-                      subtitle={getChapterNameWithNumber(
-                        continue_chapter.title,
-                        continue_chapter.chapter_id
-                      )}
+                      title={t('sourceDetail.continueReading')}
+                      subtitle={getChapterLabel(t, continue_chapter.title, continue_chapter.chapter_id)}
                       startIcon={<BookmarkIcon />}
                       color="warning"
-                      // onClick={handleContinueReading}
                       to={`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`}
-                      tooltip={`Continue from chapter ${continue_chapter.chapter_id}`}
-                      sx={{ mb: 1 }}
+                      tooltip={t('sourceDetail.continueFrom', { chapter: getChapterLabel(t, continue_chapter.title, continue_chapter.chapter_id) })}
                     />
                   )}
-                  <Box sx={{ 
-                    width: '100%', 
-                    display: 'flex', 
-                    flexDirection: { xs: 'column', sm: 'row' }, 
-                    gap: 1,
-                    mb: 1
-                  }}>
-                    <ActionButton
-                      title="Chapter List"
-                      subtitle={`View all ${source?.chapters_count} chapters`}
-                      startIcon={<ViewListIcon />}
-                      backgroundIcon={<ListAltIcon />}
-                      color="info"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
-                      disabled={source?.latest_available_chapter?.chapter_id === 0}
-                      tooltip="Browse all chapters"
-                    />
 
-                    <ActionButton
-                      title="Image Gallery"
-                      subtitle="Browse all images"
-                      startIcon={<CollectionsIcon />}
-                      color="secondary"
-                      to={`/novels/${novelSlug}/${sourceSlug}/gallery`}
-                      tooltip="View image gallery"
-                    />
-
-                    <ActionButton
-                      title="Start Reading"
-                      subtitle="From Chapter 1"
-                      startIcon={<PlayArrowIcon />}
-                      color="success"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/1`}
-                      disabled={source?.latest_available_chapter?.chapter_id === 0}
-                      tooltip="Start reading from chapter 1"
-                    />
-
-                    <ActionButton
-                      title="Latest Chapter"
-                      subtitle={`Chapter ${source?.latest_available_chapter?.chapter_id || 0}`}
-                      startIcon={<SkipNextIcon />}
-                      color="primary"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
-                      disabled={!source?.latest_available_chapter}
-                      tooltip="Jump to the most recent chapter"
-                    />
-                  </Box>
+                  <ActionButton
+                    title={t('sourceDetail.latestChapter')}
+                    subtitle={getChapterLabel(t, source?.latest_available_chapter?.title, source?.latest_available_chapter?.chapter_id)}
+                    startIcon={<SkipNextIcon />}
+                    color="primary"
+                    to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
+                    disabled={isDmca || !source?.latest_available_chapter}
+                    tooltip={t('sourceDetail.jumpToLatest')}
+                  />
                 </Box>
+
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <ActionButton
+                    compact
+                    fullWidth={false}
+                    title={t('sourceDetail.chapterList')}
+                    startIcon={<ViewListIcon />}
+                    color="info"
+                    to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
+                    disabled={!source?.latest_available_chapter}
+                    tooltip={t('sourceDetail.browseAllChapters')}
+                  />
+
+                  <ActionButton
+                    compact
+                    fullWidth={false}
+                    title={t('sourceDetail.imageGallery')}
+                    startIcon={<CollectionsIcon />}
+                    color="secondary"
+                    to={`/novels/${novelSlug}/${sourceSlug}/gallery`}
+                    tooltip={t('sourceDetail.viewImageGallery')}
+                  />
+
+                  <ActionButton
+                    compact
+                    fullWidth={false}
+                    title={t('sourceDetail.download')}
+                    startIcon={<DownloadIcon />}
+                    color="info"
+                    onClick={(e) => setDownloadAnchor(e.currentTarget)}
+                    disabled={isDmca || !source?.chapters_count}
+                    tooltip={isDmca ? t('sourceDetail.dmcaNotice') : t('sourceDetail.downloadTooltip')}
+                  />
+                </Box>
+
+                <Menu
+                  anchorEl={downloadAnchor}
+                  open={Boolean(downloadAnchor)}
+                  onClose={() => setDownloadAnchor(null)}
+                >
+                  <MenuItem
+                    component="a"
+                    href={novelService.getSourceEpubUrl(novelSlug!, sourceSlug!)}
+                    onClick={() => setDownloadAnchor(null)}
+                  >
+                    {t('sourceDetail.downloadFull')}
+                  </MenuItem>
+                  {source?.volumes && source.volumes.length > 1 && source.volumes.map((v) => (
+                    <MenuItem
+                      key={v.volume_id}
+                      component="a"
+                      href={novelService.getSourceEpubUrl(novelSlug!, sourceSlug!, v.volume_id)}
+                      onClick={() => setDownloadAnchor(null)}
+                    >
+                      {v.title || t('sourceDetail.volumeN', { n: v.volume_id })}
+                    </MenuItem>
+                  ))}
+                </Menu>
               </Grid>
             </Grid>
           </Box>
@@ -814,34 +1073,103 @@ const SourceDetail = () => {
             <NovelUpdateButton 
               sourceUrl={source.source_url} 
               novelTitle={source.title} 
+              disabled={isDmca || source.has_crawler === false}
             />
           </Paper>
         )}
 
-        {source.tags.length > 0 && (
-          <SectionContainer title="Tags" icon={<BookmarkIcon />}>
-            <NovelTags 
-              tags={source.tags} 
-              chipSize="medium" 
-            />
-          </SectionContainer>
-        )}
-        
-        {source.synopsis && (
-          <SectionContainer title="Synopsis" icon={<BookmarkIcon />}>
+        {source.synopsis ? (
+          <SectionContainer title={t('sourceDetail.synopsis')} icon={<BookmarkIcon />}>
             <NovelSynopsis synopsis={source.synopsis} />
+          </SectionContainer>
+        ) : loading ? (
+          <SectionContainer title={t('sourceDetail.synopsis')} icon={<BookmarkIcon />}>
+            {[...Array(6)].map((_, i) => (
+              <Skeleton key={i} variant="text" width="100%" height={20} sx={{ mb: 1 }} animation="wave" />
+            ))}
+          </SectionContainer>
+        ) : null}
+
+        {((source.status && source.status !== 'Unknown') || source.original_publisher || source.english_publisher || source.editors?.length > 0 || source.translators?.length > 0) && (
+          <SectionContainer title={t('sourceDetail.details')} icon={<InfoIcon />}>
+            <Grid container spacing={2}>
+              {source.status && source.status !== 'Unknown' && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.status')} value={source.status} />
+                </Grid>
+              )}
+              {source.original_publisher && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.originalPublisher')} value={source.original_publisher} />
+                </Grid>
+              )}
+              {source.english_publisher && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.englishPublisher')} value={source.english_publisher} />
+                </Grid>
+              )}
+              {source.editors?.length > 0 && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.editors')} value={source.editors.join(', ')} />
+                </Grid>
+              )}
+              {source.translators?.length > 0 && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.translators')} value={source.translators.join(', ')} />
+                </Grid>
+              )}
+            </Grid>
           </SectionContainer>
         )}
 
-        
-        {novelSlug && (
-          <SectionContainer title="Comments" icon={<CommentIcon />}>
-            <CommentSection 
-              novelSlug={novelSlug}
-              title="Novel Comments" 
+        {novel && novel.sources.length > 1 && (
+          <SectionContainer title={t('sourceDetail.otherSources')} icon={<LanguageIcon />}>
+            <NovelSources
+              novel={{ ...novel, slug: novelSlug ?? novel.slug }}
+              currentSourceSlug={sourceSlug}
             />
           </SectionContainer>
         )}
+
+        {novel?.similar_novels && novel.similar_novels.length > 0 && (
+          <SectionContainer title={t('sourceDetail.similarNovels')} icon={<TrendingUpIcon />}>
+            <NovelRecommendation similarNovels={novel.similar_novels} />
+          </SectionContainer>
+        )}
+
+        {novel?.reading_lists && novel.reading_lists.length > 0 && (
+          <SectionContainer title={t('sourceDetail.inReadingLists')} icon={<PlaylistAddIcon />}>
+            <Grid container spacing={2}>
+              {novel.reading_lists.map((list) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={list.id}>
+                  <ReadingListCard list={list} />
+                </Grid>
+              ))}
+            </Grid>
+          </SectionContainer>
+        )}
+
+        {novelSlug && (
+          <SectionContainer title={t('sourceDetail.reviews')} icon={<MenuBookIcon />}>
+            <Reviews novelSlug={novelSlug} showAddReview={true} />
+          </SectionContainer>
+        )}
+
+        {novelSlug && (
+          <SectionContainer title={t('sourceDetail.comments')} icon={<CommentIcon />}>
+            <CommentSection 
+              novelSlug={novelSlug}
+              title={t('sourceDetail.novelComments')} 
+            />
+          </SectionContainer>
+        )}
+
+        <AddToListDialog
+          open={addToListOpen}
+          onClose={() => setAddToListOpen(false)}
+          novelId={source?.novel_id}
+          novelTitle={novel?.title || source?.title}
+        />
     </Container>
   );
 };

@@ -10,15 +10,17 @@ import {
   Button, 
   Typography 
 } from '@mui/material';
+import type { SxProps } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
 import { Novel } from '@models/novels_types';
+import { useTranslation } from 'react-i18next';
 
 interface MarkAsReadButtonProps {
   novel: Novel;
   onMarkAsRead?: () => void;
-  customSx?: React.CSSProperties | Record<string, any>;
+  customSx?: SxProps;
 }
 
 const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({ 
@@ -27,6 +29,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
   customSx = {}
 }) => {
   const { isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
@@ -34,7 +37,8 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
   const hasUnreadChapters = () => {
     if (novel.reading_history) {
       const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const lastReadChapterId = novel.reading_history.last_read_chapter.chapter_id;
+      const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
+      if (lastReadChapterId === undefined) return false;
       return latestChapterId > lastReadChapterId;
     }
     return novel.is_bookmarked && novel.prefered_source?.latest_available_chapter;
@@ -61,7 +65,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
       if (novel.reading_history) {
         sourceSlug = novel.reading_history.source_slug || novel.prefered_source?.source_slug || '';
         chapterNumber = novel.reading_history.source_latest_chapter?.chapter_id || 
-                       novel.reading_history.last_read_chapter.chapter_id;
+                       novel.reading_history.last_read_chapter?.chapter_id || 0;
       } else {
         sourceSlug = novel.prefered_source?.source_slug || '';
         chapterNumber = novel.prefered_source?.latest_available_chapter?.chapter_id || 0;
@@ -87,7 +91,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
   return (
     <>
       <Box sx={customSx}>
-        <Tooltip title="Mark as read" arrow>
+        <Tooltip title={t('markAsRead.tooltip')} arrow>
           <IconButton
             size="small"
             onClick={handleMarkAsReadClick}
@@ -117,15 +121,15 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Confirm Mark as Read</DialogTitle>
+        <DialogTitle>{t('markAsRead.confirmTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to mark "{novel.title}" as read? This will mark all chapters up to the latest available chapter as read.
+            {t('markAsRead.confirmBody', { title: novel.title })}
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCancelConfirmation} color="inherit">
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button 
             onClick={handleConfirmMarkAsRead} 
@@ -133,7 +137,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
             variant="contained"
             disabled={isLoading}
           >
-            Mark as Read
+            {t('markAsRead.confirm')}
           </Button>
         </DialogActions>
       </Dialog>

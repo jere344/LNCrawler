@@ -2,16 +2,32 @@ services:
   db:
     image: postgres:17
     restart: unless-stopped
+    shm_size: 128mb
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - autovacuum_work_mem=64MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - max_connections=40
+      - -c
+      - max_parallel_workers_per_gather=0
+    mem_limit: 1g
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     environment:
-      # Database credentials
-      # Replace with your own values
-      - POSTGRES_DB=lncrawler
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=biyoo
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,62 +35,110 @@ services:
   api:
     build: ./lncrawler-api
     restart: unless-stopped
-    volumes:
+    volumes: &api-volumes
       - ./lncrawler-api:/app/lncrawler-api
       - ./Lightnovels:/app/Lightnovels
       - ./imports:/app/imports
       - ./lncrawler-api/logs:/app/lncrawler-api/logs
-      - ./dipudb-lncrawler-jere344-patches:/app/dipudb-lncrawler-jere344-patches
-    environment:
-      - SITE_URL=http://localhost # Your website frontend URL
-      - SITE_API_URL=http://api.localhost # Your website API URL
-      - SECRET_KEY=django-insecure-h=mhg#$sm-l4o240a+m#f=98$)+m0_3p0*%v%_*w)bi(d3f1u_ # Your Django secret key. You can generate one using `django-admin startproject --generate-secret-key`
-      - DEBUG=False # Set to False in production
-      - CORS_ALLOW_ALL_ORIGINS=False # Set to False in production
-
-      # Django Admin credentials. Can be changed at runtime from the admin panel
-      - DJANGO_SUPERUSER_USERNAME=admin
-      - DJANGO_SUPERUSER_EMAIL=jeremy.guerin34@yahoo.com
-      - DJANGO_SUPERUSER_PASSWORD=admin
-
-      # Database credentials. Replace with the values used above for the db service
-      - POSTGRES_DB=lncrawler
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=biyoo
-
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-
-      # Brevo email service credentials (for password reset emails)
-      - BREVO_API_KEY= # Your Brevo API key
-      - DEFAULT_FROM_EMAIL=no-reply@lncrawler.monster # Your Brevo sender email
-      - EMAIL_SENDER_NAME=LNCrawler # Your Brevo sender name
+      - ./lncrawler-crawler:/app/lncrawler-crawler
+    environment: &api-env
+      SITE_URL: ${SITE_URL}
+      SITE_API_URL: ${SITE_API_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG}
+      CORS_ALLOW_ALL_ORIGINS: ${CORS_ALLOW_ALL_ORIGINS}
+      DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME}
+      DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL}
+      EMAIL_SENDER_NAME: ${EMAIL_SENDER_NAME}
+      GITHUB_REPO: ${GITHUB_REPO}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_ISSUES_ENABLED: ${GITHUB_ISSUES_ENABLED}
+      ISSUE_REPORTS_TO_DISK: ${ISSUE_REPORTS_TO_DISK}
+      ISSUE_REPORTS_DIR: ${ISSUE_REPORTS_DIR}
+      LNCRAWL_OUTPUT_PATH: /app/Lightnovels
+    env_file: .env
     depends_on:
       db:
         condition: service_healthy
     command: ["sh", "/app/lncrawler-api/start.sh"]
-  
+
+  # Job workers: identical any-job workers that atomically claim from the DB
+  # queue. Scale with usage: set CRAWLER_REPLICAS in .env, or run
+  #   docker compose up -d --scale crawler=N
+  crawler:
+    build: ./lncrawler-api
+    restart: unless-stopped
+    # tini as PID 1 (reaps orphaned Chromium grandchildren from job subprocesses).
+    init: true
+    # Hard cap so a runaway job/leak OOM-kills a crawler, not the host.
+    # Sized for CRAWLER_CONCURRENCY jobs (each job is its own subprocess).
+    mem_limit: ${CRAWLER_MEM_LIMIT:-2g}
+    deploy:
+      replicas: ${CRAWLER_REPLICAS:-1}
+    volumes: *api-volumes
+    environment:
+      <<: *api-env
+      CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-5}
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: ["sh", "/app/lncrawler-api/start_crawler.sh"]
+
+  # Singleton maintenance process: runs the periodic database-backed tasks AND
+  # the harvest feeder (in a thread). The feeder discovers novels and queues
+  # download jobs onto the crawler queue; it is toggled from the admin
+  # (HarvestConfig). Merged into one process to save a whole Django interpreter.
+  scheduler:
+    build: ./lncrawler-api
+    restart: unless-stopped
+    volumes: *api-volumes
+    environment: *api-env
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: ["sh", "/app/lncrawler-api/start_scheduler.sh"]
+
   frontend:
     build:
       context: ./lncrawler-frontend
       args:
-        - VITE_API_BASE_URL=http://api.localhost # Your website API URL
+        - VITE_API_BASE_URL=${SITE_API_URL}
+        - VITE_SITE_URL=${SITE_URL}
     restart: unless-stopped
     depends_on:
       - api
-    
+
   nginx-proxy:
     build: ./nginx-proxy
     restart: unless-stopped
     ports:
-      - "80:80"  # The main entry point
+      - "${NGINX_PORT:-80}:80"  # The main entry point
     volumes:
       - ./lncrawler-api/static:/static
       - ./lncrawler-api/media:/media
+      - ./lncrawler-api/logs:/logs
       - ./Lightnovels:/lightnovels
     environment:
-      - API_HOST=api.localhost # Your API host
-      - FRONTEND_HOST=localhost # Your frontend host
+      - SITE_URL=${SITE_URL}
+      - SITE_API_URL=${SITE_API_URL}
     depends_on:
       - api
       - frontend

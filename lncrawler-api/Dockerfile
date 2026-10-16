@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 
 # Install system dependencies
@@ -18,9 +18,15 @@ WORKDIR /app/lncrawler-api
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the startup script
-COPY start.sh /app/lncrawler-api/
-RUN chmod +x /app/lncrawler-api/start.sh
+# Install the Chromium browser used by the crawler's Playwright backend.
+# Native (curl_cffi) crawling works without it; the browser is the antibot fallback.
+RUN playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the startup scripts
+COPY start.sh start_crawler.sh start_scheduler.sh /app/lncrawler-api/
+RUN sed -i 's/\r$//' /app/lncrawler-api/start.sh /app/lncrawler-api/start_crawler.sh /app/lncrawler-api/start_scheduler.sh \
+    && chmod +x /app/lncrawler-api/start.sh /app/lncrawler-api/start_crawler.sh /app/lncrawler-api/start_scheduler.sh
 
 # Create logs directory for gunicorn
 RUN mkdir -p /app/lncrawler-api/logs

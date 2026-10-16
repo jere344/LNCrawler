@@ -4,16 +4,12 @@ import {
   Alert,
 } from '@mui/material';
 import CommentItem from './CommentItem';
-import { Comment } from '@models/comments_types';
+import { Comment, CommentFormData } from '@models/comments_types';
+import { useTranslation } from 'react-i18next';
 
 interface CommentListProps {
   comments: Comment[];
-  onAddReply?: (commentData: { 
-    author_name: string; 
-    message: string; 
-    contains_spoiler: boolean;
-    parent_id: string;
-  }) => Promise<void>;
+  onAddReply?: (commentData: CommentFormData) => Promise<void>;
   currentSource?: string;
 }
 
@@ -22,12 +18,15 @@ const CommentList = ({
   onAddReply,
   currentSource,
 }: CommentListProps) => {
-  const emptyMessage = 'No comments yet. Be the first to comment!';
+  const { t } = useTranslation();
+  const emptyMessage = t('comments.noComments');
 
   if (comments.length === 0) {
     return (
       <Box sx={{ py: 2, textAlign: 'center' }}>
-        <Typography color="text.secondary">
+        <Typography sx={{
+          color: "text.secondary"
+        }}>
           {emptyMessage}
         </Typography>
       </Box>
@@ -38,7 +37,7 @@ const CommentList = ({
     <Box>
       {currentSource && comments.some(comment => comment.source_slug !== currentSource) && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Some comments below were posted for different sources. Sources may use different chapter numbering so there may be spoilers or seemingly irrelevant comments.
+          {t('comments.mixedSourcesWarning')}
         </Alert>
       )}
 

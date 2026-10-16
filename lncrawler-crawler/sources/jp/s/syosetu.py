@@ -1,0 +1,150 @@
+# -*- coding: utf-8 -*-
+import logging
+import re
+from urllib.parse import quote_plus
+from lncrawl.core.crawler import Crawler
+from lncrawl.models import SearchResult
+from bs4 import element
+
+logger = logging.getLogger(__name__)
+search_url = "https://yomou.syosetu.com/search.php?word=%s"
+
+
+class SyosetuCrawler(Crawler):
+    has_mtl = False
+    base_url = "https://ncode.syosetu.com/"
+
+    def initialize(self) -> None:
+        self.init_executor(2)
+
+    def search_novel(self, query):
+        soup = self.get_soup(search_url % quote_plus(query))
+        results = []
+        for tab in soup.select(".searchkekka_box"):
+            a = tab.select_one(".novel_h a")
+            latest = (
+                tab.select_one(".left").get_text(separator=" ").strip()
+            )  # e.g.: 連載中 (全604部分)
+            votes = tab.select_one(
+                ".attention"
+            ).text.strip()  # e.g.: "総合ポイント： 625,717 pt"
+            results.append(
+                {
+                    "title": a.text.strip(),
+                    "url": self.absolute_url(a["href"]),
+                    "info": "%s | %s" % (latest, votes),
+                }
+            )
+        return results
+
+    def browse_novels(self, offset=0, limit=50):
+        results = []
+        page = 1
+        while len(results) < offset + limit:
+            soup = self.get_soup(
+                f"https://yomou.syosetu.com/rank/list/type/total_total/?p={page}"
+            )
+            items = soup.select(".p-ranklist-item")
+            if not items:
+                break
+            for item in items:
+                a = item.select_one(".p-ranklist-item__title a")
+                if not a:
+                    continue
+                results.append(
+                    SearchResult(
+                        title=a.get_text(strip=True),
+                        url=self.absolute_url(a["href"]),
+                    )
+                )
+            page += 1
+        return results[offset : offset + limit]
+
+    def read_novel_info(self):
+        self.novel_edition = "Web Novel"
+        self.init_parser('lxml')
+        soup = self.get_soup(self.novel_url)
+
+        self.novel_title = soup.select_one(".p-novel__title").text.strip()
+        logger.debug('Novel title: %s', self.novel_title)
+
+        # No novel cover.
+
+        author_tag = soup.select_one(".p-novel__author") or soup.select_one(
+            ".novel_writername a"
+        )
+        if author_tag:
+            self.novel_author = author_tag.get_text(strip=True).replace("作者：", "").strip()
+
+        self._parse_infotop()
+
+        synopsis_tag = soup.select_one(".p-novel__summary") or soup.select_one("#novel_ex")
+        if synopsis_tag:
+            self.novel_synopsis = synopsis_tag.get_text("\n", strip=True)
+        logger.debug('Novel synopsis: %s', self.novel_synopsis)
+
+        # Syosetu calls parts "chapters"
+        pager_last = soup.select_one(".c-pager__item--last")
+        if pager_last and 'href' in pager_last.attrs:
+            page_num = int(pager_last["href"].split("=")[-1])
+            calls = [(self.get_soup, f'{self.novel_url}?p={x}') for x in range(1, page_num + 1)]
+            pages = self.resolve_bounded(calls)
+        else:
+            pages = iter([soup])
+
+        volume_id = 0
+        chapter_id = 0
+        for page_soup in pages:
+            for tag in page_soup.select_one(".p-eplist"):
+
+                if type(tag) is element.NavigableString:
+                    continue
+
+                if 'p-eplist__chapter-title' in tag.attrs.get('class', ''):
+                    # Part/volume (there might be none)
+                    volume_id += 1
+                    self.volumes.append({
+                        'id': volume_id,
+                        'title': tag.text.strip(),
+                    })
+                elif tag.select('a')[0]:
+                    # Chapter
+                    tag = tag.select('a')[0]
+                    chapter_id += 1
+                    self.chapters.append({
+                        "id": chapter_id,
+                        "volume": volume_id,
+                        "title": tag.text.strip(),
+                        "url": self.absolute_url(tag["href"]),
+                    })
+
+        # Novels without 部分 (parts) have no volume markers; keep them in a
+        # single volume instead of leaving every chapter at volume 0.
+        if not self.volumes:
+            self.volumes.append({"id": 1, "title": "Volume 1"})
+            for chapter in self.chapters:
+                chapter["volume"] = 1
+
+    def download_chapter_body(self, chapter):
+        soup = self.get_soup(chapter["url"])
+        contents = soup.select_one(".p-novel__body")
+        contents = self.cleaner.extract_contents(contents)
+        return contents
+
+    def _parse_infotop(self):
+        match = re.search(r"/(n[a-z0-9]+)/?$", self.novel_url.rstrip("/"))
+        if not match:
+            return
+        info_url = self.absolute_url(
+            f"/novelview/infotop/ncode/{match.group(1)}/"
+        )
+        info = self.get_soup(info_url)
+        for dt in info.select(".p-infotop-data__title"):
+            label = dt.get_text(strip=True)
+            dd = dt.find_next_sibling("dd")
+            if dd is None:
+                continue
+            if "キーワード" in label:
+                self.tags = [x for x in dd.get_text(" ", strip=True).split() if x]
+            elif "ジャンル" in label:
+                self.genres = [dd.get_text(strip=True)]

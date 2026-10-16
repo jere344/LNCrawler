@@ -8,56 +8,17 @@ from lncrawler_api.models import NovelFromSource
 
 logger = logging.getLogger('lncrawler_api')
 
-
-def legacy_source_cleanup(source_folder):
-    """
-    Clean up legacy files in the source folder.
-    This function removes any files that are now unused or redundant
-    """
-    if not os.path.isdir(source_folder):
-        logger.warning(f"Source folder does not exist: {source_folder}")
-        return
-    legacy_files = [
-        os.path.join(source_folder, 'cover.min.jpg'),
-        os.path.join(source_folder, 'cover.sm.jpg'),
-    ]
-    for legacy_file in legacy_files:
-        if os.path.exists(legacy_file):
-            try:
-                os.remove(legacy_file)
-                logger.info(f"Removed legacy file: {legacy_file}")
-            except Exception as e:
-                logger.error(f"Failed to remove legacy file {legacy_file}: {str(e)}")
-    
-    # if we have both a source_folder/json folder and a source_folder/json.7z, we can remove json.7z
-    json_folder = os.path.join(source_folder, 'json')
-    json_7z_file = os.path.join(source_folder, 'json.7z')
-    if os.path.isdir(json_folder) and os.path.exists(json_7z_file):
-        try:
-            os.remove(json_7z_file)
-            logger.info(f"Removed legacy json.7z file: {json_7z_file}")
-        except Exception as e:
-            logger.error(f"Failed to remove legacy json.7z file {json_7z_file}: {str(e)}")
-
-def legacy_novel_cleanup(novel_folder):
-    """
-    Clean up legacy files in the novel folder.
-    This function removes any files that are now unused or redundant
-    """
-    if not os.path.isdir(novel_folder):
-        logger.warning(f"novel folder does not exist: {novel_folder}")
-        return
-    legacy_files = [
-        os.path.join(novel_folder, 'stats.json'),
-    ]
-    for legacy_file in legacy_files:
-        if os.path.exists(legacy_file):
-            try:
-                os.remove(legacy_file)
-                logger.info(f"Removed legacy file: {legacy_file}")
-            except Exception as e:
-                logger.error(f"Failed to remove legacy file {legacy_file}: {str(e)}")
-
+# Import novels downloaded outside the app into the library + DB.
+#
+# A drop folder (settings.IMPORT_FOLDER_PATH, host ./imports) holds novels laid
+# out as <novel>/<source>/meta.json. Run:
+#   docker compose exec -T api python manage.py run_import            # move (default)
+#   docker compose exec -T api python manage.py run_import --action copy
+# It moves/copies each <novel>/<source>/ into the library and upserts the rows.
+#
+# The background harvest feeder (a thread inside the `scheduler` service,
+# toggled in the admin) discovers and imports novels automatically; run_import
+# is for bulk-loading a pre-downloaded catalogue.
 
 class Command(BaseCommand):
     help = 'Import novels from the import folder specified in settings.IMPORT_FOLDER_PATH'
@@ -117,10 +78,6 @@ class Command(BaseCommand):
                         # This means the structure is import_folder/novel/source/meta.json which is correct
                         self.stdout.write(f"Processing: {novel_folder_name}/{source_folder_name}")
 
-                        # Clean up legacy files if necessary
-                        legacy_novel_cleanup(novel_folder=os.path.dirname(source_folder))
-                        legacy_source_cleanup(source_folder=source_folder)
-
                         library_path = settings.LNCRAWL_OUTPUT_PATH
                         library_novel_path = os.path.join(library_path, novel_folder_name)
                         os.makedirs(library_novel_path, exist_ok=True)
@@ -157,6 +114,13 @@ class Command(BaseCommand):
                             # Update meta_file_path to the new location
                             meta_file_path = os.path.join(target_source_path, 'meta.json')
                         
+                        # In copy mode the originals stay in the import folder, so
+                        # import from the copy under the library. Importing the
+                        # original would let _consolidate_source_directory move the
+                        # staging folder away, defeating the copy.
+                        if import_action == 'copy':
+                            meta_file_path = os.path.join(target_source_path, 'meta.json')
+
                         # Import the novel
                         novel_from_source = NovelFromSource.from_meta_json(meta_file_path)
                         

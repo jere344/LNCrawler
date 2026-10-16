@@ -1,0 +1,24 @@
+{% extends "seo/base.html" %}
+{% block content %}
+<h1>{{ source.title }} <span class="meta">({{ source_name }})</span></h1>
+{% if synopsis %}<p>{{ synopsis }}</p>{% endif %}
+
+<ul class="sources">
+  <li>Status: {{ source.get_status_display }}</li>
+  <li>Language: {{ source.language }}</li>
+  <li>Chapters: {{ source.chapters_count }}</li>
+  {% if source.upvotes or source.downvotes %}<li>Votes: {{ source.upvotes }} up / {{ source.downvotes }} down</li>{% endif %}
+</ul>
+
+{% if source.authors.all %}
+<h2>Authors</h2>
+<p>{{ source.authors.all|join:", " }}</p>
+{% endif %}
+
+{% if source.tags.all %}
+<h2>Tags</h2>
+<p class="tags">{% for tag in source.tags.all %}<span>{{ tag.name }}</span>{% endfor %}</p>
+{% endif %}
+
+<p><a href="{{ chapterlist_url }}">Read all chapters &raquo;</a></p>
+{% endblock %}

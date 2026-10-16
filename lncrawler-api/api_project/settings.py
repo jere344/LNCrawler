@@ -12,26 +12,32 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
-from pathlib import Path
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 load_dotenv(encoding='utf-8')
 
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8185").rstrip("/")
 SITE_API_URL = os.environ.get("SITE_API_URL", "http://localhost:8000").rstrip("/")
-SITE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]
-API_DOMAIN = SITE_API_URL.split("//")[-1].split("/")[0]
+# ALLOWED_HOSTS and the cookie domain must be the bare hostname: nginx forwards
+# `Host` without the port.
+SITE_DOMAIN = urlparse(SITE_URL).hostname or ""
+API_DOMAIN = urlparse(SITE_API_URL).hostname or ""
+
+
+def _origins(url):
+    # Trust the URL as given AND its scheme+hostname. A TLS terminator sends the
+    # browser an Origin with the public port (usually none), while the env URL
+    # may carry the internal NGINX_PORT; trusting both keeps CSRF working either
+    # way. CSRF_TRUSTED_ORIGINS must not contain a path.
+    parsed = urlparse(url)
+    return {f"{parsed.scheme}://{parsed.netloc}", f"{parsed.scheme}://{parsed.hostname}"}
 
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
 
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 
-CORS_ALLOWED_ORIGINS = [
-    f"http://{SITE_DOMAIN}",
-    f"https://{SITE_DOMAIN}",
-    f"http://{API_DOMAIN}",
-    f"https://{API_DOMAIN}",
-]
+CORS_ALLOWED_ORIGINS = sorted(_origins(SITE_URL) | _origins(SITE_API_URL))
 ALLOWED_HOSTS = [
     SITE_DOMAIN,
     API_DOMAIN,
@@ -47,13 +53,12 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
+# Credentialed CORS with a wildcard origin is unsafe (and browsers reject it).
+# Force credentials off whenever every origin is allowed.
+if CORS_ALLOW_ALL_ORIGINS:
+    CORS_ALLOW_CREDENTIALS = False
 
-CSRF_TRUSTED_ORIGINS = [
-    f"http://{SITE_DOMAIN}",
-    f"https://{SITE_DOMAIN}",
-    f"http://{API_DOMAIN}",
-    f"https://{API_DOMAIN}",
-]
+CSRF_TRUSTED_ORIGINS = sorted(_origins(SITE_URL) | _origins(SITE_API_URL))
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_COOKIE_HTTPONLY = False 
 CSRF_USE_SESSIONS = False
@@ -64,7 +69,7 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    CSRF_COOKIE_DOMAIN = SITE_URL.split("//")[-1].split("/")[0]  # Extract domain from SITE_URL
+    CSRF_COOKIE_DOMAIN = SITE_DOMAIN
 else:
     SECURE_PROXY_SSL_HEADER = None
     SESSION_COOKIE_SECURE = False
@@ -88,6 +93,7 @@ INSTALLED_APPS = [
     'auth_app',
     'django.contrib.sitemaps',
     'rest_framework.authtoken',
+    'django.contrib.postgres',
 ]
 
 MIDDLEWARE = [
@@ -132,7 +138,13 @@ DATABASES = {
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'postgres'),
         'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
         'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-        'ATOMIC_REQUESTS': True,
+        # Read-heavy public API: most requests are pure reads, so we avoid
+        # wrapping every request in a transaction. Write views rely on
+        # ATOMIC_REQUESTS-off semantics; keep transactions explicit where needed.
+        'ATOMIC_REQUESTS': False,
+        # Reuse the connection between requests instead of reconnecting each time.
+        'CONN_MAX_AGE': 60,
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 
@@ -186,6 +198,80 @@ LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR.parent, 'Lightnovels')
 LNCRAWL_URL = "lightnovels/"
 LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 
+# Hours a generated EPUB is reused before being rebuilt even if the source
+# hasn't changed. Also invalidated immediately when the source is updated.
+EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
+
+# Cross-source novel dedup (find_merge_candidates). certainty is 0..1 and a
+# candidate only auto-merges once it reaches MERGE_AUTO_SCORE; the default (>1)
+# never merges without a human, so lower it once the review queue is trusted.
+MERGE_AUTO_SCORE = float(os.environ.get("MERGE_AUTO_SCORE", "1.01"))
+# Pairs at/above this certainty are queued for manual review.
+MERGE_REVIEW_LOW = 0.5
+# A cover hash on at least this many novels is treated as a shared placeholder.
+MERGE_PLACEHOLDER_MIN_NOVELS = 5
+# Skip title/alt/author blocks bigger than this (a generic shared token).
+MERGE_MAX_BLOCK_SIZE = 50
+# Fuzzy title similarity floor; <0 disables the trigram pass.
+MERGE_TRIGRAM_MIN = 0.4
+
+# LLM gray-band adjudication (judge_merge_candidates). The provider/model are
+# the only knobs used by services/llm_service.py; it accepts any OpenAI-compatible
+# chat-completions endpoint (see PROVIDER_URLS there to switch provider).
+MERGE_LLM_PROVIDER = os.environ.get("MERGE_LLM_PROVIDER", "groq")
+MERGE_LLM_API_KEY = os.environ.get("MERGE_LLM_API_KEY", "")
+MERGE_LLM_MODEL = os.environ.get("MERGE_LLM_MODEL", "openai/gpt-oss-20b")
+# Reasoning models spend hidden tokens against max_tokens; "low" keeps replies short.
+# Empty omits the field for providers that reject it.
+MERGE_LLM_REASONING_EFFORT = os.environ.get("MERGE_LLM_REASONING_EFFORT", "low")
+MERGE_LLM_BASE_URL = os.environ.get("MERGE_LLM_BASE_URL", "")  # non-empty overrides the provider's default endpoint
+MERGE_LLM_TIMEOUT = 30
+MERGE_LLM_MAX_TOKENS = 2048  # novel-judge reply cap (reasoning counts toward it)
+MERGE_LLM_DAILY_LIMIT = int(os.environ.get("MERGE_LLM_DAILY_LIMIT", "500"))  # Groq free tier (1k RPD for this model)
+# Token budget per day, shared by both judges. Groq's free tier caps this model
+# at 200k tokens/day; the default keeps a margin under that.
+MERGE_LLM_DAILY_TOKENS = int(os.environ.get("MERGE_LLM_DAILY_TOKENS", "180000"))
+MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
+MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
+# A confident "different" verdict dismisses a low-certainty pair (status skipped)
+# so the reviewer never sees it. Certainty at/above the cap always stays queued.
+MERGE_LLM_DISMISS_CONFIDENCE = float(os.environ.get("MERGE_LLM_DISMISS_CONFIDENCE", "0.9"))
+MERGE_LLM_DISMISS_MAX_CERTAINTY = float(os.environ.get("MERGE_LLM_DISMISS_MAX_CERTAINTY", "0.8"))
+
+# Automatic tag merging (find_tag_merge_candidates / judge_tag_clusters).
+# Embeddings: any OpenAI-compatible /embeddings endpoint; see services/embedding_service.py.
+TAG_EMBED_PROVIDER = os.environ.get("TAG_EMBED_PROVIDER", "jina")
+TAG_EMBED_API_KEY = os.environ.get("TAG_EMBED_API_KEY", "")
+# Calibrated on the real Jina API: on v5 true synonyms score 0.58-0.99 and
+# related-but-distinct tags score up to 0.90, so embeddings only propose
+# candidates and the LLM decides.
+TAG_EMBED_MODEL = os.environ.get("TAG_EMBED_MODEL", "jina-embeddings-v5-omni-small")
+TAG_EMBED_BASE_URL = os.environ.get("TAG_EMBED_BASE_URL", "")  # non-empty overrides the provider's default endpoint
+TAG_EMBED_BATCH = 128  # tag names per embeddings request
+TAG_EMBED_TIMEOUT = 30
+# Candidate generation: neighbours per tag and the cosine floor for embeddings.
+TAG_EMBED_TOP_K = 5
+TAG_EMBED_MIN = 0.6
+# Co-occurrence: tags sharing this many novels across different sources, at this
+# share of the rarer tag's novels, keeping at most TAG_COOC_TOP_K edges per tag.
+TAG_COOC_MIN_NOVELS = 2
+TAG_COOC_MIN = 0.3
+TAG_COOC_TOP_K = 5
+# Trigram similarity floor on the normalized keys.
+TAG_TRGM_MIN = 0.6
+# Largest group sent to the judge as one cluster.
+TAG_CLUSTER_MAX = 12
+# LLM judging reuses MERGE_LLM_PROVIDER/MODEL/API_KEY. Budget and batching:
+TAG_LLM_DAILY_LIMIT = int(os.environ.get("TAG_LLM_DAILY_LIMIT", "100"))  # judge calls per day
+TAG_LLM_CALLS_PER_TICK = 3  # judge calls per scheduler tick
+TAG_LLM_TAGS_PER_CALL = 30  # pack clusters until this many tags are in one call
+TAG_LLM_INTERVAL = 600  # seconds between judge ticks
+TAG_LLM_MAX_TOKENS = 4096
+# Safeguards: sets below this confidence, or joining two tags used by more than
+# TAG_BIG_TAG_USAGE sources, wait for review instead of being applied.
+TAG_AUTO_MIN_CONFIDENCE = 0.85
+TAG_BIG_TAG_USAGE = 200
+
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 
 REST_FRAMEWORK = {
@@ -198,6 +284,13 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
     'COERCE_DECIMAL_TO_STRING': False,
+    # Scoped rates consumed by the throttle classes in auth_app.views.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': os.environ.get('THROTTLE_LOGIN', '10/min'),
+        'register': os.environ.get('THROTTLE_REGISTER', '10/hour'),
+        'password_reset': os.environ.get('THROTTLE_PASSWORD_RESET', '5/hour'),
+        'user_exists': os.environ.get('THROTTLE_USER_EXISTS', '30/min'),
+    },
 }
 
 CORS_URLS_REGEX = r"^/.*$"
@@ -210,6 +303,33 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = 'auth_app.CustomUser'
 
 import logging
+
+# DEBUG logging in production is expensive (record creation, formatting, I/O)
+# and the crawler libraries are noisy. Default to INFO unless overridden.
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
+
+# --- GitHub issue reporting for unexpected errors ---
+# When enabled, every ERROR+ log record (web, crawler, scheduler) opens a
+# GitHub issue, deduplicated by fingerprint. Leave GITHUB_ISSUES_ENABLED=False
+# in development so local errors do not spam the tracker.
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+GITHUB_ISSUES_ENABLED = os.environ.get("GITHUB_ISSUES_ENABLED", "False") == "True"
+# Development alternative to the GitHub tracker: when set, each unexpected error
+# writes one Markdown file per fingerprint under ISSUE_REPORTS_DIR instead of
+# opening an issue. Dedup is the file already existing.
+ISSUE_REPORTS_TO_DISK = os.environ.get("ISSUE_REPORTS_TO_DISK", "False") == "True"
+ISSUE_REPORTS_DIR = os.environ.get(
+    "ISSUE_REPORTS_DIR", os.path.join(BASE_DIR, "issue-reports")
+)
+# Identifies which runner produced a log/issue: api / crawler / scheduler / harvest.
+SERVICE_NAME = os.environ.get("SERVICE_NAME") or "api"
+
+# One log file per runner. Concurrent processes previously appended to the same
+# two files, so a rotation in one process moved the file out from under the rest.
+LOGS_DIR = os.path.join(BASE_DIR, "logs")
+SERVICE_LOG_FILE = os.path.join(LOGS_DIR, f"{SERVICE_NAME}.log")
+HARVEST_LOG_FILE = os.path.join(LOGS_DIR, "harvest.log")
 
 # Define a custom UTF-8 stream handler
 class UTF8StreamHandler(logging.StreamHandler):
@@ -234,10 +354,6 @@ LOGGING = {
             'format': '[DJANGO] {levelname} {asctime} {module} {message}',
             'style': '{',
         },
-        'apibot_formatter': {
-            'format': '[APIBOT] {levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
         'lncrawler_api_formatter': {
             'format': '[LNCrawlerAPI] {levelname} {asctime} {module} {message}',
             'style': '{',
@@ -247,57 +363,94 @@ LOGGING = {
         'django_console': {
             'class': 'api_project.settings.UTF8StreamHandler',
             'formatter': 'django_formatter',
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
         },
         'lncrawler_api_console': {
             'class': 'api_project.settings.UTF8StreamHandler',
             'formatter': 'lncrawler_api_formatter',
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
         },
-        'django_file': {
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
-            'formatter': 'django_formatter',
-            'encoding': 'utf-8',
-        },
-        'apibot_file': { 
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'apibot.log'),
-            'formatter': 'apibot_formatter',
-            'encoding': 'utf-8',
-        },
-        'lncrawler_api_file': {
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'lncrawler_api.log'),
+        'service_file': {
+            'class': 'api_project.logging_handlers.ReopeningRotatingFileHandler',
+            'filename': SERVICE_LOG_FILE,
             'formatter': 'lncrawler_api_formatter',
             'encoding': 'utf-8',
+            'level': LOG_LEVEL,
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
+        },
+        'harvest_file': {
+            'class': 'api_project.logging_handlers.ReopeningRotatingFileHandler',
+            'filename': HARVEST_LOG_FILE,
+            'formatter': 'lncrawler_api_formatter',
+            'encoding': 'utf-8',
+            'level': LOG_LEVEL,
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
+        },
+        'github_issues': {
+            # Non-blocking: enqueues to a background thread and opens a GitHub
+            # issue for ERROR+ records. No-op unless GITHUB_* settings are set.
+            'class': 'api_project.logging_handlers.GitHubIssueHandler',
+            'level': 'ERROR',
         },
     },
     'loggers': {
         'django': {  # Django's built-in logger
-            'handlers': ['django_console', 'django_file'],
-            'level': 'INFO',
+            'handlers': ['django_console', 'service_file', 'github_issues'],
+            'level': LOG_LEVEL,
             'propagate': False,
         },
         'lncrawler_api': { 
-            'handlers': ['lncrawler_api_console', 'lncrawler_api_file'],
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
 
-            'level': 'DEBUG',
+            'level': LOG_LEVEL,
             'propagate': False,
         },
-        'apibot': {  # Separate logger for PythonApiBot - file only, no console
-            'handlers': ['apibot_file'], 
-            'level': 'DEBUG',
+        # Harvest feeder thread: runs inside the scheduler process, so it needs
+        # its own logger name to land in harvest.log instead of scheduler.log.
+        'lncrawler_api.harvest': {
+            'handlers': ['lncrawler_api_console', 'harvest_file', 'github_issues'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'lncrawl': {  # The lncrawler-crawler library
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'frontend': {  # Errors reported by the browser via /report-error/
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        'auth_app': {  # Otherwise propagates to a handler-less root logger
+            'handlers': ['lncrawler_api_console', 'service_file', 'github_issues'],
+            'level': LOG_LEVEL,
             'propagate': False,
         },
     },
 }
 
 # Create logs directory if it doesn't exist
-os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 
-# Email settings
-BREVO_API_KEY = os.environ.get("BREVO_API_KEY", None)
+# Email settings — standard SMTP, provider-agnostic. Swapping providers is a
+# config change only. MailPace: host smtp.mailpace.com, port 587 (STARTTLS),
+# and the domain's API token as both EMAIL_HOST_USER and EMAIL_HOST_PASSWORD.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.mailpace.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
+)
+# Local dev without credentials: print reset emails to the console instead of
+# failing. Never silently enabled in production.
+if DEBUG and not EMAIL_HOST_USER:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@lncrawler.monster")
 EMAIL_SENDER_NAME = os.environ.get("EMAIL_SENDER_NAME", "LNCrawler")

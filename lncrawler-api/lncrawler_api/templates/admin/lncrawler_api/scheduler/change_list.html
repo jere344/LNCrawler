@@ -1,0 +1,9 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+  <li>
+    <a href="{{ management_url }}" class="addlink">Maintenance</a>
+  </li>
+  {{ block.super }}
+{% endblock %}

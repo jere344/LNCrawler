@@ -2,3 +2,7 @@ Lightnovels
 imports
 __pycache__
 output
+.env
+logs
+issue-reports
+postgres_data

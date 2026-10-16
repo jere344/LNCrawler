@@ -10,15 +10,15 @@ import {
   CircularProgress,
 } from '@mui/material';
 import EditableMDXEditor from './EditableMDXEditor';
-import { reviewService } from '@services/api';
-import { CreateReviewData } from '@services/review.service';
-import { useTheme } from '@mui/material';
+import { reviewService, type ApiError } from '@services/api';
+import { CreateReviewData, Review } from '@services/review.service';
+import { useTranslation } from 'react-i18next';
 
 interface ReviewFormProps {
   novelSlug: string;
-  onReviewAdded: (review: any) => void;
+  onReviewAdded: (review: Review) => void;
   onCancel?: () => void;
-  editingReview?: any;
+  editingReview?: Review | null;
 }
 
 const ReviewForm: React.FC<ReviewFormProps> = ({ 
@@ -27,13 +27,13 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
   onCancel,
   editingReview 
 }) => {
-  const theme = useTheme();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [rating, setRating] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editorKey, setEditorKey] = useState(0);
+  const { t } = useTranslation();
 
   // Pre-populate form when editing
   useEffect(() => {
@@ -55,7 +55,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim() || !rating) {
-      setError('Please fill in all fields and provide a rating.');
+      setError(t('reviewForm.fillAll'));
       return;
     }
 
@@ -84,12 +84,13 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
       setTitle('');
       setContent('');
       setRating(null);
-    } catch (err: any) {
+    } catch (err) {
+      const apiErr = err as ApiError;
       console.error('Error saving review:', err);
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
+      if (apiErr.response?.data?.error) {
+        setError(apiErr.response.data.error);
       } else {
-        setError(`Failed to ${editingReview ? 'update' : 'add'} review. Please try again.`);
+        setError(t(editingReview ? 'reviewForm.failedUpdate' : 'reviewForm.failedAdd'));
       }
     } finally {
       setLoading(false);
@@ -108,7 +109,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
       }}
     >
       <Typography variant="h6" gutterBottom>
-        {editingReview ? 'Edit Review' : 'Write a Review'}
+        {t(editingReview ? 'reviewForm.headingEdit' : 'reviewForm.headingWrite')}
       </Typography>
 
       {error && (
@@ -120,18 +121,18 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
       <Box component="form" onSubmit={handleSubmit}>
         <TextField
           fullWidth
-          label="Review Title"
+          label={t('reviewForm.title')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           margin="normal"
           required
           disabled={loading}
-          placeholder="Give your review a descriptive title..."
+          placeholder={t('reviewForm.titlePlaceholder')}
         />
 
         <Box sx={{ mt: 2, mb: 2 }}>
           <Typography component="legend" gutterBottom>
-            Rating *
+            {t('reviewForm.ratingLegend')}
           </Typography>
           <Rating
             name="novel-rating"
@@ -144,12 +145,12 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
 
         <Box sx={{ mt: 2, mb: 2 }}>
           <Typography component="legend" gutterBottom>
-            Review Content *
+            {t('reviewForm.contentLegend')}
           </Typography>
           <EditableMDXEditor
             content={content}
             onChange={setContent}
-            placeholder="Share your thoughts about this novel... "
+            placeholder={t('reviewForm.contentPlaceholder')}
             editorKey={editorKey}
           />
         </Box>
@@ -161,7 +162,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
               onClick={onCancel}
               disabled={loading}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
           )}
           <Button
@@ -170,7 +171,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
             disabled={loading || !title.trim() || !content.trim() || !rating}
             startIcon={loading && <CircularProgress size={20} />}
           >
-            {loading ? (editingReview ? 'Updating...' : 'Submitting...') : (editingReview ? 'Update Review' : 'Submit Review')}
+            {loading ? t(editingReview ? 'reviewForm.updating' : 'reviewForm.submitting') : t(editingReview ? 'reviewForm.updateReview' : 'reviewForm.submitReview')}
           </Button>
         </Box>
       </Box>

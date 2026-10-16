@@ -106,22 +106,30 @@ export const getHackerTheme = () =>
                         fontFamily: '"Fira Code", monospace',
                         letterSpacing: "0.05em",
                     },
-                    containedPrimary: {
-                        boxShadow: "0 0 10px rgba(0, 255, 0, 0.5)",
-                        background: "linear-gradient(180deg, #004d00 0%, #00cc00 100%)",
-                        "&:hover": {
-                            boxShadow: "0 0 15px rgba(0, 255, 0, 0.7)",
-                            background: "linear-gradient(180deg, #006600 10%, #00ff00 100%)",
-                        },
-                    },
-                    outlinedPrimary: {
-                        borderWidth: 2,
-                        borderColor: "#00ff00",
-                        "&:hover": {
-                            boxShadow: "0 0 10px rgba(0, 255, 0, 0.5)",
-                        },
-                    },
                 },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                boxShadow: "0 0 10px rgba(0, 255, 0, 0.5)",
+                                background: "linear-gradient(180deg, #004d00 0%, #00cc00 100%)",
+                                "&:hover": {
+                                    boxShadow: "0 0 15px rgba(0, 255, 0, 0.7)",
+                                    background: "linear-gradient(180deg, #006600 10%, #00ff00 100%)",
+                                },
+                        },
+                    },
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 2,
+                                borderColor: "#00ff00",
+                                "&:hover": {
+                                    boxShadow: "0 0 10px rgba(0, 255, 0, 0.5)",
+                                },
+                        },
+                    },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

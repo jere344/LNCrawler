@@ -105,18 +105,26 @@ export const getOceanicTheme = () =>
                         fontSize: "0.875rem",
                         fontWeight: 600,
                     },
-                    containedPrimary: {
-                        boxShadow: "0 4px 12px rgba(25, 118, 210, 0.3)",
-                        background: "linear-gradient(135deg, #1976d2 0%, #64b5f6 100%)",
-                        "&:hover": {
-                            boxShadow: "0 6px 16px rgba(25, 118, 210, 0.4)",
-                            background: "linear-gradient(135deg, #1565c0 10%, #42a5f5 100%)",
+                },
+                variants: [
+                    {
+                        props: { variant: "contained", color: "primary" },
+                        style: {
+                                boxShadow: "0 4px 12px rgba(25, 118, 210, 0.3)",
+                                background: "linear-gradient(135deg, #1976d2 0%, #64b5f6 100%)",
+                                "&:hover": {
+                                    boxShadow: "0 6px 16px rgba(25, 118, 210, 0.4)",
+                                    background: "linear-gradient(135deg, #1565c0 10%, #42a5f5 100%)",
+                                },
                         },
                     },
-                    outlinedPrimary: {
-                        borderWidth: 2,
+                    {
+                        props: { variant: "outlined", color: "primary" },
+                        style: {
+                                borderWidth: 2,
+                        },
                     },
-                },
+                ],
             },
             MuiCard: {
                 styleOverrides: {

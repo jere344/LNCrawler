@@ -16,19 +16,23 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, getChapterName, languageCodeToFlag, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, formatCount, languageFlagUrl, languageCodeToName } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
-import { formatCount } from './BaseNovelCard';
+import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
+import { useTranslation } from 'react-i18next';
+import { useAdultContent } from '@context/AdultContentContext';
+import { AdultBadge } from '@components/common/AdultBadge';
 
 export interface ReadingListCardProps {
   novel: Novel;
   onClick?: () => void;
   isLoading?: boolean;
-  to?: string;
+  to?: To;
+  state?: unknown;
   note?: string;
-  isOwner?: boolean;
+  canEdit?: boolean;
   onEditNote?: (itemId: string, note?: string) => void;
   onRemoveItem?: (itemId: string) => void;
   itemId?: string;
@@ -39,14 +43,18 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
   onClick, 
   isLoading = false,
   to,
+  state,
   note,
-  isOwner = false,
+  canEdit = false,
   onEditNote,
   onRemoveItem,
   itemId
 }) => {
-  const preferredSource = novel.prefered_source;
+  const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
+  const { isBlurred, revealHandler } = useAdultContent();
+  const blurred = isBlurred(novel.is_adult, novel.id);
+  const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -54,11 +62,6 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
   const [isNoteTruncated, setIsNoteTruncated] = useState(false);
   const noteRef = useRef<HTMLDivElement>(null);
 
-  let tooltip = "";
-  if (novel.reading_history?.next_chapter) {
-    tooltip += `. Next : ${getChapterName(novel.reading_history.next_chapter.title)}`;
-  }
-  
   const handleMenuOpen = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     e.preventDefault();
@@ -129,6 +132,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
         '&:hover': {
           transform: 'translateY(-2px)',
           boxShadow: '0px 6px 12px -2px rgba(0,0,0,0.15)',
+          zIndex: 2,
         },
         position: 'relative',
         overflow: 'hidden',
@@ -162,7 +166,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             }}
           />
 
-          {isOwner && onEditNote && onRemoveItem && itemId && (
+          {canEdit && onEditNote && onRemoveItem && itemId && (
             <IconButton
               size="small"
               onClick={handleMenuOpen}
@@ -189,17 +193,34 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           onClick={onClick}
           component={to ? Link : 'div'}
           to={to}
+          state={to ? state : undefined}
         >
           <CardMedia
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
             alt={novel.title}
+            onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               width: '100%',
               height: '100%',
               objectFit: 'cover',
+              opacity: novel.is_dmca ? 0.55 : 1,
+              cursor: blurred ? 'pointer' : undefined,
+              filter: [
+                novel.is_dmca ? 'grayscale(100%)' : null,
+                blurred ? 'blur(16px)' : null,
+              ].filter(Boolean).join(' ') || 'none',
             }}
           />
+          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
+          {novel.is_dmca && (
+            <Chip
+              label="DMCA"
+              color="error"
+              size="small"
+              sx={{ position: 'absolute', top: 4, left: 4, zIndex: 2, fontWeight: 'bold' }}
+            />
+          )}
           {/* Language flags */}
           <Box
             sx={{
@@ -213,10 +234,10 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           >
             {novel.languages.length > 0 ? (
               novel.languages.slice(0, 2).map((lang) => (
-                <Tooltip key={lang} title={languageCodeToName(lang)}>
+                <Tooltip key={lang} title={languageCodeToName(t, lang)}>
                   <img 
-                    src={`/flags/${languageCodeToFlag(lang)}.svg`} 
-                    alt={languageCodeToName(lang)}
+                    src={languageFlagUrl(lang)} 
+                    alt={languageCodeToName(t, lang)}
                     style={{ 
                       width: '20px',
                       height: '14px',
@@ -228,7 +249,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 </Tooltip>
               ))
             ) : (
-              <Tooltip title="Unknown language">
+              <Tooltip title={t('cards.unknownLanguage')}>
                 <Box
                   sx={{
                     width: '20px',
@@ -261,6 +282,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           onClick={onClick}
           component={to ? Link : 'div'}
           to={to}
+          state={to ? state : undefined}
         >
           <CardContent sx={{ 
             height: '100%', 
@@ -293,20 +315,32 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             {/* Author */}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, minWidth: 0 }}>
               <PersonIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14, flexShrink: 0 }} />
-              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                noWrap
+                sx={{
+                  color: "text.secondary",
+                  minWidth: 0
+                }}>
                 {preferredSource?.authors && preferredSource.authors.length > 0 
                   ? preferredSource.authors.join(', ')
-                  : 'Unknown'}
+                  : t('common.unknown')}
               </Typography>
             </Box>
             
             {/* Tags */}
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5, minWidth: 0 }}>
               <LocalOfferIcon fontSize="small" sx={{ mr: 0.5, color: 'text.secondary', width: 14, height: 14, flexShrink: 0 }} />
-              <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                noWrap
+                sx={{
+                  color: "text.secondary",
+                  minWidth: 0
+                }}>
                 {preferredSource?.tags && preferredSource.tags.length > 0 ? 
                   `${preferredSource.tags.join(', ')}` 
-                  : 'Unknown'}
+                  : t('common.unknown')}
               </Typography>
             </Box>
             
@@ -319,7 +353,15 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 size="small"
                 sx={{ flexShrink: 0 }}
               />
-              <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, overflow: 'hidden', height: '1.2em', minWidth: 0 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  ml: 0.5,
+                  overflow: 'hidden',
+                  height: '1.2em',
+                  minWidth: 0
+                }}>
                 {novel.avg_rating ? novel.avg_rating.toFixed(1) : '0.0'}
                 {` (${novel.rating_count > 0 ? formatCount(novel.rating_count) : '0'})`}
               </Typography>
@@ -347,16 +389,16 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 } 
               }}
             >
-              <Tooltip title="Total Chapters">
+              <Tooltip title={t('cards.availableChapters')}>
                 <Chip 
                   icon={<MenuBookIcon />}
-                  label={preferredSource?.chapters_count ? formatCount(preferredSource.chapters_count) : '?'}
+                  label={preferredSource?.available_chapters_count != null ? formatCount(preferredSource.available_chapters_count) : '?'}
                   size="small"
                   variant="outlined"
                 />
               </Tooltip>
 
-              <Tooltip title="Views">
+              <Tooltip title={t('cards.views')}>
                 <Chip 
                   icon={<VisibilityIcon />}
                   label={novel.total_views !== undefined ? formatCount(novel.total_views) : '?'}
@@ -365,10 +407,10 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 />
               </Tooltip>
               
-              <Tooltip title="Last Updated">
+              <Tooltip title={t('cards.lastUpdated')}>
                 <Chip 
                   icon={<UpdateIcon />}
-                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update)) : '?'}
+                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update), t) : '?'}
                   size="small"
                   variant="outlined"
                 />
@@ -434,7 +476,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 flexShrink: 0,
               }}
             >
-              Note
+              {t('cards.note')}
             </Typography>
             <Box 
               sx={{ 
@@ -480,7 +522,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                     flexShrink: 0,
                   }}
                 >
-                  See more
+                  {t('common.seeMore')}
                 </Button>
               )}
             </Box>
@@ -498,13 +540,13 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           <ListItemIcon>
             <EditIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary={note ? "Edit Note" : "Add Note"} />
+          <ListItemText primary={note ? t('cards.editNote') : t('cards.addNote')} />
         </MenuItem>
         <MenuItem onClick={handleRemoveItem}>
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="Remove from List" />
+          <ListItemText primary={t('cards.removeFromList')} />
         </MenuItem>
       </Menu>
 
@@ -516,8 +558,10 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
         fullWidth
       >
         <DialogTitle>
-          <Typography variant="h6">Note</Typography>
-          <Typography variant="subtitle2" color="text.secondary">
+          <Typography variant="h6">{t('cards.note')}</Typography>
+          <Typography variant="subtitle2" sx={{
+            color: "text.secondary"
+          }}>
             {novel.title}
           </Typography>
         </DialogTitle>
@@ -534,7 +578,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleNoteModalClose}>Close</Button>
+          <Button onClick={handleNoteModalClose}>{t('common.close')}</Button>
         </DialogActions>
       </Dialog>
     </Card>
