@@ -29,6 +29,8 @@
     "i18next": "^26.4.2",
     "i18next-browser-languagedetector": "^8.2.1",
     "i18next-icu": "^2.4.4",
+    "kokoro-js": "^1.2.1",
+    "onnxruntime-web": "1.22.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.15",

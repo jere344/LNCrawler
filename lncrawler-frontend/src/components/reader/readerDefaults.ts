@@ -1,4 +1,5 @@
 import type { ReaderSettings } from './ReaderSettings';
+import { defaultTtsPrefs } from './tts/ttsTypes';
 
 export const defaultSettings: ReaderSettings = {
     fontSize: 18,
@@ -28,4 +29,5 @@ export const defaultSettings: ReaderSettings = {
     nightModeScheduleEnabled: false,
     nightModeStartTime: '20:00',
     nightModeEndTime: '06:00',
+    ...defaultTtsPrefs,
 };

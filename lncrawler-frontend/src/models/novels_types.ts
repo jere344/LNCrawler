@@ -137,6 +137,7 @@ export interface ChapterContent {
   next_chapter_id?: number | null;
   images_path?: string;
   source_overview_image_url?: string | null;
+  language?: string | null;
 }
 
 export interface UnavailableChapterInfo {

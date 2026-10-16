@@ -15,6 +15,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import DoneIcon from '@mui/icons-material/Done';
 import SettingsIcon from '@mui/icons-material/Settings';
+import HeadphonesIcon from '@mui/icons-material/Headphones';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +36,7 @@ interface ReaderToolbarProps {
   onPrevious: () => void;
   onNext: () => void;
   onSettings: () => void;
+  onListen: () => void;
   onCloseControls: () => void;
   // Add URL props
   prevUrl?: string;
@@ -63,6 +65,7 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
   onPrevious,
   onNext,
   onSettings,
+  onListen,
   onCloseControls,
 }) => {
   const { t } = useTranslation();
@@ -124,6 +127,9 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
             </Tooltip>
           )}
           
+          <IconButton color="inherit" onClick={onListen} aria-label={t('reader.listen')}>
+            <HeadphonesIcon />
+          </IconButton>
           <IconButton color="inherit" onClick={onSettings}>
             <SettingsIcon />
           </IconButton>
@@ -187,6 +193,9 @@ const ReaderToolbar: React.FC<ReaderToolbarProps> = ({
                 {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
               </IconButton>
             )}
+            <IconButton color="inherit" onClick={onListen} aria-label={t('reader.listen')}>
+              <HeadphonesIcon />
+            </IconButton>
             <IconButton color="inherit" onClick={onCloseControls}>
               <CloseIcon />
             </IconButton>

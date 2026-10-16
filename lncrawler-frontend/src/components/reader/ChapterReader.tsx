@@ -21,10 +21,12 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import CommentIcon from '@mui/icons-material/Comment';
 import SettingsIcon from '@mui/icons-material/Settings';
+import HeadphonesIcon from '@mui/icons-material/Headphones';
+import { alpha } from '@mui/material/styles';
 import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior } from './ReaderSettings';
 import { defaultSettings } from './readerDefaults';
-import { getCookie } from '@utils/cookies';
+import { getCookie, setCookie } from '@utils/cookies';
 import { getChapterLabel } from '@utils/Misc';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
@@ -37,6 +39,9 @@ import ReaderControls from './controls/ReaderControls';
 import CommentSection from '../comments/CommentSection';
 
 import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
+import TtsPlayerBar from './tts/TtsPlayerBar';
+import { useTtsPlayer } from './tts/useTtsPlayer';
+import { TTS_BAR_HEIGHT, isValidTtsPref, type TtsPrefs } from './tts/ttsTypes';
 import UnavailableChapter from './UnavailableChapter';
 import ChapterSEO from '@components/reader/ChapterSEO';
 
@@ -63,7 +68,7 @@ const ChapterReader = () => {
     sourceSlug: string; 
     chapterNumber: string 
   }>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -82,6 +87,12 @@ const ChapterReader = () => {
   // Reader settings state
   const [readerSettings, setReaderSettings] = useState<IReaderSettings>(defaultSettings);
   const [controlsVisible, setControlsVisible] = useState(false);
+  const [settingsFocusTts, setSettingsFocusTts] = useState(false);
+
+  // Close the settings drawer resets which section it opens on
+  useEffect(() => {
+    if (!controlsVisible) setSettingsFocusTts(false);
+  }, [controlsVisible]);
   
   // Add state for active tab
   const [activeTab, setActiveTab] = useState(0);
@@ -163,7 +174,9 @@ const ChapterReader = () => {
             
             // Null defaults (fontFamily/fontColor/backgroundColor) accept any
             // value; otherwise require a type match with the default.
-            if (defaultSettings[key] === null || typeof parsedValue === typeof defaultSettings[key]) {
+            // TTS values are also range/enum checked (bad values would
+            // break playback, e.g. a speed of 0).
+            if (isValidTtsPref(key, parsedValue) && (defaultSettings[key] === null || typeof parsedValue === typeof defaultSettings[key])) {
               // Safe due to the runtime type check above.
               (newSettings as Record<string, unknown>)[key] = parsedValue;
               hasChanges = true;
@@ -536,7 +549,10 @@ const ChapterReader = () => {
 
   // Unified handler for content tap on mobile
   const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMobile) return;
+    const ttsSeek = () =>
+      tts.open && readerSettings.ttsTapToSeek && (window.getSelection()?.isCollapsed ?? true) &&
+      tts.seekToNode(e.target as Node);
+    if (!isMobile) { ttsSeek(); return; }
 
     // If controls are open, close them unless the click was inside the controls
     if (controlsVisible) {
@@ -564,6 +580,8 @@ const ChapterReader = () => {
       handleEdgeBehavior('right', readerSettings.rightEdgeTapBehavior);
       return;
     }
+
+    if (ttsSeek()) return;
 
     // Center tap - only toggle controls if setting is enabled
     if (readerSettings.centerTapToOpenSettings) {
@@ -656,6 +674,12 @@ const ChapterReader = () => {
     setReaderSettings(newSettings);
   };
 
+  // Persist one setting in state and cookie
+  const updateSetting = <K extends keyof IReaderSettings>(key: K, value: IReaderSettings[K]) => {
+    setReaderSettings(prev => ({ ...prev, [key]: value }));
+    setCookie(COOKIE_PREFIX + key, JSON.stringify(value), 365);
+  };
+
   // Add these variables to generate navigation URLs
   const prevUrl = chapter?.prev_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}` : undefined;
   const nextUrl = chapter?.next_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}` : undefined;
@@ -718,6 +742,28 @@ const ChapterReader = () => {
     swipeDuration: 500,
   });
 
+  // Sources store ISO codes, but tolerate regional forms like 'zh-CN'.
+  const novelLanguage = (chapter?.language || i18n.language || 'en').slice(0, 2).toLowerCase();
+  const ttsLanguage = readerSettings.ttsLanguage || novelLanguage;
+  const ttsHighlightColors = useMemo(() => ({
+    block: alpha(theme.palette.primary.main, 0.12),
+    sentence: alpha(theme.palette.primary.main, 0.3),
+  }), [theme.palette.primary.main]);
+  const tts = useTtsPlayer({
+    prefs: readerSettings,
+    lang: ttsLanguage,
+    chapterKey: !loading && chapter ? currentChapterKey : null,
+    chapterTitle: chapter ? getChapterLabel(t, chapter.title, chapter.chapter_id) : '',
+    novelTitle: chapter?.novel_title ?? '',
+    artwork: chapter?.source_overview_image_url,
+    hasNextChapter: !!chapter?.next_chapter,
+    onNextChapter: handleNextChapter,
+    onPrefChange: <K extends keyof TtsPrefs>(key: K, value: TtsPrefs[K]) =>
+      updateSetting(key, value as IReaderSettings[K]),
+    highlightColors: ttsHighlightColors,
+    topOffset: isMobile ? 0 : 64,
+    bottomOffset: isMobile ? TTS_BAR_HEIGHT.mobile : TTS_BAR_HEIGHT.desktop,
+  });
 
   if (loading) {
     return (
@@ -780,6 +826,7 @@ const ChapterReader = () => {
       onPrevious={handlePrevChapter}
       onNext={handleNextChapter}
       onSettings={() => setControlsVisible(true)}
+      onListen={() => { setControlsVisible(false); tts.start(); }}
       onCloseControls={() => setControlsVisible(false)}
       prevUrl={prevUrl}
       nextUrl={nextUrl}
@@ -870,19 +917,28 @@ const ChapterReader = () => {
               />
             </Tabs>
             
-            <IconButton 
-              onClick={() => setControlsVisible(true)}
-              aria-label={t('reader.openSettings')}
-              sx={{ 
-                color: 'text.secondary',
-                '&:hover': {
-                  color: 'primary.main'
-                },
-                scale: '1.2'
-              }}
-            >
-              <SettingsIcon />
-            </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <IconButton
+                onClick={tts.start}
+                aria-label={t('reader.listen')}
+                sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }, scale: '1.2' }}
+              >
+                <HeadphonesIcon />
+              </IconButton>
+              <IconButton 
+                onClick={() => setControlsVisible(true)}
+                aria-label={t('reader.openSettings')}
+                sx={{ 
+                  color: 'text.secondary',
+                  '&:hover': {
+                    color: 'primary.main'
+                  },
+                  scale: '1.2'
+                }}
+              >
+                <SettingsIcon />
+              </IconButton>
+            </Box>
           </Box>
           
           {/* Chapter content Tab */}
@@ -937,6 +993,7 @@ const ChapterReader = () => {
           />
         </Paper>
       </Container>
+      {tts.open && <Box sx={{ height: { xs: TTS_BAR_HEIGHT.mobile, sm: TTS_BAR_HEIGHT.desktop + 16 } }} />}
       </>
 
       {/* Settings Drawer */}
@@ -945,6 +1002,9 @@ const ChapterReader = () => {
         onClose={() => setControlsVisible(false)}
         settings={readerSettings}
         onSettingChange={handleSettingChange}
+        novelLanguage={novelLanguage}
+        onTtsBeforePreview={tts.pause}
+        focusTts={settingsFocusTts}
         chapterInfo={{
           title: getChapterLabel(t, chapter.title, chapter.chapter_id),
           novelTitle: chapter.novel_title,
@@ -964,6 +1024,14 @@ const ChapterReader = () => {
         onNextChapter={nonDefiniteHandleNextChapter}
         onPrevChapter={nonDefiniteHandlePrevChapter}
         controlsVisible={controlsVisible}
+      />
+
+      <TtsPlayerBar
+        tts={tts}
+        rate={readerSettings.ttsRate}
+        onRateChange={rate => updateSetting('ttsRate', rate)}
+        onOpenSettings={() => { setSettingsFocusTts(true); setControlsVisible(true); }}
+        chapterTitle={getChapterLabel(t, chapter.title, chapter.chapter_id)}
       />
     </>
   );

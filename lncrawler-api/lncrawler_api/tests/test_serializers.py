@@ -114,7 +114,7 @@ class SerializerProfileTests(TestCase):
                 ],
                 "content": [
                     "id", "chapter_id", "title", "novel_title", "novel_id",
-                    "novel_slug", "source_id", "source_name", "source_slug", "body",
+                    "novel_slug", "source_id", "source_name", "source_slug", "language", "body",
                     "prev_chapter", "next_chapter", "prev_chapter_id",
                     "next_chapter_id", "images_path",
                     "source_overview_image_url",

@@ -17,6 +17,16 @@ export default defineConfig({
       '@context': path.resolve(import.meta.dirname, './src/context'),
     }
   },
+  // ES module workers can code-split, so the TTS worker only loads the
+  // Kokoro/transformers.js chunk when a Kokoro voice is used.
+  worker: {
+    format: 'es',
+  },
+  // Pre-bundle the TTS worker deps so the dev server doesn't reload the page
+  // the first time someone presses "Listen".
+  optimizeDeps: {
+    include: ['onnxruntime-web/wasm', 'kokoro-js'],
+  },
   build: {
     // Output directory
     outDir: 'dist',

@@ -24,6 +24,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     source_slug = serializers.SerializerMethodField()
     images_path = serializers.SerializerMethodField()
     source_overview_image_url = serializers.SerializerMethodField()
+    language = serializers.SerializerMethodField()
 
     default_profile = 'card'
     field_profiles = {
@@ -32,7 +33,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         ],
         'content': [
             'id', 'chapter_id', 'title', 'novel_title', 'novel_id', 'novel_slug',
-            'source_id', 'source_name', 'source_slug', 'body', 'prev_chapter', 'next_chapter',
+            'source_id', 'source_name', 'source_slug', 'language', 'body', 'prev_chapter', 'next_chapter',
             'prev_chapter_id', 'next_chapter_id',
             'images_path', 'source_overview_image_url',
         ],
@@ -90,6 +91,9 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     def get_source_slug(self, obj):
         return obj.novel_from_source.source_slug
+
+    def get_language(self, obj):
+        return obj.novel_from_source.language
 
     def get_images_path(self, obj: Chapter):
         if obj.images:  # no need if no images
