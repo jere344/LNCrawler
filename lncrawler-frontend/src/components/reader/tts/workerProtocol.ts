@@ -1,8 +1,8 @@
-import type { KokoroDevice } from './voiceCatalog';
+import type { NeuralOptions } from './voiceCatalog';
 
 export type WorkerRequest =
-  | { id: number; type: 'prepare'; voiceId: string; kokoroDevice: KokoroDevice }
-  | { id: number; type: 'synth'; voiceId: string; kokoroDevice: KokoroDevice; text: string };
+  | { id: number; type: 'prepare'; voiceId: string; options: NeuralOptions }
+  | { id: number; type: 'synth'; voiceId: string; options: NeuralOptions; text: string };
 
 export type WorkerResponse =
   | { id: number; type: 'progress'; loaded: number; total: number }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { TtsPrefs } from './ttsTypes';
+import { neuralOptions, neuralOptionsKey, type TtsPrefs } from './ttsTypes';
 import {
   buildDocument,
   clearHighlight,
@@ -25,6 +25,7 @@ import {
   isVoiceDownloaded,
   prepareVoice,
   synthesize,
+  wavToUrl,
   type SynthJob,
 } from './neuralClient';
 import { hasNeuralVoices, resolveNeuralVoice, type NeuralVoice } from './voiceCatalog';
@@ -121,6 +122,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const keepAliveRef = useRef<HTMLAudioElement | null>(null);
   const endAudioRef = useRef<((finished: boolean) => void) | null>(null);
   const prefetchRef = useRef(new Map<number, SynthJob>());
+  const audioUrlRef = useRef<string | null>(null);
+  const bakedVolumeRef = useRef(1);
   const prefetchKeyRef = useRef('');
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
 
@@ -188,7 +191,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const clearPrefetch = () => {
     const jobs = prefetchRef.current;
     cancelJobs([...jobs.values()].map(j => j.id));
-    jobs.forEach(j => j.promise.then(r => URL.revokeObjectURL(r.url), () => undefined));
     jobs.clear();
   };
 
@@ -203,6 +205,10 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
       audio.pause();
       audio.removeAttribute('src');
       audio.load();
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
     }
   };
 
@@ -269,14 +275,15 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     const doc = docRef.current;
     const voice = neuralVoiceRef.current;
     if (!doc || !voice || i >= doc.chunks.length) return null;
-    const key = `${voice.id}|${argsRef.current.prefs.ttsKokoroDevice}`;
+    const options = neuralOptions(argsRef.current.prefs);
+    const key = `${voice.id}|${neuralOptionsKey(options)}`;
     if (prefetchKeyRef.current !== key) {
       clearPrefetch();
       prefetchKeyRef.current = key;
     }
     let job = prefetchRef.current.get(i);
     if (!job) {
-      job = synthesize(voice.id, argsRef.current.prefs.ttsKokoroDevice, doc.chunks[i].text);
+      job = synthesize(voice.id, options, doc.chunks[i].text);
       // Avoid unhandled rejections for jobs that end up cancelled.
       job.promise.catch(() => undefined);
       prefetchRef.current.set(i, job);
@@ -288,7 +295,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     const job = prefetchRef.current.get(i);
     if (!job) return;
     prefetchRef.current.delete(i);
-    job.promise.then(r => URL.revokeObjectURL(r.url), () => undefined);
   };
 
   const speakNeural = async (i: number, alive: () => boolean): Promise<boolean> => {
@@ -298,12 +304,17 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     prefetchRef.current.forEach((_, k) => { if (k < i) dropJob(k); });
     for (let k = 1; k <= PREFETCH_AHEAD; k++) jobFor(i + k);
 
-    const { url } = await job.promise;
+    const { wav } = await job.promise;
     if (!alive()) return false;
     const audio = getAudio();
+    const volume = argsRef.current.prefs.ttsVolume;
+    const url = wavToUrl(wav, volume);
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = url;
+    bakedVolumeRef.current = volume;
     audio.src = url;
     audio.playbackRate = argsRef.current.prefs.ttsRate;
-    audio.volume = argsRef.current.prefs.ttsVolume;
+    audio.volume = 1;
     const finished = await new Promise<boolean>((resolve, reject) => {
       endAudioRef.current = resolve;
       audio.onended = () => resolve(true);
@@ -435,8 +446,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     }
 
     const voice = neuralVoiceRef.current!;
-    const device = argsRef.current.prefs.ttsKokoroDevice;
-    if (!confirmedDownloadsRef.current.has(voice.id) && !(await isVoiceDownloaded(voice.id, device))) {
+    const options = neuralOptions(argsRef.current.prefs);
+    if (!confirmedDownloadsRef.current.has(voice.id) && !(await isVoiceDownloaded(voice.id, options))) {
       showChunk(start);
       setStatus('needsDownload');
       return;
@@ -448,7 +459,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     // later, once the voice has loaded.
     getAudio().play().catch(() => undefined);
     try {
-      await prepareVoice(voice.id, device, (loaded, total) => {
+      await prepareVoice(voice.id, options, (loaded, total) => {
         if (run === runRef.current) setDownload({ loaded, total });
       });
     } catch (err) {
@@ -664,12 +675,12 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
 
   // Voice / engine change: restart the current sentence with the new voice.
   const voiceKey = engine === 'neural'
-    ? `${neuralVoice?.id}|${prefs.ttsKokoroDevice}`
+    ? `${neuralVoice?.id}|${neuralOptionsKey(neuralOptions(prefs))}`
     : `browser|${prefs.ttsBrowserVoices[lang] ?? ''}|${prefs.ttsPitch}`;
   useEffect(() => {
     const s = statusRef.current;
-    // Also halt when paused: the loaded sentence was made with the old voice
-    // and its object URL is revoked below. Resume then restarts the sentence.
+    // Also halt when paused: the loaded sentence was made with the old voice.
+    // Resume then restarts the sentence.
     if (s !== 'idle') haltOutput();
     clearPrefetch();
     if (s === 'playing' || s === 'preparing' || s === 'needsDownload' || s === 'error') {
@@ -679,11 +690,14 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only when the voice changes
   }, [voiceKey]);
 
-  // Speed/volume apply immediately to HD audio (device voices: next sentence).
+  // Speed applies immediately to HD audio (device voices: next sentence).
+  // Volume is baked into each HD sentence; where the browser honours
+  // `audio.volume` (not iOS), lowering it also applies to the current one.
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.playbackRate = prefs.ttsRate;
-      audioRef.current.volume = prefs.ttsVolume;
+      const baked = bakedVolumeRef.current;
+      audioRef.current.volume = baked > 0 ? Math.min(1, prefs.ttsVolume / baked) : 1;
     }
   }, [prefs.ttsRate, prefs.ttsVolume]);
 

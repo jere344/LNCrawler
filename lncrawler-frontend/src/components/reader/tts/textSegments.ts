@@ -11,6 +11,9 @@ const SKIP_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'RT', 'RP', 'TEMPLATE'
 
 /** Longest chunk handed to a voice; sentences above this are split further. */
 const MAX_CHUNK = 280;
+/** Dense scripts pack more speech per character (Supertonic caps ja/ko at 120). */
+const MAX_CHUNK_CJK = 120;
+const CJK_LANGS = new Set(['ja', 'ko', 'zh', 'th']);
 /** Short consecutive sentences are merged until they reach this length. */
 const MIN_CHUNK = 60;
 
@@ -96,18 +99,18 @@ function sentenceSpans(text: string, lang: string): Span[] {
   return spans;
 }
 
-/** Split a long span at the last comma/space before MAX_CHUNK. */
-function splitLong(text: string, span: Span): Span[] {
+/** Split a long span at the last comma/space before `max`. */
+function splitLong(text: string, span: Span, max: number): Span[] {
   const out: Span[] = [];
   let start = span.start;
-  while (span.end - start > MAX_CHUNK) {
-    const window = text.slice(start, start + MAX_CHUNK);
+  while (span.end - start > max) {
+    const window = text.slice(start, start + max);
     let cut = Math.max(
       window.lastIndexOf(', '), window.lastIndexOf('; '), window.lastIndexOf('，'),
       window.lastIndexOf('、'), window.lastIndexOf(' — '),
     );
-    if (cut < MAX_CHUNK / 3) cut = window.lastIndexOf(' ');
-    if (cut < MAX_CHUNK / 3) cut = MAX_CHUNK - 1;
+    if (cut < max / 3) cut = window.lastIndexOf(' ');
+    if (cut < max / 3) cut = max - 1;
     out.push({ start, end: start + cut + 1 });
     start += cut + 1;
   }
@@ -125,6 +128,7 @@ export function buildDocument(root: HTMLElement, opts: BuildOptions): TtsDocumen
   const blocks = getBlocks(root);
   const chunks: TtsChunk[] = [];
   const blockFirstChunk: number[] = [];
+  const maxChunk = CJK_LANGS.has(opts.lang) ? MAX_CHUNK_CJK : MAX_CHUNK;
 
   if (opts.title?.trim()) {
     chunks.push({ block: -1, start: 0, end: 0, text: opts.title.trim() });
@@ -137,7 +141,7 @@ export function buildDocument(root: HTMLElement, opts: BuildOptions): TtsDocumen
     if (opts.skipNotes && NOTE_PARAGRAPH.test(raw)) return;
     const text = maskUnreadable(raw, opts.skipNotes);
 
-    const spans = sentenceSpans(text, opts.lang).flatMap(s => splitLong(text, s));
+    const spans = sentenceSpans(text, opts.lang).flatMap(s => splitLong(text, s, maxChunk));
     let pending: Span | null = null;
     const flush = () => {
       if (!pending) return;
@@ -149,7 +153,7 @@ export function buildDocument(root: HTMLElement, opts: BuildOptions): TtsDocumen
       pending = null;
     };
     for (const span of spans) {
-      if (pending && span.end - pending.start <= MAX_CHUNK && pending.end - pending.start < MIN_CHUNK) {
+      if (pending && span.end - pending.start <= maxChunk && pending.end - pending.start < MIN_CHUNK) {
         pending = { start: pending.start, end: span.end };
       } else {
         flush();

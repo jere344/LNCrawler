@@ -11,7 +11,6 @@ import {
   List,
   ListItemButton,
   ListItemText,
-  ListSubheader,
   MenuItem,
   Select,
   Slider,
@@ -30,12 +29,16 @@ import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useTranslation } from 'react-i18next';
 import { availableLanguages } from '@utils/Misc';
-import type { TtsPrefs } from '../tts/ttsTypes';
+import { neuralOptions, neuralOptionsKey, type TtsPrefs } from '../tts/ttsTypes';
 import {
   KOKORO_SIZE_MB,
   PREVIEW_TEXT,
+  SUPERTONIC_LICENSE_URL,
+  SUPERTONIC_SIZE_MB,
+  SUPERTONIC_STEPS,
   getNeuralVoicesForLang,
   resolveNeuralVoice,
+  type NeuralEngine,
   type NeuralVoice,
 } from '../tts/voiceCatalog';
 import {
@@ -53,6 +56,7 @@ import {
   isVoiceDownloaded,
   prepareVoice,
   synthesize,
+  wavToUrl,
 } from '../tts/neuralClient';
 
 interface TtsSettingsProps {
@@ -87,38 +91,60 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
   // ---- HD voices ----------------------------------------------------------
   const neuralVoices = useMemo(() => getNeuralVoicesForLang(lang), [lang]);
   const selectedNeural = resolveNeuralVoice(lang, prefs.ttsNeuralVoices);
+  const optionsKey = neuralOptionsKey(neuralOptions(prefs));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed from its key
+  const options = useMemo(() => neuralOptions(prefs), [optionsKey]);
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [storageBytes, setStorageBytes] = useState(0);
   const [neuralError, setNeuralError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
+  // Which model family's voices are listed; opens on the selected voice's.
+  const [modelFamily, setModelFamily] = useState<NeuralEngine>(selectedNeural?.engine ?? 'supertonic');
+  useEffect(() => {
+    setModelFamily(resolveNeuralVoice(lang, prefs.ttsNeuralVoices)?.engine ?? 'supertonic');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-sync only when the language changes
+  }, [lang]);
 
   const refreshDownloaded = useCallback(async () => {
     if (!neuralSupported) return;
     const results = await Promise.all(
-      neuralVoices.map(async v => [v.id, await isVoiceDownloaded(v.id, prefs.ttsKokoroDevice)] as const),
+      neuralVoices.map(async v => [v.id, await isVoiceDownloaded(v.id, options)] as const),
     );
     setDownloaded(new Set(results.filter(([, ok]) => ok).map(([id]) => id)));
     setStorageBytes(await getVoicesStorageBytes());
-  }, [neuralVoices, prefs.ttsKokoroDevice, neuralSupported]);
+  }, [neuralVoices, options, neuralSupported]);
 
   useEffect(() => {
     if (prefs.ttsEngine === 'neural') refreshDownloaded();
   }, [prefs.ttsEngine, refreshDownloaded]);
 
+  // Load the selected HD voice into memory in the background once it is
+  // downloaded, so preview and play don't wait for model initialisation.
+  const selectedNeuralId = selectedNeural?.id;
+  const selectedReady = !!selectedNeuralId && downloaded.has(selectedNeuralId);
+  useEffect(() => {
+    if (prefs.ttsEngine !== 'neural' || !selectedNeuralId || !selectedReady) return;
+    prepareVoice(selectedNeuralId, options).catch(() => undefined);
+  }, [prefs.ttsEngine, selectedNeuralId, selectedReady, options]);
+
+  /** Progress is keyed by voice id, or by engine for shared models. */
+  const progressKey = (voice: NeuralVoice) => (voice.engine === 'piper' ? voice.id : voice.engine);
+
   const downloadVoice = async (voice: NeuralVoice) => {
+    const key = progressKey(voice);
     setNeuralError(null);
-    setProgress(p => ({ ...p, [voice.id]: 0 }));
+    setProgress(p => ({ ...p, [key]: 0 }));
     try {
-      await prepareVoice(voice.id, prefs.ttsKokoroDevice, (loaded, total) => {
-        setProgress(p => ({ ...p, [voice.id]: total ? (loaded / total) * 100 : 0 }));
+      await prepareVoice(voice.id, options, (loaded, total) => {
+        setProgress(p => ({ ...p, [key]: total ? (loaded / total) * 100 : 0 }));
       });
     } catch (err) {
       setNeuralError(err instanceof Error ? err.message : String(err));
     } finally {
       setProgress(p => {
         const next = { ...p };
-        delete next[voice.id];
+        delete next[key];
         return next;
       });
       refreshDownloaded();
@@ -161,10 +187,10 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
     setPreviewing(voice.id);
     setNeuralError(null);
     try {
-      const { url } = await synthesize(voice.id, prefs.ttsKokoroDevice, sample).promise;
+      const { wav } = await synthesize(voice.id, options, sample).promise;
+      const url = wavToUrl(wav, prefs.ttsVolume);
       const audio = new Audio(url);
       audio.playbackRate = prefs.ttsRate;
-      audio.volume = prefs.ttsVolume;
       await new Promise<void>(resolve => {
         audio.onended = () => resolve();
         audio.onerror = () => resolve();
@@ -217,11 +243,32 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
     </FormControl>
   );
 
+  const voiceLabel = (voice: NeuralVoice) => {
+    const gender = t(voice.gender === 'female' ? 'ttsSettings.female' : 'ttsSettings.male');
+    if (voice.engine === 'supertonic') return { primary: `${gender} ${voice.id.slice(-1)}`, secondary: '' };
+    return { primary: `${voice.name} · ${voice.accent}`, secondary: gender };
+  };
+
   const neuralRow = (voice: NeuralVoice) => {
     const isSelected = selectedNeural?.id === voice.id;
     const isDownloaded = downloaded.has(voice.id);
-    const pct = progress[voice.id];
-    const size = voice.engine === 'kokoro' ? KOKORO_SIZE_MB[prefs.ttsKokoroDevice] : voice.sizeMb;
+    const shared = voice.engine !== 'piper';
+    const pct = progress[progressKey(voice)];
+    const label = voiceLabel(voice);
+    const previewButton = (
+      <Tooltip title={t('ttsSettings.preview')}>
+        <span>
+          <IconButton
+            size="small"
+            aria-label={t('ttsSettings.preview')}
+            disabled={!!previewing || !isDownloaded}
+            onClick={e => { e.stopPropagation(); previewNeural(voice); }}
+          >
+            {previewing === voice.id ? <CircularProgress size={18} /> : <PlayCircleOutlineIcon fontSize="small" />}
+          </IconButton>
+        </span>
+      </Tooltip>
+    );
     return (
       <ListItemButton
         key={voice.id}
@@ -234,27 +281,16 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
           ? <CheckCircleIcon color="primary" fontSize="small" sx={{ mr: 1 }} />
           : <RadioButtonUncheckedIcon fontSize="small" sx={{ mr: 1, color: 'text.disabled' }} />}
         <ListItemText
-          primary={`${voice.name} · ${voice.accent}`}
-          secondary={`${t(voice.gender === 'female' ? 'ttsSettings.female' : 'ttsSettings.male')} · ${
-            isDownloaded ? t('ttsSettings.downloaded') : `${size} MB`
-          }`}
+          primary={label.primary}
+          secondary={shared
+            ? label.secondary || undefined
+            : `${label.secondary} · ${isDownloaded ? t('ttsSettings.downloaded') : `${voice.sizeMb} MB`}`}
         />
-        {pct !== undefined ? (
+        {shared ? previewButton : pct !== undefined ? (
           <CircularProgress size={22} variant={pct > 0 ? 'determinate' : 'indeterminate'} value={pct} sx={{ mx: 1 }} />
         ) : isDownloaded ? (
           <>
-            <Tooltip title={t('ttsSettings.preview')}>
-              <span>
-                <IconButton
-                  size="small"
-                  aria-label={t('ttsSettings.preview')}
-                  disabled={!!previewing}
-                  onClick={e => { e.stopPropagation(); previewNeural(voice); }}
-                >
-                  {previewing === voice.id ? <CircularProgress size={18} /> : <PlayCircleOutlineIcon fontSize="small" />}
-                </IconButton>
-              </span>
-            </Tooltip>
+            {previewButton}
             <Tooltip title={t('ttsSettings.deleteVoice')}>
               <IconButton
                 size="small"
@@ -280,8 +316,48 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
     );
   };
 
-  const kokoroVoices = neuralVoices.filter(v => v.engine === 'kokoro');
-  const piperVoices = neuralVoices.filter(v => v.engine === 'piper');
+  /** Download/delete bar for engines whose voices share one model. */
+  const sharedModelBar = (voices: NeuralVoice[], name: string, sizeMb: number) => {
+    const first = voices[0];
+    if (!first) return null;
+    const isDownloaded = downloaded.has(first.id);
+    const pct = progress[progressKey(first)];
+    return (
+      <Box
+        sx={{
+          display: 'flex', alignItems: 'center', gap: 1, mb: 1, px: 1.5, py: 1,
+          borderRadius: 1, border: 1, borderColor: 'divider',
+        }}
+      >
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="body2">{t('ttsSettings.sharedModel', { name, size: sizeMb })}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {isDownloaded ? t('ttsSettings.downloaded') : t('ttsSettings.notDownloaded')}
+          </Typography>
+        </Box>
+        {pct !== undefined ? (
+          <CircularProgress size={24} variant={pct > 0 ? 'determinate' : 'indeterminate'} value={pct} />
+        ) : isDownloaded ? (
+          <Button size="small" color="error" startIcon={<DeleteOutlineIcon />} onClick={() => removeVoice(first)}>
+            {t('common.delete')}
+          </Button>
+        ) : (
+          <Button size="small" variant="contained" startIcon={<DownloadIcon />} onClick={() => downloadVoice(first)}>
+            {t('tts.download')}
+          </Button>
+        )}
+      </Box>
+    );
+  };
+
+  const familyVoices: Record<NeuralEngine, NeuralVoice[]> = {
+    supertonic: neuralVoices.filter(v => v.engine === 'supertonic'),
+    kokoro: neuralVoices.filter(v => v.engine === 'kokoro'),
+    piper: neuralVoices.filter(v => v.engine === 'piper'),
+  };
+  const families = (['supertonic', 'kokoro', 'piper'] as const).filter(f => familyVoices[f].length > 0);
+  const visibleFamily: NeuralEngine = families.includes(modelFamily) ? modelFamily : families[0] ?? 'piper';
+  const familyName: Record<NeuralEngine, string> = { supertonic: 'Supertonic', kokoro: 'Kokoro', piper: 'Piper' };
 
   return (
     <Box>
@@ -385,40 +461,86 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
               {t('ttsSettings.noNeuralVoice', { language: t(`languages.${lang}`, { defaultValue: lang }) })}
             </Alert>
           ) : (
-            <List dense disablePadding sx={{ mx: -1 }}>
-              {kokoroVoices.length > 0 && (
-                <ListSubheader disableSticky sx={{ lineHeight: 1.4, py: 1, bgcolor: 'transparent' }}>
-                  {t('ttsSettings.kokoroGroup')}
-                  <Typography variant="caption" component="div" color="text.secondary">
-                    {t('ttsSettings.kokoroHint', { size: KOKORO_SIZE_MB[prefs.ttsKokoroDevice] })}
-                  </Typography>
-                </ListSubheader>
+            <>
+              {/* Only the families that read this language; one at a time. */}
+              {families.length > 1 && (
+                <ToggleButtonGroup
+                  exclusive
+                  fullWidth
+                  size="small"
+                  value={visibleFamily}
+                  onChange={(_, v) => v && setModelFamily(v)}
+                  sx={{ mb: 0.5 }}
+                >
+                  {families.map(f => <ToggleButton key={f} value={f}>{familyName[f]}</ToggleButton>)}
+                </ToggleButtonGroup>
               )}
-              {kokoroVoices.map(neuralRow)}
-              <ListSubheader disableSticky sx={{ lineHeight: 1.4, py: 1, bgcolor: 'transparent' }}>
-                {t('ttsSettings.piperGroup')}
-                <Typography variant="caption" component="div" color="text.secondary">
-                  {t('ttsSettings.piperHint')}
-                </Typography>
-              </ListSubheader>
-              {piperVoices.map(neuralRow)}
-            </List>
-          )}
+              <FormHelperText sx={{ mb: 1 }}>
+                {visibleFamily === 'supertonic'
+                  ? `${t('ttsSettings.supertonicGroup')}. ${t('ttsSettings.supertonicHint')}`
+                  : visibleFamily === 'kokoro'
+                    ? `${t('ttsSettings.kokoroGroup')}. ${t('ttsSettings.kokoroHint', { size: KOKORO_SIZE_MB[prefs.ttsKokoroDevice] })}`
+                    : `${t('ttsSettings.piperGroup')}. ${t('ttsSettings.piperHint')}`}
+              </FormHelperText>
 
-          {selectedNeural?.engine === 'kokoro' && (
-            <FormControl fullWidth size="small" sx={{ mt: 2 }}>
-              <Typography variant="body2" sx={{ mb: 1 }}>{t('ttsSettings.kokoroDevice')}</Typography>
-              <Select
-                value={prefs.ttsKokoroDevice}
-                onChange={e => onChange('ttsKokoroDevice', e.target.value as TtsPrefs['ttsKokoroDevice'])}
-              >
-                <MenuItem value="wasm">{t('ttsSettings.deviceCpu', { size: KOKORO_SIZE_MB.wasm })}</MenuItem>
-                <MenuItem value="webgpu" disabled={!hasWebGpu()}>
-                  {t('ttsSettings.deviceGpu', { size: KOKORO_SIZE_MB.webgpu })}
-                </MenuItem>
-              </Select>
-              <FormHelperText>{t('ttsSettings.kokoroDeviceHint')}</FormHelperText>
-            </FormControl>
+              {visibleFamily === 'supertonic' && sharedModelBar(familyVoices.supertonic, 'Supertonic', SUPERTONIC_SIZE_MB)}
+              {visibleFamily === 'kokoro' && sharedModelBar(familyVoices.kokoro, 'Kokoro', KOKORO_SIZE_MB[prefs.ttsKokoroDevice])}
+
+              <List dense disablePadding sx={{ mx: -1 }}>
+                {familyVoices[visibleFamily].map(neuralRow)}
+              </List>
+
+              {visibleFamily === 'supertonic' && (
+                <>
+                  <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>{t('ttsSettings.quality')}</Typography>
+                  <ToggleButtonGroup
+                    exclusive
+                    fullWidth
+                    size="small"
+                    value={prefs.ttsSupertonicSteps}
+                    onChange={(_, v) => v && onChange('ttsSupertonicSteps', v)}
+                  >
+                    <ToggleButton value={SUPERTONIC_STEPS.fast}>{t('ttsSettings.qualityFast')}</ToggleButton>
+                    <ToggleButton value={SUPERTONIC_STEPS.balanced}>{t('ttsSettings.qualityBalanced')}</ToggleButton>
+                    <ToggleButton value={SUPERTONIC_STEPS.best}>{t('ttsSettings.qualityBest')}</ToggleButton>
+                  </ToggleButtonGroup>
+                  <FormHelperText sx={{ mb: 2 }}>{t('ttsSettings.qualityHint')}</FormHelperText>
+
+                  <FormControl fullWidth size="small">
+                    <Typography variant="body2" sx={{ mb: 1 }}>{t('ttsSettings.supertonicDevice')}</Typography>
+                    <Select
+                      value={prefs.ttsSupertonicDevice}
+                      onChange={e => onChange('ttsSupertonicDevice', e.target.value as TtsPrefs['ttsSupertonicDevice'])}
+                    >
+                      <MenuItem value="auto">{t('ttsSettings.deviceAuto')}</MenuItem>
+                      <MenuItem value="wasm">{t('ttsSettings.deviceCpuShort')}</MenuItem>
+                      <MenuItem value="webgpu" disabled={!hasWebGpu()}>{t('ttsSettings.deviceGpuShort')}</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Typography variant="caption" component="p" color="text.secondary" sx={{ mt: 1 }}>
+                    <a href={SUPERTONIC_LICENSE_URL} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+                      {t('ttsSettings.modelLicense')}
+                    </a>
+                  </Typography>
+                </>
+              )}
+
+              {visibleFamily === 'kokoro' && (
+                <FormControl fullWidth size="small" sx={{ mt: 2 }}>
+                  <Typography variant="body2" sx={{ mb: 1 }}>{t('ttsSettings.kokoroDevice')}</Typography>
+                  <Select
+                    value={prefs.ttsKokoroDevice}
+                    onChange={e => onChange('ttsKokoroDevice', e.target.value as TtsPrefs['ttsKokoroDevice'])}
+                  >
+                    <MenuItem value="wasm">{t('ttsSettings.deviceCpu', { size: KOKORO_SIZE_MB.wasm })}</MenuItem>
+                    <MenuItem value="webgpu" disabled={!hasWebGpu()}>
+                      {t('ttsSettings.deviceGpu', { size: KOKORO_SIZE_MB.webgpu })}
+                    </MenuItem>
+                  </Select>
+                  <FormHelperText>{t('ttsSettings.kokoroDeviceHint')}</FormHelperText>
+                </FormControl>
+              )}
+            </>
           )}
 
           {neuralError && <Alert severity="error" sx={{ mt: 1 }}>{neuralError}</Alert>}
@@ -441,7 +563,13 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
         t('ttsSettings.pitch'), prefs.ttsPitch, prefs.ttsPitch.toFixed(2), 0.5, 2, 0.05,
         v => onChange('ttsPitch', v), prefs.ttsEngine === 'neural',
       )}
-      {sliderRow(t('ttsSettings.volume'), prefs.ttsVolume, `${Math.round(prefs.ttsVolume * 100)}%`, 0, 1, 0.05, v => onChange('ttsVolume', v))}
+      {sliderRow(
+        t('ttsSettings.volume'), prefs.ttsVolume, `${Math.round(prefs.ttsVolume * 100)}%`, 0, 1, 0.05,
+        v => onChange('ttsVolume', v), prefs.ttsEngine === 'browser',
+      )}
+      {prefs.ttsEngine === 'browser' && (
+        <FormHelperText sx={{ mt: -1, mb: 1 }}>{t('ttsSettings.volumeBrowserHint')}</FormHelperText>
+      )}
       {sliderRow(
         t('ttsSettings.paragraphPause'), prefs.ttsParagraphPause,
         t('ttsSettings.milliseconds', { value: prefs.ttsParagraphPause }), 0, 2000, 50,

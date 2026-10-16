@@ -3,7 +3,7 @@ import {
   useTheme, useMediaQuery, Stack, Dialog, DialogTitle, 
   DialogContent, DialogContentText, DialogActions,
 } from '@mui/material';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { setCookie } from '@utils/cookies';
 import CloseIcon from '@mui/icons-material/Close';
@@ -26,12 +26,13 @@ import ReaderNavigation from './controls/ReaderNavigation';
 import SettingsSection from './SettingsSection';
 import { defaultSettings } from './readerDefaults';
 import TtsSettings from './settings/TtsSettings';
-import { TTS_NUMERIC_RANGES, TTS_ENUM_VALUES, TTS_RECORD_KEYS, type TtsPrefs } from './tts/ttsTypes';
+import { TTS_NUMERIC_RANGES, TTS_ENUM_VALUES, TTS_RECORD_KEYS, isValidTtsPref, type TtsPrefs } from './tts/ttsTypes';
 import { availableLanguages } from '@utils/Misc';
 
 // Define constants for cookie names
 const COOKIE_PREFIX = 'lncrawler_reader_';
 const COOKIE_EXPIRY = 365; // days
+const TTS_SECTION_ID = 'reader-settings-tts';
 
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
@@ -131,13 +132,12 @@ const ReaderSettings = ({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  const ttsSectionRef = useRef<HTMLDivElement>(null);
 
   // Opened from the TTS player: bring its section into view.
   useEffect(() => {
     if (!open || !focusTts) return;
     const id = window.setTimeout(() => {
-      ttsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById(TTS_SECTION_ID)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 300);
     return () => window.clearTimeout(id);
   }, [open, focusTts]);
@@ -398,7 +398,7 @@ const ReaderSettings = ({
             if (typeof def === 'number') {
               const num = typeof value === 'number' ? value : Number(value);
               const range = NUMERIC_RANGES[key];
-              if (Number.isFinite(num) && (!range || (num >= range[0] && num <= range[1]))) {
+              if (Number.isFinite(num) && (!range || (num >= range[0] && num <= range[1])) && isValidTtsPref(key, num)) {
                 setImported(key, num);
               }
               return;
@@ -597,20 +597,19 @@ const ReaderSettings = ({
         </SettingsSection>
 
         {/* Text-to-speech Settings */}
-        <Box ref={ttsSectionRef}>
-          <SettingsSection
-            title={t('readerSettings.tts')}
-            icon={<RecordVoiceOverIcon color="primary" />}
-            defaultExpanded={focusTts}
-          >
-            <TtsSettings
-              prefs={settings}
-              onChange={handleTtsChange}
-              novelLanguage={novelLanguage}
-              onBeforePreview={onTtsBeforePreview}
-            />
-          </SettingsSection>
-        </Box>
+        <SettingsSection
+          id={TTS_SECTION_ID}
+          title={t('readerSettings.tts')}
+          icon={<RecordVoiceOverIcon color="primary" />}
+          defaultExpanded={focusTts}
+        >
+          <TtsSettings
+            prefs={settings}
+            onChange={handleTtsChange}
+            novelLanguage={novelLanguage}
+            onBeforePreview={onTtsBeforePreview}
+          />
+        </SettingsSection>
 
         {/* Import/Export Buttons - Always visible */}
         <Stack spacing={1} sx={{ mt: 3 }}>

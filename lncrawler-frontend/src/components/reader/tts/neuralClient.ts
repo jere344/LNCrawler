@@ -4,11 +4,13 @@
  */
 import {
   KOKORO_MODEL_ID,
+  SUPERTONIC_BASE,
   TTS_CACHE_NAME,
   getNeuralVoice,
   kokoroModelUrl,
   piperModelUrls,
-  type KokoroDevice,
+  supertonicFileUrls,
+  type NeuralOptions,
 } from './voiceCatalog';
 import type { WorkerRequest, WorkerResponse } from './workerProtocol';
 
@@ -70,27 +72,41 @@ function request(
 /** Download (if needed) and load a voice model, reporting download progress. */
 export async function prepareVoice(
   voiceId: string,
-  kokoroDevice: KokoroDevice,
+  options: NeuralOptions,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<void> {
   // Ask the browser not to evict the models under storage pressure.
   navigator.storage?.persist?.().catch(() => undefined);
-  await request({ type: 'prepare', voiceId, kokoroDevice }, onProgress).promise;
+  await request({ type: 'prepare', voiceId, options }, onProgress).promise;
 }
 
 export interface SynthJob {
   id: number;
-  promise: Promise<{ url: string; duration: number }>;
+  promise: Promise<{ wav: ArrayBuffer; duration: number }>;
 }
 
-/** Queue synthesis of `text`; resolves to an object URL of a WAV file. */
-export function synthesize(voiceId: string, kokoroDevice: KokoroDevice, text: string): SynthJob {
-  const { id, promise } = request({ type: 'synth', voiceId, kokoroDevice, text });
+/**
+ * Object URL for a 16-bit mono WAV, with `volume` applied to the samples.
+ * iOS ignores `HTMLMediaElement.volume`, so volume has to be baked in.
+ */
+export function wavToUrl(wav: ArrayBuffer, volume: number): string {
+  let data = wav;
+  if (volume < 0.999) {
+    data = wav.slice(0);
+    const samples = new Int16Array(data, 44);
+    for (let i = 0; i < samples.length; i++) samples[i] = Math.round(samples[i] * volume);
+  }
+  return URL.createObjectURL(new Blob([data], { type: 'audio/wav' }));
+}
+
+/** Queue synthesis of `text`; resolves to a WAV file. */
+export function synthesize(voiceId: string, options: NeuralOptions, text: string): SynthJob {
+  const { id, promise } = request({ type: 'synth', voiceId, options, text });
   return {
     id,
     promise: promise.then(msg => {
       if (msg.type !== 'audio') throw new Error('Unexpected worker response');
-      return { url: URL.createObjectURL(new Blob([msg.wav], { type: 'audio/wav' })), duration: msg.duration };
+      return { wav: msg.wav, duration: msg.duration };
     }),
   };
 }
@@ -114,18 +130,29 @@ const cacheHas = async (cacheName: string, url: string) => {
 };
 
 /** Whether the model behind `voiceId` is already stored on this device. */
-export async function isVoiceDownloaded(voiceId: string, kokoroDevice: KokoroDevice): Promise<boolean> {
+export async function isVoiceDownloaded(voiceId: string, options: NeuralOptions): Promise<boolean> {
   if (typeof caches === 'undefined') return false;
   const voice = getNeuralVoice(voiceId);
   if (!voice) return false;
-  if (voice.engine === 'kokoro') return cacheHas(TRANSFORMERS_CACHE, kokoroModelUrl(kokoroDevice));
+  if (voice.engine === 'kokoro') return cacheHas(TRANSFORMERS_CACHE, kokoroModelUrl(options.kokoroDevice));
+  if (voice.engine === 'supertonic') {
+    const present = await Promise.all(supertonicFileUrls().map(url => cacheHas(TTS_CACHE_NAME, url)));
+    return present.every(Boolean);
+  }
   return cacheHas(TTS_CACHE_NAME, piperModelUrls(voiceId.slice('piper:'.length)).model);
 }
 
-/** Delete a voice model. For Kokoro this removes the shared model (all voices). */
+/** Delete a voice model. Kokoro and Supertonic share one model between all
+ *  their voices, so this removes every voice of that engine. */
 export async function deleteVoice(voiceId: string): Promise<void> {
   const voice = getNeuralVoice(voiceId);
   if (!voice) return;
+  if (voice.engine === 'supertonic') {
+    const cache = await caches.open(TTS_CACHE_NAME);
+    const keys = await cache.keys();
+    await Promise.all(keys.filter(k => k.url.startsWith(SUPERTONIC_BASE)).map(k => cache.delete(k)));
+    return;
+  }
   if (voice.engine === 'kokoro') {
     const cache = await caches.open(TRANSFORMERS_CACHE);
     const keys = await cache.keys();

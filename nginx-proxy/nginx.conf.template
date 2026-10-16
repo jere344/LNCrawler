@@ -128,6 +128,12 @@ server {
         if ($render_seo) {
             rewrite ^(/novels/(?!search/?$)(?!.*/gallery/?$).*|/)$ /_seo$1 last;
         }
+        # Cross-origin isolation: lets the in-browser TTS models run on several
+        # CPU cores (SharedArrayBuffer). "credentialless" keeps cross-origin
+        # images/fonts working (fetched without cookies). Any future iframe or
+        # cross-origin popup (ads, embeds, OAuth) must be checked against these.
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Embedder-Policy "credentialless" always;
         set $frontend frontend:80;
         proxy_pass http://$frontend;
         proxy_set_header Host $host;

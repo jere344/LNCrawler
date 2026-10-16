@@ -7,12 +7,13 @@ interface SettingsSectionProps {
   icon: ReactNode;
   children: ReactNode;
   defaultExpanded?: boolean;
+  id?: string;
 }
 
-const SettingsSection = ({ title, icon, children, defaultExpanded = false }: SettingsSectionProps) => {
+const SettingsSection = ({ title, icon, children, defaultExpanded = false, id }: SettingsSectionProps) => {
   const theme = useTheme();
   return (
-    <Accordion defaultExpanded={defaultExpanded} 
+    <Accordion id={id} defaultExpanded={defaultExpanded} 
         sx={{ 
             backgroundColor: theme.palette.background.paper,
         }}>

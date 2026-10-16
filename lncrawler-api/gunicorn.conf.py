@@ -23,6 +23,14 @@ preload_app = True
 worker_tmp_dir = "/dev/shm"
 
 
+def when_ready(server):
+    # Build the crawler host index (an ast scan of every source file) once in
+    # the master, so forked workers inherit it instead of each paying ~0.5 s
+    # (seconds on a slow disk) on their first source page after every restart.
+    from lncrawler_api.utils.crawler_registry import has_crawler
+    has_crawler("http://warmup.invalid/")
+
+
 def post_fork(server, worker):
     # A forked child must never reuse the master's DB connections.
     from django.db import connections

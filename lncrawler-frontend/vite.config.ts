@@ -55,6 +55,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 8185,
+    // Same cross-origin isolation headers as production (nginx-proxy), so the
+    // TTS models can use threads and anything incompatible shows up locally.
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+    },
     // Use consistent content types
     fs: {
       strict: true,

@@ -8,11 +8,27 @@
  * - Kokoro is a single ~90 MB model with many English voices; its quality is
  *   the best available in the browser, but it is slower on weak devices.
  *
- * Neural voice ids are prefixed by their engine: `piper:<id>` / `kokoro:<id>`.
+ * - Supertonic 3 is one ~400 MB model (OpenRAIL-M) reading 31 languages
+ *   straight from text (no phonemizer), with 10 preset voices shared by all
+ *   languages. The most natural outside English, but heavier to run; the
+ *   project is archived, so the weights are frozen.
+ *
+ * Neural voice ids are prefixed by their engine: `piper:<id>`, `kokoro:<id>`,
+ * `supertonic:<lang>:<style>` (the language is part of the id because the
+ * same style reads every language).
  */
 
-export type NeuralEngine = 'piper' | 'kokoro';
+export type NeuralEngine = 'supertonic' | 'piper' | 'kokoro';
 export type KokoroDevice = 'wasm' | 'webgpu';
+export type SupertonicDevice = 'auto' | 'wasm' | 'webgpu';
+
+/** Engine options that change how (not which) a voice is generated. */
+export interface NeuralOptions {
+  kokoroDevice: KokoroDevice;
+  supertonicDevice: SupertonicDevice;
+  /** Denoising steps: fewer is faster, more sounds cleaner. */
+  supertonicSteps: number;
+}
 
 export interface NeuralVoice {
   /** Prefixed id stored in settings, e.g. `piper:fr_FR-siwis-medium`. */
@@ -22,7 +38,7 @@ export interface NeuralVoice {
   lang: string;
   /** Human readable name, e.g. "Siwis". */
   name: string;
-  /** Accent/locale label shown next to the name, e.g. "FR", "US", "GB". */
+  /** Accent/locale label shown next to the name, e.g. "FR", "US", "GB" ('' if none). */
   accent: string;
   gender: 'female' | 'male';
   /** Approximate download size in MB (shared model for Kokoro). */
@@ -143,7 +159,30 @@ const kokoroVoices: NeuralVoice[] = KOKORO_ROWS.map(([id, name, gender, accent])
   sizeMb: KOKORO_SIZE_MB.wasm,
 }));
 
-export const NEURAL_VOICES: NeuralVoice[] = [...kokoroVoices, ...piperVoices];
+export const SUPERTONIC_BASE = 'https://huggingface.co/supertone-oss-archive/supertonic-3/resolve/main';
+export const SUPERTONIC_LICENSE_URL = 'https://huggingface.co/supertone-oss-archive/supertonic-3/blob/main/LICENSE';
+export const SUPERTONIC_SIZE_MB = 398;
+export const SUPERTONIC_MODELS = ['duration_predictor', 'text_encoder', 'vector_estimator', 'vocoder'] as const;
+export const SUPERTONIC_STEPS = { fast: 4, balanced: 6, best: 8 } as const;
+
+/** Site languages Supertonic 3 reads (it lacks Chinese and Thai). */
+const SUPERTONIC_LANGS = ['en', 'fr', 'es', 'de', 'it', 'ja', 'ko', 'pt', 'ru', 'ar', 'hi', 'vi', 'id', 'tr', 'pl', 'nl', 'sv', 'da'];
+const SUPERTONIC_STYLES = ['F1', 'F2', 'F3', 'F4', 'F5', 'M1', 'M2', 'M3', 'M4', 'M5'];
+
+const supertonicVoices: NeuralVoice[] = SUPERTONIC_LANGS.flatMap(lang =>
+  SUPERTONIC_STYLES.map(style => ({
+    id: `supertonic:${lang}:${style}`,
+    engine: 'supertonic' as const,
+    lang,
+    name: `Supertonic ${style}`,
+    accent: '',
+    gender: style.startsWith('F') ? 'female' as const : 'male' as const,
+    sizeMb: SUPERTONIC_SIZE_MB,
+    isDefault: style === 'F1',
+  })),
+);
+
+export const NEURAL_VOICES: NeuralVoice[] = [...supertonicVoices, ...kokoroVoices, ...piperVoices];
 
 export const getNeuralVoice = (id: string | undefined): NeuralVoice | undefined =>
   id ? NEURAL_VOICES.find(v => v.id === id) : undefined;
@@ -154,15 +193,26 @@ export const getNeuralVoicesForLang = (lang: string): NeuralVoice[] =>
 export const hasNeuralVoices = (lang: string): boolean =>
   NEURAL_VOICES.some(v => v.lang === lang);
 
-/** The user's pick for `lang` if still valid, else the catalog default. */
+/** The user's pick for `lang` if still valid, else the catalog default
+ *  (Supertonic where it reads the language, Piper otherwise). */
 export const resolveNeuralVoice = (
   lang: string,
   picks: Record<string, string>,
 ): NeuralVoice | undefined => {
   const picked = getNeuralVoice(picks[lang]);
   if (picked && picked.lang === lang) return picked;
-  return piperVoices.find(v => v.lang === lang && v.isDefault) ?? getNeuralVoicesForLang(lang)[0];
+  return supertonicVoices.find(v => v.lang === lang && v.isDefault)
+    ?? piperVoices.find(v => v.lang === lang && v.isDefault)
+    ?? getNeuralVoicesForLang(lang)[0];
 };
+
+export const supertonicFileUrls = (): string[] => [
+  `${SUPERTONIC_BASE}/onnx/tts.json`,
+  `${SUPERTONIC_BASE}/onnx/unicode_indexer.json`,
+  ...SUPERTONIC_MODELS.map(m => `${SUPERTONIC_BASE}/onnx/${m}.onnx`),
+];
+
+export const supertonicStyleUrl = (style: string): string => `${SUPERTONIC_BASE}/voice_styles/${style}.json`;
 
 /** Path of a Piper voice inside the piper-voices repository, without extension. */
 export const piperVoicePath = (piperId: string): string => {
