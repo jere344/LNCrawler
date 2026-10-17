@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
     volumes: &api-volumes
       - ./lncrawler-api:/app/lncrawler-api
-      - ./Lightnovels:/app/Lightnovels
+      - ${LIGHTNOVELS_PATH:-./Lightnovels}:/app/Lightnovels
       - ./imports:/app/imports
       - ./lncrawler-api/logs:/app/lncrawler-api/logs
       - ./lncrawler-crawler:/app/lncrawler-crawler
@@ -135,7 +135,7 @@ services:
       - ./lncrawler-api/static:/static
       - ./lncrawler-api/media:/media
       - ./lncrawler-api/logs:/logs
-      - ./Lightnovels:/lightnovels
+      - ${LIGHTNOVELS_PATH:-./Lightnovels}:/lightnovels
     environment:
       - SITE_URL=${SITE_URL}
       - SITE_API_URL=${SITE_API_URL}

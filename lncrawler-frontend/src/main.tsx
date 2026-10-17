@@ -30,3 +30,10 @@ i18nReady.finally(() => {
     </StrictMode>,
   )
 })
+
+// Register the service worker (installability only, see public/sw.js).
+window.addEventListener('load', () => {
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  }
+})

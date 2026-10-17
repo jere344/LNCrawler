@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#13101a" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#f8f6ff" media="(prefers-color-scheme: light)">
+    <title>LNCrawler - Offline</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f8f6ff;
+        --fg: #13101a;
+        --muted: #5b5670;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #13101a;
+          --fg: #f8f6ff;
+          --muted: #b3aec7;
+        }
+      }
+      html, body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        text-align: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      main {
+        max-width: 360px;
+      }
+      h1 {
+        font-size: 1.6rem;
+        margin: 0 0 16px;
+      }
+      h2 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 20px 0 4px;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      button {
+        margin-top: 24px;
+        padding: 10px 24px;
+        font-size: 1rem;
+        border: 0;
+        border-radius: 8px;
+        background: #6a48f0;
+        color: #ffffff;
+        cursor: pointer;
+      }
+      button:focus-visible {
+        outline: 2px solid #6a48f0;
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>LNCrawler</h1>
+      <h2>You're offline</h2>
+      <p>Check your internet connection and try again.</p>
+      <button type="button" onclick="location.reload()">Retry</button>
+    </main>
+  </body>
+</html>
