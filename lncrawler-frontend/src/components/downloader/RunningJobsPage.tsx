@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { jobService } from '@services/api';
 import { Job } from '@models/downloader_types';
 import { formatDateTime } from '@utils/Misc';
+import { formatProgress } from '@utils/progressUnit';
 
 const POLLING_INTERVAL = 3000; // 3 seconds
 
@@ -122,7 +123,7 @@ const RunningJobsPage = () => {
                     sx={{ height: 8, borderRadius: 1 }}
                   />
                   <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'right', mt: 0.5 }}>
-                    {job.progress} / {job.total_items} {job.progress_unit}
+                    {formatProgress(t, job.progress, job.total_items, job.progress_unit)}
                   </Typography>
                 </Box>
               )}

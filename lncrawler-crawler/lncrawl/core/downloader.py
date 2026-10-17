@@ -239,6 +239,8 @@ def fetch_chapter_body(app) -> None:
             logger.exception("An error occurred while reading the file:", e)
 
     pending_chapters = [chapter for chapter in app.chapters if not chapter.success]
+    app.progress_total = len(app.chapters)
+    app.progress_unit = "chapters"
     app.progress = len(app.chapters) - len(pending_chapters)
     for chapter in app.crawler.download_chapters(pending_chapters):
         app.progress += 1
@@ -304,7 +306,6 @@ def _fetch_content_image(app, url: str, image_file: Path, force: bool = False) -
                     pass
             with contextlib.suppress(OSError):
                 tmp_file.unlink(missing_ok=True)
-            app.progress += 1
 
 
 def _fetch_cover_image(app) -> None:
@@ -394,13 +395,17 @@ def _windowed_submit(executor, window, calls):
 def fetch_chapter_images(app) -> None:
     assert app.crawler is not None
 
-    app.progress = 0
     image_folder = Path(app.output_path) / "images"
     images_to_download = set(
         (filename, url)
         for chapter in app.chapters
         for filename, url in chapter.get("images", {}).items()
     )
+    app.progress = 0
+    app.progress_unit = "images"
+    # One tick per resolved future (cover + each image), whether it was
+    # downloaded, skipped because it already exists, or failed.
+    app.progress_total = len(images_to_download) + 1
 
     window = max(app.crawler.workers, 1) * 2
     image_calls = (
@@ -417,7 +422,7 @@ def fetch_chapter_images(app) -> None:
     failed = []
     try:
         for _ in app.crawler.resolve_as_generator(futures):
-            pass
+            app.progress += 1
         failed = [
             filename
             for filename, url in images_to_download

@@ -13,6 +13,7 @@ export interface Novel {
   languages: string[];
   is_bookmarked?: boolean | null;
   comment_count: number;
+  created_at?: string;
   reading_history?: DetailedReadingHistory | null;
   reading_source?: NovelFromSource | null;
   similar_novels?: SimilarNovel[];

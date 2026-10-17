@@ -103,17 +103,22 @@ def _poll_download_progress(job, app, phase, total_chapters):
 
     Before the chapter list exists the crawler reports its own TOC progress in
     ``progress_unit`` (volumes for EPUB sources); afterwards progress is the
-    number of downloaded chapters. ``phase`` is a mutable ``{"chapters": bool}``
-    flipped once ``get_novel_info()`` has run.
+    number of downloaded chapters; in the images phase (after chapters) progress
+    counts downloaded images with unit "images". ``phase`` is a mutable
+    ``{"chapters": bool}`` flipped once ``get_novel_info()`` has run.
     """
     if phase.get("chapters"):
-        job.update_progress(app.progress, total_chapters, "chapters")
+        unit = getattr(app, "progress_unit", "chapters")
+        total = getattr(app, "progress_total", 0) if unit == "images" else total_chapters
+        job.update_progress(app.progress, total, unit)
     else:
         crawler = app.crawler
         job.update_progress(
             getattr(crawler, "progress", 0),
             getattr(crawler, "progress_total", 0),
-            getattr(crawler, "progress_unit", "chapters"),
+            # "chapters" is the crawler default; report "toc" so the UI does
+            # not mistake TOC fetching for the chapter download phase.
+            "volumes" if getattr(crawler, "progress_unit", None) == "volumes" else "toc",
         )
 
 
@@ -676,6 +681,7 @@ class DownloaderService:
                 'download_completed': job.status == Job.STATUS_DOWNLOAD_COMPLETED,
                 'progress': job.progress,
                 'total_chapters': job.total_items,
+                'total_items': job.total_items,
                 'progress_unit': job.progress_unit,
                 'progress_percentage': job.get_progress_percentage(),
                 'selected_novel': job.selected_novel,

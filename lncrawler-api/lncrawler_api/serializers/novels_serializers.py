@@ -195,7 +195,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source', 'is_dmca',
+            'reading_history', 'reading_source', 'is_dmca', 'created_at',
         ],
         'detail': [
             'id', 'title', 'slug', 'sources',

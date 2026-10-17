@@ -37,6 +37,8 @@ class App:
 
     def initialize(self) -> None:
         self.progress = 0
+        self.progress_total = 0
+        self.progress_unit = "chapters"
         self.user_input = ""
         self.crawler = None
         self.crawler_links: List = []

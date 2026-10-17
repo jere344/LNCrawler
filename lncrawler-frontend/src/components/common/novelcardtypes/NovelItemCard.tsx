@@ -3,6 +3,7 @@ import { Box, Card, Typography, Badge, ButtonBase, Skeleton } from '@mui/materia
 import StarIcon from '@mui/icons-material/Star';
 import BookIcon from '@mui/icons-material/Book';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { Novel } from '@models/novels_types';
 import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
@@ -11,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
+import { formatTimeAgo } from '@utils/Misc';
 
 interface NovelItemCardProps {
   novel: Novel;
@@ -20,9 +22,10 @@ interface NovelItemCardProps {
   to?: To;
   state?: unknown;
   forceAdultBlur?: boolean;
+  showAddedDate?: boolean;
 }
 
-const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state, forceAdultBlur = false }) => {
+const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state, forceAdultBlur = false, showAddedDate = false }) => {
   const { t } = useTranslation();
   const { isBlurred, revealHandler } = useAdultContent();
   const blurred = isBlurred(novel.is_adult, novel.id, forceAdultBlur);
@@ -153,20 +156,37 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
           fontSize: '0.75rem',
           color: 'text.secondary',
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <EmojiEventsIcon sx={{ fontSize: 14, flexShrink: 0 }} />
-            <Typography 
-              variant="caption" 
-              component="span"
-              noWrap
-              sx={{ 
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {t('cards.rank', { rank: rank || '-' })}
-            </Typography>
-          </Box>
+          {showAddedDate && novel.created_at ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <CalendarTodayIcon sx={{ fontSize: 14, flexShrink: 0 }} />
+              <Typography
+                variant="caption"
+                component="span"
+                noWrap
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {t('cards.added', { time: formatTimeAgo(new Date(novel.created_at), t) })}
+              </Typography>
+            </Box>
+          ) : rank !== undefined ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <EmojiEventsIcon sx={{ fontSize: 14, flexShrink: 0 }} />
+              <Typography
+                variant="caption"
+                component="span"
+                noWrap
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {t('cards.rank', { rank })}
+              </Typography>
+            </Box>
+          ) : null}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <BookIcon sx={{ fontSize: 14, flexShrink: 0 }} />
             <Typography 

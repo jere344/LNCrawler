@@ -150,7 +150,7 @@ const HomePage: React.FC = () => {
           <Grid container spacing={2}>
             {homeData!.novels_you_added.slice(0, 12).map((novel) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
-                <NovelItemCard novel={novel} forceAdultBlur {...getNovelSourceLink(novel)} />
+                <NovelItemCard novel={novel} forceAdultBlur showAddedDate {...getNovelSourceLink(novel)} />
               </Grid>
             ))}
           </Grid>
@@ -388,7 +388,7 @@ const HomePage: React.FC = () => {
           <Grid container spacing={2}>
             {homeData?.recently_added?.slice(0, 12).map((novel) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
-                <NovelItemCard novel={novel} {...getNovelSourceLink(novel)} />
+                <NovelItemCard novel={novel} showAddedDate {...getNovelSourceLink(novel)} />
               </Grid>
             ))}
           </Grid>

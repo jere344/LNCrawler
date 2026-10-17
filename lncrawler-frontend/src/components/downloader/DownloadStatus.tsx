@@ -13,6 +13,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { downloadService } from '@services/api';
 import { DownloadStatus as DownloadStatusType, DownloadResults } from '@models/downloader_types';
+import { formatProgress } from '@utils/progressUnit';
 import DownloadStepper from './DownloadStepper';
 
 const POLLING_INTERVAL = 2000; // 2 seconds
@@ -126,7 +127,7 @@ const DownloadStatus = () => {
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              {results.selected_novel.chapters} chapters
+              {t('units.chapters', { count: results.selected_novel.chapters })}
             </Typography>
           </Box>
           
@@ -173,15 +174,24 @@ const DownloadStatus = () => {
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              {status.selected_novel.chapters} chapters
+              {t('units.chapters', { count: status.selected_novel.chapters })}
             </Typography>
           </Box>
         )}
-        
+
         <Box sx={{ mb: 3 }}>
           <Typography variant="body2" gutterBottom>
             {status?.status_display || t('downloader.initializing')}
           </Typography>
+          {status && (
+            <Typography variant="body2" sx={{ fontWeight: 'bold' }} gutterBottom>
+              {status.progress_unit === 'images'
+                ? t('downloader.phaseImages')
+                : status.progress_unit === 'chapters'
+                  ? t('downloader.phaseChapters')
+                  : t('downloader.phaseToc')}
+            </Typography>
+          )}
           <LinearProgress 
             variant="determinate" 
             value={status?.progress_percentage || 0} 
@@ -193,7 +203,7 @@ const DownloadStatus = () => {
               textAlign: "right",
               mt: 1
             }}>
-            {status?.progress || 0} / {status?.total_chapters || 0} {status?.progress_unit || t('units.chapters', { count: 2 })}
+            {formatProgress(t, status?.progress || 0, status?.total_items ?? status?.total_chapters ?? 0, status?.progress_unit)}
           </Typography>
         </Box>
         
