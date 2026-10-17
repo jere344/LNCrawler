@@ -3,6 +3,7 @@ import logging
 from typing import List
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
@@ -57,11 +58,16 @@ class LeafStudioCrawler(Crawler):
 
     def read_novel_info(self) -> None:
         soup = self.get_soup(self.novel_url)
-        self.novel_title = soup.select_one(".title").text
+        title = soup.select_one(".title")
+        if not title:
+            raise LNException("Novel not found")
+        self.novel_title = title.text.strip()
         self.novel_author = "LeafStudio"
-        self.novel_synopsis = soup.select_one(".desc_div > p:nth-child(2)").text or None
+        synopsis = soup.select_one(".desc_div > p:nth-child(2)") or soup.select_one(".desc_div")
+        self.novel_synopsis = synopsis.text.strip() if synopsis else None
         self.novel_tags = [item.text for item in soup.select("a.novel_genre")] or None
-        self.novel_cover = soup.select_one("#novel_cover")["src"] or None
+        cover = soup.select_one("#novel_cover")
+        self.novel_cover = cover.get("src") if cover else None
         for item in soup.select("a.free_chap").__reversed__():
             self.chapters.append(
                 dict(id=len(self.chapters) + 1, title=item.text, url=item["href"])

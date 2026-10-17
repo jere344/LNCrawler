@@ -15,6 +15,7 @@ from ..constants import DEFAULT_OUTPUT_PATH
 from ..models import Chapter
 from ..utils.novelupdates import find_novelupdates_url
 from .downloader import fetch_chapter_body, fetch_chapter_images
+from .exeptions import LNException
 from .novel_info import format_novel, save_metadata
 from .search import run_search
 from .sources import get_search_crawlers, prepare_crawler
@@ -76,6 +77,9 @@ class App:
 
         self.crawler.read_novel_info()
         format_novel(self.crawler)
+        # Without a title the import fails after the whole crawl; stop early.
+        if not str(self.crawler.novel_title or "").strip():
+            raise LNException("Could not read the novel title from this source")
 
         # Best-effort NovelUpdates link, once per novel, only when the source
         # did not already provide one. Never let a lookup break the download.
