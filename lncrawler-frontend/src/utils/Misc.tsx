@@ -108,6 +108,13 @@ export const getNovelSourcePath = (novel: NovelSourceTarget): string | undefined
     return sourceSlug ? `/novels/${novel.slug}/${sourceSlug}` : undefined;
 };
 
+// Language-aware display title: the preferred source's title, falling back to Novel.title.
+export const getNovelDisplayTitle = (novel: {
+    title: string;
+    reading_source?: { title?: string | null } | null;
+    prefered_source?: { title?: string | null } | null;
+}): string => (novel.reading_source ?? novel.prefered_source)?.title || novel.title;
+
 export interface SourceLinkProps {
     to?: string;
     state?: unknown;

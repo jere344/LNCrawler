@@ -16,7 +16,7 @@ import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, formatDate, getChapterName, getNovelSourceLink } from '@utils/Misc';
+import { formatTimeAgo, formatDate, getChapterName, getNovelSourceLink, getNovelDisplayTitle } from '@utils/Misc';
 import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
@@ -115,7 +115,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
               textDecoration: 'none',
             }}
           >
-            {novel.title}
+            {getNovelDisplayTitle(novel)}
           </Typography>
           
           {novel.reading_history && lastReadChapter && (

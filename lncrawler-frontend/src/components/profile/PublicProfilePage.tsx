@@ -25,7 +25,7 @@ import { useAuth } from '@context/AuthContext';
 import FriendButton from './FriendButton';
 import FriendsTab from './FriendsTab';
 import { BaseNovelCard } from '@components/common/novelcardtypes/BaseNovelCard';
-import { getNovelSourceLink, formatDate, formatDateTime, formatNumber } from '@utils/Misc';
+import { getNovelSourceLink, getNovelDisplayTitle, formatDate, formatDateTime, formatNumber } from '@utils/Misc';
 import ReadingListCard from '@components/readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 import PublicLibraryTab from '@components/library/PublicLibraryTab';
@@ -217,7 +217,7 @@ const OverviewTab: React.FC<{ profile: PublicProfile; showFriends: boolean }> = 
             {profile.currently_reading && (
                 <Paper sx={{ p: 3, mb: 3 }}>
                     <Typography variant="h6" gutterBottom>{t('profile.currentlyReading')}</Typography>
-                    <Typography>{profile.currently_reading.novel.title}</Typography>
+                    <Typography>{getNovelDisplayTitle(profile.currently_reading.novel)}</Typography>
                     {profile.currently_reading.last_read_at && (
                         <Typography variant="body2" color="text.secondary">
                             {t('profile.lastRead', { date: formatDate(profile.currently_reading.last_read_at, i18n.language) })}

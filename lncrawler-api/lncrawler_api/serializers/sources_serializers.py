@@ -50,7 +50,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         ],
         # Cover thumbnail for reading-list cards: only the blurred/first-item
         # cover the list card needs.
-        'preview': ['id', 'cover_min_url'],
+        'preview': ['id', 'title', 'cover_min_url'],
         'detail': [
             'id', 'title', 'source_url', 'source_name', 'source_slug', 'edition',
             'authors', 'tags', 'language', 'synopsis', 'has_crawler',

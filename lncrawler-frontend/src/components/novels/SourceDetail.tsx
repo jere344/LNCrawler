@@ -1169,6 +1169,7 @@ const SourceDetail = () => {
           onClose={() => setAddToListOpen(false)}
           novelId={source?.novel_id}
           novelTitle={novel?.title || source?.title}
+          displayTitle={source?.title || novel?.title || ''}
         />
     </Container>
   );

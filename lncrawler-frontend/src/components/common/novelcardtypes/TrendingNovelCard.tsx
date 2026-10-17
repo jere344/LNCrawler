@@ -7,7 +7,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatCount } from '@utils/Misc';
+import { formatCount, getNovelDisplayTitle } from '@utils/Misc';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -113,6 +113,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
       <NovelActionsMenu
         novelId={novel.id}
         novelTitle={novel.title}
+        displayTitle={getNovelDisplayTitle(novel)}
         slug={novel.slug}
         isBookmarked={novel.is_bookmarked}
         customSx={{ position: 'absolute', bottom: 8, right: 8, zIndex: 2 }}
@@ -156,7 +157,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
           <CardMedia
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
-            alt={novel.title}
+            alt={getNovelDisplayTitle(novel)}
             onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               width: '100%',
@@ -193,7 +194,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               mb: 0.5
             }}
           >
-            {novel.title}
+            {getNovelDisplayTitle(novel)}
           </Typography>
           
           {/* Trending statistics */}

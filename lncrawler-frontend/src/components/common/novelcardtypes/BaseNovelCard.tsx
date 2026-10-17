@@ -11,7 +11,7 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, formatCount, getChapterName, languageFlagUrl, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, formatCount, getChapterName, languageFlagUrl, languageCodeToName, getNovelDisplayTitle } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
@@ -192,6 +192,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           <CompactAddToListButton
             novelId={novel.id}
             novelTitle={novel.title}
+            displayTitle={getNovelDisplayTitle(novel)}
             customSx={addToListButtonSx}
           />
         </>
@@ -208,7 +209,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           <CardMedia
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
-            alt={novel.title}
+            alt={getNovelDisplayTitle(novel)}
             onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               position: 'absolute',
@@ -302,7 +303,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               textAlign: 'left',
             }}
           >
-            {novel.title}
+            {getNovelDisplayTitle(novel)}
           </Typography>
           
           {/* Author */}

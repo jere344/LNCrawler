@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
-import { formatTimeAgo } from '@utils/Misc';
+import { formatTimeAgo, getNovelDisplayTitle } from '@utils/Misc';
 
 interface NovelItemCardProps {
   novel: Novel;
@@ -62,6 +62,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
     <NovelActionsMenu
       novelId={novel.id}
       novelTitle={novel.title}
+      displayTitle={getNovelDisplayTitle(novel)}
       slug={novel.slug}
       isBookmarked={novel.is_bookmarked}
       customSx={{ position: 'absolute', bottom: 8, right: 8, zIndex: 2 }}
@@ -96,7 +97,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
         <Box
           component="img"
           src={displaySource?.cover_min_url || defaultCover}
-          alt={novel.title}
+          alt={getNovelDisplayTitle(novel)}
           onClick={blurred ? revealHandler(novel.id) : undefined}
           sx={{
             width: '100%',
@@ -145,7 +146,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
             mb: 0.5
           }}
         >
-          {novel.title}
+          {getNovelDisplayTitle(novel)}
         </Typography>
         
         <Box sx={{ 

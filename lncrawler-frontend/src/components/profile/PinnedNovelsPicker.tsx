@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { novelService } from '@services/novel.service';
 import { profileService } from '@services/profile.service';
 import type { Novel } from '@models/novels_types';
+import { getNovelDisplayTitle } from '@utils/Misc';
 
 const MAX_PINNED = 6;
 
@@ -86,7 +87,7 @@ const PinnedNovelsPicker: React.FC<PinnedNovelsPickerProps> = ({ pinnedNovels, o
                                 <BookIcon fontSize="small" />
                             </Avatar>
                         }
-                        label={novel.title}
+                        label={getNovelDisplayTitle(novel)}
                         onDelete={() => handleRemove(novel)}
                         deleteIcon={<CloseIcon />}
                     />
@@ -96,7 +97,7 @@ const PinnedNovelsPicker: React.FC<PinnedNovelsPickerProps> = ({ pinnedNovels, o
             {pinnedNovels.length < MAX_PINNED && (
                 <Autocomplete
                     options={options.filter((option) => !pinnedNovels.some((pinned) => pinned.id === option.id))}
-                    getOptionLabel={(option) => option.title}
+                    getOptionLabel={(option) => getNovelDisplayTitle(option)}
                     loading={searching}
                     onChange={(_, value) => {
                         handleAdd(value);

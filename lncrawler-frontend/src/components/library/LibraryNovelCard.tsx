@@ -27,7 +27,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOffIcon from '@mui/icons-material/FolderOff';
 import defaultCover from '@assets/default-cover.jpg';
-import { getNovelSourceLink } from '@utils/Misc';
+import { getNovelSourceLink, getNovelDisplayTitle } from '@utils/Misc';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -260,7 +260,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
             <CardMedia
               component="img"
               image={cover}
-              alt={novel.title}
+              alt={getNovelDisplayTitle(novel)}
               onClick={blurred ? revealHandler(novel.id) : undefined}
               sx={{
                 position: 'absolute',
@@ -307,7 +307,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
                 wordBreak: 'break-word',
               }}
             >
-              {novel.title}
+              {getNovelDisplayTitle(novel)}
             </Typography>
             <CoverOverlays novel={novel} />
           </Box>

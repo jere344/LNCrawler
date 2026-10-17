@@ -16,7 +16,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, formatCount, languageFlagUrl, languageCodeToName } from '@utils/Misc';
+import { formatTimeAgo, formatCount, languageFlagUrl, languageCodeToName, getNovelDisplayTitle } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
@@ -198,7 +198,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           <CardMedia
             component="img"
             image={preferredSource?.cover_min_url || defaultCover}
-            alt={novel.title}
+            alt={getNovelDisplayTitle(novel)}
             onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
               width: '100%',
@@ -309,7 +309,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                 minWidth: 0,
               }}
             >
-              {novel.title}
+              {getNovelDisplayTitle(novel)}
             </Typography>
             
             {/* Author */}
@@ -460,7 +460,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
                   minWidth: 0,
                 }}
               >
-                {novel.title}
+                {getNovelDisplayTitle(novel)}
               </Typography>
             )}
             
@@ -562,7 +562,7 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
           <Typography variant="subtitle2" sx={{
             color: "text.secondary"
           }}>
-            {novel.title}
+            {getNovelDisplayTitle(novel)}
           </Typography>
         </DialogTitle>
         <DialogContent>

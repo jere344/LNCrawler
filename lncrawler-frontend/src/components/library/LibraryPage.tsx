@@ -64,6 +64,7 @@ import LibraryFolderBar from '@components/library/LibraryFolderBar';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import { useDebounce } from '@utils/useDebounce';
+import { getNovelDisplayTitle } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import NovelRecommendation from '@components/common/NovelRecommendation';
@@ -761,7 +762,7 @@ const LibraryPage: React.FC = () => {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>{noteDialog.novel?.title}</DialogTitle>
+        <DialogTitle>{noteDialog.novel ? getNovelDisplayTitle(noteDialog.novel) : undefined}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus

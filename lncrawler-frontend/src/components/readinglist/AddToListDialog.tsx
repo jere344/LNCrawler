@@ -15,10 +15,13 @@ interface AddToListDialogProps {
   open: boolean;
   onClose: () => void;
   novelId: string;
+  // Match key: compared against ReadingList.items_names (Novel.title).
   novelTitle: string;
+  // Heading only: the source-facing title shown to the user.
+  displayTitle: string;
 }
 
-const AddToListDialog: React.FC<AddToListDialogProps> = ({ open, onClose, novelId, novelTitle }) => {
+const AddToListDialog: React.FC<AddToListDialogProps> = ({ open, onClose, novelId, novelTitle, displayTitle }) => {
   const { t } = useTranslation();
   const [userLists, setUserLists] = useState<ReadingList[]>([]);
   const [loading, setLoading] = useState(false);
@@ -122,7 +125,7 @@ const AddToListDialog: React.FC<AddToListDialogProps> = ({ open, onClose, novelI
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="xs">
-      <DialogTitle>{t('addToList.dialogTitle', { title: novelTitle })}</DialogTitle>
+      <DialogTitle>{t('addToList.dialogTitle', { title: displayTitle })}</DialogTitle>
 
       <DialogContent dividers>
         {loading ? (

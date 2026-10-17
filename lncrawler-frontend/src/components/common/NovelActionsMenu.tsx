@@ -13,6 +13,7 @@ import AddToListDialog from '@components/readinglist/AddToListDialog';
 interface NovelActionsMenuProps {
   novelId: string;
   novelTitle: string;
+  displayTitle: string;
   slug: string;
   isBookmarked?: boolean | null;
   customSx?: SxProps;
@@ -27,6 +28,7 @@ interface NovelActionsMenuProps {
 const NovelActionsMenu: React.FC<NovelActionsMenuProps> = ({
   novelId,
   novelTitle,
+  displayTitle,
   slug,
   isBookmarked = false,
   customSx = {},
@@ -116,6 +118,7 @@ const NovelActionsMenu: React.FC<NovelActionsMenuProps> = ({
         onClose={() => setListOpen(false)}
         novelId={novelId}
         novelTitle={novelTitle}
+        displayTitle={displayTitle}
       />
     </>
   );

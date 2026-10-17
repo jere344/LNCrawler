@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getNovelDisplayTitle } from '@utils/Misc';
 import { 
   Box, 
   IconButton, 
@@ -124,7 +125,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
         <DialogTitle>{t('markAsRead.confirmTitle')}</DialogTitle>
         <DialogContent>
           <Typography>
-            {t('markAsRead.confirmBody', { title: novel.title })}
+            {t('markAsRead.confirmBody', { title: getNovelDisplayTitle(novel) })}
           </Typography>
         </DialogContent>
         <DialogActions>
