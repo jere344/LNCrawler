@@ -511,6 +511,10 @@
     "downloadTooltip": "Deze roman downloaden als EPUB-bestand",
     "downloadFull": "Volledige roman",
     "volumeN": "Deel {n}",
+    "epubPreparing": "EPUB wordt voorbereid, dit kan enkele minuten duren voor lange romans",
+    "epubQueued": "Wachten op een vrije worker om de EPUB te bouwen…",
+    "epubProgress": "EPUB wordt gebouwd: {done} / {total} hoofdstukken",
+    "epubFailed": "De EPUB kon niet worden voorbereid. Probeer het opnieuw.",
     "startReading": "Begin met lezen",
     "fromBeginning": "Vanaf het begin",
     "startFromFirst": "Begin met lezen vanaf het eerste hoofdstuk",
@@ -587,7 +591,8 @@
     "loadFailed": "Chat laden mislukt. Probeer de pagina te vernieuwen.",
     "noMessages": "Nog geen berichten. Wees de eerste die iets zegt!",
     "quoteUnavailable": "Het geciteerde bericht kon niet worden gevonden.",
-    "quoteLookupLimit": "Het geciteerde bericht is te oud om automatisch te laden."
+    "quoteLookupLimit": "Het geciteerde bericht is te oud om automatisch te laden.",
+    "editFailed": "Bericht bewerken mislukt. Probeer het opnieuw."
   },
   "readingLists": {
     "heading": "Leeslijsten",

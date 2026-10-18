@@ -511,6 +511,10 @@
     "downloadTooltip": "将此小说下载为 EPUB 文件",
     "downloadFull": "完整小说",
     "volumeN": "第 {n} 卷",
+    "epubPreparing": "正在准备 EPUB，长篇小说可能需要几分钟",
+    "epubQueued": "正在等待空闲的工作进程来生成 EPUB…",
+    "epubProgress": "正在生成 EPUB：{done} / {total} 章",
+    "epubFailed": "无法准备 EPUB，请重试。",
     "startReading": "开始阅读",
     "fromBeginning": "从头开始",
     "startFromFirst": "从第一章开始阅读",
@@ -587,7 +591,8 @@
     "loadFailed": "加载聊天失败。请尝试刷新页面。",
     "noMessages": "还没有消息。快来第一个发言吧！",
     "quoteUnavailable": "找不到引用的消息。",
-    "quoteLookupLimit": "引用的消息太久远，无法自动加载。"
+    "quoteLookupLimit": "引用的消息太久远，无法自动加载。",
+    "editFailed": "编辑消息失败，请重试。"
   },
   "readingLists": {
     "heading": "阅读列表",

@@ -511,6 +511,10 @@
     "downloadTooltip": "この小説をEPUBファイルとしてダウンロード",
     "downloadFull": "全編",
     "volumeN": "第{n}巻",
+    "epubPreparing": "EPUBを準備中です。長編小説の場合は数分かかることがあります",
+    "epubQueued": "空いているワーカーがEPUBを作成するのを待機中…",
+    "epubProgress": "EPUBを作成中: {done} / {total} 章",
+    "epubFailed": "EPUBを準備できませんでした。もう一度お試しください。",
     "startReading": "読書を始める",
     "fromBeginning": "最初から",
     "startFromFirst": "最初の章から読み始める",
@@ -587,7 +591,8 @@
     "loadFailed": "チャットの読み込みに失敗しました。ページを更新してみてください。",
     "noMessages": "まだメッセージがありません。最初に何か書いてみましょう！",
     "quoteUnavailable": "引用されたメッセージが見つかりませんでした。",
-    "quoteLookupLimit": "引用されたメッセージは古すぎて自動的に読み込めません。"
+    "quoteLookupLimit": "引用されたメッセージは古すぎて自動的に読み込めません。",
+    "editFailed": "メッセージの編集に失敗しました。もう一度お試しください。"
   },
   "readingLists": {
     "heading": "読書リスト",

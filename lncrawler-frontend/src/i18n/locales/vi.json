@@ -511,6 +511,10 @@
     "downloadTooltip": "Tải tiểu thuyết này dưới dạng tệp EPUB",
     "downloadFull": "Tiểu thuyết đầy đủ",
     "volumeN": "Tập {n}",
+    "epubPreparing": "Đang chuẩn bị EPUB, có thể mất vài phút với các truyện dài",
+    "epubQueued": "Đang chờ một worker rảnh để tạo EPUB…",
+    "epubProgress": "Đang tạo EPUB: {done} / {total} chương",
+    "epubFailed": "Không thể chuẩn bị EPUB. Vui lòng thử lại.",
     "startReading": "Bắt đầu đọc",
     "fromBeginning": "Từ đầu",
     "startFromFirst": "Bắt đầu đọc từ chương đầu tiên",
@@ -587,7 +591,8 @@
     "loadFailed": "Tải trò chuyện thất bại. Vui lòng thử làm mới trang.",
     "noMessages": "Chưa có tin nhắn nào. Hãy là người đầu tiên lên tiếng!",
     "quoteUnavailable": "Không tìm thấy tin nhắn được trích dẫn.",
-    "quoteLookupLimit": "Tin nhắn được trích dẫn quá cũ để tự động tải."
+    "quoteLookupLimit": "Tin nhắn được trích dẫn quá cũ để tự động tải.",
+    "editFailed": "Không thể chỉnh sửa tin nhắn. Vui lòng thử lại."
   },
   "readingLists": {
     "heading": "Danh sách đọc",

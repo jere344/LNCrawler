@@ -360,6 +360,17 @@ def prune_jobs_task():
         logger.error(f"Error pruning old jobs: {str(e)}", exc_info=True)
         raise
 
+
+@scheduler.register_task(interval=86400, name="prune_epub_cache")  # daily
+def prune_epub_cache_task():
+    logger.info("Pruning expired EPUB cache files...")
+    try:
+        call_command('prune_epub_cache')
+        logger.info("EPUB cache prune completed")
+    except Exception as e:
+        logger.error(f"Error pruning EPUB cache: {str(e)}", exc_info=True)
+        raise
+
 # Refresh the projected ranking columns that search sorts read. One set-based
 # UPDATE; only rows whose values changed are written, so frequent runs are cheap.
 @scheduler.register_task(interval=300, name="refresh_novel_rankings")  # 5 minutes

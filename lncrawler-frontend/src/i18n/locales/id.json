@@ -511,6 +511,10 @@
     "downloadTooltip": "Unduh novel ini sebagai file EPUB",
     "downloadFull": "Novel lengkap",
     "volumeN": "Volume {n}",
+    "epubPreparing": "Menyiapkan EPUB, ini bisa memakan waktu beberapa menit untuk novel panjang",
+    "epubQueued": "Menunggu worker yang tersedia untuk membuat EPUB…",
+    "epubProgress": "Membangun EPUB: {done} / {total} bab",
+    "epubFailed": "Tidak dapat menyiapkan EPUB. Silakan coba lagi.",
     "startReading": "Mulai Membaca",
     "fromBeginning": "Dari awal",
     "startFromFirst": "Mulai membaca dari bab pertama",
@@ -587,7 +591,8 @@
     "loadFailed": "Gagal memuat chat. Silakan coba segarkan halaman.",
     "noMessages": "Belum ada pesan. Jadilah yang pertama mengatakan sesuatu!",
     "quoteUnavailable": "Pesan yang dikutip tidak dapat ditemukan.",
-    "quoteLookupLimit": "Pesan yang dikutip terlalu jauh ke belakang untuk dimuat secara otomatis."
+    "quoteLookupLimit": "Pesan yang dikutip terlalu jauh ke belakang untuk dimuat secara otomatis.",
+    "editFailed": "Gagal mengedit pesan. Silakan coba lagi."
   },
   "readingLists": {
     "heading": "Daftar Bacaan",

@@ -511,6 +511,10 @@
     "downloadTooltip": "Download denne roman som EPUB-fil",
     "downloadFull": "Fuld roman",
     "volumeN": "Bind {n}",
+    "epubPreparing": "Forbereder EPUB, dette kan tage et par minutter for lange romaner",
+    "epubQueued": "Venter på en ledig worker til at bygge EPUB'en…",
+    "epubProgress": "Bygger EPUB: {done} / {total} kapitler",
+    "epubFailed": "EPUB'en kunne ikke forberedes. Prøv venligst igen.",
     "startReading": "Begynd at læse",
     "fromBeginning": "Fra begyndelsen",
     "startFromFirst": "Begynd at læse fra det første kapitel",
@@ -587,7 +591,8 @@
     "loadFailed": "Kunne ikke indlæse chatten. Prøv at genindlæse siden.",
     "noMessages": "Ingen beskeder endnu. Vær den første til at skrive noget!",
     "quoteUnavailable": "Den citerede besked blev ikke fundet.",
-    "quoteLookupLimit": "Den citerede besked er for langt tilbage til at blive indlæst automatisk."
+    "quoteLookupLimit": "Den citerede besked er for langt tilbage til at blive indlæst automatisk.",
+    "editFailed": "Kunne ikke redigere beskeden. Prøv igen."
   },
   "readingLists": {
     "heading": "Læselister",

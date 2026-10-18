@@ -16,6 +16,7 @@ import {
   alpha,
 } from '@mui/material';
 import ReplyIcon from '@mui/icons-material/Reply';
+import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import { chatService } from '../../services/chat.service';
 import { type ApiError } from '../../services/api';
@@ -43,13 +44,46 @@ interface ChatRowProps {
   message: ChatMessage;
   isOwn: boolean;
   highlight: boolean;
+  canEdit: boolean;
   onReply: (message: ChatMessage) => void;
+  onEdit: (id: string, text: string) => Promise<void>;
   onQuoteClick: (parentId: string) => void;
 }
 
-const ChatRow = ({ message, isOwn, highlight, onReply, onQuoteClick }: ChatRowProps) => {
+const ChatRow = ({ message, isOwn, highlight, canEdit, onReply, onEdit, onQuoteClick }: ChatRowProps) => {
   const { t, i18n } = useTranslation();
   const [spoilerRevealed, setSpoilerRevealed] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(message.message);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const startEdit = () => {
+    setDraft(message.message);
+    setEditError(null);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setEditError(null);
+  };
+
+  const saveEdit = async () => {
+    const text = draft.trim();
+    if (!text || text === message.message || saving) return;
+    setSaving(true);
+    setEditError(null);
+    try {
+      await onEdit(message.id, text);
+      setEditing(false);
+    } catch (err) {
+      const apiError = (err as ApiError | undefined)?.response?.data?.error;
+      setEditError(typeof apiError === 'string' && apiError ? apiError : t('chat.editFailed'));
+    } finally {
+      setSaving(false);
+    }
+  };
   const displayName =
     message.user?.username && message.user.username.length > 0
       ? message.user.username
@@ -151,7 +185,40 @@ const ChatRow = ({ message, isOwn, highlight, onReply, onQuoteClick }: ChatRowPr
             </Box>
           )}
 
-          {message.contains_spoiler ? (
+          {editing ? (
+            <Box sx={{ minWidth: { xs: 200, sm: 320 } }}>
+              <TextField
+                multiline
+                fullWidth
+                size="small"
+                autoFocus
+                minRows={2}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                disabled={saving}
+                sx={{ bgcolor: 'background.paper', borderRadius: 1 }}
+              />
+              {editError && (
+                <Typography variant="caption" sx={{ display: 'block', color: 'error.light' }}>
+                  {editError}
+                </Typography>
+              )}
+              <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, justifyContent: 'flex-end' }}>
+                <Button size="small" color="inherit" onClick={cancelEdit} disabled={saving}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="secondary"
+                  onClick={() => void saveEdit()}
+                  disabled={saving || !draft.trim() || draft.trim() === message.message}
+                >
+                  {t('common.save')}
+                </Button>
+              </Box>
+            </Box>
+          ) : message.contains_spoiler ? (
             <Box
               sx={{
                 px: 0.5,
@@ -196,6 +263,13 @@ const ChatRow = ({ message, isOwn, highlight, onReply, onQuoteClick }: ChatRowPr
             <ReplyIcon sx={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
+        {canEdit && !editing && (
+          <Tooltip title={t('common.edit')}>
+            <IconButton size="small" onClick={startEdit} sx={{ color: 'text.secondary', flexShrink: 0 }}>
+              <EditIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
     </Box>
   );
@@ -421,6 +495,11 @@ const ChatPage = () => {
     setReplyTo(null);
   };
 
+  const handleEditMessage = async (id: string, text: string) => {
+    const updated = await chatService.updateChatMessage(id, text);
+    setMessages((prev) => prev.map((m) => (m.id === id ? updated : m)));
+  };
+
   const handleSubmitMessage = async (data: NewMessage) => {
     const created = await chatService.addChatMessage(
       replyTo ? { ...data, parent_id: replyTo.id } : data
@@ -483,7 +562,9 @@ const ChatPage = () => {
                   message={message}
                   isOwn={!!user && !!message.user && message.user.username === user.username}
                   highlight={highlightId === message.id}
+                  canEdit={!!user && !!message.user && message.user.username === user.username}
                   onReply={setReplyTo}
+                  onEdit={handleEditMessage}
                   onQuoteClick={handleQuoteClick}
                 />
               ))}

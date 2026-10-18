@@ -511,6 +511,10 @@
     "downloadTooltip": "Ladda ner den här romanen som en EPUB-fil",
     "downloadFull": "Hela romanen",
     "volumeN": "Volym {n}",
+    "epubPreparing": "Förbereder EPUB, detta kan ta några minuter för långa romaner",
+    "epubQueued": "Väntar på en ledig worker för att bygga EPUB-filen…",
+    "epubProgress": "Bygger EPUB: {done} / {total} kapitel",
+    "epubFailed": "Det gick inte att förbereda EPUB-filen. Försök igen.",
     "startReading": "Börja läsa",
     "fromBeginning": "Från början",
     "startFromFirst": "Börja läsa från första kapitlet",
@@ -587,7 +591,8 @@
     "loadFailed": "Det gick inte att ladda chatten. Prova att uppdatera sidan.",
     "noMessages": "Inga meddelanden ännu. Bli den första att säga något!",
     "quoteUnavailable": "Det citerade meddelandet kunde inte hittas.",
-    "quoteLookupLimit": "Det citerade meddelandet är för långt tillbaka för att laddas automatiskt."
+    "quoteLookupLimit": "Det citerade meddelandet är för långt tillbaka för att laddas automatiskt.",
+    "editFailed": "Det gick inte att redigera meddelandet. Försök igen."
   },
   "readingLists": {
     "heading": "Läslistor",

@@ -35,6 +35,7 @@ urlpatterns = [
     # Chat endpoints
     path('chat/', chat_views.list_chat, name='list_chat'),
     path('chat/add/', chat_views.add_chat_message, name='add_chat_message'),
+    path('chat/<uuid:message_id>/edit/', chat_views.edit_chat_message, name='edit_chat_message'),
 
     # Novel comments
     path('novels/<slug:novel_slug>/comments/', comments_views.novel_comments, name='novel_comments'),
@@ -93,6 +94,7 @@ urlpatterns = [
     path('novels/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', sources_views.chapter_content_by_number, name='chapter_content_by_number'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/gallery/', sources_views.source_image_gallery, name='source_image_gallery'),
     path('novels/<slug:novel_slug>/<slug:source_slug>/download/', sources_views.download_source_epub, name='download_source_epub'),
+    path('novels/<slug:novel_slug>/<slug:source_slug>/download/prepare/', sources_views.prepare_source_epub, name='prepare_source_epub'),
 
     # downloader endpoints
     path('downloader/search/start/', views.start_search, name='start_search'),

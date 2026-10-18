@@ -511,6 +511,10 @@
     "downloadTooltip": "Pobierz tę powieść jako plik EPUB",
     "downloadFull": "Pełna powieść",
     "volumeN": "Tom {n}",
+    "epubPreparing": "Przygotowywanie EPUB, przy długich powieściach może to potrwać kilka minut",
+    "epubQueued": "Oczekiwanie na wolnego workera do utworzenia EPUB…",
+    "epubProgress": "Tworzenie EPUB: {done} / {total} rozdziałów",
+    "epubFailed": "Nie udało się przygotować EPUB. Spróbuj ponownie.",
     "startReading": "Zacznij czytać",
     "fromBeginning": "Od początku",
     "startFromFirst": "Zacznij czytać od pierwszego rozdziału",
@@ -587,7 +591,8 @@
     "loadFailed": "Nie udało się wczytać czatu. Spróbuj odświeżyć stronę.",
     "noMessages": "Nie ma jeszcze wiadomości. Bądź pierwszy i napisz coś!",
     "quoteUnavailable": "Nie znaleziono cytowanej wiadomości.",
-    "quoteLookupLimit": "Cytowana wiadomość jest zbyt odległa, aby załadować ją automatycznie."
+    "quoteLookupLimit": "Cytowana wiadomość jest zbyt odległa, aby załadować ją automatycznie.",
+    "editFailed": "Nie udało się edytować wiadomości. Spróbuj ponownie."
   },
   "readingLists": {
     "heading": "Listy czytelnicze",

@@ -511,6 +511,10 @@
     "downloadTooltip": "Bu romanı EPUB dosyası olarak indir",
     "downloadFull": "Tam roman",
     "volumeN": "Cilt {n}",
+    "epubPreparing": "EPUB hazırlanıyor, uzun romanlar için bu birkaç dakika sürebilir",
+    "epubQueued": "EPUB'yi oluşturmak için boş bir worker bekleniyor…",
+    "epubProgress": "EPUB oluşturuluyor: {done} / {total} bölüm",
+    "epubFailed": "EPUB hazırlanamadı. Lütfen tekrar deneyin.",
     "startReading": "Okumaya Başla",
     "fromBeginning": "Baştan",
     "startFromFirst": "İlk bölümden okumaya başla",
@@ -587,7 +591,8 @@
     "loadFailed": "Sohbet yüklenemedi. Lütfen sayfayı yenilemeyi deneyin.",
     "noMessages": "Henüz mesaj yok. Bir şey söyleyen ilk kişi olun!",
     "quoteUnavailable": "Alıntılanan mesaj bulunamadı.",
-    "quoteLookupLimit": "Alıntılanan mesaj otomatik olarak yüklenemeyecek kadar eski."
+    "quoteLookupLimit": "Alıntılanan mesaj otomatik olarak yüklenemeyecek kadar eski.",
+    "editFailed": "Mesaj düzenlenemedi. Lütfen tekrar deneyin."
   },
   "readingLists": {
     "heading": "Okuma Listeleri",

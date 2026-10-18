@@ -1,5 +1,5 @@
 import api from './api';
-import { ChatPageResponse, ChatMessagePayload } from '@models/chat_types';
+import { ChatMessage, ChatPageResponse, ChatMessagePayload } from '@models/chat_types';
 
 export const chatService = {
   listChat: async (page = 1, pageSize = 100): Promise<ChatPageResponse> => {
@@ -9,6 +9,11 @@ export const chatService = {
 
   addChatMessage: async (data: ChatMessagePayload) => {
     const response = await api.post('/chat/add/', data);
+    return response.data;
+  },
+
+  updateChatMessage: async (id: string, message: string): Promise<ChatMessage> => {
+    const response = await api.put(`/chat/${id}/edit/`, { message });
     return response.data;
   },
 };

@@ -13,7 +13,11 @@ from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
 from ..utils.query_helpers import apply_novel_prefetches, sources_queryset
 from ..utils.pagination import parse_page_size
-from ..services.epub_service import get_or_build_epub
+from ..services.epub_service import (
+    cached_epub,
+    enqueue_epub_job,
+    has_downloadable_chapters,
+)
 
 
 class ArrayLength(Func):
@@ -269,20 +273,19 @@ def source_image_gallery(request, novel_slug, source_slug):
     })
 
 
-@api_view(["GET"])
-def download_source_epub(request, novel_slug, source_slug):
-    """
-    Download the source as an EPUB. Pass ?volume=N for a single volume,
-    omit it for the full novel. The book is generated on first request and
-    cached inside the source folder.
-    """
+def _resolve_epub_request(request, novel_slug, source_slug):
+    """Validate an EPUB request. Returns (source, volume, error_response)."""
     novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources, source_slug=source_slug)
 
     if novel.is_dmca:
-        return Response(
-            {"error": "This work is unavailable due to a DMCA takedown request."},
-            status=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
+        return (
+            None,
+            None,
+            Response(
+                {"error": "This work is unavailable due to a DMCA takedown request."},
+                status=status.HTTP_451_UNAVAILABLE_FOR_LEGAL_REASONS,
+            ),
         )
 
     raw_volume = request.GET.get("volume")
@@ -292,22 +295,76 @@ def download_source_epub(request, novel_slug, source_slug):
         try:
             volume = int(raw_volume)
         except (TypeError, ValueError):
-            return Response(
-                {"error": "Invalid volume."}, status=status.HTTP_400_BAD_REQUEST
+            return (
+                None,
+                None,
+                Response(
+                    {"error": "Invalid volume."}, status=status.HTTP_400_BAD_REQUEST
+                ),
             )
         if not source.volumes.filter(volume_id=volume).exists():
-            return Response(
-                {"error": "Volume not found for this source."},
-                status=status.HTTP_404_NOT_FOUND,
+            return (
+                None,
+                None,
+                Response(
+                    {"error": "Volume not found for this source."},
+                    status=status.HTTP_404_NOT_FOUND,
+                ),
             )
 
-    try:
-        path, filename = get_or_build_epub(source, volume)
-    except ValueError as exc:
-        return Response({"error": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+    return source, volume, None
 
+
+def _epub_pending_response(source, volume, request):
+    """Queue (or reuse) the epub build job and return the 202 payload."""
+    if not has_downloadable_chapters(source, volume):
+        return Response(
+            {"error": "No downloadable chapters found for this selection."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+    user = request.user if request.user.is_authenticated else None
+    job = enqueue_epub_job(source, volume, user=user)
+    return Response(
+        {"status": "pending", "job": job.to_dict()},
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
+@api_view(["GET"])
+def download_source_epub(request, novel_slug, source_slug):
+    """
+    Download the source as an EPUB. Pass ?volume=N for a single volume,
+    omit it for the full novel. If the cached book is fresh it is returned
+    directly; otherwise a background build is queued and 202 is returned.
+    Clients should call prepare_source_epub and poll the job first.
+    """
+    source, volume, error = _resolve_epub_request(request, novel_slug, source_slug)
+    if error is not None:
+        return error
+
+    cached = cached_epub(source, volume)
+    if cached is None:
+        return _epub_pending_response(source, volume, request)
+
+    path, filename = cached
     response = FileResponse(
         open(path, "rb"), content_type="application/epub+zip", as_attachment=True
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+@api_view(["POST"])
+def prepare_source_epub(request, novel_slug, source_slug):
+    """
+    Make sure the EPUB for this source (or ?volume=N) is ready.
+    200 {"status": "ready"} when the cache is fresh, otherwise
+    202 {"status": "pending", "job": {...}} with a queued build job to poll.
+    """
+    source, volume, error = _resolve_epub_request(request, novel_slug, source_slug)
+    if error is not None:
+        return error
+
+    if cached_epub(source, volume) is not None:
+        return Response({"status": "ready"}, status=status.HTTP_200_OK)
+    return _epub_pending_response(source, volume, request)

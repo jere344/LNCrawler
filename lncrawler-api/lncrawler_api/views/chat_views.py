@@ -2,6 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.core.exceptions import ValidationError
+from django.shortcuts import get_object_or_404
 from ..models.chat_models import ChatMessage
 from ..utils import get_client_ip, resolve_author, MAX_MESSAGE_LENGTH
 from ..utils.pagination import paginated_response
@@ -63,3 +64,38 @@ def add_chat_message(request):
 
     serializer = ChatMessageSerializer(chat_message, context={'request': request})
     return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['PUT'])
+def edit_chat_message(request, message_id):
+    """Edit the text of a chat message. Only the message's registered author can edit it."""
+    if not request.user.is_authenticated:
+        return Response({'error': 'You must be logged in to edit a message'},
+                        status=status.HTTP_401_UNAUTHORIZED)
+
+    chat_message = get_object_or_404(ChatMessage, id=message_id)
+
+    if chat_message.user_id is None or chat_message.user_id != request.user.id:
+        return Response({'error': 'You can only edit your own messages'},
+                        status=status.HTTP_403_FORBIDDEN)
+
+    message = request.data.get('message')
+    if not isinstance(message, str):
+        return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    message = message.strip()
+    if not message:
+        return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(message) > MAX_MESSAGE_LENGTH:
+        return Response(
+            {'error': f'Message must be at most {MAX_MESSAGE_LENGTH} characters'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    chat_message.message = message
+    chat_message.edited = True
+    chat_message.save(update_fields=['message', 'edited'])
+
+    serializer = ChatMessageSerializer(chat_message, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_200_OK)

@@ -511,6 +511,10 @@
     "downloadTooltip": "Download this novel as an EPUB file",
     "downloadFull": "Full novel",
     "volumeN": "Volume {n}",
+    "epubPreparing": "Preparing EPUB, this can take a few minutes for long novels",
+    "epubQueued": "Waiting for a free worker to build the EPUB…",
+    "epubProgress": "Building EPUB: {done} / {total} chapters",
+    "epubFailed": "Could not prepare the EPUB. Please try again.",
     "startReading": "Start Reading",
     "fromBeginning": "From the beginning",
     "startFromFirst": "Start reading from the first chapter",
@@ -587,7 +591,8 @@
     "loadFailed": "Failed to load the chat. Please try refreshing the page.",
     "noMessages": "No messages yet. Be the first to say something!",
     "quoteUnavailable": "The quoted message could not be found.",
-    "quoteLookupLimit": "The quoted message is too far back to load automatically."
+    "quoteLookupLimit": "The quoted message is too far back to load automatically.",
+    "editFailed": "Failed to edit the message. Please try again."
   },
   "readingLists": {
     "heading": "Reading Lists",

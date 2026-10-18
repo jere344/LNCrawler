@@ -511,6 +511,10 @@
     "downloadTooltip": "Diesen Roman als EPUB-Datei herunterladen",
     "downloadFull": "Vollständiger Roman",
     "volumeN": "Band {n}",
+    "epubPreparing": "EPUB wird vorbereitet, bei langen Romanen kann das einige Minuten dauern",
+    "epubQueued": "Warten auf einen freien Worker, um das EPUB zu erstellen…",
+    "epubProgress": "EPUB wird erstellt: {done} / {total} Kapitel",
+    "epubFailed": "Die EPUB-Datei konnte nicht vorbereitet werden. Bitte versuche es erneut.",
     "startReading": "Lesen beginnen",
     "fromBeginning": "Von Anfang an",
     "startFromFirst": "Vom ersten Kapitel an lesen",
@@ -587,7 +591,8 @@
     "loadFailed": "Chat konnte nicht geladen werden. Bitte versuche, die Seite neu zu laden.",
     "noMessages": "Noch keine Nachrichten. Sei der Erste, der etwas schreibt!",
     "quoteUnavailable": "Die zitierte Nachricht konnte nicht gefunden werden.",
-    "quoteLookupLimit": "Die zitierte Nachricht liegt zu weit zurück, um automatisch geladen zu werden."
+    "quoteLookupLimit": "Die zitierte Nachricht liegt zu weit zurück, um automatisch geladen zu werden.",
+    "editFailed": "Nachricht konnte nicht bearbeitet werden. Bitte versuche es erneut."
   },
   "readingLists": {
     "heading": "Leselisten",

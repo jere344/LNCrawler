@@ -89,3 +89,69 @@ class ChatTests(TestCase):
         )
         self.assertEqual(response.status_code, 201)
         self.assertTrue(response.json()["contains_spoiler"])
+
+
+class ChatEditTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="chatter", password="pw")
+        self.other = get_user_model().objects.create_user(
+            username="other", password="pw", email="other@example.com"
+        )
+        self.message = ChatMessage.objects.create(user=self.user, message="original")
+        self.anon_message = ChatMessage.objects.create(author_name="anon", message="anon text")
+
+    def _put(self, message_id, payload):
+        url = reverse("edit_chat_message", args=[message_id])
+        return self.client.put(url, data=json.dumps(payload), content_type="application/json")
+
+    def test_anonymous_cannot_edit_is_401(self):
+        response = self._put(self.message.id, {"message": "changed"})
+        self.assertEqual(response.status_code, 401)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.message, "original")
+
+    def test_other_user_cannot_edit_is_403(self):
+        self.client.force_login(self.other)
+        response = self._put(self.message.id, {"message": "changed"})
+        self.assertEqual(response.status_code, 403)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.message, "original")
+
+    def test_cannot_edit_anonymous_message_is_403(self):
+        self.client.force_login(self.user)
+        response = self._put(self.anon_message.id, {"message": "changed"})
+        self.assertEqual(response.status_code, 403)
+        self.anon_message.refresh_from_db()
+        self.assertEqual(self.anon_message.message, "anon text")
+
+    def test_owner_can_edit(self):
+        self.client.force_login(self.user)
+        response = self._put(self.message.id, {"message": "  changed  "})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["message"], "changed")
+        self.assertTrue(response.json()["edited"])
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.message, "changed")
+        self.assertTrue(self.message.edited)
+
+    def test_blank_message_is_400(self):
+        self.client.force_login(self.user)
+        response = self._put(self.message.id, {"message": "   "})
+        self.assertEqual(response.status_code, 400)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.message, "original")
+        self.assertFalse(self.message.edited)
+
+    def test_message_too_long_is_400(self):
+        self.client.force_login(self.user)
+        response = self._put(self.message.id, {"message": "x" * 10001})
+        self.assertEqual(response.status_code, 400)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.message, "original")
+
+    def test_unknown_message_is_404(self):
+        import uuid
+
+        self.client.force_login(self.user)
+        response = self._put(uuid.uuid4(), {"message": "changed"})
+        self.assertEqual(response.status_code, 404)

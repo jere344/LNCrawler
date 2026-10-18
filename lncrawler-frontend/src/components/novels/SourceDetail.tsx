@@ -20,10 +20,12 @@ import {
   Alert,
   Chip,
   Pagination,
+  CircularProgress,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
+import { useEpubDownload } from '@utils/useEpubDownload';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import AddToListDialog from '../readinglist/AddToListDialog';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -107,6 +109,7 @@ const SourceDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
   const [downloadAnchor, setDownloadAnchor] = useState<null | HTMLElement>(null);
+  const { startDownload, preparingKey } = useEpubDownload(novelSlug!, sourceSlug!);
   const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>(() => ({
     avg_rating: linkState?.novel?.avg_rating ?? null,
     rating_count: linkState?.novel?.rating_count ?? 0,
@@ -1077,19 +1080,25 @@ const SourceDetail = () => {
                   onClose={() => setDownloadAnchor(null)}
                 >
                   <MenuItem
-                    component="a"
-                    href={novelService.getSourceEpubUrl(novelSlug!, sourceSlug!)}
-                    onClick={() => setDownloadAnchor(null)}
+                    disabled={preparingKey !== null}
+                    onClick={() => {
+                      setDownloadAnchor(null);
+                      startDownload();
+                    }}
                   >
+                    {preparingKey === 'full' && <CircularProgress size={16} sx={{ mr: 1 }} />}
                     {t('sourceDetail.downloadFull')}
                   </MenuItem>
                   {source?.volumes && source.volumes.length > 1 && source.volumes.map((v) => (
                     <MenuItem
                       key={v.volume_id}
-                      component="a"
-                      href={novelService.getSourceEpubUrl(novelSlug!, sourceSlug!, v.volume_id)}
-                      onClick={() => setDownloadAnchor(null)}
+                      disabled={preparingKey !== null}
+                      onClick={() => {
+                        setDownloadAnchor(null);
+                        startDownload(v.volume_id);
+                      }}
                     >
+                      {preparingKey === String(v.volume_id) && <CircularProgress size={16} sx={{ mr: 1 }} />}
                       {v.title || t('sourceDetail.volumeN', { n: v.volume_id })}
                     </MenuItem>
                   ))}

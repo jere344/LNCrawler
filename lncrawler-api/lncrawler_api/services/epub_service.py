@@ -9,16 +9,19 @@ referenced by the selected chapters are copied in.
 Generated books are cached inside the source folder (`epub_cache/`) and reused
 until the source is updated (`last_chapter_update`) or the cache TTL expires.
 """
+import fcntl
 import html
 import logging
 import os
 import re
 import tempfile
 import zipfile
+from contextlib import contextmanager
 from datetime import timedelta
 from html.parser import HTMLParser
 
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from ..utils.chapter_utils import get_chapter
@@ -26,6 +29,9 @@ from ..utils.chapter_utils import get_chapter
 logger = logging.getLogger("lncrawler_api")
 
 CACHE_DIRNAME = "epub_cache"
+LOCK_SUFFIX = ".lock"
+# How many chapters between progress callbacks while building.
+PROGRESS_EVERY = 100
 MAX_CACHE_AGE = timedelta(hours=getattr(settings, "EPUB_CACHE_HOURS", 24))
 
 _IMG_SRC_RE = re.compile(r'(<img[^>]+src=["\'])([^"\']+)(["\'])', re.IGNORECASE)
@@ -59,7 +65,7 @@ def _is_cache_fresh(path, source):
     return True
 
 
-def _select_chapters(source, volume):
+def _chapter_queryset(source, volume):
     qs = (
         source.chapters.filter(has_content=True)
         .only("chapter_id", "title", "images")
@@ -67,7 +73,23 @@ def _select_chapters(source, volume):
     )
     if volume is not None:
         qs = qs.filter(volume=volume)
-    return list(qs)
+    return qs
+
+
+def _select_chapters(source, volume):
+    return list(_chapter_queryset(source, volume))
+
+
+def has_downloadable_chapters(source, volume=None):
+    return _chapter_queryset(source, volume).exists()
+
+
+def cached_epub(source, volume=None):
+    """Return (path, filename) when a fresh cached epub exists, else None."""
+    dest = _cached_book_path(source, volume)
+    if _is_cache_fresh(dest, source):
+        return dest, os.path.basename(dest)
+    return None
 
 
 def _absolute_cover(source):
@@ -257,7 +279,7 @@ def _write_nav(zf, chapters):
     zf.writestr("OEBPS/nav.xhtml", nav)
 
 
-def _build(source, chapters, volume, dest):
+def _build(source, chapters, volume, dest, progress=None):
     image_dir = os.path.join(source.absolute_source_path, "images")
     cover_path = _absolute_cover(source)
     cover_name = None
@@ -290,8 +312,15 @@ def _build(source, chapters, volume, dest):
                 # can't create a duplicate zip entry.
                 seen_images.add(cover_name)
 
-            for ch in chapters:
+            total = len(chapters)
+            if progress:
+                progress(0, total)
+            for done, ch in enumerate(chapters, 1):
                 _write_chapter(zf, ch, source, image_dir, seen_images)
+                if progress and done % PROGRESS_EVERY == 0 and done != total:
+                    progress(done, total)
+            if progress:
+                progress(total, total)
 
             _write_container_opf(zf, source, chapters, cover_name, sorted(seen_images))
             _write_nav(zf, chapters)
@@ -301,25 +330,138 @@ def _build(source, chapters, volume, dest):
             os.remove(tmp)
 
 
-def get_or_build_epub(source, volume=None):
+@contextmanager
+def _build_lock(dest):
+    """Exclusive per-file lock so concurrent requests build one epub once.
+
+    Mirrors ``source_lock``: if the lock file cannot be opened we log and
+    proceed unlocked rather than fail the request.
+    """
+    lock_path = dest + LOCK_SUFFIX
+    try:
+        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+    except OSError as e:
+        logger.warning("Could not open epub lock %s: %s", lock_path, e)
+        yield
+        return
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+def get_or_build_epub(source, volume=None, progress=None):
     """Return (path, filename) of a cached or freshly built epub for the source.
 
     `volume` of None means the full novel; otherwise only that volume.
+    `progress(done, total)` is called periodically while a build runs.
     """
     dest = _cached_book_path(source, volume)
     if _is_cache_fresh(dest, source):
         return dest, os.path.basename(dest)
 
-    chapters = _select_chapters(source, volume)
-    if not chapters:
-        raise ValueError("No downloadable chapters found for this selection.")
+    with _build_lock(dest):
+        # Another worker may have finished the same build while we waited.
+        if _is_cache_fresh(dest, source):
+            return dest, os.path.basename(dest)
 
-    logger.info(
-        "Building epub for source=%s volume=%s chapters=%s",
-        source.id, volume if volume is not None else "full", len(chapters),
-    )
-    _build(source, chapters, volume, dest)
+        # Taken before reading chapters: the book is stamped with this time so a
+        # chapter added while it builds still marks it stale.
+        build_started = timezone.now().timestamp()
+        chapters = _select_chapters(source, volume)
+        if not chapters:
+            raise ValueError("No downloadable chapters found for this selection.")
+
+        logger.info(
+            "Building epub for source=%s volume=%s chapters=%s",
+            source.id, volume if volume is not None else "full", len(chapters),
+        )
+        _build(source, chapters, volume, dest, progress=progress)
+        os.utime(dest, (build_started, build_started))
     return dest, os.path.basename(dest)
+
+
+def epub_job_key(source_id, volume=None):
+    """Job.query value identifying one epub build: epub:<source_id>:<volume|full>."""
+    return f"epub:{source_id}:{'full' if volume is None else volume}"
+
+
+def parse_epub_job_key(key):
+    """Inverse of epub_job_key. Returns (source_id, volume or None)."""
+    parts = str(key or "").split(":")
+    if len(parts) != 3 or parts[0] != "epub":
+        raise ValueError(f"Invalid epub job key: {key!r}")
+    source_id = int(parts[1])
+    volume = None if parts[2] == "full" else int(parts[2])
+    return source_id, volume
+
+
+def _active_epub_job(key):
+    from ..models import Job
+
+    return Job.objects.filter(
+        job_type=Job.JOB_TYPE_EPUB,
+        query=key,
+        status__in=[Job.STATUS_CREATED, Job.STATUS_DOWNLOADING],
+    ).first()
+
+
+def enqueue_epub_job(source, volume=None, user=None):
+    """Return the active job for this epub, creating one if none is running."""
+    from ..models import Job
+
+    key = epub_job_key(source.id, volume)
+    existing = _active_epub_job(key)
+    if existing is not None:
+        return existing
+    try:
+        with transaction.atomic():
+            return Job.objects.create(
+                job_type=Job.JOB_TYPE_EPUB,
+                status=Job.STATUS_CREATED,
+                query=key,
+                user=user,
+                progress_unit="chapters",
+            )
+    except IntegrityError:
+        # A concurrent request created the active job first; the partial
+        # unique constraint rejected ours, so reuse theirs.
+        existing = _active_epub_job(key)
+        if existing is None:
+            raise
+        return existing
+
+
+def run_epub_job(job_id, payload):
+    """Supervisor entry point: build the epub described by payload's job key."""
+    from ..models import Job, NovelFromSource
+
+    job = Job.objects.filter(id=job_id).first()
+    if job is None:
+        logger.error("EPUB job %s not found", job_id)
+        return
+    try:
+        source_id, volume = parse_epub_job_key(payload)
+        source = NovelFromSource.objects.select_related("novel").get(id=source_id)
+        job.update_status(Job.STATUS_DOWNLOADING)
+        path, filename = get_or_build_epub(
+            source,
+            volume,
+            progress=lambda done, total: job.update_progress(done, total, "chapters"),
+        )
+        job.update_download_results(path, [filename])
+        job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
+    except Exception as e:
+        # Deterministic failures (no chapters, bad key, missing source) are
+        # recorded on the job rather than re-raised, so the supervisor does not
+        # retry them forever.
+        logger.warning("EPUB job %s failed: %s", job_id, e, exc_info=True)
+        job.update_status(Job.STATUS_FAILED, str(e) or "EPUB build failed")
 
 
 def _demo():

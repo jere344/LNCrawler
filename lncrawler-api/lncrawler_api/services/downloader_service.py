@@ -519,6 +519,10 @@ class DownloaderService:
 
         if job_type == Job.JOB_TYPE_DOWNLOAD:
             cls._run_download_process(job_id, payload)
+        elif job_type == Job.JOB_TYPE_EPUB:
+            from .epub_service import run_epub_job
+
+            run_epub_job(job_id, payload)
         else:
             cls._run_search_process(job_id, payload)
 

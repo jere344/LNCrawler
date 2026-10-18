@@ -145,7 +145,8 @@ def cancel_job(request, job_id):
 def list_jobs(request):
     """List jobs. Pass ?active=1 to only get queued/running jobs."""
     try:
-        jobs = Job.objects.all()
+        # EPUB builds are polled per book by the frontend, not listed here.
+        jobs = Job.objects.exclude(job_type=Job.JOB_TYPE_EPUB)
         if request.GET.get("active"):
             jobs = jobs.filter(status__in=[
                 Job.STATUS_CREATED, Job.STATUS_SEARCHING, Job.STATUS_DOWNLOADING,

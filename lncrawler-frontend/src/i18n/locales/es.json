@@ -511,6 +511,10 @@
     "downloadTooltip": "Descargar esta novela como archivo EPUB",
     "downloadFull": "Novela completa",
     "volumeN": "Volumen {n}",
+    "epubPreparing": "Preparando el EPUB, esto puede tardar unos minutos en novelas largas",
+    "epubQueued": "Esperando a que haya un trabajador libre para crear el EPUB…",
+    "epubProgress": "Creando EPUB: {done} / {total} capítulos",
+    "epubFailed": "No se pudo preparar el EPUB. Inténtalo de nuevo.",
     "startReading": "Empezar a leer",
     "fromBeginning": "Desde el principio",
     "startFromFirst": "Empezar a leer desde el primer capítulo",
@@ -587,7 +591,8 @@
     "loadFailed": "Error al cargar el chat. Intenta actualizar la página.",
     "noMessages": "Aún no hay mensajes. ¡Sé el primero en decir algo!",
     "quoteUnavailable": "No se encontró el mensaje citado.",
-    "quoteLookupLimit": "El mensaje citado es demasiado antiguo para cargarse automáticamente."
+    "quoteLookupLimit": "El mensaje citado es demasiado antiguo para cargarse automáticamente.",
+    "editFailed": "No se pudo editar el mensaje. Inténtalo de nuevo."
   },
   "readingLists": {
     "heading": "Listas de lectura",
