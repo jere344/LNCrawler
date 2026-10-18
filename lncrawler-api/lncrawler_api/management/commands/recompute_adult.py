@@ -36,7 +36,11 @@ class Command(BaseCommand):
 
     def _restore_from_meta(self):
         changed, missing = [], 0
-        rows = NovelFromSource.objects.only("pk", "source_path", "adult_from_source")
+        # Only an own flag that is set can be wrong (tags only ever set it, via
+        # the copy migration 0086 made): unset ones need no file read.
+        rows = NovelFromSource.objects.filter(adult_from_source=True).only(
+            "pk", "source_path", "adult_from_source"
+        )
         for source in rows.iterator(chunk_size=BATCH):
             path = resolve_output_path(source.source_path, "meta.json") if source.source_path else None
             if not path or not os.path.isfile(path):

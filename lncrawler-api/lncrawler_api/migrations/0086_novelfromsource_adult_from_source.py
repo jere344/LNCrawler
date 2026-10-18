@@ -10,17 +10,20 @@ def restore_own_flag(apps, schema_editor):
     and re-derive is_adult = own flag OR an R18 tag.
 
     Before this field existed, R18 tags overwrote is_adult itself, so the
-    current value cannot be trusted as the source's own flag. A source without a
-    readable meta.json keeps its current is_adult as its own flag. The same
-    restore can be re-run later with `manage.py recompute_adult --from-meta`.
+    current value cannot be trusted as the source's own flag. Tags only ever set
+    it to True, so a source that is not adult now has no own flag either: only
+    the adult ones need their meta.json read (meta.json lists every chapter, so
+    reading all of them would keep the api down for a long time). A source
+    without a readable meta.json keeps its current is_adult as its own flag. The
+    same restore can be re-run with `manage.py recompute_adult --from-meta`.
     """
     NovelFromSource = apps.get_model("lncrawler_api", "NovelFromSource")
     root = os.path.realpath(settings.LNCRAWL_OUTPUT_PATH)
     own_adult = []
-    for pk, source_path, is_adult in NovelFromSource.objects.values_list(
-        "pk", "source_path", "is_adult"
+    for pk, source_path in NovelFromSource.objects.filter(is_adult=True).values_list(
+        "pk", "source_path"
     ).iterator(chunk_size=500):
-        own = is_adult
+        own = True
         if source_path:
             path = os.path.realpath(os.path.join(root, source_path, "meta.json"))
             if path.startswith(root + os.sep) and os.path.isfile(path):
