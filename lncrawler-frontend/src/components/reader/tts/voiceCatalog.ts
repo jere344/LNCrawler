@@ -21,6 +21,8 @@
 export type NeuralEngine = 'supertonic' | 'piper' | 'kokoro';
 export type KokoroDevice = 'wasm' | 'webgpu';
 export type SupertonicDevice = 'auto' | 'wasm' | 'webgpu';
+/** How much the worker rests between inferences, so the GPU/CPU stay free for the UI. */
+export type TtsThrottle = 'auto' | 'off' | 'balanced' | 'saver';
 
 /** Engine options that change how (not which) a voice is generated. */
 export interface NeuralOptions {
@@ -28,6 +30,7 @@ export interface NeuralOptions {
   supertonicDevice: SupertonicDevice;
   /** Denoising steps: fewer is faster, more sounds cleaner. */
   supertonicSteps: number;
+  throttle: TtsThrottle;
 }
 
 export interface NeuralVoice {

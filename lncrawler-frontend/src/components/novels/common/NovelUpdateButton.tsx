@@ -10,10 +10,11 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 interface NovelUpdateButtonProps {
   sourceUrl: string;
   novelTitle: string; // For context, potentially in messages
+  sourceName?: string; // Shown in place of the generic "Source" label
   disabled?: boolean; // No crawler for this source
 }
 
-const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelTitle, disabled = false }) => {
+const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelTitle, sourceName, disabled = false }) => {
   const { t } = useTranslation();
   const [updateJobId, setUpdateJobId] = useState<string | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus | null>(null);
@@ -102,7 +103,7 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
               disabled
               fullWidth
             >
-              {t('updateButton.updateFrom', { title: novelTitle })}
+              {sourceName ? t('updateButton.updateFromSource', { title: novelTitle, source: sourceName }) : t('updateButton.updateFrom', { title: novelTitle })}
             </Button>
           </span>
         </Tooltip>
@@ -121,7 +122,7 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
           disabled={isLoading}
           fullWidth
         >
-          {isLoading ? t('updateButton.starting') : t('updateButton.updateFrom', { title: novelTitle })}
+          {isLoading ? t('updateButton.starting') : sourceName ? t('updateButton.updateFromSource', { title: novelTitle, source: sourceName }) : t('updateButton.updateFrom', { title: novelTitle })}
         </Button>
       )}
 

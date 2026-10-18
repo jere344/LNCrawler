@@ -259,6 +259,9 @@ class HomeAddedSectionsTests(TestCase):
             is_adult=True,
         )
 
+        # A user who hides adult content (new accounts default to 'blur').
+        self.user.show_r18 = "no"
+        self.user.save(update_fields=["show_r18"])
         self.client.force_login(self.user)
         response = self.client.get(reverse("home_page"))
         added_ids = {n["id"] for n in response.data["recently_added"]}

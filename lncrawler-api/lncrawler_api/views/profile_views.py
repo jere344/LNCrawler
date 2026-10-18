@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -30,6 +30,31 @@ MAX_PINNED_NOVELS = 6
 
 def _target(username):
     return get_object_or_404(User, username=username)
+
+
+def _comment_title_prefetches(viewer):
+    """What CommentSerializer.get_target_title needs for novel comments, in
+    bulk: the novel's sources ranked without per-source COUNTs, and the
+    viewer's reading history (its source title wins, like on novel cards)."""
+    from ..models import Chapter, NovelFromSource, ReadingHistory
+    from ..utils.query_helpers import _related_count
+
+    prefetches = [
+        'replies',
+        Prefetch(
+            'novel__sources',
+            queryset=NovelFromSource.objects.annotate(
+                annotated_available_chapters_count=_related_count(Chapter, has_content=True),
+            ),
+        ),
+    ]
+    if viewer.is_authenticated:
+        prefetches.append(Prefetch(
+            'novel__reading_histories',
+            queryset=ReadingHistory.objects.filter(user=viewer).select_related('source'),
+            to_attr='viewer_histories',
+        ))
+    return prefetches
 
 
 @api_view(["GET"])
@@ -84,7 +109,7 @@ def user_comments(request, username):
         Comment.objects
         .filter(user=owner)
         .select_related('user', 'novel', 'chapter__novel_from_source__novel')
-        .prefetch_related('replies')
+        .prefetch_related(*_comment_title_prefetches(request.user))
         .order_by('-created_at')
     )
     if not adult_allowed(request.user):

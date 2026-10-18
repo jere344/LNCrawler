@@ -87,7 +87,7 @@ const ChatRow = ({ message, isOwn, highlight, onReply, onQuoteClick }: ChatRowPr
         )}
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
           {formatDateTime(message.created_at, i18n.language)}
-          {message.edited && ` (${t('comments.edited')})`}
+          {message.edited && ` ${t('comments.edited')}`}
         </Typography>
       </Box>
 
@@ -106,7 +106,9 @@ const ChatRow = ({ message, isOwn, highlight, onReply, onQuoteClick }: ChatRowPr
           sx={{
             px: 1.25,
             py: 0.75,
-            maxWidth: '82%',
+            maxWidth: { xs: '100%', sm: '82%' },
+            minWidth: 0,
+            overflowWrap: 'anywhere',
             borderRadius: 2,
             bgcolor: isOwn ? 'primary.main' : 'action.hover',
             color: isOwn ? 'primary.contrastText' : 'text.primary',

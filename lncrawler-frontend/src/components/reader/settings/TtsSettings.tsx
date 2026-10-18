@@ -540,6 +540,20 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
                   <FormHelperText>{t('ttsSettings.kokoroDeviceHint')}</FormHelperText>
                 </FormControl>
               )}
+
+              <FormControl fullWidth size="small" sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ mb: 1 }}>{t('ttsSettings.throttle')}</Typography>
+                <Select
+                  value={prefs.ttsThrottle}
+                  onChange={e => onChange('ttsThrottle', e.target.value as TtsPrefs['ttsThrottle'])}
+                >
+                  <MenuItem value="auto">{t('ttsSettings.throttleAuto')}</MenuItem>
+                  <MenuItem value="off">{t('ttsSettings.throttleOff')}</MenuItem>
+                  <MenuItem value="balanced">{t('ttsSettings.throttleBalanced')}</MenuItem>
+                  <MenuItem value="saver">{t('ttsSettings.throttleSaver')}</MenuItem>
+                </Select>
+                <FormHelperText>{t('ttsSettings.throttleHint')}</FormHelperText>
+              </FormControl>
             </>
           )}
 

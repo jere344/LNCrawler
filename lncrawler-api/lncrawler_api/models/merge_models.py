@@ -130,9 +130,11 @@ class LLMUsage(models.Model):
 
     PURPOSE_NOVEL = "novel"
     PURPOSE_TAG = "tag"
+    PURPOSE_R18 = "tag_r18"
     PURPOSE_CHOICES = [
         (PURPOSE_NOVEL, "Novel judge"),
         (PURPOSE_TAG, "Tag judge"),
+        (PURPOSE_R18, "Tag R18 classifier"),
     ]
 
     purpose = models.CharField(max_length=10, choices=PURPOSE_CHOICES)

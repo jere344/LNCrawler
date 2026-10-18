@@ -157,7 +157,11 @@ export type SearchLoaderData = { ok: true; data: SearchData } | { ok: false };
 export const searchLoader = ({ request }: LoaderFunctionArgs): AsyncData<SearchLoaderData> => {
   const sp = new URL(request.url).searchParams;
   const page = sp.get('page') ? parseInt(sp.get('page')!) : 1;
-  const selectedLanguages = sp.getAll('language');
+  // An empty `language=` marker means the user explicitly chose "all languages";
+  // no language key at all means first arrival, so the stored defaults apply.
+  const selectedLanguages = sp.has('language')
+    ? sp.getAll('language').filter(Boolean)
+    : (getInitialLanguageFilterEnabled() ? getInitialContentLanguages() : []);
   return {
     data: settle<SearchData>(novelService.searchNovels({
       query: sp.get('query') || undefined,

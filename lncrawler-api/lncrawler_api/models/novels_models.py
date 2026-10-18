@@ -131,6 +131,8 @@ class Tag(models.Model):
     # Float32 bytes of the name's embedding, and the model that produced them.
     embedding = models.BinaryField(null=True, editable=False)
     embedding_model = models.CharField(max_length=100, blank=True, default="", editable=False)
+    # R18 tag: any source carrying it is treated as adult (see mark_sources_adult).
+    is_adult = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         indexes = [

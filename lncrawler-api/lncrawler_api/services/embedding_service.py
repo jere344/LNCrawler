@@ -1,7 +1,7 @@
 """Text embeddings for tag names (optional, pluggable).
 
 Any OpenAI-compatible ``/embeddings`` endpoint works (Mistral, Jina, OpenAI).
-Swap providers with ``TAG_EMBED_PROVIDER`` or point ``TAG_EMBED_BASE_URL`` at a
+Swap providers with ``EMBED_PROVIDER`` or point ``EMBED_BASE_URL`` at a
 custom endpoint. With no API key the service reports ``is_configured() == False``
 and tag clustering falls back to the trigram and co-occurrence signals.
 
@@ -24,14 +24,14 @@ PROVIDER_URLS = {
 
 
 def provider_url():
-    override = getattr(settings, "TAG_EMBED_BASE_URL", "")
+    override = getattr(settings, "EMBED_BASE_URL", "")
     if override:
         return override
-    return PROVIDER_URLS.get(getattr(settings, "TAG_EMBED_PROVIDER", "mistral"))
+    return PROVIDER_URLS.get(getattr(settings, "EMBED_PROVIDER", "mistral"))
 
 
 def is_configured():
-    return bool(provider_url()) and bool(getattr(settings, "TAG_EMBED_API_KEY", ""))
+    return bool(provider_url()) and bool(getattr(settings, "EMBED_API_KEY", ""))
 
 
 def embed(texts, session=None):
@@ -42,22 +42,22 @@ def embed(texts, session=None):
     url = provider_url()
     if not url:
         raise llm_service.LLMError(
-            f"unknown embedding provider: {getattr(settings, 'TAG_EMBED_PROVIDER', '')}"
+            f"unknown embedding provider: {getattr(settings, 'EMBED_PROVIDER', '')}"
         )
 
     headers = {"Content-Type": "application/json"}
-    key = getattr(settings, "TAG_EMBED_API_KEY", "")
+    key = getattr(settings, "EMBED_API_KEY", "")
     if key:
         headers["Authorization"] = f"Bearer {key}"
-    body = {"model": settings.TAG_EMBED_MODEL, "input": texts}
-    if getattr(settings, "TAG_EMBED_PROVIDER", "") == "jina":
+    body = {"model": settings.EMBED_MODEL, "input": texts}
+    if getattr(settings, "EMBED_PROVIDER", "") == "jina":
         # Jina v5 (jina-embeddings-v5-omni-small, checked against the live API) takes a
         # task type; text-matching suits name-to-name similarity.
         body["task"] = "text-matching"
 
     poster = (session or requests).post
     resp = poster(
-        url, headers=headers, json=body, timeout=getattr(settings, "TAG_EMBED_TIMEOUT", 30)
+        url, headers=headers, json=body, timeout=getattr(settings, "EMBED_TIMEOUT", 30)
     )
     if resp.status_code == 429:
         raise llm_service.RateLimited(retry_after=resp.headers.get("Retry-After"))

@@ -22,6 +22,7 @@ import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCa
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 import NovelRecommendation from '@components/common/NovelRecommendation';
 import { getNovelSourceLink, getSourceLink } from '@utils/Misc';
+import { introBannerSx } from './introBanner';
 import { useLanguage } from '@context/LanguageContext';
 import { useAuth } from '@context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -89,17 +90,17 @@ const HomePage: React.FC = () => {
   return (
     <Container maxWidth="xl">
       <Box sx={{ my: 2 }}>
-        <Typography variant="h1" component="h1" gutterBottom sx={{ 
+        <Typography variant="h1" component="h1" gutterBottom sx={{
           fontWeight: 'bold',
           textAlign: 'center',
           mb: 3
         }}>
           LNCrawler
         </Typography>
-        <Box sx={{ 
-          backgroundColor: theme.palette.background.paper,
+        <Box sx={{
+          ...introBannerSx(theme),
           padding: 2,
-          mx:0,
+          mx: 0,
           borderRadius: 2,
           mb: 4
         }}>
@@ -358,7 +359,8 @@ const HomePage: React.FC = () => {
         </Box>
         <Divider sx={{ mb: 3 }} />
         
-        <OverviewReviewsSection 
+        <OverviewReviewsSection
+          dense
           reviews={homeData?.recent_reviews} 
           isLoading={loading}
           maxItems={4}
@@ -378,7 +380,7 @@ const HomePage: React.FC = () => {
 
         {loading ? (
           <Grid container spacing={2}>
-            {[...Array(12)].map((_, index) => (
+            {[...Array(6)].map((_, index) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`recently-added-skeleton-${index}`}>
                 <NovelItemCard novel={{} as Novel} isLoading={true} onClick={() => {}} />
               </Grid>
@@ -386,9 +388,9 @@ const HomePage: React.FC = () => {
           </Grid>
         ) : (
           <Grid container spacing={2}>
-            {homeData?.recently_added?.slice(0, 12).map((novel) => (
+            {homeData?.recently_added?.slice(0, 6).map((novel) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
-                <NovelItemCard novel={novel} showAddedDate {...getNovelSourceLink(novel)} />
+                <NovelItemCard novel={novel} showAddedDate hideRating {...getNovelSourceLink(novel)} />
               </Grid>
             ))}
           </Grid>

@@ -29,6 +29,8 @@ import LibraryBooksIcon from "@mui/icons-material/LibraryBooks";
 import HistoryIcon from "@mui/icons-material/History";
 import ForumIcon from "@mui/icons-material/Forum"; // Import Forum icon for Chat
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'; // Import icon for reading lists
+import HomeIcon from '@mui/icons-material/Home';
+import AddIcon from '@mui/icons-material/Add';
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
@@ -146,19 +148,25 @@ const Header = () => {
         return user.username.charAt(0).toUpperCase();
     };
 
+    // On mobile/tablet the bar is fixed and hidden with a transform, so it never
+    // changes the document flow. A spacer of the same height keeps content in place.
+    const hideOnScroll = isMobile || isTablet;
+    const toolbarHeight = isTablet ? 56 : 64;
+
     return (
+        <>
         <AppBar
-            position="sticky"
+            position={hideOnScroll ? "fixed" : "sticky"}
             color="default"
             elevation={1}
             sx={{
                 transition: "transform 0.3s ease-in-out",
-                ...((isMobile || isTablet) && {
+                ...(hideOnScroll && {
                     transform: scrollDirection === "down" ? "translateY(-100%)" : "translateY(0)",
                 }),
             }}
         >
-            <Toolbar sx={{ justifyContent: "space-between", minHeight: isTablet ? 56 : 64, px: isTablet ? 1 : 2 }}>
+            <Toolbar sx={{ justifyContent: "space-between", minHeight: toolbarHeight, px: isTablet ? 1 : 2 }}>
                 {/* Logo/Home section */}
                 <Box sx={{ display: "flex", alignItems: "center" }}>
                     <Box
@@ -374,10 +382,16 @@ const Header = () => {
                             </IconButton>
                             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
                                 <MenuItem component={RouterLink} to="/" onClick={handleMenuClose}>
-                                    {t('header.home')}
+                                    <ListItemIcon>
+                                        <HomeIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary={t('header.home')} />
                                 </MenuItem>
                                 <MenuItem component={RouterLink} to="/download" onClick={handleMenuClose}>
-                                    {t('header.addNovel')}
+                                    <ListItemIcon>
+                                        <AddIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary={t('header.addNovel')} />
                                 </MenuItem>
                                 {isAuthenticated && (
                                     <MenuItem component={RouterLink} to="/library" onClick={handleMenuClose}>
@@ -427,7 +441,10 @@ const Header = () => {
                             </IconButton>
                             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
                                 <MenuItem component={RouterLink} to="/download" onClick={handleMenuClose}>
-                                    {t('header.addNovel')}
+                                    <ListItemIcon>
+                                        <AddIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary={t('header.addNovel')} />
                                 </MenuItem>
                                 <MenuItem
                                     component={Link}
@@ -465,6 +482,8 @@ const Header = () => {
                 </Box>
             </Toolbar>
         </AppBar>
+        {hideOnScroll && <Box sx={{ height: toolbarHeight }} />}
+        </>
     );
 };
 

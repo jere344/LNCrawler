@@ -18,13 +18,41 @@ import { useAuth } from '@context/AuthContext';
 import { Novel } from '@models/novels_types';
 import { useTranslation } from 'react-i18next';
 
+/** True when the novel has chapters the user has not read yet. */
+export const hasUnreadChapters = (novel: Novel): boolean => {
+  if (novel.reading_history) {
+    const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
+    const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
+    if (lastReadChapterId === undefined) return false;
+    return latestChapterId > lastReadChapterId;
+  }
+  return Boolean(novel.is_bookmarked && novel.prefered_source?.latest_available_chapter);
+};
+
+/** Source slug and chapter number to mark as read, or null if none can be resolved. */
+export const getMarkAsReadTarget = (
+  novel: Novel
+): { sourceSlug: string; chapterNumber: number } | null => {
+  let sourceSlug: string;
+  let chapterNumber: number;
+  if (novel.reading_history) {
+    sourceSlug = novel.reading_history.source_slug || novel.prefered_source?.source_slug || '';
+    chapterNumber = novel.reading_history.source_latest_chapter?.chapter_id ||
+                    novel.reading_history.last_read_chapter?.chapter_id || 0;
+  } else {
+    sourceSlug = novel.prefered_source?.source_slug || '';
+    chapterNumber = novel.prefered_source?.latest_available_chapter?.chapter_id || 0;
+  }
+  return sourceSlug && chapterNumber > 0 ? { sourceSlug, chapterNumber } : null;
+};
+
 interface MarkAsReadButtonProps {
   novel: Novel;
   onMarkAsRead?: () => void;
   customSx?: SxProps;
 }
 
-const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({ 
+const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
   novel,
   onMarkAsRead,
   customSx = {}
@@ -34,23 +62,12 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
-  // Check if there are unread chapters
-  const hasUnreadChapters = () => {
-    if (novel.reading_history) {
-      const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-      const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
-      if (lastReadChapterId === undefined) return false;
-      return latestChapterId > lastReadChapterId;
-    }
-    return novel.is_bookmarked && novel.prefered_source?.latest_available_chapter;
-  };
-
   const handleMarkAsReadClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    
-    if (!isAuthenticated || isLoading || !hasUnreadChapters()) return;
-    
+
+    if (!isAuthenticated || isLoading || !hasUnreadChapters(novel)) return;
+
     setShowConfirmation(true);
   };
 
@@ -58,22 +75,10 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
     try {
       setIsLoading(true);
       setShowConfirmation(false);
-      
-      const novelSlug = novel.slug;
-      let sourceSlug: string;
-      let chapterNumber: number;
 
-      if (novel.reading_history) {
-        sourceSlug = novel.reading_history.source_slug || novel.prefered_source?.source_slug || '';
-        chapterNumber = novel.reading_history.source_latest_chapter?.chapter_id || 
-                       novel.reading_history.last_read_chapter?.chapter_id || 0;
-      } else {
-        sourceSlug = novel.prefered_source?.source_slug || '';
-        chapterNumber = novel.prefered_source?.latest_available_chapter?.chapter_id || 0;
-      }
-
-      if (sourceSlug && chapterNumber > 0) {
-        await userService.markChapterAsRead(novelSlug, sourceSlug, chapterNumber);
+      const target = getMarkAsReadTarget(novel);
+      if (target) {
+        await userService.markChapterAsRead(novel.slug, target.sourceSlug, target.chapterNumber);
         onMarkAsRead?.();
       }
     } catch (error) {
@@ -87,7 +92,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
     setShowConfirmation(false);
   };
 
-  if (!isAuthenticated || !hasUnreadChapters()) return null;
+  if (!isAuthenticated || !hasUnreadChapters(novel)) return null;
 
   return (
     <>

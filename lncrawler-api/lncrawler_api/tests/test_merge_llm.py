@@ -109,11 +109,11 @@ class JudgeTests(MergeTestCase):
         with self.assertRaises(llm_service.LLMError):
             llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
 
-    @override_settings(MERGE_LLM_API_KEY="")
+    @override_settings(LLM_API_KEY="")
     def test_is_configured_false_without_key(self):
         self.assertFalse(llm_service.is_configured())
 
-    @override_settings(MERGE_LLM_API_KEY="k")
+    @override_settings(LLM_API_KEY="k")
     def test_is_configured_true_with_key(self):
         self.assertTrue(llm_service.is_configured())
 
@@ -130,7 +130,7 @@ class JudgeCommandTests(MergeTestCase):
         )
 
     def test_noop_when_unconfigured(self):
-        with override_settings(MERGE_LLM_API_KEY=""):
+        with override_settings(LLM_API_KEY=""):
             call_command("judge_merge_candidates")
         self.candidate.refresh_from_db()
         self.assertIsNone(self.candidate.llm_checked_at)
@@ -138,7 +138,7 @@ class JudgeCommandTests(MergeTestCase):
     def test_stores_verdict(self):
         verdict = {"same": True, "confidence": 0.9, "reason": "same work"}
         with mock.patch.object(llm_service, "judge", return_value=verdict):
-            with override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20):
+            with override_settings(LLM_API_KEY="key"):
                 call_command("judge_merge_candidates")
         self.candidate.refresh_from_db()
         self.assertEqual(self.candidate.llm_verdict, verdict)
@@ -150,7 +150,7 @@ class JudgeCommandTests(MergeTestCase):
         MergeCandidate.objects.filter(pk=self.candidate.pk).update(
             llm_checked_at="2020-01-01T00:00:00Z"
         )
-        with override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=0):
+        with override_settings(LLM_API_KEY="key", LLM_DAILY_REQUESTS=0):
             call_command("judge_merge_candidates")
         self.candidate.refresh_from_db()
         self.assertIsNone(self.candidate.llm_verdict)
@@ -169,7 +169,7 @@ class JudgeDismissTests(MergeTestCase):
 
     def _judge(self, verdict):
         with mock.patch.object(llm_service, "judge", return_value=verdict):
-            with override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20):
+            with override_settings(LLM_API_KEY="key"):
                 call_command("judge_merge_candidates")
         self.candidate.refresh_from_db()
 
@@ -235,19 +235,19 @@ class RequestBodyTests(MergeTestCase):
     def _body(session):
         return session.calls[0][1]["json"]
 
-    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_REASONING_EFFORT="low")
+    @override_settings(LLM_API_KEY="key", LLM_REASONING_EFFORT="low")
     def test_reasoning_effort_sent_when_set(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}')))
         llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
         self.assertEqual(self._body(session)["reasoning_effort"], "low")
 
-    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_REASONING_EFFORT="")
+    @override_settings(LLM_API_KEY="key", LLM_REASONING_EFFORT="")
     def test_reasoning_effort_omitted_when_empty(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}')))
         llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
         self.assertNotIn("reasoning_effort", self._body(session))
 
-    @override_settings(MERGE_LLM_API_KEY="key")
+    @override_settings(LLM_API_KEY="key")
     def test_judge_uses_merge_llm_max_tokens(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}')))
         llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
@@ -297,7 +297,7 @@ class UsageLedgerTests(MergeTestCase):
         llm_service.judge({"title": "a"}, {"title": "b"}, session=session)
         self.assertEqual(LLMUsage.objects.get().tokens, 0)
 
-    @override_settings(MERGE_LLM_DAILY_TOKENS=1000)
+    @override_settings(LLM_DAILY_TOKENS=1000)
     def test_budget_left_counts_all_purposes(self):
         LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_NOVEL, tokens=300)
         LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=200)
@@ -317,16 +317,16 @@ class JudgeTokenBudgetTests(MergeTestCase):
                 certainty=0.9 - n / 10, decision=MergeCandidate.DECISION_REVIEW,
             ))
 
-    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20,
-                       MERGE_LLM_MAX_TOKENS=2048, MERGE_LLM_DAILY_TOKENS=171000)
+    @override_settings(LLM_API_KEY="key",
+                       MERGE_LLM_MAX_TOKENS=2048, LLM_DAILY_TOKENS=171000)
     def test_stops_before_call_when_budget_below_reserve(self):
         LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=170000)
         with mock.patch.object(llm_service, "judge") as judge:
             call_command("judge_merge_candidates")
         judge.assert_not_called()
 
-    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20,
-                       MERGE_LLM_MAX_TOKENS=2048, MERGE_LLM_DAILY_TOKENS=4000)
+    @override_settings(LLM_API_KEY="key",
+                       MERGE_LLM_MAX_TOKENS=2048, LLM_DAILY_TOKENS=4000)
     def test_budget_checked_before_every_call(self):
         def spend(*args, **kwargs):
             LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_NOVEL, tokens=5000)
@@ -340,8 +340,8 @@ class JudgeTokenBudgetTests(MergeTestCase):
         self.assertIsNotNone(self.candidates[0].llm_checked_at)
         self.assertIsNone(self.candidates[1].llm_checked_at)
 
-    @override_settings(MERGE_LLM_API_KEY="key", MERGE_LLM_DAILY_LIMIT=20,
-                       MERGE_LLM_MAX_TOKENS=2048, MERGE_LLM_DAILY_TOKENS=180000)
+    @override_settings(LLM_API_KEY="key",
+                       MERGE_LLM_MAX_TOKENS=2048, LLM_DAILY_TOKENS=180000)
     def test_truncated_reply_leaves_candidate_unchecked(self):
         payload = _chat_payload("", "length", total_tokens=2048)
         with mock.patch.object(llm_service.requests, "post",

@@ -5,9 +5,9 @@ chat calls per run (``TAG_LLM_TAGS_PER_CALL`` tags each), stores the validated
 answer on each cluster, and hands it to ``apply_cluster``, which merges the
 sets that pass the safeguards and holds the rest for review.
 
-Runs as a *bounded* scheduler task: a few calls per tick, capped by a daily
-budget counted as distinct ``TagCluster.llm_batch`` values judged today. With
-no API key it is a no-op.
+Runs as a *bounded* scheduler task: a few calls per tick, within the daily
+request and token budgets shared by every LLM workflow. With no API key it is
+a no-op.
 """
 
 import logging
@@ -18,7 +18,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from lncrawler_api.models import TagCluster, TagLLMCall
+from lncrawler_api.models import LLMUsage, TagCluster
 from lncrawler_api.services import llm_service
 from lncrawler_api.services import tag_merge_service as tms
 
@@ -26,8 +26,6 @@ logger = logging.getLogger("lncrawler_api.merge")
 
 # Pending clusters inspected per packing pass.
 PACK_WINDOW = 200
-# Prompt tokens allowed for on top of TAG_LLM_MAX_TOKENS before a call is made.
-PROMPT_TOKEN_RESERVE = 3000
 
 
 class Command(BaseCommand):
@@ -41,18 +39,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not llm_service.is_configured():
-            self.stdout.write("LLM not configured (MERGE_LLM_API_KEY empty); nothing to do.")
+            self.stdout.write("LLM not configured (LLM_API_KEY empty); nothing to do.")
             return
 
-        daily_limit = settings.TAG_LLM_DAILY_LIMIT
-        today = timezone.localdate()
-        # Counted from the call ledger, so re-queuing or clearing a cluster never refunds a call.
-        used_today = TagLLMCall.objects.filter(created_at__date=today).count()
-        budget = daily_limit - used_today
-        if budget <= 0:
-            self.stdout.write(f"LLM daily budget reached ({used_today}/{daily_limit}); skipping.")
-            return
-        calls = min(options["limit"] or settings.TAG_LLM_CALLS_PER_TICK, budget)
+        # The daily request and token caps are shared by every LLM workflow and
+        # checked before each call (llm_service.can_afford). LLMUsage is the
+        # ledger, so re-queuing or clearing a cluster never refunds a call.
+        calls = options["limit"] or settings.TAG_LLM_CALLS_PER_TICK
 
         # Fresh clusters first; clusters sent back after a changed plan go to the back.
         pending = TagCluster.objects.filter(
@@ -64,7 +57,7 @@ class Command(BaseCommand):
             )
             return
 
-        model = settings.MERGE_LLM_MODEL
+        model = settings.LLM_MODEL
         tally = Counter()
         made = 0
         # Clusters already sent to the model this run. A cluster requeued by a
@@ -72,11 +65,9 @@ class Command(BaseCommand):
         attempted = set()
         for _ in range(calls):
             # Checked before every call: one call can spend many tokens.
-            reserve = settings.TAG_LLM_MAX_TOKENS + PROMPT_TOKEN_RESERVE
-            if llm_service.token_budget_left() < reserve:
+            if not llm_service.can_afford(LLMUsage.PURPOSE_TAG):
                 self.stdout.write(
-                    f"LLM daily token budget too low ({llm_service.tokens_used_today()}"
-                    f"/{settings.MERGE_LLM_DAILY_TOKENS} used); stopping this tick."
+                    f"LLM daily budget reached ({llm_service.budget_status()}); stopping this tick."
                 )
                 break
             batch = self._next_batch(pending, attempted)
@@ -93,7 +84,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"judged {sum(tally.values())} cluster(s)"
             + (f": {summary}" if summary else "")
-            + f"; daily {used_today + made}/{daily_limit}"
+            + f"; daily {llm_service.budget_status()}"
         ))
 
     @staticmethod
@@ -143,19 +134,16 @@ class Command(BaseCommand):
             self.stdout.write(f"Rate limited (retry-after={exc.retry_after}); stopping this tick.")
             return "rate_limited"
         except llm_service.LLMParseError as exc:
-            # The call was made and paid for, so it counts against the budget.
+            # The call was made and paid for (LLMUsage already has its row).
             # The whole batch goes back to pending; at MAX_REQUEUES it becomes error.
-            TagLLMCall.objects.create(batch=batch_id)
             reason = f"LLM answer unusable, re-queued: {exc}"[:500]
             for cluster, _tags in batch:
                 tally[tms._requeue(cluster, reason)] += 1
             return "ok"
         except llm_service.LLMError as exc:
-            TagLLMCall.objects.create(batch=batch_id)
             logger.warning("LLM judge failed for tag clusters: %s", exc)
             return "failed"
 
-        TagLLMCall.objects.create(batch=batch_id)
         for (cluster, _tags), sets in zip(batch, results):
             cluster.llm_response = {"sets": sets}
             cluster.llm_model = model

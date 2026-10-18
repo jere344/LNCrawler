@@ -17,10 +17,10 @@ const SearchSkeleton = () => {
         {t('search.heading')}
       </Typography>
 
-      <Paper sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center' }}>
-        <Skeleton variant="rounded" height={56} sx={{ flex: 1 }} />
-        <Skeleton variant="rounded" width={110} height={36} sx={{ ml: 2 }} />
-        <Skeleton variant="rounded" width={110} height={36} sx={{ ml: 2 }} />
+      <Paper sx={{ p: 2, mb: 3, display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, alignItems: 'center', gap: { xs: 1, sm: 0 } }}>
+        <Skeleton variant="rounded" height={56} sx={{ flex: 1, minWidth: { xs: '100%', sm: 0 } }} />
+        <Skeleton variant="rounded" height={36} sx={{ width: { xs: '100%', sm: 110 }, ml: { xs: 0, sm: 2 } }} />
+        <Skeleton variant="rounded" height={36} sx={{ width: { xs: '100%', sm: 110 }, ml: { xs: 0, sm: 2 } }} />
       </Paper>
 
       <Box sx={{ mb: 3, display: 'flex', gap: 1 }}>

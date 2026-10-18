@@ -1,4 +1,3 @@
-import uuid
 
 from django.db import models
 from django.db.models.functions import Greatest, Least
@@ -57,23 +56,6 @@ class TagCluster(models.Model):
 
     def __str__(self):
         return f"{' / '.join(self.tag_names)} ({self.status})"
-
-
-class TagLLMCall(models.Model):
-    """One chat call made by judge_tag_clusters. The daily budget counts these rows.
-
-    Kept apart from TagCluster so clearing or re-queuing a cluster can never
-    refund a call that was already paid for.
-    """
-
-    batch = models.UUIDField(default=uuid.uuid4, editable=False)
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"LLM call {self.batch} at {self.created_at}"
 
 
 class TagMerge(models.Model):

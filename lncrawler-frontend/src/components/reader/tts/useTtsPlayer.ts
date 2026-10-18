@@ -736,8 +736,20 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     const onVisible = () => {
       if (document.visibilityState === 'visible' && statusRef.current === 'playing') acquireWakeLock();
     };
+    // Backgrounded: the neural chain keeps running from the audio element's
+    // ended event, so just make sure the element is still playing.
+    const onHidden = () => {
+      if (document.visibilityState !== 'hidden' || statusRef.current !== 'playing') return;
+      if (engineRef.current !== 'neural' || pausedRef.current) return;
+      const audio = audioRef.current;
+      if (audio && audio.paused && audio.src) audio.play().catch(() => undefined);
+    };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('visibilitychange', onHidden);
+    };
      
   }, []);
   useEffect(() => {

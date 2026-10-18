@@ -231,7 +231,7 @@ def find_merge_candidates_task():
 def judge_merge_candidates_task():
     from django.conf import settings as _settings
 
-    if not getattr(_settings, "MERGE_LLM_API_KEY", ""):
+    if not getattr(_settings, "LLM_API_KEY", ""):
         return  # zero-LLM fallback: the review queue still works.
     logger.info("Judging merge candidates with LLM...")
     try:
@@ -261,7 +261,7 @@ def find_tag_merge_candidates_task():
 def judge_tag_clusters_task():
     from django.conf import settings as _settings
 
-    if not getattr(_settings, "MERGE_LLM_API_KEY", ""):
+    if not getattr(_settings, "LLM_API_KEY", ""):
         return  # zero-LLM fallback: clusters stay pending until a key is set.
     logger.info("Judging tag clusters with LLM...")
     try:
@@ -269,6 +269,22 @@ def judge_tag_clusters_task():
         logger.info("Tag cluster LLM judging completed")
     except Exception as e:
         logger.error(f"Error judging tag clusters: {str(e)}", exc_info=True)
+        raise
+
+# Flag R18 tags through the generic LLMRequest queue (services/llm_tasks.py, TagR18Task).
+# Bounded per tick and by a daily token budget; needs the merge LLM key.
+@scheduler.register_task(
+    interval=int(getattr(settings, "TAG_R18_LLM_INTERVAL", 1800)), name="run_llm_tag_r18"
+)
+def run_llm_tag_r18_task():
+    if not getattr(settings, "LLM_API_KEY", ""):
+        return  # zero-LLM fallback: nothing is queued or sent.
+    logger.info("Classifying R18 tags with LLM...")
+    try:
+        call_command('run_llm_requests', 'tag_r18')
+        logger.info("R18 tag LLM classification completed")
+    except Exception as e:
+        logger.error(f"Error classifying R18 tags: {str(e)}", exc_info=True)
         raise
 
 # Task to compress low traffic novels weekly.

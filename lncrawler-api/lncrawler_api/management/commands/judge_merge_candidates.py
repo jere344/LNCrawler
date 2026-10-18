@@ -16,13 +16,11 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from lncrawler_api.models import MergeCandidate
+from lncrawler_api.models import LLMUsage, MergeCandidate
 from lncrawler_api.services import llm_service
 
 logger = logging.getLogger("lncrawler_api.merge")
 
-# Prompt tokens allowed for on top of MERGE_LLM_MAX_TOKENS before a call is made.
-PROMPT_TOKEN_RESERVE = 1500
 
 
 class Command(BaseCommand):
@@ -36,18 +34,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not llm_service.is_configured():
-            self.stdout.write("LLM not configured (MERGE_LLM_API_KEY empty); nothing to do.")
+            self.stdout.write("LLM not configured (LLM_API_KEY empty); nothing to do.")
             return
 
-        daily_limit = getattr(settings, "MERGE_LLM_DAILY_LIMIT", 20)
-        today = timezone.localdate()
-        used_today = MergeCandidate.objects.filter(llm_checked_at__date=today).count()
-        budget = daily_limit - used_today
-        if budget <= 0:
-            self.stdout.write(f"LLM daily budget reached ({used_today}/{daily_limit}); skipping.")
-            return
+        # The daily request and token caps are shared by every LLM workflow and
+        # checked before each call (llm_service.can_afford).
         limit = options["limit"] or getattr(settings, "MERGE_LLM_LIMIT_PER_TICK", 20)
-        limit = min(limit, budget)
 
         candidates = list(
             MergeCandidate.objects.filter(
@@ -71,7 +63,7 @@ class Command(BaseCommand):
             self.stdout.write(f"[dry-run] would judge {len(candidates)} candidate(s).")
             return
 
-        model = getattr(settings, "MERGE_LLM_MODEL", "openai/gpt-oss-20b")
+        model = getattr(settings, "LLM_MODEL", "openai/gpt-oss-20b")
         dismiss_confidence = getattr(settings, "MERGE_LLM_DISMISS_CONFIDENCE", 0.9)
         dismiss_max_certainty = getattr(settings, "MERGE_LLM_DISMISS_MAX_CERTAINTY", 0.8)
         judged = dismissed = rate_limited = failed = 0
@@ -79,11 +71,9 @@ class Command(BaseCommand):
             if candidate.novel_a is None or candidate.novel_b is None:
                 continue
             # Checked before every call: one call can spend many tokens.
-            reserve = settings.MERGE_LLM_MAX_TOKENS + PROMPT_TOKEN_RESERVE
-            if llm_service.token_budget_left() < reserve:
+            if not llm_service.can_afford(LLMUsage.PURPOSE_NOVEL):
                 self.stdout.write(
-                    f"LLM daily token budget too low ({llm_service.tokens_used_today()}"
-                    f"/{settings.MERGE_LLM_DAILY_TOKENS} used); stopping this tick."
+                    f"LLM daily budget reached ({llm_service.budget_status()}); stopping this tick."
                 )
                 break
             try:
@@ -124,7 +114,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"judged {judged} candidate(s); {dismissed} dismissed as different; "
             f"{failed} error(s); {rate_limited} rate-limited; "
-            f"daily {used_today + judged}/{daily_limit}"
+            f"daily {llm_service.budget_status()}"
         ))
 
     @staticmethod

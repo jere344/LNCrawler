@@ -19,6 +19,7 @@ from ..models import (
     Volume,
     Chapter,
 )
+from ..models.sources_models import mark_sources_adult
 from ..services.merge_service import MergeError, merge_tags, rename_tag
 from ..utils.tag_utils import normalize_tag
 from django.utils.html import format_html
@@ -52,7 +53,7 @@ class TranslatorAdmin(admin.ModelAdmin):
 class TagAdminForm(forms.ModelForm):
     class Meta:
         model = Tag
-        fields = ("name",)
+        fields = ("name", "is_adult")
 
     def clean_name(self):
         name = self.cleaned_data["name"].strip()
@@ -76,8 +77,10 @@ class TagAdminForm(forms.ModelForm):
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
     form = TagAdminForm
-    list_display = ("name", "source_count")
+    list_display = ("name", "is_adult", "source_count")
+    list_filter = ("is_adult",)
     search_fields = ("name",)
+    actions = ["mark_r18", "unmark_r18"]
     ordering = ("name",)
     readonly_fields = ("normalized",)
     change_list_template = "admin/lncrawler_api/tag/change_list.html"
@@ -87,8 +90,12 @@ class TagAdmin(admin.ModelAdmin):
         # change is recorded as a TagMerge (undoable).
         if change and "name" in form.changed_data:
             rename_tag(Tag.objects.get(pk=obj.pk), obj.name)
-            return
-        super().save_model(request, obj, form, change)
+            if "is_adult" in form.changed_data:
+                Tag.objects.filter(pk=obj.pk).update(is_adult=obj.is_adult)
+        else:
+            super().save_model(request, obj, form, change)
+        if obj.is_adult:
+            mark_sources_adult([obj.pk])
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         # changeform_view runs in a transaction, so a MergeError raised while saving
@@ -98,6 +105,27 @@ class TagAdmin(admin.ModelAdmin):
         except MergeError as exc:
             self.message_user(request, str(exc), messages.ERROR)
             return HttpResponseRedirect(request.path)
+
+    @admin.action(description="Mark selected tags as R18")
+    def mark_r18(self, request, queryset):
+        pks = list(queryset.values_list("pk", flat=True))
+        Tag.objects.filter(pk__in=pks).update(is_adult=True)
+        flagged = mark_sources_adult(pks)
+        self.message_user(
+            request,
+            f"Marked {len(pks)} tag(s) as R18; {flagged} novel source(s) flagged adult.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Unmark selected tags as R18")
+    def unmark_r18(self, request, queryset):
+        pks = list(queryset.values_list("pk", flat=True))
+        Tag.objects.filter(pk__in=pks).update(is_adult=False)
+        self.message_user(
+            request,
+            f"Unmarked {len(pks)} tag(s). Novels already flagged adult stay adult.",
+            messages.SUCCESS,
+        )
 
     def source_count(self, obj):
         return obj.novels.count()

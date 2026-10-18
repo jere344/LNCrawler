@@ -31,7 +31,7 @@ class Command(BaseCommand):
 
         ids, matrix = tms.load_embeddings()
         embed = tms.embedding_edges(
-            ids, matrix, top_k=settings.TAG_EMBED_TOP_K, min_cos=settings.TAG_EMBED_MIN
+            ids, matrix, top_k=settings.EMBED_TOP_K, min_cos=settings.EMBED_MIN
         )
 
         cooc_rows = (

@@ -229,10 +229,21 @@ const CommentItem = ({
         </Box>
         
         {comment.type && comment.type !== 'novel' ? (
-          <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip size="small" label={t('comments.postedAt', { chapter: getChapterLabel(t, comment.chapter_title, comment.chapter_id) })} color="secondary" variant="outlined" />
-            <Typography variant="body2" sx={{
-              color: "text.secondary"
+          <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <Chip
+              size="small"
+              label={t('comments.postedAt', { chapter: getChapterLabel(t, comment.chapter_title, comment.chapter_id) })}
+              title={t('comments.postedAt', { chapter: getChapterLabel(t, comment.chapter_title, comment.chapter_id) })}
+              color="secondary"
+              variant="outlined"
+              sx={{ maxWidth: '100%', minWidth: 0 }}
+            />
+            <Typography variant="body2" noWrap title={t('comments.fromSource', { source: comment.source_name })} sx={{
+              color: "text.secondary",
+              minWidth: 0,
+              flexShrink: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
             }}>
               {t('comments.fromSource', { source: comment.source_name })}
             </Typography>

@@ -448,7 +448,8 @@ const ReaderSettings = ({
           paper: {
             sx: {
               width: isMobile ? '100%' : '350px',
-              maxHeight: isMobile ? '60vh' : '100%',
+              height: isMobile ? '88dvh' : undefined,
+              maxHeight: isMobile ? '88vh' : '100%',
               borderTopLeftRadius: isMobile ? '16px' : 0,
               borderTopRightRadius: isMobile ? '16px' : 0,
               padding: 2,

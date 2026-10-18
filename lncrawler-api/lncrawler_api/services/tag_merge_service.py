@@ -69,7 +69,7 @@ Respond with ONE JSON object and nothing else:
 def load_embeddings():
     """Return ``(tag_ids, matrix)`` for every tag embedded by the current model."""
     rows = list(
-        Tag.objects.filter(embedding__isnull=False, embedding_model=settings.TAG_EMBED_MODEL)
+        Tag.objects.filter(embedding__isnull=False, embedding_model=settings.EMBED_MODEL)
         .order_by("pk")
         .values_list("pk", "embedding")
     )
@@ -90,11 +90,11 @@ def embed_missing(batch_size=None, sleep=time.sleep):
     the rest of the candidate pipeline continues on the vectors already stored.
     """
     if not embedding_service.is_configured():
-        logger.warning("Tag embeddings skipped: TAG_EMBED_API_KEY is empty")
+        logger.warning("Tag embeddings skipped: EMBED_API_KEY is empty")
         return 0
 
-    batch_size = batch_size or settings.TAG_EMBED_BATCH
-    model = settings.TAG_EMBED_MODEL
+    batch_size = batch_size or settings.EMBED_BATCH
+    model = settings.EMBED_MODEL
     pending = list(
         Tag.objects.filter(Q(embedding__isnull=True) | ~Q(embedding_model=model))
         .order_by("pk")

@@ -23,9 +23,11 @@ interface NovelItemCardProps {
   state?: unknown;
   forceAdultBlur?: boolean;
   showAddedDate?: boolean;
+  // Hide the cover's star rating badge (e.g. new novels with no ratings yet).
+  hideRating?: boolean;
 }
 
-const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state, forceAdultBlur = false, showAddedDate = false }) => {
+const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state, forceAdultBlur = false, showAddedDate = false, hideRating = false }) => {
   const { t } = useTranslation();
   const { isBlurred, revealHandler } = useAdultContent();
   const blurred = isBlurred(novel.is_adult, novel.id, forceAdultBlur);
@@ -109,6 +111,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
           
         />
         <AdultBadge isAdult={novel.is_adult} novelId={novel.id} forceAdult={forceAdultBlur} />
+        {!hideRating && (
         <Badge 
           sx={{
             position: 'absolute',
@@ -128,6 +131,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
             {novel.avg_rating ? novel.avg_rating.toFixed(1) : '-'}
           </Typography>
         </Badge>
+        )}
       </Card>
       
       <Box sx={{ px: 0.5, width: '100%' }}>
@@ -154,22 +158,25 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
           flexDirection: 'column', 
           gap: 0.25,
           mt: 0.5,
+          pr: 4.5,
+          minWidth: 0,
           fontSize: '0.75rem',
           color: 'text.secondary',
         }}>
           {showAddedDate && novel.created_at ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
               <CalendarTodayIcon sx={{ fontSize: 14, flexShrink: 0 }} />
               <Typography
                 variant="caption"
                 component="span"
                 noWrap
                 sx={{
+                  minWidth: 0,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}
               >
-                {t('cards.added', { time: formatTimeAgo(new Date(novel.created_at), t) })}
+                {formatTimeAgo(new Date(novel.created_at), t)}
               </Typography>
             </Box>
           ) : rank !== undefined ? (

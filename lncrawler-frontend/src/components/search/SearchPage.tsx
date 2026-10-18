@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, use } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { 
   Box, Container, Typography, TextField, Paper, 
   FormControl, InputLabel, Select, MenuItem, Checkbox,
@@ -75,8 +75,9 @@ const SearchPage: React.FC = () => {
   const [selectedAuthors, setSelectedAuthors] = useState<string[]>(searchParams.getAll('author'));
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(
-    searchParams.getAll('language').length > 0
-      ? searchParams.getAll('language')
+    // Same convention as searchLoader: `language=` (empty) means "all languages".
+    searchParams.has('language')
+      ? searchParams.getAll('language').filter(Boolean)
       : languageFilterEnabled
         ? contentLanguages
         : []
@@ -98,24 +99,16 @@ const SearchPage: React.FC = () => {
     setAdult(defaultAdult);
   }, [defaultAdult, searchParams]);
 
-  // Keep the search box in sync when navigating (back/forward).
+  // Keep the search box in sync with the committed query when navigating
+  // (back/forward). Keyed on the query alone so filter changes don't wipe a draft.
+  const committedQuery = searchParams.get('query') || '';
   useEffect(() => {
-    setSearchQuery(searchParams.get('query') || '');
-  }, [searchParams]);
+    setSearchQuery(committedQuery);
+  }, [committedQuery]);
 
-  // Pre-check the user's content languages once, on first arrival. After that
-  // the URL is authoritative: unchecking everything shows all languages.
-  const seededLanguages = useRef(searchParams.getAll('language').length > 0);
-  useEffect(() => {
-    if (seededLanguages.current) return;
-    if (!languageFilterEnabled || contentLanguages.length === 0) return;
-    seededLanguages.current = true;
-    const params = new URLSearchParams(searchParams);
-    contentLanguages.forEach((code) => params.append('language', code));
-    setSearchParams(params, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentLanguages, languageFilterEnabled]);
-  
+  // No URL rewrite here: the loader already applies the stored content languages
+  // on first arrival, so the page does not navigate (and refetch) on mount.
+
   // State for autocomplete options
   const [tagSuggestions, setTagSuggestions] = useState<Suggestion[]>([]);
   const [authorSuggestions, setAuthorSuggestions] = useState<Suggestion[]>([]);
@@ -188,16 +181,95 @@ const SearchPage: React.FC = () => {
       if (value === null) {
         // Skip if value is null
       } else if (Array.isArray(value)) {
-        // Add all values from array
-        value.forEach(v => params.append(key, v));
+        if (key === 'language' && value.length === 0) {
+          // Empty marker: the user chose "all languages" (see searchLoader).
+          params.append(key, '');
+        } else {
+          // Add all values from array
+          value.forEach(v => params.append(key, v));
+        }
       } else if (value !== '') {
         // Add single value
         params.set(key, value.toString());
       }
     });
-    
+
     setSearchParams(params);
   };
+
+  // Filter state as one string, so a single debounced effect can commit it to the URL.
+  // adult is stored as 'default' while it matches the account default, so the
+  // profile-driven realign above does not count as a user change.
+  const makeFilterKey = (f: {
+    tag: string[]; exclude_tag: string[]; author: string[]; status: string;
+    language: string[]; min_rating: number | null; sort_by: string; sort_order: string; adult: AdultFilter;
+  }) => JSON.stringify({ ...f, adult: f.adult === defaultAdult ? 'default' : f.adult });
+
+  const filterKey = makeFilterKey({
+    tag: selectedTags, exclude_tag: excludedTags, author: selectedAuthors, status: selectedStatus,
+    language: selectedLanguages, min_rating: minRating, sort_by: sortBy, sort_order: sortOrder, adult,
+  });
+  // The same key, read from the URL. Matches the state initializers above, so the
+  // key already in the URL (or the stored defaults on first arrival) counts as applied.
+  const keyFromParams = (sp: URLSearchParams) => makeFilterKey({
+    tag: sp.getAll('tag'),
+    exclude_tag: sp.getAll('exclude_tag'),
+    author: sp.getAll('author'),
+    status: sp.get('status') || '',
+    language: sp.has('language')
+      ? sp.getAll('language').filter(Boolean)
+      : (languageFilterEnabled ? contentLanguages : []),
+    min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : null,
+    sort_by: sp.get('sort_by') || 'title',
+    sort_order: sp.get('sort_order') || 'asc',
+    adult: (sp.get('adult') as AdultFilter) || defaultAdult,
+  });
+  const debouncedFilterKey = useDebounce(filterKey, 400);
+
+  // Back/forward (or any outside URL change): pull the filters back from the URL,
+  // so the debounced commit below never writes stale state over the history entry.
+  const urlFilterKey = keyFromParams(searchParams);
+  useEffect(() => {
+    if (urlFilterKey === filterKey) return;
+    const f = JSON.parse(urlFilterKey) as {
+      tag: string[]; exclude_tag: string[]; author: string[]; status: string;
+      language: string[]; min_rating: number | null; sort_by: string; sort_order: string; adult: string;
+    };
+    setSelectedTags(f.tag);
+    setExcludedTags(f.exclude_tag);
+    setSelectedAuthors(f.author);
+    setSelectedStatus(f.status);
+    setSelectedLanguages(f.language);
+    setMinRating(f.min_rating);
+    setSortBy(f.sort_by);
+    setSortOrder(f.sort_order);
+    setAdult(f.adult === 'default' ? defaultAdult : f.adult as AdultFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlFilterKey]);
+
+  // Auto-apply filter changes (debounced). Uses the committed query from the URL,
+  // not the draft in the search box, which still needs its own submit.
+  // The URL is the reference for what is applied, so equal keys are a no-op.
+  useEffect(() => {
+    if (debouncedFilterKey === keyFromParams(searchParams)) return;
+    const f = JSON.parse(debouncedFilterKey) as {
+      tag: string[]; exclude_tag: string[]; author: string[]; status: string;
+      language: string[]; min_rating: number | null; sort_by: string; sort_order: string; adult: string;
+    };
+    updateSearchParams({
+      query: searchParams.get('query'),
+      tag: f.tag,
+      exclude_tag: f.exclude_tag,
+      author: f.author,
+      status: f.status,
+      language: f.language,
+      min_rating: f.min_rating,
+      sort_by: f.sort_by,
+      sort_order: f.sort_order,
+      adult: f.adult === 'default' ? null : f.adult,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFilterKey]);
   
   const { setThemeById, availableThemes } = useTheme();
 
@@ -232,28 +304,12 @@ const SearchPage: React.FC = () => {
     setSortBy('title');
     setSortOrder('asc');
     setAdult(defaultAdult);
-    
-    // Reset URL params to default
-    setSearchParams(new URLSearchParams({ page: '1' }));
+
+    // Reset URL params to default. The empty `language` marker means "all languages".
+    setSearchParams(new URLSearchParams({ page: '1', language: '' }));
   };
 
-   // Apply filters
-  const applyFilters = () => {
-    updateSearchParams({
-      query: searchQuery,
-      tag: selectedTags,
-      exclude_tag: excludedTags,
-      author: selectedAuthors,
-      status: selectedStatus,
-      language: selectedLanguages,
-      min_rating: minRating,
-      sort_by: sortBy,
-      sort_order: sortOrder,
-      adult: adult === defaultAdult ? null : adult,
-    });
-    setShowFilters(false);
-  };
-  
+
   const pageUrl = window.location.href;
   const baseTitle = t('search.metaDefaultTitle');
   const queryTitle = searchQuery ? t('search.metaQueryTitle', { query: searchQuery }) : baseTitle;
@@ -296,7 +352,7 @@ const SearchPage: React.FC = () => {
       {/* Search Box */}
       <Paper 
         component="form" 
-        sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center' }}
+        sx={{ p: 2, mb: 3, display: 'flex', flexWrap: { xs: 'wrap', sm: 'nowrap' }, alignItems: 'center', gap: { xs: 1, sm: 0 } }}
         onSubmit={handleSearchSubmit}
       >
         <TextField
@@ -332,7 +388,7 @@ const SearchPage: React.FC = () => {
           variant="contained" 
           color="primary" 
           type="submit"
-          sx={{ ml: 2 }}
+          sx={{ ml: { xs: 0, sm: 2 }, width: { xs: '100%', sm: 'auto' } }}
         >
           {t('search.search')}
         </Button>
@@ -341,7 +397,7 @@ const SearchPage: React.FC = () => {
           color="secondary"
           onClick={() => setShowFilters(!showFilters)}
           startIcon={<TuneIcon />}
-          sx={{ ml: 2 }}
+          sx={{ ml: { xs: 0, sm: 2 }, width: { xs: '100%', sm: 'auto' } }}
         >
           {t('search.filters')}
         </Button>
@@ -707,18 +763,6 @@ const SearchPage: React.FC = () => {
                 <ToggleButton value="show">{t('search.adultShow')}</ToggleButton>
                 <ToggleButton value="only">{t('search.adultOnly')}</ToggleButton>
               </ToggleButtonGroup>
-            </Grid>
-            
-            {/* Apply Filters Button */}
-            <Grid size={12}>
-              <Button 
-                variant="contained" 
-                color="primary"
-                onClick={applyFilters}
-                fullWidth
-              >
-                {t('search.applyFilters')}
-              </Button>
             </Grid>
           </Grid>
         </Paper>

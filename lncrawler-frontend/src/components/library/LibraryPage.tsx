@@ -25,6 +25,7 @@ import {
   ListItemIcon,
   ListItemText,
   Fade,
+  useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -34,7 +35,6 @@ import {
   pointerWithin,
   KeyboardSensor,
   PointerSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -114,12 +114,13 @@ const LibraryPage: React.FC = () => {
   const lastSelectedIndexRef = useRef<number | null>(null);
   const activeDragIdsRef = useRef<string[]>([]);
 
-  const canReorder = sort === 'custom' && folder === 'all' && !debouncedSearch;
+  // Touch-only devices: no drag-and-drop reordering, so long press is free to select.
+  const isTouchOnly = useMediaQuery('(hover: none) and (pointer: coarse)');
+  const canReorder = sort === 'custom' && folder === 'all' && !debouncedSearch && !isTouchOnly;
   const selectionActive = selectMode || selectedIds.size > 0;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -468,7 +469,12 @@ const LibraryPage: React.FC = () => {
             selectionActive={selectionActive}
             onToggleSelect={toggleSelect}
             sortable={canReorder}
-            draggable
+            draggable={!isTouchOnly}
+            onLongPress={(n) => {
+              if (!selectedIds.has(bookmarkId(n))) toggleSelect(n, { shiftKey: false });
+              setSelectMode(true);
+            }}
+            onMarkedAsRead={() => fetchLibrary(page)}
             onRate={handleRate}
             onEditNote={(n) => setNoteDialog({ open: true, novel: n, value: n.note || '' })}
             onMove={(n, f) => moveItems([bookmarkId(n)], f)}

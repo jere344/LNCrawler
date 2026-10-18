@@ -1,4 +1,4 @@
-import { Box, Typography, Divider, Grid, Tabs, Tab, Skeleton } from '@mui/material';
+import { Box, Typography, Divider, Grid, Tabs, Tab, Skeleton, Container, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { Novel, NovelFromSource } from '@models/novels_types';
 import CompactNovelCard from '@components/common/novelcardtypes/CompactNovelCard';
@@ -7,6 +7,7 @@ import NovelItemCard from '@components/common/novelcardtypes/NovelItemCard';
 import TrendingNovelCard from '@components/common/novelcardtypes/TrendingNovelCard';
 import NovelRecommendation from '@components/common/NovelRecommendation';
 import { useAuth } from '@context/AuthContext';
+import { introBannerSx } from './introBanner';
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <Box sx={{ mb: 6 }}>
@@ -28,14 +29,15 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 const HomeSkeleton = () => {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
+  const theme = useTheme();
 
   return (
-    <>
+    <Container maxWidth="xl">
       <Box sx={{ my: 2 }}>
         <Typography variant="h1" component="h1" gutterBottom sx={{ fontWeight: 'bold', textAlign: 'center', mb: 3 }}>
           LNCrawler
         </Typography>
-        <Box sx={{ backgroundColor: 'background.paper', padding: 2, mx: 0, borderRadius: 2, mb: 4 }}>
+        <Box sx={{ ...introBannerSx(theme), padding: 2, mx: 0, borderRadius: 2, mb: 4 }}>
           <Typography sx={{ marginBottom: '16px' }}>{t('home.introHeading')}</Typography>
           <Typography sx={{ marginBottom: '16px' }}>{t('home.introBody')}</Typography>
           <Typography>{t('home.introAddNovel')}</Typography>
@@ -110,7 +112,7 @@ const HomeSkeleton = () => {
 
       <Section title={t('home.recentlyAdded')}>
         <Grid container spacing={2}>
-          {[...Array(12)].map((_, index) => (
+          {[...Array(6)].map((_, index) => (
             <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`recently-added-skeleton-${index}`}>
               <NovelItemCard novel={{} as Novel} isLoading={true} onClick={() => {}} />
             </Grid>
@@ -127,7 +129,7 @@ const HomeSkeleton = () => {
           ))}
         </Grid>
       </Section>
-    </>
+    </Container>
   );
 };
 

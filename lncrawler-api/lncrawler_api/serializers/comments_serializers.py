@@ -132,6 +132,16 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             return None
         if kind == 'chapter':
             return getattr(target, 'title', None) or f"Chapter {getattr(target, 'chapter_id', '')}"
+        # Novels: like the novel cards, the source the viewer reads, else the
+        # preferred source (both prefetched by the profile comments view).
+        from ..utils.query_helpers import preferred_source_key
+
+        histories = getattr(target, 'viewer_histories', None)
+        if histories and histories[0].source.title:
+            return histories[0].source.title
+        sources = list(target.sources.all())
+        if sources:
+            return min(sources, key=preferred_source_key).title or target.title
         return getattr(target, 'title', None)
 
     def get_target_slug(self, obj):

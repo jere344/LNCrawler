@@ -5,6 +5,7 @@ from . import (
     comment_admin,
     downloader_admin,
     harvest_admin,
+    llm_admin,
     merge_admin,
     novel_admin,
     review_admin,

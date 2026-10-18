@@ -21,7 +21,6 @@ from ..models import (
     TagAlias,
     TagCluster,
     LLMUsage,
-    TagLLMCall,
     TagMerge,
     TagNoMerge,
 )
@@ -210,6 +209,62 @@ class TagMergeUndoTests(TestCase):
             rename_tag(self.source, "ISEKAI")
 
 
+class TagAdultPropagationTests(TestCase):
+    def setUp(self):
+        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.external = ExternalSource.objects.create(source_name="s")
+
+    def _source(self, url, **kwargs):
+        return NovelFromSource.objects.create(
+            novel=self.novel, external_source=self.external, title="N", source_url=url, **kwargs
+        )
+
+    def test_import_with_r18_tag_flags_source(self):
+        Tag.objects.create(name="Harem", is_adult=True)
+        source = self._source("http://s/1")
+        _set_source_tags(source, ["Harem"])
+        source.refresh_from_db()
+        self.assertTrue(source.is_adult)
+
+    def test_import_with_plain_tags_leaves_source_alone(self):
+        Tag.objects.create(name="Isekai")
+        source = self._source("http://s/2")
+        _set_source_tags(source, ["Isekai"])
+        source.refresh_from_db()
+        self.assertFalse(source.is_adult)
+
+    def test_recompute_flags_existing_links_to_r18_tag(self):
+        tag = Tag.objects.create(name="Yuri")
+        source = self._source("http://s/3")
+        source.tags.add(tag)
+        Tag.objects.filter(pk=tag.pk).update(is_adult=True)
+        call_command("recompute_adult_from_tags")
+        source.refresh_from_db()
+        self.assertTrue(source.is_adult)
+
+    def test_recompute_never_clears_adult_flag(self):
+        source = self._source("http://s/4", is_adult=True)
+        call_command("recompute_adult_from_tags")
+        source.refresh_from_db()
+        self.assertTrue(source.is_adult)
+
+    def test_merge_into_r18_tag_flags_moved_sources(self):
+        target = Tag.objects.create(name="Harem", is_adult=True)
+        other = Tag.objects.create(name="Reverse Harem")
+        source = self._source("http://s/5")
+        source.tags.add(other)
+        merge_tags(other, target)
+        source.refresh_from_db()
+        self.assertTrue(source.is_adult)
+
+    def test_merging_r18_tag_keeps_flag_on_target(self):
+        target = Tag.objects.create(name="Romance")
+        adult = Tag.objects.create(name="Adult Content", is_adult=True)
+        merge_tags(adult, target)
+        target.refresh_from_db()
+        self.assertTrue(target.is_adult)
+
+
 class BuildClustersTests(SimpleTestCase):
     def test_respects_max_size(self):
         edges = {
@@ -278,7 +333,7 @@ class JudgeTagClustersTests(TestCase):
         patcher = mock.patch.object(
             llm_service, "chat_json", return_value=response, side_effect=side_effect
         )
-        with override_settings(MERGE_LLM_API_KEY="test-key"), patcher as chat:
+        with override_settings(LLM_API_KEY="test-key"), patcher as chat:
             call_command("judge_tag_clusters")
         return chat
 
@@ -428,10 +483,10 @@ class EmbeddingRequestTests(SimpleTestCase):
             ]})
 
     def test_default_provider_is_jina_with_text_matching_task(self):
-        self.assertEqual(settings.TAG_EMBED_PROVIDER, "jina")
-        self.assertEqual(settings.TAG_EMBED_MODEL, "jina-embeddings-v5-omni-small")
+        self.assertEqual(settings.EMBED_PROVIDER, "jina")
+        self.assertEqual(settings.EMBED_MODEL, "jina-embeddings-v5-omni-small")
         session = self._Session()
-        with override_settings(TAG_EMBED_API_KEY="k"):
+        with override_settings(EMBED_API_KEY="k"):
             vectors = embedding_service.embed(["isekai"], session=session)
         self.assertEqual(vectors.shape, (1, 2))
         url, kwargs = session.calls[0]
@@ -440,7 +495,7 @@ class EmbeddingRequestTests(SimpleTestCase):
 
     def test_other_providers_send_no_task_field(self):
         session = self._Session()
-        with override_settings(TAG_EMBED_API_KEY="k", TAG_EMBED_PROVIDER="voyage"):
+        with override_settings(EMBED_API_KEY="k", EMBED_PROVIDER="voyage"):
             embedding_service.embed(["isekai"], session=session)
         url, kwargs = session.calls[0]
         self.assertEqual(url, "https://api.voyageai.com/v1/embeddings")
@@ -953,7 +1008,7 @@ class _JudgeFixture(TestCase):
         return cluster
 
     def _run_judge(self, chat, **overrides):
-        settings_overrides = {"MERGE_LLM_API_KEY": "k", "TAG_LLM_TAGS_PER_CALL": 2,
+        settings_overrides = {"LLM_API_KEY": "k", "TAG_LLM_TAGS_PER_CALL": 2,
                               "TAG_LLM_CALLS_PER_TICK": 1, **overrides}
         with override_settings(**settings_overrides), \
                 mock.patch.object(llm_service, "chat_json", side_effect=chat) as mocked:
@@ -963,24 +1018,29 @@ class _JudgeFixture(TestCase):
 
 class TagJudgeBudgetTests(_JudgeFixture):
     def test_requeued_cluster_does_not_refund_the_call(self):
-        self._run_judge(llm_service.LLMParseError("bad"), TAG_LLM_DAILY_LIMIT=1)
-        self.assertEqual(TagLLMCall.objects.count(), 1)
+        def paid_but_unusable(*args, **kwargs):
+            # _post_chat (mocked away with chat_json) writes the LLMUsage row.
+            LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=10)
+            raise llm_service.LLMParseError("bad")
+
+        self._run_judge(paid_but_unusable, LLM_DAILY_REQUESTS=1)
 
         # Admin-style requeue: clear the answer and put the cluster back to pending.
         TagCluster.objects.filter(pk=self.cluster_a.pk).update(
             status=TagCluster.STATUS_PENDING, llm_response=None, llm_batch=None, judged_at=None
         )
-        mocked = self._run_judge(lambda *a, **k: {"groups": []}, TAG_LLM_DAILY_LIMIT=1)
+        # The shared request cap is spent by the ledger row, not by the cluster.
+        mocked = self._run_judge(lambda *a, **k: {"groups": []}, LLM_DAILY_REQUESTS=1)
         self.assertEqual(mocked.call_count, 0)
-        self.assertEqual(TagLLMCall.objects.count(), 1)
 
-    def test_rate_limited_call_is_not_charged(self):
-        self._run_judge(llm_service.RateLimited(retry_after=None), TAG_LLM_DAILY_LIMIT=5)
-        self.assertEqual(TagLLMCall.objects.count(), 0)
+    def test_rate_limited_call_leaves_the_cluster_untouched(self):
+        self._run_judge(llm_service.RateLimited(retry_after=None))
+        self.cluster_a.refresh_from_db()
+        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_a.requeue_count, 0)
 
-    def test_parse_error_call_is_charged(self):
+    def test_parse_error_requeues_the_cluster(self):
         self._run_judge(llm_service.LLMParseError("bad"))
-        self.assertEqual(TagLLMCall.objects.count(), 1)
         self.cluster_a.refresh_from_db()
         self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
         self.assertEqual(self.cluster_a.requeue_count, 1)
@@ -1005,7 +1065,6 @@ class TagJudgeFailureTests(_JudgeFixture):
         # Both clusters fit one call (4 tags), so one bad reply hits both.
         mocked = self._run_judge(llm_service.LLMTruncated("cut off"), TAG_LLM_TAGS_PER_CALL=4)
         self.assertEqual(mocked.call_count, 1)
-        self.assertEqual(TagLLMCall.objects.count(), 1)
         for cluster in (self.cluster_a, self.cluster_b):
             cluster.refresh_from_db()
             self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
@@ -1041,9 +1100,8 @@ class TagJudgeFailureTests(_JudgeFixture):
 
 class TagJudgeTokenBudgetTests(_JudgeFixture):
     def test_stops_before_any_call_when_budget_below_reserve(self):
-        mocked = self._run_judge(lambda *a, **k: {"groups": []}, MERGE_LLM_DAILY_TOKENS=100)
+        mocked = self._run_judge(lambda *a, **k: {"groups": []}, LLM_DAILY_TOKENS=100)
         self.assertEqual(mocked.call_count, 0)
-        self.assertEqual(TagLLMCall.objects.count(), 0)
 
     def test_budget_checked_before_every_call(self):
         def spend(*args, **kwargs):
@@ -1051,7 +1109,7 @@ class TagJudgeTokenBudgetTests(_JudgeFixture):
             return {"groups": []}
 
         # Reserve is TAG_LLM_MAX_TOKENS (4096) + 3000: the first call fits, the second does not.
-        mocked = self._run_judge(spend, MERGE_LLM_DAILY_TOKENS=8000,
+        mocked = self._run_judge(spend, LLM_DAILY_TOKENS=8000,
                                  TAG_LLM_CALLS_PER_TICK=3, TAG_LLM_TAGS_PER_CALL=2)
         self.assertEqual(mocked.call_count, 1)
 

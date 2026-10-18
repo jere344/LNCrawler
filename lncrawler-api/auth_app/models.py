@@ -41,11 +41,11 @@ class CustomUser(AbstractUser):
     discoverable = models.BooleanField(default=True)
     # How adult (R18) content is shown to this user across the site:
     # 'no' hides it, 'yes' shows it normally, 'blur' shows it with blurred
-    # covers. Anonymous visitors fall back to 'no'.
+    # covers. New accounts default to 'blur'; anonymous visitors fall back to 'no'.
     show_r18 = models.CharField(
         max_length=4,
         choices=[('yes', 'Yes'), ('no', 'No'), ('blur', 'Blur')],
-        default='no',
+        default='blur',
     )
 
     def visibility(self, section):

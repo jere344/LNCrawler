@@ -67,7 +67,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         # viewer's own vote, but not the heavy per-source detail (synopsis,
         # volumes, editors, reading history).
         'summary': [
-            'id', 'source_slug', 'novel_slug', 'source_name', 'edition', 'cover_min_url',
+            'id', 'title', 'source_slug', 'novel_slug', 'source_name', 'edition', 'cover_min_url',
             'language', 'chapters_count', 'available_chapters_count',
             'latest_available_chapter',
             'last_chapter_update', 'vote_score', 'user_vote',

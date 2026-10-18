@@ -19,6 +19,7 @@ import {
   MenuItem,
   Alert,
   Chip,
+  Pagination,
 } from '@mui/material';
 import { novelService } from '../../services/api';
 import { userService } from '@services/user.service';
@@ -54,6 +55,7 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import DownloadIcon from '@mui/icons-material/Download';
 import ActionButton from '../common/ActionButton';
+import MarkAsReadButton from '../common/MarkAsReadButton';
 import SectionContainer from '@components/common/SectionContainer.tsx';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 import NovelSources from './NovelSources';
@@ -64,6 +66,8 @@ import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import InfoIcon from '@mui/icons-material/Info';
 import ShareIcon from '@mui/icons-material/Share';
+
+const READING_LISTS_PER_PAGE = 5;
 
 const DetailRow = ({ label, value }: { label: string; value: string }) => (
   <Box>
@@ -114,6 +118,7 @@ const SourceDetail = () => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [addToListOpen, setAddToListOpen] = useState(false);
+  const [readingListPage, setReadingListPage] = useState(1);
 
   useEffect(() => {
     if (novel) setIsBookmarked(!!novel.is_bookmarked);
@@ -659,6 +664,30 @@ const SourceDetail = () => {
                           <PlaylistAddIcon />
                         </IconButton>
                       </Tooltip>
+                      {novel && (
+                        <MarkAsReadButton
+                          novel={{
+                            ...novel,
+                            slug: novelSlug ?? novel.slug,
+                            reading_history: source.reading_history,
+                            prefered_source: source,
+                          } as unknown as INovel}
+                          onMarkAsRead={() =>
+                            setSource(prev =>
+                              prev?.reading_history
+                                ? {
+                                    ...prev,
+                                    reading_history: {
+                                      ...prev.reading_history,
+                                      last_read_chapter: prev.reading_history.source_latest_chapter ?? prev.reading_history.last_read_chapter,
+                                    },
+                                  }
+                                : prev
+                            )
+                          }
+                          customSx={{ position: 'static', zIndex: 'auto', color: 'common.white' }}
+                        />
+                      )}
                     </Box>
                   )}
                 </Box>
@@ -1073,6 +1102,7 @@ const SourceDetail = () => {
             <NovelUpdateButton 
               sourceUrl={source.source_url} 
               novelTitle={source.title} 
+              sourceName={source.source_name}
               disabled={isDmca || source.has_crawler === false}
             />
           </Paper>
@@ -1090,12 +1120,17 @@ const SourceDetail = () => {
           </SectionContainer>
         ) : null}
 
-        {((source.status && source.status !== 'Unknown') || source.original_publisher || source.english_publisher || source.editors?.length > 0 || source.translators?.length > 0) && (
+        {((source.status && source.status !== 'Unknown') || source.edition || source.original_publisher || source.english_publisher || source.editors?.length > 0 || source.translators?.length > 0) && (
           <SectionContainer title={t('sourceDetail.details')} icon={<InfoIcon />}>
             <Grid container spacing={2}>
               {source.status && source.status !== 'Unknown' && (
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <DetailRow label={t('sourceDetail.status')} value={source.status} />
+                </Grid>
+              )}
+              {source.edition && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <DetailRow label={t('sourceDetail.editionLabel')} value={editionLabel(source.edition, t)} />
                 </Grid>
               )}
               {source.original_publisher && (
@@ -1137,17 +1172,35 @@ const SourceDetail = () => {
           </SectionContainer>
         )}
 
-        {novel?.reading_lists && novel.reading_lists.length > 0 && (
-          <SectionContainer title={t('sourceDetail.inReadingLists')} icon={<PlaylistAddIcon />}>
-            <Grid container spacing={2}>
-              {novel.reading_lists.map((list) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={list.id}>
-                  <ReadingListCard list={list} />
-                </Grid>
-              ))}
-            </Grid>
-          </SectionContainer>
-        )}
+        {novel?.reading_lists && novel.reading_lists.length > 0 && (() => {
+          const readingListsPageCount = Math.ceil(novel.reading_lists.length / READING_LISTS_PER_PAGE);
+          const currentReadingListPage = Math.min(readingListPage, readingListsPageCount);
+          const visibleReadingLists = novel.reading_lists.slice(
+            (currentReadingListPage - 1) * READING_LISTS_PER_PAGE,
+            currentReadingListPage * READING_LISTS_PER_PAGE
+          );
+          return (
+            <SectionContainer title={t('sourceDetail.inReadingLists')} icon={<PlaylistAddIcon />}>
+              <Grid container spacing={2}>
+                {visibleReadingLists.map((list) => (
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={list.id}>
+                    <ReadingListCard list={list} />
+                  </Grid>
+                ))}
+              </Grid>
+              {readingListsPageCount > 1 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                  <Pagination
+                    count={readingListsPageCount}
+                    page={currentReadingListPage}
+                    onChange={(_, page) => setReadingListPage(page)}
+                    color="primary"
+                  />
+                </Box>
+              )}
+            </SectionContainer>
+          );
+        })()}
 
         {novelSlug && (
           <SectionContainer title={t('sourceDetail.reviews')} icon={<MenuBookIcon />}>

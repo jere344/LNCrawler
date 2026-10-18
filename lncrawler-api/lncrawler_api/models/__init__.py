@@ -10,3 +10,4 @@ from .scheduler_models import *
 from .harvest_models import *
 from .merge_models import *
 from .tag_merge_models import *
+from .llm_models import *

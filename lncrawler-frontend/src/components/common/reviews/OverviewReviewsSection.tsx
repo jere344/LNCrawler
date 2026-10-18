@@ -25,12 +25,14 @@ interface OverviewReviewsSectionProps {
   reviews?: Review[];
   isLoading: boolean;
   maxItems?: number;
+  dense?: boolean;
 }
 
 const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
   reviews,
   isLoading,
-  maxItems = null
+  maxItems = null,
+  dense = false
 }) => {
   const [expandedReviews, setExpandedReviews] = useState<Record<string, boolean>>({});
   const theme = useTheme();
@@ -87,8 +89,8 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
               border: '1px solid',
               borderColor: 'divider'
             }}>
-              <CardContent sx={{ flex: '1 0 auto', p: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+              <CardContent sx={{ flex: '1 0 auto', p: dense ? 2 : 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: dense ? 1 : 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <Avatar 
                       component={Link}
@@ -120,13 +122,15 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                   </Box>
                 </Box>
                 
-                <Typography variant="subtitle1" gutterBottom sx={{
-                  fontWeight: "bold"
+                <Typography variant="subtitle1" gutterBottom={!dense} sx={{
+                  fontWeight: "bold",
+                  mb: dense ? 0.5 : undefined,
+                  lineHeight: dense ? 1.3 : undefined
                 }}>
                   {review.title}
                 </Typography>
                 
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: dense ? 0.5 : 2 }}>
                   <Rating value={review.rating} readOnly size="small" />
                   <Typography
                     variant="body2"
@@ -142,7 +146,15 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                   maxHeight: isExpanded ? 'none' : 100,
                   overflow: isExpanded ? 'visible' : 'hidden',
                   position: 'relative',
-                  mb: 1
+                  mb: 1,
+                  lineHeight: dense ? 1.4 : undefined,
+                  // Dense: drop the editor's top padding and the first block's margin,
+                  // which otherwise leave a big gap under the rating.
+                  ...(dense && {
+                    '& > .MuiBox-root': { mt: 0.5 },
+                    '& [contenteditable]': { pt: 0 },
+                    '& [contenteditable] > :first-child': { mt: 0 },
+                  }),
                 }}>
                   <ReadOnlyMDXEditor 
                     content={review.content} 

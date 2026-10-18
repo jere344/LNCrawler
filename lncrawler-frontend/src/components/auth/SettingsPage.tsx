@@ -11,7 +11,6 @@ import type { ApiError } from '../../services/api';
 import LanguagePreferences from '../profile/LanguagePreferences';
 import PrivacySettings from '../profile/PrivacySettings';
 import AdultContentSettings from '../profile/AdultContentSettings';
-import PinnedNovelsPicker from '../profile/PinnedNovelsPicker';
 import type { Novel } from '@models/novels_types';
 import { formatDate } from '@utils/Misc';
 
@@ -60,7 +59,6 @@ const SettingsPage: React.FC = () => {
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bio, setBio] = useState('');
   const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
-  const [pinnedNovels, setPinnedNovels] = useState<Novel[]>([]);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +87,6 @@ const SettingsPage: React.FC = () => {
         setEmail(data.email || '');
         setBio(data.bio || '');
         setSocialLinks(data.social_links || {});
-        setPinnedNovels(data.pinned_novels || []);
         if (data.profile_pic) {
           setPreviewUrl(data.profile_pic);
         }
@@ -267,6 +264,20 @@ const SettingsPage: React.FC = () => {
                   }}
                 />
               )}
+              {isEditing && (
+                <Box sx={{ mt: 1 }}>
+                  <input
+                    type="file"
+                    ref={bannerInputRef}
+                    style={{ display: 'none' }}
+                    accept="image/*"
+                    onChange={handleBannerChange}
+                  />
+                  <Button variant="outlined" onClick={() => bannerInputRef.current?.click()}>
+                    {t('profile.changeBanner')}
+                  </Button>
+                </Box>
+              )}
             </Grid>
 
             <Grid
@@ -315,20 +326,6 @@ const SettingsPage: React.FC = () => {
                     disabled={!isEditing}
                   />
                 ))}
-                {isEditing && (
-                  <Box sx={{ mt: 1 }}>
-                    <input
-                      type="file"
-                      ref={bannerInputRef}
-                      style={{ display: 'none' }}
-                      accept="image/*"
-                      onChange={handleBannerChange}
-                    />
-                    <Button variant="outlined" onClick={() => bannerInputRef.current?.click()}>
-                      {t('profile.changeBanner')}
-                    </Button>
-                  </Box>
-                )}
               </Box>
 
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
@@ -476,10 +473,6 @@ const SettingsPage: React.FC = () => {
             </Button>
           </DialogActions>
         </Dialog>
-
-        <Divider sx={{ my: 3 }} />
-
-        <PinnedNovelsPicker pinnedNovels={pinnedNovels} onChange={setPinnedNovels} />
 
         <Divider sx={{ my: 3 }} />
 

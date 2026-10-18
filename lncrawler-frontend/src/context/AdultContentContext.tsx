@@ -3,7 +3,7 @@ import { useAuth } from '@context/AuthContext';
 import type { ShowR18 } from '../models/user_types';
 
 interface AdultContentContextType {
-    // Account preference; anonymous visitors are treated as 'no'.
+    // Account preference; anonymous visitors default to 'blur'.
     showR18: ShowR18;
     // True when covers of adult novels must be blurred ('blur' preference).
     blurCovers: boolean;
@@ -16,8 +16,8 @@ interface AdultContentContextType {
 
 const noop = () => {};
 const AdultContentContext = createContext<AdultContentContextType>({
-    showR18: 'no',
-    blurCovers: false,
+    showR18: 'blur',
+    blurCovers: true,
     isRevealed: () => false,
     reveal: noop,
     isBlurred: () => false,
@@ -28,7 +28,7 @@ export const useAdultContent = () => useContext(AdultContentContext);
 
 export const AdultContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
-    const showR18: ShowR18 = user?.show_r18 ?? 'no';
+    const showR18: ShowR18 = user?.show_r18 ?? 'blur';
     const blurCovers = showR18 === 'blur';
 
     // Covers the user chose to reveal this session, keyed by novel id.

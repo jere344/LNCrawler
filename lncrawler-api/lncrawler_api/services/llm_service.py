@@ -1,8 +1,8 @@
 """LLM adjudication for gray-band merge candidates (optional, pluggable).
 
 Any OpenAI-compatible chat-completions endpoint works (Gemini, Groq, Mistral,
-OpenAI, Ollama). Swap providers by changing ``MERGE_LLM_PROVIDER`` or pointing
-``MERGE_LLM_BASE_URL`` at a custom endpoint. With no API key configured the
+OpenAI, Ollama). Swap providers by changing ``LLM_PROVIDER`` or pointing
+``LLM_BASE_URL`` at a custom endpoint. With no API key configured the
 service reports ``is_configured() == False`` and everything degrades to the
 deterministic review queue.
 
@@ -68,20 +68,20 @@ class RateLimited(LLMError):
 
 
 def provider_url(provider=None):
-    override = getattr(settings, "MERGE_LLM_BASE_URL", "")
+    override = getattr(settings, "LLM_BASE_URL", "")
     if override:
         return override
-    provider = provider or getattr(settings, "MERGE_LLM_PROVIDER", "gemini")
+    provider = provider or getattr(settings, "LLM_PROVIDER", "gemini")
     return PROVIDER_URLS.get(provider)
 
 
 def is_configured():
-    provider = getattr(settings, "MERGE_LLM_PROVIDER", "gemini")
+    provider = getattr(settings, "LLM_PROVIDER", "gemini")
     if not provider_url(provider):
         return False
     if provider in KEYLESS_PROVIDERS:
         return True
-    return bool(getattr(settings, "MERGE_LLM_API_KEY", ""))
+    return bool(getattr(settings, "LLM_API_KEY", ""))
 
 
 def _render_profile(profile):
@@ -184,15 +184,15 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
     not charged and writes nothing. A reply cut off by the token cap, or
     empty, raises ``LLMTruncated``.
     """
-    provider = provider or getattr(settings, "MERGE_LLM_PROVIDER", "gemini")
+    provider = provider or getattr(settings, "LLM_PROVIDER", "gemini")
     url = provider_url(provider)
     if not url:
         raise LLMError(f"unknown LLM provider: {provider}")
-    model = model or getattr(settings, "MERGE_LLM_MODEL", "openai/gpt-oss-20b")
-    timeout = timeout or getattr(settings, "MERGE_LLM_TIMEOUT", 30)
+    model = model or getattr(settings, "LLM_MODEL", "openai/gpt-oss-20b")
+    timeout = timeout or getattr(settings, "LLM_TIMEOUT", 30)
 
     headers = {"Content-Type": "application/json"}
-    key = getattr(settings, "MERGE_LLM_API_KEY", "")
+    key = getattr(settings, "LLM_API_KEY", "")
     if key:
         headers["Authorization"] = f"Bearer {key}"
     body = {
@@ -201,7 +201,7 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
         "max_tokens": max_tokens,
         "messages": messages,
     }
-    reasoning_effort = getattr(settings, "MERGE_LLM_REASONING_EFFORT", "low")
+    reasoning_effort = getattr(settings, "LLM_REASONING_EFFORT", "low")
     if reasoning_effort:
         body["reasoning_effort"] = reasoning_effort
 
@@ -243,7 +243,53 @@ def tokens_used_today():
 
 def token_budget_left():
     """Tokens left in today's shared budget. Negative once it is overspent."""
-    return settings.MERGE_LLM_DAILY_TOKENS - tokens_used_today()
+    return settings.LLM_DAILY_TOKENS - tokens_used_today()
+
+
+# Every workflow calls the same API, so they all draw on the one daily budget
+# (LLM_DAILY_TOKENS). A request is only started when the budget can cover
+# its worst case: the reply cap (reasoning counts toward it) plus a reserve for
+# the prompt, which depends on how much each workflow packs into one call.
+PROMPT_TOKEN_RESERVE = {
+    LLMUsage.PURPOSE_NOVEL: 1500,  # two novel profiles
+    LLMUsage.PURPOSE_TAG: 3000,    # ~30 tags in clusters, with usage counts
+    LLMUsage.PURPOSE_R18: 1500,    # ~50 short tag names
+}
+REPLY_CAP_SETTING = {
+    LLMUsage.PURPOSE_NOVEL: "MERGE_LLM_MAX_TOKENS",
+    LLMUsage.PURPOSE_TAG: "TAG_LLM_MAX_TOKENS",
+    LLMUsage.PURPOSE_R18: "TAG_R18_LLM_MAX_TOKENS",
+}
+
+
+def estimated_tokens(purpose):
+    """Worst-case tokens one request of ``purpose`` can cost."""
+    return getattr(settings, REPLY_CAP_SETTING[purpose]) + PROMPT_TOKEN_RESERVE[purpose]
+
+
+def requests_used_today():
+    """Provider replies received today across every workflow (one LLMUsage row each)."""
+    return LLMUsage.objects.filter(created_at__date=timezone.localdate()).count()
+
+
+def can_afford(purpose):
+    """Whether today's shared budgets still cover one request of ``purpose``.
+
+    Providers cap both requests and tokens per day; a request only starts when
+    it fits under both (LLM_DAILY_REQUESTS and LLM_DAILY_TOKENS).
+    """
+    return (
+        requests_used_today() < settings.LLM_DAILY_REQUESTS
+        and token_budget_left() >= estimated_tokens(purpose)
+    )
+
+
+def budget_status():
+    """Today's usage of both shared budgets, for log lines."""
+    return (
+        f"{requests_used_today()}/{settings.LLM_DAILY_REQUESTS} requests, "
+        f"{tokens_used_today()}/{settings.LLM_DAILY_TOKENS} tokens"
+    )
 
 
 def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session=None):

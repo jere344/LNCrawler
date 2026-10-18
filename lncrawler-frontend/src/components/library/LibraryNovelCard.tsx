@@ -1,12 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Card,
   CardActionArea,
   CardContent,
   CardMedia,
+  Button,
   Checkbox,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   ListItemIcon,
@@ -24,6 +29,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import StickyNote2Icon from '@mui/icons-material/StickyNote2';
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOffIcon from '@mui/icons-material/FolderOff';
 import defaultCover from '@assets/default-cover.jpg';
@@ -33,6 +39,12 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
+import {
+  getMarkAsReadTarget,
+  hasUnreadChapters,
+} from '@components/common/MarkAsReadButton';
+import { userService } from '@services/user.service';
+import { useAuth } from '@context/AuthContext';
 
 interface LibraryNovelCardProps {
   novel: Novel;
@@ -50,7 +62,12 @@ interface LibraryNovelCardProps {
   onEditNote?: (novel: Novel) => void;
   onMove?: (novel: Novel, folderId: string | null) => void;
   onRemove?: (novel: Novel) => void;
+  onMarkedAsRead?: (novel: Novel) => void;
+  onLongPress?: (novel: Novel) => void;
 }
+
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_MOVE_PX = 10;
 
 interface DndHandle {
   setNodeRef: (node: HTMLElement | null) => void;
@@ -129,11 +146,20 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
   onEditNote,
   onMove,
   onRemove,
+  onMarkedAsRead,
+  onLongPress,
 }) => {
   const { t } = useTranslation();
+  const { isAuthenticated } = useAuth();
+  const pressTimerRef = useRef<number | null>(null);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const longPressFiredRef = useRef(false);
   const { isBlurred, revealHandler } = useAdultContent();
   const blurred = isBlurred(novel.is_adult, novel.id);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [markReadOpen, setMarkReadOpen] = useState(false);
+  const [markReadBusy, setMarkReadBusy] = useState(false);
+  const canMarkRead = Boolean(isAuthenticated && hasUnreadChapters(novel));
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const cover = preferredSource?.cover_min_url || defaultCover;
   const linkProps = getNovelSourceLink(novel);
@@ -149,7 +175,65 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
       }
     : { height: '100%' };
 
+  // Stable across renders so the scroll listener can always be removed.
+  const clearPress = useCallback(() => {
+    if (pressTimerRef.current !== null) {
+      window.clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    pressStartRef.current = null;
+    window.removeEventListener('scroll', clearPress, true);
+  }, []);
+
+  // Clear any pending long-press timer on unmount.
+  useEffect(() => clearPress, [clearPress]);
+
+  const handleTouchStart = (event: React.TouchEvent) => {
+    if (!onLongPress || event.touches.length !== 1) return;
+    longPressFiredRef.current = false;
+    const touch = event.touches[0];
+    pressStartRef.current = { x: touch.clientX, y: touch.clientY };
+    window.addEventListener('scroll', clearPress, { capture: true, passive: true });
+    pressTimerRef.current = window.setTimeout(() => {
+      pressTimerRef.current = null;
+      pressStartRef.current = null;
+      window.removeEventListener('scroll', clearPress, true);
+      longPressFiredRef.current = true;
+      onLongPress(novel);
+    }, LONG_PRESS_MS);
+  };
+
+  const handleTouchMove = (event: React.TouchEvent) => {
+    const start = pressStartRef.current;
+    if (!start) return;
+    const touch = event.touches[0];
+    if (
+      Math.abs(touch.clientX - start.x) > LONG_PRESS_MOVE_PX ||
+      Math.abs(touch.clientY - start.y) > LONG_PRESS_MOVE_PX
+    ) {
+      clearPress();
+    }
+  };
+
+  const handleTouchEnd = () => {
+    clearPress();
+  };
+
+  // Suppress the native context menu while a long press is in progress or just fired.
+  const handleContextMenu = (event: React.MouseEvent) => {
+    if (pressTimerRef.current !== null || longPressFiredRef.current) {
+      event.preventDefault();
+    }
+  };
+
   const handleAreaClick = (event: React.MouseEvent) => {
+    if (longPressFiredRef.current) {
+      // The press already selected this card; swallow the click that follows.
+      longPressFiredRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if (selectable && selectionActive) {
       event.preventDefault();
       event.stopPropagation();
@@ -163,13 +247,33 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
   };
 
   const menuOpen = Boolean(menuAnchor);
-  const hasMenu = editable && (onEditNote || onMove || onRemove);
+  const hasMenu = (editable && (onEditNote || onMove || onRemove)) || canMarkRead;
+
+  const handleConfirmMarkRead = async () => {
+    const target = getMarkAsReadTarget(novel);
+    setMarkReadOpen(false);
+    if (!target) return;
+    try {
+      setMarkReadBusy(true);
+      await userService.markChapterAsRead(novel.slug, target.sourceSlug, target.chapterNumber);
+      onMarkedAsRead?.(novel);
+    } catch (error) {
+      console.error('Error marking novel as read:', error);
+    } finally {
+      setMarkReadBusy(false);
+    }
+  };
 
   return (
     <Box
       ref={dnd?.setNodeRef}
       style={style}
       sx={{ position: 'relative', height: '100%' }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      onContextMenu={handleContextMenu}
     >
       <Card
         className="card-root"
@@ -187,6 +291,9 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
             zIndex: 2,
           },
           '&:hover .card-quick': { opacity: 1 },
+          '@media (hover: none)': {
+            '& .card-quick': { opacity: 1 },
+          },
           ...(selected && {
             outline: '3px solid',
             outlineColor: 'primary.main',
@@ -388,6 +495,21 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
         onClose={() => setMenuAnchor(null)}
         slotProps={{ paper: { sx: { minWidth: 200 } } }}
       >
+        {canMarkRead && (
+          <MenuItem
+            disabled={markReadBusy}
+            onClick={() => {
+              setMenuAnchor(null);
+              setMarkReadOpen(true);
+            }}
+          >
+            <ListItemIcon><DoneAllIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>{t('markAsRead.tooltip')}</ListItemText>
+          </MenuItem>
+        )}
+        {canMarkRead && (editable && (onEditNote || onMove || onRemove)) && (
+          <Divider sx={{ my: 0.5 }} />
+        )}
         {onEditNote && (
           <MenuItem
             onClick={() => {
@@ -450,6 +572,33 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
           </>
         )}
       </Menu>
+
+      <Dialog
+        open={markReadOpen}
+        onClose={() => setMarkReadOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{t('markAsRead.confirmTitle')}</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {t('markAsRead.confirmBody', { title: getNovelDisplayTitle(novel) })}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMarkReadOpen(false)} color="inherit">
+            {t('common.cancel')}
+          </Button>
+          <Button
+            onClick={handleConfirmMarkRead}
+            color="primary"
+            variant="contained"
+            disabled={markReadBusy}
+          >
+            {t('markAsRead.confirm')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -1,4 +1,4 @@
-import type { KokoroDevice, NeuralOptions, SupertonicDevice } from './voiceCatalog';
+import type { KokoroDevice, NeuralOptions, SupertonicDevice, TtsThrottle } from './voiceCatalog';
 import type { HighlightMode } from './textSegments';
 
 export type TtsEngineChoice = 'browser' | 'neural';
@@ -33,6 +33,8 @@ export interface TtsPrefs {
   ttsSupertonicDevice: SupertonicDevice;
   /** Supertonic denoising steps (4 fast, 6 balanced, 8 best). */
   ttsSupertonicSteps: number;
+  /** Rest between inferences; 'auto' throttles on phones only. */
+  ttsThrottle: TtsThrottle;
 }
 
 export const defaultTtsPrefs: TtsPrefs = {
@@ -54,6 +56,7 @@ export const defaultTtsPrefs: TtsPrefs = {
   ttsKokoroDevice: 'wasm',
   ttsSupertonicDevice: 'auto',
   ttsSupertonicSteps: 6,
+  ttsThrottle: 'auto',
 };
 
 export const TTS_NUMERIC_RANGES = {
@@ -69,6 +72,7 @@ export const TTS_ENUM_VALUES = {
   ttsHighlight: ['none', 'paragraph', 'sentence'],
   ttsKokoroDevice: ['wasm', 'webgpu'],
   ttsSupertonicDevice: ['auto', 'wasm', 'webgpu'],
+  ttsThrottle: ['auto', 'off', 'balanced', 'saver'],
 } as const;
 
 /** Keys whose value is a { lang: string } map. */
@@ -105,6 +109,7 @@ export const neuralOptions = (p: TtsPrefs): NeuralOptions => ({
   kokoroDevice: p.ttsKokoroDevice,
   supertonicDevice: p.ttsSupertonicDevice,
   supertonicSteps: p.ttsSupertonicSteps,
+  throttle: p.ttsThrottle,
 });
 
 /** Stable key of the options, to know when generated audio is stale. */

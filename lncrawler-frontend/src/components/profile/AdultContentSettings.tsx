@@ -21,7 +21,7 @@ const AdultContentSettings: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const current = user?.show_r18 || 'no';
+    const current = user?.show_r18 || 'blur';
 
     const handleChange = async (value: ShowR18) => {
         setSaving(true);

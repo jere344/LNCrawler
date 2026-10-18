@@ -215,22 +215,25 @@ MERGE_MAX_BLOCK_SIZE = 50
 # Fuzzy title similarity floor; <0 disables the trigram pass.
 MERGE_TRIGRAM_MIN = 0.4
 
-# LLM gray-band adjudication (judge_merge_candidates). The provider/model are
-# the only knobs used by services/llm_service.py; it accepts any OpenAI-compatible
+# LLM API shared by every LLM workflow (novel merge judge, tag merge judge, R18
+# tag classifier). services/llm_service.py accepts any OpenAI-compatible
 # chat-completions endpoint (see PROVIDER_URLS there to switch provider).
-MERGE_LLM_PROVIDER = os.environ.get("MERGE_LLM_PROVIDER", "groq")
-MERGE_LLM_API_KEY = os.environ.get("MERGE_LLM_API_KEY", "")
-MERGE_LLM_MODEL = os.environ.get("MERGE_LLM_MODEL", "openai/gpt-oss-20b")
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "groq")
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
+LLM_MODEL = os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
 # Reasoning models spend hidden tokens against max_tokens; "low" keeps replies short.
 # Empty omits the field for providers that reject it.
-MERGE_LLM_REASONING_EFFORT = os.environ.get("MERGE_LLM_REASONING_EFFORT", "low")
-MERGE_LLM_BASE_URL = os.environ.get("MERGE_LLM_BASE_URL", "")  # non-empty overrides the provider's default endpoint
-MERGE_LLM_TIMEOUT = 30
+LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "low")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")  # non-empty overrides the provider's default endpoint
+LLM_TIMEOUT = 30
+# Daily caps shared by every workflow (see llm_service.can_afford): a request only
+# starts when it fits under both. Groq's free tier allows this model 1k requests
+# and 200k tokens per day; the token default keeps a margin under that.
+LLM_DAILY_REQUESTS = int(os.environ.get("LLM_DAILY_REQUESTS", "1000"))
+LLM_DAILY_TOKENS = int(os.environ.get("LLM_DAILY_TOKENS", "180000"))
+
+# Novel merge judge (judge_merge_candidates).
 MERGE_LLM_MAX_TOKENS = 2048  # novel-judge reply cap (reasoning counts toward it)
-MERGE_LLM_DAILY_LIMIT = int(os.environ.get("MERGE_LLM_DAILY_LIMIT", "500"))  # Groq free tier (1k RPD for this model)
-# Token budget per day, shared by both judges. Groq's free tier caps this model
-# at 200k tokens/day; the default keeps a margin under that.
-MERGE_LLM_DAILY_TOKENS = int(os.environ.get("MERGE_LLM_DAILY_TOKENS", "180000"))
 MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
 MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
 # A confident "different" verdict dismisses a low-certainty pair (status skipped)
@@ -240,18 +243,18 @@ MERGE_LLM_DISMISS_MAX_CERTAINTY = float(os.environ.get("MERGE_LLM_DISMISS_MAX_CE
 
 # Automatic tag merging (find_tag_merge_candidates / judge_tag_clusters).
 # Embeddings: any OpenAI-compatible /embeddings endpoint; see services/embedding_service.py.
-TAG_EMBED_PROVIDER = os.environ.get("TAG_EMBED_PROVIDER", "jina")
-TAG_EMBED_API_KEY = os.environ.get("TAG_EMBED_API_KEY", "")
+EMBED_PROVIDER = os.environ.get("EMBED_PROVIDER", "jina")
+EMBED_API_KEY = os.environ.get("EMBED_API_KEY", "")
 # Calibrated on the real Jina API: on v5 true synonyms score 0.58-0.99 and
 # related-but-distinct tags score up to 0.90, so embeddings only propose
 # candidates and the LLM decides.
-TAG_EMBED_MODEL = os.environ.get("TAG_EMBED_MODEL", "jina-embeddings-v5-omni-small")
-TAG_EMBED_BASE_URL = os.environ.get("TAG_EMBED_BASE_URL", "")  # non-empty overrides the provider's default endpoint
-TAG_EMBED_BATCH = 128  # tag names per embeddings request
-TAG_EMBED_TIMEOUT = 30
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "jina-embeddings-v5-omni-small")
+EMBED_BASE_URL = os.environ.get("EMBED_BASE_URL", "")  # non-empty overrides the provider's default endpoint
+EMBED_BATCH = 128  # tag names per embeddings request
+EMBED_TIMEOUT = 30
 # Candidate generation: neighbours per tag and the cosine floor for embeddings.
-TAG_EMBED_TOP_K = 5
-TAG_EMBED_MIN = 0.6
+EMBED_TOP_K = 5
+EMBED_MIN = 0.6
 # Co-occurrence: tags sharing this many novels across different sources, at this
 # share of the rarer tag's novels, keeping at most TAG_COOC_TOP_K edges per tag.
 TAG_COOC_MIN_NOVELS = 2
@@ -261,12 +264,18 @@ TAG_COOC_TOP_K = 5
 TAG_TRGM_MIN = 0.6
 # Largest group sent to the judge as one cluster.
 TAG_CLUSTER_MAX = 12
-# LLM judging reuses MERGE_LLM_PROVIDER/MODEL/API_KEY. Budget and batching:
-TAG_LLM_DAILY_LIMIT = int(os.environ.get("TAG_LLM_DAILY_LIMIT", "100"))  # judge calls per day
+# LLM judging reuses LLM_PROVIDER/MODEL/API_KEY. Budget and batching:
 TAG_LLM_CALLS_PER_TICK = 3  # judge calls per scheduler tick
 TAG_LLM_TAGS_PER_CALL = 30  # pack clusters until this many tags are in one call
 TAG_LLM_INTERVAL = 600  # seconds between judge ticks
 TAG_LLM_MAX_TOKENS = 4096
+# R18 tag classifier (services/llm_tasks.py, TagR18Task). Runs through LLMRequest.
+TAG_R18_LLM_TAGS_PER_CALL = int(os.environ.get("TAG_R18_LLM_TAGS_PER_CALL", "50"))
+TAG_R18_LLM_CALLS_PER_TICK = int(os.environ.get("TAG_R18_LLM_CALLS_PER_TICK", "2"))
+TAG_R18_LLM_INTERVAL = int(os.environ.get("TAG_R18_LLM_INTERVAL", "1800"))  # seconds
+# Only R18 verdicts at or above this confidence flag the tag as adult.
+TAG_R18_LLM_MIN_CONFIDENCE = float(os.environ.get("TAG_R18_LLM_MIN_CONFIDENCE", "0.85"))
+TAG_R18_LLM_MAX_TOKENS = int(os.environ.get("TAG_R18_LLM_MAX_TOKENS", "4096"))
 # Safeguards: sets below this confidence, or joining two tags used by more than
 # TAG_BIG_TAG_USAGE sources, wait for review instead of being applied.
 TAG_AUTO_MIN_CONFIDENCE = 0.85

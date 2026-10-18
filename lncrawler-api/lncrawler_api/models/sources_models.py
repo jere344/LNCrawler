@@ -73,12 +73,36 @@ def _set_source_tags(novel_from_source, names):
                 if _lock_tag_pks(pks) != set(pks):
                     raise TagImportRetry()
                 novel_from_source.tags.set([tags[pk] for pk in pks])
+                if any(tags[pk].is_adult for pk in pks):
+                    novel_from_source.is_adult = True
+                    NovelFromSource.objects.filter(pk=novel_from_source.pk).update(is_adult=True)
                 return
         except TagImportRetry:
             continue
     raise TagImportError(
         f"tags kept changing during import after {TAG_IMPORT_ATTEMPTS} attempts"
     )
+
+
+def mark_sources_adult(tag_pks):
+    """Set ``is_adult`` on sources that carry any of the tags ``tag_pks``.
+
+    A novel is adult when any of its sources is, so flagging a source makes the
+    novel adult. This only ever sets True: sources flagged adult for other
+    reasons are left as they are. Returns the number of sources newly flagged.
+    """
+    if not tag_pks:
+        return 0
+    return NovelFromSource.objects.filter(
+        is_adult=False, tags__pk__in=tag_pks
+    ).update(is_adult=True)
+
+
+def recompute_adult_sources():
+    """Flag every source linked to an R18 tag. Never clears a flag."""
+    return NovelFromSource.objects.filter(
+        is_adult=False, tags__is_adult=True
+    ).update(is_adult=True)
 
 
 def _bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):

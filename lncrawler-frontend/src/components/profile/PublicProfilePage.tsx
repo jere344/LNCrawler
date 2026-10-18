@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { profileService } from '@services/profile.service';
 import type { PublicProfile } from '@models/user_types';
 import type { ReadingList } from '@models/readinglist_types';
+import type { Novel } from '@models/novels_types';
 import type { Comment } from '@models/comments_types';
 import type { Review } from '@services/review.service';
 import { useAuth } from '@context/AuthContext';
@@ -29,6 +30,7 @@ import { getNovelSourceLink, getNovelDisplayTitle, formatDate, formatDateTime, f
 import ReadingListCard from '@components/readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 import PublicLibraryTab from '@components/library/PublicLibraryTab';
+import PinnedNovelsPicker from './PinnedNovelsPicker';
 
 // Social fields hold handles/pseudos, not URLs. Map the ones with a known
 // profile URL shape so the chip links out; others render as plain text.
@@ -97,7 +99,7 @@ const PublicProfilePage: React.FC = () => {
     ].filter((item) => item.visible);
 
     return (
-        <Box>
+        <Box sx={{ px: { xs: 2, sm: 3 }, py: 2 }}>
             <Paper sx={{ overflow: 'hidden', mb: 3 }}>
                 <Box
                     sx={{
@@ -165,7 +167,14 @@ const PublicProfilePage: React.FC = () => {
                 ))}
             </Tabs>
 
-            {tabs[tab]?.key === 'overview' && <OverviewTab profile={profile} showFriends={canSee('friends')} />}
+            {tabs[tab]?.key === 'overview' && (
+                <OverviewTab
+                    profile={profile}
+                    showFriends={canSee('friends')}
+                    isOwner={isOwner}
+                    onPinnedChange={(novels) => setProfile({ ...profile, pinned_novels: novels })}
+                />
+            )}
             {tabs[tab]?.key === 'library' && (
                 <PublicLibraryTab
                     username={profile.username}
@@ -180,7 +189,12 @@ const PublicProfilePage: React.FC = () => {
     );
 };
 
-const OverviewTab: React.FC<{ profile: PublicProfile; showFriends: boolean }> = ({ profile, showFriends }) => {
+const OverviewTab: React.FC<{
+    profile: PublicProfile;
+    showFriends: boolean;
+    isOwner: boolean;
+    onPinnedChange: (novels: Novel[]) => void;
+}> = ({ profile, showFriends, isOwner, onPinnedChange }) => {
     const { t, i18n } = useTranslation();
     const hasGatedContent =
         profile.stats ||
@@ -237,7 +251,13 @@ const OverviewTab: React.FC<{ profile: PublicProfile; showFriends: boolean }> = 
                 </Paper>
             )}
 
-            {profile.pinned_novels.length > 0 && (
+            {isOwner && (
+                <Paper sx={{ p: 3, mb: 3 }}>
+                    <PinnedNovelsPicker pinnedNovels={profile.pinned_novels} onChange={onPinnedChange} />
+                </Paper>
+            )}
+
+            {!isOwner && profile.pinned_novels.length > 0 && (
                 <Box sx={{ mb: 3 }}>
                     <Typography variant="h6" gutterBottom>{t('profile.pinnedNovels')}</Typography>
                     <Grid container spacing={2}>

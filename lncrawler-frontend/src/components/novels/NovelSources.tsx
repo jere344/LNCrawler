@@ -18,6 +18,7 @@ import {
   useTheme,
   Grid as Grid,
   CardMedia,
+  Pagination,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
@@ -36,11 +37,14 @@ interface NovelSourcesProps {
   currentSourceSlug?: string;
 }
 
+const SOURCES_PER_PAGE = 5;
+
 const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug }) => {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const [sources, setSources] = useState<NovelFromSource[]>(novel.sources);
   const [votingInProgress, setVotingInProgress] = useState<{ [key: string]: boolean }>({});
+  const [sourcesPage, setSourcesPage] = useState(1);
   // The backend's primary is language-aware (then votes, then chapters), so it
   // is not simply the first card once sorted by vote score.
   const primarySourceSlug = novel.prefered_source?.source_slug;
@@ -77,9 +81,18 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
     }
   };
 
+  const sortedSources = [...sources].sort((a, b) => b.vote_score - a.vote_score);
+  const sourcesPageCount = Math.max(1, Math.ceil(sortedSources.length / SOURCES_PER_PAGE));
+  const currentSourcesPage = Math.min(sourcesPage, sourcesPageCount);
+  const pagedSources = sortedSources.slice(
+    (currentSourcesPage - 1) * SOURCES_PER_PAGE,
+    currentSourcesPage * SOURCES_PER_PAGE,
+  );
+
   return (
+    <>
     <Grid container spacing={3}>
-      {[...sources].sort((a, b) => b.vote_score - a.vote_score).map((source, index) => (
+      {pagedSources.map((source, index) => (
         <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
           <Zoom in={true} style={{ transitionDelay: `${index * 100}ms` }}>
             <Card
@@ -181,6 +194,14 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                         />
                       )}
                     </Box>
+                    {source.title && source.title !== novel.title && (
+                      <Typography
+                        variant="body2"
+                        sx={{ color: theme.palette.text.secondary, mt: '-0.25em', mb: 1 }}
+                      >
+                        {source.title}
+                      </Typography>
+                    )}
 
                     <List dense disablePadding>
                       {/* Add language info before chapters */}
@@ -407,6 +428,17 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
         </Grid>
       ))}
     </Grid>
+    {sourcesPageCount > 1 && (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+        <Pagination
+          count={sourcesPageCount}
+          page={currentSourcesPage}
+          onChange={(_, value) => setSourcesPage(value)}
+          color="primary"
+        />
+      </Box>
+    )}
+    </>
   );
 };
 

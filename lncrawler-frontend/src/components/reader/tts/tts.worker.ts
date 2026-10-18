@@ -20,6 +20,7 @@ import {
   type KokoroDevice,
   type NeuralOptions,
   type SupertonicDevice,
+  type TtsThrottle,
 } from './voiceCatalog';
 import type { WorkerRequest, WorkerResponse } from './workerProtocol';
 
@@ -36,7 +37,30 @@ const post = (msg: WorkerResponse, transfer: Transferable[] = []) => self.postMe
 
 // Threads need cross-origin isolation (COOP/COEP headers, see nginx-proxy);
 // Safari doesn't support it, so it falls back to one thread there.
-const wasmThreads = () => (self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1);
+// Phones share their cores with the UI: fewer threads there.
+const isMobileWorker = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+const wasmThreads = () => (self.crossOriginIsolated
+  ? Math.min(isMobileWorker ? 2 : 4, navigator.hardwareConcurrency || 1)
+  : 1);
+
+// Back-to-back inferences keep a phone's GPU busy and starve the compositor,
+// which lags the whole UI. After each run the worker rests for a share of the
+// time it took: a duty cycle of 0.5 rests as long as it worked. Audio is
+// generated well ahead of playback, so the rest costs latency, not gaps.
+const THROTTLE_DUTY: Record<Exclude<TtsThrottle, 'auto'>, number> = { off: 1, balanced: 0.5, saver: 0.33 };
+const MAX_REST_MS = 1500;
+
+async function throttled<T>(throttle: TtsThrottle | undefined, work: () => Promise<T>): Promise<T> {
+  const mode = !throttle || throttle === 'auto' ? (isMobileWorker ? 'balanced' : 'off') : throttle;
+  const duty = THROTTLE_DUTY[mode];
+  const start = performance.now();
+  const out = await work();
+  if (duty < 1) {
+    const rest = Math.min(MAX_REST_MS, (performance.now() - start) * (1 - duty) / duty);
+    await new Promise(resolve => setTimeout(resolve, rest));
+  }
+  return out;
+}
 
 async function hasWebGpu(): Promise<boolean> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
@@ -393,7 +417,7 @@ async function synthSupertonic(voice: string, text: string, opts: NeuralOptions)
   const steps = Math.round(opts.supertonicSteps);
   const totalStep = new ort.Tensor('float32', Float32Array.of(steps), [1]);
   for (let step = 0; step < steps; step++) {
-    const { denoised_latent } = await state.vec.run({
+    const { denoised_latent } = await throttled(opts.throttle, () => state.vec.run({
       noisy_latent: new ort.Tensor('float32', latent, [1, latentDim, latentLen]),
       text_emb,
       style_ttl: style.ttl,
@@ -401,10 +425,10 @@ async function synthSupertonic(voice: string, text: string, opts: NeuralOptions)
       text_mask: textMask,
       current_step: new ort.Tensor('float32', Float32Array.of(step), [1]),
       total_step: totalStep,
-    });
+    }));
     latent = new Float32Array(denoised_latent.data as Float32Array);
   }
-  const { wav_tts } = await state.voc.run({ latent: new ort.Tensor('float32', latent, [1, latentDim, latentLen]) });
+  const { wav_tts } = await throttled(opts.throttle, () => state.voc.run({ latent: new ort.Tensor('float32', latent, [1, latentDim, latentLen]) }));
   const pcm = (wav_tts.data as Float32Array).slice(0, Math.floor(seconds * sampleRate));
   return { pcm, sampleRate };
 }
@@ -488,8 +512,8 @@ async function handle(req: WorkerRequest) {
   const { pcm, sampleRate } = engine === 'supertonic'
     ? await synthSupertonic(id, req.text, req.options)
     : engine === 'kokoro'
-      ? await synthKokoro(id, req.text, req.options.kokoroDevice)
-      : await synthPiper(id, req.text);
+      ? await throttled(req.options.throttle, () => synthKokoro(id, req.text, req.options.kokoroDevice))
+      : await throttled(req.options.throttle, () => synthPiper(id, req.text));
   const wav = encodeWav(pcm, sampleRate);
   post({ id: req.id, type: 'audio', wav, duration: pcm.length / sampleRate }, [wav]);
 }

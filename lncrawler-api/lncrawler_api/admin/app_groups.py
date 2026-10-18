@@ -30,7 +30,7 @@ APP_GROUPS = [
     ),
     ("Profiles & Social", ["Friendship", "ProfilePinnedNovel"]),
     ("Harvesting", ["HarvestCandidate", "HarvestConfig"]),
-    ("Jobs & Scheduler", ["Job", "ScheduledTask"]),
+    ("Jobs & Scheduler", ["Job", "ScheduledTask", "LLMRequest"]),
 ]
 
 _GROUP_OF = {model: name for name, models in APP_GROUPS for model in models}

@@ -22,6 +22,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from ..models.sources_models import mark_sources_adult
 from ..utils.slug import slugify
 from ..utils.tag_utils import normalize_tag
 from ..models import (
@@ -397,6 +398,12 @@ def merge_tags(source_tag, target_tag, cluster=None):
         TagAlias.objects.filter(pk__in=moved_alias_ids).update(tag=target_tag)
         target_tag.novels.add(*source_ids)
         _move_no_merge_pairs(source_tag, target_tag)
+        if source_tag.is_adult and not target_tag.is_adult:
+            # The merged-into tag keeps the R18 flag so its novels stay adult.
+            target_tag.is_adult = True
+            target_tag.save(update_fields=["is_adult"])
+        if target_tag.is_adult:
+            mark_sources_adult([target_tag.pk])
         source_tag.delete()
         TagAlias.objects.update_or_create(name=name, defaults={"tag": target_tag})
         TagMerge.objects.create(
