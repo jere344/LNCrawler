@@ -635,6 +635,15 @@ const SourceDetail = () => {
                     }}
                   >
                     {source.title}
+                    {source.is_adult && (
+                      // Always shown (unlike the cover badge, which only shows while blurred).
+                      <Chip
+                        label={t('sourceDetail.adultNote')}
+                        color="warning"
+                        size="small"
+                        sx={{ ml: 1.5, verticalAlign: 'middle', fontWeight: 'bold' }}
+                      />
+                    )}
                   </Typography>
                   {isAuthenticated && (
                     <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>

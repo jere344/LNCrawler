@@ -476,6 +476,7 @@
     "startWriting": "Começar a escrever..."
   },
   "sourceDetail": {
+    "adultNote": "R18 · Conteúdo adulto",
     "loadFailed": "Falha ao carregar os detalhes da fonte. Tente novamente mais tarde.",
     "backToHome": "Voltar ao início",
     "notFound": "Fonte não encontrada",

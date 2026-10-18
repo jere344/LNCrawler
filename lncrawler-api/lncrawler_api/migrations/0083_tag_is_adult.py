@@ -1,7 +1,7 @@
 """Add the R18 flag to Tag.
 
 Novels are flagged adult from tags by the import path, the admin and the
-recompute_adult_from_tags command; no data migration is needed here.
+recompute_adult command; no data migration is needed here.
 """
 from django.db import migrations, models
 

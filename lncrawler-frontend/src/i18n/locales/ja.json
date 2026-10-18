@@ -476,6 +476,7 @@
     "startWriting": "執筆を始める..."
   },
   "sourceDetail": {
+    "adultNote": "R18 · 成人向けコンテンツ",
     "loadFailed": "ソース詳細の読み込みに失敗しました。しばらくしてからもう一度お試しください。",
     "backToHome": "ホームに戻る",
     "notFound": "ソースが見つかりません",

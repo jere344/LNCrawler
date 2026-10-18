@@ -476,6 +476,7 @@
     "startWriting": "Start writing..."
   },
   "sourceDetail": {
+    "adultNote": "R18 · Adult content",
     "loadFailed": "Failed to load source details. Please try again later.",
     "backToHome": "Back to Home",
     "notFound": "Source not found",

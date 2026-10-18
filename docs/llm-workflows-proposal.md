@@ -109,7 +109,7 @@ Option A, incrementally:
 4. One admin (`LLMRequestAdmin`) with requeue/retry/raw view; remove per-workflow requeue actions.
 
 The R18 flag on tags (`Tag.is_adult`, admin actions, propagation to sources,
-`recompute_adult_from_tags`) is already implemented and independent of this choice.
+`recompute_adult`) is already implemented and independent of this choice.
 
 ## Status
 
@@ -119,7 +119,7 @@ Implemented (Option A, step 1):
 - `LLMTask` registry and runner (`services/llm_tasks.py`), with `run_task` claiming
   rows via `select_for_update(skip_locked=True)`, retry backoff, and stuck-row recovery.
 - `TagR18Task` (`tag_r18`): batches unflagged tags, sets `Tag.is_adult` only at or above
-  `TAG_R18_LLM_MIN_CONFIDENCE`, and propagates to sources via `mark_sources_adult`.
+  `TAG_R18_LLM_MIN_CONFIDENCE`, and propagates to sources via `refresh_adult_for_tags` (two-way: unflagging a tag clears sources it alone made adult).
 - One request cap and one token budget for all workflows (`LLM_DAILY_REQUESTS`,
   `LLM_DAILY_TOKENS`; they share the same API), counted from `LLMUsage`. The
   per-workflow call limits (`MERGE_LLM_DAILY_LIMIT`, `TAG_LLM_DAILY_LIMIT`) and the

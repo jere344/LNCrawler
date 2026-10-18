@@ -476,6 +476,7 @@
     "startWriting": "开始撰写..."
   },
   "sourceDetail": {
+    "adultNote": "R18 · 成人内容",
     "loadFailed": "加载来源详情失败。请稍后重试。",
     "backToHome": "返回首页",
     "notFound": "未找到来源",

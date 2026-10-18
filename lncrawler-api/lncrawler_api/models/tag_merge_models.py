@@ -94,6 +94,10 @@ class TagMerge(models.Model):
     added_source_ids = models.JSONField(default=list, blank=True)
     moved_alias_ids = models.JSONField(default=list, blank=True)
     renamed_from = models.CharField(max_length=100, blank=True, default="")
+    # R18 flags of both tags before a merge (which copies the flag onto the
+    # target), so undo can put them back. NULL on merges recorded before them.
+    source_was_adult = models.BooleanField(null=True, blank=True)
+    target_was_adult = models.BooleanField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     undone_at = models.DateTimeField(null=True, blank=True)

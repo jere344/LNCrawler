@@ -476,6 +476,7 @@
     "startWriting": "Empezar a escribir..."
   },
   "sourceDetail": {
+    "adultNote": "R18 · Contenido para adultos",
     "loadFailed": "Error al cargar los detalles de la fuente. Inténtalo de nuevo más tarde.",
     "backToHome": "Volver al inicio",
     "notFound": "Fuente no encontrada",

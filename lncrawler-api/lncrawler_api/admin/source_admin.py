@@ -19,7 +19,7 @@ from ..models import (
     Volume,
     Chapter,
 )
-from ..models.sources_models import mark_sources_adult
+from ..models.sources_models import refresh_adult, refresh_adult_for_tags
 from ..services.merge_service import MergeError, merge_tags, rename_tag
 from ..utils.tag_utils import normalize_tag
 from django.utils.html import format_html
@@ -94,8 +94,9 @@ class TagAdmin(admin.ModelAdmin):
                 Tag.objects.filter(pk=obj.pk).update(is_adult=obj.is_adult)
         else:
             super().save_model(request, obj, form, change)
-        if obj.is_adult:
-            mark_sources_adult([obj.pk])
+        if "is_adult" in form.changed_data:
+            # Both ways: unflagging clears the sources only this tag made adult.
+            refresh_adult_for_tags([obj.pk])
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         # changeform_view runs in a transaction, so a MergeError raised while saving
@@ -110,7 +111,7 @@ class TagAdmin(admin.ModelAdmin):
     def mark_r18(self, request, queryset):
         pks = list(queryset.values_list("pk", flat=True))
         Tag.objects.filter(pk__in=pks).update(is_adult=True)
-        flagged = mark_sources_adult(pks)
+        flagged, _cleared = refresh_adult_for_tags(pks)
         self.message_user(
             request,
             f"Marked {len(pks)} tag(s) as R18; {flagged} novel source(s) flagged adult.",
@@ -121,9 +122,11 @@ class TagAdmin(admin.ModelAdmin):
     def unmark_r18(self, request, queryset):
         pks = list(queryset.values_list("pk", flat=True))
         Tag.objects.filter(pk__in=pks).update(is_adult=False)
+        _flagged, cleared = refresh_adult_for_tags(pks)
         self.message_user(
             request,
-            f"Unmarked {len(pks)} tag(s). Novels already flagged adult stay adult.",
+            f"Unmarked {len(pks)} tag(s); {cleared} novel source(s) no longer adult "
+            "(sources adult on their own or through another R18 tag stay adult).",
             messages.SUCCESS,
         )
 
@@ -257,12 +260,19 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
         "downvotes",
         "vote_score",
         "view_chapters_link",
+        # Derived from adult_from_source and the R18 tags (refresh_adult).
+        "is_adult",
     )
     raw_id_fields = ("novel",)
     inlines = [SourceVoteInline]  # Removed ChapterInline
     paginator = CappedCountPaginator
     list_select_related = ("external_source", "novel")
     show_full_result_count = False
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # adult_from_source may have changed: re-derive the effective flag.
+        refresh_adult(NovelFromSource.objects.filter(pk=obj.pk))
 
     def get_queryset(self, request):
         # A correlated subquery counts chapters per row instead of a

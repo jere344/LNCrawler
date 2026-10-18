@@ -15,7 +15,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from ..models import LLMRequest, LLMUsage, Tag
-from ..models.sources_models import mark_sources_adult
+from ..models.sources_models import refresh_adult_for_tags
 from . import llm_service
 from .llm_service import LLMError, LLMParseError, RateLimited
 
@@ -193,11 +193,12 @@ class TagR18Task(LLMTask):
     max_tokens = settings.TAG_R18_LLM_MAX_TOKENS
 
     SYSTEM_PROMPT = (
-        "You classify light-novel tags. For each tag, decide whether the tag itself "
-        "implies sexually explicit content (for example 'Smut', 'Hentai', 'Adult', "
-        "'Explicit Sex') and answer r18 true, or not and answer r18 false. Mature or "
-        "suggestive themes such as 'Gore', 'Violence', 'Romance', 'Harem', 'Ecchi' or "
-        "'Mature' are NOT R18. When unsure, answer false with low confidence. "
+        "You classify light-novel tags. For each tag, answer r18 true only when the "
+        "tag itself names sexually explicit content (for example 'Smut', 'Hentai', "
+        "'Explicit Sex'). Content ratings and mature or suggestive themes are NOT "
+        "R18: 'Adult', 'Mature', 'Ecchi', 'Gore', 'Violence', 'Romance', 'Harem' all "
+        "answer false, because sites use them for works that are not explicit. When "
+        "unsure, answer false with low confidence. "
         'Reply with JSON only, in the form {"tags": [{"id": <int>, "r18": true|false, '
         '"confidence": <0..1>}]}.'
     )
@@ -281,4 +282,4 @@ class TagR18Task(LLMTask):
         if not ids:
             return
         Tag.objects.filter(pk__in=ids, is_adult=False).update(is_adult=True)
-        mark_sources_adult(ids)
+        refresh_adult_for_tags(ids)

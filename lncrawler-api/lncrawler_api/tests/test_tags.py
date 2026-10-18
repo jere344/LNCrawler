@@ -37,6 +37,7 @@ from ..models.sources_models import (
     TagImportError,
     TagImportRetry,
     _set_source_tags,
+    refresh_adult_for_tags,
 )
 from ..services import MergeError, llm_service, merge_tags, rename_tag, undo_tag_cluster, undo_tag_merge
 from ..services import embedding_service, merge_service
@@ -238,15 +239,61 @@ class TagAdultPropagationTests(TestCase):
         source = self._source("http://s/3")
         source.tags.add(tag)
         Tag.objects.filter(pk=tag.pk).update(is_adult=True)
-        call_command("recompute_adult_from_tags")
+        call_command("recompute_adult")
         source.refresh_from_db()
         self.assertTrue(source.is_adult)
 
-    def test_recompute_never_clears_adult_flag(self):
-        source = self._source("http://s/4", is_adult=True)
-        call_command("recompute_adult_from_tags")
+    def test_recompute_keeps_the_sources_own_flag(self):
+        source = self._source("http://s/4", is_adult=True, adult_from_source=True)
+        call_command("recompute_adult")
         source.refresh_from_db()
         self.assertTrue(source.is_adult)
+
+    def test_recompute_clears_a_flag_with_no_reason_left(self):
+        source = self._source("http://s/6", is_adult=True)
+        call_command("recompute_adult")
+        source.refresh_from_db()
+        self.assertFalse(source.is_adult)
+
+    def test_unflagging_a_tag_clears_only_the_sources_it_made_adult(self):
+        tag = Tag.objects.create(name="Adult", is_adult=True)
+        other_r18 = Tag.objects.create(name="Smut", is_adult=True)
+        only_tag = self._source("http://s/7")
+        own_flag = self._source("http://s/8", adult_from_source=True)
+        two_tags = self._source("http://s/9")
+        for source in (only_tag, own_flag, two_tags):
+            _set_source_tags(source, ["Adult"])
+        two_tags.tags.add(other_r18)
+
+        Tag.objects.filter(pk=tag.pk).update(is_adult=False)
+        self.assertEqual(refresh_adult_for_tags([tag.pk]), (0, 1))
+
+        for source in (only_tag, own_flag, two_tags):
+            source.refresh_from_db()
+        self.assertFalse(only_tag.is_adult)
+        self.assertTrue(own_flag.is_adult)
+        self.assertTrue(two_tags.is_adult)
+
+    def test_recompute_from_meta_restores_the_crawler_flag(self):
+        with tempfile.TemporaryDirectory() as root, override_settings(LNCRAWL_OUTPUT_PATH=root):
+            for name, adult in (("n/plain", False), ("n/explicit", True)):
+                os.makedirs(os.path.join(root, name))
+                with open(os.path.join(root, name, "meta.json"), "w", encoding="utf-8") as f:
+                    json.dump({"novel": {"is_adult": adult}}, f)
+            # Both look adult: an R18 tag overwrote the first one before the
+            # own flag was stored separately (migration 0086 copied it).
+            plain = self._source("http://s/10", source_path="n/plain",
+                                 is_adult=True, adult_from_source=True)
+            explicit = self._source("http://s/11", source_path="n/explicit",
+                                    is_adult=True, adult_from_source=True)
+            no_meta = self._source("http://s/12", source_path="n/missing",
+                                   is_adult=True, adult_from_source=True)
+            call_command("recompute_adult", "--from-meta")
+        for source in (plain, explicit, no_meta):
+            source.refresh_from_db()
+        self.assertFalse(plain.is_adult)
+        self.assertTrue(explicit.is_adult)
+        self.assertTrue(no_meta.is_adult)  # no meta.json: kept as it was
 
     def test_merge_into_r18_tag_flags_moved_sources(self):
         target = Tag.objects.create(name="Harem", is_adult=True)
@@ -256,6 +303,26 @@ class TagAdultPropagationTests(TestCase):
         merge_tags(other, target)
         source.refresh_from_db()
         self.assertTrue(source.is_adult)
+
+    def test_undoing_a_merge_restores_r18_flags_and_sources(self):
+        smut = Tag.objects.create(name="Smut", is_adult=True)
+        erotica = Tag.objects.create(name="Erotica")
+        moved = self._source("http://s/13")
+        plain = self._source("http://s/14")
+        _set_source_tags(moved, ["Smut"])
+        _set_source_tags(plain, ["Erotica"])
+        merge_tags(smut, erotica)
+        plain.refresh_from_db()
+        self.assertTrue(plain.is_adult)  # Erotica took Smut's R18 flag
+
+        undo_tag_merge(TagMerge.objects.get(source_name="Smut"))
+        erotica.refresh_from_db()
+        moved.refresh_from_db()
+        plain.refresh_from_db()
+        self.assertFalse(erotica.is_adult)
+        self.assertTrue(Tag.objects.get(name="Smut").is_adult)
+        self.assertTrue(moved.is_adult)
+        self.assertFalse(plain.is_adult)
 
     def test_merging_r18_tag_keeps_flag_on_target(self):
         target = Tag.objects.create(name="Romance")

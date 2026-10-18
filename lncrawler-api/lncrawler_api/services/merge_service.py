@@ -22,7 +22,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models.sources_models import mark_sources_adult
+from ..models.sources_models import refresh_adult_for_tags
 from ..utils.slug import slugify
 from ..utils.tag_utils import normalize_tag
 from ..models import (
@@ -398,12 +398,13 @@ def merge_tags(source_tag, target_tag, cluster=None):
         TagAlias.objects.filter(pk__in=moved_alias_ids).update(tag=target_tag)
         target_tag.novels.add(*source_ids)
         _move_no_merge_pairs(source_tag, target_tag)
+        source_was_adult, target_was_adult = source_tag.is_adult, target_tag.is_adult
         if source_tag.is_adult and not target_tag.is_adult:
             # The merged-into tag keeps the R18 flag so its novels stay adult.
             target_tag.is_adult = True
             target_tag.save(update_fields=["is_adult"])
         if target_tag.is_adult:
-            mark_sources_adult([target_tag.pk])
+            refresh_adult_for_tags([target_tag.pk])
         source_tag.delete()
         TagAlias.objects.update_or_create(name=name, defaults={"tag": target_tag})
         TagMerge.objects.create(
@@ -415,6 +416,8 @@ def merge_tags(source_tag, target_tag, cluster=None):
             all_source_ids=source_ids,
             added_source_ids=[pk for pk in source_ids if pk not in target_ids],
             moved_alias_ids=moved_alias_ids,
+            source_was_adult=source_was_adult,
+            target_was_adult=target_was_adult,
         )
 
     logger.info("Merged tag '%s' into '%s'", name, target_tag.name)
@@ -537,6 +540,14 @@ def _undo_merge(merge):
     )
     source.novels.add(*restored)
     target.novels.remove(*merge.added_source_ids)
+
+    # Put the R18 flags back as they were before the merge, then re-derive the
+    # adult flag of every source either tag touches (both directions).
+    for tag, was_adult in ((source, merge.source_was_adult), (target, merge.target_was_adult)):
+        if was_adult is not None and tag.is_adult != was_adult:
+            tag.is_adult = was_adult
+            tag.save(update_fields=["is_adult"])
+    refresh_adult_for_tags([source.pk, target.pk])
 
 
 def _undo_rename(merge):

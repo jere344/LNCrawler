@@ -476,6 +476,7 @@
     "startWriting": "Commencer à écrire..."
   },
   "sourceDetail": {
+    "adultNote": "R18 · Contenu pour adultes",
     "loadFailed": "Échec du chargement des détails de la source. Veuillez réessayer plus tard.",
     "backToHome": "Retour à l'accueil",
     "notFound": "Source introuvable",

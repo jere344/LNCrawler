@@ -1,4 +1,5 @@
 from django.db import models, transaction
+from django.db.models import Case, Exists, OuterRef, Value, When
 import logging
 import os
 import re
@@ -73,9 +74,10 @@ def _set_source_tags(novel_from_source, names):
                 if _lock_tag_pks(pks) != set(pks):
                     raise TagImportRetry()
                 novel_from_source.tags.set([tags[pk] for pk in pks])
-                if any(tags[pk].is_adult for pk in pks):
-                    novel_from_source.is_adult = True
-                    NovelFromSource.objects.filter(pk=novel_from_source.pk).update(is_adult=True)
+                is_adult = novel_from_source.adult_from_source or any(tags[pk].is_adult for pk in pks)
+                if is_adult != novel_from_source.is_adult:
+                    novel_from_source.is_adult = is_adult
+                    NovelFromSource.objects.filter(pk=novel_from_source.pk).update(is_adult=is_adult)
                 return
         except TagImportRetry:
             continue
@@ -84,25 +86,41 @@ def _set_source_tags(novel_from_source, names):
     )
 
 
-def mark_sources_adult(tag_pks):
-    """Set ``is_adult`` on sources that carry any of the tags ``tag_pks``.
+def refresh_adult(queryset=None):
+    """Recompute the effective ``is_adult`` of sources (all of them by default).
 
-    A novel is adult when any of its sources is, so flagging a source makes the
-    novel adult. This only ever sets True: sources flagged adult for other
-    reasons are left as they are. Returns the number of sources newly flagged.
+    A source is adult when its own flag (``adult_from_source``: meta.json or an
+    admin) is set, or when it carries an R18 tag. Both directions are applied,
+    so unflagging a tag clears the sources it alone made adult. A novel is adult
+    when any of its sources is. Returns ``(flagged, cleared)``.
     """
+    queryset = NovelFromSource.objects.all() if queryset is None else queryset
+    r18_tag = NovelFromSource.tags.through.objects.filter(
+        novelfromsource_id=OuterRef("pk"), tag__is_adult=True
+    )
+    computed = queryset.annotate(
+        computed_adult=Case(
+            When(adult_from_source=True, then=Value(True)),
+            When(Exists(r18_tag), then=Value(True)),
+            default=Value(False),
+            output_field=models.BooleanField(),
+        )
+    )
+    flagged = NovelFromSource.objects.filter(
+        pk__in=computed.filter(computed_adult=True, is_adult=False).values("pk")
+    ).update(is_adult=True)
+    cleared = NovelFromSource.objects.filter(
+        pk__in=computed.filter(computed_adult=False, is_adult=True).values("pk")
+    ).update(is_adult=False)
+    return flagged, cleared
+
+
+def refresh_adult_for_tags(tag_pks):
+    """``refresh_adult`` for the sources carrying any of ``tag_pks``, after
+    those tags were flagged or unflagged R18 (or merged)."""
     if not tag_pks:
-        return 0
-    return NovelFromSource.objects.filter(
-        is_adult=False, tags__pk__in=tag_pks
-    ).update(is_adult=True)
-
-
-def recompute_adult_sources():
-    """Flag every source linked to an R18 tag. Never clears a flag."""
-    return NovelFromSource.objects.filter(
-        is_adult=False, tags__is_adult=True
-    ).update(is_adult=True)
+        return 0, 0
+    return refresh_adult(NovelFromSource.objects.filter(tags__pk__in=tag_pks))
 
 
 def _bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):
@@ -205,7 +223,11 @@ class NovelFromSource(models.Model):
     alternative_titles = models.ManyToManyField(AlternativeTitle, related_name='novels', blank=True)
     
     # Extra metadata fields that may be in the JSON
+    # Effective adult flag, the one every query filters on. Derived: the
+    # source's own flag OR any R18 tag (see refresh_adult). Never edit it directly.
     is_adult = models.BooleanField(default=False)
+    # The source's own adult flag: the crawler's meta.json value, or an admin's.
+    adult_from_source = models.BooleanField(default=False)
     original_publisher = models.CharField(max_length=500, null=True, blank=True)
     english_publisher = models.CharField(max_length=500, null=True, blank=True)
     novelupdates_url = models.URLField(max_length=500, null=True, blank=True)
@@ -525,7 +547,12 @@ class NovelFromSource(models.Model):
         novel_from_source.language = novel_data.get('language', 'en')
         novel_from_source.status = novel_data.get('status', 'Unknown')
         novel_from_source.synopsis = novel_data.get('synopsis', '')
-        novel_from_source.is_adult = bool(novel_data.get('is_adult', False))
+        novel_from_source.adult_from_source = bool(novel_data.get('is_adult', False))
+        # Effective flag; _set_source_tags recomputes it once the new tags are linked.
+        novel_from_source.is_adult = novel_from_source.adult_from_source or (
+            novel_from_source.pk is not None
+            and novel_from_source.tags.filter(is_adult=True).exists()
+        )
         novel_from_source.original_publisher = truncate(novel_data.get('original_publisher', ''))
         novel_from_source.english_publisher = truncate(novel_data.get('english_publisher', ''))
         novel_from_source.novelupdates_url = truncate(novel_data.get('novelupdates_url', ''))

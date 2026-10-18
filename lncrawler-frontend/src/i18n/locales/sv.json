@@ -476,6 +476,7 @@
     "startWriting": "Börja skriva..."
   },
   "sourceDetail": {
+    "adultNote": "R18 · Vuxeninnehåll",
     "loadFailed": "Det gick inte att ladda källinformationen. Försök igen senare.",
     "backToHome": "Tillbaka till startsidan",
     "notFound": "Källan hittades inte",
