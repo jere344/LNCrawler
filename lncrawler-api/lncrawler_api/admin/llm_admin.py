@@ -68,7 +68,8 @@ class LLMRequestAdmin(admin.ModelAdmin):
         applied = skipped = 0
         for req in queryset.filter(status=LLMRequest.STATUS_DONE):
             task = llm_tasks.REGISTRY.get(req.task)
-            if task is None or req.response is None:
+            # A "skipped" response is run_task closing a request without a call, not a result.
+            if task is None or req.response is None or "skipped" in req.response:
                 skipped += 1
                 continue
             task.apply(req, req.response)

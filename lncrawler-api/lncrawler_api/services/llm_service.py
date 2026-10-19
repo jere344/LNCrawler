@@ -6,9 +6,10 @@ OpenAI, Ollama). Swap providers by changing ``LLM_PROVIDER`` or pointing
 service reports ``is_configured() == False`` and everything degrades to the
 deterministic review queue.
 
-Calls are made from the ``judge_merge_candidates`` command, which runs as a
-bounded scheduler task so a slow or rate-limited provider can never block the
-rest of the maintenance loop.
+Calls are made from the LLM workflows in services/llm_tasks.py (run through the
+``LLMRequest`` queue) and the ``judge_tag_clusters`` command. They run as bounded
+scheduler tasks so a slow or rate-limited provider can never block the rest of
+the maintenance loop.
 """
 
 import json
@@ -290,20 +291,6 @@ def budget_status():
         f"{requests_used_today()}/{settings.LLM_DAILY_REQUESTS} requests, "
         f"{tokens_used_today()}/{settings.LLM_DAILY_TOKENS} tokens"
     )
-
-
-def judge(profile_a, profile_b, provider=None, model=None, timeout=None, session=None):
-    """Return ``{"same", "confidence", "reason"}`` for one candidate pair."""
-    content, _tokens = _post_chat(
-        build_messages(profile_a, profile_b),
-        getattr(settings, "MERGE_LLM_MAX_TOKENS", 2048),
-        LLMUsage.PURPOSE_NOVEL,
-        provider,
-        model,
-        timeout,
-        session,
-    )
-    return _parse_content(content)
 
 
 def chat_json(messages, max_tokens=4096, provider=None, model=None, timeout=None, session=None,

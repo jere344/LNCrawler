@@ -221,10 +221,10 @@ def find_merge_candidates_task():
         logger.error(f"Error scanning for duplicate novels: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
-# Adjudicate the gray band with the LLM, a few calls per tick, only when an API
-# key is configured. Bounded per tick (settings.MERGE_LLM_LIMIT_PER_TICK) and by
-# a daily budget tracked on MergeCandidate.llm_checked_at, so a slow or
-# rate-limited provider cannot block the rest of the maintenance loop.
+# Adjudicate the gray band through the LLMRequest queue (services/llm_tasks.py,
+# NovelMergeTask), like the R18 one. Only when an API key is configured. Bounded
+# per tick (settings.MERGE_LLM_LIMIT_PER_TICK) and by the shared daily budget, so a
+# slow or rate-limited provider cannot block the rest of the maintenance loop.
 @scheduler.register_task(
     interval=int(getattr(settings, "MERGE_LLM_INTERVAL", 300)), name="judge_merge_candidates"
 )
@@ -235,7 +235,7 @@ def judge_merge_candidates_task():
         return  # zero-LLM fallback: the review queue still works.
     logger.info("Judging merge candidates with LLM...")
     try:
-        call_command('judge_merge_candidates')
+        call_command('run_llm_requests', 'novel_merge')
         logger.info("Merge candidate LLM judging completed")
     except Exception as e:
         logger.error(f"Error judging merge candidates: {str(e)}", exc_info=True)

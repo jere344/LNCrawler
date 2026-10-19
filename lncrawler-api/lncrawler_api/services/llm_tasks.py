@@ -14,7 +14,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models import LLMRequest, LLMUsage, Tag
+from ..models import LLMRequest, LLMUsage, MergeCandidate, Tag
 from ..models.sources_models import refresh_adult_for_tags
 from . import llm_service
 from .llm_service import LLMError, LLMParseError, RateLimited
@@ -128,9 +128,11 @@ def run_task(task_name, limit, session=None, stdout=None):
         try:
             messages = task.build_messages(req)
             if messages is None:
-                # Nothing left to ask: close the request without a call.
+                # Nothing left to ask: close the request without a call. A requeued
+                # done request keeps the result it already had.
                 req.status = LLMRequest.STATUS_DONE
-                req.response = {"skipped": "no targets left"}
+                if req.response is None:
+                    req.response = {"skipped": "no targets left"}
                 req.not_before = None
                 req.finished_at = timezone.now()
                 req.save()
@@ -283,3 +285,129 @@ class TagR18Task(LLMTask):
             return
         Tag.objects.filter(pk__in=ids, is_adult=False).update(is_adult=True)
         refresh_adult_for_tags(ids)
+
+
+def _novel_profile(novel):
+    titles = [novel.title] if novel.title else []
+    alts, authors, languages = set(), set(), set()
+    synopsis = ""
+    for src in novel.sources.all():
+        if src.title and src.title not in titles:
+            titles.append(src.title)
+        if src.language:
+            languages.add(src.language)
+        if not synopsis and src.synopsis:
+            synopsis = src.synopsis
+        for author in src.authors.all():
+            authors.add(author.name)
+        for alt in src.alternative_titles.all():
+            alts.add(alt.name)
+    return {
+        "title": novel.title or (titles[0] if titles else ""),
+        "titles": titles,
+        "alternative_titles": sorted(alts),
+        "authors": sorted(authors),
+        "languages": sorted(languages),
+        "synopsis": (synopsis or "")[:600],
+    }
+
+
+@register
+class NovelMergeTask(LLMTask):
+    """Judge whether a gray-band merge candidate pairs two copies of the same novel."""
+
+    name = "novel_merge"
+    target_type = "merge_candidate"
+    prompt_version = "1"
+    usage_purpose = LLMUsage.PURPOSE_NOVEL
+    max_tokens = settings.MERGE_LLM_MAX_TOKENS
+
+    def calls_per_tick(self):
+        return settings.MERGE_LLM_LIMIT_PER_TICK
+
+    def enqueue(self, limit):
+        covered = set()
+        # PENDING, RUNNING and FAILED requests count as covered: a FAILED one would
+        # otherwise be re-enqueued every tick. Requeue it from the admin. DONE ones
+        # do not: a DONE request sets llm_checked_at, so an unchecked candidate
+        # again means someone cleared it on purpose to re-judge.
+        for ids in LLMRequest.objects.filter(
+            task=self.name,
+            prompt_version=self.prompt_version,
+            status__in=[LLMRequest.STATUS_PENDING, LLMRequest.STATUS_RUNNING, LLMRequest.STATUS_FAILED],
+        ).values_list("target_ids", flat=True):
+            covered.update(ids or [])
+        candidates = list(
+            MergeCandidate.objects.filter(
+                status=MergeCandidate.STATUS_PENDING,
+                decision=MergeCandidate.DECISION_REVIEW,
+                llm_checked_at__isnull=True,
+                novel_a__isnull=False,
+                novel_b__isnull=False,
+            )
+            .exclude(pk__in=covered)
+            .order_by("-certainty")
+            .values_list("pk", flat=True)[:limit]
+        )
+        for pk in candidates:
+            LLMRequest.objects.create(
+                task=self.name,
+                target_type=self.target_type,
+                target_ids=[str(pk)],
+                prompt_version=self.prompt_version,
+            )
+        return len(candidates)
+
+    def build_messages(self, request):
+        candidate = (
+            MergeCandidate.objects.filter(pk__in=request.target_ids)
+            .select_related("novel_a", "novel_b")
+            .prefetch_related(
+                "novel_a__sources__authors",
+                "novel_a__sources__alternative_titles",
+                "novel_b__sources__authors",
+                "novel_b__sources__alternative_titles",
+            )
+            .first()
+        )
+        if (
+            candidate is None
+            or candidate.status != MergeCandidate.STATUS_PENDING
+            or candidate.decision != MergeCandidate.DECISION_REVIEW
+            or candidate.llm_checked_at is not None
+            or candidate.novel_a is None
+            or candidate.novel_b is None
+        ):
+            return None  # gone, decided, already judged, or a novel was deleted since queued
+        return llm_service.build_messages(
+            _novel_profile(candidate.novel_a), _novel_profile(candidate.novel_b)
+        )
+
+    def parse(self, request, content):
+        return llm_service._parse_content(content)
+
+    def apply(self, request, result):
+        candidate = MergeCandidate.objects.filter(pk__in=request.target_ids).first()
+        if candidate is None:
+            return
+        candidate.llm_verdict = result
+        candidate.llm_reason = result.get("reason", "")
+        candidate.llm_model = request.model
+        candidate.llm_checked_at = request.finished_at or timezone.now()
+        update_fields = ["llm_verdict", "llm_reason", "llm_model", "llm_checked_at", "updated_at"]
+        # A confident "different" on a weak candidate is noise for the reviewer:
+        # skip it. Strong deterministic matches stay queued even when the LLM
+        # disagrees, so a human still decides them. Only while still pending, so
+        # a re-apply never overrides a decision already made.
+        dismiss_confidence = getattr(settings, "MERGE_LLM_DISMISS_CONFIDENCE", 0.9)
+        dismiss_max_certainty = getattr(settings, "MERGE_LLM_DISMISS_MAX_CERTAINTY", 0.8)
+        confidence = float(result.get("confidence") or 0.0)
+        if (
+            candidate.status == MergeCandidate.STATUS_PENDING
+            and not result.get("same")
+            and confidence >= dismiss_confidence
+            and candidate.certainty < dismiss_max_certainty
+        ):
+            candidate.status = MergeCandidate.STATUS_SKIPPED
+            update_fields.append("status")
+        candidate.save(update_fields=update_fields)

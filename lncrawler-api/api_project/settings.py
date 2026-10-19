@@ -232,7 +232,7 @@ LLM_TIMEOUT = 30
 LLM_DAILY_REQUESTS = int(os.environ.get("LLM_DAILY_REQUESTS", "1000"))
 LLM_DAILY_TOKENS = int(os.environ.get("LLM_DAILY_TOKENS", "180000"))
 
-# Novel merge judge (judge_merge_candidates).
+# Novel merge judge (LLMRequest task "novel_merge", see services/llm_tasks.py).
 MERGE_LLM_MAX_TOKENS = 2048  # novel-judge reply cap (reasoning counts toward it)
 MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
 MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
