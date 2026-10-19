@@ -20,6 +20,7 @@ from ..models import (
     Chapter,
 )
 from ..models.sources_models import refresh_adult, refresh_adult_for_tags
+from ..services.author_merge_service import merge_authors, pick_target
 from ..services.merge_service import MergeError, merge_tags, rename_tag
 from ..utils.tag_utils import normalize_tag
 from django.utils.html import format_html
@@ -36,6 +37,30 @@ TAG_AUTOCOMPLETE_FIELD = TagAlias._meta.get_field("tag")
 class AuthorAdmin(admin.ModelAdmin):
     list_display = ("name",)
     search_fields = ("name",)
+    actions = ["merge_into_most_used"]
+
+    @admin.action(description="Merge selected into the most-used author")
+    def merge_into_most_used(self, request, queryset):
+        authors = list(queryset.order_by("pk"))
+        if len(authors) < 2:
+            self.message_user(request, "Select at least two authors.", messages.WARNING)
+            return
+        target = authors[0]
+        for other in authors[1:]:
+            target = pick_target(target, other)
+        merged = 0
+        for source in authors:
+            if source.pk == target.pk:
+                continue
+            try:
+                merge_authors(source, target)
+            except MergeError as exc:
+                self.message_user(request, f"'{source.name}': {exc}", messages.ERROR)
+            else:
+                merged += 1
+        self.message_user(
+            request, f"Merged {merged} author(s) into '{target.name}'.", messages.SUCCESS
+        )
 
 
 @admin.register(Editor)

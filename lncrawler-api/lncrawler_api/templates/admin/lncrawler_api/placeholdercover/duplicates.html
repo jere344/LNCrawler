@@ -1,0 +1,64 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_placeholdercover_changelist' %}">{% trans 'Placeholder covers' %}</a>
+  &rsaquo; {% trans 'Duplicates' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{% trans 'Duplicate covers' %}</h1>
+
+<p class="help">
+  {% trans 'Cover images shared by several novels, most common first. A shared image is usually the source site placeholder: marking it removes those covers so the default cover is shown instead.' %}
+</p>
+
+<form method="get" style="margin:12px 0;">
+  <label for="min-novels">{% trans 'Minimum novels per cover' %}</label>
+  <input type="number" id="min-novels" name="min" min="2" value="{{ min }}" style="width:70px;">
+  <button type="submit">{% trans 'Apply' %}</button>
+</form>
+
+{% if groups %}
+<table>
+  <thead>
+    <tr>
+      <th>{% trans 'Cover' %}</th>
+      <th>{% trans 'Novels' %}</th>
+      <th>{% trans 'Sources' %}</th>
+      <th>{% trans 'Examples' %}</th>
+      <th>{% trans 'Hash' %}</th>
+      <th>{% trans 'Action' %}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for group in groups %}
+    <tr>
+      <td>{% if group.cover_url %}<img src="{{ group.cover_url }}" height="120" alt="">{% else %}-{% endif %}</td>
+      <td>{{ group.novels }}</td>
+      <td>{{ group.sources }}</td>
+      <td>
+        {% for sample in group.samples %}
+          <a href="{{ sample.url }}">{{ sample.title }}</a> <span class="help">({{ sample.source }})</span>{% if not forloop.last %}<br>{% endif %}
+        {% endfor %}
+        {% if group.more %}<br><span class="help">… {% trans 'and' %} {{ group.more }} {% trans 'more' %}</span>{% endif %}
+      </td>
+      <td><code>{{ group.phash }}</code></td>
+      <td>
+        <form method="post" action="{% url 'admin:lncrawler_api_placeholdercover_duplicates' %}?min={{ min }}">{% csrf_token %}
+          <input type="hidden" name="phash" value="{{ group.phash }}">
+          <button type="submit" onclick="return confirm('Remove the cover from {{ group.sources }} sources?');">{% trans 'Mark as placeholder & remove covers' %}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>{% trans 'No cover is shared by' %} {{ min }} {% trans 'or more novels.' %}</p>
+{% endif %}
+{% endblock %}

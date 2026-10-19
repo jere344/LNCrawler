@@ -287,6 +287,35 @@ def run_llm_tag_r18_task():
         logger.error(f"Error classifying R18 tags: {str(e)}", exc_info=True)
         raise
 
+# Find duplicate author names daily: merges normalized and mixed-script matches,
+# queues cross-source pairs for the LLM judge. Re-runs skip known pairs by signature.
+@scheduler.register_task(interval=86400, name="find_author_candidates")  # daily
+def find_author_candidates_task():
+    logger.info("Scanning for duplicate author candidates...")
+    try:
+        call_command_isolated('find_author_candidates')
+        logger.info("Duplicate author scan completed successfully")
+    except Exception as e:
+        logger.error(f"Error scanning for duplicate authors: {str(e)}", exc_info=True)
+        raise
+
+# Ask the LLM to judge queued author pairs (services/llm_tasks.py, AuthorMergeTask).
+# Same cadence and per-tick cap as judge_merge_candidates; the shared daily budget
+# bounds the total. Only when the merge LLM key is configured.
+@scheduler.register_task(
+    interval=int(getattr(settings, "MERGE_LLM_INTERVAL", 300)), name="judge_author_candidates"
+)
+def judge_author_candidates_task():
+    if not getattr(settings, "LLM_API_KEY", ""):
+        return  # zero-LLM fallback: pairs stay pending until a key is set.
+    logger.info("Judging author candidates with LLM...")
+    try:
+        call_command('run_llm_requests', 'author_merge')
+        logger.info("Author candidate LLM judging completed")
+    except Exception as e:
+        logger.error(f"Error judging author candidates: {str(e)}", exc_info=True)
+        raise
+
 # Task to compress low traffic novels weekly.
 # Guardrails live in the command itself: single-threaded 7z (-mmt=1), low CPU
 # priority (nice), a pause between sources, and an id-batched scan. It targets

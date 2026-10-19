@@ -49,7 +49,8 @@ class TextCleaner:
             "src", "style", "colspan", "rowspan", "headers", "scope", "axis", "id",
         }
         self.whitelist_css_property: Set[str] = {"font-style", "font-weight"}
-        self.image_src_attributes: Set[str] = {"data-lazy-src", "data-src", "src"}
+        # Ordered: lazy-loading attributes must win over `src`, which often holds a placeholder.
+        self.image_src_attributes: List[str] = ["data-lazy-src", "data-src", "src"]
 
     # ------------------------------------------------------------------ #
 

@@ -1,0 +1,11 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+  {% if duplicates_button %}
+    <li>
+      <a href="{{ duplicates_button.url }}" class="addlink">{{ duplicates_button.label }}</a>
+    </li>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

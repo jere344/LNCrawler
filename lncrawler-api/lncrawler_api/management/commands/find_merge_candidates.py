@@ -36,7 +36,9 @@ SIGNAL_WEIGHTS = {
     "src": 0.99,
     "path": 0.99,
     "nu": 0.95,
-    "phash": 0.75,
+    # Same weight as an author: sites reuse covers and placeholder detection cannot
+    # catch every default image, so a cover match alone must stay below review_low.
+    "phash": 0.45,
     "title": 0.60,
     "alt": 0.55,
     "author": 0.45,
@@ -57,8 +59,8 @@ CHAPTER_MATCH_MIN = 10
 CHAPTER_MATCH_RATIO = 0.9
 
 # A dHash with this few bits set (or unset) comes from a near-flat cover (blank,
-# solid colour, text on a plain background): unrelated covers like that land a
-# few bits apart, so they only ever match exactly, never by distance.
+# solid colour, plain text): it says nothing about which novel it is, so such a
+# hash is a placeholder and never matches, not even exactly.
 PHASH_MIN_BITS = 12
 
 
@@ -126,10 +128,11 @@ class Command(BaseCommand):
         self._add_novel_similarity(pair_signals, allowed)
         self._add_discriminants(pair_signals, data)
 
-        stats = self._store(pair_signals)
+        stats = self._store(pair_signals, allowed)
         self.stdout.write(self.style.SUCCESS(
             "merge candidates: {candidates} pair(s), {review} review, {auto} auto, "
-            "{merged} merged out of {novels} novel(s), {blocks} block key(s)".format(
+            "{merged} merged, {stale} stale removed out of {novels} novel(s), "
+            "{blocks} block key(s)".format(
                 novels=len(data["titles"]), blocks=len(data["blocks"]), **stats
             )
         ))
@@ -284,6 +287,9 @@ class Command(BaseCommand):
                 around |= hash_novels[other]
             if len(around) >= self.placeholder_min:
                 self.placeholder_hashes.add(value)
+            # Near-flat covers are placeholders outright, even when they are unique.
+            if not PHASH_MIN_BITS <= value.bit_count() <= 64 - PHASH_MIN_BITS:
+                self.placeholder_hashes.add(value)
 
         def add_phash(a_id, b_id, score):
             if a_id == b_id:
@@ -302,9 +308,9 @@ class Command(BaseCommand):
             for nid in ids:
                 data["blocks"][("phash", format(value, "016x"))].add(nid)
 
-        # A near cover is weighted by its distance: 4 bits -> 0.75 (0.56 once the
-        # 0.75 phash weight applies). 6 bits -> 0.625 is below review_low on its
-        # own, so it needs a corroborating signal such as title or author.
+        # A near cover is weighted by its distance, then by the phash weight. Even
+        # an exact cover stays below review_low on its own, so it needs a
+        # corroborating signal such as title or author.
         for value, others in near.items():
             for other, distance in others.items():
                 if value >= other or value in self.placeholder_hashes or other in self.placeholder_hashes:
@@ -422,8 +428,8 @@ class Command(BaseCommand):
         return (a, b) if str(a) <= str(b) else (b, a)
 
     # ---------------------------------------------------------------- store
-    def _store(self, pair_signals):
-        stats = {"candidates": 0, "review": 0, "auto": 0, "merged": 0}
+    def _store(self, pair_signals, allowed):
+        stats = {"candidates": 0, "review": 0, "auto": 0, "merged": 0, "stale": 0}
 
         if not self.dry_run:
             # Drop candidates whose novel was merged away outside this command.
@@ -447,11 +453,13 @@ class Command(BaseCommand):
         auto_pairs = []
         to_create = []
         to_update = []
+        kept = set()
         now = timezone.now()
         for (a_id, b_id), signals in pair_signals.items():
             certainty = combo_certainty(signals)
             if certainty < self.review_low:
                 continue
+            kept.add((a_id, b_id))
             row = existing.get((a_id, b_id))
             # A pair a human (or the LLM dismissal) already settled stays as is.
             if row is not None and row.status != MergeCandidate.STATUS_PENDING:
@@ -487,6 +495,20 @@ class Command(BaseCommand):
                 signals=signals,
                 decision=decision,
             ))
+
+        # Pending rows the machine queued and nobody settled go stale once their
+        # pair no longer reaches review_low. Only pairs this run looked at (both
+        # novels in ``allowed``) are judged, so a --limit run leaves the rest alone.
+        # A pair that comes back is re-created and re-judged by the LLM.
+        stale = [
+            row.pk for pair, row in existing.items()
+            if row.status == MergeCandidate.STATUS_PENDING
+            and pair[0] in allowed and pair[1] in allowed
+            and pair not in kept
+        ]
+        stats["stale"] = len(stale)
+        if stale and not self.dry_run:
+            MergeCandidate.objects.filter(pk__in=stale).delete()
 
         if to_create:
             MergeCandidate.objects.bulk_create(to_create)

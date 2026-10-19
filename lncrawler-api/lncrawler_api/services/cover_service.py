@@ -7,6 +7,7 @@ it lives here as plain callables rather than management commands.
 """
 
 import os
+import shutil
 import textwrap
 import logging
 from pathlib import Path
@@ -15,7 +16,10 @@ import html
 from html.parser import HTMLParser
 
 from django.conf import settings
+from django.db.models import Count
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+
+from ..models import NovelFromSource, PlaceholderCover
 
 logger = logging.getLogger('lncrawler_api')
 
@@ -153,8 +157,10 @@ class OverviewGenerator:
             source.save(update_fields=['overview_picture_path'])
 
             logger.info("Generated overview for: %s and updated path", source.title)
+            return True
         except Exception as e:
             logger.error("Failed to generate overview for %s: %s", source.title, e)
+            return False
 
     def create_overview_image(self, source) -> Image.Image:
         width, height = 1200, 630
@@ -408,8 +414,7 @@ class OverviewGenerator:
 def generate_overview(source) -> bool:
     """Generate the overview image for ``source``; update its DB path field."""
     try:
-        OverviewGenerator().generate_overview(source)
-        return True
+        return OverviewGenerator().generate_overview(source)
     except Exception as e:
         logger.error("Error generating overview image for %s: %s", source.title, e)
         return False
@@ -456,6 +461,13 @@ def generate_cover_min(source, width=200, height=300, quality=80) -> bool:
         cover_phash = dhash_file(cover_min_path)
 
         relative_min_path = os.path.join(source.source_path, cover_min_filename)
+        if is_placeholder_hash(cover_phash):
+            logger.info("Dropping placeholder cover for: %s (hash %s)", source.title, cover_phash)
+            # Point the source at the file just written so remove_cover deletes it too.
+            source.cover_min_path = relative_min_path
+            remove_cover(source)
+            return False
+
         source.cover_min_path = relative_min_path
         source.cover_phash = cover_phash
         source.save(update_fields=['cover_min_path', 'cover_phash'])
@@ -465,3 +477,83 @@ def generate_cover_min(source, width=200, height=300, quality=80) -> bool:
     except Exception as e:
         logger.error("Failed to generate miniature cover for %s: %s", source.title, e)
         return False
+
+
+def remove_cover(source) -> None:
+    """Delete ``source``'s cover files and clear every cover field, then redraw the OG image."""
+    # The old overview still shows the cover, so it goes too, and its path is cleared
+    # before the re-render: a failed re-render then never leaves the placeholder visible.
+    for rel in (source.cover_path, source.cover_min_path, source.overview_picture_path):
+        if not rel:
+            continue
+        try:
+            (Path(settings.LNCRAWL_OUTPUT_PATH) / rel).unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            logger.warning("Could not delete %s: %s", rel, e)
+    # cover_url is cleared too: seo_views would fall back to the remote image.
+    source.cover_path = None
+    source.cover_min_path = None
+    source.cover_phash = None
+    source.cover_url = None
+    source.overview_picture_path = None
+    source.save(update_fields=[
+        'cover_path', 'cover_min_path', 'cover_phash', 'cover_url', 'overview_picture_path',
+    ])
+    generate_overview(source)
+
+
+def is_placeholder_hash(phash) -> bool:
+    """Whether ``phash`` was marked as a placeholder cover."""
+    if not phash:
+        return False
+    return PlaceholderCover.objects.filter(cover_phash=phash).exists()
+
+
+def mark_placeholder(phash) -> PlaceholderCover:
+    """Block ``phash`` and remove the cover from every source carrying it."""
+    placeholder, _ = PlaceholderCover.objects.get_or_create(cover_phash=phash)
+    sources = NovelFromSource.objects.filter(cover_phash=phash)
+
+    # Keep one thumbnail of the blocked image so the admin can still see it.
+    if not placeholder.sample_path:
+        for source in sources.iterator():
+            if not source.cover_min_path:
+                continue
+            src_file = Path(settings.LNCRAWL_OUTPUT_PATH) / source.cover_min_path
+            if not src_file.is_file():
+                continue
+            rel = os.path.join('_placeholders', f'{phash}.webp')
+            dest = Path(settings.LNCRAWL_OUTPUT_PATH) / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src_file, dest)
+            placeholder.sample_path = rel
+            break
+
+    removed = 0
+    for source in sources.iterator():
+        try:
+            remove_cover(source)
+        except Exception:
+            # One broken source must not stop the others from losing the placeholder.
+            logger.exception("Could not remove placeholder cover from: %s", source.title)
+            continue
+        removed += 1
+
+    placeholder.removed_count += removed
+    placeholder.save(update_fields=['sample_path', 'removed_count'])
+    logger.info("Marked cover %s as placeholder: removed %s cover(s)", phash, removed)
+    return placeholder
+
+
+def duplicate_cover_groups(min_novels=2):
+    """Cover hashes shared by at least ``min_novels`` distinct novels, most common first."""
+    return (
+        NovelFromSource.objects.exclude(cover_phash__isnull=True)
+        .exclude(cover_phash='')
+        .values('cover_phash')
+        .annotate(sources=Count('id'), novels=Count('novel', distinct=True))
+        .filter(novels__gte=min_novels)
+        .order_by('-novels', '-sources')
+    )

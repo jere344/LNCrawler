@@ -434,16 +434,47 @@ class DiscriminantTests(MergeTestCase):
         candidate = MergeCandidate.objects.get()
         self.assertAlmostEqual(candidate.signals["phash"], 1 - 6 / 16)
 
-    def test_near_flat_covers_only_match_exactly(self):
-        # Blank-ish covers of unrelated novels land a few bits apart.
+    def test_near_flat_covers_never_match(self):
+        # Blank-ish covers of unrelated novels land a few bits apart, and two
+        # novels sharing the exact same blank cover must not match either.
         a = self._novel("Alpha Story", "alpha")
         b = self._novel("Beta Tale", "beta")
+        c = self._novel("Gamma Saga", "gamma")
+        d = self._novel("Delta Run", "delta")
         self._add_cover(a, "0000000010100000", "http://x/alpha")
         self._add_cover(b, "0000000010300800", "http://x/beta")
+        self._add_cover(c, "0000000010100000", "http://x/gamma")
+        self._add_cover(d, "0000000010100000", "http://x/delta")
 
         self._review_all(trigram_min=-1)
 
         self.assertFalse(MergeCandidate.objects.filter(signals__has_key="phash").exists())
+
+    def test_normal_cover_alone_is_not_queued(self):
+        # Sites reuse covers: an exact cover match with unrelated titles stays
+        # below the default review_low.
+        a = self._novel("Alpha Story", "alpha")
+        b = self._novel("Beta Tale", "beta")
+        self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
+        self._add_cover(b, "78d050524c5c3cb0", "http://x/beta")
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        self.assertFalse(MergeCandidate.objects.exists())
+
+    def test_stale_pending_row_is_removed(self):
+        # Queued by an earlier run; the pair no longer has any signal to back it.
+        a = self._novel("Alpha Story", "alpha")
+        b = self._novel("Beta Tale", "beta")
+        MergeCandidate.objects.create(
+            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
+            certainty=0.75, status=MergeCandidate.STATUS_PENDING,
+            decision=MergeCandidate.DECISION_REVIEW, signals={"phash": 1.0},
+        )
+
+        call_command("find_merge_candidates", trigram_min=-1)
+
+        self.assertFalse(MergeCandidate.objects.exists())
 
     def test_near_identical_placeholder_covers_are_ignored(self):
         # Three novels share one default cover, re-encoded slightly differently.

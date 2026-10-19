@@ -14,9 +14,10 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models import LLMRequest, LLMUsage, MergeCandidate, Tag
+from ..models import Author, AuthorMergeCandidate, LLMRequest, LLMUsage, MergeCandidate, Tag
 from ..models.sources_models import refresh_adult_for_tags
 from . import llm_service
+from .author_merge_service import merge_candidate
 from .llm_service import LLMError, LLMParseError, RateLimited
 
 logger = logging.getLogger("lncrawler_api.merge")
@@ -411,3 +412,167 @@ class NovelMergeTask(LLMTask):
             candidate.status = MergeCandidate.STATUS_SKIPPED
             update_fields.append("status")
         candidate.save(update_fields=update_fields)
+
+
+def _author_profile(author):
+    novels = [
+        {"title": src.title, "language": src.language}
+        for src in author.novels.order_by("pk")[:3]
+    ]
+    return {
+        "name": author.name,
+        "aliases": list(author.aliases.order_by("name").values_list("name", flat=True)),
+        "novels": novels,
+    }
+
+
+@register
+class AuthorMergeTask(LLMTask):
+    """Judge whether two author names from the finder refer to the same person."""
+
+    name = "author_merge"
+    target_type = "author_merge_candidate"
+    prompt_version = "2"
+    usage_purpose = LLMUsage.PURPOSE_NOVEL
+    max_tokens = settings.MERGE_LLM_MAX_TOKENS
+
+    SYSTEM_PROMPT = (
+        "You decide whether two author names refer to the same person: pen names, "
+        "translations and romanizations of one name across languages are the same person. "
+        "Illustrators, translators and other credited staff are different people. "
+        "A name that lists several people (for example 'Okina Baba and Tsukasa Kiryu') "
+        "is NEVER the same as one of the people it lists: answer different. "
+        'Reply with JSON only, in the form {"results": [{"id": <candidate id>, '
+        '"verdict": "same"|"different", "confidence": <0..1>}]}.'
+    )
+
+    def calls_per_tick(self):
+        return settings.MERGE_LLM_LIMIT_PER_TICK
+
+    def enqueue(self, limit):
+        per_call = settings.AUTHOR_MERGE_LLM_BATCH
+        covered = set()
+        # PENDING, RUNNING and FAILED requests count as covered: a FAILED one would
+        # otherwise be re-enqueued every tick. Requeue it from the admin. DONE ones
+        # do not: a DONE request stores llm_response, so an unanswered candidate
+        # again means someone cleared it on purpose to re-judge.
+        for ids in LLMRequest.objects.filter(
+            task=self.name,
+            prompt_version=self.prompt_version,
+            status__in=[LLMRequest.STATUS_PENDING, LLMRequest.STATUS_RUNNING, LLMRequest.STATUS_FAILED],
+        ).values_list("target_ids", flat=True):
+            covered.update(ids or [])
+        candidates = list(
+            AuthorMergeCandidate.objects.filter(
+                status=AuthorMergeCandidate.STATUS_PENDING,
+                llm_response__isnull=True,
+            )
+            .exclude(pk__in=covered)
+            .order_by("pk")
+            .values_list("pk", flat=True)[: limit * per_call]
+        )
+        created = 0
+        for start in range(0, len(candidates), per_call):
+            LLMRequest.objects.create(
+                task=self.name,
+                target_type=self.target_type,
+                target_ids=candidates[start:start + per_call],
+                prompt_version=self.prompt_version,
+            )
+            created += 1
+        return created
+
+    def build_messages(self, request):
+        payload = []
+        candidates = AuthorMergeCandidate.objects.filter(
+            pk__in=request.target_ids,
+            status=AuthorMergeCandidate.STATUS_PENDING,
+            llm_response__isnull=True,
+        ).order_by("pk")
+        for candidate in candidates:
+            authors = list(Author.objects.filter(pk__in=candidate.author_ids).order_by("pk"))
+            if len(authors) != 2:
+                # An author was deleted or merged since the batch was queued.
+                candidate.status = AuthorMergeCandidate.STATUS_ERROR
+                candidate.reason = "author merged away"
+                candidate.save(update_fields=["status", "reason", "updated_at"])
+                continue
+            payload.append({
+                "id": candidate.pk,
+                "authors": [_author_profile(author) for author in authors],
+                "signals": candidate.signals,
+            })
+        if not payload:
+            return None
+        return [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+        ]
+
+    def parse(self, request, content):
+        start, end = content.find("{"), content.rfind("}")
+        if start == -1 or end <= start:
+            raise LLMParseError("no JSON object in reply")
+        try:
+            data = json.loads(content[start:end + 1])
+        except ValueError as exc:
+            raise LLMParseError(f"invalid JSON: {exc}") from exc
+        items = data.get("results") if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            raise LLMParseError("missing results list")
+
+        allowed = set(request.target_ids)
+        results = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            candidate_id, verdict = item.get("id"), item.get("verdict")
+            if type(candidate_id) is not int or candidate_id not in allowed:
+                continue
+            if verdict not in ("same", "different"):
+                continue
+            confidence = item.get("confidence")
+            if (
+                not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
+                or not math.isfinite(confidence)  # json.loads accepts NaN; jsonb does not
+            ):
+                confidence = 0.0
+            results.append({
+                "id": candidate_id,
+                "verdict": verdict,
+                "confidence": min(max(float(confidence), 0.0), 1.0),
+            })
+        if not results:
+            raise LLMParseError("no valid author entries in reply")
+        return {"results": results}
+
+    def apply(self, request, result):
+        min_confidence = settings.AUTHOR_MERGE_LLM_MIN_CONFIDENCE
+        for item in result["results"]:
+            candidate = AuthorMergeCandidate.objects.filter(pk=item["id"]).first()
+            # Only pending candidates are judged: a decided one keeps its decision on re-apply.
+            if candidate is None or candidate.status != AuthorMergeCandidate.STATUS_PENDING:
+                continue
+            candidate.llm_response = item
+            candidate.llm_model = request.model
+            candidate.save(update_fields=["llm_response", "llm_model", "updated_at"])
+
+            if item["verdict"] == "different":
+                candidate.status = AuthorMergeCandidate.STATUS_REJECTED
+                candidate.decided_at = timezone.now()
+                candidate.save(update_fields=["status", "decided_at", "updated_at"])
+                continue
+            if item["confidence"] < min_confidence:
+                candidate.status = AuthorMergeCandidate.STATUS_REVIEW
+                candidate.save(update_fields=["status", "updated_at"])
+                continue
+
+            merge_candidate(candidate)
+
+        # A candidate the model left out of its reply is not judged: flag it, don't leave it pending.
+        for candidate in AuthorMergeCandidate.objects.filter(
+            pk__in=request.target_ids, status=AuthorMergeCandidate.STATUS_PENDING,
+        ):
+            candidate.status = AuthorMergeCandidate.STATUS_ERROR
+            candidate.reason = "no llm answer"
+            candidate.save(update_fields=["status", "reason", "updated_at"])

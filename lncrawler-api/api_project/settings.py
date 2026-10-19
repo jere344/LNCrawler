@@ -284,6 +284,12 @@ TAG_R18_LLM_MAX_TOKENS = int(os.environ.get("TAG_R18_LLM_MAX_TOKENS", "4096"))
 TAG_AUTO_MIN_CONFIDENCE = 0.85
 TAG_BIG_TAG_USAGE = 200
 
+# Author merge (services/author_merge_service.py). The LLM judge (AuthorMergeTask)
+# reuses LLM_PROVIDER/MODEL/API_KEY and runs through LLMRequest.
+AUTHOR_MERGE_LLM_BATCH = int(os.environ.get("AUTHOR_MERGE_LLM_BATCH", "20"))  # pairs per call
+# Only "same" verdicts at or above this confidence are merged; the rest wait for review.
+AUTHOR_MERGE_LLM_MIN_CONFIDENCE = float(os.environ.get("AUTHOR_MERGE_LLM_MIN_CONFIDENCE", "0.85"))
+
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 
 REST_FRAMEWORK = {

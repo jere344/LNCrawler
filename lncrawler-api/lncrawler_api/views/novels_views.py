@@ -11,6 +11,7 @@ from ..models import (
     Tag,
     TagAlias,
     Author,
+    AuthorAlias,
     NovelFromSource,
     WeeklySourceView,
     ReadingHistory,
@@ -18,6 +19,7 @@ from ..models import (
 from ..languages import parse_languages
 from ..models.reviews_models import Review
 from ..utils import get_client_ip, resolve_novel_slug
+from ..utils.author_names import normalize_author
 from ..utils.query_helpers import (
     adult_allowed,
     annotate_card_aggregates,
@@ -135,6 +137,24 @@ def _canonical_tag_names(names):
     return canonical
 
 
+def _author_ids(names):
+    """Ids of every author a requested name stands for.
+
+    Matches the exact name, the normalized key, and merged-away aliases. Several
+    authors can share one key before they are merged, so all of them count.
+    Unknown names match nothing.
+    """
+    names = [name for name in names if normalize_author(name)]
+    if not names:
+        return set()
+    keys = {normalize_author(name) for name in names}
+    ids = set(
+        Author.objects.filter(Q(name__in=names) | Q(normalized__in=keys)).values_list("pk", flat=True)
+    )
+    ids.update(AuthorAlias.objects.filter(normalized__in=keys).values_list("author_id", flat=True))
+    return ids
+
+
 @api_view(["GET"])
 def search_novels(request):
     """
@@ -216,7 +236,7 @@ def search_novels(request):
     # Filter by authors
     if authors:
         novels_query = novels_query.filter(
-            sources__authors__name__in=authors
+            sources__authors__in=_author_ids(authors)
         ).distinct()
 
     # Filter by status
@@ -362,11 +382,33 @@ def autocomplete_suggestion(request):
             .annotate(novel_count=Count("novels__novel", distinct=True))
             .order_by("-novel_count")[:limit]
         )
-
-        suggestions = [
-            {"name": author.name, "count": author.novel_count}
+        suggestions = {
+            author.pk: {"name": author.name, "count": author.novel_count}
             for author in author_counts
-        ]
+        }
+
+        # Merged-away names: surface their author so old searches still find it.
+        # Display-only, the canonical name stays the selected value.
+        alias_matches = (
+            AuthorAlias.objects.filter(name__icontains=query)
+            .select_related("author")
+            .annotate(novel_count=Count("author__novels__novel", distinct=True))
+            .order_by("-novel_count")[:limit]
+        )
+        for alias in alias_matches:
+            entry = suggestions.get(alias.author_id)
+            if entry is None:
+                suggestions[alias.author_id] = {
+                    "name": alias.author.name,
+                    "count": alias.novel_count,
+                    "alias": alias.name,
+                }
+            else:
+                entry.setdefault("alias", alias.name)
+
+        suggestions = sorted(
+            suggestions.values(), key=lambda s: (-s["count"], s["name"])
+        )[:limit]
 
     else:
         return Response(

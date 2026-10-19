@@ -5,6 +5,7 @@ from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db.models import F
 from django.db.models.functions import Upper
 
+from ..utils.author_names import normalize_author
 from ..utils.tag_utils import normalize_tag
 
 
@@ -106,10 +107,51 @@ class Person(models.Model):
 
 class Author(Person):
     """Author of a novel"""
+    # Comparison key (case/width/spacing/edge-punctuation-insensitive), always derived
+    # from ``name`` in save(). Not unique: two authors can share a key until merged.
+    normalized = models.CharField(max_length=255, db_index=True, blank=True, default="", editable=False)
+
     class Meta:
         indexes = [
             GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='author_name_trgm_idx'),
         ]
+
+    def save(self, *args, **kwargs):
+        self.normalized = normalize_author(self.name)
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "name" in update_fields:
+            kwargs["update_fields"] = {*update_fields, "normalized"}
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def find(cls, name):
+        """Return the existing author for ``name`` (or a merged-away alias of it), else None.
+
+        Never creates an author, so read paths such as filters can use it safely.
+        """
+        key = normalize_author(name)
+        if not key:
+            return None
+        author = cls.objects.filter(normalized=key).order_by("pk").first()
+        if author is not None:
+            return author
+        alias = AuthorAlias.objects.filter(normalized=key).select_related("author").first()
+        return alias.author if alias is not None else None
+
+    @classmethod
+    def resolve(cls, name):
+        """Return the author for ``name``, following a merged-away alias first.
+
+        Keeps re-imports from recreating an author that was merged into another.
+        None for a blank name.
+        """
+        name = (name or "").strip()[: cls._meta.get_field('name').max_length]
+        if not normalize_author(name):
+            return None
+        author = cls.find(name)
+        if author is None:
+            author = cls.objects.create(name=name)
+        return author
 
 
 class Editor(Person):
@@ -205,6 +247,32 @@ class TagAlias(models.Model):
 
     def save(self, *args, **kwargs):
         self.normalized = normalize_tag(self.name)
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "name" in update_fields:
+            kwargs["update_fields"] = {*update_fields, "normalized"}
+        super().save(*args, **kwargs)
+
+
+class AuthorAlias(models.Model):
+    """A merged-away author name pointing at its canonical Author."""
+    name = models.CharField(max_length=255, unique=True)
+    normalized = models.CharField(max_length=255, db_index=True, editable=False)
+    author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name='aliases')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'author alias'
+        verbose_name_plural = 'author aliases'
+        ordering = ['name']
+        indexes = [
+            GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='authoralias_name_trgm_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.name} -> {self.author.name}"
+
+    def save(self, *args, **kwargs):
+        self.normalized = normalize_author(self.name)
         update_fields = kwargs.get("update_fields")
         if update_fields is not None and "name" in update_fields:
             kwargs["update_fields"] = {*update_fields, "normalized"}
