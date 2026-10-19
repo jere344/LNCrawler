@@ -16,17 +16,25 @@ from ...models import (
 )
 
 TOP_K = 12
+# Neighbours below this score are noise; a novel may keep fewer than TOP_K rows.
+MIN_SIMILARITY = 0.05
 
 # Bookmarks are turned into sparse blocks this many at a time, so the raw
 # Python row/col lists never hold more than one chunk.
 BOOKMARK_CHUNK = 100_000
 
-# Fixed tuning: text vs bookmark weight, and matrix/bulk batch sizes.
+# Fixed tuning: text / tag+author / bookmark weights, and matrix/bulk batch sizes.
 # The dense similarity block is CHUNK_SIZE x novel_count floats; 64 keeps the peak around 440 MB at 70k novels (512 peaked at 1.2 GB) with the same runtime.
-TEXT_WEIGHT = 0.7
+TEXT_WEIGHT = 0.35
+TAG_WEIGHT = 0.35
 BOOKMARK_WEIGHT = 0.3
 CHUNK_SIZE = 64
 BATCH_SIZE = 2000
+
+
+def _identity(tokens):
+    """Analyzer for pre-tokenized documents: the token list is used as is."""
+    return tokens
 
 
 class Command(BaseCommand):
@@ -34,10 +42,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         self.stdout.write('Starting similarity calculation...')
-        self.calculate_similarities(TEXT_WEIGHT, BOOKMARK_WEIGHT, CHUNK_SIZE, BATCH_SIZE)
+        self.calculate_similarities(TEXT_WEIGHT, TAG_WEIGHT, BOOKMARK_WEIGHT, CHUNK_SIZE, BATCH_SIZE)
         self.stdout.write(self.style.SUCCESS('Successfully calculated similarities'))
 
-    def calculate_similarities(self, text_weight, bookmark_weight, chunk_size, batch_size):
+    def calculate_similarities(self, text_weight, tag_weight, bookmark_weight, chunk_size, batch_size):
         novel_rows = list(Novel.objects.order_by('id').values_list('id', 'title'))
         if not novel_rows:
             self.stdout.write(self.style.WARNING('No novels found'))
@@ -49,34 +57,44 @@ class Command(BaseCommand):
         del novel_rows
         self.stdout.write(f'Processing {novel_count} novels')
 
-        texts = self.gather_novel_metadata(novel_ids, title_by_id)
+        texts, meta_tokens = self.gather_novel_metadata(novel_ids, title_by_id)
         self.stdout.write('Fitting TF-IDF and normalizing...')
         tfidf_matrix = TfidfVectorizer(max_features=5000, stop_words='english').fit_transform(texts)
         del texts
+
+        # Tags and authors are whole tokens, so IDF can downweight generic tags
+        # (Fantasy) and reward rare ones and shared authors.  No token at all
+        # would raise "empty vocabulary", so that case becomes an all-zero column.
+        if any(meta_tokens):
+            meta_matrix = TfidfVectorizer(analyzer=_identity, lowercase=False).fit_transform(meta_tokens)
+        else:
+            meta_matrix = sparse.csr_matrix((novel_count, 1), dtype=np.float32)
+        del meta_tokens
 
         self.stdout.write('Building bookmark matrix...')
         bookmark_matrix, bookmark_counts = self.build_bookmark_matrix(novel_ids)
 
         self.save_similarities(
-            novel_ids, tfidf_matrix, bookmark_matrix, bookmark_counts,
-            text_weight, bookmark_weight, chunk_size, batch_size,
+            novel_ids, tfidf_matrix, meta_matrix, bookmark_matrix, bookmark_counts,
+            text_weight, tag_weight, bookmark_weight, chunk_size, batch_size,
         )
 
     def gather_novel_metadata(self, novel_ids, title_by_id):
         """
-        Build one text blob per novel in a constant number of queries.
+        Build one text blob and one token list per novel in a constant number of queries.
 
         Tags/authors/synopses are aggregated in bulk keyed by novel id instead of
-        one query per novel (the old N+1).
+        one query per novel (the old N+1).  Tags are keyed on their normalized
+        form so that spelling variants share a token.
         """
         tags_by_novel = defaultdict(list)
-        for novel_id, name in (
+        for novel_id, normalized in (
             Tag.objects.filter(novels__isnull=False)
-            .values_list('novels__novel_id', 'name')
+            .values_list('novels__novel_id', 'normalized')
             .distinct()
             .iterator()
         ):
-            tags_by_novel[novel_id].append(name)
+            tags_by_novel[novel_id].append(normalized)
 
         authors_by_novel = defaultdict(list)
         for novel_id, name in (
@@ -95,13 +113,16 @@ class Command(BaseCommand):
                 synopses_by_novel[novel_id].append(synopsis)
 
         texts = []
+        meta_tokens = []
         for novel_id in novel_ids:
             title = title_by_id[novel_id]
-            tags = " ".join(f"{tag} {tag}" for tag in tags_by_novel.get(novel_id, ()))
-            authors = " ".join(f"{author} {author}" for author in authors_by_novel.get(novel_id, ()))
             synopses = " ".join(synopses_by_novel.get(novel_id, ()))
-            texts.append(f"{title} {title} {title} " + tags + " " + authors + " " + synopses)
-        return texts
+            texts.append(f"{title} " + synopses)
+            meta_tokens.append(
+                [f"tag:{normalized}" for normalized in tags_by_novel.get(novel_id, ())]
+                + [f"author:{' '.join(name.casefold().split())}" for name in authors_by_novel.get(novel_id, ())]
+            )
+        return texts, meta_tokens
 
     def build_bookmark_matrix(self, novel_ids):
         """
@@ -164,8 +185,8 @@ class Command(BaseCommand):
         counts = np.asarray(matrix.sum(axis=1)).ravel().astype(np.float32)
         return matrix, counts
 
-    def combined_block(self, tfidf_matrix, bookmark_matrix, bookmark_counts,
-                       start, end, text_weight, bookmark_weight):
+    def combined_block(self, tfidf_matrix, meta_matrix, bookmark_matrix, bookmark_counts,
+                       start, end, text_weight, tag_weight, bookmark_weight):
         """
         Dense (chunk x N) weighted similarity block for [start, end).
 
@@ -174,6 +195,10 @@ class Command(BaseCommand):
         chunk = tfidf_matrix[start:end]
         block = (chunk @ tfidf_matrix.T).toarray().astype(np.float32, copy=False)
         np.multiply(block, text_weight, out=block)
+
+        meta_block = (meta_matrix[start:end] @ meta_matrix.T).toarray().astype(np.float32, copy=False)
+        np.multiply(meta_block, tag_weight, out=meta_block)
+        block += meta_block
 
         if bookmark_matrix is not None and bookmark_matrix.nnz:
             intersection = (bookmark_matrix[start:end] @ bookmark_matrix.T).toarray().astype(np.float32, copy=False)
@@ -187,8 +212,8 @@ class Command(BaseCommand):
         return block
 
     @transaction.atomic
-    def save_similarities(self, novel_ids, tfidf_matrix, bookmark_matrix, bookmark_counts,
-                          text_weight, bookmark_weight, chunk_size, batch_size):
+    def save_similarities(self, novel_ids, tfidf_matrix, meta_matrix, bookmark_matrix, bookmark_counts,
+                          text_weight, tag_weight, bookmark_weight, chunk_size, batch_size):
         NovelSimilarity.objects.all().delete()
 
         novel_count = len(novel_ids)
@@ -199,8 +224,8 @@ class Command(BaseCommand):
         for start in range(0, novel_count, chunk_size):
             end = min(start + chunk_size, novel_count)
             block = self.combined_block(
-                tfidf_matrix, bookmark_matrix, bookmark_counts,
-                start, end, text_weight, bookmark_weight,
+                tfidf_matrix, meta_matrix, bookmark_matrix, bookmark_counts,
+                start, end, text_weight, tag_weight, bookmark_weight,
             )
 
             if top_k:
@@ -212,8 +237,8 @@ class Command(BaseCommand):
                     from_id = novel_ids[from_index]
                     for to_index in candidates:
                         score = float(row[to_index])
-                        if score < 0.0:
-                            score = 0.0
+                        if score < MIN_SIMILARITY:
+                            break  # candidates are sorted high to low
                         buffer.append(NovelSimilarity(
                             from_novel_id=from_id,
                             to_novel_id=novel_ids[to_index],

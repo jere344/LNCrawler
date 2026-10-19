@@ -271,7 +271,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         # Pass the requesting user so bookmark/history lookups are prefetched
         # instead of firing a query per similar novel.
         user = getattr(self.context.get('request'), 'user', None)
-        similar_qs = obj.similar_to.select_related('to_novel')
+        similar_qs = obj.similar_to.select_related('to_novel').filter(
+            to_novel__is_dmca=False, similarity__gt=0,
+        )
         if not adult_allowed(user):
             similar_qs = similar_qs.exclude(to_novel__sources__is_adult=True)
         similar_novels = list(
@@ -288,11 +290,11 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             # Most-viewed novel ids, cached briefly: ordering every novel on each
             # detail page scales with the catalogue size. Reads the indexed
             # rank_total_views projection (refreshed by the scheduler).
-            most_viewed_key = f"similar:most_viewed:v2:{int(adult_allowed(user))}"
+            most_viewed_key = f"similar:most_viewed:v3:{int(adult_allowed(user))}"
             most_viewed_ids = cache.get(most_viewed_key)
             if most_viewed_ids is None:
                 most_viewed_ids = list(
-                    exclude_adult(Novel.objects.all(), user)
+                    exclude_adult(Novel.objects.filter(is_dmca=False), user)
                     .order_by('-rank_total_views', 'title')
                     .values_list('pk', flat=True)[:40]
                 )

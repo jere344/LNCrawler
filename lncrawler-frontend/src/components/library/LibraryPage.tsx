@@ -63,6 +63,7 @@ import LibraryNovelCard from '@components/library/LibraryNovelCard';
 import LibraryFolderBar from '@components/library/LibraryFolderBar';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
+import { useLanguage } from '@context/LanguageContext';
 import { useDebounce } from '@utils/useDebounce';
 import { getNovelDisplayTitle } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
@@ -76,6 +77,7 @@ const LibraryPage: React.FC = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { isAuthenticated } = useAuth();
+  const { contentLanguages, languageFilterEnabled } = useLanguage();
 
   const [items, setItems] = useState<Novel[]>([]);
   const [folders, setFolders] = useState<LibraryFolder[]>([]);
@@ -147,6 +149,7 @@ const LibraryPage: React.FC = () => {
           search: debouncedSearch,
           folder,
           sort,
+          languages: languageFilterEnabled ? contentLanguages : [],
         });
         if (requestId !== fetchRequestIdRef.current) return;
         setItems(response.results);
@@ -170,7 +173,7 @@ const LibraryPage: React.FC = () => {
         }
       }
     },
-    [debouncedSearch, folder, sort, t]
+    [debouncedSearch, folder, sort, t, contentLanguages, languageFilterEnabled]
   );
 
   useEffect(() => {
@@ -178,7 +181,7 @@ const LibraryPage: React.FC = () => {
       fetchLibrary(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchLibrary already depends on all inputs
-  }, [isAuthenticated, debouncedSearch, folder, sort]);
+  }, [isAuthenticated, debouncedSearch, folder, sort, contentLanguages, languageFilterEnabled]);
 
   // Keyboard: Ctrl/Cmd+A selects everything, Escape clears.
   useEffect(() => {

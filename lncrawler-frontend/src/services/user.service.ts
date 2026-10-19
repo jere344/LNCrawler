@@ -9,6 +9,7 @@ export interface LibraryQuery {
   search?: string;
   folder?: string;
   sort?: LibrarySort;
+  languages?: string[];
 }
 
 const buildLibraryParams = (query: LibraryQuery = {}) => ({
@@ -34,7 +35,12 @@ const userService = {
 
   // List bookmarked novels (library) with search/folder/sort
   listBookmarkedNovels: async (query: LibraryQuery = {}): Promise<NovelListResponse> => {
-    const response = await api.get(`/users/bookmarks/novels/`, {
+    // Repeated `languages=xx` params, built like novel.service does (the api
+    // wrapper's params only take scalars).
+    const languageQuery = new URLSearchParams();
+    (query.languages ?? []).forEach(language => languageQuery.append('languages', language));
+    const languageQs = languageQuery.toString();
+    const response = await api.get(`/users/bookmarks/novels/${languageQs ? `?${languageQs}` : ''}`, {
       params: buildLibraryParams(query),
     });
     return response.data;

@@ -1,6 +1,8 @@
 """Tests for projections, user preferences and recommendations."""
 
 import json
+from datetime import timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 
@@ -11,6 +13,8 @@ from django.db import connection
 from django.test import TestCase
 
 from django.urls import reverse
+
+from django.utils import timezone
 
 from ..models import (
     ExternalSource,
@@ -299,3 +303,128 @@ class HomeRecommendationTests(TestCase):
             return len(captured)
 
         self.assertEqual(measure(1, "a"), measure(8, "b"))
+
+
+class RecommendationScoringTests(TestCase):
+    """Weighted seed scoring, zero-similarity rows, library seeds and filters."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="scorer", email="scorer@example.com", password="pw12345!"
+        )
+
+    def _novel(self, slug):
+        return Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+
+    def _source(self, novel, language="en"):
+        return NovelFromSource.objects.create(
+            novel=novel,
+            external_source=ExternalSource.objects.create(source_name=f"src-{novel.slug}"),
+            title=novel.title,
+            source_url=f"http://{novel.slug}/1",
+            language=language,
+        )
+
+    def test_weighted_similarity_outranks_seed_vote_count(self):
+        from ..views.users_views import get_novel_recommendations
+
+        seed_a = self._novel("seed-a")
+        seed_b = self._novel("seed-b")
+        strong = self._novel("strong")
+        weak = self._novel("weak")
+        # ``weak`` has two votes but tiny scores; ``strong`` has one large score.
+        NovelSimilarity.objects.create(from_novel=seed_a, to_novel=strong, similarity=0.9)
+        NovelSimilarity.objects.create(from_novel=seed_a, to_novel=weak, similarity=0.1)
+        NovelSimilarity.objects.create(from_novel=seed_b, to_novel=weak, similarity=0.1)
+
+        recommendations = get_novel_recommendations(
+            self.user, [seed_a.id, seed_b.id], viewer=self.user
+        )
+        self.assertEqual([novel.id for novel in recommendations], [strong.id, weak.id])
+
+    def test_zero_similarity_rows_are_not_recommended(self):
+        from ..views.users_views import get_novel_recommendations
+
+        seed_a = self._novel("seed-a")
+        seed_b = self._novel("seed-b")
+        padded = self._novel("padded")
+        real = self._novel("real")
+        # Zero-padded rows used to count as votes, so ``padded`` (two seeds)
+        # would have taken the only slot ahead of ``real``.
+        NovelSimilarity.objects.create(from_novel=seed_a, to_novel=padded, similarity=0.0)
+        NovelSimilarity.objects.create(from_novel=seed_b, to_novel=padded, similarity=0.0)
+        NovelSimilarity.objects.create(from_novel=seed_a, to_novel=real, similarity=0.3)
+
+        recommendations = get_novel_recommendations(
+            self.user, [seed_a.id, seed_b.id], viewer=self.user, max_recommendations=1
+        )
+        self.assertEqual([novel.id for novel in recommendations], [real.id])
+
+    def test_library_seeds_are_most_recently_read_and_capped(self):
+        from ..views import users_views
+
+        recent = self._novel("recent")
+        mid = self._novel("mid")
+        old = self._novel("old")
+        now = timezone.now()
+        # Bookmarked in this order, so ``old`` is the newest bookmark but the
+        # least recently read: the read recency must decide who seeds.
+        for novel, days_ago in ((recent, 0), (mid, 1), (old, 10)):
+            NovelBookmark.objects.create(user=self.user, novel=novel)
+            history = ReadingHistory.objects.create(
+                user=self.user, novel=novel, source=self._source(novel)
+            )
+            ReadingHistory.objects.filter(pk=history.pk).update(
+                last_read_at=now - timedelta(days=days_ago)
+            )
+
+        # ``old`` has the strongest neighbour; it must not seed the library
+        # recommendations once the seed cap drops it.
+        recent_neighbour = self._novel("recent-neighbour")
+        mid_neighbour = self._novel("mid-neighbour")
+        old_neighbour = self._novel("old-neighbour")
+        NovelSimilarity.objects.create(from_novel=recent, to_novel=recent_neighbour, similarity=0.5)
+        NovelSimilarity.objects.create(from_novel=mid, to_novel=mid_neighbour, similarity=0.4)
+        NovelSimilarity.objects.create(from_novel=old, to_novel=old_neighbour, similarity=0.9)
+
+        self.client.force_login(self.user)
+        with mock.patch.object(users_views, "RECOMMENDATION_MAX_SEEDS", 2):
+            response = self.client.get(reverse("list_bookmarked_novels"))
+        self.assertEqual(response.status_code, 200, response.data)
+        ids = [item["id"] for item in response.data["recommendations"]]
+        self.assertEqual(ids[:2], [str(recent_neighbour.id), str(mid_neighbour.id)])
+
+    def test_library_languages_filter_excludes_other_language_neighbours(self):
+        seed = self._novel("seed")
+        NovelBookmark.objects.create(user=self.user, novel=seed)
+        french = self._novel("french-neighbour")
+        self._source(french, language="fr")
+        english = self._novel("english-neighbour")
+        self._source(english, language="en")
+        NovelSimilarity.objects.create(from_novel=seed, to_novel=french, similarity=0.9)
+        NovelSimilarity.objects.create(from_novel=seed, to_novel=english, similarity=0.5)
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("list_bookmarked_novels"), {"languages": "en"})
+        self.assertEqual(response.status_code, 200, response.data)
+        ids = [item["id"] for item in response.data["recommendations"]]
+        self.assertIn(str(english.id), ids)
+        self.assertNotIn(str(french.id), ids)
+
+    def test_detail_similar_novels_exclude_dmca_neighbours(self):
+        seed = self._novel("detail-seed")
+        self._source(seed)
+        removed = self._novel("removed")
+        removed.is_dmca = True
+        removed.save(update_fields=["is_dmca"])
+        kept = self._novel("kept")
+        NovelSimilarity.objects.create(from_novel=seed, to_novel=removed, similarity=0.9)
+        NovelSimilarity.objects.create(from_novel=seed, to_novel=kept, similarity=0.4)
+
+        response = self.client.get(
+            reverse("novel_detail_by_slug", kwargs={"novel_slug": seed.slug})
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        ids = [item["id"] for item in response.data["similar_novels"]]
+        self.assertIn(str(kept.id), ids)
+        self.assertNotIn(str(removed.id), ids)

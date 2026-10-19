@@ -10,6 +10,7 @@ from django.db.models import Count, F, IntegerField, Max, OuterRef, Q, Subquery
 
 import uuid
 
+from ..languages import parse_languages
 from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
 from ..models.sources_models import NovelFromSource, Chapter
@@ -201,10 +202,22 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
         "sort": sort,
     }
     if include_recommendations:
+        # Seeds are the owner's bookmarks, most recently read first (then newest
+        # bookmark). The full list is passed; get_novel_recommendations caps it.
+        bookmark_seeds = (
+            NovelBookmark.objects.filter(user=owner)
+            .annotate(last_read=Subquery(
+                ReadingHistory.objects.filter(user=owner, novel=OuterRef("novel"))
+                .values("last_read_at")[:1]
+            ))
+            .order_by(F("last_read").desc(nulls_last=True), "-created_at")
+            .values_list("novel_id", flat=True)
+        )
         recommendations = get_novel_recommendations(
             owner,
-            list(Novel.objects.filter(bookmarked_by_users__user=owner).values_list("id", flat=True)),
+            list(bookmark_seeds),
             viewer,
+            languages=parse_languages(request.GET.getlist("languages")),
         )
         payload["recommendations"] = NovelSerializer(
             recommendations, many=True, context={"request": request}
@@ -312,6 +325,10 @@ def reorder_library(request):
         NovelBookmark.objects.bulk_update(updated, ["position"])
     return Response({"status": "reordered", "count": len(updated)})
 
+RECOMMENDATION_MAX_SEEDS = 30
+SEED_HALF_LIFE = 10
+
+
 def get_novel_recommendations(
     user, seed_novel_ids, viewer=None, max_recommendations=12,
     exclude_ids=None, languages=None,
@@ -320,7 +337,9 @@ def get_novel_recommendations(
     Generate novel recommendations from a set of seed novels.
 
     The seeds are the novels whose similarities drive the suggestions
-    (bookmarks for the library, the last few read novels for the home page).
+    (bookmarks for the library, the last few read novels for the home page),
+    ordered most relevant first. Only the first ``RECOMMENDATION_MAX_SEEDS``
+    are used, and each one's weight halves every ``SEED_HALF_LIFE`` positions.
     ``exclude_ids``, defaulting to the seeds themselves, is removed from the
     results so already-seen novels are not recommended. ``languages``, when
     set, restricts both the similarity and the popular top-up to novels
@@ -346,37 +365,36 @@ def get_novel_recommendations(
             to_novel__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
         )
 
-    # Get recommendations with counts using a single database query
-    from django.db.models import Count, Max
+    seed_weight = {
+        novel_id: 0.5 ** (position / SEED_HALF_LIFE)
+        for position, novel_id in enumerate(seed_novel_ids[:RECOMMENDATION_MAX_SEEDS])
+    }
+
+    # Score each candidate in Python as a weighted sum of similarities, so the
+    # similarity magnitude counts and several seeds agreeing still add up.
+    # The row count is at most 30 seeds x 12 neighbours, so this stays cheap.
     similar_qs = (NovelSimilarity.objects
-        .filter(from_novel_id__in=seed_novel_ids)
+        .filter(from_novel_id__in=list(seed_weight))
         .exclude(to_novel_id__in=excluded)
         .filter(to_novel__is_dmca=False)
+        .filter(similarity__gt=0)  # zero-padded rows linger until the next rebuild
         .filter(language_filter)
     )
     if not allow_adult:
         similar_qs = similar_qs.exclude(to_novel__sources__is_adult=True)
-    similar_novels = (similar_qs
-        .values('to_novel')
-        .annotate(
-            recommendation_count=Count('to_novel'),
-            # Aggregate similarity so it lands in the SELECT, not the GROUP BY;
-            # otherwise each distinct score yields a duplicate to_novel row.
-            best_similarity=Max('similarity'),
-        )
-        .order_by('-recommendation_count', '-best_similarity')[:max_recommendations]
-    )
+    score = {}
+    best = {}
+    for from_id, to_id, similarity in similar_qs.values_list('from_novel_id', 'to_novel_id', 'similarity'):
+        score[to_id] = score.get(to_id, 0.0) + seed_weight[from_id] * similarity
+        best[to_id] = max(best.get(to_id, similarity), similarity)
+    recommended_ids = sorted(score, key=lambda to_id: (-score[to_id], -best[to_id]))[:max_recommendations]
 
-    # Get IDs of similar novels
-    recommended_ids = [item['to_novel'] for item in similar_novels]
-    
     # If we need more recommendations, add popular novels
     if len(recommended_ids) < max_recommendations:
         needed = max_recommendations - len(recommended_ids)
         excluded_ids = list(excluded) + recommended_ids
         
-        # Get popular novels IDs in a single query (summed over sources)
-        from django.db.models import Sum
+        # Get popular novels IDs in a single query, from the rank_total_views projection
         popular_qs = Novel.objects.exclude(id__in=excluded_ids).filter(is_dmca=False)
         if languages:
             popular_qs = popular_qs.filter(
@@ -385,8 +403,7 @@ def get_novel_recommendations(
         if not allow_adult:
             popular_qs = popular_qs.exclude(sources__is_adult=True)
         popular_ids = (popular_qs
-            .annotate(total_views=Sum('sources__total_views'))
-            .order_by('-total_views')
+            .order_by('-rank_total_views', 'title')
             .values_list('id', flat=True)[:needed]
         )
         
