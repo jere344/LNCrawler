@@ -6,7 +6,14 @@ from django.test import override_settings
 from django.urls import reverse
 
 from ..management.commands.find_merge_candidates import combo_certainty, normalize_text
-from ..models import Author, ExternalSource, MergeCandidate, Novel, NovelFromSource
+from ..models import (
+    AlternativeTitle,
+    Author,
+    ExternalSource,
+    MergeCandidate,
+    Novel,
+    NovelFromSource,
+)
 from .helpers import MergeTestCase
 
 
@@ -386,6 +393,97 @@ class DiscriminantTests(MergeTestCase):
         call_command("find_merge_candidates", trigram_min=-1)
 
         self.assertEqual(MergeCandidate.objects.count(), 1)
+
+    def _add_cover(self, novel, phash, url):
+        NovelFromSource.objects.create(
+            novel=novel, external_source=self.es, title=novel.title,
+            source_url=url, cover_phash=phash,
+        )
+
+    def test_near_identical_covers_are_queued(self):
+        # Unrelated titles: only the cover, 2 bits apart, connects the pair.
+        a = self._novel("Alpha Story", "alpha")
+        b = self._novel("Beta Tale", "beta")
+        self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
+        self._add_cover(b, "78d050524c5c3cb3", "http://x/beta")
+
+        self._review_all(trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertAlmostEqual(candidate.signals["phash"], 1 - 2 / 16)
+
+    def test_distant_covers_are_not_matched(self):
+        a = self._novel("Alpha Story", "alpha")
+        b = self._novel("Beta Tale", "beta")
+        self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
+        self._add_cover(b, "872fafadb3a3c34f", "http://x/beta")
+
+        self._review_all(trigram_min=-1)
+
+        self.assertFalse(MergeCandidate.objects.exists())
+
+    def test_covers_at_the_max_distance_are_queued(self):
+        # 6 bits spread over 6 different bytes: no 16-bit band survives intact.
+        a = self._novel("Alpha Story", "alpha")
+        b = self._novel("Beta Tale", "beta")
+        self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
+        self._add_cover(b, "79d151534d5d3cb0", "http://x/beta")
+
+        self._review_all(trigram_min=-1)
+
+        candidate = MergeCandidate.objects.get()
+        self.assertAlmostEqual(candidate.signals["phash"], 1 - 6 / 16)
+
+    def test_near_flat_covers_only_match_exactly(self):
+        # Blank-ish covers of unrelated novels land a few bits apart.
+        a = self._novel("Alpha Story", "alpha")
+        b = self._novel("Beta Tale", "beta")
+        self._add_cover(a, "0000000010100000", "http://x/alpha")
+        self._add_cover(b, "0000000010300800", "http://x/beta")
+
+        self._review_all(trigram_min=-1)
+
+        self.assertFalse(MergeCandidate.objects.filter(signals__has_key="phash").exists())
+
+    def test_near_identical_placeholder_covers_are_ignored(self):
+        # Three novels share one default cover, re-encoded slightly differently.
+        novels = [
+            self._novel("Alpha Story", "alpha"),
+            self._novel("Beta Tale", "beta"),
+            self._novel("Gamma Saga", "gamma"),
+        ]
+        for novel, phash in zip(novels, ("78d050524c5c3cb0", "78d050524c5c3cb1", "78d050524c5c3cb3")):
+            self._add_cover(novel, phash, f"http://x/{novel.slug}")
+
+        with override_settings(MERGE_PLACEHOLDER_MIN_NOVELS=3):
+            self._review_all(trigram_min=-1)
+
+        self.assertFalse(MergeCandidate.objects.filter(signals__has_key="phash").exists())
+
+    def test_fuzzy_match_uses_source_titles(self):
+        # Novel.title differs completely; only the source titles are similar.
+        a = self._novel("Kingdom Rising", "kingdom")
+        b = self._novel("Wang Guo", "wang-guo")
+        self.make_source(a, self.es, "Lord of the Mysteries", "http://x/lotm-a", "kingdom", "site")
+        self.make_source(b, self.other_es, "Lord of Mysteries", "http://x/lotm-b", "wang-guo", "other")
+
+        self._review_all()
+
+        candidate = MergeCandidate.objects.get()
+        self.assertGreaterEqual(candidate.signals["title"], 0.4)
+
+    def test_fuzzy_match_uses_alternative_titles(self):
+        a = self._novel("Lord of the Mysteries", "lotm")
+        b = self._novel("Gui Mi Zhi Zhu", "gmzz")
+        self.make_source(b, self.other_es, "Gui Mi Zhi Zhu", "http://x/gmzz", "gmzz", "other")
+        NovelFromSource.objects.get(novel=b).alternative_titles.add(
+            AlternativeTitle.objects.create(name="Lord of Mysteries")
+        )
+
+        self._review_all()
+
+        candidate = MergeCandidate.objects.get()
+        self.assertGreaterEqual(candidate.signals["alt"], 0.4)
 
     def _add_translated_pair(self, chapters):
         # Different titles, so only the author and the chapter count connect them.

@@ -214,6 +214,9 @@ MERGE_PLACEHOLDER_MIN_NOVELS = 5
 MERGE_MAX_BLOCK_SIZE = 50
 # Fuzzy title similarity floor; <0 disables the trigram pass.
 MERGE_TRIGRAM_MIN = 0.4
+# Max Hamming distance (bits out of 64) between two cover dHashes that still
+# counts as the same cover: re-encoded/resized copies differ by a few bits.
+MERGE_PHASH_MAX_DISTANCE = 6
 
 # LLM API shared by every LLM workflow (novel merge judge, tag merge judge, R18
 # tag classifier). services/llm_service.py accepts any OpenAI-compatible

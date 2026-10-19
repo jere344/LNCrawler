@@ -4,7 +4,8 @@ Cheap deterministic funnel:
 
 1. Block — group novels by normalized title, alternative title, author,
    ``novelupdates_url``, source URL, folder on disk (``novel_path``) and cover
-   dHash. Only novels sharing a block are ever compared, so this is not O(N^2).
+   dHash (exact or within a few bits). Only novels sharing a block are ever
+   compared, so this is not O(N^2).
 2. Score — combine the per-signal matches into a single 0..1 ``certainty``
    (noisy-OR, so independent signals corroborate each other). Penalty signals
    (sequel mismatch) then scale it down, since titles are folded for blocking
@@ -20,7 +21,7 @@ from collections import defaultdict
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Count
 from django.utils import timezone
 
@@ -54,6 +55,11 @@ PENALTY_WEIGHTS = {
 # A chapter count this low is too noisy to say two novels have the same length.
 CHAPTER_MATCH_MIN = 10
 CHAPTER_MATCH_RATIO = 0.9
+
+# A dHash with this few bits set (or unset) comes from a near-flat cover (blank,
+# solid colour, text on a plain background): unrelated covers like that land a
+# few bits apart, so they only ever match exactly, never by distance.
+PHASH_MIN_BITS = 12
 
 
 def normalize_url(value):
@@ -104,6 +110,7 @@ class Command(BaseCommand):
             self.review_low = getattr(settings, "MERGE_REVIEW_LOW", 0.5)
         self.max_block_size = options["max_block_size"] or getattr(settings, "MERGE_MAX_BLOCK_SIZE", 50)
         self.placeholder_min = getattr(settings, "MERGE_PLACEHOLDER_MIN_NOVELS", 5)
+        self.phash_max_distance = getattr(settings, "MERGE_PHASH_MAX_DISTANCE", 6)
         trigram_min = options["trigram_min"]
         if trigram_min is None:
             trigram_min = getattr(settings, "MERGE_TRIGRAM_MIN", 0.4)
@@ -222,20 +229,6 @@ class Command(BaseCommand):
         for nid, path in data["paths"].items():
             add("path", path, nid)
 
-        # A cover hash shared by too many novels is a site default placeholder,
-        # not evidence of a duplicate -> drop it entirely.
-        shared = defaultdict(set)
-        for nid, values in data["phashes"].items():
-            for key in values:
-                shared[key].add(nid)
-        self.placeholder_hashes = {
-            key for key, ids in shared.items() if len(ids) >= self.placeholder_min
-        }
-        for nid, values in data["phashes"].items():
-            for key in values:
-                if key not in self.placeholder_hashes:
-                    add("phash", key, nid)
-
         pair_signals = defaultdict(dict)
         for (kind, _key), ids in blocks.items():
             ids = list(ids)
@@ -245,43 +238,146 @@ class Command(BaseCommand):
                 for j in range(i + 1, len(ids)):
                     pair = self._order(ids[i], ids[j])
                     pair_signals[pair][kind] = 1.0
+        self._phash_pairs(data, pair_signals)
         return pair_signals
 
+    def _phash_pairs(self, data, pair_signals):
+        # Cover dHashes are compared by Hamming distance, so a re-encoded or
+        # resized copy of the same cover still matches.
+        hash_novels = defaultdict(set)
+        for nid, values in data["phashes"].items():
+            for key in values:
+                try:
+                    hash_novels[int(key, 16)].add(nid)
+                except ValueError:
+                    continue
+
+        # 8 bands of 8 bits: two hashes up to 7 bits apart leave at least one
+        # band untouched (pigeonhole), so they share a bucket and every pair
+        # within the max distance (capped at 7) is found.
+        buckets = defaultdict(set)
+        for value in hash_novels:
+            if not PHASH_MIN_BITS <= value.bit_count() <= 64 - PHASH_MIN_BITS:
+                continue
+            for i in range(8):
+                buckets[(i, (value >> (8 * i)) & 0xFF)].add(value)
+
+        # A pair sharing several bands is compared once per band: cheaper than
+        # remembering every compared pair.
+        near = defaultdict(dict)
+        for members in buckets.values():
+            members = list(members)
+            for i in range(len(members)):
+                for j in range(i + 1, len(members)):
+                    a, b = members[i], members[j]
+                    distance = (a ^ b).bit_count()
+                    if distance <= self.phash_max_distance:
+                        near[a][b] = distance
+                        near[b][a] = distance
+
+        # A site's default cover re-encoded slightly is still a placeholder, so
+        # the count covers the exact hash and every hash within the max distance.
+        self.placeholder_hashes = set()
+        for value, ids in hash_novels.items():
+            around = set(ids)
+            for other in near.get(value, {}):
+                around |= hash_novels[other]
+            if len(around) >= self.placeholder_min:
+                self.placeholder_hashes.add(value)
+
+        def add_phash(a_id, b_id, score):
+            if a_id == b_id:
+                return
+            pair = self._order(a_id, b_id)
+            pair_signals[pair]["phash"] = max(pair_signals[pair].get("phash", 0.0), score)
+
+        for value, ids in hash_novels.items():
+            if value in self.placeholder_hashes:
+                continue
+            ids = list(ids)
+            for i in range(len(ids)):
+                for j in range(i + 1, len(ids)):
+                    add_phash(ids[i], ids[j], 1.0)
+            # Blocks are kept for the stdout count only; pairs come from above.
+            for nid in ids:
+                data["blocks"][("phash", format(value, "016x"))].add(nid)
+
+        # A near cover is weighted by its distance: 4 bits -> 0.75 (0.56 once the
+        # 0.75 phash weight applies). 6 bits -> 0.625 is below review_low on its
+        # own, so it needs a corroborating signal such as title or author.
+        for value, others in near.items():
+            for other, distance in others.items():
+                if value >= other or value in self.placeholder_hashes or other in self.placeholder_hashes:
+                    continue
+                score = 1.0 - distance / 16
+                for a_id in hash_novels[value]:
+                    for b_id in hash_novels[other]:
+                        add_phash(a_id, b_id, score)
+
     def _trigram_pairs(self, data, pair_signals, allowed):
-        # One set-based query instead of a round trip per novel. For each novel
-        # the lateral subquery keeps the 20 closest titles among those matching
-        # under the trigram operator. The operator runs on UPPER(title) so the
-        # GIN trigram index on Upper('title') is usable; the raw column would
-        # force a sequential scan per novel.
-        if not allowed:
+        # Titles are already normalized in Python (brackets, punctuation and case
+        # dropped), so they go into a temp table with its own trigram index rather
+        # than the raw Novel.title one. Every source and alternative title is
+        # compared. For each row the lateral subquery keeps the 20 closest titles
+        # under the trigram operator, so generic titles stay bounded.
+        rows = sorted({
+            (str(novel_id), title, kind)
+            for kind, source in (("title", data["titles"]), ("alt", data["alts"]))
+            for novel_id, titles in source.items()
+            if novel_id in allowed
+            for title in titles
+            if len(title) >= 4
+        })
+        if not rows:
             return
-        table = connection.ops.quote_name(Novel._meta.db_table)
-        pk = connection.ops.quote_name(Novel._meta.pk.column)
-        title = connection.ops.quote_name(Novel._meta.get_field("title").column)
-        sql = f"""
-            SELECT a.{pk}, near.other_id, near.sim
-            FROM {table} AS a
-            CROSS JOIN LATERAL (
-                SELECT b.{pk} AS other_id,
-                       similarity(UPPER(b.{title}), UPPER(a.{title})) AS sim
-                FROM {table} AS b
-                WHERE b.{pk} = ANY(%s::uuid[])
-                  AND b.{pk} <> a.{pk}
-                  AND UPPER(b.{title}) %% UPPER(a.{title})
-                ORDER BY sim DESC
-                LIMIT 20
-            ) AS near
-            WHERE a.{pk} = ANY(%s::uuid[])
-              AND LENGTH(a.{title}) >= 4
-              AND near.sim >= %s
-        """
-        ids = [str(novel_id) for novel_id in allowed]
-        with connection.cursor() as cursor:
-            cursor.execute(sql, [ids, ids, self.trigram_min])
-            rows = cursor.fetchall()
-        for novel_id, other_id, sim in rows:
+        with transaction.atomic(), connection.cursor() as cursor:
+            # SET cannot take bind parameters, so set_config is used. is_local
+            # scopes it to this transaction: the % operator then prunes at our
+            # floor through the index instead of pg_trgm's 0.3 default, and the
+            # setting does not leak into the session.
+            cursor.execute(
+                "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
+                [str(self.trigram_min)],
+            )
+            # Dropped first so a second run inside the same transaction (tests)
+            # does not fail on the existing temp table.
+            cursor.execute("DROP TABLE IF EXISTS pg_temp.merge_titles")
+            cursor.execute(
+                "CREATE TEMP TABLE merge_titles "
+                "(novel_id uuid NOT NULL, title text NOT NULL, kind text NOT NULL) "
+                "ON COMMIT DROP"
+            )
+            cursor.execute(
+                "INSERT INTO merge_titles "
+                "SELECT * FROM unnest(%s::uuid[], %s::text[], %s::text[])",
+                [[r[0] for r in rows], [r[1] for r in rows], [r[2] for r in rows]],
+            )
+            cursor.execute("CREATE INDEX ON merge_titles USING gin (title gin_trgm_ops)")
+            cursor.execute("ANALYZE merge_titles")
+            cursor.execute(
+                """
+                SELECT a.novel_id, near.novel_id, a.kind, near.kind, near.sim
+                FROM merge_titles AS a
+                CROSS JOIN LATERAL (
+                    SELECT b.novel_id, b.kind, similarity(b.title, a.title) AS sim
+                    FROM merge_titles AS b
+                    WHERE b.novel_id <> a.novel_id
+                      AND b.title %% a.title
+                    ORDER BY sim DESC
+                    LIMIT 20
+                ) AS near
+                WHERE near.sim >= %s
+                """,
+                [self.trigram_min],
+            )
+            found = cursor.fetchall()
+        for novel_id, other_id, kind, other_kind, sim in found:
+            # A source title matching another novel's alternative title is evidence
+            # the exact blocks never see (they only match title to title and alt to
+            # alt). Alt-involved matches keep the lower alt weight.
+            signal = "title" if kind == other_kind == "title" else "alt"
             pair = self._order(novel_id, other_id)
-            pair_signals[pair]["title"] = max(pair_signals[pair].get("title", 0.0), float(sim))
+            pair_signals[pair][signal] = max(pair_signals[pair].get(signal, 0.0), float(sim))
 
     def _add_novel_similarity(self, pair_signals, allowed):
         qs = NovelSimilarity.objects.filter(
