@@ -16,10 +16,11 @@ import json
 import logging
 import math
 import re
+from datetime import timedelta
 
 import requests
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import Count, Sum
 from django.utils import timezone
 
 from ..models import LLMUsage
@@ -197,7 +198,7 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
     """POST one chat-completions request. Returns ``(content, total_tokens)``.
 
     Every response the provider returned (HTTP 200, truncated ones included)
-    is written to ``LLMUsage`` under ``purpose``. A 429 or other HTTP error is
+    is written to ``LLMUsage`` under ``purpose`` (the task name). A 429 or other HTTP error is
     not charged and writes nothing. A reply cut off by the token cap, or
     empty, raises ``LLMTruncated``.
     """
@@ -252,7 +253,7 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
 
 
 def tokens_used_today():
-    """Tokens charged today across both judges (novel and tag)."""
+    """Tokens charged today across every workflow."""
     today = timezone.localdate()
     used = LLMUsage.objects.filter(created_at__date=today).aggregate(total=Sum("tokens"))
     return used["total"] or 0
@@ -263,25 +264,9 @@ def token_budget_left():
     return settings.LLM_DAILY_TOKENS - tokens_used_today()
 
 
-# Every workflow calls the same API, so they all draw on the one daily budget
-# (LLM_DAILY_TOKENS). A request is only started when the budget can cover
-# its worst case: the reply cap (reasoning counts toward it) plus a reserve for
-# the prompt, which depends on how much each workflow packs into one call.
-PROMPT_TOKEN_RESERVE = {
-    LLMUsage.PURPOSE_NOVEL: 1500,  # two novel profiles
-    LLMUsage.PURPOSE_TAG: 3000,    # ~30 tags in clusters, with usage counts
-    LLMUsage.PURPOSE_R18: 1500,    # ~50 short tag names
-}
-REPLY_CAP_SETTING = {
-    LLMUsage.PURPOSE_NOVEL: "MERGE_LLM_MAX_TOKENS",
-    LLMUsage.PURPOSE_TAG: "TAG_LLM_MAX_TOKENS",
-    LLMUsage.PURPOSE_R18: "TAG_R18_LLM_MAX_TOKENS",
-}
-
-
-def estimated_tokens(purpose):
-    """Worst-case tokens one request of ``purpose`` can cost."""
-    return getattr(settings, REPLY_CAP_SETTING[purpose]) + PROMPT_TOKEN_RESERVE[purpose]
+# Every workflow sizes its batches so one call costs about this many tokens
+# (prompt + reply, measured: 50 R18 tags ~1.6K). The budget checks charge it per call.
+CALL_TOKENS = 1500
 
 
 def requests_used_today():
@@ -289,21 +274,37 @@ def requests_used_today():
     return LLMUsage.objects.filter(created_at__date=timezone.localdate()).count()
 
 
-def can_afford(purpose):
-    """Whether today's shared budgets still cover one request of ``purpose``.
+def minute_usage():
+    """``(requests, tokens)`` charged in the last 60 seconds, for the per-minute caps."""
+    since = timezone.now() - timedelta(seconds=60)
+    used = LLMUsage.objects.filter(created_at__gte=since).aggregate(
+        requests=Count("pk"), tokens=Sum("tokens"),
+    )
+    return used["requests"], used["tokens"] or 0
 
-    Providers cap both requests and tokens per day; a request only starts when
-    it fits under both (LLM_DAILY_REQUESTS and LLM_DAILY_TOKENS).
+
+def can_afford():
+    """Whether the provider limits still cover one more call.
+
+    Providers cap requests and tokens per day (LLM_DAILY_REQUESTS, LLM_DAILY_TOKENS)
+    and per minute (LLM_REQUESTS_PER_MINUTE, LLM_TOKENS_PER_MINUTE). A call only
+    starts when it fits under all four, charged at CALL_TOKENS.
     """
+    minute_requests, minute_tokens = minute_usage()
     return (
         requests_used_today() < settings.LLM_DAILY_REQUESTS
-        and token_budget_left() >= estimated_tokens(purpose)
+        and token_budget_left() >= CALL_TOKENS
+        and minute_requests < settings.LLM_REQUESTS_PER_MINUTE
+        and minute_tokens + CALL_TOKENS <= settings.LLM_TOKENS_PER_MINUTE
     )
 
 
 def budget_status():
-    """Today's usage of both shared budgets, for log lines."""
+    """Today's usage of both shared budgets and the last minute, for log lines."""
+    minute_requests, minute_tokens = minute_usage()
     return (
         f"{requests_used_today()}/{settings.LLM_DAILY_REQUESTS} requests, "
-        f"{tokens_used_today()}/{settings.LLM_DAILY_TOKENS} tokens"
+        f"{tokens_used_today()}/{settings.LLM_DAILY_TOKENS} tokens, "
+        f"{minute_requests}/{settings.LLM_REQUESTS_PER_MINUTE} requests and "
+        f"{minute_tokens}/{settings.LLM_TOKENS_PER_MINUTE} tokens in the last minute"
     )

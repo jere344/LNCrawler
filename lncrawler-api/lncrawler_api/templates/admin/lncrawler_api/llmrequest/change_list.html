@@ -1,0 +1,27 @@
+{% extends "admin/change_list.html" %}
+
+{% block content_title %}
+  {{ block.super }}
+  {% if llm_usage %}
+    <div class="module" style="margin-bottom:1em">
+      <table>
+        <caption>LLM usage today ({{ llm_usage.date }}, server time)</caption>
+        <thead>
+          <tr><th>Purpose</th><th>Requests</th><th>Tokens</th></tr>
+        </thead>
+        <tbody>
+          {% for row in llm_usage.rows %}
+            <tr><td>{{ row.label }}</td><td>{{ row.requests }}</td><td>{{ row.tokens }}</td></tr>
+          {% endfor %}
+          <tr>
+            <td><strong>Total</strong></td>
+            <td><strong>{{ llm_usage.requests }} / {{ llm_usage.requests_cap }}</strong></td>
+            <td><strong>{{ llm_usage.tokens }} / {{ llm_usage.tokens_cap }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Last minute: {{ llm_usage.minute.requests }} / {{ llm_usage.minute.requests_cap }} requests,
+        {{ llm_usage.minute.tokens }} / {{ llm_usage.minute.tokens_cap }} tokens</p>
+    </div>
+  {% endif %}
+{% endblock %}

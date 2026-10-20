@@ -239,21 +239,18 @@ def find_merge_candidates_task():
         lambda: call_command_isolated('find_merge_candidates'),
     )
 
-# Adjudicate the gray band through the LLMRequest queue (services/llm_tasks.py,
-# NovelMergeTask), like the R18 one. Only when an API key is configured. Bounded
-# per tick (settings.MERGE_LLM_LIMIT_PER_TICK) and by the shared daily budget, so a
-# slow or rate-limited provider cannot block the rest of the maintenance loop.
-@scheduler.register_task(
-    interval=int(settings.MERGE_LLM_INTERVAL), name="judge_merge_candidates"
-)
-def judge_merge_candidates_task():
+# Drain the LLMRequest queue (services/llm_tasks.py): every LLM workflow takes turns,
+# paced by the provider's per-minute and daily limits (llm_service.can_afford), so a
+# tick stays short. Only when an LLM is configured.
+@scheduler.register_task(interval=60, name="run_llm_queue")
+def run_llm_queue_task():
     if not llm_service.is_configured():
-        return  # zero-LLM fallback: the review queue still works.
+        return  # zero-LLM fallback: review queues still work, nothing is sent.
     _run_job(
-        "Judging merge candidates with LLM...",
-        "Merge candidate LLM judging completed",
-        "Error judging merge candidates: {error}",
-        lambda: call_command('run_llm_requests', 'novel_merge'),
+        "Running LLM queue...",
+        "LLM queue run completed",
+        "Error running LLM queue: {error}",
+        lambda: call_command('run_llm_requests'),
     )
 
 # Rebuild tag merge clusters daily: embeds new tags and groups likely duplicates.
@@ -267,37 +264,6 @@ def find_tag_merge_candidates_task():
         lambda: call_command_isolated('find_tag_merge_candidates'),
     )
 
-# Ask the LLM to judge pending tag clusters through the LLMRequest queue
-# (services/llm_tasks.py, TagMergeTask), a few calls per tick, only when the
-# merge LLM key is configured. Bounded per tick and by a daily call budget.
-@scheduler.register_task(
-    interval=int(settings.TAG_LLM_INTERVAL), name="judge_tag_clusters"
-)
-def judge_tag_clusters_task():
-    if not llm_service.is_configured():
-        return  # zero-LLM fallback: clusters stay pending until a key is set.
-    _run_job(
-        "Judging tag clusters with LLM...",
-        "Tag cluster LLM judging completed",
-        "Error judging tag clusters: {error}",
-        lambda: call_command('run_llm_requests', 'tag_merge'),
-    )
-
-# Flag R18 tags through the generic LLMRequest queue (services/llm_tasks.py, TagR18Task).
-# Bounded per tick and by a daily token budget; needs the merge LLM key.
-@scheduler.register_task(
-    interval=int(settings.TAG_R18_LLM_INTERVAL), name="run_llm_tag_r18"
-)
-def run_llm_tag_r18_task():
-    if not llm_service.is_configured():
-        return  # zero-LLM fallback: nothing is queued or sent.
-    _run_job(
-        "Classifying R18 tags with LLM...",
-        "R18 tag LLM classification completed",
-        "Error classifying R18 tags: {error}",
-        lambda: call_command('run_llm_requests', 'tag_r18'),
-    )
-
 # Find duplicate author names daily: merges normalized and mixed-script matches,
 # queues cross-source pairs for the LLM judge. Re-runs skip known pairs by signature.
 @scheduler.register_task(interval=DAY, name="find_author_candidates")  # daily
@@ -307,22 +273,6 @@ def find_author_candidates_task():
         "Duplicate author scan completed successfully",
         "Error scanning for duplicate authors: {error}",
         lambda: call_command_isolated('find_author_candidates'),
-    )
-
-# Ask the LLM to judge queued author pairs (services/llm_tasks.py, AuthorMergeTask).
-# Same cadence and per-tick cap as judge_merge_candidates; the shared daily budget
-# bounds the total. Only when the merge LLM key is configured.
-@scheduler.register_task(
-    interval=int(settings.MERGE_LLM_INTERVAL), name="judge_author_candidates"
-)
-def judge_author_candidates_task():
-    if not llm_service.is_configured():
-        return  # zero-LLM fallback: pairs stay pending until a key is set.
-    _run_job(
-        "Judging author candidates with LLM...",
-        "Author candidate LLM judging completed",
-        "Error judging author candidates: {error}",
-        lambda: call_command('run_llm_requests', 'author_merge'),
     )
 
 # Task to compress low traffic novels weekly.

@@ -123,20 +123,13 @@ class LLMUsage(models.Model):
     """Tokens one LLM response cost. The shared daily token budget sums these rows.
 
     Written for every response the provider returned, truncated ones included,
-    by both the novel judge and the tag judge. Failed requests (429, HTTP errors)
-    write nothing because the provider did not charge for them.
+    by every LLM workflow. Failed requests (429, HTTP errors) write nothing because
+    the provider did not charge for them.
+
+    ``purpose`` is the ``LLMTask.name`` that made the call.
     """
 
-    PURPOSE_NOVEL = "novel"
-    PURPOSE_TAG = "tag"
-    PURPOSE_R18 = "tag_r18"
-    PURPOSE_CHOICES = [
-        (PURPOSE_NOVEL, "Novel judge"),
-        (PURPOSE_TAG, "Tag judge"),
-        (PURPOSE_R18, "Tag R18 classifier"),
-    ]
-
-    purpose = models.CharField(max_length=10, choices=PURPOSE_CHOICES)
+    purpose = models.CharField(max_length=50)
     tokens = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

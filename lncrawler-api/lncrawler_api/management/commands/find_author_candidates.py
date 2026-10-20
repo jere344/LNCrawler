@@ -15,8 +15,8 @@ C. Cross-source: in one novel, two sources that differ by exactly one author
    each probably credit the same person under two names. Queued, reason
    ``cross_source``.
 
-Nothing here calls the LLM: ``judge_author_candidates`` (``AuthorMergeTask``)
-decides the queued pairs. ``--dry-run`` reports what would happen and writes nothing.
+Nothing here calls the LLM: the ``run_llm_queue`` task (``AuthorMergeTask``, run by
+``run_llm_requests``) decides the queued pairs. ``--dry-run`` reports what would happen and writes nothing.
 """
 from collections import defaultdict
 from itertools import combinations

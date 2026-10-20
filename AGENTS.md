@@ -6,6 +6,11 @@
 - Reviewing the implementer's changes: delegate to the `reviewer` subagent (Haiku) first.
 - Planning, design decisions, and the final call on the reviewer's findings: do these yourself (Opus).
 
+## Local database is dev data, not prod
+The local containers (`lncrawler-api-1`, its Postgres) hold dev data, not a copy of prod. Do not treat
+row counts or contents as what prod has. When the question is
+about prod, ask for the prod data (an admin page, an export) instead of drawing conclusions locally.
+
 ## Running the backend tests
 Run them inside the running API container (Django test runner, Postgres):
 

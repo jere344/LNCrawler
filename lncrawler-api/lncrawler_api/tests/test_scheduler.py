@@ -27,6 +27,6 @@ class SchedulerLLMGateTests(TestCase):
         from .. import scheduler as scheduler_module
 
         with mock.patch.object(scheduler_module, "call_command") as call:
-            scheduler_module.run_llm_tag_r18_task()
+            scheduler_module.run_llm_queue_task()
 
-        call.assert_called_once_with("run_llm_requests", "tag_r18")
+        call.assert_called_once_with("run_llm_requests")

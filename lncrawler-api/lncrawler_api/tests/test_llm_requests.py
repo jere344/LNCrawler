@@ -1,9 +1,11 @@
 """Tests for the LLMRequest queue and the tag_r18 task (services/llm_tasks.py)."""
 
 import json
+from datetime import timedelta
 from unittest import mock
 
 from django.test import SimpleTestCase, override_settings
+from django.utils import timezone
 
 from ..models import ExternalSource, LLMRequest, LLMUsage, Novel, Tag
 from ..services import llm_service, llm_tasks
@@ -28,7 +30,7 @@ class TagR18TaskTests(MergeTestCase):
         Tag.objects.create(name="Adult", is_adult=True)
         task = llm_tasks.REGISTRY["tag_r18"]
 
-        with override_settings(TAG_R18_LLM_TAGS_PER_CALL=2):
+        with mock.patch.object(llm_tasks.TagR18Task, "batch_size", 2):
             self.assertEqual(task.enqueue(5), 2)
             self.assertEqual(task.enqueue(5), 0)
 
@@ -113,12 +115,12 @@ class TagR18TaskTests(MergeTestCase):
             self.assertEqual(req.attempts, 0)
         self.assertIsNotNone(r1.not_before)
 
-    @override_settings(LLM_DAILY_TOKENS=10000, TAG_R18_LLM_MAX_TOKENS=4096)
-    def test_shared_budget_too_low_for_estimate_prevents_calls(self):
+    @override_settings(LLM_DAILY_TOKENS=10000, LLM_TOKENS_PER_MINUTE=100000)
+    def test_shared_budget_too_low_for_one_call_prevents_calls(self):
         tag = Tag.objects.create(name="Smut")
-        # Another workflow spent most of the shared budget: 10000 - 5000 left is
-        # below one R18 request's estimate (4096 + prompt reserve).
-        LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_NOVEL, tokens=5000)
+        # Another workflow spent most of the shared budget: 10000 - 9000 left is
+        # below one call (llm_service.CALL_TOKENS).
+        LLMUsage.objects.create(purpose="novel_merge", tokens=9000)
         pending = self.make_request([tag.pk])
 
         with mock.patch.object(llm_service, "_post_chat") as post:
@@ -178,6 +180,114 @@ class TagR18TaskTests(MergeTestCase):
         post.assert_not_called()
         req.refresh_from_db()
         self.assertEqual(req.status, LLMRequest.STATUS_DONE)
+
+
+@override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=100000,
+                   LLM_TOKENS_PER_MINUTE=8000, LLM_REQUESTS_PER_MINUTE=30)
+class LLMQueueTests(MergeTestCase):
+    def make_tag_request(self, name):
+        tag = Tag.objects.create(name=name)
+        return LLMRequest.objects.create(
+            task="tag_r18", target_type="tag", target_ids=[tag.pk], prompt_version="1",
+        )
+
+    def make_merge_request(self):
+        # The cluster does not exist, so the real build_messages would close it; tests patch it.
+        return LLMRequest.objects.create(
+            task="tag_merge", target_type="tag_cluster", target_ids=[0], prompt_version="1",
+        )
+
+    def test_per_minute_token_cap_stops_the_pass(self):
+        req = self.make_tag_request("Smut")
+        # 6501 + CALL_TOKENS (1500) is over LLM_TOKENS_PER_MINUTE (8000).
+        LLMUsage.objects.create(purpose="tag_r18", tokens=8000 - llm_service.CALL_TOKENS + 1)
+
+        with mock.patch.object(llm_service, "_post_chat") as post:
+            llm_tasks.run_task("tag_r18", 5)
+
+        post.assert_not_called()
+        req.refresh_from_db()
+        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
+
+    @override_settings(LLM_REQUESTS_PER_MINUTE=2)
+    def test_per_minute_request_cap_stops_the_pass(self):
+        req = self.make_tag_request("Smut")
+        LLMUsage.objects.create(purpose="tag_r18", tokens=0)
+        LLMUsage.objects.create(purpose="tag_r18", tokens=0)
+
+        with mock.patch.object(llm_service, "_post_chat") as post:
+            llm_tasks.run_task("tag_r18", 5)
+
+        post.assert_not_called()
+        req.refresh_from_db()
+        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
+
+    def test_usage_older_than_a_minute_does_not_count(self):
+        self.make_tag_request("Smut")
+        old = LLMUsage.objects.create(purpose="tag_r18", tokens=8000)
+        LLMUsage.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(seconds=61))
+
+        with mock.patch.object(llm_service, "_post_chat", return_value=("not json", 5)) as post:
+            llm_tasks.run_task("tag_r18", 5)
+
+        post.assert_called_once()
+
+    def test_round_robin_takes_one_call_per_task_in_turn(self):
+        self.make_tag_request("A1")
+        second = self.make_tag_request("B1")
+        self.make_merge_request()
+
+        with mock.patch.object(llm_tasks.TagMergeTask, "build_messages", return_value=[]), \
+                mock.patch.object(llm_service, "_post_chat", return_value=("not json", 5)) as post:
+            llm_tasks.run_queue(["tag_r18", "tag_merge"], limit=2)
+
+        self.assertEqual([call.args[2] for call in post.call_args_list], ["tag_r18", "tag_merge"])
+        second.refresh_from_db()
+        self.assertEqual(second.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(second.attempts, 0)
+
+    def test_rate_limit_stops_every_task(self):
+        self.make_tag_request("A1")
+        merge = self.make_merge_request()
+
+        with mock.patch.object(llm_tasks.TagMergeTask, "build_messages", return_value=[]), \
+                mock.patch.object(llm_service, "_post_chat",
+                                  side_effect=RateLimited(retry_after="30")) as post:
+            counts = llm_tasks.run_queue(["tag_r18", "tag_merge"], limit=5)
+
+        self.assertEqual(post.call_count, 1)
+        self.assertTrue(counts["rate_limited"])
+        merge.refresh_from_db()
+        self.assertEqual(merge.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(merge.attempts, 0)
+
+    def test_top_up_keeps_at_most_queue_backlog_pending(self):
+        for n in range(8):
+            Tag.objects.create(name=f"T{n}")
+        task = llm_tasks.REGISTRY["tag_r18"]
+
+        with mock.patch.object(llm_tasks.TagR18Task, "batch_size", 1):
+            self.assertEqual(llm_tasks._top_up(task, None), llm_tasks.QUEUE_BACKLOG)
+            self.assertEqual(llm_tasks._top_up(task, None), 0)
+
+        self.assertEqual(
+            LLMRequest.objects.filter(task="tag_r18", status=LLMRequest.STATUS_PENDING).count(),
+            llm_tasks.QUEUE_BACKLOG,
+        )
+
+    def test_usage_row_purpose_is_the_task_name(self):
+        self.make_tag_request("Smut")
+        response = mock.Mock(status_code=200, headers={}, text="")
+        response.json.return_value = {
+            "choices": [{"message": {"content": "not json"}, "finish_reason": "stop"}],
+            "usage": {"total_tokens": 7},
+        }
+        session = mock.Mock()
+        session.post.return_value = response
+
+        llm_tasks.run_task("tag_r18", 1, session=session)
+
+        self.assertEqual(LLMUsage.objects.get().purpose, "tag_r18")
 
 
 class ParseConfidenceTests(SimpleTestCase):

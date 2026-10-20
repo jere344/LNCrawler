@@ -1,7 +1,7 @@
 """Registry and runner for LLM workflows that go through ``LLMRequest``.
 
 A workflow subclasses ``LLMTask``, registers itself with ``@register`` and gets
-queueing, retries, rate-limit handling and budget checks from ``run_task``.
+queueing, retries, rate-limit handling and budget checks from ``run_queue``.
 Domain tables keep their own decisions; this module only drives the queue.
 """
 import json
@@ -14,7 +14,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models import Author, AuthorMergeCandidate, LLMRequest, LLMUsage, MergeCandidate, Tag, TagCluster
+from ..models import Author, AuthorMergeCandidate, LLMRequest, MergeCandidate, Tag, TagCluster
 from ..models.sources_models import refresh_adult_for_tags
 from . import llm_service
 from . import tag_merge_service as tms
@@ -28,21 +28,21 @@ logger = logging.getLogger("lncrawler_api.merge")
 STUCK_RUNNING_AFTER = timedelta(minutes=30)
 # Used when a 429 carries no numeric Retry-After header.
 DEFAULT_RETRY_AFTER = 60
+# Pending requests kept queued per task by each run.
+QUEUE_BACKLOG = 5
 
 
 class LLMTask:
     """Base for one LLM workflow. Subclasses set the class attributes and implement the hooks."""
 
     name = ""
+    label = ""  # admin display name
     target_type = ""
     prompt_version = "1"
-    usage_purpose = ""  # LLMUsage purpose passed to llm_service._post_chat
+    # Hard-coded per task, sized so one call costs about llm_service.CALL_TOKENS.
+    batch_size = 1  # targets packed into one call
     max_tokens = 2048
     max_attempts = 3
-
-    def calls_per_tick(self):
-        """Default number of requests processed per scheduler tick."""
-        raise NotImplementedError
 
     def enqueue(self, limit):
         """Create pending ``LLMRequest`` rows for work not yet queued. Returns how many."""
@@ -113,86 +113,122 @@ def _claim(task_name, now):
     return req
 
 
-def run_task(task_name, limit, session=None, stdout=None):
-    """Enqueue then process up to ``limit`` due requests of one task."""
-    if not llm_service.is_configured():
-        return {"skipped": "not configured"}
-    task = REGISTRY[task_name]
-    now = timezone.now()
-    counts = {"done": 0, "failed": 0, "retry": 0, "rate_limited": False}
+def _top_up(task, limit):
+    """Enqueue so ``task`` has ``QUEUE_BACKLOG`` (or ``limit``) pending requests. Returns how many were created."""
+    pending = LLMRequest.objects.filter(task=task.name, status=LLMRequest.STATUS_PENDING).count()
+    missing = max(QUEUE_BACKLOG, limit or 0) - pending
+    if missing <= 0:
+        return 0
+    return task.enqueue(missing)
 
-    _reset_stuck(task_name, now)
-    task.enqueue(limit)
 
-    for _ in range(limit):
-        # One budget for every workflow; stop once it can't cover this task's worst case.
-        if not llm_service.can_afford(task.usage_purpose):
-            break
-        req = _claim(task_name, timezone.now())
-        if req is None:
-            break
-        try:
-            messages = task.build_messages(req)
-            if messages is None:
-                # Nothing left to ask: close the request without a call. A requeued
-                # done request keeps the result it already had.
-                req.status = LLMRequest.STATUS_DONE
-                if req.response is None:
-                    req.response = {"skipped": "no targets left"}
-                req.not_before = None
-                req.finished_at = timezone.now()
-                req.save()
-                continue
-            content, tokens = llm_service._post_chat(
-                messages,
-                task.max_tokens,
-                task.usage_purpose,
-                session=session,
-            )
-            req.raw_response = content
-            req.tokens = tokens
-            result = task.parse(req, content)
-            task.apply(req, result)
+def _process(task, req, session, stdout):
+    """Run one claimed request. Returns "done", "skipped", "retry", "failed" or "rate_limited"."""
+    try:
+        messages = task.build_messages(req)
+        if messages is None:
+            # Nothing left to ask: close the request without a call. A requeued
+            # done request keeps the result it already had.
             req.status = LLMRequest.STATUS_DONE
-            req.response = result
-            req.error = ""
+            if req.response is None:
+                req.response = {"skipped": "no targets left"}
             req.not_before = None
             req.finished_at = timezone.now()
             req.save()
-            counts["done"] += 1
-        except RateLimited as exc:
-            # Not the request's fault: give the attempt back and stop this run.
+            return "skipped"
+        content, tokens = llm_service._post_chat(
+            messages,
+            task.max_tokens,
+            task.name,
+            session=session,
+        )
+        req.raw_response = content
+        req.tokens = tokens
+        result = task.parse(req, content)
+        task.apply(req, result)
+        req.status = LLMRequest.STATUS_DONE
+        req.response = result
+        req.error = ""
+        req.not_before = None
+        req.finished_at = timezone.now()
+        req.save()
+        return "done"
+    except RateLimited as exc:
+        # Not the request's fault: give the attempt back and stop this run.
+        req.status = LLMRequest.STATUS_PENDING
+        req.attempts -= 1
+        req.not_before = timezone.now() + timedelta(seconds=_retry_after_seconds(exc.retry_after))
+        req.save()
+        return "rate_limited"
+    except Exception as exc:  # LLMError, network errors, a bug in apply...
+        # Anything else would leave the row RUNNING until _reset_stuck.
+        req.error = f"{type(exc).__name__}: {exc}"[:2000]
+        if isinstance(exc, LLMError):
+            logger.warning("LLM request %s (%s) failed: %s", req.pk, task.name, req.error)
+        else:
+            logger.exception("LLM request %s (%s) crashed", req.pk, task.name)
+        if req.attempts >= task.max_attempts:
+            req.status = LLMRequest.STATUS_FAILED
+            req.not_before = None
+            req.finished_at = timezone.now()
+            outcome = "failed"
+        else:
             req.status = LLMRequest.STATUS_PENDING
-            req.attempts -= 1
-            req.not_before = timezone.now() + timedelta(seconds=_retry_after_seconds(exc.retry_after))
-            req.save()
-            counts["rate_limited"] = True
-            break
-        except Exception as exc:  # LLMError, network errors, a bug in apply...
-            # Anything else would leave the row RUNNING until _reset_stuck.
-            req.error = f"{type(exc).__name__}: {exc}"[:2000]
-            if isinstance(exc, LLMError):
-                logger.warning("LLM request %s (%s) failed: %s", req.pk, task_name, req.error)
-            else:
-                logger.exception("LLM request %s (%s) crashed", req.pk, task_name)
-            if req.attempts >= task.max_attempts:
-                req.status = LLMRequest.STATUS_FAILED
-                req.not_before = None
-                req.finished_at = timezone.now()
-                counts["failed"] += 1
-            else:
-                req.status = LLMRequest.STATUS_PENDING
-                req.not_before = timezone.now() + timedelta(minutes=2 ** req.attempts)
-                counts["retry"] += 1
-            req.save()
-            if req.status == LLMRequest.STATUS_FAILED:
-                try:
-                    task.on_failed(req)
-                except Exception:
-                    logger.exception("on_failed for LLM request %s (%s) crashed", req.pk, task_name)
-            if stdout:
-                stdout.write(f"request {req.pk}: {req.status}: {req.error[:200]}")
+            req.not_before = timezone.now() + timedelta(minutes=2 ** req.attempts)
+            outcome = "retry"
+        req.save()
+        if req.status == LLMRequest.STATUS_FAILED:
+            try:
+                task.on_failed(req)
+            except Exception:
+                logger.exception("on_failed for LLM request %s (%s) crashed", req.pk, task.name)
+        if stdout:
+            stdout.write(f"request {req.pk}: {req.status}: {req.error[:200]}")
+        return outcome
+
+
+def run_queue(task_names=None, limit=None, session=None, stdout=None):
+    """Process pending requests of ``task_names`` (default: every task), taking turns.
+
+    Each turn claims one request of the next task still having work. Stops after
+    ``limit`` requests, when the provider limits (``llm_service.can_afford``) are
+    reached, on a 429, or when every queue is empty.
+    """
+    if not llm_service.is_configured():
+        return {"skipped": "not configured"}
+    names = task_names or list(REGISTRY)
+    counts = {"done": 0, "failed": 0, "retry": 0, "rate_limited": False}
+
+    for name in names:
+        _reset_stuck(name, timezone.now())
+        _top_up(REGISTRY[name], limit)
+
+    active = list(names)
+    processed = 0
+    stop = False
+    while active and not stop:
+        for name in list(active):
+            if (limit is not None and processed >= limit) or not llm_service.can_afford():
+                stop = True
+                break
+            req = _claim(name, timezone.now())
+            if req is None:
+                active.remove(name)
+                continue
+            processed += 1
+            outcome = _process(REGISTRY[name], req, session, stdout)
+            if outcome == "rate_limited":
+                counts["rate_limited"] = True
+                stop = True
+                break
+            if outcome in ("done", "failed", "retry"):
+                counts[outcome] += 1
     return counts
+
+
+def run_task(task_name, limit, session=None, stdout=None):
+    """Process up to ``limit`` requests of one task. See ``run_queue``."""
+    return run_queue([task_name], limit, session, stdout)
 
 
 @register
@@ -200,10 +236,11 @@ class TagR18Task(LLMTask):
     """Flag tags whose name itself implies sexually explicit content as adult (R18)."""
 
     name = "tag_r18"
+    label = "Tag R18 classifier"
     target_type = "tag"
     prompt_version = "1"
-    usage_purpose = LLMUsage.PURPOSE_R18
-    max_tokens = settings.TAG_R18_LLM_MAX_TOKENS
+    batch_size = 50
+    max_tokens = 4096
 
     RATINGS = ("explicit", "suggestive", "none")
 
@@ -225,11 +262,8 @@ class TagR18Task(LLMTask):
         '"explicit"|"suggestive"|"none", "confidence": <0..1>}]}.'
     )
 
-    def calls_per_tick(self):
-        return settings.TAG_R18_LLM_CALLS_PER_TICK
-
     def enqueue(self, limit):
-        per_call = settings.TAG_R18_LLM_TAGS_PER_CALL
+        per_call = self.batch_size
         covered = set()
         # FAILED batches count as covered too: a batch that fails deterministically
         # would otherwise be re-enqueued every tick. Requeue it from the admin.
@@ -335,13 +369,11 @@ class NovelMergeTask(LLMTask):
     """Judge whether a gray-band merge candidate pairs two copies of the same novel."""
 
     name = "novel_merge"
+    label = "Novel merge judge"
     target_type = "merge_candidate"
     prompt_version = "1"
-    usage_purpose = LLMUsage.PURPOSE_NOVEL
-    max_tokens = settings.MERGE_LLM_MAX_TOKENS
-
-    def calls_per_tick(self):
-        return settings.MERGE_LLM_LIMIT_PER_TICK
+    batch_size = 1  # the prompt is per pair
+    max_tokens = 2048
 
     def enqueue(self, limit):
         covered = set()
@@ -489,10 +521,11 @@ class AuthorMergeTask(LLMTask):
     """Judge whether two author names from the finder refer to the same person."""
 
     name = "author_merge"
+    label = "Author merge judge"
     target_type = "author_merge_candidate"
     prompt_version = "2"
-    usage_purpose = LLMUsage.PURPOSE_NOVEL
-    max_tokens = settings.MERGE_LLM_MAX_TOKENS
+    batch_size = 20
+    max_tokens = 2048
 
     SYSTEM_PROMPT = (
         "You decide whether two author names refer to the same person: pen names, "
@@ -504,11 +537,8 @@ class AuthorMergeTask(LLMTask):
         '"verdict": "same"|"different", "confidence": <0..1>}]}.'
     )
 
-    def calls_per_tick(self):
-        return settings.MERGE_LLM_LIMIT_PER_TICK
-
     def enqueue(self, limit):
-        per_call = settings.AUTHOR_MERGE_LLM_BATCH
+        per_call = self.batch_size
         covered = set()
         # PENDING, RUNNING and FAILED requests count as covered: a FAILED one would
         # otherwise be re-enqueued every tick. Requeue it from the admin. DONE ones
@@ -671,16 +701,14 @@ class TagMergeTask(LLMTask):
     """Judge which tags in pending tag clusters are interchangeable, then apply the merges it is sure of."""
 
     name = "tag_merge"
+    label = "Tag merge judge"
     target_type = "tag_cluster"
     prompt_version = "1"
-    usage_purpose = LLMUsage.PURPOSE_TAG
-    max_tokens = settings.TAG_LLM_MAX_TOKENS
+    batch_size = 50
+    max_tokens = 4096
 
     # Pending clusters inspected per packing pass.
     PACK_WINDOW = 200
-
-    def calls_per_tick(self):
-        return settings.TAG_LLM_CALLS_PER_TICK
 
     def enqueue(self, limit):
         covered = set()
@@ -696,7 +724,7 @@ class TagMergeTask(LLMTask):
             .exclude(pk__in=covered)
             .order_by("requeue_count", "created_at", "pk")
         )
-        per_call = settings.TAG_LLM_TAGS_PER_CALL
+        per_call = self.batch_size
         batches, batch, total = [], [], 0
         # Fresh clusters first; clusters sent back after a failed call go to the back.
         for cluster in list(pending[: self.PACK_WINDOW]):

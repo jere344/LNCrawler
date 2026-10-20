@@ -6,15 +6,19 @@ from ...services import llm_tasks
 
 
 class Command(BaseCommand):
-    help = "Enqueue and process LLMRequest rows for one LLM task (see services/llm_tasks.py)."
+    help = (
+        "Enqueue and process LLMRequest rows (see services/llm_tasks.py). "
+        "Without a task, every task takes turns."
+    )
 
     def add_arguments(self, parser):
-        parser.add_argument("task", choices=sorted(llm_tasks.REGISTRY))
+        parser.add_argument("task", nargs="?", choices=sorted(llm_tasks.REGISTRY))
         parser.add_argument(
             "--limit",
             type=int,
             default=None,
-            help="Max requests to process this run (default: the task's calls_per_tick).",
+            help="Max requests to process this run (default: until the provider limits, "
+                 "the daily budget or an empty queue stops it).",
         )
         parser.add_argument(
             "--dry-run",
@@ -24,18 +28,18 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         task_name = options["task"]
-        task = llm_tasks.REGISTRY[task_name]
-        limit = options["limit"] or task.calls_per_tick()
+        names = [task_name] if task_name else sorted(llm_tasks.REGISTRY)
 
         if options["dry_run"]:
-            created = task.enqueue(limit)
-            pending = LLMRequest.objects.filter(task=task_name, status=LLMRequest.STATUS_PENDING).count()
-            self.stdout.write(f"{task_name}: enqueued {created}, pending {pending} (dry run, no LLM call)")
+            for name in names:
+                created = llm_tasks._top_up(llm_tasks.REGISTRY[name], options["limit"])
+                pending = LLMRequest.objects.filter(task=name, status=LLMRequest.STATUS_PENDING).count()
+                self.stdout.write(f"{name}: enqueued {created}, pending {pending} (dry run, no LLM call)")
             return
 
         if not settings.LLM_API_KEY:
-            self.stdout.write(f"{task_name}: skipped (LLM_API_KEY not set)")
+            self.stdout.write(f"{task_name or 'queue'}: skipped (LLM_API_KEY not set)")
             return
 
-        counts = llm_tasks.run_task(task_name, limit, stdout=self.stdout)
-        self.stdout.write(f"{task_name}: {counts}")
+        counts = llm_tasks.run_queue([task_name] if task_name else None, options["limit"], stdout=self.stdout)
+        self.stdout.write(f"{task_name or 'all tasks'}: {counts}")

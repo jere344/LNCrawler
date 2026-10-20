@@ -204,7 +204,7 @@ LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
 
 # Cross-source novel dedup (find_merge_candidates). certainty is 0..1; the
-# command only queues candidates, the LLM judge (MERGE_LLM_AUTO_CONFIDENCE) or a
+# command only queues candidates, the LLM judge (run_llm_queue) or a
 # human merges them.
 # Pairs at/above this certainty are queued for manual review.
 MERGE_REVIEW_LOW = 0.5
@@ -234,11 +234,11 @@ LLM_TIMEOUT = 30
 # and 200k tokens per day; the token default keeps a margin under that.
 LLM_DAILY_REQUESTS = int(os.environ.get("LLM_DAILY_REQUESTS", "1000"))
 LLM_DAILY_TOKENS = int(os.environ.get("LLM_DAILY_TOKENS", "180000"))
+# Per-minute caps (Groq free tier for gpt-oss-20b: 30 requests and 8K tokens per minute).
+LLM_REQUESTS_PER_MINUTE = int(os.environ.get("LLM_REQUESTS_PER_MINUTE", "30"))
+LLM_TOKENS_PER_MINUTE = int(os.environ.get("LLM_TOKENS_PER_MINUTE", "8000"))
 
 # Novel merge judge (LLMRequest task "novel_merge", see services/llm_tasks.py).
-MERGE_LLM_MAX_TOKENS = 2048  # novel-judge reply cap (reasoning counts toward it)
-MERGE_LLM_LIMIT_PER_TICK = 20  # cap per scheduler tick (bounds blocking)
-MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
 # A confident "different" verdict dismisses a low-certainty pair (status skipped)
 # so the reviewer never sees it. Certainty at/above the cap always stays queued.
 MERGE_LLM_DISMISS_CONFIDENCE = float(os.environ.get("MERGE_LLM_DISMISS_CONFIDENCE", "0.9"))
@@ -269,18 +269,10 @@ TAG_COOC_TOP_K = 5
 TAG_TRGM_MIN = 0.6
 # Largest group sent to the judge as one cluster.
 TAG_CLUSTER_MAX = 12
-# LLM judging reuses LLM_PROVIDER/MODEL/API_KEY. Budget and batching:
-TAG_LLM_CALLS_PER_TICK = 3  # requests per scheduler tick
-TAG_LLM_TAGS_PER_CALL = 30  # pack clusters until this many tags are in one call
-TAG_LLM_INTERVAL = 600  # seconds between judge ticks
-TAG_LLM_MAX_TOKENS = 4096
+# LLM judging reuses LLM_PROVIDER/MODEL/API_KEY (batch sizes live in llm_tasks.py).
 # R18 tag classifier (services/llm_tasks.py, TagR18Task). Runs through LLMRequest.
-TAG_R18_LLM_TAGS_PER_CALL = int(os.environ.get("TAG_R18_LLM_TAGS_PER_CALL", "50"))
-TAG_R18_LLM_CALLS_PER_TICK = int(os.environ.get("TAG_R18_LLM_CALLS_PER_TICK", "2"))
-TAG_R18_LLM_INTERVAL = int(os.environ.get("TAG_R18_LLM_INTERVAL", "1800"))  # seconds
 # Only R18 verdicts at or above this confidence flag the tag as adult.
 TAG_R18_LLM_MIN_CONFIDENCE = float(os.environ.get("TAG_R18_LLM_MIN_CONFIDENCE", "0.85"))
-TAG_R18_LLM_MAX_TOKENS = int(os.environ.get("TAG_R18_LLM_MAX_TOKENS", "4096"))
 # Safeguards: sets below this confidence, or joining two tags used by more than
 # TAG_BIG_TAG_USAGE sources, wait for review instead of being applied.
 TAG_AUTO_MIN_CONFIDENCE = 0.85
@@ -288,7 +280,6 @@ TAG_BIG_TAG_USAGE = 200
 
 # Author merge (services/author_merge_service.py). The LLM judge (AuthorMergeTask)
 # reuses LLM_PROVIDER/MODEL/API_KEY and runs through LLMRequest.
-AUTHOR_MERGE_LLM_BATCH = int(os.environ.get("AUTHOR_MERGE_LLM_BATCH", "20"))  # pairs per call
 # Only "same" verdicts at or above this confidence are merged; the rest wait for review.
 AUTHOR_MERGE_LLM_MIN_CONFIDENCE = float(os.environ.get("AUTHOR_MERGE_LLM_MIN_CONFIDENCE", "0.85"))
 

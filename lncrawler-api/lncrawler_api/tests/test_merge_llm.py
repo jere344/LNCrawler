@@ -6,7 +6,6 @@ from datetime import timedelta
 from unittest import mock
 
 from django.apps import apps
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import override_settings
@@ -52,8 +51,8 @@ def _judge_pair(profile_a, profile_b, session=None):
     """One judge call and parse: what the removed llm_service.judge() did."""
     content, _tokens = llm_service._post_chat(
         llm_service.build_messages(profile_a, profile_b),
-        settings.MERGE_LLM_MAX_TOKENS,
-        LLMUsage.PURPOSE_NOVEL,
+        llm_tasks.REGISTRY["novel_merge"].max_tokens,
+        "novel_merge",
         session=session,
     )
     return llm_service._parse_content(content)
@@ -323,7 +322,7 @@ class UsageLedgerTests(MergeTestCase):
         with self.assertRaises(llm_service.LLMTruncated):
             _judge_pair({"title": "a"}, {"title": "b"}, session=session)
         rows = list(LLMUsage.objects.order_by("pk").values_list("purpose", "tokens"))
-        self.assertEqual(rows, [("novel", 900), ("novel", 2048)])
+        self.assertEqual(rows, [("novel_merge", 900), ("novel_merge", 2048)])
 
     def test_no_row_on_rate_limit_or_http_error(self):
         for response in (_Response(429, headers={}), _Response(500, text="boom")):
@@ -340,8 +339,8 @@ class UsageLedgerTests(MergeTestCase):
 
     @override_settings(LLM_DAILY_TOKENS=1000)
     def test_budget_left_counts_all_purposes(self):
-        LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_NOVEL, tokens=300)
-        LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=200)
+        LLMUsage.objects.create(purpose="novel_merge", tokens=300)
+        LLMUsage.objects.create(purpose="tag_merge", tokens=200)
         self.assertEqual(llm_service.tokens_used_today(), 500)
         self.assertEqual(llm_service.token_budget_left(), 500)
 
@@ -359,18 +358,19 @@ class JudgeTokenBudgetTests(MergeTestCase):
             ))
 
     @override_settings(LLM_API_KEY="key",
-                       MERGE_LLM_MAX_TOKENS=2048, LLM_DAILY_TOKENS=171000)
-    def test_stops_before_call_when_budget_below_reserve(self):
-        LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=170000)
+                       LLM_DAILY_TOKENS=171000, LLM_TOKENS_PER_MINUTE=1000000)
+    def test_stops_before_call_when_budget_below_one_call(self):
+        # 1000 left is below CALL_TOKENS (1500).
+        LLMUsage.objects.create(purpose="tag_merge", tokens=170000)
         with mock.patch.object(llm_service, "_post_chat") as post:
             call_command("run_llm_requests", "novel_merge")
         post.assert_not_called()
 
     @override_settings(LLM_API_KEY="key",
-                       MERGE_LLM_MAX_TOKENS=2048, LLM_DAILY_TOKENS=4000)
+                       LLM_DAILY_TOKENS=4000, LLM_TOKENS_PER_MINUTE=1000000)
     def test_budget_checked_before_every_call(self):
         def spend(*args, **kwargs):
-            LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_NOVEL, tokens=5000)
+            LLMUsage.objects.create(purpose="novel_merge", tokens=5000)
             return json.dumps({"same": True, "confidence": 0.9, "reason": "same"}), 5000
 
         with mock.patch.object(llm_service, "_post_chat", side_effect=spend) as post:
@@ -381,8 +381,7 @@ class JudgeTokenBudgetTests(MergeTestCase):
         self.assertIsNotNone(self.candidates[0].llm_checked_at)
         self.assertIsNone(self.candidates[1].llm_checked_at)
 
-    @override_settings(LLM_API_KEY="key",
-                       MERGE_LLM_MAX_TOKENS=2048, LLM_DAILY_TOKENS=180000)
+    @override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=180000)
     def test_truncated_reply_leaves_candidate_unchecked(self):
         payload = _chat_payload("", "length", total_tokens=2048)
         with mock.patch.object(llm_service.requests, "post",

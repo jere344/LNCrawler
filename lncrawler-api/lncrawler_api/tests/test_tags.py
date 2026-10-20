@@ -1094,10 +1094,12 @@ class _JudgeFixture(TestCase):
         return cluster
 
     def _run_judge(self, chat, **overrides):
-        """Run one tag_merge tick. ``chat`` is an exception to raise, or a function
-        returning the reply (a dict is sent as JSON, a str as-is)."""
-        settings_overrides = {"LLM_API_KEY": "k", "TAG_LLM_TAGS_PER_CALL": 2,
-                              "TAG_LLM_CALLS_PER_TICK": 1, **overrides}
+        """Run one tag_merge run. ``chat`` is an exception to raise, or a function
+        returning the reply (a dict is sent as JSON, a str as-is). ``batch_size``
+        sets the tags per call and ``limit`` the requests per run."""
+        batch_size = overrides.pop("batch_size", 2)
+        limit = overrides.pop("limit", 1)
+        settings_overrides = {"LLM_API_KEY": "k", **overrides}
 
         def post(messages, *args, **kwargs):
             if isinstance(chat, Exception):
@@ -1106,8 +1108,9 @@ class _JudgeFixture(TestCase):
             return (reply if isinstance(reply, str) else json.dumps(reply)), 10
 
         with override_settings(**settings_overrides), \
+                mock.patch.object(llm_tasks.TagMergeTask, "batch_size", batch_size), \
                 mock.patch.object(llm_service, "_post_chat", side_effect=post) as mocked:
-            call_command("run_llm_requests", "tag_merge")
+            call_command("run_llm_requests", "tag_merge", limit=limit)
         return mocked
 
     def _run_until_failed(self, chat, **overrides):
@@ -1121,7 +1124,7 @@ class TagJudgeBudgetTests(_JudgeFixture):
     def test_unusable_paid_call_still_counts_against_the_daily_budget(self):
         def paid_but_unusable(*args, **kwargs):
             # _post_chat writes the LLMUsage row before the reply is checked.
-            LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=10)
+            LLMUsage.objects.create(purpose="tag_merge", tokens=10)
             return "no json"
 
         self._run_judge(paid_but_unusable, LLM_DAILY_REQUESTS=1)
@@ -1164,7 +1167,7 @@ class TagJudgeOrderTests(_JudgeFixture):
 class TagJudgeFailureTests(_JudgeFixture):
     def test_failed_batch_requeues_every_cluster_in_it(self):
         # Both clusters fit one call (4 tags), so one bad reply hits both.
-        self._run_until_failed("no json", TAG_LLM_TAGS_PER_CALL=4)
+        self._run_until_failed("no json", batch_size=4)
         request = LLMRequest.objects.get(task="tag_merge")
         self.assertEqual(request.status, LLMRequest.STATUS_FAILED)
         self.assertEqual(request.attempts, 3)
@@ -1176,10 +1179,10 @@ class TagJudgeFailureTests(_JudgeFixture):
             self.assertIsNone(cluster.llm_batch)
 
     def test_requeued_clusters_are_judged_alone(self):
-        self._run_until_failed("no json", TAG_LLM_TAGS_PER_CALL=4)
+        self._run_until_failed("no json", batch_size=4)
         # Both clusters would fit one call; requeued ones must each get their own.
         mocked = self._run_judge(lambda *a, **k: {"groups": []},
-                                 TAG_LLM_TAGS_PER_CALL=10, TAG_LLM_CALLS_PER_TICK=2)
+                                 batch_size=10, limit=2)
         self.assertEqual(mocked.call_count, 2)
         first, second = (call.args[0][-1]["content"] for call in mocked.call_args_list)
         self.assertIn("Isekai", first)
@@ -1189,7 +1192,7 @@ class TagJudgeFailureTests(_JudgeFixture):
 
     def test_failed_single_cluster_request_is_closed_as_error(self):
         # Two clusters of two tags, one call per tick: only cluster_a is sent.
-        self._run_until_failed("no json", TAG_LLM_TAGS_PER_CALL=2)
+        self._run_until_failed("no json", batch_size=2)
         self.cluster_a.refresh_from_db()
         self.cluster_b.refresh_from_db()
         self.assertEqual(self.cluster_a.status, TagCluster.STATUS_ERROR)
@@ -1198,7 +1201,7 @@ class TagJudgeFailureTests(_JudgeFixture):
         self.assertEqual(self.cluster_b.requeue_count, 0)
 
     def test_http_error_is_capped_like_a_parse_error(self):
-        self._run_until_failed(llm_service.LLMError("HTTP 500"), TAG_LLM_TAGS_PER_CALL=4)
+        self._run_until_failed(llm_service.LLMError("HTTP 500"), batch_size=4)
         request = LLMRequest.objects.get(task="tag_merge")
         self.assertEqual(request.status, LLMRequest.STATUS_FAILED)
         self.assertEqual(request.attempts, 3)
@@ -1207,7 +1210,7 @@ class TagJudgeFailureTests(_JudgeFixture):
 
     def test_failed_request_is_not_retried_within_the_same_run(self):
         # Three calls allowed, two clusters: each is tried once, then the run stops.
-        mocked = self._run_judge("no json", TAG_LLM_CALLS_PER_TICK=3, TAG_LLM_TAGS_PER_CALL=2)
+        mocked = self._run_judge("no json", limit=3, batch_size=2)
         self.assertEqual(mocked.call_count, 2)
         for cluster in (self.cluster_a, self.cluster_b):
             cluster.refresh_from_db()
@@ -1231,7 +1234,7 @@ class TagJudgeInFlightTests(_JudgeFixture):
             TagCluster.objects.filter(pk=self.cluster_a.pk).update(status=TagCluster.STATUS_REVIEW)
             return self.TWO_GROUPS
 
-        self._run_judge(leave_pending, TAG_LLM_TAGS_PER_CALL=4)
+        self._run_judge(leave_pending, batch_size=4)
 
         self.cluster_a.refresh_from_db()
         self.assertEqual(self.cluster_a.status, TagCluster.STATUS_REVIEW)
@@ -1245,7 +1248,7 @@ class TagJudgeInFlightTests(_JudgeFixture):
             Tag.objects.filter(pk=self.tags[1].pk).delete()
             return self.TWO_GROUPS
 
-        self._run_judge(delete_tag, TAG_LLM_TAGS_PER_CALL=4)
+        self._run_judge(delete_tag, batch_size=4)
 
         self.cluster_b.refresh_from_db()
         self.assertEqual(self.cluster_b.llm_response["sets"][0]["members"], [self.tags[2].pk, self.tags[3].pk])
@@ -1275,12 +1278,12 @@ class TagJudgeTokenBudgetTests(_JudgeFixture):
 
     def test_budget_checked_before_every_call(self):
         def spend(*args, **kwargs):
-            LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=7000)
+            LLMUsage.objects.create(purpose="tag_merge", tokens=7000)
             return {"groups": []}
 
-        # Reserve is TAG_LLM_MAX_TOKENS (4096) + 3000: the first call fits, the second does not.
-        mocked = self._run_judge(spend, LLM_DAILY_TOKENS=8000,
-                                 TAG_LLM_CALLS_PER_TICK=3, TAG_LLM_TAGS_PER_CALL=2)
+        # Each call is charged CALL_TOKENS (1500): after the first, 1000 of 8000 is left.
+        mocked = self._run_judge(spend, LLM_DAILY_TOKENS=8000, LLM_TOKENS_PER_MINUTE=100000,
+                                 limit=3, batch_size=2)
         self.assertEqual(mocked.call_count, 1)
 
 
