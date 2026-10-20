@@ -78,7 +78,7 @@ class MadaraTemplate(SearchableSoupTemplate, ChapterOnlyBrowserTemplate):
             use_alternate = True
         except Exception as e:
             use_alternate = True
-            logger.debug("Failed to fetch chapters using ajax", e)
+            logger.debug("Failed to fetch chapters using ajax: %s", e)
 
         if use_alternate:
             nl_id = soup.select_one("#manga-chapters-holder[data-id]")
@@ -97,7 +97,7 @@ class MadaraTemplate(SearchableSoupTemplate, ChapterOnlyBrowserTemplate):
                 chapters = soup.select("ul.main .wp-manga-chapter a")
                 yield from reversed(chapters)
             except Exception as e:
-                logger.debug("Failed to fetch chapters using alternate method", e)
+                logger.debug("Failed to fetch chapters using alternate method: %s", e)
 
     def parse_chapter_item(self, tag: Tag, id: int) -> Chapter:
         return Chapter(

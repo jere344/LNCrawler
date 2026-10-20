@@ -20,10 +20,10 @@ class SearchableSoupTemplate(GeneralSoupTemplate):
         for tag in tags:
             if not isinstance(tag, Tag):
                 continue
+            yield self.parse_search_item(tag)
             count += 1
             if count == 10:
                 break
-            yield self.parse_search_item(tag)
 
     @abstractmethod
     def select_search_items(self, query: str) -> Generator[Tag, None, None]:

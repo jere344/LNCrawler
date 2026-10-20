@@ -24,14 +24,14 @@ PROVIDER_URLS = {
 
 
 def provider_url():
-    override = getattr(settings, "EMBED_BASE_URL", "")
+    override = settings.EMBED_BASE_URL
     if override:
         return override
-    return PROVIDER_URLS.get(getattr(settings, "EMBED_PROVIDER", "mistral"))
+    return PROVIDER_URLS.get(settings.EMBED_PROVIDER)
 
 
 def is_configured():
-    return bool(provider_url()) and bool(getattr(settings, "EMBED_API_KEY", ""))
+    return bool(provider_url()) and bool(settings.EMBED_API_KEY)
 
 
 def embed(texts, session=None):
@@ -42,22 +42,22 @@ def embed(texts, session=None):
     url = provider_url()
     if not url:
         raise llm_service.LLMError(
-            f"unknown embedding provider: {getattr(settings, 'EMBED_PROVIDER', '')}"
+            f"unknown embedding provider: {settings.EMBED_PROVIDER}"
         )
 
     headers = {"Content-Type": "application/json"}
-    key = getattr(settings, "EMBED_API_KEY", "")
+    key = settings.EMBED_API_KEY
     if key:
         headers["Authorization"] = f"Bearer {key}"
     body = {"model": settings.EMBED_MODEL, "input": texts}
-    if getattr(settings, "EMBED_PROVIDER", "") == "jina":
+    if settings.EMBED_PROVIDER == "jina":
         # Jina v5 (jina-embeddings-v5-omni-small, checked against the live API) takes a
         # task type; text-matching suits name-to-name similarity.
         body["task"] = "text-matching"
 
     poster = (session or requests).post
     resp = poster(
-        url, headers=headers, json=body, timeout=getattr(settings, "EMBED_TIMEOUT", 30)
+        url, headers=headers, json=body, timeout=settings.EMBED_TIMEOUT
     )
     if resp.status_code == 429:
         raise llm_service.RateLimited(retry_after=resp.headers.get("Retry-After"))

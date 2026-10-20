@@ -10,7 +10,7 @@ import {
   Alert,
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
-import { type ApiError } from '../../services/api';
+import { getApiErrorMessage } from '@utils/apiError';
 import { useTranslation } from 'react-i18next';
 
 interface CommentFormProps {
@@ -92,8 +92,7 @@ const CommentForm = ({
       
     } catch (err) {
       console.error('Error submitting comment:', err);
-      const apiErr = err as ApiError;
-      setError(apiErr?.response?.data?.error || t('comments.submitFailed'));
+      setError(getApiErrorMessage(err, t, 'comments.submitFailed'));
     } finally {
       setIsSubmitting(false);
     }

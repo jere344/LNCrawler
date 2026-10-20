@@ -1,22 +1,14 @@
 #!/bin/bash
 set -e
 
-echo "Waiting for database..."
-while ! pg_isready -h db -U $POSTGRES_USER -d $POSTGRES_DB -q; do
-  sleep 1
-done
-echo "Database is ready!"
+. "$(dirname "$0")/wait_for_db.sh"
+wait_for_db
 
 # echo "Checking migration status..."
 # python manage.py showmigrations
 
 echo "Applying migrations..."
 python manage.py migrate --noinput
-
-# One-time repair of cached Chapter.has_content from the on-disk metadata.
-# Idempotent and guarded by a marker, so it is a no-op on later boots.
-echo "Backfilling chapter content flags..."
-python manage.py backfill_chapter_has_content || echo "has_content backfill failed; continuing."
 
 # echo "Migration status after applying..."
 # python manage.py showmigrations

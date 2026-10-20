@@ -9,8 +9,9 @@ discriminants dropped that way are read back from the raw title here:
 * ``sequel_number``: "Foo 2", "Foo Season 2" or "Foo Volume 3" is not "Foo".
 """
 import re
-import unicodedata
 from difflib import SequenceMatcher
+
+from .text import fold
 
 _PAREN_RE = re.compile(r"[\(\[\{][^)\]\}]*[\)\]\}]")
 _BRACKET_CONTENT_RE = re.compile(r"[\(\[\{]([^)\]\}]*)[\)\]\}]")
@@ -32,18 +33,13 @@ _ORDINAL_SEASON_RE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)\s+(?:season|part)\b
 _TRAILING_NUMBER_RE = re.compile(r"\S\s+" + _NUMBER + r"$")
 
 
-def _fold(value):
-    decomposed = unicodedata.normalize("NFKD", value or "")
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
-
-
 def _words(value):
     return " ".join(_NON_WORD_RE.sub(" ", value).split())
 
 
 def normalize_text(value):
     """Case/accent-fold, drop bracketed suffixes and punctuation."""
-    stripped = _PAREN_RE.sub(" ", _fold(value))
+    stripped = _PAREN_RE.sub(" ", fold(value))
     return _words(stripped)
 
 
@@ -53,7 +49,7 @@ def edition_markers(title):
     Markers count inside brackets ("Foo (WN)") or as the trailing words
     ("Foo Web Novel"); a bare "raw" elsewhere in a title is a normal word.
     """
-    folded = _fold(title)
+    folded = fold(title)
     candidates = [_words(part) for part in _BRACKET_CONTENT_RE.findall(folded)]
     tail = _words(_PAREN_RE.sub(" ", folded))
     found = set()
@@ -68,7 +64,7 @@ def edition_markers(title):
 
 def _without_markers(title):
     """Folded title without brackets and without trailing edition words."""
-    folded = _words(_PAREN_RE.sub(" ", _fold(title)))
+    folded = _words(_PAREN_RE.sub(" ", fold(title)))
     for marker_spellings in _EDITION_SPELLINGS.values():
         for spelling in marker_spellings:
             if folded.endswith(" " + spelling):
@@ -108,7 +104,7 @@ def normalize_edition(value):
     Known spellings map to "wn", "ln" or "raw" ("Web Novel", "webnovel", "WN"
     all give "wn"); any other value gives its folded words.
     """
-    folded = _words(_fold(value))
+    folded = _words(fold(value))
     for marker, spellings in _EDITION_SPELLINGS.items():
         if folded in spellings:
             return marker

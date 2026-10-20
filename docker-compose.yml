@@ -86,6 +86,10 @@ services:
     # Hard cap so a runaway job/leak OOM-kills a crawler, not the host.
     # Sized for CRAWLER_CONCURRENCY jobs (each job is its own subprocess).
     mem_limit: ${CRAWLER_MEM_LIMIT:-2g}
+    # CPU cap per replica (cores): over it the crawler is throttled, not killed.
+    # Low cpu_shares so api/db/nginx win when the host is contended.
+    cpus: ${CRAWLER_CPUS:-1.5}
+    cpu_shares: 512
     deploy:
       replicas: ${CRAWLER_REPLICAS:-1}
     volumes: *api-volumes

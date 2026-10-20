@@ -5,8 +5,8 @@ from unittest import mock
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 
-from ..models import sources_models
-from ..models.sources_models import AUTHOR_IMPORT_ATTEMPTS, AuthorImportError, _set_source_authors
+from ..models import source_links
+from ..models.source_links import AUTHOR_IMPORT_ATTEMPTS, AuthorImportError, _set_source_authors
 from ..models import (
     Author,
     AuthorAlias,
@@ -17,9 +17,10 @@ from ..models import (
     Novel,
     NovelFromSource,
 )
-from ..services.author_merge_service import merge_authors, pair_signature, undo_author_merge
+from ..services.author_merge_service import merge_authors, undo_author_merge
 from ..services.llm_service import LLMParseError
 from ..services.llm_tasks import REGISTRY
+from ..services.merge_common import sorted_pk_signature
 from ..services.merge_service import MergeError
 from ..utils.author_names import normalize_author, script_runs
 
@@ -138,7 +139,7 @@ class AuthorMergeTests(TestCase):
     def test_merge_marks_other_pending_candidates_as_error(self):
         third = Author.objects.create(name="Third Name")
         other = AuthorMergeCandidate.objects.create(
-            signature=pair_signature([self.source.pk, third.pk]),
+            signature=sorted_pk_signature([self.source.pk, third.pk]),
             author_ids=sorted([self.source.pk, third.pk]),
             author_names=["Other Name", "Third Name"],
             reason=AuthorMergeCandidate.REASON_CROSS_SOURCE,
@@ -254,14 +255,14 @@ class AuthorFinderTests(TestCase):
         candidate = AuthorMergeCandidate.objects.get()
         self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_PENDING)
         self.assertEqual(candidate.reason, AuthorMergeCandidate.REASON_CROSS_SOURCE)
-        self.assertEqual(candidate.signature, pair_signature([cjk.pk, latin.pk]))
+        self.assertEqual(candidate.signature, sorted_pk_signature([cjk.pk, latin.pk]))
         self.assertEqual(Author.objects.count(), 3)
 
     def test_normalized_pair_merges_despite_a_pending_candidate(self):
         first = Author.objects.create(name="I Eat Tomatoes")
         second = Author.objects.create(name="i eat  tomatoes")
         AuthorMergeCandidate.objects.create(
-            signature=pair_signature([first.pk, second.pk]),
+            signature=sorted_pk_signature([first.pk, second.pk]),
             author_ids=sorted([first.pk, second.pk]),
             author_names=[first.name, second.name],
             reason=AuthorMergeCandidate.REASON_CROSS_SOURCE,
@@ -293,7 +294,7 @@ class AuthorFinderTests(TestCase):
 
         self.assertEqual(Author.objects.count(), 3)
         candidate = AuthorMergeCandidate.objects.get(
-            signature=pair_signature([first.pk, second.pk])
+            signature=sorted_pk_signature([first.pk, second.pk])
         )
         self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
         self.assertEqual(candidate.signals["merge_error"], "alias name already in use")
@@ -337,7 +338,7 @@ class AuthorMergeTaskTests(TestCase):
         self.pen = Author.objects.create(name="Pen Name")
         self.real = Author.objects.create(name="Real Name")
         self.candidate = AuthorMergeCandidate.objects.create(
-            signature=pair_signature([self.pen.pk, self.real.pk]),
+            signature=sorted_pk_signature([self.pen.pk, self.real.pk]),
             author_ids=sorted([self.pen.pk, self.real.pk]),
             author_names=["Pen Name", "Real Name"],
             reason=AuthorMergeCandidate.REASON_CROSS_SOURCE,
@@ -376,7 +377,7 @@ class AuthorMergeTaskTests(TestCase):
         combined = Author.objects.create(name="Okina Baba and Tsukasa Kiryu")
         okina = Author.objects.create(name="Okina Baba")
         candidate = AuthorMergeCandidate.objects.create(
-            signature=pair_signature([combined.pk, okina.pk]),
+            signature=sorted_pk_signature([combined.pk, okina.pk]),
             author_ids=sorted([combined.pk, okina.pk]),
             author_names=["Okina Baba and Tsukasa Kiryu", "Okina Baba"],
             reason=AuthorMergeCandidate.REASON_CROSS_SOURCE,
@@ -407,7 +408,7 @@ class AuthorMergeTaskTests(TestCase):
     def test_candidate_left_out_of_the_reply_is_flagged(self):
         third = Author.objects.create(name="Third Name")
         left_out = AuthorMergeCandidate.objects.create(
-            signature=pair_signature([self.pen.pk, third.pk]),
+            signature=sorted_pk_signature([self.pen.pk, third.pk]),
             author_ids=sorted([self.pen.pk, third.pk]),
             author_names=["Pen Name", "Third Name"],
             reason=AuthorMergeCandidate.REASON_CROSS_SOURCE,
@@ -451,17 +452,17 @@ class ImportAuthorLockingTests(TestCase):
 
     def test_merged_away_author_is_retried_with_one_lock_per_attempt(self):
         # The first lock reports Okina as gone (merged away between resolve and lock).
-        real_lock = sources_models._lock_author_pks
+        real_lock = source_links.lock_pks
         seen = []
 
-        def racing_lock(pks):
+        def racing_lock(model, pks):
             seen.append(sorted(pks))
-            result = real_lock(pks)
+            result = real_lock(model, pks)
             if len(seen) == 1:
                 result = result - {self.okina.pk}
             return result
 
-        with mock.patch.object(sources_models, "_lock_author_pks", side_effect=racing_lock):
+        with mock.patch.object(source_links, "lock_pks", side_effect=racing_lock):
             _set_source_authors(self.source, ["Cuttlefish That Loves Diving", "Okina Baba"])
 
         self.assertEqual(len(seen), 2)
@@ -469,7 +470,7 @@ class ImportAuthorLockingTests(TestCase):
 
     def test_gives_up_after_the_attempt_limit_and_keeps_old_links(self):
         self.source.authors.add(self.okina)
-        with mock.patch.object(sources_models, "_lock_author_pks", return_value=set()) as lock:
+        with mock.patch.object(source_links, "lock_pks", return_value=set()) as lock:
             with self.assertRaises(AuthorImportError):
                 _set_source_authors(self.source, ["Cuttlefish That Loves Diving"])
         self.assertEqual(lock.call_count, AUTHOR_IMPORT_ATTEMPTS)

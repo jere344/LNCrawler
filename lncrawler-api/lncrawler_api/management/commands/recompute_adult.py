@@ -13,7 +13,8 @@ import os
 
 from django.core.management.base import BaseCommand
 
-from ...models.sources_models import NovelFromSource, refresh_adult, resolve_output_path
+from ...models.sources_models import NovelFromSource, refresh_adult
+from ...models.source_helpers import resolve_output_path
 
 BATCH = 500
 

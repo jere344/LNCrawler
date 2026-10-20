@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 import logging
 
+from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
+from lncrawl.templates.madara import MadaraTemplate
 
 logger = logging.getLogger(__name__)
 search_url = "https://wuxiaworld.site/?s=%s&post_type=wp-manga"
 
 
-class WuxiaSiteCrawler(Crawler):
+class WuxiaSiteCrawler(MadaraTemplate):
     base_url = "https://wuxiaworld.site/"
 
     def search_novel(self, query):
@@ -56,62 +57,36 @@ class WuxiaSiteCrawler(Crawler):
                 break
         return results[offset : offset + limit]
 
-    def read_novel_info(self):
-        logger.debug("Visiting %s", self.novel_url)
-        soup = self.get_soup(self.novel_url)
-
+    def parse_title(self, soup: BeautifulSoup) -> str:
         possible_title = soup.select_one(".post-title")
         assert isinstance(possible_title, Tag)
         possible_title = possible_title.select_one("h1, h2, h3")
         assert isinstance(possible_title, Tag)
-        self.novel_title = " ".join(
+        return " ".join(
             [str(x) for x in possible_title.contents if not isinstance(x, Tag)]
         ).strip()
-        logger.info("Novel title: %s", self.novel_title)
 
-        possible_image = soup.select_one(".summary_image a img")
-        if isinstance(possible_image, Tag):
-            self.novel_cover = self.absolute_url(
-                possible_image.get("data-src") or possible_image["src"]
-            )
-        logger.info("Novel cover: %s", self.novel_cover)
-
+    def parse_authors(self, soup: BeautifulSoup):
         authors = soup.select(".author-content a")
         if len(authors) == 2:
-            self.novel_author = authors[0].text + " (" + authors[1].text + ")"
+            yield authors[0].text + " (" + authors[1].text + ")"
         elif len(authors) == 1:
-            self.novel_author = authors[0].text
-        logger.info("Novel author: %s", self.novel_author)
+            yield authors[0].text
 
-        self.novel_tags = [tag.text.strip() for tag in soup.select(".genres-content a")]
-        logger.info("Novel tags: %s", self.novel_tags)
+    def parse_genres(self, soup: BeautifulSoup):
+        for a in soup.select(".genres-content a"):
+            yield a.text.strip()
 
-        synopsis_tag = soup.select_one(".summary__content")
-        if synopsis_tag:
-            self.novel_synopsis = self.cleaner.extract_contents(synopsis_tag)
-        logger.info("Novel synopsis: %s", self.novel_synopsis)
+    def parse_summary(self, soup: BeautifulSoup):
+        tag = soup.select_one(".summary__content")
+        if isinstance(tag, Tag):
+            return self.cleaner.extract_contents(tag)
+        return ""
 
-        chapters = self.submit_form_for_soup(
-            self.novel_url.rstrip("/") + "/ajax/chapters/"
-        ).select(".wp-manga-chapter a")
-
-        for a in reversed(chapters):
-            chap_id = len(self.chapters) + 1
-            self.chapters.append(
-                {
-                    "id": chap_id,
-                    "title": a.text.strip(),
-                    "url": self.absolute_url(a["href"]),
-                }
-            )
-
-    def download_chapter_body(self, chapter):
-        soup = self.get_soup(chapter["url"])
-
+    def select_chapter_body(self, soup: BeautifulSoup) -> Tag:
         content = soup.select_one(".text-left")
         if not isinstance(content, Tag):
             content = soup.select_one(".cha-words")
         if not isinstance(content, Tag):
             content = soup.select_one(".reading-content")
-
-        return self.cleaner.extract_contents(content)
+        return content

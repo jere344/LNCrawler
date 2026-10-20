@@ -15,7 +15,6 @@ Every pure function here takes plain data so it can be unit tested without the
 network. Helpers that touch the database are kept small and explicit.
 """
 
-import hashlib
 import logging
 import time
 from collections import defaultdict
@@ -28,7 +27,9 @@ from django.db.models import Count, Q
 from scipy import sparse
 
 from . import embedding_service, llm_service
-from .merge_service import MergeError, block_tag_pair, lock_tags, merge_tags, rename_tag
+from .merge_common import sorted_pk_signature
+from .merge_service import MergeError, block_tag_pair, merge_tags, rename_tag
+from ..db_locks import lock_pks
 from ..models import Tag, TagCluster, TagNoMerge
 
 logger = logging.getLogger("lncrawler_api.merge")
@@ -311,17 +312,13 @@ def build_clusters(edges, max_size, blocked=()):
     return clusters
 
 
-def cluster_signature(tag_ids):
-    return hashlib.sha1(",".join(str(i) for i in sorted(tag_ids)).encode()).hexdigest()
-
-
 def store_clusters(clusters):
     """Create a pending ``TagCluster`` per new group. Returns how many were created."""
     all_ids = {pk for ids, _ in clusters for pk in ids}
     names = dict(Tag.objects.filter(pk__in=all_ids).values_list("pk", "name"))
     created = 0
     for ids, signals in clusters:
-        signature = cluster_signature(ids)
+        signature = sorted_pk_signature(ids)
         if TagCluster.objects.filter(signature=signature).exists():
             continue
         TagCluster.objects.create(
@@ -374,13 +371,6 @@ def build_judge_messages(groups):
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": "\n".join(lines).rstrip()},
     ]
-
-
-def _clamp_confidence(value):
-    try:
-        return max(0.0, min(1.0, float(value)))
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def parse_judge_response(data, label_maps):
@@ -438,7 +428,7 @@ def parse_judge_response(data, label_maps):
             results[index].append({
                 "members": [labels[label] for label in members],
                 "canonical": canonical,
-                "confidence": _clamp_confidence(raw_set.get("confidence")),
+                "confidence": llm_service.parse_confidence(raw_set.get("confidence")),
             })
     return results
 
@@ -620,7 +610,7 @@ def apply_cluster(cluster, force=False):
     signature = _plan_signature(plans)
     try:
         with transaction.atomic():
-            if lock_tags(involved) != involved:
+            if lock_pks(Tag, involved) != involved:
                 raise _PlanChanged()
             fresh, fresh_usage = plan_sets(sets)
             if _plan_signature(fresh) != signature:

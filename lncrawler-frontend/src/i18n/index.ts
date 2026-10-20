@@ -3,6 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import ICU from 'i18next-icu';
 import { availableLanguages } from '@utils/Misc';
+import { RTL_LANGUAGES } from '../generated/sharedConstants';
 
 // One chunk per locale so the browser only downloads the language in use.
 // Keys are derived from the filenames, so adding a locale needs no edit here.
@@ -36,10 +37,7 @@ const localeBackend = {
 
 export const FALLBACK_LANGUAGE = 'en';
 
-// Right-to-left languages, mirrored from the backend registry.
-export const RTL_LANGUAGES = ['ar'];
-
-export const isRtl = (code: string): boolean => RTL_LANGUAGES.includes(code);
+export const isRtl = (code: string): boolean => (RTL_LANGUAGES as readonly string[]).includes(code);
 
 // Resolves once the detected language (and English fallback) are loaded, so the
 // first render isn't a flash of translation keys.

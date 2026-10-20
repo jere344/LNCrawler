@@ -1,15 +1,12 @@
 import os
-import sys
 import threading
 import time
 import logging
 from pathlib import Path
 import django
-from ..utils import lncrawler_paths
 from ..utils import chapter_utils
-from ..utils.title_signals import edition_label_from_title, same_work
-
-from django.conf import settings
+from ..utils.crawler_path import CRAWLER_DIR, META_FILE_NAME, ensure_crawler_on_path
+from .downloader_helpers import _format_search_results, _is_expected_crawler_error, choose_crawl_output_path
 
 # Configure logger
 logger = logging.getLogger('lncrawler_api')
@@ -18,84 +15,17 @@ logger = logging.getLogger('lncrawler_api')
 _crawler_package_loaded = False
 
 
-def choose_crawl_output_path(source_host, title, edition="", source_url=""):
-    """Absolute folder a new crawl of ``title`` from ``source_host`` writes into.
-
-    A row already holding ``source_url`` keeps its recorded folder, even when
-    that folder is missing on disk (the caller recreates it). Otherwise the
-    default is ``<novel>/<site>``. A folder owned by another source row is reused
-    only when that row names the same work and no row holds ``source_url``;
-    otherwise the crawl gets a free ``<site> [..]`` folder in the same novel
-    folder. ``edition`` is the crawled edition label; the title marker is used
-    when it is empty. No folder is created here.
-    """
-    from ..models import NovelFromSource
-
-    url_known = False
-    if source_url:
-        url_rows = NovelFromSource.objects.filter(source_url=source_url).order_by('pk')
-        url_row = (
-            url_rows.exclude(source_path__isnull=True).exclude(source_path='').first()
-        )
-        if url_row is not None:
-            return os.path.join(settings.LNCRAWL_OUTPUT_PATH, url_row.source_path)
-        url_known = url_rows.exists()
-
-    default = lncrawler_paths.get_novel_output_path(
-        source=source_host, novel=title, create=False
-    )
-    rel = os.path.relpath(default, settings.LNCRAWL_OUTPUT_PATH)
-    owner = NovelFromSource.objects.filter(source_path=rel).order_by('pk').first()
-    if owner is None or (
-        not url_known and same_work(owner.title, owner.edition, title, edition)
-    ):
-        return default
-
-    novel_abs = os.path.dirname(default)
-    novel_rel = os.path.dirname(rel)
-    taken = {
-        os.path.basename(path)
-        for path in NovelFromSource.objects.filter(
-            source_path__startswith=novel_rel + os.sep
-        ).values_list('source_path', flat=True)
-        if os.path.dirname(path) == novel_rel
-    }
-    folder = lncrawler_paths.free_source_folder(
-        novel_abs, os.path.basename(default), edition or edition_label_from_title(title), taken
-    )
-    return os.path.join(novel_abs, folder)
-
-
 def _load_app():
     """Add the lncrawler-crawler package to sys.path and return its App class."""
     global _crawler_package_loaded
-    crawler_dir = Path(settings.BASE_DIR).parent / "lncrawler-crawler"
-    for path in (crawler_dir.parent, crawler_dir):
-        p = str(path)
-        if p not in sys.path:
-            sys.path.insert(0, p)
+    crawler_dir = CRAWLER_DIR
+    ensure_crawler_on_path()
     if not _crawler_package_loaded:
         if not (crawler_dir / "lncrawl" / "core" / "app.py").exists():
             raise ImportError(f"Could not find lncrawler-crawler package at {crawler_dir}")
         _crawler_package_loaded = True
     from lncrawl.core.app import App
     return App
-
-
-def _is_expected_crawler_error(exc) -> bool:
-    """True for failures that are not bugs in our code: source-level
-    ``LNException``s (novel unavailable: removed from the site, no downloads,
-    bad URL) and transport errors (HTTP 5xx / network / IO) that exhausted their
-    retries. Chapter-level failures are classified inside the crawler, so an
-    exception reaching the download loop is either one of these or a real bug."""
-    try:
-        from lncrawl.core.exeptions import LNException, RetryErrorGroup
-    except Exception:
-        return False
-    # An unsupported/disabled host is a user error, not a bug in our code.
-    if isinstance(exc, ValueError) and "No crawler available for host" in str(exc):
-        return True
-    return isinstance(exc, (LNException, *RetryErrorGroup))
 
 
 def _poll_download_progress(job, app, phase, total_chapters):
@@ -122,22 +52,30 @@ def _poll_download_progress(job, app, phase, total_chapters):
         )
 
 
-def _format_search_results(app):
-    """Convert App.search_results into the shape stored on Job.search_results."""
-    results = []
-    for novel_index, novel in enumerate(app.search_results):
-        sources = []
-        for source_index, source in enumerate(novel.get("novels", [])):
-            entry = {"index": source_index, "url": source.get("url", "")}
-            if source.get("info"):
-                entry["info"] = source["info"]
-            sources.append(entry)
-        results.append({
-            "index": novel_index,
-            "title": novel.get("title", ""),
-            "sources": sources,
-        })
-    return results
+def _start_progress_monitor(poll):
+    """Call ``poll()`` every two seconds on a daemon thread until stopped.
+
+    Returns ``(stop_monitoring, monitor_thread)``: set the event and join the
+    thread once the work it watches is done.
+    """
+    stop_monitoring = threading.Event()
+
+    def monitor_progress():
+        try:
+            while not stop_monitoring.is_set():
+                poll()
+                time.sleep(2)
+        finally:
+            # Threads get their own DB connection; close it so a
+            # long-lived worker does not accumulate Postgres sessions.
+            from django.db import connection
+            connection.close()
+
+    monitor_thread = threading.Thread(target=monitor_progress)
+    monitor_thread.daemon = True
+    monitor_thread.start()
+    return stop_monitoring, monitor_thread
+
 
 
 class DownloaderService:
@@ -255,22 +193,9 @@ class DownloaderService:
             total = len(app.crawler_links) or 1
             job.update_progress(0, total)
 
-            stop_monitoring = threading.Event()
-
-            def monitor_progress():
-                try:
-                    while not stop_monitoring.is_set():
-                        job.update_progress(app.progress, total)
-                        time.sleep(2)
-                finally:
-                    # Threads get their own DB connection; close it so a
-                    # long-lived worker does not accumulate Postgres sessions.
-                    from django.db import connection
-                    connection.close()
-
-            monitor_thread = threading.Thread(target=monitor_progress)
-            monitor_thread.daemon = True
-            monitor_thread.start()
+            stop_monitoring, monitor_thread = _start_progress_monitor(
+                lambda: job.update_progress(app.progress, total)
+            )
 
             try:
                 app.search_novel()
@@ -312,7 +237,7 @@ class DownloaderService:
         """
         try:
             # Find meta.json file in the output directory
-            meta_json_path = os.path.join(output_path, 'meta.json')
+            meta_json_path = os.path.join(output_path, META_FILE_NAME)
             if not os.path.exists(meta_json_path):
                 logger.error(f"meta.json file not found at {meta_json_path}")
                 return False, "meta.json file not found in the output directory"
@@ -369,22 +294,9 @@ class DownloaderService:
             # chapter download phase afterwards.
             phase = {"chapters": False}
             total_chapters = 0
-            stop_monitoring = threading.Event()
-
-            def monitor_progress():
-                try:
-                    while not stop_monitoring.is_set():
-                        _poll_download_progress(job, app, phase, total_chapters)
-                        time.sleep(2)
-                finally:
-                    # Threads get their own DB connection; close it so a
-                    # long-lived worker does not accumulate Postgres sessions.
-                    from django.db import connection
-                    connection.close()
-
-            monitor_thread = threading.Thread(target=monitor_progress)
-            monitor_thread.daemon = True
-            monitor_thread.start()
+            stop_monitoring, monitor_thread = _start_progress_monitor(
+                lambda: _poll_download_progress(job, app, phase, total_chapters)
+            )
 
             try:
                 # Fetch novel info (title, chapters, volumes). This is slow for

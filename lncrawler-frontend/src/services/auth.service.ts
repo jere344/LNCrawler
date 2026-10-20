@@ -1,4 +1,5 @@
 import api from './api';
+import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../utils/storage';
 
 // Authentication service functions
 export const authService = {
@@ -38,8 +39,8 @@ export const authService = {
     
     // Store the token in localStorage
     if (response.data.token) {
-      localStorage.setItem('authToken', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem(AUTH_TOKEN_KEY, response.data.token);
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.data.user));
       
       // Set token in axios defaults for future requests
       api.defaults.headers.common['Authorization'] = `Token ${response.data.token}`;
@@ -56,8 +57,8 @@ export const authService = {
       return response.data;
     } finally {
       // Clear auth data from storage regardless of the server response.
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('user');
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
       delete api.defaults.headers.common['Authorization'];
     }
   },
@@ -106,7 +107,7 @@ export const authService = {
       
       // Update stored user info
       if (response.data) {
-        localStorage.setItem('user', JSON.stringify(response.data));
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.data));
       }
       
       return response.data;
@@ -115,7 +116,7 @@ export const authService = {
       
       // Update stored user info
       if (response.data) {
-        localStorage.setItem('user', JSON.stringify(response.data));
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.data));
       }
       
       return response.data;
@@ -142,7 +143,7 @@ export const authService = {
     
     // Update token if returned
     if (response.data.token) {
-      localStorage.setItem('authToken', response.data.token);
+      localStorage.setItem(AUTH_TOKEN_KEY, response.data.token);
       api.defaults.headers.common['Authorization'] = `Token ${response.data.token}`;
     }
     
@@ -167,14 +168,14 @@ export const authService = {
 
   // Helper method to check if user is authenticated
   isAuthenticated: () => {
-    return !!localStorage.getItem('authToken');
+    return !!localStorage.getItem(AUTH_TOKEN_KEY);
   },
   
   // Keep the shared API auth header in sync with localStorage. Needed for
   // cross-tab login/logout, where the storage event fires but this module's
   // in-memory `defaults` is stale.
   syncAuthHeader: () => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (token) {
       api.defaults.headers.common['Authorization'] = `Token ${token}`;
     } else {
@@ -184,13 +185,13 @@ export const authService = {
   
   // Helper method to get current user
   getCurrentUser: () => {
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem(AUTH_USER_KEY);
     if (!userStr) return null;
     try {
       return JSON.parse(userStr);
     } catch {
       // A corrupted entry must not crash the app; drop it.
-      localStorage.removeItem('user');
+      localStorage.removeItem(AUTH_USER_KEY);
       return null;
     }
   },

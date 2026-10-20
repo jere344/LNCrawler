@@ -507,9 +507,8 @@ def home_page(request):
     # NULLs sort first on PostgreSQL by default; never-updated sources would top
     # the strip, so push them to the end.
     recently_updated_qs = sources_queryset().filter(novel__is_dmca=False)
-    if not adult_allowed(request.user):
-        # Novel-level: hide the whole novel if any of its sources is adult.
-        recently_updated_qs = recently_updated_qs.exclude(novel__sources__is_adult=True)
+    # Novel-level: hide the whole novel if any of its sources is adult.
+    recently_updated_qs = exclude_adult(recently_updated_qs, request.user, 'novel__')
     recently_updated_qs = recently_updated_qs.order_by(
         F('last_chapter_update').desc(nulls_last=True)
     )
@@ -551,16 +550,14 @@ def home_page(request):
     recently_updated_fresh = sources_queryset().filter(
         pk__in=rankings['recently_updated'], novel__is_dmca=False
     )
-    if not adult_allowed(request.user):
-        recently_updated_fresh = recently_updated_fresh.exclude(novel__sources__is_adult=True)
+    recently_updated_fresh = exclude_adult(recently_updated_fresh, request.user, 'novel__')
     recently_updated = _in_order(recently_updated_fresh, rankings['recently_updated'])
 
     # Get recent reviews (restricted to novels in the selected languages)
     recent_reviews_qs = Review.objects.select_related('user', 'novel').filter(
         novel__is_dmca=False
     )
-    if not adult_allowed(request.user):
-        recent_reviews_qs = recent_reviews_qs.exclude(novel__sources__is_adult=True)
+    recent_reviews_qs = exclude_adult(recent_reviews_qs, request.user, 'novel__')
     recent_reviews_qs = recent_reviews_qs.order_by('-created_at')
     if languages:
         recent_reviews_qs = recent_reviews_qs.filter(

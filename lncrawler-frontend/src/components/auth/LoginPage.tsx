@@ -23,6 +23,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth.service';
 import type { ApiError } from '../../services/api';
+import { apiErrorMessage } from '@utils/apiError';
 
 const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -52,13 +53,7 @@ const LoginPage: React.FC = () => {
       navigate('/'); // Redirect to home page after successful login
     } catch (error) {
       const err = error as ApiError;
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
-      } else {
-        setError(t('auth.loginFailed'));
-      }
+      setError(apiErrorMessage(err) || err.response?.data?.detail || t('auth.loginFailed'));
       console.error('Login error:', error);
     } finally {
       setLoading(false);

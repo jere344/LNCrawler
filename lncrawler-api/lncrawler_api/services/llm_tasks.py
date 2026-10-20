@@ -5,7 +5,6 @@ queueing, retries, rate-limit handling and budget checks from ``run_task``.
 Domain tables keep their own decisions; this module only drives the queue.
 """
 import json
-import math
 import logging
 from datetime import timedelta
 
@@ -195,15 +194,24 @@ class TagR18Task(LLMTask):
     usage_purpose = LLMUsage.PURPOSE_R18
     max_tokens = settings.TAG_R18_LLM_MAX_TOKENS
 
+    RATINGS = ("explicit", "suggestive", "none")
+
     SYSTEM_PROMPT = (
-        "You classify light-novel tags. For each tag, answer r18 true only when the "
-        "tag itself names sexually explicit content (for example 'Smut', 'Hentai', "
-        "'Explicit Sex'). Content ratings and mature or suggestive themes are NOT "
-        "R18: 'Adult', 'Mature', 'Ecchi', 'Gore', 'Violence', 'Romance', 'Harem' all "
-        "answer false, because sites use them for works that are not explicit. When "
-        "unsure, answer false with low confidence. "
-        'Reply with JSON only, in the form {"tags": [{"id": <int>, "r18": true|false, '
-        '"confidence": <0..1>}]}.'
+        "You classify light-novel tags by how sexual the tag name itself is. Rate each tag "
+        "'explicit', 'suggestive' or 'none'. "
+        "explicit: the tag names a sex act, sexual body parts in a sexual context, or a "
+        "pornographic genre, so the tag alone makes the work porn (for example 'Smut', "
+        "'Hentai', 'Explicit Sex', 'Gangbang', 'Blowjob'). "
+        "suggestive: sex appeal, attractiveness, character archetypes, fan service or "
+        "mature themes without naming explicit sex (for example 'Sexy', 'Hot', 'MILF', "
+        "'Lewd', 'Fan Service', 'Big Breasts', 'Seductive', 'Succubus', 'Ecchi', 'Adult', "
+        "'Mature'). "
+        "none: everything else, including 'Gore', 'Violence', 'Romance', 'Harem'. "
+        "Only explicit tags hide a novel from most readers, so a wrong explicit rating is "
+        "costly: answer explicit only when the tag is unambiguously pornographic, and "
+        "answer suggestive whenever you hesitate between the two. "
+        'Reply with JSON only, in the form {"tags": [{"id": <int>, "rating": '
+        '"explicit"|"suggestive"|"none", "confidence": <0..1>}]}.'
     )
 
     def calls_per_tick(self):
@@ -262,18 +270,16 @@ class TagR18Task(LLMTask):
         for item in items:
             if not isinstance(item, dict):
                 continue
-            tag_id, r18, confidence = item.get("id"), item.get("r18"), item.get("confidence")
-            if type(tag_id) is not int or tag_id not in allowed or not isinstance(r18, bool):
+            tag_id, rating, confidence = item.get("id"), item.get("rating"), item.get("confidence")
+            if type(tag_id) is not int or tag_id not in allowed:
                 continue
-            if (
-                not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
-                or not math.isfinite(confidence)  # json.loads accepts NaN; jsonb does not
-            ):
-                confidence = 0.0
+            if not isinstance(rating, str) or rating not in self.RATINGS:
+                continue
             tags.append({
                 "id": tag_id,
-                "r18": r18,
-                "confidence": min(max(float(confidence), 0.0), 1.0),
+                "rating": rating,
+                "r18": rating == "explicit",
+                "confidence": llm_service.parse_confidence(confidence, strict=True),
             })
         if not tags:
             raise LLMParseError("no valid tag entries in reply")
@@ -400,8 +406,8 @@ class NovelMergeTask(LLMTask):
         # skip it. Strong deterministic matches stay queued even when the LLM
         # disagrees, so a human still decides them. Only while still pending, so
         # a re-apply never overrides a decision already made.
-        dismiss_confidence = getattr(settings, "MERGE_LLM_DISMISS_CONFIDENCE", 0.9)
-        dismiss_max_certainty = getattr(settings, "MERGE_LLM_DISMISS_MAX_CERTAINTY", 0.8)
+        dismiss_confidence = settings.MERGE_LLM_DISMISS_CONFIDENCE
+        dismiss_max_certainty = settings.MERGE_LLM_DISMISS_MAX_CERTAINTY
         confidence = float(result.get("confidence") or 0.0)
         if (
             candidate.status == MergeCandidate.STATUS_PENDING
@@ -531,16 +537,10 @@ class AuthorMergeTask(LLMTask):
                 continue
             if verdict not in ("same", "different"):
                 continue
-            confidence = item.get("confidence")
-            if (
-                not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
-                or not math.isfinite(confidence)  # json.loads accepts NaN; jsonb does not
-            ):
-                confidence = 0.0
             results.append({
                 "id": candidate_id,
                 "verdict": verdict,
-                "confidence": min(max(float(confidence), 0.0), 1.0),
+                "confidence": llm_service.parse_confidence(item.get("confidence"), strict=True),
             })
         if not results:
             raise LLMParseError("no valid author entries in reply")

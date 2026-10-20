@@ -21,7 +21,9 @@
     "profile": "Profil",
     "logout": "Log ud",
     "account": "Konto",
-    "seeMore": "Vis mere"
+    "seeMore": "Vis mere",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {lige nu} one {# sekund siden} other {# sekunder siden}}",

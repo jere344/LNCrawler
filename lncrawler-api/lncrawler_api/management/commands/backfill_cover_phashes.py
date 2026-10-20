@@ -1,6 +1,6 @@
 """Backfill ``NovelFromSource.cover_phash`` for the covers already on disk.
 
-New covers get their dHash at import (see ``cover_service.generate_cover_min``).
+New covers get their dHash at import (see ``covers.resize.generate_cover_min``).
 This fills in the historical backlog so cross-source cover matching has data.
 Idempotent: only rows with a NULL hash are touched.
 """
@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from lncrawler_api.models import NovelFromSource
-from lncrawler_api.services.cover_service import dhash_file
+from lncrawler_api.services.covers.hashing import dhash_file
 
 BATCH_SIZE = 500
 

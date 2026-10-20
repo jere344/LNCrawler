@@ -3,7 +3,7 @@
 import json
 from unittest import mock
 
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 
 from ..models import ExternalSource, LLMRequest, LLMUsage, Novel, Tag
 from ..services import llm_service, llm_tasks
@@ -49,8 +49,8 @@ class TagR18TaskTests(MergeTestCase):
 
         reply = json.dumps({
             "tags": [
-                {"id": strong.pk, "r18": True, "confidence": 0.95},
-                {"id": weak.pk, "r18": True, "confidence": 0.5},
+                {"id": strong.pk, "rating": "explicit", "confidence": 0.95},
+                {"id": weak.pk, "rating": "explicit", "confidence": 0.5},
             ]
         })
         with mock.patch.object(llm_service, "_post_chat", return_value=(reply, 42)):
@@ -132,9 +132,41 @@ class TagR18TaskTests(MergeTestCase):
         tag = Tag.objects.create(name="Smut")
         req = self.make_request([tag.pk])
         result = llm_tasks.REGISTRY["tag_r18"].parse(
-            req, '{"tags": [{"id": %d, "r18": true, "confidence": NaN}, {"id": 999999, "r18": true, "confidence": 1}]}' % tag.pk
+            req, '{"tags": [{"id": %d, "rating": "explicit", "confidence": NaN}, {"id": 999999, "rating": "explicit", "confidence": 1}]}' % tag.pk
         )
-        self.assertEqual(result, {"tags": [{"id": tag.pk, "r18": True, "confidence": 0.0}]})
+        self.assertEqual(
+            result,
+            {"tags": [{"id": tag.pk, "rating": "explicit", "r18": True, "confidence": 0.0}]},
+        )
+
+    def test_suggestive_tag_is_not_flagged_adult(self):
+        tag = Tag.objects.create(name="Sexy")
+        req = self.make_request([tag.pk])
+
+        reply = json.dumps({"tags": [{"id": tag.pk, "rating": "suggestive", "confidence": 0.99}]})
+        with mock.patch.object(llm_service, "_post_chat", return_value=(reply, 10)):
+            counts = llm_tasks.run_task("tag_r18", 5)
+
+        self.assertEqual(counts["done"], 1)
+        tag.refresh_from_db()
+        self.assertFalse(tag.is_adult)
+        req.refresh_from_db()
+        self.assertEqual(req.response["tags"][0]["rating"], "suggestive")
+        self.assertFalse(req.response["tags"][0]["r18"])
+
+    def test_parse_skips_unknown_rating(self):
+        porn = Tag.objects.create(name="Porn")
+        smut = Tag.objects.create(name="Smut")
+        req = self.make_request([porn.pk, smut.pk])
+        result = llm_tasks.REGISTRY["tag_r18"].parse(
+            req,
+            '{"tags": [{"id": %d, "rating": "porn", "confidence": 1}, '
+            '{"id": %d, "rating": "explicit", "confidence": 0.9}]}' % (porn.pk, smut.pk),
+        )
+        self.assertEqual(
+            result,
+            {"tags": [{"id": smut.pk, "rating": "explicit", "r18": True, "confidence": 0.9}]},
+        )
 
     def test_batch_with_no_tags_left_is_closed_without_a_call(self):
         tag = Tag.objects.create(name="Smut", is_adult=True)
@@ -146,3 +178,23 @@ class TagR18TaskTests(MergeTestCase):
         post.assert_not_called()
         req.refresh_from_db()
         self.assertEqual(req.status, LLMRequest.STATUS_DONE)
+
+
+class ParseConfidenceTests(SimpleTestCase):
+    def test_clamps_finite_numbers_to_unit_interval(self):
+        self.assertEqual(llm_service.parse_confidence(0.4), 0.4)
+        self.assertEqual(llm_service.parse_confidence(3), 1.0)
+        self.assertEqual(llm_service.parse_confidence(-2), 0.0)
+
+    def test_non_finite_values_fall_back_to_default_in_both_modes(self):
+        for value in (float("nan"), float("inf"), float("-inf"), "nan", "inf"):
+            with self.subTest(value=value):
+                self.assertEqual(llm_service.parse_confidence(value, default=0.25), 0.25)
+                self.assertEqual(
+                    llm_service.parse_confidence(value, default=0.25, strict=True), 0.25
+                )
+
+    def test_strict_mode_rejects_bools_and_strings(self):
+        self.assertEqual(llm_service.parse_confidence(True, default=0.5, strict=True), 0.5)
+        self.assertEqual(llm_service.parse_confidence("0.9", default=0.5, strict=True), 0.5)
+        self.assertEqual(llm_service.parse_confidence("0.9", default=0.5), 0.9)

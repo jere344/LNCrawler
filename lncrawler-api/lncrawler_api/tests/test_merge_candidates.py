@@ -14,7 +14,7 @@ from ..models import (
     Novel,
     NovelFromSource,
 )
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, make_novel
 
 
 class NormalizeTests(MergeTestCase):
@@ -35,12 +35,9 @@ class FindMergeCandidatesTests(MergeTestCase):
         super().setUp()
         self.es = ExternalSource.objects.create(source_name="site")
 
-    def _novel(self, title, slug):
-        return Novel.objects.create(title=title, slug=slug, novel_path=slug)
-
     def test_normalized_title_creates_a_review_candidate(self):
-        self._novel("Worm (Parahumans #1)", "worm-para")
-        self._novel("Worm", "worm")
+        make_novel("Worm (Parahumans #1)", "worm-para")
+        make_novel("Worm", "worm")
 
         call_command("find_merge_candidates", trigram_min=-1)
 
@@ -50,8 +47,8 @@ class FindMergeCandidatesTests(MergeTestCase):
         self.assertIn("title", candidate.signals)
 
     def test_placeholder_cover_is_ignored(self):
-        a = self._novel("Alpha Story", "alpha")
-        b = self._novel("Beta Story", "beta")
+        a = make_novel("Alpha Story", "alpha")
+        b = make_novel("Beta Story", "beta")
         for novel, slug in ((a, "alpha"), (b, "beta")):
             NovelFromSource.objects.create(
                 novel=novel,
@@ -67,8 +64,8 @@ class FindMergeCandidatesTests(MergeTestCase):
         self.assertFalse(MergeCandidate.objects.exists())
 
     def test_rejected_pair_is_not_requeued(self):
-        a = self._novel("Same Title", "same-a")
-        b = self._novel("Same Title", "same-b")
+        a = make_novel("Same Title", "same-a")
+        b = make_novel("Same Title", "same-b")
         MergeCandidate.objects.create(
             novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
             status=MergeCandidate.STATUS_REJECTED,
@@ -81,8 +78,8 @@ class FindMergeCandidatesTests(MergeTestCase):
 
     def test_same_source_url_creates_a_candidate(self):
         # A renamed novel has no title overlap; the shared source URL still wins.
-        a = self._novel("Old Name", "old-name")
-        b = self._novel("Brand New Name", "brand-new-name")
+        a = make_novel("Old Name", "old-name")
+        b = make_novel("Brand New Name", "brand-new-name")
         for novel, title in ((a, "Old Name"), (b, "Brand New Name")):
             NovelFromSource.objects.create(
                 novel=novel, external_source=self.es, title=title, source_url="http://x/1"
@@ -95,8 +92,8 @@ class FindMergeCandidatesTests(MergeTestCase):
         self.assertGreaterEqual(candidate.certainty, 0.99)
 
     def test_blank_source_urls_do_not_block_together(self):
-        a = self._novel("Alpha", "alpha")
-        b = self._novel("Beta", "beta")
+        a = make_novel("Alpha", "alpha")
+        b = make_novel("Beta", "beta")
         for novel, title in ((a, "Alpha"), (b, "Beta")):
             NovelFromSource.objects.create(
                 novel=novel, external_source=self.es, title=title, source_url=""
@@ -276,17 +273,14 @@ class DiscriminantTests(MergeTestCase):
         self.es = ExternalSource.objects.create(source_name="site")
         self.other_es = ExternalSource.objects.create(source_name="other")
 
-    def _novel(self, title, slug, path=None):
-        return Novel.objects.create(title=title, slug=slug, novel_path=path or slug)
-
     def _review_all(self, **options):
         # review_low=0 keeps sub-threshold pairs so their signals can be checked.
         call_command("find_merge_candidates", review_low=0.0, **options)
 
     def test_wn_and_ln_editions_are_queued_for_merge(self):
         # WN and LN of one story are one novel: the edition is no penalty.
-        self._novel("Foo (WN)", "foo-wn")
-        self._novel("Foo (LN)", "foo-ln")
+        make_novel("Foo (WN)", "foo-wn")
+        make_novel("Foo (LN)", "foo-ln")
 
         call_command("find_merge_candidates", trigram_min=-1)
 
@@ -297,8 +291,8 @@ class DiscriminantTests(MergeTestCase):
     def test_sequel_is_not_queued_on_title_plus_author(self):
         # Trigram similarity plus a shared author would reach review; the sequel
         # number on one side is what keeps the pair out.
-        a = self._novel("Dragon Quest", "dq")
-        b = self._novel("Dragon Quest 2", "dq-2")
+        a = make_novel("Dragon Quest", "dq")
+        b = make_novel("Dragon Quest 2", "dq-2")
         for novel, es, title, url in (
             (a, self.es, "Dragon Quest", "http://x/dq"),
             (b, self.other_es, "Dragon Quest 2", "http://x/dq2"),
@@ -318,8 +312,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertLess(candidate.certainty, 0.5)
 
     def test_same_source_url_is_queued_despite_edition_markers(self):
-        a = self._novel("Foo (WN)", "foo-wn")
-        b = self._novel("Foo (LN)", "foo-ln")
+        a = make_novel("Foo (WN)", "foo-wn")
+        b = make_novel("Foo (LN)", "foo-ln")
         self.make_source(a, self.es, "Foo (WN)", "http://x/1", "foo-wn", "site")
         self.make_source(b, self.es, "Foo (LN)", "http://x/1", "foo-ln", "site")
 
@@ -330,8 +324,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertGreaterEqual(candidate.certainty, 0.99)
 
     def test_shared_novel_path_is_queued(self):
-        self._novel("Alpha", "alpha", path="shared-folder")
-        self._novel("Zeta", "zeta", path="shared-folder")
+        make_novel("Alpha", "alpha", novel_path="shared-folder")
+        make_novel("Zeta", "zeta", novel_path="shared-folder")
 
         call_command("find_merge_candidates", trigram_min=-1)
 
@@ -358,8 +352,8 @@ class DiscriminantTests(MergeTestCase):
     def test_same_site_different_titles_is_not_penalised(self):
         # A shared novelupdates_url queues the pair; one site listing the two
         # under different titles is no longer a reason to hold it back.
-        a = self._novel("Crimson Sky", "crimson")
-        b = self._novel("Silent Harbor", "silent")
+        a = make_novel("Crimson Sky", "crimson")
+        b = make_novel("Silent Harbor", "silent")
         for novel, title, url in (
             (a, "Crimson Sky", "http://x/crimson"),
             (b, "Silent Harbor", "http://x/silent"),
@@ -377,8 +371,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertGreaterEqual(candidate.certainty, 0.9)
 
     def test_trigram_still_yields_a_title_signal(self):
-        self._novel("Lord of the Mysteries", "lotm")
-        self._novel("Lord of Mysteries", "lotm-2")
+        make_novel("Lord of the Mysteries", "lotm")
+        make_novel("Lord of Mysteries", "lotm-2")
 
         self._review_all()
 
@@ -386,8 +380,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertGreaterEqual(candidate.signals["title"], 0.4)
 
     def test_rerunning_does_not_duplicate_rows(self):
-        self._novel("Alpha", "alpha", path="shared-folder")
-        self._novel("Zeta", "zeta", path="shared-folder")
+        make_novel("Alpha", "alpha", novel_path="shared-folder")
+        make_novel("Zeta", "zeta", novel_path="shared-folder")
 
         call_command("find_merge_candidates", trigram_min=-1)
         call_command("find_merge_candidates", trigram_min=-1)
@@ -402,8 +396,8 @@ class DiscriminantTests(MergeTestCase):
 
     def test_near_identical_covers_are_queued(self):
         # Unrelated titles: only the cover, 2 bits apart, connects the pair.
-        a = self._novel("Alpha Story", "alpha")
-        b = self._novel("Beta Tale", "beta")
+        a = make_novel("Alpha Story", "alpha")
+        b = make_novel("Beta Tale", "beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "78d050524c5c3cb3", "http://x/beta")
 
@@ -413,8 +407,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertAlmostEqual(candidate.signals["phash"], 1 - 2 / 16)
 
     def test_distant_covers_are_not_matched(self):
-        a = self._novel("Alpha Story", "alpha")
-        b = self._novel("Beta Tale", "beta")
+        a = make_novel("Alpha Story", "alpha")
+        b = make_novel("Beta Tale", "beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "872fafadb3a3c34f", "http://x/beta")
 
@@ -424,8 +418,8 @@ class DiscriminantTests(MergeTestCase):
 
     def test_covers_at_the_max_distance_are_queued(self):
         # 6 bits spread over 6 different bytes: no 16-bit band survives intact.
-        a = self._novel("Alpha Story", "alpha")
-        b = self._novel("Beta Tale", "beta")
+        a = make_novel("Alpha Story", "alpha")
+        b = make_novel("Beta Tale", "beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "79d151534d5d3cb0", "http://x/beta")
 
@@ -437,10 +431,10 @@ class DiscriminantTests(MergeTestCase):
     def test_near_flat_covers_never_match(self):
         # Blank-ish covers of unrelated novels land a few bits apart, and two
         # novels sharing the exact same blank cover must not match either.
-        a = self._novel("Alpha Story", "alpha")
-        b = self._novel("Beta Tale", "beta")
-        c = self._novel("Gamma Saga", "gamma")
-        d = self._novel("Delta Run", "delta")
+        a = make_novel("Alpha Story", "alpha")
+        b = make_novel("Beta Tale", "beta")
+        c = make_novel("Gamma Saga", "gamma")
+        d = make_novel("Delta Run", "delta")
         self._add_cover(a, "0000000010100000", "http://x/alpha")
         self._add_cover(b, "0000000010300800", "http://x/beta")
         self._add_cover(c, "0000000010100000", "http://x/gamma")
@@ -453,8 +447,8 @@ class DiscriminantTests(MergeTestCase):
     def test_normal_cover_alone_is_not_queued(self):
         # Sites reuse covers: an exact cover match with unrelated titles stays
         # below the default review_low.
-        a = self._novel("Alpha Story", "alpha")
-        b = self._novel("Beta Tale", "beta")
+        a = make_novel("Alpha Story", "alpha")
+        b = make_novel("Beta Tale", "beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "78d050524c5c3cb0", "http://x/beta")
 
@@ -464,8 +458,8 @@ class DiscriminantTests(MergeTestCase):
 
     def test_stale_pending_row_is_removed(self):
         # Queued by an earlier run; the pair no longer has any signal to back it.
-        a = self._novel("Alpha Story", "alpha")
-        b = self._novel("Beta Tale", "beta")
+        a = make_novel("Alpha Story", "alpha")
+        b = make_novel("Beta Tale", "beta")
         MergeCandidate.objects.create(
             novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
             certainty=0.75, status=MergeCandidate.STATUS_PENDING,
@@ -479,9 +473,9 @@ class DiscriminantTests(MergeTestCase):
     def test_near_identical_placeholder_covers_are_ignored(self):
         # Three novels share one default cover, re-encoded slightly differently.
         novels = [
-            self._novel("Alpha Story", "alpha"),
-            self._novel("Beta Tale", "beta"),
-            self._novel("Gamma Saga", "gamma"),
+            make_novel("Alpha Story", "alpha"),
+            make_novel("Beta Tale", "beta"),
+            make_novel("Gamma Saga", "gamma"),
         ]
         for novel, phash in zip(novels, ("78d050524c5c3cb0", "78d050524c5c3cb1", "78d050524c5c3cb3")):
             self._add_cover(novel, phash, f"http://x/{novel.slug}")
@@ -493,8 +487,8 @@ class DiscriminantTests(MergeTestCase):
 
     def test_fuzzy_match_uses_source_titles(self):
         # Novel.title differs completely; only the source titles are similar.
-        a = self._novel("Kingdom Rising", "kingdom")
-        b = self._novel("Wang Guo", "wang-guo")
+        a = make_novel("Kingdom Rising", "kingdom")
+        b = make_novel("Wang Guo", "wang-guo")
         self.make_source(a, self.es, "Lord of the Mysteries", "http://x/lotm-a", "kingdom", "site")
         self.make_source(b, self.other_es, "Lord of Mysteries", "http://x/lotm-b", "wang-guo", "other")
 
@@ -504,8 +498,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertGreaterEqual(candidate.signals["title"], 0.4)
 
     def test_fuzzy_match_uses_alternative_titles(self):
-        a = self._novel("Lord of the Mysteries", "lotm")
-        b = self._novel("Gui Mi Zhi Zhu", "gmzz")
+        a = make_novel("Lord of the Mysteries", "lotm")
+        b = make_novel("Gui Mi Zhi Zhu", "gmzz")
         self.make_source(b, self.other_es, "Gui Mi Zhi Zhu", "http://x/gmzz", "gmzz", "other")
         NovelFromSource.objects.get(novel=b).alternative_titles.add(
             AlternativeTitle.objects.create(name="Lord of Mysteries")
@@ -520,8 +514,8 @@ class DiscriminantTests(MergeTestCase):
         # Different titles, so only the author and the chapter count connect them.
         author = Author.objects.create(name="Shared Author")
         for novel, es, title, url in (
-            (self._novel("Kingdom", "kingdom"), self.es, "Kingdom", "http://x/k"),
-            (self._novel("Wang Guo", "wang-guo"), self.other_es, "Wang Guo", "http://x/w"),
+            (make_novel("Kingdom", "kingdom"), self.es, "Kingdom", "http://x/k"),
+            (make_novel("Wang Guo", "wang-guo"), self.other_es, "Wang Guo", "http://x/w"),
         ):
             self.make_source(novel, es, title, url, novel.slug, es.source_name, chapters=chapters)
             NovelFromSource.objects.get(novel=novel).authors.add(author)

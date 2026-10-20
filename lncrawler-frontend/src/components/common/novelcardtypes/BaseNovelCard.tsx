@@ -1,25 +1,23 @@
 import React, { useState } from 'react';
 import { 
   Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Rating, Chip, Skeleton, Tooltip,
+  Typography, Box, Rating, Skeleton, Tooltip,
   Grid as Grid
 } from '@mui/material';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import UpdateIcon from '@mui/icons-material/Update';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
-import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatTimeAgo, formatCount, getChapterName, languageFlagUrl, languageCodeToName, getNovelDisplayTitle } from '@utils/Misc';
+import { formatCount, getChapterName, languageFlagUrl, languageCodeToName, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
+import { DmcaBadge } from '@components/common/DmcaBadge';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
 import MarkAsReadButton from '@components/common/MarkAsReadButton';
 import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
+import NovelStatsChips from './NovelStatsChips';
 import { useTranslation } from 'react-i18next';
 
 export interface BaseNovelCardProps {
@@ -208,7 +206,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         <Box sx={{ position: 'relative', paddingTop: '150%' }}>
           <CardMedia
             component="img"
-            image={preferredSource?.cover_min_url || defaultCover}
+            image={novelCoverUrl(preferredSource)}
             alt={getNovelDisplayTitle(novel)}
             onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 
@@ -227,20 +225,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             }}
           />
           <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
-          {novel.is_dmca && (
-            <Chip
-              label="DMCA"
-              color="error"
-              size="small"
-              sx={{
-                position: 'absolute',
-                bottom: 8,
-                left: 8,
-                zIndex: 2,
-                fontWeight: 'bold',
-              }}
-            />
-          )}
+          {novel.is_dmca && <DmcaBadge bottom={8} />}
           {/* Language flags */}
           <Box
             sx={{
@@ -407,38 +392,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               } 
             }}
           >
-            <Grid size={6}>
-              <Tooltip title={t('cards.availableChapters')}>
-                <Chip 
-                  icon={<MenuBookIcon />}
-                  label={preferredSource?.available_chapters_count != null ? formatCount(preferredSource.available_chapters_count) : t('common.unknown')}
-                  size="small"
-                  variant="outlined"
-                />
-              </Tooltip>
-            </Grid>
-
-            <Grid size={6}>
-              <Tooltip title={t('cards.views')}>
-                <Chip 
-                  icon={<VisibilityIcon />}
-                  label={novel.total_views !== undefined ? formatCount(novel.total_views) : t('common.unknown')}
-                  size="small"
-                  variant="outlined"
-                />
-              </Tooltip>
-            </Grid>
-            
-            <Grid size={12}>
-              <Tooltip title={t('cards.lastUpdated')}>
-                <Chip 
-                  icon={<UpdateIcon />}
-                  label={preferredSource?.last_chapter_update ? formatTimeAgo(new Date(preferredSource?.last_chapter_update), t) : t('common.unknown')}
-                  size="small"
-                  variant="outlined"
-                />
-              </Tooltip>
-            </Grid>
+            <NovelStatsChips novel={novel} source={preferredSource} asGrid />
           </Grid>
         </CardContent>
       </CardActionArea>

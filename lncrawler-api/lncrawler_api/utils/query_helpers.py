@@ -7,7 +7,8 @@ from ..models import (
     ReadingHistory,
     WeeklySourceView,
 )
-from ..models.sources_models import NovelFromSource, SourceVote
+from ..models.sources_models import NovelFromSource
+from ..models.source_votes_models import SourceVote
 
 # Account setting values that let adult (R18) content through; 'blur' still
 # shows it (the frontend blurs the covers), only 'no' hides it.
@@ -21,14 +22,29 @@ def adult_allowed(user):
     return getattr(user, 'show_r18', 'no') in ADULT_ALLOWED_SETTINGS
 
 
-def exclude_adult(queryset, user=None):
+def public_novels(queryset):
+    """Novels shown to everyone: not DMCA'd and no adult source.
+
+    Viewer-independent, so the SEO pages and sitemaps use it as is.
+    """
+    return queryset.filter(is_dmca=False).exclude(sources__is_adult=True)
+
+
+def public_sources(queryset):
+    """Sources whose novel is public (see ``public_novels``)."""
+    return queryset.filter(novel__is_dmca=False).exclude(novel__sources__is_adult=True)
+
+
+def exclude_adult(queryset, user=None, path=''):
     """Drop novels that have any adult source, unless the viewer may see them.
 
-    A novel is treated as adult when *any* of its sources is adult.
+    A novel is treated as adult when *any* of its sources is adult. ``path``
+    reaches the novel from the queryset's model: ``'novel__'`` for sources,
+    bookmarks and reviews, ``'to_novel__'`` for similarity rows.
     """
     if adult_allowed(user):
         return queryset
-    return queryset.exclude(sources__is_adult=True)
+    return queryset.exclude(**{f'{path}sources__is_adult': True})
 
 
 def _latest_content_chapter():

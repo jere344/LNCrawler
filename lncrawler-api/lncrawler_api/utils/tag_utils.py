@@ -10,7 +10,8 @@ Migrations keep their own copy of this logic: they must not import app code
 that may change after the migration was written.
 """
 import re
-import unicodedata
+
+from .text import fold
 
 MAX_LENGTH = 100
 
@@ -33,9 +34,7 @@ def _singular(word):
 def normalize_tag(name):
     """Return the comparison key for a tag name (see module docstring)."""
     name = name or ""
-    decomposed = unicodedata.normalize("NFKD", name)
-    stripped = "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
-    words = [_singular(word) for word in _NON_ALNUM_RE.sub(" ", stripped).split()]
+    words = [_singular(word) for word in _NON_ALNUM_RE.sub(" ", fold(name)).split()]
     key = " ".join(words)
     if not key:
         # Punctuation-only names still need a stable, non-empty key.

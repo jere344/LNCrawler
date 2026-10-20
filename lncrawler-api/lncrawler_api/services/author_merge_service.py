@@ -4,14 +4,20 @@ Mirrors ``merge_service.merge_tags`` and ``undo_tag_merge`` for authors. The
 finder (``find_author_candidates``) and the LLM judge (``AuthorMergeTask``) both
 call ``merge_authors``, which refuses a merge that would leave an alias name in use.
 """
-import hashlib
 import logging
 
 from django.db import transaction
 from django.utils import timezone
 
+from ..db_locks import lock_pks
 from ..models import Author, AuthorAlias, AuthorMerge, AuthorMergeCandidate, NovelFromSource
 from ..utils.author_names import normalize_author
+from .merge_common import (
+    find_later_merge,
+    ordered_pair,
+    repoint_orphaned_merges,
+    sorted_pk_signature,
+)
 from .merge_service import MergeError
 
 logger = logging.getLogger("lncrawler_api.merge")
@@ -19,13 +25,6 @@ logger = logging.getLogger("lncrawler_api.merge")
 
 class AuthorMergeRefused(MergeError):
     """A merge that stays refused until the data changes: same author, alias name in use."""
-
-
-def pair_signature(author_ids):
-    """Stable hash of a pair of author ids, the same whatever their order."""
-    return hashlib.sha1(
-        ",".join(str(pk) for pk in sorted(author_ids)).encode()
-    ).hexdigest()
 
 
 def pick_target(a, b):
@@ -47,12 +46,7 @@ def merge_authors(source, target, candidate=None):
     with transaction.atomic():
         # Lock both rows before reading links: a concurrent import must not credit
         # new sources to the source author between the read and the delete.
-        locked = set(
-            Author.objects.select_for_update()
-            .filter(pk__in=[source.pk, target.pk])
-            .order_by("pk")
-            .values_list("pk", flat=True)
-        )
+        locked = lock_pks(Author, [source.pk, target.pk])
         if len(locked) != 2:
             raise MergeError("An author was merged away concurrently; reload and try again.")
 
@@ -113,16 +107,7 @@ def undo_author_merge(merge):
         raise MergeError("This change was already undone.")
     if merge.target is None:
         # The target was merged away later. Its own merge must be undone first.
-        later = (
-            AuthorMerge.objects.filter(
-                source_name=merge.target_name,
-                undone_at__isnull=True,
-                created_at__gt=merge.created_at,
-            )
-            .exclude(pk=merge.pk)
-            .order_by("created_at")
-            .first()
-        )
+        later = find_later_merge(AuthorMerge, merge)
         if later is not None:
             raise MergeError(
                 f"Undo the later merge of '{later.source_name}' into "
@@ -131,11 +116,7 @@ def undo_author_merge(merge):
         raise MergeError("The target author no longer exists.")
 
     with transaction.atomic():
-        locked = set(
-            Author.objects.select_for_update()
-            .filter(pk=merge.target_id)
-            .values_list("pk", flat=True)
-        )
+        locked = lock_pks(Author, [merge.target_id])
         if merge.target_id not in locked:
             raise MergeError("The target author was merged away; reload and try again.")
         target = merge.target
@@ -152,9 +133,7 @@ def undo_author_merge(merge):
 
         # A later merge may have taken this name away (this author was its target).
         # Point those records at the restored author so they can be undone in turn.
-        AuthorMerge.objects.filter(
-            target__isnull=True, target_name=merge.source_name, undone_at__isnull=True
-        ).update(target=source)
+        repoint_orphaned_merges(AuthorMerge, merge.source_name, source)
 
         restored = list(
             NovelFromSource.objects.filter(pk__in=merge.source_ids).values_list("pk", flat=True)
@@ -170,9 +149,9 @@ def undo_author_merge(merge):
             candidate.save(update_fields=["status", "updated_at"])
         else:
             # No row for this pair (admin merge): record it as undone so the finder skips it.
-            first, second = sorted((source, target), key=lambda author: author.pk)
+            first, second = ordered_pair(source, target, key=lambda author: author.pk)
             candidate, created = AuthorMergeCandidate.objects.get_or_create(
-                signature=pair_signature([first.pk, second.pk]),
+                signature=sorted_pk_signature([first.pk, second.pk]),
                 defaults={
                     "author_ids": [first.pk, second.pk],
                     "author_names": [first.name, second.name],

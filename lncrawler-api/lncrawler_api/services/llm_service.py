@@ -14,6 +14,7 @@ the maintenance loop.
 
 import json
 import logging
+import math
 import re
 
 import requests
@@ -69,20 +70,20 @@ class RateLimited(LLMError):
 
 
 def provider_url(provider=None):
-    override = getattr(settings, "LLM_BASE_URL", "")
+    override = settings.LLM_BASE_URL
     if override:
         return override
-    provider = provider or getattr(settings, "LLM_PROVIDER", "gemini")
+    provider = provider or settings.LLM_PROVIDER
     return PROVIDER_URLS.get(provider)
 
 
 def is_configured():
-    provider = getattr(settings, "LLM_PROVIDER", "gemini")
+    provider = settings.LLM_PROVIDER
     if not provider_url(provider):
         return False
     if provider in KEYLESS_PROVIDERS:
         return True
-    return bool(getattr(settings, "LLM_API_KEY", ""))
+    return bool(settings.LLM_API_KEY)
 
 
 def _render_profile(profile):
@@ -122,14 +123,29 @@ def _as_bool(value):
     return bool(value)
 
 
-def _normalize(data):
+def parse_confidence(value, default=0.0, strict=False):
+    """Clamp a model's confidence to 0..1, or return ``default`` when it is unusable.
+
+    Lenient (the default) takes whatever ``float()`` accepts, strings and bools
+    included. ``strict`` takes only an int or float and rejects bools. Both modes
+    reject NaN and infinity: ``json.loads`` accepts NaN, which jsonb does not
+    store, and ``min(1.0, nan)`` would turn it into 1.0.
+    """
+    if strict and (not isinstance(value, (int, float)) or isinstance(value, bool)):
+        return default
     try:
-        confidence = float(data.get("confidence", 0.0))
-    except (TypeError, ValueError):
-        confidence = 0.0
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if not math.isfinite(number):
+        return default
+    return max(0.0, min(1.0, number))
+
+
+def _normalize(data):
     return {
         "same": _as_bool(data.get("same")),
-        "confidence": max(0.0, min(1.0, confidence)),
+        "confidence": parse_confidence(data.get("confidence")),
         "reason": str(data.get("reason", ""))[:1000],
     }
 
@@ -185,15 +201,15 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
     not charged and writes nothing. A reply cut off by the token cap, or
     empty, raises ``LLMTruncated``.
     """
-    provider = provider or getattr(settings, "LLM_PROVIDER", "gemini")
+    provider = provider or settings.LLM_PROVIDER
     url = provider_url(provider)
     if not url:
         raise LLMError(f"unknown LLM provider: {provider}")
-    model = model or getattr(settings, "LLM_MODEL", "openai/gpt-oss-20b")
-    timeout = timeout or getattr(settings, "LLM_TIMEOUT", 30)
+    model = model or settings.LLM_MODEL
+    timeout = timeout or settings.LLM_TIMEOUT
 
     headers = {"Content-Type": "application/json"}
-    key = getattr(settings, "LLM_API_KEY", "")
+    key = settings.LLM_API_KEY
     if key:
         headers["Authorization"] = f"Bearer {key}"
     body = {
@@ -202,7 +218,7 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
         "max_tokens": max_tokens,
         "messages": messages,
     }
-    reasoning_effort = getattr(settings, "LLM_REASONING_EFFORT", "low")
+    reasoning_effort = settings.LLM_REASONING_EFFORT
     if reasoning_effort:
         body["reasoning_effort"] = reasoning_effort
 

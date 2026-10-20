@@ -4,7 +4,6 @@ import {
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CommentIcon from '@mui/icons-material/Comment';
-import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
@@ -12,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
-import { getNovelDisplayTitle } from '@utils/Misc';
+import { getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 
 interface CompactNovelCardProps {
   novel: Novel;
@@ -114,7 +113,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       >
         <Box
           component="img"
-          src={(novel.reading_source ?? novel.prefered_source)?.cover_min_url || defaultCover}
+          src={novelCoverUrl(novel.reading_source ?? novel.prefered_source)}
           alt={getNovelDisplayTitle(novel)}
           onClick={blurred ? revealHandler(novel.id) : undefined}
           sx={{

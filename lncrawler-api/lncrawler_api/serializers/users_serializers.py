@@ -130,10 +130,9 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     def get_pinned_novels(self, obj):
         from .novels_serializers import NovelSerializer
-        from ..utils.query_helpers import adult_allowed
+        from ..utils.query_helpers import exclude_adult
         pinned = ProfilePinnedNovel.objects.filter(user=obj)
-        if not adult_allowed(self._viewer()):
-            pinned = pinned.exclude(novel__sources__is_adult=True)
+        pinned = exclude_adult(pinned, self._viewer(), 'novel__')
         pinned = (
             pinned
             .prefetch_related(
@@ -252,10 +251,9 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         cache_attr = f'_recent_history_cache_{obj.pk}'
         cache = getattr(self, cache_attr, None)
         if cache is None:
-            from ..utils.query_helpers import adult_allowed
+            from ..utils.query_helpers import exclude_adult
             history_qs = ReadingHistory.objects.filter(user=obj)
-            if not adult_allowed(self._viewer()):
-                history_qs = history_qs.exclude(novel__sources__is_adult=True)
+            history_qs = exclude_adult(history_qs, self._viewer(), 'novel__')
             cache = list(
                 history_qs
                 .select_related('source', 'last_read_chapter')

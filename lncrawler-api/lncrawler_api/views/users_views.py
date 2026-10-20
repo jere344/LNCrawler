@@ -4,7 +4,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
 from django.db import IntegrityError
 from django.db.models import Count, F, IntegerField, Max, OuterRef, Q, Subquery
 
@@ -13,12 +12,13 @@ import uuid
 from ..languages import parse_languages
 from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
-from ..models.sources_models import NovelFromSource, Chapter
+from ..models.sources_models import NovelFromSource
 from ..serializers.novels_serializers import NovelSerializer
 from ..serializers.reading_history_serializers import ReadingHistorySerializer
 from ..serializers.users_serializers import UserSerializer
 from ..utils import resolve_novel_slug
-from ..utils.pagination import parse_page_size, paginated_response
+from ..utils.novel_resolution import get_chapter_or_404, get_source_or_404
+from ..utils.pagination import paginate, paginated_response
 from ..utils.query_helpers import (
     adult_allowed,
     apply_novel_prefetches,
@@ -115,13 +115,9 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     search = request.GET.get("search", "").strip()
     folder_param = request.GET.get("folder", "all")
     sort = request.GET.get("sort", "custom")
-    page_number = request.GET.get("page", 1)
-    page_size = parse_page_size(request, 24, 100)
-
     bookmarks = NovelBookmark.objects.filter(user=owner)
+    bookmarks = exclude_adult(bookmarks, viewer, 'novel__')
     allow_adult = adult_allowed(viewer)
-    if not allow_adult:
-        bookmarks = bookmarks.exclude(novel__sources__is_adult=True)
 
     if folder_param == "unfiled":
         bookmarks = bookmarks.filter(folder__isnull=True)
@@ -170,8 +166,7 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
         count = len(page_items)
         total_pages, current_page = 1, 1
     else:
-        paginator = Paginator(bookmarks, page_size)
-        page_obj = paginator.get_page(page_number)
+        paginator, page_obj = paginate(request, bookmarks, 24, 100)
         page_items = list(page_obj)
         count, total_pages, current_page = paginator.count, paginator.num_pages, page_obj.number
 
@@ -353,7 +348,6 @@ def get_novel_recommendations(
     # ``viewer`` is who will see the recommendations (adult pref + bookmark
     # prefetch); defaults to the seed owner for the self-view.
     viewer = viewer if viewer is not None else user
-    allow_adult = adult_allowed(viewer)
 
     excluded = set(seed_novel_ids)
     if exclude_ids is not None:
@@ -380,8 +374,7 @@ def get_novel_recommendations(
         .filter(similarity__gt=0)  # zero-padded rows linger until the next rebuild
         .filter(language_filter)
     )
-    if not allow_adult:
-        similar_qs = similar_qs.exclude(to_novel__sources__is_adult=True)
+    similar_qs = exclude_adult(similar_qs, viewer, 'to_novel__')
     score = {}
     best = {}
     for from_id, to_id, similarity in similar_qs.values_list('from_novel_id', 'to_novel_id', 'similarity'):
@@ -400,8 +393,7 @@ def get_novel_recommendations(
             popular_qs = popular_qs.filter(
                 id__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
             )
-        if not allow_adult:
-            popular_qs = popular_qs.exclude(sources__is_adult=True)
+        popular_qs = exclude_adult(popular_qs, viewer)
         popular_ids = (popular_qs
             .order_by('-rank_total_views', 'title')
             .values_list('id', flat=True)[:needed]
@@ -462,8 +454,8 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
     """
     # Get the novel, source, and chapter
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(NovelFromSource, novel=novel, source_slug=source_slug)
-    chapter = get_object_or_404(Chapter, novel_from_source=source, chapter_id=chapter_number)
+    source = get_source_or_404(novel, source_slug)
+    chapter = get_chapter_or_404(source, chapter_number)
     
     # Update or create reading history for this novel
     previous_chapter_id = (

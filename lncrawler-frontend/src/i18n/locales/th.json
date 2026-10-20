@@ -21,7 +21,9 @@
     "profile": "โปรไฟล์",
     "logout": "ออกจากระบบ",
     "account": "บัญชี",
-    "seeMore": "ดูเพิ่มเติม"
+    "seeMore": "ดูเพิ่มเติม",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {เมื่อสักครู่} one {# วินาทีที่แล้ว} other {# วินาทีที่แล้ว}}",

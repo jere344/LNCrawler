@@ -21,7 +21,9 @@
     "profile": "Perfil",
     "logout": "Sair",
     "account": "Conta",
-    "seeMore": "Ver mais"
+    "seeMore": "Ver mais",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {agora mesmo} one {há # segundo} other {há # segundos}}",

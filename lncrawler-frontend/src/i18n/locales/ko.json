@@ -21,7 +21,9 @@
     "profile": "프로필",
     "logout": "로그아웃",
     "account": "계정",
-    "seeMore": "더 보기"
+    "seeMore": "더 보기",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {방금 전} one {#초 전} other {#초 전}}",

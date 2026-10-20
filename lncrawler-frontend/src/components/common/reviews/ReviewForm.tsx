@@ -10,7 +10,8 @@ import {
   CircularProgress,
 } from '@mui/material';
 import EditableMDXEditor from './EditableMDXEditor';
-import { reviewService, type ApiError } from '@services/api';
+import { reviewService } from '@services/api';
+import { getApiErrorMessage } from '@utils/apiError';
 import { CreateReviewData, Review } from '@services/review.service';
 import { useTranslation } from 'react-i18next';
 
@@ -85,13 +86,8 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
       setContent('');
       setRating(null);
     } catch (err) {
-      const apiErr = err as ApiError;
       console.error('Error saving review:', err);
-      if (apiErr.response?.data?.error) {
-        setError(apiErr.response.data.error);
-      } else {
-        setError(t(editingReview ? 'reviewForm.failedUpdate' : 'reviewForm.failedAdd'));
-      }
+      setError(getApiErrorMessage(err, t, editingReview ? 'reviewForm.failedUpdate' : 'reviewForm.failedAdd'));
     } finally {
       setLoading(false);
     }

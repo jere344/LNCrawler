@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { authService } from '../../services/auth.service';
 import type { ApiError } from '../../services/api';
+import { apiErrorMessage } from '@utils/apiError';
 
 const ResetPasswordPage: React.FC = () => {
   const { t } = useTranslation();
@@ -61,8 +62,9 @@ const ResetPasswordPage: React.FC = () => {
       }, 3000);
     } catch (err) {
       const apiErr = err as ApiError;
-      if (apiErr.response?.data?.error) {
-        setError(apiErr.response.data.error);
+      const serverError = apiErrorMessage(apiErr);
+      if (serverError) {
+        setError(serverError);
       } else if (apiErr.response?.data?.new_password) {
         setError(apiErr.response.data.new_password[0]);
       } else {

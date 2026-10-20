@@ -8,12 +8,6 @@ import {
   CircularProgress,
   useMediaQuery,
   Paper,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { userService } from '@services/user.service';
@@ -22,6 +16,8 @@ import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import HistoryIcon from '@mui/icons-material/History';
 import ReadingHistoryCard from '../common/novelcardtypes/ReadingHistoryCard';
+import LoginRequiredPanel from '@components/common/LoginRequiredPanel';
+import ConfirmDialog from '@components/common/ConfirmDialog';
 import { useTranslation } from 'react-i18next';
 
 interface ReadingHistoryResponse {
@@ -102,34 +98,12 @@ const ReadingHistoryPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <Paper 
-        elevation={3}
-        sx={{ 
-          p: 4, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center',
-          gap: 2,
-          mx: 'auto',
-          maxWidth: 'md',
-          my: 4
-        }}
-      >
-        <HistoryIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-        <Typography variant="h5" component="h1" gutterBottom>
-          {t('history.headingLoggedOut')}
-        </Typography>
-        <Typography variant="body1" align="center" sx={{
-          color: "text.secondary"
-        }}>
-          {t('history.needLogin')}
-        </Typography>
-        <Typography variant="body2" align="center" sx={{
-          color: "text.secondary"
-        }}>
-          {t('history.loginPrompt')}
-        </Typography>
-      </Paper>
+      <LoginRequiredPanel
+        icon={HistoryIcon}
+        title={t('history.headingLoggedOut')}
+        description={t('history.needLogin')}
+        hint={t('history.loginPrompt')}
+      />
     );
   }
 
@@ -209,23 +183,15 @@ const ReadingHistoryPage: React.FC = () => {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
+        title={t('history.removeTitle')}
+        message={t('history.removeBody')}
+        confirmLabel={t('common.delete')}
+        confirmColor="error"
+        onConfirm={confirmDelete}
         onClose={closeDeleteDialog}
-      >
-        <DialogTitle>{t('history.removeTitle')}</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {t('history.removeBody')}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDeleteDialog}>{t('common.cancel')}</Button>
-          <Button onClick={confirmDelete} color="error" autoFocus>
-            {t('common.delete')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </Box>
   );
 };

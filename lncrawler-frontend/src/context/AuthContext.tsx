@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/api';
 import { User } from '../models/user_types';
+import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../utils/storage';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -44,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Listen for storage events (for when user logs in/out in another tab)
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === 'authToken' || event.key === 'user') {
+      if (event.key === AUTH_TOKEN_KEY || event.key === AUTH_USER_KEY) {
         checkAuthStatus();
       }
     };
@@ -72,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const userData = await authService.getProfile();
         setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
       } catch (error) {
         console.error('Error refreshing user data:', error);
       }
@@ -83,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updatedUser = await authService._updateProfile(profileData);
       setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser));
     }
     catch (error) {
       console.error('Error updating profile:', error);

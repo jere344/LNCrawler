@@ -1,5 +1,6 @@
 import { reportError } from './errorReporter';
 import { getCookie } from '../utils/cookies';
+import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../utils/storage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
 
@@ -9,7 +10,7 @@ interface RequestConfig {
 }
 
 export interface ApiResponse {
-  // Matches axios's untyped `response.data` contract used across the services.
+  // Untyped payload: each service casts it to the shape it expects.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
   status: number;
@@ -21,8 +22,7 @@ export interface ApiError extends Error {
   response?: ApiResponse;
 }
 
-// Kept as a mutable object so callers can set/clear the auth header,
-// mirroring the old axios `api.defaults.headers.common` API.
+// Kept as a mutable object so callers can set/clear the auth header.
 const defaults = { headers: { common: {} as Record<string, string> } };
 
 // More robust function to get CSRF token from cookies
@@ -112,8 +112,8 @@ const request = async (
     // A dead token should not leave the UI looking logged in.
     if (response.status === 401) {
       try {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('user');
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(AUTH_USER_KEY);
         delete defaults.headers.common['Authorization'];
       } catch {
         // storage can be unavailable (private mode); auth state is best-effort
@@ -160,7 +160,7 @@ export { friendService } from './friend.service';
 export { importService } from './import.service';
 
 // Set the auth token on startup
-const token = localStorage.getItem('authToken');
+const token = localStorage.getItem(AUTH_TOKEN_KEY);
 if (token) {
   defaults.headers.common['Authorization'] = `Token ${token}`;
 }

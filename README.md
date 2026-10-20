@@ -150,7 +150,7 @@ Everything lives in `.env`; [`.env.example`](.env.example) documents every defau
 | Email | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL`, `EMAIL_SENDER_NAME` — SMTP for password reset; printed to console without credentials |
 | Proxy | `NGINX_PORT` (`80`). `API_HOST`, `FRONTEND_HOST`, `VITE_API_BASE_URL` are derived — don't set them |
 | Library | `LIGHTNOVELS_PATH` (`./Lightnovels`) — host folder for downloaded novels |
-| Crawler | `CRAWLER_REPLICAS`, `CRAWLER_CONCURRENCY` (`5`), `CRAWLER_MEM_LIMIT` (`2g`), `CRAWLER_POLL`, `CRAWLER_STALE_MINUTES`, `CRAWLER_REQUEUE_EVERY` |
+| Crawler | `CRAWLER_REPLICAS`, `CRAWLER_CONCURRENCY` (`5`), `CRAWLER_MEM_LIMIT` (`2g`), `CRAWLER_CPUS` (`1.5`), `CRAWLER_POLL`, `CRAWLER_STALE_MINUTES`, `CRAWLER_REQUEUE_EVERY` |
 | Source logins | `LNCRAWL_<KEY>_USERNAME` / `LNCRAWL_<KEY>_PASSWORD`, `<KEY>` = source domain label uppercased |
 | Maintenance | `SCHEDULER_ENABLED` (`True`), `LNCRAWL_PRUNE_APPLY` (`False` skips the destructive prune) |
 | Harvest feeder | `HARVEST_INTERVAL`, `HARVEST_REFRESH_SECONDS`, `HARVEST_SCAN_TIMEOUT` — enable it in **Admin → Maintenance → Harvest** |

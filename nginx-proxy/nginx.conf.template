@@ -46,10 +46,7 @@ server {
     location ~ ^/novels/((home|search|autocomplete)/)?$ {
         set $api api:8000;
         proxy_pass http://$api;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        include /etc/nginx/snippets/proxy_forward_headers.conf;
         proxy_cache api_cache;
         proxy_cache_key "$scheme$host$request_uri|$http_accept|$http_origin";
         proxy_cache_valid 200 60s;
@@ -65,10 +62,7 @@ server {
     location / {
         set $api api:8000;
         proxy_pass http://$api;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        include /etc/nginx/snippets/proxy_forward_headers.conf;
     }
 
     # Serve static files directly
@@ -136,9 +130,6 @@ server {
         add_header Cross-Origin-Embedder-Policy "credentialless" always;
         set $frontend frontend:80;
         proxy_pass http://$frontend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $forwarded_proto;
+        include /etc/nginx/snippets/proxy_forward_headers.conf;
     }
 }

@@ -9,8 +9,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --mode production",
-    "lint": "node scripts/i18n.mjs check && eslint .",
+    "lint": "node scripts/constants.mjs check && node scripts/i18n.mjs check && eslint .",
     "preview": "vite preview",
+    "constants:sync": "node scripts/constants.mjs sync",
+    "constants:check": "node scripts/constants.mjs check",
     "i18n:pending": "node scripts/i18n.mjs pending",
     "i18n:apply": "node scripts/i18n.mjs apply",
     "i18n:normalize": "node scripts/i18n.mjs normalize",

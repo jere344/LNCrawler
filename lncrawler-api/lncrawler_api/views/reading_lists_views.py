@@ -9,7 +9,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from ..utils.pagination import paginated_response as _paginated_response
-from ..utils.query_helpers import adult_allowed, novel_prefetch_objects, source_prefetch
+from ..utils.query_helpers import exclude_adult, novel_prefetch_objects, source_prefetch
 from ..utils.responses import forbidden as _forbidden
 from ..models.users_models import ReadingList, ReadingListItem, ReadingListCollaborator
 from ..models.novels_models import Novel
@@ -39,8 +39,7 @@ def _reading_lists_query_set(user=None, full=True):
     (counts, first_item, names) consistently.
     """
     items_qs = ReadingListItem.objects.all()
-    if not adult_allowed(user):
-        items_qs = items_qs.exclude(novel__sources__is_adult=True)
+    items_qs = exclude_adult(items_qs, user, 'novel__')
     if full:
         novel_prefetches = novel_prefetch_objects(user)
     else:

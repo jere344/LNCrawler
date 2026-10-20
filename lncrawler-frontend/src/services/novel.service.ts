@@ -1,5 +1,6 @@
 import api from './api';
 import { SourceDetailResponse } from '@models/novels_types';
+import type { NovelSort } from '../generated/sharedConstants';
 
 // Novel service functions updated for the new URL structure
 export const novelService = {
@@ -106,7 +107,7 @@ export const novelService = {
     language?: string;
     languages?: string[];
     min_rating?: number;
-    sort_by?: 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated';
+    sort_by?: NovelSort;
     sort_order?: 'asc' | 'desc';
     adult?: 'hide' | 'show' | 'only';
   }) => {

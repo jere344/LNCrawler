@@ -9,7 +9,9 @@ from django.urls import reverse
 from PIL import Image
 
 from ..models import ExternalSource, Novel, NovelFromSource, PlaceholderCover
-from ..services.cover_service import duplicate_cover_groups, generate_cover_min, mark_placeholder
+from ..services.covers.duplicates import duplicate_cover_groups
+from ..services.covers.placeholders import mark_placeholder
+from ..services.covers.resize import generate_cover_min
 from .helpers import MergeTestCase
 
 

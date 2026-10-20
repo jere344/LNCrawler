@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useLocation, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -7,211 +7,63 @@ import {
   Box,
   Paper,
   Button,
-  CardMedia,
-  IconButton,
   Tooltip,
   useTheme,
   alpha,
   Skeleton,
-  Zoom,
   Grid as Grid,
-  Menu,
-  MenuItem,
   Alert,
-  Chip,
-  Pagination,
-  CircularProgress,
 } from '@mui/material';
-import { novelService } from '../../services/api';
-import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
 import { useEpubDownload } from '@utils/useEpubDownload';
-import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import AddToListDialog from '../readinglist/AddToListDialog';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import LanguageIcon from '@mui/icons-material/Language';
-import ThumbUpIcon from '@mui/icons-material/ThumbUp';
-import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import CommentIcon from '@mui/icons-material/Comment';
-import PersonIcon from '@mui/icons-material/Person';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import ListAltIcon from '@mui/icons-material/ListAlt';
-import LaunchIcon from '@mui/icons-material/Launch';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import SkipNextIcon from '@mui/icons-material/SkipNext';
-import ViewListIcon from '@mui/icons-material/ViewList';
 import defaultCover from '@assets/default-cover.jpg';
 import CommentSection from '../comments/CommentSection';
-import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail, Novel as INovel } from '@models/novels_types';
 import NovelSynopsis from './common/NovelSynopsis';
-import NovelRating from './common/NovelRating';
-import NovelTags from './common/NovelTags';
 import NovelUpdateButton from './common/NovelUpdateButton';
 import { useAdultContent } from '@context/AdultContentContext';
-import { AdultBadge } from '@components/common/AdultBadge';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import { getChapterLabel, languageFlagUrl, languageCodeToName, formatDate, editionLabel } from '@utils/Misc.tsx';
+import { editionLabel } from '@utils/Misc.tsx';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
-import CollectionsIcon from '@mui/icons-material/Collections';
-import DownloadIcon from '@mui/icons-material/Download';
-import ActionButton from '../common/ActionButton';
-import MarkAsReadButton from '../common/MarkAsReadButton';
 import SectionContainer from '@components/common/SectionContainer.tsx';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 import NovelSources from './NovelSources';
 import NovelRecommendation from '../common/NovelRecommendation';
 import Reviews from './Reviews';
-import ReadingListCard from '../readinglist/ReadingListCard';
-import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import InfoIcon from '@mui/icons-material/Info';
 import ShareIcon from '@mui/icons-material/Share';
-
-const READING_LISTS_PER_PAGE = 5;
-
-const DetailRow = ({ label, value }: { label: string; value: string }) => (
-  <Box>
-    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-      {label}
-    </Typography>
-    <Typography variant="body1">{value}</Typography>
-  </Box>
-);
+import NovelTags from './common/NovelTags';
+import DetailRow from './sourceDetail/DetailRow';
+import ReadingListsPanel from './sourceDetail/ReadingListsPanel';
+import SourceDetailSkeleton from './sourceDetail/SourceDetailSkeleton';
+import SourceCover from './sourceDetail/SourceCover';
+import SourceTitleBar from './sourceDetail/SourceTitleBar';
+import SourceHeroDetails from './sourceDetail/SourceHeroDetails';
+import SourceHeroStats from './sourceDetail/SourceHeroStats';
+import SourceVoteActions from './sourceDetail/SourceVoteActions';
+import SourceReadActions from './sourceDetail/SourceReadActions';
+import SourceToolActions from './sourceDetail/SourceToolActions';
+import { useSourceDetail } from './sourceDetail/useSourceDetail';
 
 const SourceDetail = () => {
   const { t, i18n } = useTranslation();
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const theme = useTheme();
-  const location = useLocation();
-  const linkState = location.state as { novel?: INovel; source?: ISourceDetail | null } | null;
-
-  // Metadata already fetched by the list card that navigated here. Only trust
-  // it when it matches the URL, since the card link may point to the source the
-  // user has a reading history on rather than the preferred source.
-  const getPrefetchedSource = useCallback((): ISourceDetail | null => {
-    if (!novelSlug || !sourceSlug) return null;
-    const s = linkState?.source;
-    if (s && s.source_slug === sourceSlug && s.novel_slug === novelSlug) return s;
-    const n = linkState?.novel;
-    if (n && n.slug === novelSlug) {
-      return [n.reading_source, n.prefered_source].find(
-        (cand) => cand?.source_slug === sourceSlug && cand?.novel_slug === novelSlug
-      ) ?? null;
-    }
-    return null;
-  }, [linkState, novelSlug, sourceSlug]);
-
-  const [source, setSource] = useState<ISourceDetail | null>(getPrefetchedSource);
-  const [novel, setNovel] = useState<INovelDetail | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
   const [downloadAnchor, setDownloadAnchor] = useState<null | HTMLElement>(null);
   const { startDownload, preparingKey } = useEpubDownload(novelSlug!, sourceSlug!);
-  const [novelRating, setNovelRating] = useState<{ avg_rating: number | null, rating_count: number, user_rating: number | null }>(() => ({
-    avg_rating: linkState?.novel?.avg_rating ?? null,
-    rating_count: linkState?.novel?.rating_count ?? 0,
-    user_rating: null
-  }));
   const { isAuthenticated } = useAuth();
   const { isBlurred, revealHandler } = useAdultContent();
+  const { source, setSource, novel, loading, error, novelRating, isBookmarked, bookmarking, votingInProgress, handleVote, handleToggleBookmark, handleShare } = useSourceDetail(novelSlug, sourceSlug);
   const coverBlurred = isBlurred(source?.is_adult, source?.novel_id);
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [bookmarking, setBookmarking] = useState(false);
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [readingListPage, setReadingListPage] = useState(1);
 
-  useEffect(() => {
-    if (novel) setIsBookmarked(!!novel.is_bookmarked);
-  }, [novel]);
-
-  useEffect(() => {
-    const fetchSourceDetail = async () => {
-      if (!novelSlug || !sourceSlug) return;
-
-      const prefetched = getPrefetchedSource();
-      setSource(prefetched);
-      setLoading(true);
-      setError(null);
-
-      try {
-        // The source response embeds the novel detail, so the page no longer
-        // needs a second request.
-        const data = await novelService.getSourceDetail(novelSlug, sourceSlug);
-        setSource(data);
-        setNovel(data.novel);
-        setNovelRating({
-          avg_rating: data.novel.avg_rating,
-          rating_count: data.novel.rating_count,
-          user_rating: data.novel.user_rating
-        });
-      } catch (err) {
-        console.error('Error fetching source details:', err);
-        if (!prefetched) {
-          setError(t('sourceDetail.loadFailed'));
-        }
-      }
-
-      setLoading(false);
-    };
-
-    fetchSourceDetail();
-  }, [novelSlug, sourceSlug, getPrefetchedSource, t]);
-
-  const handleVote = async (voteType: 'up' | 'down') => {
-    if (!novelSlug || !sourceSlug || votingInProgress || !source) return;
-    
-    setVotingInProgress(true);
-    try {
-      const voteResponse = await novelService.voteSource(novelSlug, sourceSlug, voteType);
-      setSource({
-        ...source,
-        upvotes: voteResponse.upvotes,
-        downvotes: voteResponse.downvotes,
-        vote_score: voteResponse.vote_score,
-        user_vote: voteResponse.user_vote
-      });
-    } catch (err) {
-      console.error('Error voting for source:', err);
-    } finally {
-      setVotingInProgress(false);
-    }
-  };
-
-  const handleToggleBookmark = async () => {
-    if (!novelSlug || bookmarking) return;
-    setBookmarking(true);
-    try {
-      if (isBookmarked) {
-        await userService.removeNovelBookmark(novelSlug);
-        setIsBookmarked(false);
-      } else {
-        await userService.addNovelBookmark(novelSlug);
-        setIsBookmarked(true);
-      }
-    } catch (err) {
-      console.error('Error toggling bookmark:', err);
-    } finally {
-      setBookmarking(false);
-    }
-  };
-
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: source?.title || t('common.share'),
-        url: window.location.href,
-      }).catch((error) => console.log('Error sharing:', error));
-    } else {
-      navigator.clipboard.writeText(window.location.href)
-        .then(() => alert(t('readingLists.linkCopied')))
-        .catch((error) => console.error('Error copying link:', error));
-    }
-  };
-
-  const continue_chapter = source?.reading_history?.next_chapter || source?.reading_history?.last_read_chapter;
 
   const isDmca = Boolean(novel?.is_dmca);
 
@@ -235,204 +87,7 @@ const SourceDetail = () => {
   const ogImage = source?.overview_url || source?.cover_url || source?.cover_min_url || DEFAULT_OG_IMAGE;
 
   if (!source && !error) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ mb: 3, mt: 1 }}>
-          <Skeleton variant="text" width={220} height={24} animation="wave" />
-        </Box>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2, mb: 4 }}>
-          <Skeleton variant="rectangular" width={120} height={36} sx={{ borderRadius: '20px' }} />
-        </Box>
-
-        <Paper 
-          elevation={0}
-          sx={{ 
-            p: 0,
-            overflow: 'hidden',
-            borderRadius: 3,
-            mb: 4,
-            position: 'relative',
-            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.3)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
-          }}
-        >
-          <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, md: 4, lg: 3 }}>
-                <Box
-                  sx={{
-                    position: 'relative',
-                    width: '100%',
-                    paddingTop: '150%',
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
-                    border: `4px solid ${theme.palette.common.white}`,
-                  }}
-                >
-                  <Skeleton 
-                    variant="rectangular" 
-                    width="100%" 
-                    height="100%" 
-                    sx={{ position: 'absolute', top: 0, left: 0 }} 
-                    animation="wave"
-                  />
-                </Box>
-              </Grid>
-              
-              <Grid size={{ xs: 12, md: 8, lg: 9 }}>
-                <Skeleton variant="text" width="80%" height={60} sx={{ mb: 1 }} animation="wave" />
-                <Skeleton variant="text" width="60%" height={40} sx={{ mb: 3 }} animation="wave" />
-                
-                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                    <Skeleton variant="rectangular" width={150} height={36} sx={{ borderRadius: 6 }} animation="wave" />
-                    <Skeleton variant="rectangular" width={100} height={36} sx={{ borderRadius: 6 }} animation="wave" />
-                  </Box>
-                  
-                  <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
-                    <Skeleton variant="rectangular" width={200} height={30} animation="wave" />
-                  </Box>
-                </Box>
-                
-                <Box 
-                  sx={{ 
-                    height: '2px', 
-                    background: `linear-gradient(to right, ${alpha(theme.palette.common.white, 0.8)}, transparent)`,
-                    mb: 2.5,
-                    mt: 0.5,
-                  }} 
-                />
-                
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
-                    <Skeleton variant="rectangular" width="100%" height={60} sx={{ borderRadius: 2 }} animation="wave" />
-                  </Grid>
-                  
-                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
-                    <Skeleton variant="rectangular" width="100%" height={60} sx={{ borderRadius: 2 }} animation="wave" />
-                  </Grid>
-                </Grid>
-                
-                <Box sx={{ mb: 3 }}>
-                  <Skeleton variant="text" width={150} height={20} sx={{ mb: 1 }} animation="wave" />
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Skeleton variant="rectangular" width={150} height={40} sx={{ borderRadius: '20px' }} animation="wave" />
-                    <Skeleton variant="rectangular" width={150} height={40} sx={{ borderRadius: '20px' }} animation="wave" />
-                  </Box>
-                </Box>
-                
-                <Box sx={{ 
-                  width: '100%', 
-                  display: 'flex', 
-                  flexDirection: { xs: 'column', sm: 'row' }, 
-                  gap: 1,
-                  mb: 1
-                }}>
-                  <Skeleton variant="rectangular" width="100%" height={70} sx={{ borderRadius: '12px' }} animation="wave" />
-                  <Skeleton variant="rectangular" width="100%" height={70} sx={{ borderRadius: '12px' }} animation="wave" />
-                  <Skeleton variant="rectangular" width="100%" height={70} sx={{ borderRadius: '12px' }} animation="wave" />
-                </Box>
-              </Grid>
-            </Grid>
-          </Box>
-        </Paper>
-        
-        {/* Update Button Section Skeleton */}
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: { xs: 2, md: 3 }, 
-            mb: 4, 
-            borderRadius: 3,
-            background: theme.palette.mode === 'dark' 
-              ? alpha(theme.palette.background.paper, 0.95)
-              : theme.palette.background.default,
-          }}
-        >
-          <Skeleton variant="rectangular" width="100%" height={100} sx={{ borderRadius: 2 }} animation="wave" />
-        </Paper>
-
-        {/* Tags Section Skeleton */}
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 3, 
-            mb: 4, 
-            borderRadius: 3,
-            background: theme.palette.mode === 'dark' 
-              ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
-              : theme.palette.background.paper,
-          }}
-        >
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Skeleton variant="text" width={100} height={30} sx={{ mb: 2 }} animation="wave" />
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {[...Array(5)].map((_, i) => (
-                  <Skeleton key={i} variant="rectangular" width={80} height={32} sx={{ borderRadius: 4 }} animation="wave" />
-                ))}
-              </Box>
-            </Grid>
-            
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Skeleton variant="text" width={100} height={30} sx={{ mb: 2 }} animation="wave" />
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {[...Array(7)].map((_, i) => (
-                  <Skeleton key={i} variant="rectangular" width={60} height={32} sx={{ borderRadius: 4 }} animation="wave" />
-                ))}
-              </Box>
-            </Grid>
-          </Grid>
-        </Paper>
-        
-        {/* Synopsis Section Skeleton */}
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 3, 
-            mb: 4, 
-            borderRadius: 3,
-            background: theme.palette.mode === 'dark' 
-              ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
-              : theme.palette.background.paper,
-          }}
-        >
-          <Skeleton variant="text" width={150} height={40} sx={{ mb: 2 }} animation="wave" />
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} variant="text" width="100%" height={20} sx={{ mb: 1 }} animation="wave" />
-          ))}
-        </Paper>
-
-        {/* Comments Section Skeleton */}
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: 3,
-            mb: 4, 
-            borderRadius: 3,
-            background: theme.palette.mode === 'dark' 
-              ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.9)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
-              : theme.palette.background.paper,
-          }}
-        >
-          <Skeleton variant="text" width={150} height={40} sx={{ mb: 2 }} animation="wave" />
-          <Skeleton variant="rectangular" width="100%" height={150} sx={{ mb: 2, borderRadius: 2 }} animation="wave" />
-          {[...Array(3)].map((_, i) => (
-            <Box key={i} sx={{ mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Skeleton variant="circular" width={40} height={40} sx={{ mr: 2 }} animation="wave" />
-                <Box>
-                  <Skeleton variant="text" width={120} height={24} animation="wave" />
-                  <Skeleton variant="text" width={80} height={16} animation="wave" />
-                </Box>
-              </Box>
-              <Skeleton variant="rectangular" width="100%" height={60} sx={{ borderRadius: 1 }} animation="wave" />
-            </Box>
-          ))}
-        </Paper>
-      </Container>
-    );
+    return <SourceDetailSkeleton />;
   }
 
   if (!source) {
@@ -557,369 +212,27 @@ const SourceDetail = () => {
           <Box sx={{ position: 'relative', zIndex: 1, p: { xs: 2, md: 4 } }}>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, md: 6, lg: 5 }}>
-                <Zoom in={true} timeout={500}>
-                  <Box
-                    sx={{
-                      position: 'relative',
-                      width: '100%',
-                      paddingTop: '150%',
-                      borderRadius: 2,
-                      overflow: 'hidden',
-                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)',
-                      border: `4px solid ${theme.palette.common.white}`,
-                    }}
-                  >
-                    <CardMedia
-                      component="img"
-                      image={source.cover_url || source.cover_min_url || defaultCover}
-                      alt={source.title}
-                      onClick={coverBlurred ? revealHandler(source.novel_id) : undefined}
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        cursor: coverBlurred ? 'pointer' : undefined,
-                        filter: coverBlurred ? 'blur(16px)' : 'none',
-                      }}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = defaultCover;
-                      }}
-                    />
-                    <AdultBadge isAdult={source.is_adult} novelId={source.novel_id} />
-                    
-                    {/* Language indicator */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        bgcolor: 'rgba(0,0,0,0.7)',
-                        color: 'white',
-                        px: 1,
-                        py: 0.3,
-                        borderRadius: 1,
-                        fontSize: '0.75rem',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      <img 
-                        src={languageFlagUrl(source.language)} 
-                        alt={languageCodeToName(t, source.language)}
-                        style={{ 
-                          width: '20px',
-                          height: '15px',
-                          objectFit: 'cover',
-                          borderRadius: '2px',
-                        }}
-                      />
-                      {source.language}
-                    </Box>
-                  </Box>
-                </Zoom>
+                <SourceCover
+                  source={source}
+                  coverBlurred={coverBlurred}
+                  onCoverClick={coverBlurred ? revealHandler(source.novel_id) : undefined}
+                />
               </Grid>
               
               <Grid size={{ xs: 12, md: 6, lg: 7 }}>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-                  <Typography 
-                    variant="h3" 
-                    gutterBottom 
-                    sx={{ 
-                      color: 'common.white',
-                      textShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {source.title}
-                    {source.is_adult && (
-                      // Always shown (unlike the cover badge, which only shows while blurred).
-                      <Chip
-                        label={t('sourceDetail.adultNote')}
-                        color="warning"
-                        size="small"
-                        sx={{ ml: 1.5, verticalAlign: 'middle', fontWeight: 'bold' }}
-                      />
-                    )}
-                  </Typography>
-                  {isAuthenticated && (
-                    <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-                      <Tooltip title={isBookmarked ? t('novelActions.removeBookmark') : t('novelActions.bookmark')}>
-                        <IconButton
-                          onClick={handleToggleBookmark}
-                          disabled={bookmarking || !novelSlug}
-                          sx={{
-                            color: 'common.white',
-                            bgcolor: alpha(theme.palette.common.black, 0.3),
-                            '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.5) },
-                          }}
-                        >
-                          {isBookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={t('novelActions.addToReadingList')}>
-                        <IconButton
-                          onClick={() => setAddToListOpen(true)}
-                          disabled={!source?.novel_id}
-                          sx={{
-                            color: 'common.white',
-                            bgcolor: alpha(theme.palette.common.black, 0.3),
-                            '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.5) },
-                          }}
-                        >
-                          <PlaylistAddIcon />
-                        </IconButton>
-                      </Tooltip>
-                      {novel && (
-                        <MarkAsReadButton
-                          novel={{
-                            ...novel,
-                            slug: novelSlug ?? novel.slug,
-                            reading_history: source.reading_history,
-                            prefered_source: source,
-                          } as unknown as INovel}
-                          onMarkAsRead={() =>
-                            setSource(prev =>
-                              prev?.reading_history
-                                ? {
-                                    ...prev,
-                                    reading_history: {
-                                      ...prev.reading_history,
-                                      last_read_chapter: prev.reading_history.source_latest_chapter ?? prev.reading_history.last_read_chapter,
-                                    },
-                                  }
-                                : prev
-                            )
-                          }
-                          customSx={{ position: 'static', zIndex: 'auto', color: 'common.white' }}
-                        />
-                      )}
-                    </Box>
-                  )}
-                </Box>
-                
-                {source.alternative_titles?.length > 0 && (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: alpha(theme.palette.common.white, 0.85),
-                      textShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                      mb: 1.5,
-                    }}
-                  >
-                    <strong>{t('sourceDetail.alternativeTitles')}:</strong> {source.alternative_titles.join(', ')}
-                  </Typography>
-                )}
-                
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    gap: 1,
-                    mb: 3,
-                  }}
-                >
-                <Typography 
-                  variant="h6" 
-                  sx={{ 
-                    color: alpha(theme.palette.common.white, 0.9),
-                    textShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                  }}
-                >
-                  {t('sourceDetail.fromPrefix')} {source.source_name}
-                  {source.source_url?.startsWith('http') && (
-                    <Tooltip title={t('sourceDetail.visitSource')}>
-                      <IconButton
-                        size="small"
-                        href={source.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{ 
-                          color: alpha(theme.palette.common.white, 0.9),
-                          '&:hover': {
-                            color: theme.palette.common.white,
-                            bgcolor: alpha(theme.palette.common.white, 0.1)
-                          }
-                        }}
-                      >
-                        <LaunchIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </Typography>
-                {source.edition && (
-                  <Chip
-                    size="small"
-                    label={editionLabel(source.edition, t)}
-                    sx={{ color: 'inherit', borderColor: 'currentColor' }}
-                    variant="outlined"
-                  />
-                )}
-                </Box>
-                
-                {/* Author badges */}
-                <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                    {source.authors.length > 0 && (
-                      <Box
-                        sx={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          bgcolor: alpha('#8e44ad', 0.7),
-                          backdropFilter: 'blur(10px)',
-                          px: 2,
-                          py: 0.75,
-                          borderRadius: 6,
-                        }}
-                      >
-                        <PersonIcon sx={{ mr: 1, fontSize: '1rem', color: theme.palette.common.white }} />
-                        <Typography
-                          variant="body1"
-                          sx={{
-                            color: theme.palette.common.white,
-                            fontWeight: 600,
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            alignItems: 'center',
-                          }}
-                        >
-                          {source.authors.map((author, index) => (
-                            <Box key={index} component="span">
-                              <Box
-                                component={Link}
-                                to={`/novels/search?author=${encodeURIComponent(author)}`}
-                                sx={{
-                                  color: theme.palette.common.white,
-                                  textDecoration: 'none',
-                                  '&:hover': { textDecoration: 'underline' },
-                                }}
-                              >
-                                {author}
-                              </Box>
-                              {index < source.authors.length - 1 ? ',\u00a0' : ''}
-                            </Box>
-                          ))}
-                        </Typography>
-                      </Box>
-                    )}
-                    {source.novelupdates_url && source.novelupdates_url.startsWith('http') && (
-                      <Tooltip title={t('sourceDetail.viewOnNovelUpdates')}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          href={source.novelupdates_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          startIcon={<MenuBookIcon fontSize="small" />}
-                          sx={{
-                            color: alpha(theme.palette.common.white, 0.9),
-                            borderColor: alpha(theme.palette.common.white, 0.5),
-                            textTransform: 'none',
-                            borderRadius: 6,
-                            '&:hover': {
-                              color: theme.palette.common.white,
-                              borderColor: theme.palette.common.white,
-                              bgcolor: alpha(theme.palette.common.white, 0.1),
-                            },
-                          }}
-                        >
-                          {t('sourceDetail.novelUpdates')}
-                        </Button>
-                      </Tooltip>
-                    )}
-                  </Box>
-                  
-                  {/* Novel rating component  */}
-                  <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
-                    {novelSlug && (
-                      <NovelRating
-                        novelSlug={novelSlug}
-                        initialUserRating={novelRating.user_rating}
-                        initialAvgRating={novelRating.avg_rating}
-                        initialRatingCount={novelRating.rating_count}
-                        size="small"
-                      />
-                    )}
-                  </Box>
-                </Box>
-                
-                {/* Divider with gradient */}
-                <Box 
-                  sx={{ 
-                    height: '2px', 
-                    background: `linear-gradient(to right, ${alpha(theme.palette.common.white, 0.8)}, transparent)`,
-                    mb: 2.5,
-                    mt: 0.5,
-                  }} 
+                <SourceTitleBar
+                  source={source}
+                  novel={novel}
+                  novelSlug={novelSlug}
+                  isAuthenticated={isAuthenticated}
+                  isBookmarked={isBookmarked}
+                  bookmarking={bookmarking}
+                  onToggleBookmark={handleToggleBookmark}
+                  onAddToList={() => setAddToListOpen(true)}
+                  setSource={setSource}
                 />
-                
-                {/* Source stats */}
-                <Grid container spacing={2} sx={{ mb: 3 }}>
-                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        p: 1,
-                        borderRadius: 2,
-                        bgcolor: alpha('#3498db', 0.3),
-                        backdropFilter: 'blur(10px)',
-                        border: `1px solid ${alpha('#3498db', 0.5)}`,
-                      }}
-                    >
-                      <ListAltIcon sx={{ color: alpha('#3498db', 0.9), mr: 1 }} />
-                      <Box>
-                        <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
-                          {t('novelSources.chapters')}
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {source.available_chapters_count ?? 0}
-                          {(source.available_chapters_count ?? 0) !== (source.chapters_count ?? 0) && (
-                            <Box component="span" sx={{ color: alpha(theme.palette.common.white, 0.5), fontWeight: 400 }}>
-                              /{source.chapters_count ?? 0}
-                            </Box>
-                          )}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid>
-                  
-                  <Grid size={{ xs: 12, sm: 6, md: 6 }}>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        p: 1,
-                        borderRadius: 2,
-                        bgcolor: alpha('#9b59b6', 0.3),
-                        backdropFilter: 'blur(10px)',
-                        border: `1px solid ${alpha('#9b59b6', 0.5)}`,
-                      }}
-                    >
-                      <CalendarTodayIcon sx={{ color: alpha('#9b59b6', 0.9), mr: 1 }} />
-                      <Box>
-                        <Typography variant="caption" sx={{ color: alpha(theme.palette.common.white, 0.7) }}>
-                          {t('sourceDetail.lastUpdated')}
-                        </Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 700, color: theme.palette.common.white }}>
-                          {formatDate(source.last_chapter_update, i18n.language)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Grid>
-                </Grid>
-
+                <SourceHeroDetails source={source} novelSlug={novelSlug} novelRating={novelRating} />
+                <SourceHeroStats source={source} language={i18n.language} />
                 {/* Tags */}
                 {source.tags.length > 0 && (
                   <Box sx={{ mb: 3 }}>
@@ -927,182 +240,18 @@ const SourceDetail = () => {
                   </Box>
                 )}
 
-                {/* Source vote actions*/}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.8), mb: 1 }}>
-                    {t('sourceDetail.rateSource')}
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button
-                      variant={source.user_vote === 'up' ? 'contained' : 'outlined'}
-                      color="success"
-                      startIcon={<ThumbUpIcon />}
-                      onClick={() => handleVote('up')}
-                      disabled={votingInProgress}
-                      sx={{ 
-                        borderRadius: '20px',
-                        px: 2,
-                        backdropFilter: 'blur(10px)',
-                        minWidth: '120px',
-                        position: 'relative'
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {t('sourceDetail.upvote')}
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            bgcolor: alpha(theme.palette.success.main, 0.2),
-                            px: 1,
-                            py: 0.2,
-                            borderRadius: 1,
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {source.upvotes}
-                        </Typography>
-                      </Box>
-                    </Button>
-                    
-                    <Button
-                      variant={source.user_vote === 'down' ? 'contained' : 'outlined'}
-                      color="error"
-                      startIcon={<ThumbDownIcon />}
-                      onClick={() => handleVote('down')}
-                      disabled={votingInProgress}
-                      sx={{ 
-                        borderRadius: '20px',
-                        px: 2,
-                        backdropFilter: 'blur(10px)',
-                        minWidth: '120px',
-                        position: 'relative'
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {t('sourceDetail.downvote')}
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            bgcolor: alpha(theme.palette.error.main, 0.2),
-                            px: 1,
-                            py: 0.2,
-                            borderRadius: 1,
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          {source.downvotes}
-                        </Typography>
-                      </Box>
-                    </Button>
-                  </Box>
-                </Box>
-                
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: {
-                      xs: '1fr',
-                      lg: continue_chapter && !isDmca ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
-                    },
-                    gap: 1,
-                    mb: 1.5,
-                  }}
-                >
-                  <ActionButton
-                    title={t('sourceDetail.startReading')}
-                    subtitle={t('sourceDetail.fromBeginning')}
-                    startIcon={<PlayArrowIcon />}
-                    color="success"
-                    to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source.first_available_chapter?.chapter_id}`}
-                    disabled={isDmca || !source.first_available_chapter}
-                    tooltip={t('sourceDetail.startFromFirst')}
-                  />
-
-                  {continue_chapter && !isDmca && (
-                    <ActionButton
-                      title={t('sourceDetail.continueReading')}
-                      subtitle={getChapterLabel(t, continue_chapter.title, continue_chapter.chapter_id)}
-                      startIcon={<BookmarkIcon />}
-                      color="warning"
-                      to={`/novels/${novelSlug}/${sourceSlug}/chapter/${continue_chapter.chapter_id}`}
-                      tooltip={t('sourceDetail.continueFrom', { chapter: getChapterLabel(t, continue_chapter.title, continue_chapter.chapter_id) })}
-                    />
-                  )}
-
-                  <ActionButton
-                    title={t('sourceDetail.latestChapter')}
-                    subtitle={getChapterLabel(t, source?.latest_available_chapter?.title, source?.latest_available_chapter?.chapter_id)}
-                    startIcon={<SkipNextIcon />}
-                    color="primary"
-                    to={`/novels/${novelSlug}/${sourceSlug}/chapter/${source?.latest_available_chapter?.chapter_id || 0}`}
-                    disabled={isDmca || !source?.latest_available_chapter}
-                    tooltip={t('sourceDetail.jumpToLatest')}
-                  />
-                </Box>
-
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                  <ActionButton
-                    compact
-                    fullWidth={false}
-                    title={t('sourceDetail.chapterList')}
-                    startIcon={<ViewListIcon />}
-                    color="info"
-                    to={`/novels/${novelSlug}/${sourceSlug}/chapterlist`}
-                    disabled={!source?.latest_available_chapter}
-                    tooltip={t('sourceDetail.browseAllChapters')}
-                  />
-
-                  <ActionButton
-                    compact
-                    fullWidth={false}
-                    title={t('sourceDetail.imageGallery')}
-                    startIcon={<CollectionsIcon />}
-                    color="secondary"
-                    to={`/novels/${novelSlug}/${sourceSlug}/gallery`}
-                    tooltip={t('sourceDetail.viewImageGallery')}
-                  />
-
-                  <ActionButton
-                    compact
-                    fullWidth={false}
-                    title={t('sourceDetail.download')}
-                    startIcon={<DownloadIcon />}
-                    color="info"
-                    onClick={(e) => setDownloadAnchor(e.currentTarget)}
-                    disabled={isDmca || !source?.chapters_count}
-                    tooltip={isDmca ? t('sourceDetail.dmcaNotice') : t('sourceDetail.downloadTooltip')}
-                  />
-                </Box>
-
-                <Menu
-                  anchorEl={downloadAnchor}
-                  open={Boolean(downloadAnchor)}
-                  onClose={() => setDownloadAnchor(null)}
-                >
-                  <MenuItem
-                    disabled={preparingKey !== null}
-                    onClick={() => {
-                      setDownloadAnchor(null);
-                      startDownload();
-                    }}
-                  >
-                    {preparingKey === 'full' && <CircularProgress size={16} sx={{ mr: 1 }} />}
-                    {t('sourceDetail.downloadFull')}
-                  </MenuItem>
-                  {source?.volumes && source.volumes.length > 1 && source.volumes.map((v) => (
-                    <MenuItem
-                      key={v.volume_id}
-                      disabled={preparingKey !== null}
-                      onClick={() => {
-                        setDownloadAnchor(null);
-                        startDownload(v.volume_id);
-                      }}
-                    >
-                      {preparingKey === String(v.volume_id) && <CircularProgress size={16} sx={{ mr: 1 }} />}
-                      {v.title || t('sourceDetail.volumeN', { n: v.volume_id })}
-                    </MenuItem>
-                  ))}
-                </Menu>
+                <SourceVoteActions source={source} votingInProgress={votingInProgress} onVote={handleVote} />
+                <SourceReadActions source={source} novelSlug={novelSlug} sourceSlug={sourceSlug} isDmca={isDmca} />
+                <SourceToolActions
+                  source={source}
+                  novelSlug={novelSlug}
+                  sourceSlug={sourceSlug}
+                  isDmca={isDmca}
+                  downloadAnchor={downloadAnchor}
+                  setDownloadAnchor={setDownloadAnchor}
+                  preparingKey={preparingKey}
+                  startDownload={startDownload}
+                />
               </Grid>
             </Grid>
           </Box>
@@ -1190,36 +339,13 @@ const SourceDetail = () => {
           </SectionContainer>
         )}
 
-        {novel?.reading_lists && novel.reading_lists.length > 0 && (() => {
-          const readingListsPageCount = Math.ceil(novel.reading_lists.length / READING_LISTS_PER_PAGE);
-          const currentReadingListPage = Math.min(readingListPage, readingListsPageCount);
-          const visibleReadingLists = novel.reading_lists.slice(
-            (currentReadingListPage - 1) * READING_LISTS_PER_PAGE,
-            currentReadingListPage * READING_LISTS_PER_PAGE
-          );
-          return (
-            <SectionContainer title={t('sourceDetail.inReadingLists')} icon={<PlaylistAddIcon />}>
-              <Grid container spacing={2}>
-                {visibleReadingLists.map((list) => (
-                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={list.id}>
-                    <ReadingListCard list={list} />
-                  </Grid>
-                ))}
-              </Grid>
-              {readingListsPageCount > 1 && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                  <Pagination
-                    count={readingListsPageCount}
-                    page={currentReadingListPage}
-                    onChange={(_, page) => setReadingListPage(page)}
-                    color="primary"
-                  />
-                </Box>
-              )}
-            </SectionContainer>
-          );
-        })()}
-
+        {novel?.reading_lists && novel.reading_lists.length > 0 && (
+          <ReadingListsPanel
+            readingLists={novel.reading_lists}
+            page={readingListPage}
+            onPageChange={setReadingListPage}
+          />
+        )}
         {novelSlug && (
           <SectionContainer title={t('sourceDetail.reviews')} icon={<MenuBookIcon />}>
             <Reviews novelSlug={novelSlug} showAddReview={true} />

@@ -7,7 +7,8 @@ from django.utils.html import format_html
 
 from ..models import TagCluster, TagMerge
 from ..services import tag_merge_service as tms
-from ..services.merge_service import MergeError, undo_tag_cluster, undo_tag_merge
+from ..services.merge_service import undo_tag_cluster, undo_tag_merge
+from .merge_common import undo_and_report
 
 
 def _pretty_json(value):
@@ -100,15 +101,10 @@ class TagClusterAdmin(admin.ModelAdmin):
 
     @admin.action(description="Undo applied merges")
     def undo_clusters(self, request, queryset):
-        undone = 0
-        for cluster in queryset.filter(status=TagCluster.STATUS_APPLIED):
-            try:
-                undo_tag_cluster(cluster)
-            except MergeError as exc:
-                self.message_user(request, f"Cluster {cluster.pk}: {exc}", messages.ERROR)
-            else:
-                undone += 1
-        self.message_user(request, f"Undid {undone} cluster(s).", messages.SUCCESS)
+        undo_and_report(
+            self, request, queryset.filter(status=TagCluster.STATUS_APPLIED), undo_tag_cluster,
+            label=lambda cluster: f"Cluster {cluster.pk}", noun="cluster",
+        )
 
     @admin.action(description="Re-queue for judging (clears the LLM answer)")
     def requeue_clusters(self, request, queryset):
@@ -158,12 +154,7 @@ class TagMergeAdmin(admin.ModelAdmin):
 
     @admin.action(description="Undo selected changes")
     def undo_merges(self, request, queryset):
-        undone = 0
-        for merge in queryset.filter(undone_at__isnull=True):
-            try:
-                undo_tag_merge(merge)
-            except MergeError as exc:
-                self.message_user(request, f"{merge}: {exc}", messages.ERROR)
-            else:
-                undone += 1
-        self.message_user(request, f"Undid {undone} change(s).", messages.SUCCESS)
+        undo_and_report(
+            self, request, queryset.filter(undone_at__isnull=True), undo_tag_merge,
+            label=str, noun="change",
+        )

@@ -26,6 +26,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from lncrawler_api.models import MergeCandidate, Novel, NovelFromSource, NovelSimilarity
+from lncrawler_api.services.merge_common import ordered_pair
 from lncrawler_api.utils.title_signals import normalize_text, sequel_number
 
 # Per-signal weights fed into the noisy-OR. ``src`` (same source URL) and ``nu``
@@ -106,16 +107,16 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.auto_score = options["auto_score"]
         if self.auto_score is None:
-            self.auto_score = getattr(settings, "MERGE_AUTO_SCORE", 1.01)
+            self.auto_score = settings.MERGE_AUTO_SCORE
         self.review_low = options["review_low"]
         if self.review_low is None:
-            self.review_low = getattr(settings, "MERGE_REVIEW_LOW", 0.5)
-        self.max_block_size = options["max_block_size"] or getattr(settings, "MERGE_MAX_BLOCK_SIZE", 50)
-        self.placeholder_min = getattr(settings, "MERGE_PLACEHOLDER_MIN_NOVELS", 5)
-        self.phash_max_distance = getattr(settings, "MERGE_PHASH_MAX_DISTANCE", 6)
+            self.review_low = settings.MERGE_REVIEW_LOW
+        self.max_block_size = options["max_block_size"] or settings.MERGE_MAX_BLOCK_SIZE
+        self.placeholder_min = settings.MERGE_PLACEHOLDER_MIN_NOVELS
+        self.phash_max_distance = settings.MERGE_PHASH_MAX_DISTANCE
         trigram_min = options["trigram_min"]
         if trigram_min is None:
-            trigram_min = getattr(settings, "MERGE_TRIGRAM_MIN", 0.4)
+            trigram_min = settings.MERGE_TRIGRAM_MIN
         self.trigram_min = trigram_min
         self.dry_run = options["dry_run"]
         limit = options["limit"]
@@ -239,7 +240,7 @@ class Command(BaseCommand):
                 continue
             for i in range(len(ids)):
                 for j in range(i + 1, len(ids)):
-                    pair = self._order(ids[i], ids[j])
+                    pair = ordered_pair(ids[i], ids[j])
                     pair_signals[pair][kind] = 1.0
         self._phash_pairs(data, pair_signals)
         return pair_signals
@@ -294,7 +295,7 @@ class Command(BaseCommand):
         def add_phash(a_id, b_id, score):
             if a_id == b_id:
                 return
-            pair = self._order(a_id, b_id)
+            pair = ordered_pair(a_id, b_id)
             pair_signals[pair]["phash"] = max(pair_signals[pair].get("phash", 0.0), score)
 
         for value, ids in hash_novels.items():
@@ -382,7 +383,7 @@ class Command(BaseCommand):
             # the exact blocks never see (they only match title to title and alt to
             # alt). Alt-involved matches keep the lower alt weight.
             signal = "title" if kind == other_kind == "title" else "alt"
-            pair = self._order(novel_id, other_id)
+            pair = ordered_pair(novel_id, other_id)
             pair_signals[pair][signal] = max(pair_signals[pair].get(signal, 0.0), float(sim))
 
     def _add_novel_similarity(self, pair_signals, allowed):
@@ -392,7 +393,7 @@ class Command(BaseCommand):
         for from_id, to_id, similarity in qs:
             if from_id == to_id:
                 continue
-            pair = self._order(from_id, to_id)
+            pair = ordered_pair(from_id, to_id)
             pair_signals[pair]["text"] = max(
                 pair_signals[pair].get("text", 0.0), float(similarity)
             )
@@ -423,10 +424,6 @@ class Command(BaseCommand):
             if sequel_a and sequel_b and not (sequel_a & sequel_b):
                 signals["sequel_mismatch"] = 1.0
 
-    @staticmethod
-    def _order(a, b):
-        return (a, b) if str(a) <= str(b) else (b, a)
-
     # ---------------------------------------------------------------- store
     def _store(self, pair_signals, allowed):
         stats = {"candidates": 0, "review": 0, "auto": 0, "merged": 0, "stale": 0}
@@ -443,7 +440,7 @@ class Command(BaseCommand):
         # One preload keyed by the unordered pair replaces a lookup per pair.
         # Rows whose FK was SET_NULL by a merge are not live pairs.
         existing = {
-            self._order(row.novel_a_id, row.novel_b_id): row
+            ordered_pair(row.novel_a_id, row.novel_b_id): row
             for row in MergeCandidate.objects.filter(novel_a__isnull=False, novel_b__isnull=False)
         }
 

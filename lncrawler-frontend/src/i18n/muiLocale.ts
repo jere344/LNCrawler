@@ -1,5 +1,6 @@
 import { enUS, frFR, esES, deDE, itIT, jaJP, koKR, zhCN, ptBR, ruRU, arSA, hiIN, thTH, viVN, idID, trTR, plPL, nlNL, svSE, daDK } from '@mui/material/locale';
 import type { Localization } from '@mui/material/locale';
+import { RTL_LANGUAGES } from '../generated/sharedConstants';
 
 // Map our flat language codes to the MUI locale packs.
 const MUI_LOCALES: Record<string, Localization> = {
@@ -27,4 +28,5 @@ const MUI_LOCALES: Record<string, Localization> = {
 
 export const getMuiLocale = (code: string): Localization => MUI_LOCALES[code] ?? enUS;
 
-export const muiDirection = (code: string): 'rtl' | 'ltr' => (code === 'ar' ? 'rtl' : 'ltr');
+export const muiDirection = (code: string): 'rtl' | 'ltr' =>
+    (RTL_LANGUAGES as readonly string[]).includes(code) ? 'rtl' : 'ltr';

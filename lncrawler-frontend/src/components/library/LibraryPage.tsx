@@ -57,18 +57,20 @@ import FolderIcon from '@mui/icons-material/Folder';
 import FolderOffIcon from '@mui/icons-material/FolderOff';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import { Link as RouterLink } from 'react-router-dom';
-import { userService, LibrarySort } from '@services/user.service';
+import { userService, LibrarySort, LIBRARY_SORTS } from '@services/user.service';
 import { novelService } from '@services/novel.service';
 import LibraryNovelCard from '@components/library/LibraryNovelCard';
 import LibraryFolderBar from '@components/library/LibraryFolderBar';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import { useLanguage } from '@context/LanguageContext';
-import { useDebounce } from '@utils/useDebounce';
+import { useUrlListState, useUrlSearch } from '@utils/useUrlListState';
 import { getNovelDisplayTitle } from '@utils/Misc';
 import defaultCover from '@assets/default-cover.jpg';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import NovelRecommendation from '@components/common/NovelRecommendation';
+import ConfirmDialog from '@components/common/ConfirmDialog';
+import LoginRequiredPanel from '@components/common/LoginRequiredPanel';
 import { useTranslation } from 'react-i18next';
 
 const bookmarkId = (novel: Novel) => novel.bookmark_id || novel.id;
@@ -87,10 +89,16 @@ const LibraryPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [allCount, setAllCount] = useState(0);
-  const [folder, setFolder] = useState('all');
-  const [sort, setSort] = useState<LibrarySort>('custom');
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search);
+  // Folder, sort and search live in the URL so a view survives back/forward and reloads.
+  // The search input is mirrored to `q` after a debounce, so the URL value is the debounced one.
+  const { searchParams, setParams } = useUrlListState();
+  const [search, setSearch] = useUrlSearch('q');
+  const debouncedSearch = searchParams.get('q') || '';
+  const folder = searchParams.get('folder') || 'all';
+  const sortParam = searchParams.get('sort') as LibrarySort | null;
+  const sort: LibrarySort = sortParam && LIBRARY_SORTS.includes(sortParam) ? sortParam : 'custom';
+  const setFolder = (value: string) => setParams({ folder: value === 'all' ? null : value }, { replace: true });
+  const setSort = (value: LibrarySort) => setParams({ sort: value === 'custom' ? null : value }, { replace: true });
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
@@ -433,30 +441,12 @@ const LibraryPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <Paper
-        elevation={3}
-        sx={{
-          p: 4,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 2,
-          mx: 'auto',
-          maxWidth: 'md',
-          my: 4,
-        }}
-      >
-        <LibraryBooksIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-        <Typography variant="h5" component="h1" gutterBottom>
-          {t('library.headingLoggedOut')}
-        </Typography>
-        <Typography variant="body1" align="center" sx={{ color: 'text.secondary' }}>
-          {t('library.needLogin')}
-        </Typography>
-        <Typography variant="body2" align="center" sx={{ color: 'text.secondary' }}>
-          {t('library.loginPrompt')}
-        </Typography>
-      </Paper>
+      <LoginRequiredPanel
+        icon={LibraryBooksIcon}
+        title={t('library.headingLoggedOut')}
+        description={t('library.needLogin')}
+        hint={t('library.loginPrompt')}
+      />
     );
   }
 
@@ -814,40 +804,30 @@ const LibraryPage: React.FC = () => {
       </Dialog>
 
       {/* Delete folder confirmation */}
-      <Dialog open={Boolean(deleteFolder)} onClose={() => setDeleteFolder(null)}>
-        <DialogTitle>{t('library.deleteFolderTitle')}</DialogTitle>
-        <DialogContent>
-          <Typography>{t('library.deleteFolderBody', { name: deleteFolder?.name })}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteFolder(null)}>{t('common.cancel')}</Button>
-          <Button color="error" variant="contained" onClick={handleDeleteFolder}>{t('common.delete')}</Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={Boolean(deleteFolder)}
+        title={t('library.deleteFolderTitle')}
+        message={t('library.deleteFolderBody', { name: deleteFolder?.name })}
+        confirmLabel={t('common.delete')}
+        confirmColor="error"
+        onConfirm={handleDeleteFolder}
+        onClose={() => setDeleteFolder(null)}
+      />
 
       {/* Remove from library confirmation */}
-      <Dialog open={Boolean(removeConfirm)} onClose={() => setRemoveConfirm(null)}>
-        <DialogTitle>{t('library.removeConfirmTitle')}</DialogTitle>
-        <DialogContent>
-          <Typography>
-            {t('library.removeConfirmBody', { count: removeConfirm?.length ?? 0 })}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRemoveConfirm(null)}>{t('common.cancel')}</Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() => {
-              const ids = removeConfirm ?? [];
-              setRemoveConfirm(null);
-              removeItems(ids);
-            }}
-          >
-            {t('common.delete')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={Boolean(removeConfirm)}
+        title={t('library.removeConfirmTitle')}
+        message={t('library.removeConfirmBody', { count: removeConfirm?.length ?? 0 })}
+        confirmLabel={t('common.delete')}
+        confirmColor="error"
+        onConfirm={() => {
+          const ids = removeConfirm ?? [];
+          setRemoveConfirm(null);
+          removeItems(ids);
+        }}
+        onClose={() => setRemoveConfirm(null)}
+      />
     </Box>
   );
 };

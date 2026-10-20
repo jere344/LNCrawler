@@ -5,9 +5,8 @@ import {
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
-import defaultCover from '@assets/default-cover.jpg';
 import { Novel } from '@models/novels_types';
-import { formatCount, getNovelDisplayTitle } from '@utils/Misc';
+import { formatCount, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -156,7 +155,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
           </Box>
           <CardMedia
             component="img"
-            image={preferredSource?.cover_min_url || defaultCover}
+            image={novelCoverUrl(preferredSource)}
             alt={getNovelDisplayTitle(novel)}
             onClick={blurred ? revealHandler(novel.id) : undefined}
             sx={{ 

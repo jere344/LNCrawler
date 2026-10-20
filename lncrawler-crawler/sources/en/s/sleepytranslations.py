@@ -18,8 +18,8 @@ from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
-from lncrawl.templates.soup.general import GeneralSoupTemplate
+from lncrawl.models import Chapter, NovelStatus, SearchResult
+from lncrawl.templates.madara import MadaraTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ _STATUSES = {
 _SERIES_LINK = re.compile(r"/series/[^/]+/?$")
 
 
-class SleepyTranslationsCrawler(GeneralSoupTemplate):
+class SleepyTranslationsCrawler(MadaraTemplate):
     base_url = "https://sleepytranslations.com/"
     language = "en"
 
@@ -49,6 +49,7 @@ class SleepyTranslationsCrawler(GeneralSoupTemplate):
         self.user_agent = None
 
     def initialize(self) -> None:
+        super().initialize()
         self.cleaner.bad_css.update(
             [
                 ".wp-manga-nav",
@@ -189,27 +190,24 @@ class SleepyTranslationsCrawler(GeneralSoupTemplate):
 
     # -- chapters ------------------------------------------------------ #
 
-    def parse_chapter_list(
-        self, soup: BeautifulSoup
-    ) -> Generator[Union[Chapter, Volume], None, None]:
+    def select_chapter_tags(self, soup: BeautifulSoup):
         toc_url = self.novel_url.rstrip("/") + "/ajax/chapters/"
         toc = self.post_soup(toc_url)
-
-        rows = []
-        for li in toc.select("li.wp-manga-chapter"):
-            link = li.select_one("a[href]")
-            href = (link.get("href") if isinstance(link, Tag) else "") or ""
-            if not href:
-                continue
-            title = (
-                link.get_text(" ", strip=True) if isinstance(link, Tag) else ""
-            ) or f"Chapter {len(rows) + 1}"
-            rows.append((self.absolute_url(href), title))
-
+        rows = [
+            li.select_one("a[href]")
+            for li in toc.select("li.wp-manga-chapter")
+        ]
+        rows = [a for a in rows if isinstance(a, Tag) and a.get("href")]
         # Madara returns the latest chapter first.
-        rows.reverse()
-        for idx, (href, title) in enumerate(rows, start=1):
-            yield Chapter(id=idx, url=href, title=title, volume=1)
+        yield from reversed(rows)
+
+    def parse_chapter_item(self, tag: Tag, id: int) -> Chapter:
+        return Chapter(
+            id=id,
+            url=self.absolute_url(tag["href"]),
+            title=tag.get_text(" ", strip=True) or f"Chapter {id}",
+            volume=1,
+        )
 
     def select_chapter_body(self, soup: BeautifulSoup) -> Tag:
         body = soup.select_one(".entry-content .reading-content")

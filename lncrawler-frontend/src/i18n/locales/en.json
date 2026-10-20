@@ -21,7 +21,9 @@
     "profile": "Profile",
     "logout": "Logout",
     "account": "Account",
-    "seeMore": "See more"
+    "seeMore": "See more",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {just now} one {# second ago} other {# seconds ago}}",

@@ -21,7 +21,9 @@
     "profile": "Profil",
     "logout": "Çıkış Yap",
     "account": "Hesap",
-    "seeMore": "Daha fazla göster"
+    "seeMore": "Daha fazla göster",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {az önce} one {# saniye önce} other {# saniye önce}}",

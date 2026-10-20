@@ -3,6 +3,8 @@ import { LibraryFolder, NovelListResponse, ReadingHistory } from '@models/novels
 
 export type LibrarySort = 'custom' | 'title' | 'date_added' | 'rating';
 
+export const LIBRARY_SORTS: LibrarySort[] = ['custom', 'title', 'date_added', 'rating'];
+
 export interface LibraryQuery {
   page?: number;
   pageSize?: number;

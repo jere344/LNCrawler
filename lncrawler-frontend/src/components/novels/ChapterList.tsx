@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, use } from 'react';
-import { useDebounce } from '@utils/useDebounce';
-import { useParams, useLoaderData, useSearchParams, Link } from 'react-router-dom';
+import { useMemo, use } from 'react';
+import { useUrlListState, useUrlSearch } from '@utils/useUrlListState';
+import { useParams, useLoaderData, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -41,30 +41,14 @@ const ChapterList = () => {
   const { novelSlug, sourceSlug } = useParams<{ novelSlug: string; sourceSlug: string }>();
   const { data: chapterListPromise } = useLoaderData() as AsyncData<ChapterListLoaderData>;
   const loaderData = use(chapterListPromise);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { searchParams, setParams } = useUrlListState();
 
   const chapterData = loaderData.ok ? loaderData.data : null;
   const error = loaderData.ok ? null : t('chapterList.loadFailed');
   const pageSize = Number(searchParams.get('page_size')) || 100;
 
-  const [searchTerm, setSearchTerm] = useState<string>(searchParams.get('q') || '');
-  const debouncedSearch = useDebounce(searchTerm);
-
-  // Mirror the debounced search into the URL so the loader owns the request.
-  useEffect(() => {
-    if (debouncedSearch === (searchParams.get('q') || '')) return;
-    const next = new URLSearchParams(searchParams);
-    if (debouncedSearch) next.set('q', debouncedSearch);
-    else next.delete('q');
-    next.delete('page');
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the debounced value
-  }, [debouncedSearch]);
-
-  // Keep the input in sync when the URL changes (back/forward or another source).
-  useEffect(() => {
-    setSearchTerm(searchParams.get('q') || '');
-  }, [novelSlug, sourceSlug, searchParams]);
+  // The debounced search is mirrored into the URL so the loader owns the request.
+  const [searchTerm, setSearchTerm] = useUrlSearch('q');
 
   // Organize chapters by volume
   const { volumeChapters, volumes } = useMemo(() => {
@@ -84,16 +68,11 @@ const ChapterList = () => {
   }, [chapterData]);
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('page', String(value));
-    setSearchParams(next);
+    setParams({ page: String(value) });
   };
 
   const handlePageSizeChange = (event: SelectChangeEvent<number>) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('page_size', String(Number(event.target.value)));
-    next.delete('page');
-    setSearchParams(next);
+    setParams({ page_size: String(Number(event.target.value)), page: null });
   };
 
   const pageUrl = window.location.href;

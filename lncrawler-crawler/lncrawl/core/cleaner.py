@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import Dict, List, Set, Union
+from typing import Dict, List, Optional, Set, Union
 
 from bs4 import Comment, Tag
 
@@ -51,6 +51,13 @@ class TextCleaner:
         self.whitelist_css_property: Set[str] = {"font-style", "font-weight"}
         # Ordered: lazy-loading attributes must win over `src`, which often holds a placeholder.
         self.image_src_attributes: List[str] = ["data-lazy-src", "data-src", "src"]
+
+        # Compiled caches, each stored with the config it was built from.
+        self._subs_key: Optional[tuple] = None
+        self._subs_: Optional[re.Pattern] = None
+        self._tag_pattern_cache: Dict[str, tuple] = {}
+        self._blacklist_key: Optional[frozenset] = None
+        self._blacklist_: Optional[re.Pattern] = None
 
     # ------------------------------------------------------------------ #
 
@@ -103,7 +110,9 @@ class TextCleaner:
 
     def clean_text(self, text) -> str:
         text = self._strip_nonprintable(str(text)).strip()
-        if not hasattr(self, "_subs_"):
+        subs_key = tuple(self.substitutions.items())
+        if self._subs_key != subs_key:
+            self._subs_key = subs_key
             self._subs_ = re.compile(
                 "|".join(f"({re.escape(x)})" for x in self.substitutions.keys()),
                 flags=re.IGNORECASE,
@@ -135,11 +144,18 @@ class TextCleaner:
             return True
         if not pattern:
             return False
-        if isinstance(pattern, list):
-            pattern = "|".join(f"({x})" for x in pattern if x)
         if not isinstance(pattern, re.Pattern):
-            pattern = re.compile(pattern, re.M)
-            self.bad_tag_text_pairs[tag.name] = pattern
+            # Compiled here, not written back into bad_tag_text_pairs, so the
+            # config keeps its original value and a changed value is picked up.
+            key = tuple(pattern) if isinstance(pattern, list) else pattern
+            cached = self._tag_pattern_cache.get(tag.name)
+            if not cached or cached[0] != key:
+                source = pattern
+                if isinstance(source, list):
+                    source = "|".join(f"({x})" for x in source if x)
+                cached = (key, re.compile(source, re.M))
+                self._tag_pattern_cache[tag.name] = cached
+            pattern = cached[1]
         return bool(pattern.search(tag.text))
 
     def clean_image(self, tag: Tag) -> None:
@@ -210,7 +226,10 @@ class TextCleaner:
             return True
         if not self.bad_text_regex:
             return False
-        if not hasattr(self, "__blacklist__"):
-            pattern = re.compile("|".join("(%s)" % p for p in self.bad_text_regex))
-            self.__blacklist__ = pattern
-        return bool(self.__blacklist__.search(text))
+        blacklist_key = frozenset(self.bad_text_regex)
+        if self._blacklist_key != blacklist_key:
+            self._blacklist_key = blacklist_key
+            self._blacklist_ = re.compile(
+                "|".join("(%s)" % p for p in self.bad_text_regex)
+            )
+        return bool(self._blacklist_.search(text))

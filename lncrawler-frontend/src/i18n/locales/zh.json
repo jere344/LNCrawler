@@ -21,7 +21,9 @@
     "profile": "个人资料",
     "logout": "退出登录",
     "account": "账户",
-    "seeMore": "查看更多"
+    "seeMore": "查看更多",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {刚刚} one {#秒前} other {#秒前}}",

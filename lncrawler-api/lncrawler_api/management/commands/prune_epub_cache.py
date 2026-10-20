@@ -19,7 +19,7 @@ import time
 from django.core.management.base import BaseCommand
 
 from ...models import NovelFromSource
-from ...models.sources_models import resolve_output_path
+from ...models.source_helpers import resolve_output_path
 from ...services.epub_service import CACHE_DIRNAME, LOCK_SUFFIX, MAX_CACHE_AGE
 
 logger = logging.getLogger(__name__)

@@ -15,89 +15,21 @@ from .novels_models import Novel, NovelAlias, Author, Editor, Translator, Tag, A
 
 logger = logging.getLogger('lncrawler_api')
 from .chapter_models import Volume, Chapter
+from .external_source_models import ExternalSource
+from .source_helpers import resolve_output_path, truncate
+from .source_links import (
+    AuthorImportError,
+    TAG_IMPORT_ATTEMPTS,
+    TagImportError,
+    TagImportRetry,
+    _set_source_authors,
+)
+from ..db_locks import lock_pks
 from ..utils import chapter_utils, lncrawler_paths
 from ..utils.slug import slugify
 from ..utils.title_signals import edition_label_from_title, same_work
 
 CHAPTER_BULK_CHUNK = 500
-
-
-def _lock_tag_pks(pks):
-    """Row-lock the given tags (ordered by pk) and return the pks that still exist."""
-    if not pks:
-        return set()
-    return set(
-        Tag.objects.select_for_update()
-        .filter(pk__in=sorted(pks))
-        .order_by("pk")
-        .values_list("pk", flat=True)
-    )
-
-
-TAG_IMPORT_ATTEMPTS = 3
-
-
-class TagImportRetry(Exception):
-    """Internal per-attempt signal: a tag was merged away before it could be locked."""
-
-
-class TagImportError(Exception):
-    """Tags could not be linked after ``TAG_IMPORT_ATTEMPTS`` attempts."""
-
-
-def _lock_author_pks(pks):
-    """Row-lock the given authors (ordered by pk) and return the pks that still exist."""
-    if not pks:
-        return set()
-    return set(
-        Author.objects.select_for_update()
-        .filter(pk__in=sorted(pks))
-        .order_by("pk")
-        .values_list("pk", flat=True)
-    )
-
-
-AUTHOR_IMPORT_ATTEMPTS = 3
-
-
-class AuthorImportRetry(Exception):
-    """Internal per-attempt signal: an author was merged away before it could be locked."""
-
-
-class AuthorImportError(Exception):
-    """Authors could not be linked after ``AUTHOR_IMPORT_ATTEMPTS`` attempts."""
-
-
-def _set_source_authors(novel_from_source, names):
-    """Replace ``novel_from_source``'s authors with the authors named ``names``.
-
-    Same scheme as ``_set_source_tags``: each attempt resolves the names (following
-    merged-away aliases), locks the sorted union of their authors in one statement,
-    then links. ``merge_authors`` locks the same rows in the same order, so an
-    author merged away in the meantime is missing from the lock result; that
-    attempt rolls back and the names are resolved again.
-
-    Raises ``AuthorImportError`` when every attempt failed.
-    """
-    names = [name for name in names if name]
-    for _ in range(AUTHOR_IMPORT_ATTEMPTS):
-        try:
-            with transaction.atomic():
-                authors = {}
-                for name in names:
-                    author = Author.resolve(name)
-                    if author is not None:
-                        authors[author.pk] = author
-                pks = sorted(authors)
-                if _lock_author_pks(pks) != set(pks):
-                    raise AuthorImportRetry()
-                novel_from_source.authors.set([authors[pk] for pk in pks])
-                return
-        except AuthorImportRetry:
-            continue
-    raise AuthorImportError(
-        f"authors kept changing during import after {AUTHOR_IMPORT_ATTEMPTS} attempts"
-    )
 
 
 class SourceFolderConflict(Exception):
@@ -126,7 +58,7 @@ def _set_source_tags(novel_from_source, names):
                     tag = Tag.resolve(name)
                     tags[tag.pk] = tag
                 pks = sorted(tags)
-                if _lock_tag_pks(pks) != set(pks):
+                if lock_pks(Tag, pks) != set(pks):
                     raise TagImportRetry()
                 novel_from_source.tags.set([tags[pk] for pk in pks])
                 is_adult = novel_from_source.adult_from_source or any(tags[pk].is_adult for pk in pks)
@@ -178,52 +110,12 @@ def refresh_adult_for_tags(tag_pks):
     return refresh_adult(NovelFromSource.objects.filter(tags__pk__in=tag_pks))
 
 
-def _bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):
+def bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):
     # Django's bulk_update builds one statement with a CASE/WHEN per row per
     # field; a large chapter list becomes a single multi-MB query that can OOM
     # the postgres backend. Chunk it. bulk_update has no batch_size argument.
     for start in range(0, len(objects), chunk_size):
         Chapter.objects.bulk_update(objects[start:start + chunk_size], fields)
-
-
-def truncate(value, max_length=500):
-    if value and len(value) > max_length:
-        return value[:max_length]
-    return value
-
-
-def resolve_output_path(*relative):
-    """
-    Resolve DB-relative path parts under ``LNCRAWL_OUTPUT_PATH`` and return the
-    absolute path, or ``None`` if the result escapes the output root (e.g. a
-    poisoned ``..`` segment). Valid paths are returned unchanged.
-    """
-    base = os.path.realpath(settings.LNCRAWL_OUTPUT_PATH)
-    target = os.path.realpath(os.path.join(base, *relative))
-    try:
-        if os.path.commonpath([base, target]) != base:
-            return None
-    except ValueError:
-        return None
-    return target
-
-class ExternalSource(models.Model):
-    """
-    Represents an external source (website) where novels are crawled from
-    """
-    STATUS_CHOICES = [
-        ('alive', 'Alive'),
-        ('dead', 'Dead'),
-    ]
-    
-    source_name = models.CharField(max_length=100, unique=True)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='alive')
-    
-    class Meta:
-        ordering = ['source_name']
-    
-    def __str__(self):
-        return f"{self.source_name} ({self.get_status_display()})"
 
 
 class NovelFromSource(models.Model):
@@ -844,7 +736,7 @@ class NovelFromSource(models.Model):
                     park = min([0] + [ch.chapter_id for ch in existing_list]) - 1
                     for index, (chapter, _) in enumerate(reassigned, start=1):
                         chapter.chapter_id = park - index + 1
-                    _bulk_update_chunked(
+                    bulk_update_chunked(
                         [chapter for chapter, _ in reassigned], ['chapter_id']
                     )
 
@@ -857,7 +749,7 @@ class NovelFromSource(models.Model):
                     for chapter, final_id in reassigned:
                         chapter.chapter_id = final_id
                     fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content']
-                    _bulk_update_chunked(chapters_to_update, fields_to_update)
+                    bulk_update_chunked(chapters_to_update, fields_to_update)
             
             # Update last_chapter_update timestamp
             novel_from_source.last_chapter_update = timezone.now()
@@ -876,8 +768,8 @@ class NovelFromSource(models.Model):
         """
         try:
             # Use dynamic import to avoid circular dependency
-            from ..services import cover_service
-            return cover_service.generate_overview(self)
+            from ..services.covers.overview import generate_overview
+            return generate_overview(self)
         except Exception as e:
             print(f"Error generating overview image for {self.title}: {e}")
             return False
@@ -888,8 +780,8 @@ class NovelFromSource(models.Model):
         """
         try:
             # Use dynamic import to avoid circular dependency
-            from ..services import cover_service
-            return cover_service.generate_cover_min(self, width, height, quality)
+            from ..services.covers.resize import generate_cover_min
+            return generate_cover_min(self, width, height, quality)
         except Exception as e:
             print(f"Error generating miniature cover for {self.title}: {e}")
             return False
@@ -911,61 +803,3 @@ class NovelFromSource(models.Model):
         
         # Call the parent delete method to delete the database record
         super().delete(*args, **kwargs)
-
-
-class SourceVote(models.Model):
-    """
-    Tracks upvotes and downvotes for novel sources
-    """
-    VOTE_CHOICES = [
-        ('up', 'Upvote'),
-        ('down', 'Downvote'),
-    ]
-    
-    source = models.ForeignKey('NovelFromSource', on_delete=models.CASCADE, related_name='votes')
-    ip_address = models.GenericIPAddressField()
-    vote_type = models.CharField(max_length=4, choices=VOTE_CHOICES)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        unique_together = ('source', 'ip_address')
-        
-    def __str__(self):
-        return f"{self.get_vote_type_display()} for {self.source.title} by {self.ip_address}"
-    
-    def save(self, *args, **kwargs):
-        is_new = self._state.adding
-        old_vote_type = None
-
-        if not is_new:
-            try:
-                old_vote_type = SourceVote.objects.get(pk=self.pk).vote_type
-            except SourceVote.DoesNotExist:
-                is_new = True
-
-        super().save(*args, **kwargs)
-
-        # Update counts atomically so concurrent votes don't lose increments.
-        source_pk = self.source_id
-
-        if is_new:
-            if self.vote_type == 'up':
-                NovelFromSource.objects.filter(pk=source_pk).update(
-                    upvotes=models.F('upvotes') + 1
-                )
-            else:
-                NovelFromSource.objects.filter(pk=source_pk).update(
-                    downvotes=models.F('downvotes') + 1
-                )
-        elif old_vote_type and old_vote_type != self.vote_type:
-            if self.vote_type == 'up':
-                NovelFromSource.objects.filter(pk=source_pk).update(
-                    upvotes=models.F('upvotes') + 1,
-                    downvotes=models.F('downvotes') - 1,
-                )
-            else:
-                NovelFromSource.objects.filter(pk=source_pk).update(
-                    downvotes=models.F('downvotes') + 1,
-                    upvotes=models.F('upvotes') - 1,
-                )

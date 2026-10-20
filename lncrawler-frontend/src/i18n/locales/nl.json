@@ -21,7 +21,9 @@
     "profile": "Profiel",
     "logout": "Uitloggen",
     "account": "Account",
-    "seeMore": "Meer weergeven"
+    "seeMore": "Meer weergeven",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {zojuist} one {# seconde geleden} other {# seconden geleden}}",

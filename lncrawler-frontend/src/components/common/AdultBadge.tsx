@@ -1,5 +1,6 @@
 import React from 'react';
 import { Chip } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
 
 /**
@@ -9,11 +10,12 @@ import { useAdultContent } from '@context/AdultContentContext';
  * viewer's own content.
  */
 export const AdultBadge: React.FC<{ isAdult?: boolean; novelId?: string; forceAdult?: boolean }> = ({ isAdult, novelId, forceAdult }) => {
+    const { t } = useTranslation();
     const { isBlurred, revealHandler } = useAdultContent();
     if (!isBlurred(isAdult, novelId, forceAdult)) return null;
     return (
         <Chip
-            label="R18"
+            label={t('common.r18')}
             color="warning"
             size="small"
             onClick={revealHandler(novelId)}

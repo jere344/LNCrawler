@@ -29,7 +29,8 @@ import { Link } from 'react-router-dom';
 
 import CommentForm from './CommentForm';
 import UserLink from '@components/profile/UserLink';
-import { commentService, type ApiError } from '../../services/api';
+import { commentService } from '../../services/api';
+import { getApiErrorMessage } from '@utils/apiError';
 import { Comment as IComment, CommentFormData } from '@models/comments_types';
 import { getChapterLabel, formatDateTime } from '@utils/Misc';
 import { useAuth } from '../../context/AuthContext';
@@ -138,9 +139,8 @@ const CommentItem = ({
       
       setIsEditing(false);
     } catch (error) {
-      const apiErr = error as ApiError;
       console.error('Failed to edit comment:', error);
-      setEditError(apiErr?.response?.data?.error || t('comments.editFailed'));
+      setEditError(getApiErrorMessage(error, t, 'comments.editFailed'));
     } finally {
       setIsSubmitting(false);
     }

@@ -21,7 +21,9 @@
     "profile": "Profil",
     "logout": "Wyloguj się",
     "account": "Konto",
-    "seeMore": "Pokaż więcej"
+    "seeMore": "Pokaż więcej",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {przed chwilą} one {# sekundę temu} few {# sekundy temu} many {# sekund temu} other {# sekundy temu}}",

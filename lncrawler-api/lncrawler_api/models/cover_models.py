@@ -5,7 +5,7 @@ class PlaceholderCover(models.Model):
     """A cover hash the source site uses as a stand-in image, not a real cover.
 
     Marked from the admin duplicate-covers page. Every source carrying the hash
-    loses its cover, and ``cover_service.generate_cover_min`` drops the hash on
+    loses its cover, and ``covers.resize.generate_cover_min`` drops the hash on
     future imports so the frontend falls back to our own default cover.
     ``sample_path`` keeps a copy of the thumbnail so the admin still shows what
     was blocked, even though the source covers are gone.

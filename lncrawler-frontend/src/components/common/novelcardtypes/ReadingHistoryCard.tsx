@@ -20,6 +20,7 @@ import { formatTimeAgo, formatDate, getChapterName, getNovelSourceLink, getNovel
 import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
+import { DmcaBadge } from '@components/common/DmcaBadge';
 
 interface ReadingHistoryCardProps {
   novel: Novel;
@@ -91,14 +92,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
       />
       <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
 
-      {novel.is_dmca && (
-        <Chip
-          label="DMCA"
-          color="error"
-          size="small"
-          sx={{ position: 'absolute', bottom: 8, left: 8, zIndex: 2, fontWeight: 'bold' }}
-        />
-      )}
+      {novel.is_dmca && <DmcaBadge bottom={8} />}
 
       {/* Content area */}
       <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, width: '100%' }}>

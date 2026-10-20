@@ -23,6 +23,7 @@ import type { Novel } from '@models/novels_types';
 import type { Comment } from '@models/comments_types';
 import type { Review } from '@services/review.service';
 import { useAuth } from '@context/AuthContext';
+import { useAsync } from '@utils/useAsync';
 import FriendButton from './FriendButton';
 import FriendsTab from './FriendsTab';
 import { BaseNovelCard } from '@components/common/novelcardtypes/BaseNovelCard';
@@ -47,26 +48,16 @@ const PublicProfilePage: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    const [profile, setProfile] = useState<PublicProfile | null>(null);
-    const [loading, setLoading] = useState(true);
+    const {
+        data: profile,
+        loading,
+        error,
+        setData: setProfile,
+    } = useAsync<PublicProfile>(() => profileService.getPublicProfile(username), [username]);
     const [tab, setTab] = useState(0);
 
     useEffect(() => {
-        let active = true;
-        setProfile(null);
         setTab(0);
-        setLoading(true);
-        profileService
-            .getPublicProfile(username)
-            .then((data) => active && setProfile(data))
-            .catch((err) => {
-                console.error('Error loading profile:', err);
-                if (active) setProfile(null);
-            })
-            .finally(() => active && setLoading(false));
-        return () => {
-            active = false;
-        };
     }, [username]);
 
     if (loading) {
@@ -77,7 +68,8 @@ const PublicProfilePage: React.FC = () => {
         );
     }
 
-    if (!profile) {
+    // A failed load must not keep showing the previous username's profile.
+    if (error || !profile) {
         return <Alert severity="error">{t('profile.notFound')}</Alert>;
     }
 

@@ -43,6 +43,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { readingListService } from '@services/api';
 import { ReadingList, ReadingListItem } from '@models/readinglist_types';
 import { useAuth } from '@context/AuthContext';
+import { useNotification } from '@context/NotificationContext';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
@@ -51,6 +52,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import PublicIcon from '@mui/icons-material/Public';
 import GroupIcon from '@mui/icons-material/Group';
 import ReadingListCard from '@components/common/novelcardtypes/ReadingListItemCard';
+import ConfirmDialog from '@components/common/ConfirmDialog';
 import { formatTimeAgo, getNovelSourceLink } from '@utils/Misc';
 import { useTranslation } from 'react-i18next';
 import { ReadingListCollaborator } from '@models/readinglist_types';
@@ -162,6 +164,7 @@ const ReadingListDetail = () => {
   const [editingNote, setEditingNote] = useState('');
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
+  const { notify } = useNotification();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -324,7 +327,7 @@ const ReadingListDetail = () => {
     } else {
       // Fallback for browsers that don't support the Web Share API
       navigator.clipboard.writeText(window.location.href)
-        .then(() => alert(t('readingLists.linkCopied')))
+        .then(() => notify({ message: t('readingLists.linkCopied'), severity: 'success' }))
         .catch((error) => console.error('Error copying link:', error));
     }
   };
@@ -629,27 +632,15 @@ const ReadingListDetail = () => {
       </Dialog>
 
       {/* Delete List Confirmation Dialog */}
-      <Dialog
+      <ConfirmDialog
         open={deleteDialogOpen}
+        title={t('readingLists.deleteTitle')}
+        message={t('readingLists.deleteBody', { title: readingList.title })}
+        confirmLabel={t('common.delete')}
+        confirmColor="error"
+        onConfirm={handleDeleteList}
         onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>{t('readingLists.deleteTitle')}</DialogTitle>
-        <DialogContent>
-          <Typography>
-            {t('readingLists.deleteBody', { title: readingList.title })}
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)}>{t('common.cancel')}</Button>
-          <Button 
-            onClick={handleDeleteList} 
-            variant="contained" 
-            color="error"
-          >
-            {t('common.delete')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
 
       {/* Edit Note Dialog */}
       <Dialog 

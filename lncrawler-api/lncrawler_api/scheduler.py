@@ -10,8 +10,13 @@ from django.core.management import call_command
 from django.db import close_old_connections
 from typing import Optional, Callable, Dict
 from .models import ScheduledTask
+from .services import llm_service
 
 logger = logging.getLogger('lncrawler_api')
+
+HOUR = 3600
+DAY = 86400
+WEEK = 604800
 
 
 def call_command_isolated(*args):
@@ -197,170 +202,170 @@ class DatabaseScheduler:
 # Get the singleton scheduler instance
 scheduler = DatabaseScheduler()
 
+
+def _run_job(start, done, failed, run):
+    """Log ``start``, call ``run``, then log ``done``.
+
+    An exception is logged as ``failed`` (formatted with ``error``) with its
+    traceback, then re-raised so the task is marked as failed.
+    """
+    logger.info(start)
+    try:
+        run()
+        logger.info(done)
+    except Exception as e:
+        logger.error(failed.format(error=str(e)), exc_info=True)
+        raise
+
 # Rebuild novel recommendations weekly (heavy O(N^2)-ish sweep; weekly is plenty).
-@scheduler.register_task(interval=604800, name="calculate_similarities")  # 604800 seconds = 7 days
+@scheduler.register_task(interval=WEEK, name="calculate_similarities")  # 7 days
 def calculate_novel_similarities():
     """Run the calculate_similarities command to update novel recommendations weekly."""
-    logger.info("Starting weekly novel similarity calculation...")
-    try:
-        call_command_isolated('calculate_similarities')
-        logger.info("Weekly novel similarity calculation completed successfully")
-    except Exception as e:
-        logger.error(f"Error in weekly novel similarity calculation: {str(e)}", exc_info=True)
-        raise  # Re-raise to mark task as failed
+    _run_job(
+        "Starting weekly novel similarity calculation...",
+        "Weekly novel similarity calculation completed successfully",
+        "Error in weekly novel similarity calculation: {error}",
+        lambda: call_command_isolated('calculate_similarities'),
+    )
 
 # Rebuild the cross-source duplicate queue weekly, after similarities so the
 # text signal is fresh. Auto-merge stays off until MERGE_AUTO_SCORE is tuned.
-@scheduler.register_task(interval=604800, name="find_merge_candidates")  # 7 days
+@scheduler.register_task(interval=WEEK, name="find_merge_candidates")  # 7 days
 def find_merge_candidates_task():
-    logger.info("Scanning for duplicate novel candidates...")
-    try:
-        call_command_isolated('find_merge_candidates')
-        logger.info("Duplicate novel scan completed successfully")
-    except Exception as e:
-        logger.error(f"Error scanning for duplicate novels: {str(e)}", exc_info=True)
-        raise  # Re-raise to mark task as failed
+    _run_job(
+        "Scanning for duplicate novel candidates...",
+        "Duplicate novel scan completed successfully",
+        "Error scanning for duplicate novels: {error}",
+        lambda: call_command_isolated('find_merge_candidates'),
+    )
 
 # Adjudicate the gray band through the LLMRequest queue (services/llm_tasks.py,
 # NovelMergeTask), like the R18 one. Only when an API key is configured. Bounded
 # per tick (settings.MERGE_LLM_LIMIT_PER_TICK) and by the shared daily budget, so a
 # slow or rate-limited provider cannot block the rest of the maintenance loop.
 @scheduler.register_task(
-    interval=int(getattr(settings, "MERGE_LLM_INTERVAL", 300)), name="judge_merge_candidates"
+    interval=int(settings.MERGE_LLM_INTERVAL), name="judge_merge_candidates"
 )
 def judge_merge_candidates_task():
-    from django.conf import settings as _settings
-
-    if not getattr(_settings, "LLM_API_KEY", ""):
+    if not llm_service.is_configured():
         return  # zero-LLM fallback: the review queue still works.
-    logger.info("Judging merge candidates with LLM...")
-    try:
-        call_command('run_llm_requests', 'novel_merge')
-        logger.info("Merge candidate LLM judging completed")
-    except Exception as e:
-        logger.error(f"Error judging merge candidates: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Judging merge candidates with LLM...",
+        "Merge candidate LLM judging completed",
+        "Error judging merge candidates: {error}",
+        lambda: call_command('run_llm_requests', 'novel_merge'),
+    )
 
 # Rebuild tag merge clusters daily: embeds new tags and groups likely duplicates.
 # Unchanged groups are skipped by signature, so a re-run only adds new work.
-@scheduler.register_task(interval=86400, name="find_tag_merge_candidates")  # daily
+@scheduler.register_task(interval=DAY, name="find_tag_merge_candidates")  # daily
 def find_tag_merge_candidates_task():
-    logger.info("Scanning for duplicate tag candidates...")
-    try:
-        call_command_isolated('find_tag_merge_candidates')
-        logger.info("Duplicate tag scan completed successfully")
-    except Exception as e:
-        logger.error(f"Error scanning for duplicate tags: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Scanning for duplicate tag candidates...",
+        "Duplicate tag scan completed successfully",
+        "Error scanning for duplicate tags: {error}",
+        lambda: call_command_isolated('find_tag_merge_candidates'),
+    )
 
 # Ask the LLM to judge pending tag clusters, a few calls per tick, only when the
 # merge LLM key is configured. Bounded per tick and by a daily call budget.
 @scheduler.register_task(
-    interval=int(getattr(settings, "TAG_LLM_INTERVAL", 600)), name="judge_tag_clusters"
+    interval=int(settings.TAG_LLM_INTERVAL), name="judge_tag_clusters"
 )
 def judge_tag_clusters_task():
-    from django.conf import settings as _settings
-
-    if not getattr(_settings, "LLM_API_KEY", ""):
+    if not llm_service.is_configured():
         return  # zero-LLM fallback: clusters stay pending until a key is set.
-    logger.info("Judging tag clusters with LLM...")
-    try:
-        call_command('judge_tag_clusters')
-        logger.info("Tag cluster LLM judging completed")
-    except Exception as e:
-        logger.error(f"Error judging tag clusters: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Judging tag clusters with LLM...",
+        "Tag cluster LLM judging completed",
+        "Error judging tag clusters: {error}",
+        lambda: call_command('judge_tag_clusters'),
+    )
 
 # Flag R18 tags through the generic LLMRequest queue (services/llm_tasks.py, TagR18Task).
 # Bounded per tick and by a daily token budget; needs the merge LLM key.
 @scheduler.register_task(
-    interval=int(getattr(settings, "TAG_R18_LLM_INTERVAL", 1800)), name="run_llm_tag_r18"
+    interval=int(settings.TAG_R18_LLM_INTERVAL), name="run_llm_tag_r18"
 )
 def run_llm_tag_r18_task():
-    if not getattr(settings, "LLM_API_KEY", ""):
+    if not llm_service.is_configured():
         return  # zero-LLM fallback: nothing is queued or sent.
-    logger.info("Classifying R18 tags with LLM...")
-    try:
-        call_command('run_llm_requests', 'tag_r18')
-        logger.info("R18 tag LLM classification completed")
-    except Exception as e:
-        logger.error(f"Error classifying R18 tags: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Classifying R18 tags with LLM...",
+        "R18 tag LLM classification completed",
+        "Error classifying R18 tags: {error}",
+        lambda: call_command('run_llm_requests', 'tag_r18'),
+    )
 
 # Find duplicate author names daily: merges normalized and mixed-script matches,
 # queues cross-source pairs for the LLM judge. Re-runs skip known pairs by signature.
-@scheduler.register_task(interval=86400, name="find_author_candidates")  # daily
+@scheduler.register_task(interval=DAY, name="find_author_candidates")  # daily
 def find_author_candidates_task():
-    logger.info("Scanning for duplicate author candidates...")
-    try:
-        call_command_isolated('find_author_candidates')
-        logger.info("Duplicate author scan completed successfully")
-    except Exception as e:
-        logger.error(f"Error scanning for duplicate authors: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Scanning for duplicate author candidates...",
+        "Duplicate author scan completed successfully",
+        "Error scanning for duplicate authors: {error}",
+        lambda: call_command_isolated('find_author_candidates'),
+    )
 
 # Ask the LLM to judge queued author pairs (services/llm_tasks.py, AuthorMergeTask).
 # Same cadence and per-tick cap as judge_merge_candidates; the shared daily budget
 # bounds the total. Only when the merge LLM key is configured.
 @scheduler.register_task(
-    interval=int(getattr(settings, "MERGE_LLM_INTERVAL", 300)), name="judge_author_candidates"
+    interval=int(settings.MERGE_LLM_INTERVAL), name="judge_author_candidates"
 )
 def judge_author_candidates_task():
-    if not getattr(settings, "LLM_API_KEY", ""):
+    if not llm_service.is_configured():
         return  # zero-LLM fallback: pairs stay pending until a key is set.
-    logger.info("Judging author candidates with LLM...")
-    try:
-        call_command('run_llm_requests', 'author_merge')
-        logger.info("Author candidate LLM judging completed")
-    except Exception as e:
-        logger.error(f"Error judging author candidates: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Judging author candidates with LLM...",
+        "Author candidate LLM judging completed",
+        "Error judging author candidates: {error}",
+        lambda: call_command('run_llm_requests', 'author_merge'),
+    )
 
 # Task to compress low traffic novels weekly.
 # Guardrails live in the command itself: single-threaded 7z (-mmt=1), low CPU
 # priority (nice), a pause between sources, and an id-batched scan. It targets
 # cold novels only and is allowed to run for a long time.
-@scheduler.register_task(interval=604800, name="compress_low_traffic")  # 604800 seconds = 7 days
+@scheduler.register_task(interval=WEEK, name="compress_low_traffic")  # 7 days
 def compress_low_traffic_novels():
     """Run the compress_low_traffic_novels command to compress novels with low weekly views."""
-    logger.info("Starting compression of low traffic novels...")
-    try:
-        # Bound each run so a cold catalogue can never turn the first execution
-        # into a multi-day job; leftovers are picked up on the next weekly run.
-        call_command('compress_low_traffic_novels', max_sources=500)
-        logger.info("Compression of low traffic novels completed successfully")
-    except Exception as e:
-        logger.error(f"Error in compression task: {str(e)}", exc_info=True)
-        raise  # Re-raise to mark task as failed
+    # Bound each run so a cold catalogue can never turn the first execution
+    # into a multi-day job; leftovers are picked up on the next weekly run.
+    _run_job(
+        "Starting compression of low traffic novels...",
+        "Compression of low traffic novels completed successfully",
+        "Error in compression task: {error}",
+        lambda: call_command('compress_low_traffic_novels', max_sources=500),
+    )
 
 # Roll daily view buckets older than the retention window into weekly buckets.
 # Daily granularity only matters for the rolling 7-day display; older history
 # is kept as one row per ISO week so the table doesn't grow forever.
-@scheduler.register_task(interval=604800, name="consolidate_source_views")  # 604800 seconds = 7 days
+@scheduler.register_task(interval=WEEK, name="consolidate_source_views")  # 7 days
 def consolidate_source_views():
     """Run the consolidate_source_views command to roll old daily views into weekly buckets."""
-    logger.info("Starting consolidation of old daily view buckets...")
-    try:
-        call_command('consolidate_source_views')
-        logger.info("Daily view bucket consolidation completed successfully")
-    except Exception as e:
-        logger.error(f"Error consolidating daily view buckets: {str(e)}", exc_info=True)
-        raise  # Re-raise to mark task as failed
+    _run_job(
+        "Starting consolidation of old daily view buckets...",
+        "Daily view bucket consolidation completed successfully",
+        "Error consolidating daily view buckets: {error}",
+        lambda: call_command('consolidate_source_views'),
+    )
 
 # Top up the popular-source refresh queue. Runs often but queues at most one job
 # per tick and skips sources refreshed in the last 6 days, so each source ends up
 # updated about weekly while the batch always stays on a single crawler thread
 # (even with several crawler replicas).
-@scheduler.register_task(interval=3600, name="update_popular_sources")  # hourly
+@scheduler.register_task(interval=HOUR, name="update_popular_sources")  # hourly
 def update_popular_sources():
     """Queue the next update for the most popular sources."""
-    logger.info("Queueing next popular source update...")
-    try:
-        call_command('update_popular_sources', top=20)
-        logger.info("Popular source update queue check completed")
-    except Exception as e:
-        logger.error(f"Error queueing popular source update: {str(e)}", exc_info=True)
-        raise  # Re-raise to mark task as failed
+    _run_job(
+        "Queueing next popular source update...",
+        "Popular source update queue check completed",
+        "Error queueing popular source update: {error}",
+        lambda: call_command('update_popular_sources', top=20),
+    )
 
 # Progressively prune orphan novels, empty sources and dead-source duplicates.
 # Bounded --limit per run so a 40k-novel first pass spreads over many runs.
@@ -369,36 +374,33 @@ def prune_library_task():
     import os
     if os.getenv("LNCRAWL_PRUNE_APPLY", "1").lower() in ("0", "false", "no"):
         return
-    logger.info("Pruning library (bounded batch)...")
-    try:
-        call_command('prune_library', apply=True, limit=200)
-        logger.info("Library prune batch completed")
-    except Exception as e:
-        logger.error(f"Error pruning library: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Pruning library (bounded batch)...",
+        "Library prune batch completed",
+        "Error pruning library: {error}",
+        lambda: call_command('prune_library', apply=True, limit=200),
+    )
 
 # Trim terminal Job rows so a continuously running harvest feeder cannot grow
 # the job table without bound. Keeps jobs still referenced by queued candidates.
-@scheduler.register_task(interval=86400, name="prune_jobs")  # daily
+@scheduler.register_task(interval=DAY, name="prune_jobs")  # daily
 def prune_jobs_task():
-    logger.info("Pruning old finished jobs...")
-    try:
-        call_command('prune_jobs')
-        logger.info("Old job prune completed")
-    except Exception as e:
-        logger.error(f"Error pruning old jobs: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Pruning old finished jobs...",
+        "Old job prune completed",
+        "Error pruning old jobs: {error}",
+        lambda: call_command('prune_jobs'),
+    )
 
 
-@scheduler.register_task(interval=86400, name="prune_epub_cache")  # daily
+@scheduler.register_task(interval=DAY, name="prune_epub_cache")  # daily
 def prune_epub_cache_task():
-    logger.info("Pruning expired EPUB cache files...")
-    try:
-        call_command('prune_epub_cache')
-        logger.info("EPUB cache prune completed")
-    except Exception as e:
-        logger.error(f"Error pruning EPUB cache: {str(e)}", exc_info=True)
-        raise
+    _run_job(
+        "Pruning expired EPUB cache files...",
+        "EPUB cache prune completed",
+        "Error pruning EPUB cache: {error}",
+        lambda: call_command('prune_epub_cache'),
+    )
 
 # Refresh the projected ranking columns that search sorts read. One set-based
 # UPDATE; only rows whose values changed are written, so frequent runs are cheap.

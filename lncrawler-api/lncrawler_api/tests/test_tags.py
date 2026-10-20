@@ -32,16 +32,12 @@ from django.contrib.messages import get_messages
 from django.db import IntegrityError
 from ..admin.source_admin import TagAdmin, TagAdminForm
 from ..models import sources_models
-from ..models.sources_models import (
-    TAG_IMPORT_ATTEMPTS,
-    TagImportError,
-    TagImportRetry,
-    _set_source_tags,
-    refresh_adult_for_tags,
-)
+from ..models.source_links import TAG_IMPORT_ATTEMPTS, TagImportError, TagImportRetry
+from ..models.sources_models import _set_source_tags, refresh_adult_for_tags
 from ..services import MergeError, llm_service, merge_tags, rename_tag, undo_tag_cluster, undo_tag_merge
 from ..services import embedding_service, merge_service
 from ..services import tag_merge_service as tms
+from ..services.merge_common import sorted_pk_signature
 from ..utils.tag_utils import normalize_tag
 
 
@@ -391,7 +387,7 @@ class JudgeTagClustersTests(TestCase):
     def _cluster(self, *tags):
         ids = [tag.pk for tag in tags]
         return TagCluster.objects.create(
-            signature=tms.cluster_signature(ids),
+            signature=sorted_pk_signature(ids),
             tag_ids=ids,
             tag_names=[tag.name for tag in tags],
         )
@@ -738,24 +734,24 @@ class ImportTagLockingTests(TestCase):
     def test_merged_away_tag_is_retried_with_one_lock_per_attempt(self):
         # The first lock reports Action as gone (merged away between resolve and
         # lock). The retry resolves the names again and locks once more.
-        real_lock = sources_models._lock_tag_pks
+        real_lock = sources_models.lock_pks
         seen = []
 
-        def racing_lock(pks):
+        def racing_lock(model, pks):
             seen.append(sorted(pks))
-            result = real_lock(pks)
+            result = real_lock(model, pks)
             if len(seen) == 1:
                 result = result - {self.action.pk}
             return result
 
-        with mock.patch.object(sources_models, "_lock_tag_pks", side_effect=racing_lock):
+        with mock.patch.object(sources_models, "lock_pks", side_effect=racing_lock):
             _set_source_tags(self.source, ["Isekai", "Action"])
 
         self.assertEqual(len(seen), 2)
         self.assertIn(self.isekai, set(self.source.tags.all()))
 
     def test_gives_up_after_the_attempt_limit(self):
-        with mock.patch.object(sources_models, "_lock_tag_pks", return_value=set()) as lock:
+        with mock.patch.object(sources_models, "lock_pks", return_value=set()) as lock:
             with self.assertRaises(TagImportError):
                 _set_source_tags(self.source, ["Isekai"])
         self.assertEqual(lock.call_count, TAG_IMPORT_ATTEMPTS)
@@ -948,7 +944,7 @@ class ImportContinuesTests(TestCase):
 
     def test_exhausted_tag_retries_keep_the_import_going(self):
         path = self._write_meta()
-        with mock.patch.object(sources_models, "_lock_tag_pks", return_value=set()):
+        with mock.patch.object(sources_models, "lock_pks", return_value=set()):
             with self.assertLogs("lncrawler_api", level="WARNING") as logs:
                 source = NovelFromSource.from_meta_json(path)
 
@@ -1233,7 +1229,7 @@ class ReplanUnderLockTests(TestCase):
 
 class UndoClusterLockTests(ChainedUndoTests):
     def test_cluster_undo_takes_one_lock_call(self):
-        real_lock = merge_service.lock_tags
-        with mock.patch.object(merge_service, "lock_tags", wraps=real_lock) as spy:
+        real_lock = merge_service.lock_pks
+        with mock.patch.object(merge_service, "lock_pks", wraps=real_lock) as spy:
             undo_tag_cluster(self.cluster)
         self.assertEqual(spy.call_count, 1)

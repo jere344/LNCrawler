@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     Box,
     Typography,
@@ -18,31 +18,22 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
 import { friendService } from '@services/friend.service';
 import type { FriendRequest } from '@models/user_types';
+import { useAsync } from '@utils/useAsync';
 import UserLink from './UserLink';
 
 const FriendRequestsPanel: React.FC = () => {
     const { t } = useTranslation();
     const [direction, setDirection] = useState<'incoming' | 'outgoing'>('incoming');
-    const [requests, setRequests] = useState<FriendRequest[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    const load = (dir: 'incoming' | 'outgoing') => {
-        setLoading(true);
-        friendService
-            .listRequests(dir)
-            .then(setRequests)
-            .catch((err) => console.error('Error loading friend requests:', err))
-            .finally(() => setLoading(false));
-    };
-
-    useEffect(() => {
-        load(direction);
-    }, [direction]);
+    const { data, loading, reload } = useAsync<FriendRequest[]>(
+        () => friendService.listRequests(direction),
+        [direction],
+    );
+    const requests = data ?? [];
 
     const handleRespond = async (id: string, action: 'accept' | 'decline') => {
         try {
             await friendService.respond(id, action);
-            load(direction);
+            reload();
         } catch (error) {
             console.error('Error responding to friend request:', error);
         }

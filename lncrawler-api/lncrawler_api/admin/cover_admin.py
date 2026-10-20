@@ -7,7 +7,8 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 
 from ..models import NovelFromSource, PlaceholderCover
-from ..services.cover_service import duplicate_cover_groups, mark_placeholder
+from ..services.covers.duplicates import duplicate_cover_groups
+from ..services.covers.placeholders import mark_placeholder
 from ..utils.media_utils import build_media_url
 
 DUPLICATES_LIMIT = 100

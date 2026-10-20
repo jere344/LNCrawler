@@ -13,7 +13,7 @@ from django.test import SimpleTestCase
 
 from ..models import ExternalSource, Novel, NovelAlias, NovelFromSource
 from ..models.sources_models import SourceFolderConflict
-from ..services.downloader_service import choose_crawl_output_path
+from ..services.downloader_helpers import choose_crawl_output_path
 from ..utils import lncrawler_paths
 from .helpers import MergeTestCase
 

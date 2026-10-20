@@ -32,7 +32,7 @@ CACHE_DIRNAME = "epub_cache"
 LOCK_SUFFIX = ".lock"
 # How many chapters between progress callbacks while building.
 PROGRESS_EVERY = 100
-MAX_CACHE_AGE = timedelta(hours=getattr(settings, "EPUB_CACHE_HOURS", 24))
+MAX_CACHE_AGE = timedelta(hours=settings.EPUB_CACHE_HOURS)
 
 _IMG_SRC_RE = re.compile(r'(<img[^>]+src=["\'])([^"\']+)(["\'])', re.IGNORECASE)
 

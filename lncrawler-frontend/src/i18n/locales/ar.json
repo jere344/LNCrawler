@@ -21,7 +21,9 @@
     "profile": "الملف الشخصي",
     "logout": "تسجيل الخروج",
     "account": "الحساب",
-    "seeMore": "عرض المزيد"
+    "seeMore": "عرض المزيد",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {الآن} one {قبل ثانية واحدة} two {قبل ثانيتين} few {قبل # ثوانٍ} many {قبل # ثانية} other {قبل # ثانية}}",

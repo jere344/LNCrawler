@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { neuralOptions, neuralOptionsKey, type TtsPrefs } from './ttsTypes';
+import { useWakeLock } from './useWakeLock';
 import {
   buildDocument,
   clearHighlight,
@@ -29,6 +30,7 @@ import {
   type SynthJob,
 } from './neuralClient';
 import { hasNeuralVoices, resolveNeuralVoice, type NeuralVoice } from './voiceCatalog';
+import { nextBlockChunk, previousBlockChunk } from './ttsChunks';
 
 export type TtsStatus =
   | 'idle'          // bar open, nothing playing yet / finished
@@ -125,7 +127,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const audioUrlRef = useRef<string | null>(null);
   const bakedVolumeRef = useRef(1);
   const prefetchKeyRef = useRef('');
-  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
+  // Screen wake lock, held while playing (keep screen on setting)
+  const { acquireWakeLock, releaseWakeLock } = useWakeLock(argsRef);
 
   const setStatus = useCallback((s: TtsStatus) => {
     statusRef.current = s;
@@ -173,20 +176,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   };
   const stopKeepAlive = () => keepAliveRef.current?.pause();
 
-  const releaseWakeLock = () => {
-    wakeLockRef.current?.release().catch(() => undefined);
-    wakeLockRef.current = null;
-  };
-  const acquireWakeLock = async () => {
-    if (!argsRef.current.prefs.ttsKeepScreenOn || wakeLockRef.current) return;
-    const wl = (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock;
-    if (!wl || document.visibilityState !== 'visible') return;
-    try {
-      wakeLockRef.current = await wl.request('screen');
-    } catch {
-      wakeLockRef.current = null;
-    }
-  };
 
   const clearPrefetch = () => {
     const jobs = prefetchRef.current;
@@ -537,22 +526,14 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     const doc = docRef.current ?? ensureDocument();
     if (!doc) return;
     const current = Math.max(0, indexRef.current);
-    const block = doc.chunks[current]?.block ?? -1;
     if (delta > 0) {
-      const next = doc.chunks.findIndex((c, k) => k > current && c.block !== block);
+      const next = nextBlockChunk(doc, current);
       if (next !== -1) seekToChunk(next);
       return;
     }
     // Back: to the start of this paragraph, or the previous one if already
     // at its start.
-    const first = doc.chunks.findIndex(c => c.block === block);
-    if (first !== -1 && first < current) {
-      seekToChunk(first);
-      return;
-    }
-    const prevBlock = doc.chunks[current - 1]?.block;
-    if (prevBlock === undefined) return seekToChunk(0);
-    seekToChunk(doc.chunks.findIndex(c => c.block === prevBlock));
+    seekToChunk(previousBlockChunk(doc, current));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- uses refs only
   }, [seekToChunk]);
 
@@ -751,11 +732,13 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
       document.removeEventListener('visibilitychange', onHidden);
     };
      
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wake lock helpers use refs only
   }, []);
   useEffect(() => {
     if (!prefs.ttsKeepScreenOn) releaseWakeLock();
     else if (statusRef.current === 'playing') acquireWakeLock();
      
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wake lock helpers use refs only
   }, [prefs.ttsKeepScreenOn]);
 
   // Sleep timer (time based; "end of chapter" is handled by the loop).
@@ -808,6 +791,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     keepAliveRef.current?.pause();
     releaseWakeLock();
      
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- wake lock helpers use refs only
   }, []);
 
   // Device voices available for the current language (for warnings).

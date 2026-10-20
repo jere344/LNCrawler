@@ -194,7 +194,7 @@ MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_FULL_URL = SITE_URL.rstrip("/") + "/" + MEDIA_URL.rstrip("/") + "/"
 
-LNCRAWL_OUTPUT_PATH = os.path.join(BASE_DIR.parent, 'Lightnovels')
+LNCRAWL_OUTPUT_PATH = os.environ.get('LNCRAWL_OUTPUT_PATH') or os.path.join(BASE_DIR.parent, 'Lightnovels')
 LNCRAWL_URL = "lightnovels/"
 LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 

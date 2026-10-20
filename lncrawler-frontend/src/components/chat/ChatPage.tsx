@@ -19,9 +19,9 @@ import ReplyIcon from '@mui/icons-material/Reply';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import { chatService } from '../../services/chat.service';
-import { type ApiError } from '../../services/api';
 import { ChatMessage } from '@models/chat_types';
 import { formatDateTime } from '@utils/Misc';
+import { getApiErrorMessage } from '@utils/apiError';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { CHAT_PAGE_SIZE, type AsyncData, type ChatLoaderData } from '../../router/loaders';
@@ -78,8 +78,7 @@ const ChatRow = ({ message, isOwn, highlight, canEdit, onReply, onEdit, onQuoteC
       await onEdit(message.id, text);
       setEditing(false);
     } catch (err) {
-      const apiError = (err as ApiError | undefined)?.response?.data?.error;
-      setEditError(typeof apiError === 'string' && apiError ? apiError : t('chat.editFailed'));
+      setEditError(getApiErrorMessage(err, t, 'chat.editFailed'));
     } finally {
       setSaving(false);
     }
@@ -316,8 +315,7 @@ const ChatComposer = ({ replyTo, onCancelReply, onSubmit }: ChatComposerProps) =
       setContainsSpoiler(false);
     } catch (err) {
       console.error('Error submitting chat message:', err);
-      const apiErr = err as ApiError;
-      setError(apiErr?.response?.data?.error || t('comments.submitFailed'));
+      setError(getApiErrorMessage(err, t, 'comments.submitFailed'));
     } finally {
       setSubmitting(false);
     }

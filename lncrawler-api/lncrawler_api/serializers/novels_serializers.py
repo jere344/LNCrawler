@@ -274,8 +274,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         similar_qs = obj.similar_to.select_related('to_novel').filter(
             to_novel__is_dmca=False, similarity__gt=0,
         )
-        if not adult_allowed(user):
-            similar_qs = similar_qs.exclude(to_novel__sources__is_adult=True)
+        similar_qs = exclude_adult(similar_qs, user, 'to_novel__')
         similar_novels = list(
             similar_qs
             .prefetch_related(*novel_prefetch_objects(user, prefix='to_novel__'))

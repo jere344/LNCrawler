@@ -31,7 +31,8 @@ from ..models import (
     SourceVote,
     WeeklySourceView,
 )
-from ..management.commands.prune_library import Command, normalize_source_name
+from ..management.commands.prune_library import Command
+from ..services.prune.common import normalize_source_name
 from ..utils import chapter_utils
 from .helpers import MergeTestCase
 

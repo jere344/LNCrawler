@@ -1,5 +1,7 @@
 import type { TFunction } from 'i18next';
 import type { Novel, NovelFromSource } from '@models/novels_types';
+import defaultCover from '@assets/default-cover.jpg';
+import { LANGUAGE_CODES, type LanguageCode } from '../generated/sharedConstants';
 
 export function formatTimeAgo(date: Date, t: TFunction): string {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -22,6 +24,11 @@ export function formatTimeAgo(date: Date, t: TFunction): string {
     } else {
         return t('units.timeAgoYears', { count: years });
     }
+}
+
+// Relative time for an ISO date, or the translated "unknown" when there is no date.
+export function formatTimeAgoOrUnknown(date: string | null | undefined, t: TFunction): string {
+    return date ? formatTimeAgo(new Date(date), t) : t('common.unknown');
 }
 
 // Known edition spellings (lowercased, letters only) -> i18n key suffix under novelSources.edition.
@@ -72,6 +79,10 @@ export function formatCount(count: number): string {
 
 export const formatNumber = (value: number, locale?: string): string =>
     value.toLocaleString(locale);
+
+// Cover of a novel's source, or the placeholder cover when it has none.
+export const novelCoverUrl = (source: { cover_min_url?: string | null } | null | undefined): string =>
+    source?.cover_min_url || defaultCover;
 
 export const getChapterName = (title: string): string => {
     const chapterMarkers = [
@@ -141,7 +152,7 @@ export const getChapterLabel = (t: TFunction, title?: string | null, chapterId?:
 
 
 export const languageCodeToFlag = (language?: string | null): string => {
-    const languageMap: { [key: string]: string } = {
+    const languageMap: Record<LanguageCode, string> = {
         'en': 'gb',
         'fr': 'fr',
         'es': 'es',
@@ -163,7 +174,7 @@ export const languageCodeToFlag = (language?: string | null): string => {
         'sv': 'se',
         'da': 'dk',
     };
-    return languageMap[(language || '').toLowerCase()] || 'unknown';
+    return languageMap[(language || '').toLowerCase() as LanguageCode] || 'unknown';
 }
 
 export const languageFlagUrl = (language: string): string =>
@@ -174,25 +185,5 @@ export const languageCodeToName = (t: TFunction, language: string): string => {
     return availableLanguages.includes(code) ? t(`languages.${code}`) : t('common.unknown');
 }
 
-export const availableLanguages = [
-    'en',
-    'fr',
-    'es',
-    'de',
-    'it',
-    'ja',
-    'ko',
-    'zh',
-    'pt',
-    'ru',
-    'ar',
-    'hi',
-    'th',
-    'vi',
-    'id',
-    'tr',
-    'pl',
-    'nl',
-    'sv',
-    'da',
-];
+// Typed as string[] so callers can check arbitrary values with includes().
+export const availableLanguages: string[] = [...LANGUAGE_CODES];

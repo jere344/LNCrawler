@@ -8,6 +8,7 @@ import type { Novel, NovelFromSource, Chapter } from '@models/novels_types';
 import type { Review } from '@services/review.service';
 import type { ChatPageResponse } from '@models/chat_types';
 import type { ReadingList, ReadingListResponse } from '@models/readinglist_types';
+import type { NovelSort } from '../generated/sharedConstants';
 
 // Shared with ChatPage so the loader's first page matches loadMore's pages.
 export const CHAT_PAGE_SIZE = 100;
@@ -173,7 +174,7 @@ export const searchLoader = ({ request }: LoaderFunctionArgs): AsyncData<SearchL
       status: sp.get('status') || undefined,
       languages: selectedLanguages.length > 0 ? selectedLanguages : undefined,
       min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : undefined,
-      sort_by: (sp.get('sort_by') as 'title' | 'rating' | 'date_added' | 'popularity' | 'trending' | 'last_updated') || 'title',
+      sort_by: (sp.get('sort_by') as NovelSort) || 'title',
       sort_order: (sp.get('sort_order') as 'asc' | 'desc') || 'asc',
       adult: (sp.get('adult') as 'hide' | 'show' | 'only') || undefined,
     })),

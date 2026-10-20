@@ -18,10 +18,12 @@ import { Link as RouterLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { novelService } from '@services/novel.service';
 import { importService } from '@services/import.service';
+import { getApiErrorMessage } from '@utils/apiError';
 import type { NuImportEntry, NuImportApplyResponse } from '@services/import.service';
 import type { Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import BreadcrumbNav from '@components/common/BreadcrumbNav';
+import LoginRequiredPanel from '@components/common/LoginRequiredPanel';
 
 interface NovelSelectProps {
   value: Novel | null;
@@ -125,8 +127,7 @@ const NovelUpdatesImportPage: React.FC = () => {
       );
       setParseId((id) => id + 1);
     } catch (err) {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(message || t('importNu.parseFailed'));
+      setError(getApiErrorMessage(err, t, 'importNu.parseFailed'));
     } finally {
       setParsing(false);
     }
@@ -171,27 +172,11 @@ const NovelUpdatesImportPage: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <Paper
-        elevation={3}
-        sx={{
-          p: 4,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 2,
-          mx: 'auto',
-          maxWidth: 'md',
-          my: 4,
-        }}
-      >
-        <LibraryBooksIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-        <Typography variant="h5" component="h1" gutterBottom>
-          {t('importNu.heading')}
-        </Typography>
-        <Typography variant="body1" align="center" sx={{ color: 'text.secondary' }}>
-          {t('library.needLogin')}
-        </Typography>
-      </Paper>
+      <LoginRequiredPanel
+        icon={LibraryBooksIcon}
+        title={t('importNu.heading')}
+        description={t('library.needLogin')}
+      />
     );
   }
 

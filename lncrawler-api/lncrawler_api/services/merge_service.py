@@ -22,6 +22,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from ..db_locks import lock_pks
 from ..models.sources_models import refresh_adult_for_tags
 from ..utils.slug import slugify
 from ..utils.tag_utils import normalize_tag
@@ -42,6 +43,7 @@ from ..models import (
     TagMerge,
     TagNoMerge,
 )
+from .merge_common import find_later_merge, repoint_orphaned_merges
 from .novel_operations import (
     FileOperationError,
     dedupe_source,
@@ -354,23 +356,6 @@ def merge_novels(source_novel, target_novel, move_files=True):
     return target_novel
 
 
-def lock_tags(pks):
-    """Row-lock tags in one statement, ordered by pk, and return the pks still present.
-
-    Callers must be inside a transaction. Taking every lock a unit of work needs
-    in one sorted call keeps two concurrent units from waiting on each other.
-    """
-    pks = sorted(set(pks))
-    if not pks:
-        return set()
-    return set(
-        Tag.objects.select_for_update()
-        .filter(pk__in=pks)
-        .order_by("pk")
-        .values_list("pk", flat=True)
-    )
-
-
 def merge_tags(source_tag, target_tag, cluster=None):
     """Fold ``source_tag`` into ``target_tag`` and remember the old name.
 
@@ -387,7 +372,7 @@ def merge_tags(source_tag, target_tag, cluster=None):
     with transaction.atomic():
         # Lock both rows before reading links: a concurrent import must not attach
         # new sources to the source tag between the read and the delete.
-        if len(lock_tags([source_tag.pk, target_tag.pk])) != 2:
+        if len(lock_pks(Tag, [source_tag.pk, target_tag.pk])) != 2:
             raise MergeError("A tag was merged away concurrently; reload and try again.")
 
         source_ids = list(source_tag.novels.values_list("pk", flat=True))
@@ -464,7 +449,7 @@ def rename_tag(tag, new_name, cluster=None):
         )
 
     with transaction.atomic():
-        if lock_tags([tag.pk]) != {tag.pk}:
+        if lock_pks(Tag, [tag.pk]) != {tag.pk}:
             raise MergeError(f"'{old_name}' was merged away; reload and try again.")
         try:
             # Nested savepoint: an IntegrityError rolls back only this write, and the
@@ -531,9 +516,7 @@ def _undo_merge(merge):
 
     # A later merge may have taken this name away (this tag was its target). Point
     # those records at the restored tag so they can be undone in turn.
-    TagMerge.objects.filter(
-        target__isnull=True, target_name=merge.source_name, undone_at__isnull=True
-    ).update(target=source)
+    repoint_orphaned_merges(TagMerge, merge.source_name, source)
 
     restored = list(
         NovelFromSource.objects.filter(pk__in=merge.all_source_ids).values_list("pk", flat=True)
@@ -571,16 +554,7 @@ def undo_tag_merge(merge):
         raise MergeError("This change was already undone.")
     if merge.target is None:
         # The target was merged away later. Its own merge must be undone first.
-        later = (
-            TagMerge.objects.filter(
-                source_name=merge.target_name,
-                undone_at__isnull=True,
-                created_at__gt=merge.created_at,
-            )
-            .exclude(pk=merge.pk)
-            .order_by("created_at")
-            .first()
-        )
+        later = find_later_merge(TagMerge, merge)
         if later is not None:
             raise MergeError(
                 f"Undo the later merge of '{later.source_name}' into "
@@ -591,7 +565,7 @@ def undo_tag_merge(merge):
     with transaction.atomic():
         # The target and (for a merge) the tag holding the source's key, in one
         # statement ordered by pk. Inside undo_tag_cluster these rows are already
-        # locked by its single lock_tags call, so this is a no-op there.
+        # locked by its single lock_pks call, so this is a no-op there.
         filters = Q(pk=merge.target_id)
         if merge.kind == TagMerge.KIND_MERGE:
             filters |= Q(normalized=normalize_tag(merge.source_name))
@@ -639,7 +613,7 @@ def undo_tag_cluster(cluster):
                 )
                 if key_pk is not None:
                     wanted.add(key_pk)
-        lock_tags(wanted)
+        lock_pks(Tag, wanted)
 
         for merge in merges:
             merge.refresh_from_db()

@@ -12,7 +12,7 @@ def parse_page_size(request, default=20, max_size=50):
     return max(1, min(value, max_size))
 
 
-def _paginate(request, queryset, default_size, max_size, count_queryset=None):
+def paginate(request, queryset, default_size, max_size, count_queryset=None):
     paginator = Paginator(queryset, parse_page_size(request, default_size, max_size))
     if count_queryset is not None:
         # A pre-trimmed queryset (e.g. distinct ids, no display-only
@@ -26,7 +26,7 @@ def paginated_response(
     default_size=20, max_size=100, context=None, extra=None, count_queryset=None,
 ):
     """Standard list envelope: {count, total_pages, current_page, results}."""
-    paginator, page_obj = _paginate(request, queryset, default_size, max_size, count_queryset)
+    paginator, page_obj = paginate(request, queryset, default_size, max_size, count_queryset)
     serializer_context = {"request": request}
     if context:
         serializer_context.update(context)
@@ -45,7 +45,7 @@ def paginated_reviews_response(
     request, queryset, serializer_class, *, default_size=20, max_size=50,
 ):
     """Reviews envelope: {reviews, pagination:{...}}."""
-    paginator, page_obj = _paginate(request, queryset, default_size, max_size)
+    paginator, page_obj = paginate(request, queryset, default_size, max_size)
     serializer = serializer_class(page_obj, many=True, context={"request": request})
     return Response({
         "reviews": serializer.data,

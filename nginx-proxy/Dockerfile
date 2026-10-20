@@ -3,6 +3,9 @@ FROM nginx:alpine
 # Copy the template config file
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
+# Shared forwarded headers, included by the template's proxy locations
+COPY proxy_forward_headers.conf /etc/nginx/snippets/proxy_forward_headers.conf
+
 # Copy the entrypoint script
 COPY docker-entrypoint.sh /
 

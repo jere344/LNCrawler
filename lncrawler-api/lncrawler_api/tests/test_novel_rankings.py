@@ -8,6 +8,7 @@ from django.urls import reverse
 
 from ..models import ExternalSource, Novel, NovelFromSource, NovelRating, WeeklySourceView
 from ..services.novel_rankings import refresh_novel_rankings
+from .helpers import make_novel
 
 
 class NovelRankingRefreshTests(TestCase):
@@ -16,9 +17,9 @@ class NovelRankingRefreshTests(TestCase):
         self.today = date.today()
         self.external = ExternalSource.objects.create(source_name="rank-site")
 
-        self.alpha = self._novel("Alpha", "alpha")
-        self.beta = self._novel("Beta", "beta")
-        self.gamma = self._novel("Gamma", "gamma")
+        self.alpha = make_novel("Alpha", "alpha")
+        self.beta = make_novel("Beta", "beta")
+        self.gamma = make_novel("Gamma", "gamma")
 
         # Alpha: 500 + 100 all-time views, 30 + 20 in the window, ratings 5 and 4.
         a1 = self._source(self.alpha, "a1", total_views=500)
@@ -40,9 +41,6 @@ class NovelRankingRefreshTests(TestCase):
         g1 = self._source(self.gamma, "g1", total_views=900)
         self._daily(g1, self.today, 10)
         self._rate(self.gamma, 5, "10.0.0.5")
-
-    def _novel(self, title, slug):
-        return Novel.objects.create(title=title, slug=slug, novel_path=slug)
 
     def _source(self, novel, slug, total_views):
         return NovelFromSource.objects.create(

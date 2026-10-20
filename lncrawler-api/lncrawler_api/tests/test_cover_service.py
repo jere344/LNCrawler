@@ -5,7 +5,9 @@ import os
 from PIL import Image
 
 from ..models import ExternalSource, Novel
-from ..services.cover_service import OverviewGenerator, dhash_file, generate_cover_min
+from ..services.covers.hashing import dhash_file
+from ..services.covers.overview import OverviewGenerator
+from ..services.covers.resize import generate_cover_min
 from .helpers import MergeTestCase
 
 

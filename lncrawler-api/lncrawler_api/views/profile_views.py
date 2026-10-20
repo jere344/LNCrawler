@@ -21,7 +21,7 @@ from ..utils.pagination import (
     paginated_response as _paginated_response, paginated_reviews_response,
 )
 from ..utils.responses import forbidden as _forbidden
-from ..utils.query_helpers import adult_allowed
+from ..utils.query_helpers import adult_allowed, exclude_adult
 
 User = get_user_model()
 
@@ -94,8 +94,7 @@ def user_reviews(request, username):
         .select_related('novel', 'user')
         .prefetch_related('reactions__user')
     )
-    if not adult_allowed(request.user):
-        reviews = reviews.exclude(novel__sources__is_adult=True)
+    reviews = exclude_adult(reviews, request.user, 'novel__')
     return paginated_reviews_response(request, reviews, ReviewSerializer)
 
 

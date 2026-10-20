@@ -5,13 +5,7 @@ import {
   CardActionArea,
   CardContent,
   CardMedia,
-  Button,
   Checkbox,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   IconButton,
   ListItemIcon,
@@ -32,13 +26,14 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOffIcon from '@mui/icons-material/FolderOff';
-import defaultCover from '@assets/default-cover.jpg';
-import { getNovelSourceLink, getNovelDisplayTitle } from '@utils/Misc';
+import { getNovelSourceLink, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
+import { DmcaBadge } from '@components/common/DmcaBadge';
+import MarkAsReadConfirmDialog from '@components/common/MarkAsReadConfirmDialog';
 import {
   getMarkAsReadTarget,
   hasUnreadChapters,
@@ -117,14 +112,7 @@ const CoverOverlays: React.FC<{ novel: Novel }> = ({ novel }) => {
           {unread > 999 ? '999+' : unread}
         </Box>
       )}
-      {novel.is_dmca && (
-        <Chip
-          label="DMCA"
-          color="error"
-          size="small"
-          sx={{ position: 'absolute', top: 36, left: 8, zIndex: 3, fontWeight: 'bold' }}
-        />
-      )}
+      {novel.is_dmca && <DmcaBadge top={36} zIndex={3} />}
     </>
   );
 };
@@ -161,7 +149,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
   const [markReadBusy, setMarkReadBusy] = useState(false);
   const canMarkRead = Boolean(isAuthenticated && hasUnreadChapters(novel));
   const preferredSource = novel.reading_source ?? novel.prefered_source;
-  const cover = preferredSource?.cover_min_url || defaultCover;
+  const cover = novelCoverUrl(preferredSource);
   const linkProps = getNovelSourceLink(novel);
   const canDrag = Boolean(dnd && draggable);
 
@@ -573,32 +561,13 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
         )}
       </Menu>
 
-      <Dialog
+      <MarkAsReadConfirmDialog
         open={markReadOpen}
+        novel={novel}
+        loading={markReadBusy}
+        onConfirm={handleConfirmMarkRead}
         onClose={() => setMarkReadOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>{t('markAsRead.confirmTitle')}</DialogTitle>
-        <DialogContent>
-          <Typography>
-            {t('markAsRead.confirmBody', { title: getNovelDisplayTitle(novel) })}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMarkReadOpen(false)} color="inherit">
-            {t('common.cancel')}
-          </Button>
-          <Button
-            onClick={handleConfirmMarkRead}
-            color="primary"
-            variant="contained"
-            disabled={markReadBusy}
-          >
-            {t('markAsRead.confirm')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </Box>
   );
 };

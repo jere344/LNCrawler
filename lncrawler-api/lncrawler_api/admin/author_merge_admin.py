@@ -3,7 +3,7 @@ from django.utils import timezone
 
 from ..models import AuthorAlias, AuthorMerge, AuthorMergeCandidate
 from ..services.author_merge_service import merge_candidate, undo_author_merge
-from ..services.merge_service import MergeError
+from .merge_common import undo_and_report
 from .tag_merge_admin import _pretty_json
 
 
@@ -76,16 +76,15 @@ class AuthorMergeCandidateAdmin(admin.ModelAdmin):
 
     @admin.action(description="Undo applied merges")
     def undo_merges(self, request, queryset):
-        undone = 0
-        for candidate in queryset.filter(status=AuthorMergeCandidate.STATUS_APPLIED):
-            for merge in candidate.merges.filter(undone_at__isnull=True):
-                try:
-                    undo_author_merge(merge)
-                except MergeError as exc:
-                    self.message_user(request, f"Candidate {candidate.pk}: {exc}", messages.ERROR)
-                else:
-                    undone += 1
-        self.message_user(request, f"Undid {undone} merge(s).", messages.SUCCESS)
+        merges = (
+            merge
+            for candidate in queryset.filter(status=AuthorMergeCandidate.STATUS_APPLIED)
+            for merge in candidate.merges.filter(undone_at__isnull=True)
+        )
+        undo_and_report(
+            self, request, merges, undo_author_merge,
+            label=lambda merge: f"Candidate {merge.candidate_id}", noun="merge",
+        )
 
 
 @admin.register(AuthorMerge)
@@ -112,15 +111,10 @@ class AuthorMergeAdmin(admin.ModelAdmin):
 
     @admin.action(description="Undo selected merges")
     def undo_merges(self, request, queryset):
-        undone = 0
-        for merge in queryset.filter(undone_at__isnull=True):
-            try:
-                undo_author_merge(merge)
-            except MergeError as exc:
-                self.message_user(request, f"{merge}: {exc}", messages.ERROR)
-            else:
-                undone += 1
-        self.message_user(request, f"Undid {undone} merge(s).", messages.SUCCESS)
+        undo_and_report(
+            self, request, queryset.filter(undone_at__isnull=True), undo_author_merge,
+            label=str, noun="merge",
+        )
 
 
 @admin.register(AuthorAlias)

@@ -5,14 +5,13 @@ import BookIcon from '@mui/icons-material/Book';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { Novel } from '@models/novels_types';
-import defaultCover from '@assets/default-cover.jpg';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
-import { formatTimeAgo, getNovelDisplayTitle } from '@utils/Misc';
+import { formatTimeAgo, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 
 interface NovelItemCardProps {
   novel: Novel;
@@ -98,7 +97,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       >
         <Box
           component="img"
-          src={displaySource?.cover_min_url || defaultCover}
+          src={novelCoverUrl(displaySource)}
           alt={getNovelDisplayTitle(novel)}
           onClick={blurred ? revealHandler(novel.id) : undefined}
           sx={{

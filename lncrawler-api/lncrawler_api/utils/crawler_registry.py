@@ -5,11 +5,9 @@ job. Mirrors the sys.path setup done by ``services.downloader_service`` and the
 ``prune_library`` management command.
 """
 
-import sys
 import threading
-from pathlib import Path
 
-from django.conf import settings
+from .crawler_path import ensure_crawler_on_path
 
 _lock = threading.Lock()
 _cache: dict[str, bool] = {}
@@ -31,11 +29,7 @@ def has_crawler(url: str) -> bool:
         if cached is not None:
             return cached
         try:
-            crawler_dir = Path(settings.BASE_DIR).parent / "lncrawler-crawler"
-            for path in (crawler_dir.parent, crawler_dir):
-                p = str(path)
-                if p not in sys.path:
-                    sys.path.insert(0, p)
+            ensure_crawler_on_path()
             from lncrawl.core.sources import get_crawler_by_url
 
             cls = get_crawler_by_url(url)

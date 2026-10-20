@@ -16,6 +16,7 @@ from django.urls import reverse
 
 from django.utils import timezone
 
+from .helpers import make_novel, make_source
 from ..models import (
     ExternalSource,
     Novel,
@@ -150,22 +151,10 @@ class HomeRecommendationTests(TestCase):
     """The home page's "recommended for you" strip is auth-only, seeded from
     the user's last read novels, and never suggests an already-read novel."""
 
-    def _novel(self, slug):
-        return Novel.objects.create(title=slug, slug=slug, novel_path=slug)
-
-    def _source(self, novel, language="en"):
-        return NovelFromSource.objects.create(
-            novel=novel,
-            external_source=ExternalSource.objects.create(source_name=f"src-{novel.slug}"),
-            title=novel.title,
-            source_url=f"http://{novel.slug}/1",
-            language=language,
-        )
-
     def test_anonymous_response_has_empty_recommendations(self):
-        seed = self._novel("seed")
+        seed = make_novel("seed", "seed")
         NovelSimilarity.objects.create(
-            from_novel=seed, to_novel=self._novel("other"), similarity=0.9
+            from_novel=seed, to_novel=make_novel("other", "other"), similarity=0.9
         )
         response = self.client.get(reverse("home_page"))
         self.assertEqual(response.status_code, 200)
@@ -179,13 +168,13 @@ class HomeRecommendationTests(TestCase):
 
     def test_recommendations_exclude_every_novel_read(self):
         user = get_user_model().objects.create_user(username="reader", password="x")
-        seed = self._novel("seed")
-        already = self._novel("already")
+        seed = make_novel("seed", "seed")
+        already = make_novel("already", "already")
         for novel in (seed, already):
             ReadingHistory.objects.create(
-                user=user, novel=novel, source=self._source(novel)
+                user=user, novel=novel, source=make_source(novel)
             )
-        candidate = self._novel("candidate")
+        candidate = make_novel("candidate", "candidate")
         NovelSimilarity.objects.create(from_novel=seed, to_novel=candidate, similarity=0.9)
         NovelSimilarity.objects.create(from_novel=seed, to_novel=already, similarity=0.9)
 
@@ -204,16 +193,16 @@ class HomeRecommendationTests(TestCase):
         # window, make it the strongest similarity target, and prove it is
         # withheld while a genuine candidate comes through.
         user = get_user_model().objects.create_user(username="reader", password="x")
-        older = self._novel("older")
-        ReadingHistory.objects.create(user=user, novel=older, source=self._source(older))
+        older = make_novel("older", "older")
+        ReadingHistory.objects.create(user=user, novel=older, source=make_source(older))
         seeds = []
         for i in range(5):
-            seed = self._novel(f"seed-{i}")
+            seed = make_novel(f"seed-{i}", f"seed-{i}")
             ReadingHistory.objects.create(
-                user=user, novel=seed, source=self._source(seed)
+                user=user, novel=seed, source=make_source(seed)
             )
             seeds.append(seed)
-        candidate = self._novel("candidate")
+        candidate = make_novel("candidate", "candidate")
         NovelSimilarity.objects.create(
             from_novel=seeds[-1], to_novel=older, similarity=0.99
         )
@@ -230,9 +219,9 @@ class HomeRecommendationTests(TestCase):
 
     def test_recommendations_exclude_dmca_novels(self):
         user = get_user_model().objects.create_user(username="reader", password="x")
-        seed = self._novel("seed")
-        ReadingHistory.objects.create(user=user, novel=seed, source=self._source(seed))
-        removed = self._novel("removed")
+        seed = make_novel("seed", "seed")
+        ReadingHistory.objects.create(user=user, novel=seed, source=make_source(seed))
+        removed = make_novel("removed", "removed")
         removed.is_dmca = True
         removed.save(update_fields=["is_dmca"])
         NovelSimilarity.objects.create(
@@ -246,12 +235,12 @@ class HomeRecommendationTests(TestCase):
 
     def test_recommendations_respect_language_filter(self):
         user = get_user_model().objects.create_user(username="reader", password="x")
-        seed = self._novel("seed")
-        ReadingHistory.objects.create(user=user, novel=seed, source=self._source(seed))
-        fr = self._novel("fr-candidate")
-        self._source(fr, language="fr")
-        ja = self._novel("ja-candidate")
-        self._source(ja, language="ja")
+        seed = make_novel("seed", "seed")
+        ReadingHistory.objects.create(user=user, novel=seed, source=make_source(seed))
+        fr = make_novel("fr-candidate", "fr-candidate")
+        make_source(fr, language="fr")
+        ja = make_novel("ja-candidate", "ja-candidate")
+        make_source(ja, language="ja")
         NovelSimilarity.objects.create(from_novel=seed, to_novel=fr, similarity=0.5)
         NovelSimilarity.objects.create(from_novel=seed, to_novel=ja, similarity=0.9)
 
@@ -276,14 +265,14 @@ class HomeRecommendationTests(TestCase):
         )
 
         def measure(n, tag):
-            seed = self._novel(f"seed-{tag}")
+            seed = make_novel(f"seed-{tag}", f"seed-{tag}")
             ReadingHistory.objects.create(
-                user=user, novel=seed, source=self._source(seed)
+                user=user, novel=seed, source=make_source(seed)
             )
             candidates = []
             for i in range(n):
-                candidate = self._novel(f"cand-{tag}-{i}")
-                self._source(candidate)
+                candidate = make_novel(f"cand-{tag}-{i}", f"cand-{tag}-{i}")
+                make_source(candidate)
                 NovelSimilarity.objects.create(
                     from_novel=seed, to_novel=candidate, similarity=0.1 * (i + 1)
                 )
@@ -313,25 +302,13 @@ class RecommendationScoringTests(TestCase):
             username="scorer", email="scorer@example.com", password="pw12345!"
         )
 
-    def _novel(self, slug):
-        return Novel.objects.create(title=slug, slug=slug, novel_path=slug)
-
-    def _source(self, novel, language="en"):
-        return NovelFromSource.objects.create(
-            novel=novel,
-            external_source=ExternalSource.objects.create(source_name=f"src-{novel.slug}"),
-            title=novel.title,
-            source_url=f"http://{novel.slug}/1",
-            language=language,
-        )
-
     def test_weighted_similarity_outranks_seed_vote_count(self):
         from ..views.users_views import get_novel_recommendations
 
-        seed_a = self._novel("seed-a")
-        seed_b = self._novel("seed-b")
-        strong = self._novel("strong")
-        weak = self._novel("weak")
+        seed_a = make_novel("seed-a", "seed-a")
+        seed_b = make_novel("seed-b", "seed-b")
+        strong = make_novel("strong", "strong")
+        weak = make_novel("weak", "weak")
         # ``weak`` has two votes but tiny scores; ``strong`` has one large score.
         NovelSimilarity.objects.create(from_novel=seed_a, to_novel=strong, similarity=0.9)
         NovelSimilarity.objects.create(from_novel=seed_a, to_novel=weak, similarity=0.1)
@@ -345,10 +322,10 @@ class RecommendationScoringTests(TestCase):
     def test_zero_similarity_rows_are_not_recommended(self):
         from ..views.users_views import get_novel_recommendations
 
-        seed_a = self._novel("seed-a")
-        seed_b = self._novel("seed-b")
-        padded = self._novel("padded")
-        real = self._novel("real")
+        seed_a = make_novel("seed-a", "seed-a")
+        seed_b = make_novel("seed-b", "seed-b")
+        padded = make_novel("padded", "padded")
+        real = make_novel("real", "real")
         # Zero-padded rows used to count as votes, so ``padded`` (two seeds)
         # would have taken the only slot ahead of ``real``.
         NovelSimilarity.objects.create(from_novel=seed_a, to_novel=padded, similarity=0.0)
@@ -363,16 +340,16 @@ class RecommendationScoringTests(TestCase):
     def test_library_seeds_are_most_recently_read_and_capped(self):
         from ..views import users_views
 
-        recent = self._novel("recent")
-        mid = self._novel("mid")
-        old = self._novel("old")
+        recent = make_novel("recent", "recent")
+        mid = make_novel("mid", "mid")
+        old = make_novel("old", "old")
         now = timezone.now()
         # Bookmarked in this order, so ``old`` is the newest bookmark but the
         # least recently read: the read recency must decide who seeds.
         for novel, days_ago in ((recent, 0), (mid, 1), (old, 10)):
             NovelBookmark.objects.create(user=self.user, novel=novel)
             history = ReadingHistory.objects.create(
-                user=self.user, novel=novel, source=self._source(novel)
+                user=self.user, novel=novel, source=make_source(novel)
             )
             ReadingHistory.objects.filter(pk=history.pk).update(
                 last_read_at=now - timedelta(days=days_ago)
@@ -380,9 +357,9 @@ class RecommendationScoringTests(TestCase):
 
         # ``old`` has the strongest neighbour; it must not seed the library
         # recommendations once the seed cap drops it.
-        recent_neighbour = self._novel("recent-neighbour")
-        mid_neighbour = self._novel("mid-neighbour")
-        old_neighbour = self._novel("old-neighbour")
+        recent_neighbour = make_novel("recent-neighbour", "recent-neighbour")
+        mid_neighbour = make_novel("mid-neighbour", "mid-neighbour")
+        old_neighbour = make_novel("old-neighbour", "old-neighbour")
         NovelSimilarity.objects.create(from_novel=recent, to_novel=recent_neighbour, similarity=0.5)
         NovelSimilarity.objects.create(from_novel=mid, to_novel=mid_neighbour, similarity=0.4)
         NovelSimilarity.objects.create(from_novel=old, to_novel=old_neighbour, similarity=0.9)
@@ -395,12 +372,12 @@ class RecommendationScoringTests(TestCase):
         self.assertEqual(ids[:2], [str(recent_neighbour.id), str(mid_neighbour.id)])
 
     def test_library_languages_filter_excludes_other_language_neighbours(self):
-        seed = self._novel("seed")
+        seed = make_novel("seed", "seed")
         NovelBookmark.objects.create(user=self.user, novel=seed)
-        french = self._novel("french-neighbour")
-        self._source(french, language="fr")
-        english = self._novel("english-neighbour")
-        self._source(english, language="en")
+        french = make_novel("french-neighbour", "french-neighbour")
+        make_source(french, language="fr")
+        english = make_novel("english-neighbour", "english-neighbour")
+        make_source(english, language="en")
         NovelSimilarity.objects.create(from_novel=seed, to_novel=french, similarity=0.9)
         NovelSimilarity.objects.create(from_novel=seed, to_novel=english, similarity=0.5)
 
@@ -412,12 +389,12 @@ class RecommendationScoringTests(TestCase):
         self.assertNotIn(str(french.id), ids)
 
     def test_detail_similar_novels_exclude_dmca_neighbours(self):
-        seed = self._novel("detail-seed")
-        self._source(seed)
-        removed = self._novel("removed")
+        seed = make_novel("detail-seed", "detail-seed")
+        make_source(seed)
+        removed = make_novel("removed", "removed")
         removed.is_dmca = True
         removed.save(update_fields=["is_dmca"])
-        kept = self._novel("kept")
+        kept = make_novel("kept", "kept")
         NovelSimilarity.objects.create(from_novel=seed, to_novel=removed, similarity=0.9)
         NovelSimilarity.objects.create(from_novel=seed, to_novel=kept, similarity=0.4)
 

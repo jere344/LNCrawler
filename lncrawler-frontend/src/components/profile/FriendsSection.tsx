@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Box, Typography, Avatar, Grid, CircularProgress, Paper } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { profileService } from '@services/profile.service';
 import { User } from '@models/user_types';
+import { useAsync } from '@utils/useAsync';
 import UserLink from './UserLink';
 
 interface FriendsSectionProps {
@@ -11,21 +12,8 @@ interface FriendsSectionProps {
 
 const FriendsSection: React.FC<FriendsSectionProps> = ({ username }) => {
     const { t } = useTranslation();
-    const [friends, setFriends] = useState<User[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        let active = true;
-        setLoading(true);
-        profileService
-            .getUserFriends(username)
-            .then((data) => active && setFriends(data))
-            .catch((err) => console.error('Error loading friends:', err))
-            .finally(() => active && setLoading(false));
-        return () => {
-            active = false;
-        };
-    }, [username]);
+    const { data, loading } = useAsync<User[]>(() => profileService.getUserFriends(username), [username]);
+    const friends = data ?? [];
 
     if (loading) {
         return (

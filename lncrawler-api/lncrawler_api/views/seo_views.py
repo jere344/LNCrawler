@@ -10,18 +10,18 @@ adult/R18 sources (matching the sitemap filters).
 """
 import json
 import os
-import re
 
 from django.conf import settings
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
-from lxml_html_clean import Cleaner
 
-from ..models import Novel, NovelFromSource, resolve_output_path
+from ..models import Novel, NovelFromSource
+from ..models.source_helpers import resolve_output_path
 from ..utils import build_media_url, resolve_novel_slug
 from ..utils.chapter_utils import get_chapter
-from ..utils.query_helpers import preferred_source_key
+from ..utils.query_helpers import preferred_source_key, public_novels
+from ..utils.seo import _clean_text, _sanitize_body
 
 SITE_URL = settings.SITE_URL.rstrip("/")
 SITE_NAME = "LNCrawler"
@@ -39,45 +39,9 @@ ORG = {
     "sameAs": ["https://github.com/jere344/LNCrawler"],
 }
 
-# Chapter bodies come from arbitrary third-party sites. Most crawler adapters
-# clean them at ingestion, but some (e.g. wattpad) return raw remote HTML, so we
-# cannot trust stored bodies when serving them as HTML on our own origin. This
-# mirrors the allowlist DOMPurify applies in the SPA reader.
-_BODY_CLEANER = Cleaner(
-    allow_tags={
-        "p", "br", "div", "span", "em", "strong", "b", "i", "u", "s", "a", "img",
-        "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "pre",
-        "code", "table", "thead", "tbody", "tr", "td", "th", "figure", "figcaption",
-        "hr", "sub", "sup", "small", "mark",
-    },
-    safe_attrs_only=True,
-    safe_attrs={"href", "src", "alt", "title", "width", "height", "colspan", "rowspan"},
-    javascript=True,
-    style=True,
-    scripts=True,
-    embedded=True,
-    frames=True,
-    forms=True,
-    meta=True,
-    links=True,
-    page_structure=True,
-    processing_instructions=True,
-    comments=True,
-)
-
 # Source/chapter pages can materialise a whole archive on first reader access,
 # so let edges and crawlers reuse them for a while.
 PAGE_CACHE_SECONDS = 3600
-
-
-def _non_adult_novels():
-    return Novel.objects.filter(is_dmca=False).exclude(sources__is_adult=True)
-
-
-def _non_adult_sources():
-    return NovelFromSource.objects.filter(novel__is_dmca=False).exclude(
-        novel__sources__is_adult=True
-    )
 
 
 def _pick_default_source(sources):
@@ -109,26 +73,9 @@ def _chapter_label(chapter):
     return title or f"Chapter {chapter.chapter_id}"
 
 
-def _clean_text(value, limit=300):
-    text = re.sub(r"<[^>]+>", " ", value or "")
-    text = " ".join(text.split())
-    if len(text) > limit:
-        text = text[: limit - 1].rstrip() + "…"
-    return text
-
-
 def _is_adult_novel(novel):
     # A novel is adult if any of its sources is; matches the sitemap filters.
     return novel.sources.filter(is_adult=True).exists()
-
-
-def _sanitize_body(body, images_path):
-    # Bodies store relative `images/<file>`; the SPA rewrites these too. Then
-    # clean the untrusted HTML before it is rendered with |safe.
-    body = body or ""
-    if images_path:
-        body = body.replace('src="images/', f'src="{images_path}/')
-    return _BODY_CLEANER.clean_html(body)
 
 
 def _jsonld(*objects):
@@ -161,7 +108,7 @@ def _gone(request, status, message):
 
 def seo_home(request):
     novels = (
-        _non_adult_novels()
+        public_novels(Novel.objects.all())
         .order_by("-created_at")
         .only("slug", "title", "updated_at")[:100]
     )

@@ -2,8 +2,7 @@ import React from 'react';
 import { Box, Card, Typography, ButtonBase, Skeleton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgo, getChapterLabel } from '@utils/Misc';
-import defaultCover from '@assets/default-cover.jpg';
+import { formatTimeAgoOrUnknown, getChapterLabel, novelCoverUrl } from '@utils/Misc';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -73,7 +72,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
       }}>
         <Box
           component="img"
-          src={source.cover_min_url || defaultCover}
+          src={novelCoverUrl(source)}
           alt={source.title}
           onClick={blurred ? revealHandler(source.id) : undefined}
           sx={{
@@ -146,7 +145,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
               textOverflow: 'ellipsis',
             }}
           >
-            {source.last_chapter_update ? formatTimeAgo(new Date(source.last_chapter_update), t) : t('common.unknown')}
+            {formatTimeAgoOrUnknown(source.last_chapter_update, t)}
           </Typography>
         </Box>
       </Box>

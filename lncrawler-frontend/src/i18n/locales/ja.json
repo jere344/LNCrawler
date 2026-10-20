@@ -21,7 +21,9 @@
     "profile": "プロフィール",
     "logout": "ログアウト",
     "account": "アカウント",
-    "seeMore": "もっと見る"
+    "seeMore": "もっと見る",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {たった今} one {#秒前} other {#秒前}}",

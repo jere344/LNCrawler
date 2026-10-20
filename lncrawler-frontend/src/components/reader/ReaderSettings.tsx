@@ -28,10 +28,9 @@ import { defaultSettings } from './readerDefaults';
 import TtsSettings from './settings/TtsSettings';
 import { TTS_NUMERIC_RANGES, TTS_ENUM_VALUES, TTS_RECORD_KEYS, isValidTtsPref, type TtsPrefs } from './tts/ttsTypes';
 import { availableLanguages } from '@utils/Misc';
+import { useNotification } from '@context/NotificationContext';
+import { READER_COOKIE_PREFIX, READER_COOKIE_DAYS } from '@utils/storage';
 
-// Define constants for cookie names
-const COOKIE_PREFIX = 'lncrawler_reader_';
-const COOKIE_EXPIRY = 365; // days
 const TTS_SECTION_ID = 'reader-settings-tts';
 
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
@@ -129,6 +128,7 @@ const ReaderSettings = ({
   focusTts = false,
 }: ReaderSettingsProps) => {
   const { t } = useTranslation();
+  const { notify } = useNotification();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -144,169 +144,11 @@ const ReaderSettings = ({
 
   // Helper function to save setting to cookie
   const saveSetting = (key: string, value: unknown) => {
-    setCookie(COOKIE_PREFIX + key, JSON.stringify(value), COOKIE_EXPIRY);
+    setCookie(READER_COOKIE_PREFIX + key, JSON.stringify(value), READER_COOKIE_DAYS);
   };
 
-  // Font Settings Handlers
-  const handleFontSizeChange = (value: number) => {
-    const newSettings = { ...settings, fontSize: value };
-    onSettingChange(newSettings);
-    saveSetting('fontSize', value);
-  };
-
-  const handleFontFamilyChange = (value: string | null) => {
-    const newSettings = { ...settings, fontFamily: value };
-    onSettingChange(newSettings);
-    saveSetting('fontFamily', value);
-  };
-
-  const handleTextAlignChange = (value: 'left' | 'center' | 'justify' | 'right') => {
-    const newSettings = { ...settings, textAlign: value };
-    onSettingChange(newSettings);
-    saveSetting('textAlign', value);
-  };
-
-  // Color Settings Handlers
-  const handleFontColorChange = (color: string | null) => {
-    const newSettings = { ...settings, fontColor: color };
-    onSettingChange(newSettings);
-    saveSetting('fontColor', color);
-  };
-
-  const handleBackgroundColorChange = (color: string | null) => {
-    const newSettings = { ...settings, backgroundColor: color };
-    onSettingChange(newSettings);
-    saveSetting('backgroundColor', color);
-  };
-
-  const handleDimLevelChange = (level: number) => {
-    const newSettings = { ...settings, dimLevel: level };
-    onSettingChange(newSettings);
-    saveSetting('dimLevel', level);
-  };
-
-  // Night Mode Settings Handlers
-  const handleNightModeChange = (enabled: boolean) => {
-    const newSettings = { ...settings, nightMode: enabled };
-    onSettingChange(newSettings);
-    saveSetting('nightMode', enabled);
-  };
-
-  const handleNightModeStrengthChange = (strength: number) => {
-    const newSettings = { ...settings, nightModeStrength: strength };
-    onSettingChange(newSettings);
-    saveSetting('nightModeStrength', strength);
-  };
-
-  const handleNightModeScheduleChange = (enabled: boolean) => {
-    const newSettings = { ...settings, nightModeScheduleEnabled: enabled };
-    onSettingChange(newSettings);
-    saveSetting('nightModeScheduleEnabled', enabled);
-  };
-
-  const handleNightModeStartTimeChange = (time: string) => {
-    const newSettings = { ...settings, nightModeStartTime: time };
-    onSettingChange(newSettings);
-    saveSetting('nightModeStartTime', time);
-  };
-
-  const handleNightModeEndTimeChange = (time: string) => {
-    const newSettings = { ...settings, nightModeEndTime: time };
-    onSettingChange(newSettings);
-    saveSetting('nightModeEndTime', time);
-  };
-
-  // Layout Settings Handlers
-  const handleMarginChange = (margin: number) => {
-    const newSettings = { ...settings, margin };
-    onSettingChange(newSettings);
-    saveSetting('margin', margin);
-  };
-
-  const handleLineSpacingChange = (lineSpacing: number) => {
-    const newSettings = { ...settings, lineSpacing };
-    onSettingChange(newSettings);
-    saveSetting('lineSpacing', lineSpacing);
-  };
-
-  const handleHideScrollbarChange = (hide: boolean) => {
-    const newSettings = { ...settings, hideScrollbar: hide };
-    onSettingChange(newSettings);
-    saveSetting('hideScrollbar', hide);
-  };
-
-  const handleWordSpacingChange = (spacing: number) => {
-    const newSettings = { ...settings, wordSpacing: spacing };
-    onSettingChange(newSettings);
-    saveSetting('wordSpacing', spacing);
-  };
-
-  const handleLetterSpacingChange = (spacing: number) => {
-    const newSettings = { ...settings, letterSpacing: spacing };
-    onSettingChange(newSettings);
-    saveSetting('letterSpacing', spacing);
-  };
-
-  const handleParagraphIndentChange = (indent: boolean) => {
-    const newSettings = { ...settings, paragraphIndent: indent };
-    onSettingChange(newSettings);
-    saveSetting('paragraphIndent', indent);
-  };
-
-  const handleParagraphSpacingChange = (spacing: number) => {
-    const newSettings = { ...settings, paragraphSpacing: spacing };
-    onSettingChange(newSettings);
-    saveSetting('paragraphSpacing', spacing);
-  };
-
-  // Behavior Settings Handlers
-  const handleEdgeTapChange = (edge: 'left' | 'right', behavior: EdgeTapBehavior) => {
-    const key = edge === 'left' ? 'leftEdgeTapBehavior' : 'rightEdgeTapBehavior';
-    const newSettings = { ...settings, [key]: behavior };
-    onSettingChange(newSettings);
-    saveSetting(key, behavior);
-  };
-
-  const handleTextSelectableChange = (selectable: boolean) => {
-    const newSettings = { ...settings, textSelectable: selectable };
-    onSettingChange(newSettings);
-    saveSetting('textSelectable', selectable);
-  };
-
-  const handleSavePositionChange = (save: boolean) => {
-    const newSettings = { ...settings, savePosition: save };
-    onSettingChange(newSettings);
-    saveSetting('savePosition', save);
-  };
-  
-  const handleMarkReadBehaviorChange = (behavior: MarkReadBehavior) => {
-    const newSettings = { ...settings, markReadBehavior: behavior };
-    onSettingChange(newSettings);
-    saveSetting('markReadBehavior', behavior);
-  };
-
-  const handleKeyboardNavigationChange = (enabled: boolean) => {
-    const newSettings = { ...settings, keyboardNavigation: enabled };
-    onSettingChange(newSettings);
-    saveSetting('keyboardNavigation', enabled);
-  };
-
-  const handleCenterTapToOpenSettingsChange = (enabled: boolean) => {
-    const newSettings = { ...settings, centerTapToOpenSettings: enabled };
-    onSettingChange(newSettings);
-    saveSetting('centerTapToOpenSettings', enabled);
-  };
-
-  // Gesture Settings Handlers
-  const handleSwipeGestureChange = (direction: 'left' | 'right', gesture: SwipeGesture) => {
-    const key = direction === 'left' ? 'swipeLeftGesture' : 'swipeRightGesture';
-    const newSettings = { ...settings, [key]: gesture };
-    onSettingChange(newSettings);
-    saveSetting(key, gesture);
-  };
-
-  // TTS Settings Handlers
-  const handleTtsChange = <K extends keyof TtsPrefs>(key: K, value: TtsPrefs[K]) => {
+  // Update one setting in the parent state and persist it to a cookie
+  const updateSetting = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]) => {
     onSettingChange({ ...settings, [key]: value });
     saveSetting(key, value);
   };
@@ -427,7 +269,7 @@ const ReaderSettings = ({
           
         } catch (error) {
           console.error('Failed to import settings:', error);
-          alert(t('readerSettings.importFailed'));
+          notify({ message: t('readerSettings.importFailed'), severity: 'error' });
         }
       };
       
@@ -508,9 +350,9 @@ const ReaderSettings = ({
             fontSize={settings.fontSize}
             fontFamily={settings.fontFamily}
             textAlign={settings.textAlign}
-            onFontSizeChange={handleFontSizeChange}
-            onFontFamilyChange={handleFontFamilyChange}
-            onTextAlignChange={handleTextAlignChange}
+            onFontSizeChange={(value) => updateSetting('fontSize', value)}
+            onFontFamilyChange={(value) => updateSetting('fontFamily', value)}
+            onTextAlignChange={(value) => updateSetting('textAlign', value)}
           />
         </SettingsSection>
 
@@ -528,14 +370,14 @@ const ReaderSettings = ({
             nightModeScheduleEnabled={settings.nightModeScheduleEnabled}
             nightModeStartTime={settings.nightModeStartTime}
             nightModeEndTime={settings.nightModeEndTime}
-            onFontColorChange={handleFontColorChange}
-            onBackgroundColorChange={handleBackgroundColorChange}
-            onDimLevelChange={handleDimLevelChange}
-            onNightModeChange={handleNightModeChange}
-            onNightModeStrengthChange={handleNightModeStrengthChange}
-            onNightModeScheduleChange={handleNightModeScheduleChange}
-            onNightModeStartTimeChange={handleNightModeStartTimeChange}
-            onNightModeEndTimeChange={handleNightModeEndTimeChange}
+            onFontColorChange={(color) => updateSetting('fontColor', color)}
+            onBackgroundColorChange={(color) => updateSetting('backgroundColor', color)}
+            onDimLevelChange={(level) => updateSetting('dimLevel', level)}
+            onNightModeChange={(enabled) => updateSetting('nightMode', enabled)}
+            onNightModeStrengthChange={(strength) => updateSetting('nightModeStrength', strength)}
+            onNightModeScheduleChange={(enabled) => updateSetting('nightModeScheduleEnabled', enabled)}
+            onNightModeStartTimeChange={(time) => updateSetting('nightModeStartTime', time)}
+            onNightModeEndTimeChange={(time) => updateSetting('nightModeEndTime', time)}
           />
         </SettingsSection>
 
@@ -552,13 +394,13 @@ const ReaderSettings = ({
             hideScrollbar={settings.hideScrollbar}
             paragraphIndent={settings.paragraphIndent}
             paragraphSpacing={settings.paragraphSpacing}
-            onMarginChange={handleMarginChange}
-            onLineSpacingChange={handleLineSpacingChange}
-            onWordSpacingChange={handleWordSpacingChange}
-            onLetterSpacingChange={handleLetterSpacingChange}
-            onHideScrollbarChange={handleHideScrollbarChange}
-            onParagraphIndentChange={handleParagraphIndentChange}
-            onParagraphSpacingChange={handleParagraphSpacingChange}
+            onMarginChange={(margin) => updateSetting('margin', margin)}
+            onLineSpacingChange={(lineSpacing) => updateSetting('lineSpacing', lineSpacing)}
+            onWordSpacingChange={(spacing) => updateSetting('wordSpacing', spacing)}
+            onLetterSpacingChange={(spacing) => updateSetting('letterSpacing', spacing)}
+            onHideScrollbarChange={(hide) => updateSetting('hideScrollbar', hide)}
+            onParagraphIndentChange={(indent) => updateSetting('paragraphIndent', indent)}
+            onParagraphSpacingChange={(spacing) => updateSetting('paragraphSpacing', spacing)}
           />
         </SettingsSection>
 
@@ -570,7 +412,7 @@ const ReaderSettings = ({
           <GestureSettings
             swipeLeftGesture={settings.swipeLeftGesture}
             swipeRightGesture={settings.swipeRightGesture}
-            onSwipeGestureChange={handleSwipeGestureChange}
+            onSwipeGestureChange={(direction, gesture) => updateSetting(direction === 'left' ? 'swipeLeftGesture' : 'swipeRightGesture', gesture)}
           />
         </SettingsSection>
 
@@ -587,12 +429,12 @@ const ReaderSettings = ({
             markReadBehavior={settings.markReadBehavior}
             keyboardNavigation={settings.keyboardNavigation}
             centerTapToOpenSettings={settings.centerTapToOpenSettings}
-            onEdgeTapChange={handleEdgeTapChange}
-            onTextSelectableChange={handleTextSelectableChange}
-            onSavePositionChange={handleSavePositionChange}
-            onMarkReadBehaviorChange={handleMarkReadBehaviorChange}
-            onKeyboardNavigationChange={handleKeyboardNavigationChange}
-            onCenterTapToOpenSettingsChange={handleCenterTapToOpenSettingsChange}
+            onEdgeTapChange={(edge, behavior) => updateSetting(edge === 'left' ? 'leftEdgeTapBehavior' : 'rightEdgeTapBehavior', behavior)}
+            onTextSelectableChange={(selectable) => updateSetting('textSelectable', selectable)}
+            onSavePositionChange={(save) => updateSetting('savePosition', save)}
+            onMarkReadBehaviorChange={(behavior) => updateSetting('markReadBehavior', behavior)}
+            onKeyboardNavigationChange={(enabled) => updateSetting('keyboardNavigation', enabled)}
+            onCenterTapToOpenSettingsChange={(enabled) => updateSetting('centerTapToOpenSettings', enabled)}
             isAuthenticated={isAuthenticated}
           />
         </SettingsSection>
@@ -606,7 +448,8 @@ const ReaderSettings = ({
         >
           <TtsSettings
             prefs={settings}
-            onChange={handleTtsChange}
+            onChange={<K extends keyof TtsPrefs>(key: K, value: TtsPrefs[K]) =>
+              updateSetting(key, value as ReaderSettings[K])}
             novelLanguage={novelLanguage}
             onBeforePreview={onTtsBeforePreview}
           />

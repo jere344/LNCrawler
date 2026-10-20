@@ -2,18 +2,18 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.core.exceptions import ValidationError
-from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ..models import Chapter
 from ..models.comments_models import Comment, CommentVote
+from ..utils.novel_resolution import get_chapter_or_404, get_source_or_404
 from ..utils import (
     get_client_ip,
     resolve_novel_slug,
     resolve_author,
     MAX_MESSAGE_LENGTH,
 )
-from ..utils.pagination import parse_page_size
+from ..utils.pagination import paginate
 from ..serializers.comments_serializers import CommentSerializer, chapter_comment_context
 
 
@@ -28,8 +28,7 @@ def _threaded_comments_response(request, root_comments, reply_comments):
     requested page (and their replies) are rendered.
     """
     root_comments.sort(key=lambda comment: comment.created_at, reverse=True)
-    paginator = Paginator(root_comments, parse_page_size(request, 20, 50))
-    page_obj = paginator.get_page(request.GET.get('page', 1))
+    paginator, page_obj = paginate(request, root_comments, 20, 50)
     page_roots = list(page_obj.object_list)
 
     children = {}
@@ -153,8 +152,8 @@ def add_comment(request, novel_slug, source_slug=None, chapter_number=None):
     # else we have to check for the novel and chapter
     else:
         if source_slug and chapter_number: # Chapter comment
-            source = get_object_or_404(novel.sources, source_slug=source_slug)
-            chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
+            source = get_source_or_404(novel, source_slug)
+            chapter = get_chapter_or_404(source, chapter_number)
             comment_obj = Comment.objects.create(
                 chapter=chapter,
                 user=user_instance,
@@ -195,8 +194,8 @@ def chapter_comments(request, novel_slug, source_slug, chapter_number):
     Get comments for a specific chapter across all sources of the novel
     """
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
-    get_object_or_404(source.chapters, chapter_id=chapter_number)
+    source = get_source_or_404(novel, source_slug)
+    get_chapter_or_404(source, chapter_number)
 
     # Every source of the novel carries its own copy of this chapter number;
     # the commented chapter is shared across them, so gather them all at once

@@ -1,0 +1,35 @@
+{
+    "languages": [
+        "en",
+        "fr",
+        "es",
+        "de",
+        "it",
+        "ja",
+        "ko",
+        "zh",
+        "pt",
+        "ru",
+        "ar",
+        "hi",
+        "th",
+        "vi",
+        "id",
+        "tr",
+        "pl",
+        "nl",
+        "sv",
+        "da"
+    ],
+    "rtl_languages": [
+        "ar"
+    ],
+    "novel_sorts": [
+        "title",
+        "rating",
+        "date_added",
+        "popularity",
+        "trending",
+        "last_updated"
+    ]
+}

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { authService } from '@services/api';
 import { availableLanguages } from '@utils/Misc';
+import { readLocalStorage, writeLocalStorage } from '@utils/storage';
 import i18n, { isRtl } from '../i18n';
 
 // Keys mirror the backend field names so a profile payload can be spread in.
@@ -49,15 +50,6 @@ const browserLanguages = (): string[] => {
         }
     }
     return matched;
-};
-
-const readLocalStorage = <T,>(key: string, fallback: T): T => {
-    try {
-        const raw = localStorage.getItem(key);
-        return raw === null ? fallback : (JSON.parse(raw) as T);
-    } catch {
-        return fallback;
-    }
 };
 
 // i18next's detector reads the UI-language key raw, so it is stored as a plain
@@ -116,10 +108,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         document.documentElement.lang = active;
     }, [uiLanguage]);
     useEffect(() => {
-        localStorage.setItem(CONTENT_LANGUAGES_KEY, JSON.stringify(contentLanguages));
+        writeLocalStorage(CONTENT_LANGUAGES_KEY, contentLanguages);
     }, [contentLanguages]);
     useEffect(() => {
-        localStorage.setItem(LANGUAGE_FILTER_KEY, JSON.stringify(languageFilterEnabled));
+        writeLocalStorage(LANGUAGE_FILTER_KEY, languageFilterEnabled);
     }, [languageFilterEnabled]);
 
     // Reconcile with the account whenever a token appears (login, or reload
@@ -143,8 +135,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                     setContentLanguagesState(serverContent);
                     setLanguageFilterEnabledState(serverFilter);
                     // Mirror synchronously so route loaders see them immediately.
-                    localStorage.setItem(CONTENT_LANGUAGES_KEY, JSON.stringify(serverContent));
-                    localStorage.setItem(LANGUAGE_FILTER_KEY, JSON.stringify(serverFilter));
+                    writeLocalStorage(CONTENT_LANGUAGES_KEY, serverContent);
+                    writeLocalStorage(LANGUAGE_FILTER_KEY, serverFilter);
                 } else {
                     // First login: seed the empty account from what the browser knew
                     const localUi = readStoredUiLanguage();
@@ -183,7 +175,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (!authService.isAuthenticated()) {
             const next = normalized ? [normalized] : browserLanguages();
             setContentLanguagesState(next);
-            localStorage.setItem(CONTENT_LANGUAGES_KEY, JSON.stringify(next));
+            writeLocalStorage(CONTENT_LANGUAGES_KEY, next);
         }
         pushToServer({ [UI_LANGUAGE_KEY]: normalized });
     }, [pushToServer]);
@@ -192,13 +184,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Deduplicate, preserve order, drop unsupported codes
         const unique = onlySupported(codes.filter((c, i) => codes.indexOf(c) === i));
         setContentLanguagesState(unique);
-        localStorage.setItem(CONTENT_LANGUAGES_KEY, JSON.stringify(unique));
+        writeLocalStorage(CONTENT_LANGUAGES_KEY, unique);
         pushToServer({ [CONTENT_LANGUAGES_KEY]: unique });
     }, [pushToServer]);
 
     const setLanguageFilterEnabled = useCallback((enabled: boolean) => {
         setLanguageFilterEnabledState(enabled);
-        localStorage.setItem(LANGUAGE_FILTER_KEY, JSON.stringify(enabled));
+        writeLocalStorage(LANGUAGE_FILTER_KEY, enabled);
         pushToServer({ [LANGUAGE_FILTER_KEY]: enabled });
     }, [pushToServer]);
 

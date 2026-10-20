@@ -1,22 +1,12 @@
 import React, { useState } from 'react';
-import { getNovelDisplayTitle } from '@utils/Misc';
-import { 
-  Box, 
-  IconButton, 
-  Tooltip, 
-  Dialog, 
-  DialogTitle, 
-  DialogContent, 
-  DialogActions, 
-  Button, 
-  Typography 
-} from '@mui/material';
+import { Box, IconButton, Tooltip } from '@mui/material';
 import type { SxProps } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
 import { Novel } from '@models/novels_types';
 import { useTranslation } from 'react-i18next';
+import MarkAsReadConfirmDialog from './MarkAsReadConfirmDialog';
 
 /** True when the novel has chapters the user has not read yet. */
 export const hasUnreadChapters = (novel: Novel): boolean => {
@@ -121,32 +111,13 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
         </Tooltip>
       </Box>
 
-      <Dialog
+      <MarkAsReadConfirmDialog
         open={showConfirmation}
+        novel={novel}
+        loading={isLoading}
+        onConfirm={handleConfirmMarkAsRead}
         onClose={handleCancelConfirmation}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>{t('markAsRead.confirmTitle')}</DialogTitle>
-        <DialogContent>
-          <Typography>
-            {t('markAsRead.confirmBody', { title: getNovelDisplayTitle(novel) })}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCancelConfirmation} color="inherit">
-            {t('common.cancel')}
-          </Button>
-          <Button 
-            onClick={handleConfirmMarkAsRead} 
-            color="primary" 
-            variant="contained"
-            disabled={isLoading}
-          >
-            {t('markAsRead.confirm')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </>
   );
 };

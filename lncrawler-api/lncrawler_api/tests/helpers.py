@@ -25,6 +25,22 @@ def write_chapter(source_dir, number, body_size=3000):
     return path
 
 
+def make_novel(title, slug, novel_path=None):
+    """A bare novel whose path defaults to its slug."""
+    return Novel.objects.create(title=title, slug=slug, novel_path=novel_path or slug)
+
+
+def make_source(novel, language="en"):
+    """An English (or ``language``) source of ``novel`` on its own external site."""
+    return NovelFromSource.objects.create(
+        novel=novel,
+        external_source=ExternalSource.objects.create(source_name=f"src-{novel.slug}"),
+        title=novel.title,
+        source_url=f"http://{novel.slug}/1",
+        language=language,
+    )
+
+
 class MergeTestCase(TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="lncrawl-merge-")

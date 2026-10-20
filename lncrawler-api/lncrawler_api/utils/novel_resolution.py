@@ -1,4 +1,5 @@
 from django.http import Http404
+from django.shortcuts import get_object_or_404
 
 
 def resolve_novel_slug(novel_slug):
@@ -24,3 +25,13 @@ def resolve_novel_slug(novel_slug):
         return alias.novel
 
     raise Http404(f"No novel found matching '{novel_slug}'.")
+
+
+def get_source_or_404(novel, source_slug):
+    """The source of ``novel`` with this slug, or ``Http404``."""
+    return get_object_or_404(novel.sources, source_slug=source_slug)
+
+
+def get_chapter_or_404(source, chapter_number):
+    """The chapter of ``source`` with this chapter id, or ``Http404``."""
+    return get_object_or_404(source.chapters, chapter_id=chapter_number)

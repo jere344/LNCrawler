@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, use } from 'react';
-import { useParams, useLoaderData, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useLoaderData, Link } from 'react-router-dom';
+import { useUrlListState } from '@utils/useUrlListState';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -40,7 +41,7 @@ const ImageGallery = () => {
 
   const { data: galleryPromise } = useLoaderData() as AsyncData<GalleryLoaderData>;
   const loaderData = use(galleryPromise);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { searchParams, setParams } = useUrlListState();
   const gallery = loaderData.ok ? loaderData.data : null;
   const error = loaderData.ok ? null : t('gallery.loadFailed');
   const page = Number(searchParams.get('page')) || 1;
@@ -56,9 +57,7 @@ const ImageGallery = () => {
   }, [novelSlug, sourceSlug, page]);
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('page', String(value));
-    setSearchParams(next);
+    setParams({ page: String(value) });
   };
 
   // Dimensions are recorded from the grid <img> as the browser lazy-loads each image,

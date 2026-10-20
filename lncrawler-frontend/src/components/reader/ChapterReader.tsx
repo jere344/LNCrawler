@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useSwipeable } from 'react-swipeable';
 import {
   Container,
   Typography,
@@ -14,7 +13,7 @@ import {
   Tab,
   IconButton,
 } from '@mui/material';
-import { novelService, userService } from '../../services/api';
+import { userService } from '../../services/api';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
@@ -26,7 +25,8 @@ import { alpha } from '@mui/material/styles';
 import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
 import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior } from './ReaderSettings';
 import { defaultSettings } from './readerDefaults';
-import { getCookie, setCookie } from '@utils/cookies';
+import { setCookie } from '@utils/cookies';
+import { READER_COOKIE_PREFIX, READER_COOKIE_DAYS } from '@utils/storage';
 import { getChapterLabel } from '@utils/Misc';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
@@ -41,26 +41,15 @@ import CommentSection from '../comments/CommentSection';
 import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
 import TtsPlayerBar from './tts/TtsPlayerBar';
 import { useTtsPlayer } from './tts/useTtsPlayer';
-import { TTS_BAR_HEIGHT, isValidTtsPref, type TtsPrefs } from './tts/ttsTypes';
+import { TTS_BAR_HEIGHT, type TtsPrefs } from './tts/ttsTypes';
 import UnavailableChapter from './UnavailableChapter';
 import ChapterSEO from '@components/reader/ChapterSEO';
+import { useChapterCache } from './hooks/useChapterCache';
+import { useScrollPersistence, SCROLL_SAVE_THROTTLE } from './hooks/useScrollPersistence';
+import { useReaderGestures } from './hooks/useReaderGestures';
+import { useLoadReaderSettingsFromCookies } from './hooks/useLoadReaderSettingsFromCookies';
 
-// Interface for our chapter cache
-interface ChapterCache {
-  [key: string]: IChapterContent;
-}
-
-// Interface for scroll position storage
-interface ScrollPositions {
-  [key: string]: number; // Value is percentage of total scrollable height
-}
-
-const COOKIE_PREFIX = 'lncrawler_reader_';
 const EDGE_TAP_WIDTH_PERCENTAGE = 15; // % of screen width for edge tap detection
-const MAX_STORED_POSITIONS = 20; // Maximum number of scroll positions to store
-const SCROLL_POSITION_STORAGE_KEY = 'lncrawler_scroll_positions';
-const SCROLL_SAVE_THROTTLE = 1000; // Save scroll position at most every 1000ms
-const MAX_SCROLL_RESTORE_RETRIES = 20; // ~2s of retries before giving up on scroll restore
 
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
@@ -97,16 +86,10 @@ const ChapterReader = () => {
   // Add state for active tab
   const [activeTab, setActiveTab] = useState(0);
   
-  // Create a ref to store our chapter cache that persists through renders
-  const chapterCacheRef = useRef<ChapterCache>({});
+  // Chapter content cache and preload
+  const { fetchChapterContent, preloadNextChapter } = useChapterCache(novelSlug, sourceSlug);
   const contentRef = useRef<HTMLDivElement>(null);
   
-  // Mirror of scroll positions for use inside callbacks/cleanups
-  const scrollPositionsRef = useRef<ScrollPositions>({});
-
-  // Pending scroll-restore retry timer, cleared on chapter change/unmount
-  const scrollRestoreTimeoutRef = useRef<number | null>(null);
-
   // Tags each chapter fetch so a slow older request can't overwrite a newer one
   const loadRequestIdRef = useRef(0);
   
@@ -125,194 +108,14 @@ const ChapterReader = () => {
     return null;
   }, [novelSlug, sourceSlug, chapterNumber]);
 
-  // Helper function to generate a cache key
-  const getCacheKey = (novel: string, source: string, chapter: number): string => {
-    return `${novel}|${source}|${chapter}`;
-  };
-
-  // Function to fetch chapter content
-  const fetchChapterContent = async (novel: string, source: string, chapterNum: number): Promise<IChapterContent> => {
-    const cacheKey = getCacheKey(novel, source, chapterNum);
-    
-    // Check if chapter exists in cache
-    if (chapterCacheRef.current[cacheKey]) {
-      return chapterCacheRef.current[cacheKey];
-    }
-    
-    // If not in cache, fetch from API
-    const response = await novelService.getChapterContent(novel, source, chapterNum);
-    
-    // Store in cache
-    chapterCacheRef.current[cacheKey] = response;
-    return response;
-  };
-
-  // Function to preload next chapter
-  const preloadNextChapter = async (nextChapterNum: number) => {
-    if (!novelSlug || !sourceSlug || !nextChapterNum) return;
-    
-    try {
-      await fetchChapterContent(novelSlug, sourceSlug, nextChapterNum);
-    } catch (err) {
-      console.error(`Error preloading chapter ${nextChapterNum}:`, err);
-    }
-  };
-
   // Load saved settings from cookies
-  useEffect(() => {
-    const loadSettingsFromCookies = () => {
-      const newSettings = { ...defaultSettings };
-      let hasChanges = false;
+  useLoadReaderSettingsFromCookies(setReaderSettings);
 
-      Object.keys(defaultSettings).forEach(keyStr => {
-        const key = keyStr as keyof IReaderSettings; // Use keyof for type safety
-        const cookieValue = getCookie(COOKIE_PREFIX + key);
-
-        if (cookieValue !== undefined) {
-          try {
-            const parsedValue = JSON.parse(cookieValue);
-            
-            // Null defaults (fontFamily/fontColor/backgroundColor) accept any
-            // value; otherwise require a type match with the default.
-            // TTS values are also range/enum checked (bad values would
-            // break playback, e.g. a speed of 0).
-            if (isValidTtsPref(key, parsedValue) && (defaultSettings[key] === null || typeof parsedValue === typeof defaultSettings[key])) {
-              // Safe due to the runtime type check above.
-              (newSettings as Record<string, unknown>)[key] = parsedValue;
-              hasChanges = true;
-            } else {
-              // Log a warning if types don't match, and use the default value
-              console.warn(
-                `Cookie for ${key} has incorrect type. Expected ${typeof defaultSettings[key]}, got ${typeof parsedValue}. Using default.`
-              );
-              // newSettings[key] already holds the default value from the initial spread
-            }
-          } catch (e) {
-            // Log an error if parsing fails, and use the default value
-            console.error(`Error parsing cookie value for ${key}. Using default.`, e);
-            // newSettings[key] already holds the default value
-          }
-        }
-      });
-
-      if (hasChanges) {
-        setReaderSettings(newSettings);
-      }
-    };
-
-    loadSettingsFromCookies();
-  }, []);
-
-  // Load saved scroll positions from localStorage
-  useEffect(() => {
-    try {
-      const savedPositions = localStorage.getItem(SCROLL_POSITION_STORAGE_KEY);
-      if (savedPositions) {
-        const parsed = JSON.parse(savedPositions);
-        scrollPositionsRef.current = parsed;
-      }
-    } catch (error) {
-      console.error('Error loading saved scroll positions:', error);
-    }
-  }, []);
-
-  // Add a ref to track the last time we saved the scroll position
-  const lastScrollSaveRef = useRef<number>(0);
-  
-  // Calculate scroll position as a percentage of total scrollable height
-  const calculateScrollPercentage = (): number => {
-    const scrollTop = window.scrollY;
-    const scrollHeight = document.documentElement.scrollHeight;
-    const clientHeight = document.documentElement.clientHeight;
-    
-    // If there's nothing to scroll, return 0
-    if (scrollHeight <= clientHeight) return 0;
-    
-    // Calculate how far we've scrolled as a percentage
-    const scrollableHeight = scrollHeight - clientHeight;
-    return (scrollTop / scrollableHeight) * 100;
-  };
-
-  // Save current reading position (percentage of the chapter) with throttling.
-  // Both page mode and text mode store the same metric, so switching between
-  // them or rotating the device restores the same place in the text.
-  const saveScrollPosition = (force = false) => {
-    if (!currentChapterKey || !readerSettings.savePosition) return;
-    
-    const now = Date.now();
-    // Throttle saves to avoid excessive writes (page turns and unmounts force)
-    if (!force && now - lastScrollSaveRef.current < SCROLL_SAVE_THROTTLE) {
-      return;
-    }
-    lastScrollSaveRef.current = now;
-
-    const percentage = calculateScrollPercentage();
-
-    // Re-insert the current key last so it is the most recently used; pruning
-    // below then evicts the genuinely least-recently-read chapter, not merely
-    // the one inserted earliest.
-    const updatedPositions: ScrollPositions = { ...scrollPositionsRef.current };
-    delete updatedPositions[currentChapterKey];
-    updatedPositions[currentChapterKey] = percentage;
-    
-    // Prune old entries if we have too many
-    const keys = Object.keys(updatedPositions);
-    if (keys.length > MAX_STORED_POSITIONS) {
-      // Remove the oldest entries
-      const keysToRemove = keys.slice(0, keys.length - MAX_STORED_POSITIONS);
-      keysToRemove.forEach(key => {
-        delete updatedPositions[key];
-      });
-    }
-    
-    // Save to the ref and localStorage
-    scrollPositionsRef.current = updatedPositions;
-    try {
-      // Use requestAnimationFrame to batch DOM reads/writes
-      requestAnimationFrame(() => {
-        localStorage.setItem(SCROLL_POSITION_STORAGE_KEY, JSON.stringify(updatedPositions));
-      });
-    } catch (error) {
-      console.error('Error saving scroll position to localStorage:', error);
-    }
-  };
-
-  // Restore the text-mode window scroll from the saved percentage.
-  const restoreScrollPosition = (attempt = 0) => {
-    if (!currentChapterKey || !readerSettings.savePosition) return;
-    
-    const savedPercentage = scrollPositionsRef.current[currentChapterKey];
-    if (savedPercentage === undefined) return;
-
-    // Use requestAnimationFrame to avoid layout thrashing
-    requestAnimationFrame(() => {
-      // Read scroll dimensions
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = document.documentElement.clientHeight;
-      const scrollableHeight = scrollHeight - clientHeight;
-      
-      if (scrollableHeight <= 0) {
-        // Try again later if content hasn't fully rendered, but stop after a
-        // bounded number of attempts so this can't loop forever.
-        if (attempt >= MAX_SCROLL_RESTORE_RETRIES) return;
-        scrollRestoreTimeoutRef.current = window.setTimeout(
-          () => restoreScrollPosition(attempt + 1),
-          100,
-        );
-        return;
-      }
-      
-      const scrollTop = (savedPercentage / 100) * scrollableHeight;
-      
-      // Write to scroll position in next frame
-      requestAnimationFrame(() => {
-        window.scrollTo({
-          top: scrollTop,
-          behavior: 'auto' // Use 'auto' instead of 'smooth' to avoid animation issues
-        });
-      });
-    });
-  };
+  // Scroll position save/restore for the current chapter
+  const { saveScrollPosition, restoreScrollPosition, scrollRestoreTimeoutRef } = useScrollPersistence({
+    currentChapterKey,
+    savePosition: readerSettings.savePosition,
+  });
 
   useEffect(() => {
     const loadCurrentChapter = async () => {
@@ -677,7 +480,7 @@ const ChapterReader = () => {
   // Persist one setting in state and cookie
   const updateSetting = <K extends keyof IReaderSettings>(key: K, value: IReaderSettings[K]) => {
     setReaderSettings(prev => ({ ...prev, [key]: value }));
-    setCookie(COOKIE_PREFIX + key, JSON.stringify(value), 365);
+    setCookie(READER_COOKIE_PREFIX + key, JSON.stringify(value), READER_COOKIE_DAYS);
   };
 
   // Add these variables to generate navigation URLs
@@ -687,59 +490,13 @@ const ChapterReader = () => {
   const chapterListUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}/chapterlist` : undefined;
 
   // Handle swipe gestures
-  const handleSwipeLeft = () => {
-    const gesture = readerSettings.swipeLeftGesture;
-    switch (gesture) {
-      case 'nextChapter':
-        if (chapter?.next_chapter) {
-          nonDefiniteHandleNextChapter();
-        }
-        break;
-      case 'prevChapter':
-        nonDefiniteHandlePrevChapter();
-        break;
-      case 'none':
-      default:
-        // Do nothing
-        break;
-    }
-  };
-
-  const handleSwipeRight = () => {
-    const gesture = readerSettings.swipeRightGesture;
-    switch (gesture) {
-      case 'prevChapter':
-        nonDefiniteHandlePrevChapter();
-        break;
-      case 'nextChapter':
-        nonDefiniteHandleNextChapter();
-        break;
-      case 'none':
-      default:
-        // Do nothing
-        break;
-    }
-  };
-
-  // Handle swipe gestures - simplified for non-page mode
-  const handleGesture = (direction: 'left' | 'right') => {
-    if (!isMobile || !chapter || controlsVisible) return;
-    if (direction === 'left') {
-      handleSwipeLeft();
-    } else {
-      handleSwipeRight();
-    }
-  };
-  
-  // Configure swipe handlers
-  const swipeHandlers = useSwipeable({
-    onSwipedLeft: () => handleGesture('left'),
-    onSwipedRight: () => handleGesture('right'),
-    trackMouse: false,
-    preventScrollOnSwipe: false,
-    // Only detect wider/more intentional swipes to prevent accidental activation
-    delta: 50,
-    swipeDuration: 500,
+  const { swipeHandlers } = useReaderGestures({
+    chapter,
+    isMobile,
+    controlsVisible,
+    readerSettings,
+    onNextChapter: nonDefiniteHandleNextChapter,
+    onPrevChapter: nonDefiniteHandlePrevChapter,
   });
 
   // Sources store ISO codes, but tolerate regional forms like 'zh-CN'.

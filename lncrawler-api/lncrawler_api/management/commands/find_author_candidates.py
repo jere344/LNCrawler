@@ -26,7 +26,8 @@ from django.db import transaction
 from django.db.models import Count
 
 from lncrawler_api.models import Author, AuthorMergeCandidate, NovelFromSource
-from lncrawler_api.services.author_merge_service import merge_candidate, pair_signature, pick_target
+from lncrawler_api.services.author_merge_service import merge_candidate, pick_target
+from lncrawler_api.services.merge_common import ordered_pair, sorted_pk_signature
 from lncrawler_api.utils.author_names import script_runs
 
 # Candidate pairs keep at most this many novel ids in their signals.
@@ -57,7 +58,7 @@ class Command(BaseCommand):
 
     def _is_new_pair(self, a, b):
         """False for a pair that already has a row, in any status."""
-        if AuthorMergeCandidate.objects.filter(signature=pair_signature([a.pk, b.pk])).exists():
+        if AuthorMergeCandidate.objects.filter(signature=sorted_pk_signature([a.pk, b.pk])).exists():
             self.counts["known"] += 1
             return False
         return True
@@ -72,8 +73,8 @@ class Command(BaseCommand):
         if self.dry_run:
             self.counts["merged" if merge_into is not None else "queued"] += 1
             return None
-        first, second = sorted((a, b), key=lambda author: author.pk)
-        signature = pair_signature([first.pk, second.pk])
+        first, second = ordered_pair(a, b, key=lambda author: author.pk)
+        signature = sorted_pk_signature([first.pk, second.pk])
         with transaction.atomic():
             candidate = (
                 AuthorMergeCandidate.objects.filter(signature=signature).first()
@@ -109,7 +110,7 @@ class Command(BaseCommand):
             survivor = authors[0]
             for other in authors[1:]:
                 existing = AuthorMergeCandidate.objects.filter(
-                    signature=pair_signature([survivor.pk, other.pk])
+                    signature=sorted_pk_signature([survivor.pk, other.pk])
                 ).first()
                 if existing is not None and existing.status in (
                     AuthorMergeCandidate.STATUS_REJECTED, AuthorMergeCandidate.STATUS_UNDONE,

@@ -1,7 +1,7 @@
-import { useState, useEffect, use } from 'react';
-import { useLoaderData, useRevalidator, useSearchParams } from 'react-router-dom';
-import { useDebounce } from '@utils/useDebounce';
-import { 
+import { useState, use } from 'react';
+import { useLoaderData, useRevalidator } from 'react-router-dom';
+import { useUrlListState, useUrlSearch } from '@utils/useUrlListState';
+import {
     Typography,
   Box,
   Grid,
@@ -22,7 +22,7 @@ const ReadingListsPage = () => {
   const { data: readingListsPromise } = useLoaderData() as AsyncData<ReadingListsLoaderData>;
   const loaderData = use(readingListsPromise);
   const revalidator = useRevalidator();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { searchParams, setParams } = useUrlListState();
 
   const searchQueryParam = searchParams.get('q') || '';
   const page = Number(searchParams.get('page')) || 1;
@@ -33,26 +33,10 @@ const ReadingListsPage = () => {
   const [newListTitle, setNewListTitle] = useState('');
   const [newListDescription, setNewListDescription] = useState('');
   const [newListIsPublic, setNewListIsPublic] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(searchQueryParam);
-  const debouncedSearchQuery = useDebounce(searchQuery);
+  // The debounced search is mirrored into the URL so the loader owns the request.
+  const [searchQuery, setSearchQuery] = useUrlSearch('q');
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
-
-  // Mirror the debounced search into the URL so the loader owns the request.
-  useEffect(() => {
-    if (debouncedSearchQuery === searchQueryParam) return;
-    const next = new URLSearchParams(searchParams);
-    if (debouncedSearchQuery) next.set('q', debouncedSearchQuery);
-    else next.delete('q');
-    next.delete('page');
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the debounced value
-  }, [debouncedSearchQuery]);
-
-  // Keep the input in sync when the URL changes (back/forward).
-  useEffect(() => {
-    setSearchQuery(searchQueryParam);
-  }, [searchQueryParam]);
 
   const handleCreateList = async () => {
     if (!newListTitle.trim()) return;
@@ -70,9 +54,7 @@ const ReadingListsPage = () => {
   };
 
   const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
-    const next = new URLSearchParams(searchParams);
-    next.set('page', String(value));
-    setSearchParams(next);
+    setParams({ page: String(value) });
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {

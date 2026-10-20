@@ -42,7 +42,7 @@ Decision table:
 | Login / coin / paywall for bodies (ebook stores: readmoo, bookwalker → test in browser first)          | paid           | disabled stub (or free chapters only if truly free) |
 | Body AES/devalue-encrypted client side                                                                | too complex    | disabled stub                                       |
 | `__NEXT_DATA__`, `/api/`, `wp-json`, RSS/Atom, Blogger `/feeds/posts/default?alt=json`, MediaWiki API | JSON available | **use it, don't scrape HTML**                       |
-| Madara / NovelFull / MangaStream theme                                                                | known engine   | use the template in `lncrawl/templates/`            |
+| Madara / NovelFull / MangaStream / NovelMTL theme                                                     | known engine   | run `tools/match_template.py` (§2b), use its template |
 | Static HTML                                                                                           | scrape         | `Crawler` + bs4                                     |
 
 Triage checks the homepage text and final URL, not only the status code: shutdown banners, spam and for-sale pages can return 200. Check home/genre APIs for shutdown banners too.
@@ -67,6 +67,19 @@ Before investing in a site:
 - Check chapter counts via the chapter list / API / sitemap, not only the novel page.
 - Next.js/RSC payloads may embed chapter bodies, or hide chapter lists behind `onClick` without `href`: grep JS chunks for fetch/API calls before giving up.
 - POST-only JSON API returns 405 on GET: probe POST with a JSON body and find field names in the JS bundle.
+
+### 2b. Check against templates
+
+Before hand-writing any parser, run the checker on the home, a novel and a chapter URL. Use the venv from §1 as the interpreter, from the `lncrawler-crawler/` directory:
+
+```bash
+python -I tools/match_template.py <home> <novel> <chapter>
+```
+
+- `use <Template>`: subclass it and set only the site-specific bits. Don't hand-write.
+- `partial match — check`: open the page in a browser; the page may be JS-rendered or the template may need overrides.
+- `failed: HTTP 403` / `429` / `503` (the tool prints `failed: ...`): a bot wall, not a verdict. Retest per "Bot walls" above.
+- Audit hand-written sources with `python -I tools/match_template.py --existing` (static, no network): a listed source duplicates a template, migrate it. lightnovelheaven and mangaread stay hand-written: their search returns 12 results, the template caps at 10.
 
 ## 3. Things that were wrong in specs (verify, don't trust)
 

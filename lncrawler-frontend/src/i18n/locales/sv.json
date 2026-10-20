@@ -21,7 +21,9 @@
     "profile": "Profil",
     "logout": "Logga ut",
     "account": "Konto",
-    "seeMore": "Visa mer"
+    "seeMore": "Visa mer",
+    "dmca": "DMCA",
+    "r18": "R18"
   },
   "units": {
     "timeAgo": "{count, plural, =0 {nyss} one {# sekund sedan} other {# sekunder sedan}}",

@@ -5,13 +5,15 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 import os
 
-from ..models import Novel, SourceVote, WeeklySourceView, resolve_output_path
+from ..models import Novel, SourceVote, WeeklySourceView
+from ..models.source_helpers import resolve_output_path
 from ..serializers import NovelSerializer, NovelSourceSerializer, ChapterSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
 from django.db.models import Q, Sum, Func, IntegerField
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
 from ..utils.query_helpers import apply_novel_prefetches, sources_queryset
+from ..utils.novel_resolution import get_chapter_or_404, get_source_or_404
 from ..utils.pagination import parse_page_size
 from ..services.epub_service import (
     cached_epub,
@@ -81,7 +83,7 @@ def vote_source(request, novel_slug, source_slug):
         )
 
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    source = get_source_or_404(novel, source_slug)
     client_ip = get_client_ip(request)
 
     if not client_ip:
@@ -115,7 +117,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     Get all chapters for a specific novel source using slugs with pagination
     """
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    source = get_source_or_404(novel, source_slug)
 
     chapters = source.chapters.all().order_by("chapter_id")
 
@@ -165,7 +167,7 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     """
     novel = resolve_novel_slug(novel_slug)
     source = get_object_or_404(novel.sources.select_related('external_source'), source_slug=source_slug)
-    chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
+    chapter = get_chapter_or_404(source, chapter_number)
     # Attach the already-loaded parents so the serializer does not re-query them
     source.novel = novel
     chapter.novel_from_source = source
@@ -195,7 +197,7 @@ def source_image_gallery(request, novel_slug, source_slug):
     Get all images from a specific source for gallery display
     """
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    source = get_source_or_404(novel, source_slug)
 
     # Get chapters with images
     chapters_with_images = (
@@ -276,7 +278,7 @@ def source_image_gallery(request, novel_slug, source_slug):
 def _resolve_epub_request(request, novel_slug, source_slug):
     """Validate an EPUB request. Returns (source, volume, error_response)."""
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources, source_slug=source_slug)
+    source = get_source_or_404(novel, source_slug)
 
     if novel.is_dmca:
         return (

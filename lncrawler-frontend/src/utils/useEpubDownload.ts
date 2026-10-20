@@ -2,14 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNotification } from '@context/NotificationContext';
 import { jobService, novelService } from '@services/api';
+import { apiErrorMessage } from '@utils/apiError';
 
 const POLL_INTERVAL_MS = 2000;
-
-// Error text returned by the API as { "error": "..." }, if any.
-const apiErrorMessage = (err: unknown): string | undefined => {
-  const data = (err as { response?: { data?: { error?: unknown } } })?.response?.data;
-  return typeof data?.error === 'string' ? data.error : undefined;
-};
 
 // Trigger a browser download of a URL without leaving the page.
 const triggerDownload = (url: string) => {

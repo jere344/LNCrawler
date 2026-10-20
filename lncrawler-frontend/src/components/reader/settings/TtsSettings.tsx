@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -49,15 +49,11 @@ import {
   voicesForLang,
 } from '../tts/browserSpeech';
 import {
-  deleteAllVoices,
-  deleteVoice,
-  getVoicesStorageBytes,
   isNeuralSupported,
-  isVoiceDownloaded,
-  prepareVoice,
   synthesize,
   wavToUrl,
 } from '../tts/neuralClient';
+import { progressKey, useNeuralModels } from './useNeuralModels';
 
 interface TtsSettingsProps {
   prefs: TtsPrefs;
@@ -94,10 +90,6 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
   const optionsKey = neuralOptionsKey(neuralOptions(prefs));
   // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed from its key
   const options = useMemo(() => neuralOptions(prefs), [optionsKey]);
-  const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
-  const [progress, setProgress] = useState<Record<string, number>>({});
-  const [storageBytes, setStorageBytes] = useState(0);
-  const [neuralError, setNeuralError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   // Which model family's voices are listed; opens on the selected voice's.
   const [modelFamily, setModelFamily] = useState<NeuralEngine>(selectedNeural?.engine ?? 'supertonic');
@@ -106,60 +98,13 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-sync only when the language changes
   }, [lang]);
 
-  const refreshDownloaded = useCallback(async () => {
-    if (!neuralSupported) return;
-    const results = await Promise.all(
-      neuralVoices.map(async v => [v.id, await isVoiceDownloaded(v.id, options)] as const),
-    );
-    setDownloaded(new Set(results.filter(([, ok]) => ok).map(([id]) => id)));
-    setStorageBytes(await getVoicesStorageBytes());
-  }, [neuralVoices, options, neuralSupported]);
-
-  useEffect(() => {
-    if (prefs.ttsEngine === 'neural') refreshDownloaded();
-  }, [prefs.ttsEngine, refreshDownloaded]);
-
-  // Load the selected HD voice into memory in the background once it is
-  // downloaded, so preview and play don't wait for model initialisation.
-  const selectedNeuralId = selectedNeural?.id;
-  const selectedReady = !!selectedNeuralId && downloaded.has(selectedNeuralId);
-  useEffect(() => {
-    if (prefs.ttsEngine !== 'neural' || !selectedNeuralId || !selectedReady) return;
-    prepareVoice(selectedNeuralId, options).catch(() => undefined);
-  }, [prefs.ttsEngine, selectedNeuralId, selectedReady, options]);
-
-  /** Progress is keyed by voice id, or by engine for shared models. */
-  const progressKey = (voice: NeuralVoice) => (voice.engine === 'piper' ? voice.id : voice.engine);
-
-  const downloadVoice = async (voice: NeuralVoice) => {
-    const key = progressKey(voice);
-    setNeuralError(null);
-    setProgress(p => ({ ...p, [key]: 0 }));
-    try {
-      await prepareVoice(voice.id, options, (loaded, total) => {
-        setProgress(p => ({ ...p, [key]: total ? (loaded / total) * 100 : 0 }));
-      });
-    } catch (err) {
-      setNeuralError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setProgress(p => {
-        const next = { ...p };
-        delete next[key];
-        return next;
-      });
-      refreshDownloaded();
-    }
-  };
-
-  const removeVoice = async (voice: NeuralVoice) => {
-    await deleteVoice(voice.id);
-    refreshDownloaded();
-  };
-
-  const removeAll = async () => {
-    await deleteAllVoices();
-    refreshDownloaded();
-  };
+  const { downloaded, progress, storageBytes, neuralError, setNeuralError, downloadVoice, removeVoice, removeAll } = useNeuralModels({
+    ttsEngine: prefs.ttsEngine,
+    neuralSupported,
+    neuralVoices,
+    options,
+    selectedNeuralId: selectedNeural?.id,
+  });
 
   // ---- Previews -----------------------------------------------------------
   const sample = PREVIEW_TEXT[lang] ?? PREVIEW_TEXT.en;

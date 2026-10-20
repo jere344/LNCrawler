@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
 import { Box, Typography, Divider, CircularProgress } from '@mui/material';
 import CommentForm from './CommentForm';
 import CommentList from './CommentList';
 import { novelService } from '../../services/api';
 import { useTranslation } from 'react-i18next';
 import { Comment, CommentFormData } from '@models/comments_types';
+import { useAsync } from '@utils/useAsync';
 
 interface CommentSectionProps {
   novelSlug?: string;
@@ -18,44 +18,22 @@ interface CommentSectionProps {
 
 const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) => {
   const { t } = useTranslation();
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
   const isChapterComments = !!chapterData;
-  
-  useEffect(() => {
-    const fetchComments = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        let fetchedComments;
-        
-        if (isChapterComments && chapterData) {
-          fetchedComments = await novelService.getChapterComments(
-            chapterData.novelSlug,
-            chapterData.sourceSlug,
-            chapterData.chapterNumber
-          );
-        } else if (novelSlug) {
-          fetchedComments = await novelService.getNovelComments(novelSlug);
-        } else {
-          throw new Error('Either novelSlug or chapterData must be provided');
-        }
-        
-        setComments(fetchedComments);
-      } catch (err) {
-        console.error('Failed to fetch comments:', err);
-        setError(t('comments.loadFailed'));
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchComments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; explicit inputs listed
+
+  const { data, loading, error, setData: setComments } = useAsync<Comment[]>(async () => {
+    if (isChapterComments && chapterData) {
+      return novelService.getChapterComments(
+        chapterData.novelSlug,
+        chapterData.sourceSlug,
+        chapterData.chapterNumber
+      );
+    }
+    if (novelSlug) {
+      return novelService.getNovelComments(novelSlug);
+    }
+    throw new Error('Either novelSlug or chapterData must be provided');
   }, [novelSlug, chapterData, isChapterComments]);
+  const comments = data ?? [];
   
   const handleAddComment = async (commentData: CommentFormData) => {
     try {
@@ -103,7 +81,7 @@ const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) 
         </Box>
       ) : error ? (
         <Typography color="error" sx={{ my: 2 }}>
-          {error}
+          {t('comments.loadFailed')}
         </Typography>
       ) : (
         <CommentList 
