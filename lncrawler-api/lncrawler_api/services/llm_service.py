@@ -7,7 +7,7 @@ service reports ``is_configured() == False`` and everything degrades to the
 deterministic review queue.
 
 Calls are made from the LLM workflows in services/llm_tasks.py (run through the
-``LLMRequest`` queue) and the ``judge_tag_clusters`` command. They run as bounded
+``LLMRequest`` queue). They run as bounded
 scheduler tasks so a slow or rate-limited provider can never block the rest of
 the maintenance loop.
 """
@@ -307,26 +307,3 @@ def budget_status():
         f"{requests_used_today()}/{settings.LLM_DAILY_REQUESTS} requests, "
         f"{tokens_used_today()}/{settings.LLM_DAILY_TOKENS} tokens"
     )
-
-
-def chat_json(messages, max_tokens=4096, provider=None, model=None, timeout=None, session=None,
-              purpose=LLMUsage.PURPOSE_TAG):
-    """Return the JSON object the model wrote, for callers that need a richer shape.
-
-    Takes the text between the first "{" and the last "}" so code fences or a
-    short preamble do not matter. Raises ``LLMParseError`` if no object parses.
-    """
-    content, _tokens = _post_chat(
-        messages, max_tokens, purpose, provider, model, timeout, session
-    )
-    text = (content or "").strip()
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end <= start:
-        raise LLMParseError(f"no JSON object in LLM content: {text[:300]!r}")
-    try:
-        data = json.loads(text[start : end + 1])
-    except ValueError as exc:
-        raise LLMParseError(f"invalid JSON in LLM content: {text[:300]!r}") from exc
-    if not isinstance(data, dict):
-        raise LLMParseError("LLM content is not a JSON object")
-    return data

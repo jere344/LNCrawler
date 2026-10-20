@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 load_dotenv(encoding='utf-8')
@@ -202,10 +203,9 @@ LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 # hasn't changed. Also invalidated immediately when the source is updated.
 EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
 
-# Cross-source novel dedup (find_merge_candidates). certainty is 0..1 and a
-# candidate only auto-merges once it reaches MERGE_AUTO_SCORE; the default (>1)
-# never merges without a human, so lower it once the review queue is trusted.
-MERGE_AUTO_SCORE = float(os.environ.get("MERGE_AUTO_SCORE", "1.01"))
+# Cross-source novel dedup (find_merge_candidates). certainty is 0..1; the
+# command only queues candidates, the LLM judge (MERGE_LLM_AUTO_CONFIDENCE) or a
+# human merges them.
 # Pairs at/above this certainty are queued for manual review.
 MERGE_REVIEW_LOW = 0.5
 # A cover hash on at least this many novels is treated as a shared placeholder.
@@ -243,8 +243,10 @@ MERGE_LLM_INTERVAL = 300  # seconds between judge ticks
 # so the reviewer never sees it. Certainty at/above the cap always stays queued.
 MERGE_LLM_DISMISS_CONFIDENCE = float(os.environ.get("MERGE_LLM_DISMISS_CONFIDENCE", "0.9"))
 MERGE_LLM_DISMISS_MAX_CERTAINTY = float(os.environ.get("MERGE_LLM_DISMISS_MAX_CERTAINTY", "0.8"))
+# A "same" verdict at/above this confidence merges the pair (decision auto).
+MERGE_LLM_AUTO_CONFIDENCE = float(os.environ.get("MERGE_LLM_AUTO_CONFIDENCE", "0.95"))
 
-# Automatic tag merging (find_tag_merge_candidates / judge_tag_clusters).
+# Automatic tag merging (find_tag_merge_candidates / TagMergeTask).
 # Embeddings: any OpenAI-compatible /embeddings endpoint; see services/embedding_service.py.
 EMBED_PROVIDER = os.environ.get("EMBED_PROVIDER", "jina")
 EMBED_API_KEY = os.environ.get("EMBED_API_KEY", "")
@@ -268,7 +270,7 @@ TAG_TRGM_MIN = 0.6
 # Largest group sent to the judge as one cluster.
 TAG_CLUSTER_MAX = 12
 # LLM judging reuses LLM_PROVIDER/MODEL/API_KEY. Budget and batching:
-TAG_LLM_CALLS_PER_TICK = 3  # judge calls per scheduler tick
+TAG_LLM_CALLS_PER_TICK = 3  # requests per scheduler tick
 TAG_LLM_TAGS_PER_CALL = 30  # pack clusters until this many tags are in one call
 TAG_LLM_INTERVAL = 600  # seconds between judge ticks
 TAG_LLM_MAX_TOKENS = 4096
@@ -474,3 +476,7 @@ if DEBUG and not EMAIL_HOST_USER:
 
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@lncrawler.monster")
 EMAIL_SENDER_NAME = os.environ.get("EMAIL_SENDER_NAME", "LNCrawler")
+
+# The default PBKDF2 hasher is deliberately slow; tests create many users.
+if len(sys.argv) > 1 and sys.argv[1] == "test":
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

@@ -208,9 +208,30 @@ class JudgeDismissTests(MergeTestCase):
         self._judge({"same": False, "confidence": 0.5, "reason": "unsure"})
         self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
 
-    def test_same_verdict_stays_pending(self):
+    @override_settings(MERGE_LLM_AUTO_CONFIDENCE=0.95)
+    def test_same_verdict_below_auto_confidence_stays_pending(self):
+        self._judge({"same": True, "confidence": 0.9, "reason": "same work"})
+        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
+        self.assertEqual(Novel.objects.count(), 2)
+
+    @override_settings(MERGE_LLM_AUTO_CONFIDENCE=0.95)
+    def test_confident_same_verdict_merges_the_pair(self):
+        self._judge({"same": True, "confidence": 0.97, "reason": "same work"})
+        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_MERGED)
+        self.assertEqual(self.candidate.decision, MergeCandidate.DECISION_AUTO)
+        self.assertEqual(Novel.objects.count(), 1)
+
+    @override_settings(MERGE_LLM_AUTO_CONFIDENCE=0.95)
+    def test_confident_same_verdict_in_a_chain_stays_pending(self):
+        c = Novel.objects.create(title="Alpha?", slug="alpha-c", novel_path="alpha-c")
+        MergeCandidate.objects.create(
+            novel_a=self.b, novel_b=c, title_a=self.b.title, title_b=c.title,
+            certainty=0.6, decision=MergeCandidate.DECISION_REVIEW,
+        )
+        # Both pairs get the verdict; each sees the other still pending.
         self._judge({"same": True, "confidence": 0.99, "reason": "same work"})
         self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
+        self.assertEqual(Novel.objects.count(), 3)
 
 
 class ReviewQueueOrderTests(MergeTestCase):

@@ -10,9 +10,8 @@ Cheap deterministic funnel:
    (noisy-OR, so independent signals corroborate each other). Penalty signals
    (sequel mismatch) then scale it down, since titles are folded for blocking
    and lose the sequel number.
-3. Store — write a ``MergeCandidate`` per pair. Nothing is merged unless
-   ``certainty`` clears ``MERGE_AUTO_SCORE`` (default >1, so auto-merge is off
-   until the threshold is tuned against real data); the rest wait for the admin
+3. Store — write a ``MergeCandidate`` per pair. Nothing is merged here: the
+   LLM judge merges the pairs it is sure about, the rest wait for the admin
    review page.
 
 Re-running is safe: pairs a human already rejected/merged are left untouched.
@@ -93,8 +92,6 @@ class Command(BaseCommand):
     help = "Find probable duplicate novels and queue MergeCandidate rows."
 
     def add_arguments(self, parser):
-        parser.add_argument("--auto-score", type=float, default=None,
-                            help="certainty >= this auto-merges (default settings.MERGE_AUTO_SCORE).")
         parser.add_argument("--review-low", type=float, default=None,
                             help="certainty >= this is queued for review (default settings.MERGE_REVIEW_LOW).")
         parser.add_argument("--max-block-size", type=int, default=None,
@@ -105,9 +102,6 @@ class Command(BaseCommand):
         parser.add_argument("--dry-run", action="store_true")
 
     def handle(self, *args, **options):
-        self.auto_score = options["auto_score"]
-        if self.auto_score is None:
-            self.auto_score = settings.MERGE_AUTO_SCORE
         self.review_low = options["review_low"]
         if self.review_low is None:
             self.review_low = settings.MERGE_REVIEW_LOW
@@ -131,8 +125,8 @@ class Command(BaseCommand):
 
         stats = self._store(pair_signals, allowed)
         self.stdout.write(self.style.SUCCESS(
-            "merge candidates: {candidates} pair(s), {review} review, {auto} auto, "
-            "{merged} merged, {stale} stale removed out of {novels} novel(s), "
+            "merge candidates: {candidates} pair(s), "
+            "{stale} stale removed out of {novels} novel(s), "
             "{blocks} block key(s)".format(
                 novels=len(data["titles"]), blocks=len(data["blocks"]), **stats
             )
@@ -426,7 +420,7 @@ class Command(BaseCommand):
 
     # ---------------------------------------------------------------- store
     def _store(self, pair_signals, allowed):
-        stats = {"candidates": 0, "review": 0, "auto": 0, "merged": 0, "stale": 0}
+        stats = {"candidates": 0, "stale": 0}
 
         if not self.dry_run:
             # Drop candidates whose novel was merged away outside this command.
@@ -447,7 +441,6 @@ class Command(BaseCommand):
         involved = {nid for pair in pair_signals for nid in pair}
         novels = {n.pk: n for n in Novel.objects.filter(pk__in=involved)}
 
-        auto_pairs = []
         to_create = []
         to_update = []
         kept = set()
@@ -461,20 +454,12 @@ class Command(BaseCommand):
             # A pair a human (or the LLM dismissal) already settled stays as is.
             if row is not None and row.status != MergeCandidate.STATUS_PENDING:
                 continue
-            decision = (
-                MergeCandidate.DECISION_AUTO if certainty >= self.auto_score
-                else MergeCandidate.DECISION_REVIEW
-            )
             stats["candidates"] += 1
-            stats["auto" if decision == MergeCandidate.DECISION_AUTO else "review"] += 1
-            if decision == MergeCandidate.DECISION_AUTO:
-                auto_pairs.append((a_id, b_id))
             if self.dry_run:
                 continue
             if row is not None:
                 row.certainty = certainty
                 row.signals = signals
-                row.decision = decision
                 row.updated_at = now
                 to_update.append(row)
                 continue
@@ -490,7 +475,6 @@ class Command(BaseCommand):
                 title_b=novel_b.title,
                 certainty=certainty,
                 signals=signals,
-                decision=decision,
             ))
 
         # Pending rows the machine queued and nobody settled go stale once their
@@ -511,70 +495,7 @@ class Command(BaseCommand):
             MergeCandidate.objects.bulk_create(to_create)
         if to_update:
             MergeCandidate.objects.bulk_update(
-                to_update, ["certainty", "signals", "decision", "updated_at"]
+                to_update, ["certainty", "signals", "updated_at"]
             )
 
-        if auto_pairs and not self.dry_run:
-            stats["merged"] = self._auto_merge(auto_pairs)
         return stats
-
-    def _auto_merge(self, auto_pairs):
-        """Merge only isolated pairs; multi-hop clusters are demoted to review."""
-        parent = {}
-
-        def find(x):
-            parent.setdefault(x, x)
-            while parent[x] != x:
-                parent[x] = parent[parent[x]]
-                x = parent[x]
-            return x
-
-        def union(a, b):
-            ra, rb = find(a), find(b)
-            if ra != rb:
-                parent[rb] = ra
-
-        for a_id, b_id in auto_pairs:
-            union(a_id, b_id)
-
-        groups = defaultdict(set)
-        for a_id, b_id in auto_pairs:
-            groups[find(a_id)].update((a_id, b_id))
-
-        from lncrawler_api.services.merge_service import (
-            MergeError,
-            merge_novels,
-            pick_merge_survivor,
-        )
-
-        merged = 0
-        for members in groups.values():
-            if len(members) != 2:
-                # Ambiguous chain -> leave for a human.
-                MergeCandidate.objects.filter(
-                    novel_a_id_snapshot__in=members, novel_b_id_snapshot__in=members
-                ).update(decision=MergeCandidate.DECISION_REVIEW)
-                continue
-            a_id, b_id = members
-            a = Novel.objects.filter(pk=a_id).first()
-            b = Novel.objects.filter(pk=b_id).first()
-            if a is None or b is None:
-                continue
-            target = pick_merge_survivor(a, b)
-            source = b if target.pk == a.pk else a
-            # merge_novels is atomic and moves files immediately (with its own
-            # undo journal), so no outer transaction here: a rollback of ours
-            # would leave the moved files behind.
-            try:
-                merge_novels(source, target)
-            except MergeError as exc:
-                self.stderr.write(f"Auto-merge {a_id}/{b_id} failed: {exc}")
-                continue
-            # Match on the snapshots: merge_novels deleted the source novel, so
-            # its live FK is now NULL and would never match.
-            MergeCandidate.objects.filter(
-                novel_a_id_snapshot__in=(a_id, b_id),
-                novel_b_id_snapshot__in=(a_id, b_id),
-            ).update(status=MergeCandidate.STATUS_MERGED)
-            merged += 1
-        return merged

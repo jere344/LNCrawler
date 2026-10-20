@@ -20,6 +20,7 @@ from ..models import (
     Tag,
     TagAlias,
     TagCluster,
+    LLMRequest,
     LLMUsage,
     TagMerge,
     TagNoMerge,
@@ -35,7 +36,7 @@ from ..models import sources_models
 from ..models.source_links import TAG_IMPORT_ATTEMPTS, TagImportError, TagImportRetry
 from ..models.sources_models import _set_source_tags, refresh_adult_for_tags
 from ..services import MergeError, llm_service, merge_tags, rename_tag, undo_tag_cluster, undo_tag_merge
-from ..services import embedding_service, merge_service
+from ..services import embedding_service, llm_tasks, merge_service
 from ..services import tag_merge_service as tms
 from ..services.merge_common import sorted_pk_signature
 from ..utils.tag_utils import normalize_tag
@@ -393,11 +394,13 @@ class JudgeTagClustersTests(TestCase):
         )
 
     def _judge(self, response=None, side_effect=None):
+        # A str reply is returned as-is (not JSON), so tests can send unparseable text.
+        content = response if isinstance(response, str) else json.dumps(response)
         patcher = mock.patch.object(
-            llm_service, "chat_json", return_value=response, side_effect=side_effect
+            llm_service, "_post_chat", return_value=(content, 10), side_effect=side_effect
         )
         with override_settings(LLM_API_KEY="test-key"), patcher as chat:
-            call_command("judge_tag_clusters")
+            call_command("run_llm_requests", "tag_merge")
         return chat
 
     @staticmethod
@@ -482,17 +485,37 @@ class JudgeTagClustersTests(TestCase):
         self.assertEqual(TagMerge.objects.count(), 1)
         self.assertEqual(cluster.llm_response["sets"][0]["members"], [self.isekai.pk, self.another.pk])
 
-    def test_unparseable_answer_requeues_cluster(self):
+    def test_unparseable_answer_is_retried_with_backoff(self):
         cluster = self._cluster(self.isekai, self.another)
-        # One call per tick: a persistent failure would otherwise reach MAX_REQUEUES in one run.
-        with override_settings(TAG_LLM_CALLS_PER_TICK=1):
-            self._judge(side_effect=llm_service.LLMParseError("no json"))
+        self._judge("no json")
 
         cluster.refresh_from_db()
         self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(cluster.requeue_count, 1)
-        self.assertIn("no json", cluster.error)
-        self.assertIsNone(cluster.llm_batch)
+        self.assertEqual(cluster.requeue_count, 0)
+        request = LLMRequest.objects.get(task="tag_merge")
+        self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(request.attempts, 1)
+        self.assertIsNotNone(request.not_before)
+        self.assertIn("no JSON object", request.error)
+
+    def test_reapplying_a_done_request_skips_clusters_no_longer_pending(self):
+        cluster = self._cluster(self.isekai, self.another)
+        # Low confidence: the cluster ends in review, so it is no longer pending.
+        self._judge(self._answer(
+            {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}
+        ))
+        cluster.refresh_from_db()
+        self.assertEqual(cluster.status, TagCluster.STATUS_REVIEW)
+        batch_id = cluster.llm_batch
+        request = LLMRequest.objects.get(task="tag_merge")
+        self.assertEqual(request.status, LLMRequest.STATUS_DONE)
+
+        llm_tasks.REGISTRY["tag_merge"].apply(request, request.response)
+
+        cluster.refresh_from_db()
+        self.assertEqual(cluster.status, TagCluster.STATUS_REVIEW)
+        self.assertEqual(cluster.llm_batch, batch_id)
+        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
 
     def test_force_applies_review_cluster(self):
         cluster = self._cluster(self.isekai, self.another)
@@ -1071,28 +1094,40 @@ class _JudgeFixture(TestCase):
         return cluster
 
     def _run_judge(self, chat, **overrides):
+        """Run one tag_merge tick. ``chat`` is an exception to raise, or a function
+        returning the reply (a dict is sent as JSON, a str as-is)."""
         settings_overrides = {"LLM_API_KEY": "k", "TAG_LLM_TAGS_PER_CALL": 2,
                               "TAG_LLM_CALLS_PER_TICK": 1, **overrides}
+
+        def post(messages, *args, **kwargs):
+            if isinstance(chat, Exception):
+                raise chat
+            reply = chat if isinstance(chat, str) else chat(messages, *args, **kwargs)
+            return (reply if isinstance(reply, str) else json.dumps(reply)), 10
+
         with override_settings(**settings_overrides), \
-                mock.patch.object(llm_service, "chat_json", side_effect=chat) as mocked:
-            call_command("judge_tag_clusters")
+                mock.patch.object(llm_service, "_post_chat", side_effect=post) as mocked:
+            call_command("run_llm_requests", "tag_merge")
         return mocked
+
+    def _run_until_failed(self, chat, **overrides):
+        """Tick once per allowed attempt, making the request due again each time."""
+        for _ in range(llm_tasks.REGISTRY["tag_merge"].max_attempts):
+            LLMRequest.objects.filter(task="tag_merge").update(not_before=None)
+            self._run_judge(chat, **overrides)
 
 
 class TagJudgeBudgetTests(_JudgeFixture):
-    def test_requeued_cluster_does_not_refund_the_call(self):
+    def test_unusable_paid_call_still_counts_against_the_daily_budget(self):
         def paid_but_unusable(*args, **kwargs):
-            # _post_chat (mocked away with chat_json) writes the LLMUsage row.
+            # _post_chat writes the LLMUsage row before the reply is checked.
             LLMUsage.objects.create(purpose=LLMUsage.PURPOSE_TAG, tokens=10)
-            raise llm_service.LLMParseError("bad")
+            return "no json"
 
         self._run_judge(paid_but_unusable, LLM_DAILY_REQUESTS=1)
 
-        # Admin-style requeue: clear the answer and put the cluster back to pending.
-        TagCluster.objects.filter(pk=self.cluster_a.pk).update(
-            status=TagCluster.STATUS_PENDING, llm_response=None, llm_batch=None, judged_at=None
-        )
-        # The shared request cap is spent by the ledger row, not by the cluster.
+        # The shared request cap is spent by the ledger row, so the retry makes no call.
+        LLMRequest.objects.filter(task="tag_merge").update(not_before=None)
         mocked = self._run_judge(lambda *a, **k: {"groups": []}, LLM_DAILY_REQUESTS=1)
         self.assertEqual(mocked.call_count, 0)
 
@@ -1101,43 +1136,48 @@ class TagJudgeBudgetTests(_JudgeFixture):
         self.cluster_a.refresh_from_db()
         self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
         self.assertEqual(self.cluster_a.requeue_count, 0)
+        request = LLMRequest.objects.get(task="tag_merge", target_ids=[self.cluster_a.pk])
+        self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(request.attempts, 0)
+        self.assertIsNotNone(request.not_before)
 
-    def test_parse_error_requeues_the_cluster(self):
-        self._run_judge(llm_service.LLMParseError("bad"))
+    def test_parse_error_retries_the_request_without_requeueing_the_cluster(self):
+        self._run_judge("no json")
         self.cluster_a.refresh_from_db()
         self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(self.cluster_a.requeue_count, 1)
+        self.assertEqual(self.cluster_a.requeue_count, 0)
+        request = LLMRequest.objects.get(task="tag_merge", target_ids=[self.cluster_a.pk])
+        self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(request.attempts, 1)
 
 
 class TagJudgeOrderTests(_JudgeFixture):
     def test_requeued_clusters_are_judged_after_fresh_ones(self):
         # cluster_b is older but has been requeued once, so it must wait behind cluster_a.
         TagCluster.objects.filter(pk=self.cluster_b.pk).update(requeue_count=1)
-        mocked = self._run_judge(llm_service.LLMParseError("bad"))
+        mocked = self._run_judge(lambda *a, **k: {"groups": []})
         self.assertEqual(mocked.call_count, 1)
-        self.cluster_a.refresh_from_db()
-        self.cluster_b.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(self.cluster_a.requeue_count, 1)
-        self.assertEqual(self.cluster_b.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(self.cluster_b.requeue_count, 1)
+        self.assertIn("Isekai", mocked.call_args[0][0][-1]["content"])
+        self.assertNotIn("Foo", mocked.call_args[0][0][-1]["content"])
 
 
 class TagJudgeFailureTests(_JudgeFixture):
-    def test_parse_failure_requeues_every_cluster_in_the_batch(self):
+    def test_failed_batch_requeues_every_cluster_in_it(self):
         # Both clusters fit one call (4 tags), so one bad reply hits both.
-        mocked = self._run_judge(llm_service.LLMTruncated("cut off"), TAG_LLM_TAGS_PER_CALL=4)
-        self.assertEqual(mocked.call_count, 1)
+        self._run_until_failed("no json", TAG_LLM_TAGS_PER_CALL=4)
+        request = LLMRequest.objects.get(task="tag_merge")
+        self.assertEqual(request.status, LLMRequest.STATUS_FAILED)
+        self.assertEqual(request.attempts, 3)
         for cluster in (self.cluster_a, self.cluster_b):
             cluster.refresh_from_db()
             self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
             self.assertEqual(cluster.requeue_count, 1)
-            self.assertIn("cut off", cluster.error)
+            self.assertIn("no JSON object", cluster.error)
             self.assertIsNone(cluster.llm_batch)
 
-    def test_requeued_cluster_is_judged_alone(self):
-        TagCluster.objects.filter(pk=self.cluster_b.pk).update(requeue_count=1)
-        # Both clusters would fit one call; the requeued one must get its own.
+    def test_requeued_clusters_are_judged_alone(self):
+        self._run_until_failed("no json", TAG_LLM_TAGS_PER_CALL=4)
+        # Both clusters would fit one call; requeued ones must each get their own.
         mocked = self._run_judge(lambda *a, **k: {"groups": []},
                                  TAG_LLM_TAGS_PER_CALL=10, TAG_LLM_CALLS_PER_TICK=2)
         self.assertEqual(mocked.call_count, 2)
@@ -1147,18 +1187,85 @@ class TagJudgeFailureTests(_JudgeFixture):
         self.assertIn("Foo", second)
         self.assertNotIn("Isekai", second)
 
-
-    def test_failed_cluster_is_not_retried_within_the_same_run(self):
-        # Three calls allowed, two clusters: each is tried once, then the run stops.
-        mocked = self._run_judge(llm_service.LLMParseError("bad"),
-                                 TAG_LLM_CALLS_PER_TICK=3, TAG_LLM_TAGS_PER_CALL=2)
-        self.assertEqual(mocked.call_count, 2)
+    def test_failed_single_cluster_request_is_closed_as_error(self):
+        # Two clusters of two tags, one call per tick: only cluster_a is sent.
+        self._run_until_failed("no json", TAG_LLM_TAGS_PER_CALL=2)
         self.cluster_a.refresh_from_db()
         self.cluster_b.refresh_from_db()
-        self.assertEqual(self.cluster_a.requeue_count, 1)
-        self.assertEqual(self.cluster_b.requeue_count, 1)
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_ERROR)
+        self.assertIn("no JSON object", self.cluster_a.error)
         self.assertEqual(self.cluster_b.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_b.requeue_count, 0)
+
+    def test_http_error_is_capped_like_a_parse_error(self):
+        self._run_until_failed(llm_service.LLMError("HTTP 500"), TAG_LLM_TAGS_PER_CALL=4)
+        request = LLMRequest.objects.get(task="tag_merge")
+        self.assertEqual(request.status, LLMRequest.STATUS_FAILED)
+        self.assertEqual(request.attempts, 3)
+        self.cluster_a.refresh_from_db()
+        self.assertEqual(self.cluster_a.requeue_count, 1)
+
+    def test_failed_request_is_not_retried_within_the_same_run(self):
+        # Three calls allowed, two clusters: each is tried once, then the run stops.
+        mocked = self._run_judge("no json", TAG_LLM_CALLS_PER_TICK=3, TAG_LLM_TAGS_PER_CALL=2)
+        self.assertEqual(mocked.call_count, 2)
+        for cluster in (self.cluster_a, self.cluster_b):
+            cluster.refresh_from_db()
+            self.assertEqual(cluster.requeue_count, 0)
+            self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
+        for request in LLMRequest.objects.filter(task="tag_merge"):
+            self.assertEqual(request.attempts, 1)
+            self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
+
+
+class TagJudgeInFlightTests(_JudgeFixture):
+    """The reply is read against the batch that was sent, not the state after the call."""
+
+    TWO_GROUPS = {"groups": [
+        {"group": 1, "sets": [{"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}]},
+        {"group": 2, "sets": [{"members": ["t1", "t2"], "canonical": "Foo", "confidence": 0.5}]},
+    ]}
+
+    def test_cluster_leaving_pending_during_the_call_does_not_shift_the_labels(self):
+        def leave_pending(*args, **kwargs):
+            TagCluster.objects.filter(pk=self.cluster_a.pk).update(status=TagCluster.STATUS_REVIEW)
+            return self.TWO_GROUPS
+
+        self._run_judge(leave_pending, TAG_LLM_TAGS_PER_CALL=4)
+
+        self.cluster_a.refresh_from_db()
+        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_REVIEW)
+        self.assertIsNone(self.cluster_a.llm_batch)
+        self.cluster_b.refresh_from_db()
+        self.assertEqual(self.cluster_b.llm_response["sets"][0]["members"], [self.tags[2].pk, self.tags[3].pk])
+        self.assertEqual(self.cluster_b.llm_response["sets"][0]["canonical"], "Foo")
+
+    def test_tag_deleted_during_the_call_does_not_shift_the_labels(self):
+        def delete_tag(*args, **kwargs):
+            Tag.objects.filter(pk=self.tags[1].pk).delete()
+            return self.TWO_GROUPS
+
+        self._run_judge(delete_tag, TAG_LLM_TAGS_PER_CALL=4)
+
+        self.cluster_b.refresh_from_db()
+        self.assertEqual(self.cluster_b.llm_response["sets"][0]["members"], [self.tags[2].pk, self.tags[3].pk])
+        self.assertEqual(self.cluster_b.llm_response["sets"][0]["canonical"], "Foo")
+
+    def test_overlapping_answer_does_not_overwrite_an_earlier_judgement(self):
+        self._run_judge(lambda *a, **k: {"groups": [
+            {"group": 1, "sets": [{"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}]},
+        ]})
+        self.cluster_a.refresh_from_db()
+        self.assertIsNotNone(self.cluster_a.llm_batch)
+        # Back to pending while keeping the earlier answer, then a second request judges it.
+        TagCluster.objects.filter(pk=self.cluster_a.pk).update(status=TagCluster.STATUS_PENDING)
+        self._run_judge(lambda *a, **k: {"groups": [
+            {"group": 1, "sets": [{"members": ["t1", "t2"], "canonical": "Other", "confidence": 0.5}]},
+        ]})
+
+        self.cluster_a.refresh_from_db()
+        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
+        self.assertEqual(self.cluster_a.llm_response["sets"][0]["canonical"], "Isekai")
 
 
 class TagJudgeTokenBudgetTests(_JudgeFixture):

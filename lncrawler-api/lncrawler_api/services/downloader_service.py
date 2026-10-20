@@ -64,7 +64,8 @@ def _start_progress_monitor(poll):
         try:
             while not stop_monitoring.is_set():
                 poll()
-                time.sleep(2)
+                # wait() instead of sleep() so stopping takes effect at once.
+                stop_monitoring.wait(2)
         finally:
             # Threads get their own DB connection; close it so a
             # long-lived worker does not accumulate Postgres sessions.

@@ -3,7 +3,7 @@
 Stage 1 of automatic tag merging. Embeds tag names that lack a current vector,
 then combines three signals (embedding neighbours, cross-source co-occurrence,
 trigram similarity) into clusters stored as pending ``TagCluster`` rows. Nothing
-is merged here; ``judge_tag_clusters`` decides. Re-running is safe: a group that
+is merged here; ``TagMergeTask`` (run_llm_requests tag_merge) decides. Re-running is safe: a group that
 was already stored, in any status, is skipped by its signature.
 """
 

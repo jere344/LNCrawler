@@ -7,7 +7,7 @@ same concept, from three signals:
 - co-occurrence across different sources of the same novel (``cooccurrence_edges``),
 - trigram similarity of the normalized keys (``trigram_edges``).
 
-Groups are stored as ``TagCluster`` rows. Stage 2 (``judge_tag_clusters``) asks
+Groups are stored as ``TagCluster`` rows. Stage 2 (``TagMergeTask`` in services/llm_tasks.py) asks
 an LLM which members are strictly interchangeable, and ``apply_cluster`` merges
 them, or holds them for review when a safeguard trips.
 

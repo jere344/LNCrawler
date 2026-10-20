@@ -229,7 +229,7 @@ def calculate_novel_similarities():
     )
 
 # Rebuild the cross-source duplicate queue weekly, after similarities so the
-# text signal is fresh. Auto-merge stays off until MERGE_AUTO_SCORE is tuned.
+# text signal is fresh. It only queues; the LLM judge below may merge.
 @scheduler.register_task(interval=WEEK, name="find_merge_candidates")  # 7 days
 def find_merge_candidates_task():
     _run_job(
@@ -267,7 +267,8 @@ def find_tag_merge_candidates_task():
         lambda: call_command_isolated('find_tag_merge_candidates'),
     )
 
-# Ask the LLM to judge pending tag clusters, a few calls per tick, only when the
+# Ask the LLM to judge pending tag clusters through the LLMRequest queue
+# (services/llm_tasks.py, TagMergeTask), a few calls per tick, only when the
 # merge LLM key is configured. Bounded per tick and by a daily call budget.
 @scheduler.register_task(
     interval=int(settings.TAG_LLM_INTERVAL), name="judge_tag_clusters"
@@ -279,7 +280,7 @@ def judge_tag_clusters_task():
         "Judging tag clusters with LLM...",
         "Tag cluster LLM judging completed",
         "Error judging tag clusters: {error}",
-        lambda: call_command('judge_tag_clusters'),
+        lambda: call_command('run_llm_requests', 'tag_merge'),
     )
 
 # Flag R18 tags through the generic LLMRequest queue (services/llm_tasks.py, TagR18Task).

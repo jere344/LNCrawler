@@ -6,6 +6,7 @@ Domain tables keep their own decisions; this module only drives the queue.
 """
 import json
 import logging
+import uuid
 from datetime import timedelta
 
 from django.conf import settings
@@ -13,10 +14,12 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from ..models import Author, AuthorMergeCandidate, LLMRequest, LLMUsage, MergeCandidate, Tag
+from ..models import Author, AuthorMergeCandidate, LLMRequest, LLMUsage, MergeCandidate, Tag, TagCluster
 from ..models.sources_models import refresh_adult_for_tags
 from . import llm_service
+from . import tag_merge_service as tms
 from .author_merge_service import merge_candidate
+from .merge_service import MergeError, merge_novels, pick_merge_survivor
 from .llm_service import LLMError, LLMParseError, RateLimited
 
 logger = logging.getLogger("lncrawler_api.merge")
@@ -56,6 +59,9 @@ class LLMTask:
     def apply(self, request, result):
         """Write the result to the domain tables. Must be idempotent (admin re-applies it)."""
         raise NotImplementedError
+
+    def on_failed(self, request):
+        """Called once when ``request`` reaches FAILED (attempts exhausted). Default: nothing."""
 
 
 REGISTRY = {}
@@ -179,6 +185,11 @@ def run_task(task_name, limit, session=None, stdout=None):
                 req.not_before = timezone.now() + timedelta(minutes=2 ** req.attempts)
                 counts["retry"] += 1
             req.save()
+            if req.status == LLMRequest.STATUS_FAILED:
+                try:
+                    task.on_failed(req)
+                except Exception:
+                    logger.exception("on_failed for LLM request %s (%s) crashed", req.pk, task_name)
             if stdout:
                 stdout.write(f"request {req.pk}: {req.status}: {req.error[:200]}")
     return counts
@@ -418,6 +429,47 @@ class NovelMergeTask(LLMTask):
             candidate.status = MergeCandidate.STATUS_SKIPPED
             update_fields.append("status")
         candidate.save(update_fields=update_fields)
+        # A confident "same" merges the pair right away, whatever its certainty.
+        if (
+            candidate.status == MergeCandidate.STATUS_PENDING
+            and result.get("same")
+            and confidence >= settings.MERGE_LLM_AUTO_CONFIDENCE
+        ):
+            _auto_merge_candidate(candidate)
+
+
+def _auto_merge_candidate(candidate):
+    """Merge the pair of ``candidate`` and mark it merged (decision auto).
+
+    A novel that is also in another pending pair may belong to a chain (A-B-C):
+    the pair then stays queued for a human, as does one whose merge fails.
+    """
+    a, b = candidate.novel_a, candidate.novel_b
+    if a is None or b is None:
+        return
+    ids = (a.pk, b.pk)
+    in_chain = (
+        MergeCandidate.objects.filter(status=MergeCandidate.STATUS_PENDING)
+        .filter(Q(novel_a_id__in=ids) | Q(novel_b_id__in=ids))
+        .exclude(pk=candidate.pk)
+        .exists()
+    )
+    if in_chain:
+        return
+    target = pick_merge_survivor(a, b)
+    source = b if target.pk == a.pk else a
+    # merge_novels is atomic and moves files immediately (with its own undo
+    # journal), so no outer transaction: a rollback of ours would leave the
+    # moved files behind.
+    try:
+        merge_novels(source, target)
+    except MergeError as exc:
+        logger.warning("Auto-merge of candidate %s failed: %s", candidate.pk, exc)
+        return
+    # By pk: merge_novels deleted the source novel, so one FK is now NULL.
+    MergeCandidate.objects.filter(pk=candidate.pk).update(
+        status=MergeCandidate.STATUS_MERGED, decision=MergeCandidate.DECISION_AUTO,
+    )
 
 
 def _author_profile(author):
@@ -576,3 +628,163 @@ class AuthorMergeTask(LLMTask):
             candidate.status = AuthorMergeCandidate.STATUS_ERROR
             candidate.reason = "no llm answer"
             candidate.save(update_fields=["status", "reason", "updated_at"])
+
+
+def _tag_batch(request):
+    """``(cluster, tags)`` for the still-pending clusters of ``request``, in ``target_ids`` order.
+
+    A cluster with fewer than two tags left has nothing to merge: it is closed as no_merge.
+    """
+    clusters = {
+        cluster.pk: cluster
+        for cluster in TagCluster.objects.filter(
+            pk__in=request.target_ids, status=TagCluster.STATUS_PENDING,
+        )
+    }
+    batch = []
+    for pk in request.target_ids:
+        cluster = clusters.get(pk)
+        if cluster is None:
+            continue
+        tags = tms.refresh_cluster_members(cluster)
+        if len(tags) < 2:
+            cluster.status = TagCluster.STATUS_NO_MERGE
+            cluster.save(update_fields=["status", "updated_at"])
+            continue
+        batch.append((cluster, tags))
+    return batch
+
+
+def _label_groups(batch):
+    """Judge-prompt groups and the ``{label: tag pk}`` maps that read the reply back."""
+    usage = tms.tag_usage([tag.pk for _cluster, tags in batch for tag in tags])
+    groups, label_maps = [], []
+    for _cluster, tags in batch:
+        labelled = [(f"t{number}", tag) for number, tag in enumerate(tags, 1)]
+        groups.append([(label, tag.name, usage.get(tag.pk, 0)) for label, tag in labelled])
+        label_maps.append({label: tag.pk for label, tag in labelled})
+    return groups, label_maps
+
+
+@register
+class TagMergeTask(LLMTask):
+    """Judge which tags in pending tag clusters are interchangeable, then apply the merges it is sure of."""
+
+    name = "tag_merge"
+    target_type = "tag_cluster"
+    prompt_version = "1"
+    usage_purpose = LLMUsage.PURPOSE_TAG
+    max_tokens = settings.TAG_LLM_MAX_TOKENS
+
+    # Pending clusters inspected per packing pass.
+    PACK_WINDOW = 200
+
+    def calls_per_tick(self):
+        return settings.TAG_LLM_CALLS_PER_TICK
+
+    def enqueue(self, limit):
+        covered = set()
+        # PENDING and RUNNING requests cover their clusters. FAILED ones do not: on_failed
+        # moves their clusters back to pending, so they must be queued again.
+        for ids in LLMRequest.objects.filter(
+            task=self.name,
+            status__in=[LLMRequest.STATUS_PENDING, LLMRequest.STATUS_RUNNING],
+        ).values_list("target_ids", flat=True):
+            covered.update(ids or [])
+        pending = (
+            TagCluster.objects.filter(status=TagCluster.STATUS_PENDING)
+            .exclude(pk__in=covered)
+            .order_by("requeue_count", "created_at", "pk")
+        )
+        per_call = settings.TAG_LLM_TAGS_PER_CALL
+        batches, batch, total = [], [], 0
+        # Fresh clusters first; clusters sent back after a failed call go to the back.
+        for cluster in list(pending[: self.PACK_WINDOW]):
+            if len(batches) >= limit:
+                break
+            tags = tms.refresh_cluster_members(cluster)
+            if len(tags) < 2:
+                cluster.status = TagCluster.STATUS_NO_MERGE
+                cluster.save(update_fields=["status", "updated_at"])
+                continue
+            if cluster.requeue_count and batch:
+                batches.append(batch)
+                batch, total = [], 0
+            batch.append(cluster.pk)
+            total += len(tags)
+            # A requeued cluster is judged alone, so a truncation caused by packing heals itself.
+            if cluster.requeue_count or total >= per_call:
+                batches.append(batch)
+                batch, total = [], 0
+        if batch and len(batches) < limit:
+            batches.append(batch)
+        batches = batches[:limit]
+        for target_ids in batches:
+            LLMRequest.objects.create(
+                task=self.name,
+                target_type=self.target_type,
+                target_ids=target_ids,
+                prompt_version=self.prompt_version,
+            )
+        return len(batches)
+
+    def build_messages(self, request):
+        batch = _tag_batch(request)
+        if not batch:
+            return None  # clusters were judged, cleared or merged since the request was queued
+        groups, label_maps = _label_groups(batch)
+        # Frozen for parse: the labels only describe the tags sent in this call.
+        request._tag_judge = ([cluster.pk for cluster, _tags in batch], label_maps)
+        return tms.build_judge_messages(groups)
+
+    def parse(self, request, content):
+        start, end = content.find("{"), content.rfind("}")
+        if start == -1 or end <= start:
+            raise LLMParseError("no JSON object in reply")
+        try:
+            data = json.loads(content[start:end + 1])
+        except ValueError as exc:
+            raise LLMParseError(f"invalid JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise LLMParseError("reply is not a JSON object")
+
+        judged = getattr(request, "_tag_judge", None)
+        if judged is None:
+            raise LLMParseError("no label map for this request")
+        cluster_pks, label_maps = judged
+        results = tms.parse_judge_response(data, label_maps)
+        return {"clusters": [
+            {"id": pk, "sets": sets}
+            for pk, sets in zip(cluster_pks, results)
+        ]}
+
+    def apply(self, request, result):
+        batch_id = uuid.uuid4()
+        now = timezone.now()
+        for item in result["clusters"]:
+            cluster = TagCluster.objects.filter(pk=item["id"]).first()
+            # Only pending clusters not judged yet: a decided one keeps its decision, and a
+            # second answer (re-apply, overlapping request) never overwrites the first.
+            if cluster is None or cluster.status != TagCluster.STATUS_PENDING or cluster.llm_batch is not None:
+                continue
+            cluster.llm_response = {"sets": item["sets"]}
+            cluster.llm_model = request.model or settings.LLM_MODEL
+            cluster.llm_batch = batch_id
+            cluster.judged_at = now
+            cluster.save(update_fields=[
+                "llm_response", "llm_model", "llm_batch", "judged_at", "updated_at"
+            ])
+            tms.apply_cluster(cluster)
+
+    def on_failed(self, request):
+        reason = f"LLM request {request.pk} failed: {request.error}"[:500]
+        for cluster in TagCluster.objects.filter(
+            pk__in=request.target_ids, status=TagCluster.STATUS_PENDING,
+        ):
+            if len(request.target_ids) > 1:
+                # Back to pending with requeue_count set, so it is judged alone next time.
+                tms._requeue(cluster, reason)
+            else:
+                cluster.status = TagCluster.STATUS_ERROR
+                cluster.error = reason
+                cluster.save(update_fields=["status", "error", "updated_at"])
