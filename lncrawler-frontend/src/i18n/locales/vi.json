@@ -370,6 +370,8 @@
     "adultHide": "Ẩn",
     "adultShow": "Hiện",
     "adultOnly": "Chỉ hiển thị",
+    "hiddenAdultCount": "{count, plural, other {# kết quả đã bị ẩn vì là nội dung người lớn (R18)}}",
+    "hiddenAdultShow": "Hiển thị",
     "tagFilter": "Thẻ: {tag}",
     "excludeFilter": "Loại trừ: {tag}",
     "authorFilter": "Tác giả: {author}",

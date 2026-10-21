@@ -370,6 +370,8 @@
     "adultHide": "छिपाएँ",
     "adultShow": "दिखाएँ",
     "adultOnly": "केवल दिखाएँ",
+    "hiddenAdultCount": "{count, plural, one {# परिणाम छिपाया गया क्योंकि यह वयस्क (R18) सामग्री है} other {# परिणाम छिपाए गए क्योंकि ये वयस्क (R18) सामग्री हैं}}",
+    "hiddenAdultShow": "इन्हें दिखाएँ",
     "tagFilter": "टैग: {tag}",
     "excludeFilter": "बाहर करें: {tag}",
     "authorFilter": "लेखक: {author}",

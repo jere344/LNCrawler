@@ -370,6 +370,8 @@
     "adultHide": "ซ่อน",
     "adultShow": "แสดง",
     "adultOnly": "แสดงเฉพาะ",
+    "hiddenAdultCount": "{count, plural, other {ซ่อน # ผลลัพธ์เพราะเป็นเนื้อหาสำหรับผู้ใหญ่ (R18)}}",
+    "hiddenAdultShow": "แสดง",
     "tagFilter": "แท็ก: {tag}",
     "excludeFilter": "ยกเว้น: {tag}",
     "authorFilter": "ผู้แต่ง: {author}",

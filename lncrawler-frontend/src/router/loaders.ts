@@ -147,6 +147,8 @@ export interface SearchData {
   count: number;
   total_pages: number;
   current_page: number;
+  // Adult matches left out by the "hide" filter (0 for other modes).
+  hidden_adult?: number;
   tags?: string[];
   authors?: string[];
   statuses?: string[];

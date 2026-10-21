@@ -370,6 +370,8 @@
     "adultHide": "Skjul",
     "adultShow": "Vis",
     "adultOnly": "Vis kun",
+    "hiddenAdultCount": "{count, plural, one {# resultat skjult, fordi det er voksenindhold (R18)} other {# resultater skjult, fordi de er voksenindhold (R18)}}",
+    "hiddenAdultShow": "Vis dem",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Ekskluder: {tag}",
     "authorFilter": "Forfatter: {author}",

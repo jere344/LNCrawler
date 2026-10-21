@@ -370,6 +370,8 @@
     "adultHide": "Sembunyikan",
     "adultShow": "Tampilkan",
     "adultOnly": "Tampilkan hanya",
+    "hiddenAdultCount": "{count, plural, one {# hasil disembunyikan karena berisi konten dewasa (R18)} other {# hasil disembunyikan karena berisi konten dewasa (R18)}}",
+    "hiddenAdultShow": "Tampilkan",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Kecualikan: {tag}",
     "authorFilter": "Penulis: {author}",

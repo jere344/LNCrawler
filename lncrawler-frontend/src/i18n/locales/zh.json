@@ -370,6 +370,8 @@
     "adultHide": "隐藏",
     "adultShow": "显示",
     "adultOnly": "仅显示",
+    "hiddenAdultCount": "{count, plural, other {因为是成人（R18）内容，# 个结果已隐藏}}",
+    "hiddenAdultShow": "显示",
     "tagFilter": "标签：{tag}",
     "excludeFilter": "排除：{tag}",
     "authorFilter": "作者：{author}",

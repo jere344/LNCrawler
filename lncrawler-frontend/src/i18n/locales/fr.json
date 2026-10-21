@@ -370,6 +370,8 @@
     "adultHide": "Masquer",
     "adultShow": "Afficher",
     "adultOnly": "Afficher uniquement",
+    "hiddenAdultCount": "{count, plural, one {# résultat masqué : contenu pour adultes (R18)} other {# résultats masqués : contenu pour adultes (R18)}}",
+    "hiddenAdultShow": "Les afficher",
     "tagFilter": "Tag : {tag}",
     "excludeFilter": "Exclure : {tag}",
     "authorFilter": "Auteur : {author}",

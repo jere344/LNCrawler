@@ -57,6 +57,7 @@ const SearchPage: React.FC = () => {
   const loaderData = use(searchDataPromise);
   const novels = loaderData.ok ? loaderData.data.results : [];
   const totalCount = loaderData.ok ? loaderData.data.count : 0;
+  const hiddenAdult = loaderData.ok ? loaderData.data.hidden_adult ?? 0 : 0;
   const totalPages = loaderData.ok ? loaderData.data.total_pages : 1;
   const currentPage = loaderData.ok ? loaderData.data.current_page : 1;
 
@@ -894,6 +895,20 @@ const SearchPage: React.FC = () => {
       <Typography variant="subtitle1" sx={{ mb: 2 }}>
         {t('search.foundCount', { count: totalCount })}
       </Typography>
+      {hiddenAdult > 0 && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {t('search.hiddenAdultCount', { count: hiddenAdult })}{' '}
+          <Button
+            size="small"
+            onClick={() => {
+              setAdult('show');
+              updateSearchParams({ adult: 'show' });
+            }}
+          >
+            {t('search.hiddenAdultShow')}
+          </Button>
+        </Typography>
+      )}
 
       {/* Novel Grid */}
       {novels.length > 0 && (

@@ -370,6 +370,8 @@
     "adultHide": "Verbergen",
     "adultShow": "Tonen",
     "adultOnly": "Alleen tonen",
+    "hiddenAdultCount": "{count, plural, one {# resultaat verborgen omdat het volwassen (R18) inhoud is} other {# resultaten verborgen omdat het volwassen (R18) inhoud is}}",
+    "hiddenAdultShow": "Tonen",
     "tagFilter": "Tag: {tag}",
     "excludeFilter": "Uitsluiten: {tag}",
     "authorFilter": "Auteur: {author}",

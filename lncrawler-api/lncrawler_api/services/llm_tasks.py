@@ -13,6 +13,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.html import strip_tags
 
 from ..models import Author, AuthorMergeCandidate, LLMRequest, MergeCandidate, Tag, TagCluster
 from ..models.sources_models import refresh_adult_for_tags
@@ -384,7 +385,8 @@ def _novel_profile(novel):
         "titles": titles,
         "alternative_titles": sorted(alts),
         "languages": sorted(languages),
-        "synopsis": (synopsis or "")[:600],
+        # Synopses are stored as HTML: the tags only cost tokens.
+        "synopsis": " ".join(strip_tags(synopsis or "").split())[:600],
     }
 
 
@@ -395,7 +397,7 @@ class NovelMergeTask(LLMTask):
     name = "novel_merge"
     label = "Novel merge judge"
     target_type = "merge_candidate"
-    prompt_version = "2"
+    prompt_version = "3"
     batch_size = 1  # the prompt is per pair
     max_tokens = 2048
 

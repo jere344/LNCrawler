@@ -370,6 +370,8 @@
     "adultHide": "Dölj",
     "adultShow": "Visa",
     "adultOnly": "Visa endast",
+    "hiddenAdultCount": "{count, plural, one {# resultat dolt eftersom det är vuxeninnehåll (R18)} other {# resultat dolda eftersom de är vuxeninnehåll (R18)}}",
+    "hiddenAdultShow": "Visa dem",
     "tagFilter": "Tagg: {tag}",
     "excludeFilter": "Exkludera: {tag}",
     "authorFilter": "Författare: {author}",

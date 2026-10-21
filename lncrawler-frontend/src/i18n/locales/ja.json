@@ -370,6 +370,8 @@
     "adultHide": "非表示",
     "adultShow": "表示",
     "adultOnly": "のみ表示",
+    "hiddenAdultCount": "{count, plural, other {成人向け（R18）コンテンツのため # 件が非表示になっています}}",
+    "hiddenAdultShow": "表示する",
     "tagFilter": "タグ：{tag}",
     "excludeFilter": "除外：{tag}",
     "authorFilter": "作者：{author}",

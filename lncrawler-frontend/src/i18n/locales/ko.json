@@ -370,6 +370,8 @@
     "adultHide": "숨기기",
     "adultShow": "표시",
     "adultOnly": "만 표시",
+    "hiddenAdultCount": "{count, plural, other {성인(R18) 콘텐츠라서 # 개의 결과가 숨겨졌습니다}}",
+    "hiddenAdultShow": "보기",
     "tagFilter": "태그: {tag}",
     "excludeFilter": "제외: {tag}",
     "authorFilter": "저자: {author}",

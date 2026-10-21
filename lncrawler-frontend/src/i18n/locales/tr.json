@@ -370,6 +370,8 @@
     "adultHide": "Gizle",
     "adultShow": "Göster",
     "adultOnly": "Yalnızca göster",
+    "hiddenAdultCount": "{count, plural, one {# sonuç yetişkin (R18) içerik olduğu için gizlendi} other {# sonuç yetişkin (R18) içerik olduğu için gizlendi}}",
+    "hiddenAdultShow": "Göster",
     "tagFilter": "Etiket: {tag}",
     "excludeFilter": "Hariç tut: {tag}",
     "authorFilter": "Yazar: {author}",

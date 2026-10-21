@@ -188,9 +188,8 @@ def search_novels(request):
     # Start with all novels
     novels_query = Novel.objects.all()
 
-    if adult == "hide":
-        novels_query = novels_query.exclude(sources__is_adult=True)
-    elif adult == "only":
+    # "hide" is applied after the other filters, once the hidden count is known.
+    if adult == "only":
         novels_query = novels_query.filter(sources__is_adult=True).distinct()
 
     # Apply search query if provided
@@ -314,6 +313,16 @@ def search_novels(request):
     # evaluate all of it for every match just to page 20 rows.
     count_queryset = novels_query.order_by().values("pk")
 
+    # Hidden adult matches: the ones the filters found that "hide" drops. Counted
+    # on the same filtered set, so the UI can say how many results were left out.
+    hidden_adult = 0
+    if adult == "hide":
+        hidden_adult = count_queryset.filter(
+            pk__in=Novel.objects.filter(sources__is_adult=True).values("pk")
+        ).count()
+        novels_query = novels_query.exclude(sources__is_adult=True)
+        count_queryset = novels_query.order_by().values("pk")
+
     # Resolve everything the serializer needs up front, then paginate.
     novels_query = apply_novel_prefetches(novels_query, request.user)
 
@@ -322,9 +331,12 @@ def search_novels(request):
         max_size=50,
         context={"languages": languages},
         count_queryset=count_queryset,
-        extra={"filters": {
-            "statuses": ["Ongoing", "Completed", "Unknown", "On Hiatus", "Cancelled"],
-        }},
+        extra={
+            "hidden_adult": hidden_adult,
+            "filters": {
+                "statuses": ["Ongoing", "Completed", "Unknown", "On Hiatus", "Cancelled"],
+            },
+        },
     )
 
 

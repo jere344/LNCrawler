@@ -370,6 +370,8 @@
     "adultHide": "إخفاء",
     "adultShow": "إظهار",
     "adultOnly": "إظهار فقط",
+    "hiddenAdultCount": "{count, plural, one {تم إخفاء # نتيجة لأنها محتوى للبالغين (R18)} other {تم إخفاء # نتيجة لأنها محتوى للبالغين (R18)}}",
+    "hiddenAdultShow": "عرضها",
     "tagFilter": "الوسم: {tag}",
     "excludeFilter": "استبعاد: {tag}",
     "authorFilter": "المؤلف: {author}",
