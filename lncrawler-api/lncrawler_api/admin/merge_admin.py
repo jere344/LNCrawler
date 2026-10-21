@@ -14,8 +14,8 @@ from ..utils.media_utils import build_media_url
 
 @admin.register(MergeCandidate)
 class MergeCandidateAdmin(admin.ModelAdmin):
-    list_display = ("certainty_badge", "title_a", "title_b", "decision", "status", "created_at")
-    list_filter = ("status", "decision")
+    list_display = ("certainty_badge", "title_a", "title_b", "decision", "status", "created_at", "merged_at")
+    list_filter = ("status", "decision", "merged_at")
     search_fields = ("title_a", "title_b")
     readonly_fields = (
         "novel_a_link",
@@ -29,12 +29,13 @@ class MergeCandidateAdmin(admin.ModelAdmin):
         "llm_reason",
         "llm_model",
         "llm_checked_at",
+        "merged_at",
         "novel_a_id_snapshot",
         "novel_b_id_snapshot",
         "created_at",
         "updated_at",
     )
-    actions = ("approve_and_merge", "reject_candidates")
+    actions = ("approve_and_merge", "reject_candidates", "rejudge_candidates")
     change_list_template = "admin/lncrawler_api/mergecandidate/change_list.html"
     # Session key holding the candidate ids deferred with "Skip for now".
     SESSION_SKIPPED = "merge_review_skipped"
@@ -261,6 +262,29 @@ class MergeCandidateAdmin(admin.ModelAdmin):
             status=MergeCandidate.STATUS_REJECTED
         )
         self.message_user(request, f"Rejected {updated} candidate(s).")
+
+    @admin.action(description="Send back to the LLM judge")
+    def rejudge_candidates(self, request, queryset):
+        # Pending, skipped (dismissed by the LLM) or rejected pairs whose two novels still
+        # exist go back to the queue with no verdict, so the judge asks again (with the
+        # current prompt). Merged pairs and pairs whose novel was merged away are left alone.
+        updated = queryset.filter(
+            status__in=[
+                MergeCandidate.STATUS_PENDING,
+                MergeCandidate.STATUS_SKIPPED,
+                MergeCandidate.STATUS_REJECTED,
+            ],
+            novel_a__isnull=False,
+            novel_b__isnull=False,
+        ).update(
+            status=MergeCandidate.STATUS_PENDING,
+            decision=MergeCandidate.DECISION_REVIEW,
+            llm_verdict=None,
+            llm_reason="",
+            llm_model="",
+            llm_checked_at=None,
+        )
+        self.message_user(request, f"Sent {updated} candidate(s) back to the LLM judge.")
 
     def _clear_stale_for(self, keep=None):
         # Candidates that referenced a deleted novel have a NULL FK and are no

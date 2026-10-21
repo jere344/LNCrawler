@@ -49,12 +49,28 @@ LEGACY_COOLDOWN = 60
 # A provider that is down or refuses the key (401/402/403/5xx/network) is skipped this long.
 UNAVAILABLE_COOLDOWN = 300
 
+# No authors in the profiles: one author writes many novels, and a shared author name
+# made the judge call different works the same at full confidence. Candidate search
+# already uses authors; the judge decides from titles and synopses only.
 SYSTEM_PROMPT = (
-    "You decide whether two light-novel catalogue entries from different "
-    "sources describe the SAME underlying work. Titles may be translated or "
-    "carry series/volume suffixes; different sources may use different "
-    "languages. Judge the work identity, not the surface spelling. Respond with "
-    'a single JSON object: {"same": true|false, "confidence": 0..1, '
+    "You decide whether two catalogue entries from different web/light-novel sites are the SAME "
+    "work (the same story, possibly translated, retitled or another edition) or DIFFERENT works.\n"
+    "Evidence, strongest first:\n"
+    "- Synopsis: the same premise, main characters, names and events mean the same work; a "
+    "different protagonist, premise or setting means different works.\n"
+    "- Titles: the same title, its translation or romanization, or the same title plus a subtitle "
+    "or volume suffix.\n"
+    "Similar or generic titles prove nothing on their own: many different novels share words "
+    "('Reincarnated as', 'The Strongest', 'Villainess'). A sequel, prequel, side story or "
+    "spin-off is a DIFFERENT work.\n"
+    "Confidence is how sure you are of your answer, same or different:\n"
+    "- 0.95 to 1.0 only when both synopses clearly tell the same story (same main characters or a "
+    "distinctive premise), or clearly tell different stories;\n"
+    "- 0.6 to 0.9 when the evidence is partial, for example a synopsis is missing or vague and you "
+    "rely on the titles;\n"
+    "- below 0.6 when you are mostly guessing.\n"
+    "When either synopsis is missing, never go above 0.85.\n"
+    'Respond with a single JSON object: {"same": true|false, "confidence": 0..1, '
     '"reason": "short explanation"}. Keep "reason" under 25 words.'
 )
 
@@ -175,12 +191,9 @@ def _render_profile(profile):
         lines.append("Other titles: " + "; ".join(others))
     if profile.get("alternative_titles"):
         lines.append("Alternative titles: " + "; ".join(profile["alternative_titles"]))
-    if profile.get("authors"):
-        lines.append("Author(s): " + "; ".join(profile["authors"]))
     if profile.get("languages"):
         lines.append("Language(s): " + ", ".join(profile["languages"]))
-    if profile.get("synopsis"):
-        lines.append("Synopsis: " + profile["synopsis"])
+    lines.append("Synopsis: " + (profile.get("synopsis") or "(none)"))
     return "\n".join(lines)
 
 

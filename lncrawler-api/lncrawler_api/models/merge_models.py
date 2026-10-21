@@ -2,6 +2,7 @@ import uuid
 
 from django.db import models
 from django.db.models.functions import Least, Greatest
+from django.utils import timezone
 
 from .novels_models import Novel
 
@@ -75,6 +76,8 @@ class MergeCandidate(models.Model):
     llm_reason = models.TextField(blank=True, default="")
     llm_model = models.CharField(max_length=100, blank=True, default="")
     llm_checked_at = models.DateTimeField(null=True, blank=True)
+    # When the pair was merged, by a human or by the LLM judge (decision tells which).
+    merged_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -108,7 +111,8 @@ class MergeCandidate(models.Model):
 
     def mark_merged(self):
         self.status = self.STATUS_MERGED
-        self.save(update_fields=["status", "updated_at"])
+        self.merged_at = timezone.now()
+        self.save(update_fields=["status", "merged_at", "updated_at"])
 
     def mark_rejected(self):
         self.status = self.STATUS_REJECTED

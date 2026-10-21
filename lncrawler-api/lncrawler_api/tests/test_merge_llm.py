@@ -218,6 +218,7 @@ class JudgeDismissTests(MergeTestCase):
         self._judge({"same": True, "confidence": 0.97, "reason": "same work"})
         self.assertEqual(self.candidate.status, MergeCandidate.STATUS_MERGED)
         self.assertEqual(self.candidate.decision, MergeCandidate.DECISION_AUTO)
+        self.assertIsNotNone(self.candidate.merged_at)
         self.assertEqual(Novel.objects.count(), 1)
 
     @override_settings(MERGE_LLM_AUTO_CONFIDENCE=0.95)
@@ -415,7 +416,7 @@ class NovelMergeTaskTests(MergeTestCase):
             task="novel_merge",
             target_type="merge_candidate",
             target_ids=[str(candidate.pk)],
-            prompt_version="1",
+            prompt_version=llm_tasks.REGISTRY["novel_merge"].prompt_version,
             status=status,
             **extra,
         )
@@ -437,6 +438,35 @@ class NovelMergeTaskTests(MergeTestCase):
         self.assertEqual(task.enqueue(10), 1)
         newest = LLMRequest.objects.filter(task="novel_merge").order_by("-created_at").first()
         self.assertEqual(newest.target_ids, [str(judged.pk)])
+
+    def test_rejudge_action_sends_pairs_back_unjudged(self):
+        from django.contrib import admin
+        from ..admin.merge_admin import MergeCandidateAdmin
+
+        verdict = {"same": False, "confidence": 1.0, "reason": "different"}
+        skipped = self._candidate(1, 0.5, status=MergeCandidate.STATUS_SKIPPED,
+                                  llm_verdict=verdict, llm_checked_at=timezone.now())
+        pending = self._candidate(2, 0.9, llm_verdict=verdict, llm_checked_at=timezone.now())
+        merged = self._candidate(3, 0.9, status=MergeCandidate.STATUS_MERGED)
+        stale = self._candidate(4, 0.9, status=MergeCandidate.STATUS_SKIPPED)
+        stale.novel_b.delete()
+        self._request(skipped, LLMRequest.STATUS_DONE)
+
+        model_admin = MergeCandidateAdmin(MergeCandidate, admin.site)
+        with mock.patch.object(model_admin, "message_user"):
+            model_admin.rejudge_candidates(None, MergeCandidate.objects.all())
+
+        for candidate in (skipped, pending):
+            candidate.refresh_from_db()
+            self.assertEqual(candidate.status, MergeCandidate.STATUS_PENDING)
+            self.assertIsNone(candidate.llm_checked_at)
+            self.assertIsNone(candidate.llm_verdict)
+        merged.refresh_from_db()
+        stale.refresh_from_db()
+        self.assertEqual(merged.status, MergeCandidate.STATUS_MERGED)
+        self.assertEqual(stale.status, MergeCandidate.STATUS_SKIPPED)
+        # Both re-judged pairs are queued again; the DONE request does not cover them.
+        self.assertEqual(llm_tasks.REGISTRY["novel_merge"].enqueue(10), 2)
 
     @override_settings(MERGE_LLM_DISMISS_CONFIDENCE=0.9, MERGE_LLM_DISMISS_MAX_CERTAINTY=0.8)
     def test_apply_does_not_dismiss_candidate_no_longer_pending(self):

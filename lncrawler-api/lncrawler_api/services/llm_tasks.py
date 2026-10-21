@@ -368,7 +368,7 @@ class TagR18Task(LLMTask):
 
 def _novel_profile(novel):
     titles = [novel.title] if novel.title else []
-    alts, authors, languages = set(), set(), set()
+    alts, languages = set(), set()
     synopsis = ""
     for src in novel.sources.all():
         if src.title and src.title not in titles:
@@ -377,15 +377,12 @@ def _novel_profile(novel):
             languages.add(src.language)
         if not synopsis and src.synopsis:
             synopsis = src.synopsis
-        for author in src.authors.all():
-            authors.add(author.name)
         for alt in src.alternative_titles.all():
             alts.add(alt.name)
     return {
         "title": novel.title or (titles[0] if titles else ""),
         "titles": titles,
         "alternative_titles": sorted(alts),
-        "authors": sorted(authors),
         "languages": sorted(languages),
         "synopsis": (synopsis or "")[:600],
     }
@@ -398,7 +395,7 @@ class NovelMergeTask(LLMTask):
     name = "novel_merge"
     label = "Novel merge judge"
     target_type = "merge_candidate"
-    prompt_version = "1"
+    prompt_version = "2"
     batch_size = 1  # the prompt is per pair
     max_tokens = 2048
 
@@ -451,9 +448,7 @@ class NovelMergeTask(LLMTask):
             MergeCandidate.objects.filter(pk__in=request.target_ids)
             .select_related("novel_a", "novel_b")
             .prefetch_related(
-                "novel_a__sources__authors",
                 "novel_a__sources__alternative_titles",
-                "novel_b__sources__authors",
                 "novel_b__sources__alternative_titles",
             )
             .first()
@@ -539,6 +534,7 @@ def _auto_merge_candidate(candidate):
     # By pk: merge_novels deleted the source novel, so one FK is now NULL.
     MergeCandidate.objects.filter(pk=candidate.pk).update(
         status=MergeCandidate.STATUS_MERGED, decision=MergeCandidate.DECISION_AUTO,
+        merged_at=timezone.now(),
     )
 
 
