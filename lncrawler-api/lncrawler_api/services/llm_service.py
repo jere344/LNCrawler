@@ -1,10 +1,14 @@
 """LLM adjudication for gray-band merge candidates (optional, pluggable).
 
-Any OpenAI-compatible chat-completions endpoint works (Gemini, Groq, Mistral,
-OpenAI, Ollama). Swap providers by changing ``LLM_PROVIDER`` or pointing
-``LLM_BASE_URL`` at a custom endpoint. With no API key configured the
-service reports ``is_configured() == False`` and everything degrades to the
-deterministic review queue.
+Any OpenAI-compatible chat-completions endpoint works (Cloudflare, Cerebras, Gemini, Groq, Mistral,
+OpenAI, Ollama). Providers form an ordered fallback chain (``LLM_PROVIDERS``, see
+``providers()``): a call goes to the first provider that is configured, not cooling
+down and under its limits. A 429 or an outage puts that provider on cooldown
+(``LLMProviderCooldown``) and the same call is sent to the next one. Without
+``LLM_PROVIDERS``, ``LLM_PROVIDER`` alone is the chain. With no API key configured
+the service reports ``is_configured() == False`` and everything degrades to the
+deterministic review queue. A task's JSON schema is sent as ``response_format``
+(structured output) unless the provider sets ``json_schema`` to false.
 
 Calls are made from the LLM workflows in services/llm_tasks.py (run through the
 ``LLMRequest`` queue). They run as bounded
@@ -16,6 +20,7 @@ import json
 import logging
 import math
 import re
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 import requests
@@ -23,7 +28,7 @@ from django.conf import settings
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from ..models import LLMUsage
+from ..models import LLMProviderCooldown, LLMUsage
 
 logger = logging.getLogger("lncrawler_api.merge")
 
@@ -33,10 +38,16 @@ PROVIDER_URLS = {
     "mistral": "https://api.mistral.ai/v1/chat/completions",
     "openai": "https://api.openai.com/v1/chat/completions",
     "ollama": "http://localhost:11434/v1/chat/completions",
+    "cerebras": "https://api.cerebras.ai/v1/chat/completions",
 }
 
 # Providers that run locally and need no API key.
 KEYLESS_PROVIDERS = {"ollama"}
+
+# Single-provider mode, 429 without Retry-After: the old runner default.
+LEGACY_COOLDOWN = 60
+# A provider that is down or refuses the key (401/402/403/5xx/network) is skipped this long.
+UNAVAILABLE_COOLDOWN = 300
 
 SYSTEM_PROMPT = (
     "You decide whether two light-novel catalogue entries from different "
@@ -70,6 +81,37 @@ class RateLimited(LLMError):
         self.retry_after = retry_after
 
 
+class ProviderUnavailable(LLMError):
+    """The provider is down or refuses the key; the chain skips it for a while."""
+
+
+@dataclass(frozen=True)
+class Provider:
+    """One entry of the fallback chain. A cap of None means no cap."""
+
+    name: str
+    url: str
+    api_key: str
+    model: str
+    reasoning_effort: str
+    daily_requests: int | None
+    daily_tokens: int | None
+    requests_per_minute: int | None
+    tokens_per_minute: int | None
+    cooldown: int
+    # The legacy single provider counts every LLMUsage row, so rows written before
+    # the provider column existed still count.
+    shared_usage: bool
+    # Provider-specific fields merged into every request body (e.g. turning thinking off).
+    extra_body: dict = field(default_factory=dict)
+    # False for a provider that rejects response_format.
+    json_schema: bool = True
+
+    @property
+    def configured(self):
+        return bool(self.url and self.model) and (self.name in KEYLESS_PROVIDERS or bool(self.api_key))
+
+
 def provider_url(provider=None):
     override = settings.LLM_BASE_URL
     if override:
@@ -78,13 +120,51 @@ def provider_url(provider=None):
     return PROVIDER_URLS.get(provider)
 
 
+def _legacy_provider(name=None):
+    name = name or settings.LLM_PROVIDER
+    return Provider(
+        name=name,
+        url=provider_url(name),
+        api_key=settings.LLM_API_KEY,
+        model=settings.LLM_MODEL,
+        reasoning_effort=settings.LLM_REASONING_EFFORT,
+        daily_requests=settings.LLM_DAILY_REQUESTS,
+        daily_tokens=settings.LLM_DAILY_TOKENS,
+        requests_per_minute=settings.LLM_REQUESTS_PER_MINUTE,
+        tokens_per_minute=settings.LLM_TOKENS_PER_MINUTE,
+        cooldown=LEGACY_COOLDOWN,
+        shared_usage=True,
+        json_schema=settings.LLM_JSON_SCHEMA,
+    )
+
+
+def providers():
+    """The fallback chain, in the order it is tried."""
+    if not settings.LLM_PROVIDERS:
+        return [_legacy_provider()]
+    chain = []
+    for name in settings.LLM_PROVIDERS:
+        entry = settings.LLM_PROVIDER_SETTINGS[name]
+        chain.append(Provider(
+            name=name,
+            url=entry["base_url"] or PROVIDER_URLS.get(name),
+            api_key=entry["api_key"],
+            model=entry["model"],
+            reasoning_effort=entry["reasoning_effort"],
+            daily_requests=entry["daily_requests"],
+            daily_tokens=entry["daily_tokens"],
+            requests_per_minute=entry["requests_per_minute"],
+            tokens_per_minute=entry["tokens_per_minute"],
+            cooldown=entry["cooldown"],
+            shared_usage=False,
+            extra_body=entry.get("extra_body") or {},
+            json_schema=entry.get("json_schema", True),
+        ))
+    return chain
+
+
 def is_configured():
-    provider = settings.LLM_PROVIDER
-    if not provider_url(provider):
-        return False
-    if provider in KEYLESS_PROVIDERS:
-        return True
-    return bool(settings.LLM_API_KEY)
+    return any(provider.configured for provider in providers())
 
 
 def _render_profile(profile):
@@ -194,23 +274,28 @@ def _total_tokens(payload):
         return 0
 
 
-def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout=None, session=None):
+def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout=None, session=None,
+               response_schema=None):
     """POST one chat-completions request. Returns ``(content, total_tokens)``.
 
-    Every response the provider returned (HTTP 200, truncated ones included)
-    is written to ``LLMUsage`` under ``purpose`` (the task name). A 429 or other HTTP error is
-    not charged and writes nothing. A reply cut off by the token cap, or
-    empty, raises ``LLMTruncated``.
+    ``provider`` is a ``Provider`` of the chain, a provider name or None (the legacy
+    single provider). ``response_schema`` is sent as structured output when the
+    provider takes it. Every response the provider returned (HTTP 200, truncated ones
+    included) is written to ``LLMUsage`` under ``purpose`` (the task name) and the
+    provider that answered. A 429 or other HTTP error is not charged and writes
+    nothing. A reply cut off by the token cap, or empty, raises ``LLMTruncated``.
+    A 429 raises ``RateLimited``; a 401/402/403, 5xx or network error raises
+    ``ProviderUnavailable``.
     """
-    provider = provider or settings.LLM_PROVIDER
-    url = provider_url(provider)
-    if not url:
-        raise LLMError(f"unknown LLM provider: {provider}")
-    model = model or settings.LLM_MODEL
+    if not isinstance(provider, Provider):
+        provider = _legacy_provider(provider)
+    if not provider.url:
+        raise LLMError(f"unknown LLM provider: {provider.name}")
+    model = model or provider.model
     timeout = timeout or settings.LLM_TIMEOUT
 
     headers = {"Content-Type": "application/json"}
-    key = settings.LLM_API_KEY
+    key = provider.api_key
     if key:
         headers["Authorization"] = f"Bearer {key}"
     body = {
@@ -219,24 +304,35 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
         "max_tokens": max_tokens,
         "messages": messages,
     }
-    reasoning_effort = settings.LLM_REASONING_EFFORT
+    if response_schema is not None and provider.json_schema:
+        body["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {"name": purpose, "strict": True, "schema": response_schema},
+        }
+    reasoning_effort = provider.reasoning_effort
     if reasoning_effort:
         body["reasoning_effort"] = reasoning_effort
+    body.update(provider.extra_body)
 
     poster = (session or requests).post
-    resp = poster(url, headers=headers, json=body, timeout=timeout)
+    try:
+        resp = poster(provider.url, headers=headers, json=body, timeout=timeout)
+    except requests.RequestException as exc:
+        raise ProviderUnavailable(f"{type(exc).__name__}: {exc}") from exc
     if resp.status_code == 429:
         raise RateLimited(retry_after=resp.headers.get("Retry-After"))
+    if resp.status_code in (401, 402, 403) or resp.status_code >= 500:
+        raise ProviderUnavailable(f"HTTP {resp.status_code}: {resp.text[:300]}")
     if resp.status_code >= 400:
         raise LLMError(f"HTTP {resp.status_code}: {resp.text[:300]}")
     try:
         payload = resp.json()
     except ValueError as exc:
-        LLMUsage.objects.create(purpose=purpose, tokens=0)
+        LLMUsage.objects.create(purpose=purpose, provider=provider.name, tokens=0)
         raise LLMError(f"non-JSON response (HTTP {resp.status_code}): {resp.text[:300]}") from exc
 
     total_tokens = _total_tokens(payload)
-    LLMUsage.objects.create(purpose=purpose, tokens=total_tokens)
+    LLMUsage.objects.create(purpose=purpose, provider=provider.name, tokens=total_tokens)
     try:
         choice = payload["choices"][0]
         content = choice["message"]["content"]
@@ -252,59 +348,172 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
     return content, total_tokens
 
 
-def tokens_used_today():
-    """Tokens charged today across every workflow."""
+def _usage(provider=None):
+    """LLMUsage rows charged to ``provider`` (every row for the legacy single provider)."""
+    if provider is None or provider.shared_usage:
+        return LLMUsage.objects.all()
+    return LLMUsage.objects.filter(provider=provider.name)
+
+
+def tokens_used_today(provider=None):
+    """Tokens charged today across every workflow, or by ``provider`` alone."""
     today = timezone.localdate()
-    used = LLMUsage.objects.filter(created_at__date=today).aggregate(total=Sum("tokens"))
+    used = _usage(provider).filter(created_at__date=today).aggregate(total=Sum("tokens"))
     return used["total"] or 0
 
 
-def token_budget_left():
-    """Tokens left in today's shared budget. Negative once it is overspent."""
-    return settings.LLM_DAILY_TOKENS - tokens_used_today()
+def token_budget_left(provider=None):
+    """Tokens left in today's budget. Negative once it is overspent.
+
+    Without a provider: the shared LLM_DAILY_TOKENS. With one: its daily_tokens cap,
+    which must not be None.
+    """
+    if provider is None:
+        return settings.LLM_DAILY_TOKENS - tokens_used_today()
+    return provider.daily_tokens - tokens_used_today(provider)
 
 
-# Every workflow sizes its batches so one call costs about this many tokens
-# (prompt + reply, measured: 50 R18 tags ~1.6K). The budget checks charge it per call.
-CALL_TOKENS = 1500
+# Worst-case tokens of one call (prompt + reply), charged by the budget checks. The
+# largest call is a ~100-tag tag merge batch (measured ~2.4K tokens).
+CALL_TOKENS = 2500
 
 
-def requests_used_today():
+def requests_used_today(provider=None):
     """Provider replies received today across every workflow (one LLMUsage row each)."""
-    return LLMUsage.objects.filter(created_at__date=timezone.localdate()).count()
+    return _usage(provider).filter(created_at__date=timezone.localdate()).count()
 
 
-def minute_usage():
+def minute_usage(provider=None):
     """``(requests, tokens)`` charged in the last 60 seconds, for the per-minute caps."""
     since = timezone.now() - timedelta(seconds=60)
-    used = LLMUsage.objects.filter(created_at__gte=since).aggregate(
+    used = _usage(provider).filter(created_at__gte=since).aggregate(
         requests=Count("pk"), tokens=Sum("tokens"),
     )
     return used["requests"], used["tokens"] or 0
 
 
-def can_afford():
-    """Whether the provider limits still cover one more call.
+def _affordable(provider):
+    """Whether the limits of ``provider`` still cover one more call. A None cap is no cap.
 
-    Providers cap requests and tokens per day (LLM_DAILY_REQUESTS, LLM_DAILY_TOKENS)
-    and per minute (LLM_REQUESTS_PER_MINUTE, LLM_TOKENS_PER_MINUTE). A call only
-    starts when it fits under all four, charged at CALL_TOKENS.
+    Providers cap requests and tokens per day and per minute. A call only starts when
+    it fits under every cap that is set, charged at CALL_TOKENS.
     """
-    minute_requests, minute_tokens = minute_usage()
-    return (
-        requests_used_today() < settings.LLM_DAILY_REQUESTS
-        and token_budget_left() >= CALL_TOKENS
-        and minute_requests < settings.LLM_REQUESTS_PER_MINUTE
-        and minute_tokens + CALL_TOKENS <= settings.LLM_TOKENS_PER_MINUTE
+    minute_requests, minute_tokens = minute_usage(provider)
+    if provider.daily_requests is not None and requests_used_today(provider) >= provider.daily_requests:
+        return False
+    if provider.daily_tokens is not None and token_budget_left(provider) < CALL_TOKENS:
+        return False
+    if provider.requests_per_minute is not None and minute_requests >= provider.requests_per_minute:
+        return False
+    if provider.tokens_per_minute is not None and minute_tokens + CALL_TOKENS > provider.tokens_per_minute:
+        return False
+    return True
+
+
+def cooldown_until(provider):
+    """When ``provider`` stops cooling down, or None when it is ready."""
+    cooling = LLMProviderCooldown.objects.filter(name=provider.name, until__gt=timezone.now()).first()
+    return cooling.until if cooling else None
+
+
+def start_cooldown(provider, seconds, reason):
+    """Skip ``provider`` in the chain for ``seconds``."""
+    LLMProviderCooldown.objects.update_or_create(
+        name=provider.name,
+        defaults={"until": timezone.now() + timedelta(seconds=seconds), "reason": reason[:1000]},
     )
+    logger.warning("LLM provider %s cooling down for %ss: %s", provider.name, seconds, reason)
+
+
+def _cooldown_seconds(retry_after, default):
+    """Seconds a 429 asks to wait: its Retry-After, or ``default`` when it has none."""
+    try:
+        return max(int(retry_after), 1)
+    except (TypeError, ValueError):
+        return default
+
+
+def can_afford(provider=None):
+    """Whether one more call fits the limits of ``provider``.
+
+    Without a provider: whether any configured provider is not cooling down and is
+    under its limits. This is what the queue runner checks before each call.
+    """
+    if provider is not None:
+        return _affordable(provider)
+    return any(
+        p.configured and cooldown_until(p) is None and _affordable(p)
+        for p in providers()
+    )
+
+
+def chat(messages, max_tokens, purpose, session=None, response_schema=None):
+    """Send one call to the first provider of the chain that takes it.
+
+    Returns ``(content, total_tokens, provider)``. A 429 cools the provider down for
+    its Retry-After (or its cooldown when there is none), an outage for
+    UNAVAILABLE_COOLDOWN, and the next provider is tried. Parse and truncation errors
+    are the request's fault, not the provider's, so they propagate. Another HTTP error
+    (a 400 for a bad model or an unsupported field) tries the next provider without a
+    cooldown, and the last one is raised if no provider answers. Otherwise, when no
+    provider answers, raises ``RateLimited`` with the wait until the earliest cooldown
+    ends and the reasons in its message.
+    """
+    error = None
+    reasons = []
+    for provider in providers():
+        if not provider.configured or cooldown_until(provider) or not _affordable(provider):
+            continue
+        try:
+            content, tokens = _post_chat(
+                messages, max_tokens, purpose, provider=provider, session=session,
+                response_schema=response_schema,
+            )
+        except RateLimited as exc:
+            start_cooldown(provider, _cooldown_seconds(exc.retry_after, provider.cooldown), "HTTP 429")
+            reasons.append(f"{provider.name}: HTTP 429")
+            continue
+        except ProviderUnavailable as exc:
+            start_cooldown(provider, UNAVAILABLE_COOLDOWN, str(exc))
+            reasons.append(f"{provider.name}: {exc}")
+            continue
+        except LLMParseError:
+            raise
+        except LLMError as exc:
+            logger.warning("LLM provider %s failed, trying the next one: %s", provider.name, exc)
+            error = exc
+            continue
+        return content, tokens, provider
+
+    if error is not None:
+        raise error
+    ends = [until for until in (cooldown_until(p) for p in providers() if p.configured) if until]
+    retry_after = None
+    if ends:
+        retry_after = max(math.ceil((min(ends) - timezone.now()).total_seconds()), 1)
+    exc = RateLimited(retry_after=retry_after)
+    exc.reason = "; ".join(reasons)
+    raise exc
+
+
+def _cap_text(cap):
+    return "no cap" if cap is None else str(cap)
+
+
+def _budget_segment(provider):
+    minute_requests, minute_tokens = minute_usage(provider)
+    segment = (
+        f"{provider.name}: {requests_used_today(provider)}/{_cap_text(provider.daily_requests)} requests, "
+        f"{tokens_used_today(provider)}/{_cap_text(provider.daily_tokens)} tokens, "
+        f"{minute_requests}/{_cap_text(provider.requests_per_minute)} requests and "
+        f"{minute_tokens}/{_cap_text(provider.tokens_per_minute)} tokens in the last minute"
+    )
+    until = cooldown_until(provider)
+    if until:
+        segment += f", cooling down until {timezone.localtime(until):%H:%M:%S}"
+    return segment
 
 
 def budget_status():
-    """Today's usage of both shared budgets and the last minute, for log lines."""
-    minute_requests, minute_tokens = minute_usage()
-    return (
-        f"{requests_used_today()}/{settings.LLM_DAILY_REQUESTS} requests, "
-        f"{tokens_used_today()}/{settings.LLM_DAILY_TOKENS} tokens, "
-        f"{minute_requests}/{settings.LLM_REQUESTS_PER_MINUTE} requests and "
-        f"{minute_tokens}/{settings.LLM_TOKENS_PER_MINUTE} tokens in the last minute"
-    )
+    """Today's usage of each configured provider against its caps, for log lines."""
+    return "; ".join(_budget_segment(p) for p in providers() if p.configured)

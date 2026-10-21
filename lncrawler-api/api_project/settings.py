@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import json
 import os
 import sys
 from urllib.parse import urlparse
@@ -228,7 +229,7 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
 # Empty omits the field for providers that reject it.
 LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "low")
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")  # non-empty overrides the provider's default endpoint
-LLM_TIMEOUT = 30
+LLM_TIMEOUT = 90  # free tiers take up to ~30s on a 50-tag call
 # Daily caps shared by every workflow (see llm_service.can_afford): a request only
 # starts when it fits under both. Groq's free tier allows this model 1k requests
 # and 200k tokens per day; the token default keeps a margin under that.
@@ -237,6 +238,45 @@ LLM_DAILY_TOKENS = int(os.environ.get("LLM_DAILY_TOKENS", "180000"))
 # Per-minute caps (Groq free tier for gpt-oss-20b: 30 requests and 8K tokens per minute).
 LLM_REQUESTS_PER_MINUTE = int(os.environ.get("LLM_REQUESTS_PER_MINUTE", "30"))
 LLM_TOKENS_PER_MINUTE = int(os.environ.get("LLM_TOKENS_PER_MINUTE", "8000"))
+# Structured output (the task's JSON schema as response_format). Turn it off for a
+# provider that rejects response_format.
+LLM_JSON_SCHEMA = os.environ.get("LLM_JSON_SCHEMA", "true").lower() not in ("0", "false", "no")
+# Fallback chain: provider names tried in order, e.g. "cloudflare,groq". Each reads its own
+# LLM_<NAME>_* variables below. A provider that answers 429 sleeps for Retry-After
+# (or its COOLDOWN when there is none) and the next one takes the call.
+# Empty: a single provider built from the LLM_* settings above.
+LLM_PROVIDERS = [n.strip().lower() for n in os.environ.get("LLM_PROVIDERS", "").split(",") if n.strip()]
+
+
+def _llm_chain_entry(name):
+    def env(key, default=""):
+        return os.environ.get(f"LLM_{name.upper()}_{key}", default)
+
+    def cap(key):  # empty: no cap, the provider is used until it answers 429
+        value = env(key)
+        return int(value) if value else None
+
+    return {
+        "api_key": env("API_KEY"),
+        "model": env("MODEL"),
+        "base_url": env("BASE_URL"),
+        # Empty omits the field (some providers reject it).
+        "reasoning_effort": env("REASONING_EFFORT"),
+        "daily_requests": cap("DAILY_REQUESTS"),
+        "daily_tokens": cap("DAILY_TOKENS"),
+        "requests_per_minute": cap("REQUESTS_PER_MINUTE"),
+        "tokens_per_minute": cap("TOKENS_PER_MINUTE"),
+        "cooldown": int(env("COOLDOWN", "3600")),
+        # JSON object merged into every request body, e.g. to turn thinking off:
+        # {"chat_template_kwargs": {"enable_thinking": false}} (Cloudflare).
+        "extra_body": json.loads(env("EXTRA_BODY") or "{}"),
+        # Structured output (the task's JSON schema as response_format). Turn it off
+        # for a provider that rejects response_format.
+        "json_schema": env("JSON_SCHEMA", "true").lower() not in ("0", "false", "no"),
+    }
+
+
+LLM_PROVIDER_SETTINGS = {name: _llm_chain_entry(name) for name in LLM_PROVIDERS}
 
 # Novel merge judge (LLMRequest task "novel_merge", see services/llm_tasks.py).
 # A confident "different" verdict dismisses a low-certainty pair (status skipped)
@@ -269,17 +309,18 @@ TAG_COOC_TOP_K = 5
 TAG_TRGM_MIN = 0.6
 # Largest group sent to the judge as one cluster.
 TAG_CLUSTER_MAX = 12
-# LLM judging reuses LLM_PROVIDER/MODEL/API_KEY (batch sizes live in llm_tasks.py).
+# LLM judging reuses the LLM chain (batch sizes live in llm_tasks.py).
 # R18 tag classifier (services/llm_tasks.py, TagR18Task). Runs through LLMRequest.
 # Only R18 verdicts at or above this confidence flag the tag as adult.
 TAG_R18_LLM_MIN_CONFIDENCE = float(os.environ.get("TAG_R18_LLM_MIN_CONFIDENCE", "0.85"))
 # Safeguards: sets below this confidence, or joining two tags used by more than
 # TAG_BIG_TAG_USAGE sources, wait for review instead of being applied.
-TAG_AUTO_MIN_CONFIDENCE = 0.85
+# Measured on gemma-4-26b: every wrong set came at 0.9 or below, correct ones up to 1.0.
+TAG_AUTO_MIN_CONFIDENCE = 0.95
 TAG_BIG_TAG_USAGE = 200
 
 # Author merge (services/author_merge_service.py). The LLM judge (AuthorMergeTask)
-# reuses LLM_PROVIDER/MODEL/API_KEY and runs through LLMRequest.
+# reuses the LLM chain and runs through LLMRequest.
 
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 
@@ -469,3 +510,6 @@ EMAIL_SENDER_NAME = os.environ.get("EMAIL_SENDER_NAME", "LNCrawler")
 # The default PBKDF2 hasher is deliberately slow; tests create many users.
 if len(sys.argv) > 1 and sys.argv[1] == "test":
     PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+    # Tests must never reach the real providers configured in .env.
+    LLM_PROVIDERS = []
+    LLM_PROVIDER_SETTINGS = {}

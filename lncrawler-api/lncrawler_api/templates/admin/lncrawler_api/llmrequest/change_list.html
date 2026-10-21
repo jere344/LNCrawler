@@ -15,13 +15,32 @@
           {% endfor %}
           <tr>
             <td><strong>Total</strong></td>
-            <td><strong>{{ llm_usage.requests }} / {{ llm_usage.requests_cap }}</strong></td>
-            <td><strong>{{ llm_usage.tokens }} / {{ llm_usage.tokens_cap }}</strong></td>
+            <td><strong>{{ llm_usage.requests }}</strong></td>
+            <td><strong>{{ llm_usage.tokens }}</strong></td>
           </tr>
         </tbody>
       </table>
-      <p>Last minute: {{ llm_usage.minute.requests }} / {{ llm_usage.minute.requests_cap }} requests,
-        {{ llm_usage.minute.tokens }} / {{ llm_usage.minute.tokens_cap }} tokens</p>
+    </div>
+    <div class="module" style="margin-bottom:1em">
+      <table>
+        <caption>Providers (tried in this order)</caption>
+        <thead>
+          <tr><th>Provider</th><th>Model</th><th>Requests today</th><th>Tokens today</th><th>Last minute</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {% for p in llm_usage.providers %}
+            <tr>
+              <td>{{ p.name }}</td>
+              <td>{{ p.model }}</td>
+              <td>{{ p.requests }}{% if p.requests_cap is not None %} / {{ p.requests_cap }}{% endif %}</td>
+              <td>{{ p.tokens }}{% if p.tokens_cap is not None %} / {{ p.tokens_cap }}{% endif %}</td>
+              <td>{{ p.minute.requests }}{% if p.minute.requests_cap is not None %} / {{ p.minute.requests_cap }}{% endif %} requests,
+                {{ p.minute.tokens }}{% if p.minute.tokens_cap is not None %} / {{ p.minute.tokens_cap }}{% endif %} tokens</td>
+              <td>{% if p.cooldown_until %}cooling down until {{ p.cooldown_until }} ({{ p.cooldown_reason }}){% else %}ready{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   {% endif %}
 {% endblock %}

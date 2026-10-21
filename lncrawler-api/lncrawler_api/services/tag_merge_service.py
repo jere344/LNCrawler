@@ -42,28 +42,31 @@ COOC_BLOCK = 2000
 DEFAULT_RETRY_SECONDS = 10
 EMBED_MAX_RETRIES = 3
 
-SYSTEM_PROMPT = """You clean up the tag vocabulary of a web/light-novel catalogue. Tags come from many websites in many languages (English, French, Spanish, Portuguese, Indonesian, Vietnamese, romanized Japanese/Chinese/Korean...) and contain typos.
-You receive numbered groups of tags that an automatic system flagged as POSSIBLY similar. Most of them are NOT duplicates.
-For each group, return only the sets of tags that are strictly interchangeable: replacing one tag by another on any novel would never add, remove or change information.
+SYSTEM_PROMPT = """You merge duplicate tags of a web/light-novel catalogue. Tags come from many websites and languages (English, French, Spanish, Portuguese, Russian, Indonesian, Vietnamese, Chinese, Japanese, Korean, romanizations...) and contain typos.
+Each numbered group holds tags that an automatic system flagged as possibly similar. Most of them are NOT duplicates, only related; returning no set for a group is normal.
 
-Merge ONLY when the tags are:
-- the same word or phrase in different languages (Nouveau Monde = New World = Otro Mundo);
-- spelling, typo, abbreviation, romanization, punctuation or word-order variants (Sci-fi = Science Fiction, Shounen = Shonen, Martial Art = Martial Arts);
-- established synonyms readers use for exactly the same concept (Isekai = Another World = Transported to Another World).
+For each group:
+1. "glosses": the literal English meaning of every tag that is not plain English, as "t2=space travel; t5=ninja" (skip English tags). Use the meaning the word has as a genre tag on novel sites, not only the dictionary one: Chinese 都市 is the "Urban" genre (stories in a modern city), not "City".
+2. "sets": the tags that are strictly interchangeable: replacing one by another on any novel would never add, remove or change information. Merge only when tags are:
+- the same concept in different languages, judged by their glosses, not by spelling (Reincarnation = 转生 = Reencarnación);
+- spelling, typo, abbreviation, romanization, punctuation or word-order variants (Sci-fi = Science Fiction, Post Apocalyptic = Post-apocalyptic, Rom-com = Romantic Comedy);
+- established synonyms readers use for exactly the same concept (Kingdom Building = Nation Building).
+Put every tag of the group that names that exact concept in the same set.
 
 NEVER merge:
-- a broader and a narrower tag (Fantasy / Dark Fantasy, Romance / Slow Romance, Magic / Magic Academy);
-- related but distinct concepts (Reincarnation / Transmigration, System / Game Elements, Cultivation / Martial Arts, Villainess / Villain);
-- different audiences, genders or roles (Male Lead / Female Lead, Shounen / Shoujo, Yaoi / Yuri, Harem / Reverse Harem);
-- different modifiers or degrees (Weak to Strong / Overpowered Protagonist, Mature / Adult unless both are the same content rating);
+- a broader and a narrower tag, even across languages (Romance / Slow Romance, Mystery / Detective, Monsters / Monster Girls, 恋爱 (romance) / 纯爱 (pure love));
+- related but distinct concepts (Vampires / Werewolves, Cooking / Restaurant, Necromancy / Undead, Space / Space Opera);
+- different roles, audiences, genders or degrees (Older Love Interest / Younger Love Interest, Yaoi / Yuri, Shoujo / Josei, Slow Pace / Fast Pace);
+- tags that only share a word (Time Travel / Time Travel Romance, Pirates / Pirate King) or a theme (Ninjas / Samurai, Ghosts / Exorcism);
+- false friends: a tag whose genre meaning differs from its literal look (都市 / City Building);
 - tags that merely tend to appear on the same novels.
-If you are not sure, do not merge. Returning no set for a group is normal.
+If you are not sure, do not merge.
 
 For each set give:
 - "canonical": the name English-speaking readers commonly use, in Title Case. Prefer an existing member's spelling when one is already correct English.
-- "confidence": 0..1, how sure you are that ALL members are interchangeable.
-Respond with ONE JSON object and nothing else:
-{"groups":[{"group":1,"sets":[{"members":["t1","t3"],"canonical":"Isekai","confidence":0.95}]}]}"""
+- "confidence": 0..1, how sure you are that ALL members are interchangeable. Use 0.95 or more only when every member clearly names the same concept.
+Reply with one compact JSON object:
+{"groups":[{"group":1,"glosses":"t2=reincarnation","sets":[{"members":["t1","t2"],"canonical":"Reincarnation","confidence":0.97}]}]}"""
 
 
 # --------------------------------------------------------------- stage 1: signals

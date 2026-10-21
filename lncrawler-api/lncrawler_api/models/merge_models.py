@@ -126,10 +126,12 @@ class LLMUsage(models.Model):
     by every LLM workflow. Failed requests (429, HTTP errors) write nothing because
     the provider did not charge for them.
 
-    ``purpose`` is the ``LLMTask.name`` that made the call.
+    ``purpose`` is the ``LLMTask.name`` that made the call, ``provider`` the name
+    of the chain provider that answered (see services/llm_service.py).
     """
 
     purpose = models.CharField(max_length=50)
+    provider = models.CharField(max_length=50, blank=True, default="")
     tokens = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

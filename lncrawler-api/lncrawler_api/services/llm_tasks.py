@@ -40,10 +40,12 @@ class LLMTask:
     label = ""  # admin display name
     target_type = ""
     prompt_version = "1"
-    # Hard-coded per task, sized so one call costs about llm_service.CALL_TOKENS.
+    # Hard-coded per task, sized so one call stays under llm_service.CALL_TOKENS.
     batch_size = 1  # targets packed into one call
     max_tokens = 2048
     max_attempts = 3
+    # JSON schema the reply must follow, sent as response_format; None sends none.
+    response_schema = None
 
     def enqueue(self, limit):
         """Create pending ``LLMRequest`` rows for work not yet queued. Returns how many."""
@@ -108,9 +110,8 @@ def _claim(task_name, now):
             return None
         req.status = LLMRequest.STATUS_RUNNING
         req.attempts += 1
-        req.model = settings.LLM_MODEL
         req.not_before = now
-        req.save(update_fields=["status", "attempts", "model", "not_before"])
+        req.save(update_fields=["status", "attempts", "not_before"])
     return req
 
 
@@ -137,12 +138,14 @@ def _process(task, req, session, stdout):
             req.finished_at = timezone.now()
             req.save()
             return "skipped"
-        content, tokens = llm_service._post_chat(
+        content, tokens, provider = llm_service.chat(
             messages,
             task.max_tokens,
             task.name,
             session=session,
+            response_schema=task.response_schema,
         )
+        req.model = provider.model
         req.raw_response = content
         req.tokens = tokens
         result = task.parse(req, content)
@@ -158,6 +161,9 @@ def _process(task, req, session, stdout):
         # Not the request's fault: give the attempt back and stop this run.
         req.status = LLMRequest.STATUS_PENDING
         req.attempts -= 1
+        # Why every provider was skipped (a bad key stays visible in the admin).
+        if getattr(exc, "reason", ""):
+            req.error = f"no provider available: {exc.reason}"[:2000]
         req.not_before = timezone.now() + timedelta(seconds=_retry_after_seconds(exc.retry_after))
         req.save()
         return "rate_limited"
@@ -245,22 +251,41 @@ class TagR18Task(LLMTask):
 
     RATINGS = ("explicit", "suggestive", "none")
 
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "tags": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "rating": {"type": "string", "enum": list(RATINGS)},
+                        "confidence": {"type": "number"},
+                    },
+                    "required": ["id", "rating", "confidence"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["tags"],
+        "additionalProperties": False,
+    }
+
+    # Only explicit ratings are applied, so the reply lists the few explicit or
+    # suggestive tags and omits the rest (most of a batch), which keeps it short.
     SYSTEM_PROMPT = (
-        "You classify light-novel tags by how sexual the tag name itself is. Rate each tag "
-        "'explicit', 'suggestive' or 'none'. "
-        "explicit: the tag names a sex act, sexual body parts in a sexual context, or a "
-        "pornographic genre, so the tag alone makes the work porn (for example 'Smut', "
-        "'Hentai', 'Explicit Sex', 'Gangbang', 'Blowjob'). "
-        "suggestive: sex appeal, attractiveness, character archetypes, fan service or "
-        "mature themes without naming explicit sex (for example 'Sexy', 'Hot', 'MILF', "
-        "'Lewd', 'Fan Service', 'Big Breasts', 'Seductive', 'Succubus', 'Ecchi', 'Adult', "
-        "'Mature'). "
-        "none: everything else, including 'Gore', 'Violence', 'Romance', 'Harem'. "
-        "Only explicit tags hide a novel from most readers, so a wrong explicit rating is "
-        "costly: answer explicit only when the tag is unambiguously pornographic, and "
-        "answer suggestive whenever you hesitate between the two. "
-        'Reply with JSON only, in the form {"tags": [{"id": <int>, "rating": '
-        '"explicit"|"suggestive"|"none", "confidence": <0..1>}]}.'
+        "You flag light-novel tags whose name alone means the novel is pornographic. Rate each tag:\n"
+        "explicit: it names a sex act, sexual body parts in a sexual context, or a pornographic genre "
+        "('Smut', 'Hentai', 'Explicit Sex', 'Gangbang', 'Blowjob').\n"
+        "suggestive: sexual themes, fan service, attractiveness, archetypes, or an age or maturity rating "
+        "('R18', '18+', 'Adult', 'Mature', 'Ecchi', 'Lewd', 'MILF', 'Sexy', 'Succubus'). Age ratings are "
+        "suggestive, never explicit: they also cover violence.\n"
+        "none: everything else, including 'Gore', 'Violence', 'Romance', 'Harem'.\n"
+        "An explicit rating hides the novel from most readers, so a wrong one is very costly: answer "
+        "suggestive whenever you hesitate.\n"
+        "List only the tags you rate explicit or suggestive and omit every other tag. Reply with compact JSON: "
+        '{"tags":[{"id":<int>,"rating":"explicit"|"suggestive","confidence":<0..1>}]}'
     )
 
     def enqueue(self, limit):
@@ -327,8 +352,9 @@ class TagR18Task(LLMTask):
                 "r18": rating == "explicit",
                 "confidence": llm_service.parse_confidence(confidence, strict=True),
             })
-        if not tags:
+        if items and not tags:
             raise LLMParseError("no valid tag entries in reply")
+        # An empty list is a valid answer: no tag in the batch is explicit or suggestive.
         return {"tags": tags}
 
     def apply(self, request, result):
@@ -375,6 +401,17 @@ class NovelMergeTask(LLMTask):
     prompt_version = "1"
     batch_size = 1  # the prompt is per pair
     max_tokens = 2048
+
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "same": {"type": "boolean"},
+            "confidence": {"type": "number"},
+            "reason": {"type": "string"},
+        },
+        "required": ["same", "confidence", "reason"],
+        "additionalProperties": False,
+    }
 
     def enqueue(self, limit):
         covered = set()
@@ -547,6 +584,28 @@ class AuthorMergeTask(LLMTask):
         "different", "unsure",
     )
     MERGE_RELATIONS = {"bracketed_original", "romanization", "translation", "same_name"}
+
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "names": {"type": "string"},
+                        "evidence": {"type": "string"},
+                        "relation": {"type": "string", "enum": list(RELATIONS)},
+                    },
+                    "required": ["id", "names", "evidence", "relation"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["results"],
+        "additionalProperties": False,
+    }
 
     # Relations are listed in the order the model must test them: other_party first,
     # otherwise it reads a translation group's name as a translation of the author's.
@@ -735,12 +794,50 @@ class TagMergeTask(LLMTask):
     name = "tag_merge"
     label = "Tag merge judge"
     target_type = "tag_cluster"
-    prompt_version = "1"
-    batch_size = 50
+    prompt_version = "2"
+    # Tags per call (a batch closes once it reaches this, so up to one cluster more).
+    # Measured on gemma: ~100 tags per call finds as many duplicates as 50 for ~22% fewer
+    # tokens (the prompt is shared); at ~150 it starts missing obvious translations.
+    batch_size = 90
     max_tokens = 4096
 
     # Pending clusters inspected per packing pass.
     PACK_WINDOW = 200
+
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "groups": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "group": {"type": "integer"},
+                        # Literal English meaning of the non-English tags, written before the
+                        # sets so translations are compared by meaning. Not stored.
+                        "glosses": {"type": "string"},
+                        "sets": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "members": {"type": "array", "items": {"type": "string"}},
+                                    "canonical": {"type": "string"},
+                                    "confidence": {"type": "number"},
+                                },
+                                "required": ["members", "canonical", "confidence"],
+                                "additionalProperties": False,
+                            },
+                        },
+                    },
+                    "required": ["group", "glosses", "sets"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["groups"],
+        "additionalProperties": False,
+    }
 
     def enqueue(self, limit):
         covered = set()
@@ -828,7 +925,7 @@ class TagMergeTask(LLMTask):
             if cluster is None or cluster.status != TagCluster.STATUS_PENDING or cluster.llm_batch is not None:
                 continue
             cluster.llm_response = {"sets": item["sets"]}
-            cluster.llm_model = request.model or settings.LLM_MODEL
+            cluster.llm_model = request.model
             cluster.llm_batch = batch_id
             cluster.judged_at = now
             cluster.save(update_fields=[

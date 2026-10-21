@@ -7,9 +7,9 @@ from unittest import mock
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 
-from ..models import ExternalSource, LLMRequest, LLMUsage, Novel, Tag
+from ..models import ExternalSource, LLMProviderCooldown, LLMRequest, LLMUsage, Novel, Tag
 from ..services import llm_service, llm_tasks
-from ..services.llm_service import RateLimited
+from ..services.llm_service import ProviderUnavailable, RateLimited
 from .helpers import MergeTestCase
 
 
@@ -170,6 +170,12 @@ class TagR18TaskTests(MergeTestCase):
             {"tags": [{"id": smut.pk, "rating": "explicit", "r18": True, "confidence": 0.9}]},
         )
 
+    def test_parse_accepts_an_empty_list(self):
+        # The model lists only explicit or suggestive tags, so a clean batch is an empty list.
+        tag = Tag.objects.create(name="Romance")
+        req = self.make_request([tag.pk])
+        self.assertEqual(llm_tasks.REGISTRY["tag_r18"].parse(req, '{"tags": []}'), {"tags": []})
+
     def test_batch_with_no_tags_left_is_closed_without_a_call(self):
         tag = Tag.objects.create(name="Smut", is_adult=True)
         req = self.make_request([tag.pk])
@@ -290,6 +296,252 @@ class LLMQueueTests(MergeTestCase):
         self.assertEqual(LLMUsage.objects.get().purpose, "tag_r18")
 
 
+CHAIN_SETTINGS = {
+    "cerebras": {
+        "api_key": "cerebras-key", "model": "gpt-oss-120b", "base_url": "", "reasoning_effort": "low",
+        "daily_requests": None, "daily_tokens": None, "requests_per_minute": None,
+        "tokens_per_minute": None, "cooldown": 3600,
+    },
+    "groq": {
+        "api_key": "groq-key", "model": "openai/gpt-oss-20b", "base_url": "", "reasoning_effort": "low",
+        "daily_requests": None, "daily_tokens": None, "requests_per_minute": None,
+        "tokens_per_minute": None, "cooldown": 60,
+    },
+}
+
+
+def _answers(replies):
+    """A ``_post_chat`` stand-in: per provider name, a ``(content, tokens)`` reply or an exception to raise."""
+    def post(messages, max_tokens, purpose, provider=None, **kwargs):
+        reply = replies[provider.name]
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+    return post
+
+
+@override_settings(LLM_PROVIDERS=["cerebras", "groq"], LLM_PROVIDER_SETTINGS=CHAIN_SETTINGS)
+class ProviderChainTests(MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.tag = Tag.objects.create(name="Smut")
+        self.reply = json.dumps({"tags": [{"id": self.tag.pk, "rating": "explicit", "confidence": 0.95}]})
+        self.ok = (self.reply, 42)
+
+    def make_request(self):
+        return LLMRequest.objects.create(
+            task="tag_r18", target_type="tag", target_ids=[self.tag.pk], prompt_version="1",
+        )
+
+    def test_first_provider_answers(self):
+        req = self.make_request()
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": self.ok})) as post:
+            counts = llm_tasks.run_task("tag_r18", 1)
+
+        self.assertEqual(counts["done"], 1)
+        self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["cerebras"])
+        req.refresh_from_db()
+        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
+        self.assertEqual(req.model, "gpt-oss-120b")
+
+    def test_rate_limit_without_retry_after_falls_through_to_next_provider(self):
+        req = self.make_request()
+        replies = {"cerebras": RateLimited(), "groq": self.ok}
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)) as post:
+            counts = llm_tasks.run_task("tag_r18", 1)
+
+        self.assertEqual(counts["done"], 1)
+        self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["cerebras", "groq"])
+        cooling = LLMProviderCooldown.objects.get(name="cerebras")
+        self.assertGreater(cooling.until, timezone.now() + timedelta(seconds=3500))
+        self.assertLess(cooling.until, timezone.now() + timedelta(seconds=3700))
+        req.refresh_from_db()
+        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
+        self.assertEqual(req.attempts, 1)
+        self.assertEqual(req.model, "openai/gpt-oss-20b")
+
+    def test_cooling_provider_is_skipped_until_its_cooldown_ends(self):
+        LLMProviderCooldown.objects.create(
+            name="cerebras", until=timezone.now() + timedelta(hours=1), reason="HTTP 429",
+        )
+        self.make_request()
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": self.ok, "groq": self.ok})) as post:
+            llm_tasks.run_task("tag_r18", 1)
+        self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["groq"])
+
+        # A new tag: the first one is already flagged, so its request would be closed without a call.
+        LLMProviderCooldown.objects.filter(name="cerebras").update(until=timezone.now() - timedelta(seconds=1))
+        other = Tag.objects.create(name="Other")
+        LLMRequest.objects.create(
+            task="tag_r18", target_type="tag", target_ids=[other.pk], prompt_version="1",
+        )
+        reply = json.dumps({"tags": [{"id": other.pk, "rating": "explicit", "confidence": 0.95}]})
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": (reply, 42)})) as post:
+            llm_tasks.run_task("tag_r18", 1)
+        self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["cerebras"])
+
+    def test_every_provider_rate_limited_gives_the_request_back(self):
+        req = self.make_request()
+        replies = {"cerebras": RateLimited(), "groq": RateLimited()}
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
+            counts = llm_tasks.run_task("tag_r18", 1)
+
+        self.assertTrue(counts["rate_limited"])
+        req.refresh_from_db()
+        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(req.attempts, 0)
+        self.assertAlmostEqual((req.not_before - timezone.now()).total_seconds(), 60, delta=5)
+        self.assertFalse(llm_service.can_afford())
+
+    @override_settings(LLM_PROVIDER_SETTINGS={
+        **CHAIN_SETTINGS, "groq": {**CHAIN_SETTINGS["groq"], "daily_requests": 2},
+    })
+    def test_groq_daily_cap_blocks_the_chain_while_cerebras_cools_down(self):
+        LLMProviderCooldown.objects.create(
+            name="cerebras", until=timezone.now() + timedelta(hours=1), reason="HTTP 429",
+        )
+        LLMUsage.objects.create(purpose="tag_r18", provider="groq", tokens=0)
+        LLMUsage.objects.create(purpose="tag_r18", provider="groq", tokens=0)
+        self.make_request()
+
+        with mock.patch.object(llm_service, "_post_chat") as post:
+            llm_tasks.run_task("tag_r18", 1)
+
+        post.assert_not_called()
+        self.assertFalse(llm_service.can_afford())
+
+    def test_post_chat_sends_the_provider_request_and_records_it(self):
+        cerebras = llm_service.providers()[0]
+        session = mock.Mock()
+        session.post.return_value = mock.Mock(status_code=503, headers={}, text="busy")
+        with self.assertRaises(ProviderUnavailable):
+            llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session)
+        self.assertFalse(LLMUsage.objects.exists())
+
+        response = mock.Mock(status_code=200, headers={}, text="")
+        response.json.return_value = {
+            "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+            "usage": {"total_tokens": 7},
+        }
+        session.post.return_value = response
+        llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session)
+
+        self.assertEqual(LLMUsage.objects.get().provider, "cerebras")
+        self.assertEqual(session.post.call_args.args[0], "https://api.cerebras.ai/v1/chat/completions")
+        self.assertEqual(session.post.call_args.kwargs["headers"]["Authorization"], "Bearer cerebras-key")
+        self.assertEqual(session.post.call_args.kwargs["json"]["model"], "gpt-oss-120b")
+
+    def test_post_chat_merges_the_provider_extra_body(self):
+        settings = {**CHAIN_SETTINGS, "cerebras": {**CHAIN_SETTINGS["cerebras"], "extra_body": {"thinking": {"type": "disabled"}}}}
+        with override_settings(LLM_PROVIDER_SETTINGS=settings):
+            cerebras = llm_service.providers()[0]
+        response = mock.Mock(status_code=200, headers={}, text="")
+        response.json.return_value = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+        session = mock.Mock()
+        session.post.return_value = response
+        llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session)
+
+        body = session.post.call_args.kwargs["json"]
+        self.assertEqual(body["thinking"], {"type": "disabled"})
+        self.assertEqual(body["model"], "gpt-oss-120b")
+
+    def test_post_chat_sends_the_response_schema_as_structured_output(self):
+        cerebras = llm_service.providers()[0]
+        response = mock.Mock(status_code=200, headers={}, text="")
+        response.json.return_value = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+        session = mock.Mock()
+        session.post.return_value = response
+        schema = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+        llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session, response_schema=schema)
+
+        self.assertEqual(
+            session.post.call_args.kwargs["json"]["response_format"],
+            {"type": "json_schema", "json_schema": {"name": "tag_r18", "strict": True, "schema": schema}},
+        )
+
+    def test_post_chat_sends_no_response_format_when_provider_disables_it(self):
+        settings = {**CHAIN_SETTINGS, "cerebras": {**CHAIN_SETTINGS["cerebras"], "json_schema": False}}
+        with override_settings(LLM_PROVIDER_SETTINGS=settings):
+            cerebras = llm_service.providers()[0]
+        response = mock.Mock(status_code=200, headers={}, text="")
+        response.json.return_value = {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}]}
+        session = mock.Mock()
+        session.post.return_value = response
+        llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session,
+                               response_schema={"type": "object"})
+
+        self.assertNotIn("response_format", session.post.call_args.kwargs["json"])
+
+    def test_run_queue_passes_the_task_schema_to_post_chat(self):
+        self.make_request()
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": self.ok})) as post:
+            llm_tasks.run_queue(["tag_r18"])
+
+        self.assertEqual(post.call_args.kwargs["response_schema"], llm_tasks.TagR18Task.response_schema)
+
+    def test_chat_outage_cools_the_provider_for_five_minutes_and_falls_through(self):
+        replies = {"cerebras": ProviderUnavailable("HTTP 503: busy"), "groq": self.ok}
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
+            content, tokens, provider = llm_service.chat([], 10, "tag_r18")
+
+        self.assertEqual(provider.name, "groq")
+        self.assertEqual(content, self.reply)
+        cooling = LLMProviderCooldown.objects.get(name="cerebras")
+        self.assertAlmostEqual((cooling.until - timezone.now()).total_seconds(), 300, delta=5)
+
+    def test_other_http_error_tries_the_next_provider_without_cooldown(self):
+        replies = {"cerebras": llm_service.LLMError("HTTP 400: unknown model"), "groq": self.ok}
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
+            _content, _tokens, provider = llm_service.chat([], 10, "tag_r18")
+
+        self.assertEqual(provider.name, "groq")
+        self.assertFalse(LLMProviderCooldown.objects.exists())
+
+    def test_other_http_error_everywhere_is_raised(self):
+        replies = {"cerebras": llm_service.LLMError("HTTP 400: a"), "groq": llm_service.LLMError("HTTP 400: b")}
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
+            with self.assertRaisesMessage(llm_service.LLMError, "HTTP 400: b"):
+                llm_service.chat([], 10, "tag_r18")
+
+    def test_parse_error_is_not_sent_to_the_next_provider(self):
+        replies = {"cerebras": llm_service.LLMTruncated("cut"), "groq": self.ok}
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)) as post:
+            with self.assertRaises(llm_service.LLMTruncated):
+                llm_service.chat([], 10, "tag_r18")
+        self.assertEqual(post.call_count, 1)
+
+    def test_post_chat_maps_bad_key_and_network_errors_to_unavailable(self):
+        cerebras = llm_service.providers()[0]
+        session = mock.Mock()
+        session.post.return_value = mock.Mock(status_code=401, headers={}, text="bad key")
+        with self.assertRaises(ProviderUnavailable):
+            llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session)
+        session.post.side_effect = llm_service.requests.ConnectionError("refused")
+        with self.assertRaises(ProviderUnavailable):
+            llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session)
+
+    def test_provider_without_model_is_skipped(self):
+        settings = {**CHAIN_SETTINGS, "cerebras": {**CHAIN_SETTINGS["cerebras"], "model": ""}}
+        with override_settings(LLM_PROVIDER_SETTINGS=settings), \
+                mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"groq": self.ok})):
+            _content, _tokens, provider = llm_service.chat([], 10, "tag_r18")
+        self.assertEqual(provider.name, "groq")
+
+    def test_every_provider_down_records_why_on_the_request(self):
+        req = LLMRequest.objects.create(
+            task="tag_r18", target_type="tag", target_ids=[self.tag.pk], prompt_version="1",
+        )
+        replies = {"cerebras": ProviderUnavailable("HTTP 401: bad key"), "groq": RateLimited(retry_after="30")}
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
+            llm_tasks.run_queue(["tag_r18"])
+
+        req.refresh_from_db()
+        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(req.attempts, 0)
+        self.assertIn("cerebras: HTTP 401: bad key", req.error)
+        self.assertIn("groq: HTTP 429", req.error)
+
+
 class ParseConfidenceTests(SimpleTestCase):
     def test_clamps_finite_numbers_to_unit_interval(self):
         self.assertEqual(llm_service.parse_confidence(0.4), 0.4)
@@ -308,3 +560,28 @@ class ParseConfidenceTests(SimpleTestCase):
         self.assertEqual(llm_service.parse_confidence(True, default=0.5, strict=True), 0.5)
         self.assertEqual(llm_service.parse_confidence("0.9", default=0.5, strict=True), 0.5)
         self.assertEqual(llm_service.parse_confidence("0.9", default=0.5), 0.9)
+
+
+def _strict_violations(node, path="$"):
+    """Where ``node`` has an object strict structured output would reject."""
+    found = []
+    if isinstance(node, dict):
+        if node.get("type") == "object":
+            if node.get("additionalProperties") is not False:
+                found.append(f"{path}: additionalProperties is not false")
+            if sorted(node.get("required", [])) != sorted(node.get("properties", {})):
+                found.append(f"{path}: required does not list every property")
+        for key, value in node.items():
+            found.extend(_strict_violations(value, f"{path}.{key}"))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            found.extend(_strict_violations(value, f"{path}[{index}]"))
+    return found
+
+
+class ResponseSchemaTests(SimpleTestCase):
+    def test_every_registered_task_schema_is_strict_compatible(self):
+        for name, task in llm_tasks.REGISTRY.items():
+            with self.subTest(task=name):
+                self.assertIsNotNone(task.response_schema)
+                self.assertEqual(_strict_violations(task.response_schema), [])

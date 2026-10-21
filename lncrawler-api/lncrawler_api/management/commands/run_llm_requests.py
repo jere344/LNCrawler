@@ -1,8 +1,7 @@
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from ...models import LLMRequest
-from ...services import llm_tasks
+from ...services import llm_service, llm_tasks
 
 
 class Command(BaseCommand):
@@ -37,8 +36,8 @@ class Command(BaseCommand):
                 self.stdout.write(f"{name}: enqueued {created}, pending {pending} (dry run, no LLM call)")
             return
 
-        if not settings.LLM_API_KEY:
-            self.stdout.write(f"{task_name or 'queue'}: skipped (LLM_API_KEY not set)")
+        if not llm_service.is_configured():
+            self.stdout.write(f"{task_name or 'queue'}: skipped (no LLM provider configured)")
             return
 
         counts = llm_tasks.run_queue([task_name] if task_name else None, options["limit"], stdout=self.stdout)

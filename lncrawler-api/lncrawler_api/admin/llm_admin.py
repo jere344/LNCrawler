@@ -6,7 +6,7 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 from django.utils.html import format_html
 
-from ..models import LLMRequest, LLMUsage
+from ..models import LLMProviderCooldown, LLMRequest, LLMUsage
 from ..services import llm_service, llm_tasks
 
 
@@ -17,6 +17,34 @@ def _pretty_json(value):
         '<pre style="white-space:pre-wrap">{}</pre>',
         json.dumps(value, indent=2, ensure_ascii=False),
     )
+
+
+def _providers_today():
+    """Per configured provider, in chain order: today's usage against its caps, the last minute and cooldown."""
+    now = timezone.now()
+    rows = []
+    for provider in llm_service.providers():
+        if not provider.configured:
+            continue
+        minute_requests, minute_tokens = llm_service.minute_usage(provider)
+        cooling = LLMProviderCooldown.objects.filter(name=provider.name, until__gt=now).first()
+        rows.append({
+            "name": provider.name,
+            "model": provider.model,
+            "requests": llm_service.requests_used_today(provider),
+            "tokens": llm_service.tokens_used_today(provider),
+            "requests_cap": provider.daily_requests,
+            "tokens_cap": provider.daily_tokens,
+            "minute": {
+                "requests": minute_requests,
+                "tokens": minute_tokens,
+                "requests_cap": provider.requests_per_minute,
+                "tokens_cap": provider.tokens_per_minute,
+            },
+            "cooldown_until": cooling.until if cooling else None,
+            "cooldown_reason": cooling.reason if cooling else "",
+        })
+    return rows
 
 
 def _usage_today():
@@ -50,6 +78,7 @@ def _usage_today():
             "requests_cap": settings.LLM_REQUESTS_PER_MINUTE,
             "tokens_cap": settings.LLM_TOKENS_PER_MINUTE,
         },
+        "providers": _providers_today(),
     }
 
 
