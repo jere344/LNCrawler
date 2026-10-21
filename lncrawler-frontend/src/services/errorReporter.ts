@@ -27,8 +27,10 @@ const IGNORABLE_PATTERNS: RegExp[] = [
   /^Load failed$/,
   /ResizeObserver loop/i,
   // DOM-node NotFoundError raised while React unmounts nodes the browser
-  // (translation/reader extensions) already removed. Same bug, two browsers.
+  // (translation/reader extensions) already removed or moved. Same bug on
+  // unmount (removeChild) and on insert (insertBefore), two browsers.
   /The node to be removed is not a child of this node/i,
+  /The node before which the new node is to be inserted is not a child of this node/i,
   /The object can not be found here/i,
 ];
 

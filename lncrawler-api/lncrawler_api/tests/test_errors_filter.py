@@ -14,6 +14,7 @@ class IgnorableMessageTests(SimpleTestCase):
             "error loading dynamically imported module: https://lncrawler.monster/assets/SettingsPage-x.js",
             "Importing a module script failed.",
             "Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.",
+            "Failed to execute 'insertBefore' on 'Node': The node before which the new node is to be inserted is not a child of this node.",
             "The object can not be found here.",
         ):
             self.assertIsNotNone(_IGNORABLE.search(message), message)

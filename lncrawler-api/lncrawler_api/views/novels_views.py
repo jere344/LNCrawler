@@ -151,7 +151,10 @@ def _author_ids(names):
     ids = set(
         Author.objects.filter(Q(name__in=names) | Q(normalized__in=keys)).values_list("pk", flat=True)
     )
-    ids.update(AuthorAlias.objects.filter(normalized__in=keys).values_list("author_id", flat=True))
+    ids.update(
+        AuthorAlias.objects.filter(normalized__in=keys, author__is_blocked=False)
+        .values_list("author_id", flat=True)
+    )
     return ids
 
 
@@ -390,7 +393,7 @@ def autocomplete_suggestion(request):
         # Merged-away names: surface their author so old searches still find it.
         # Display-only, the canonical name stays the selected value.
         alias_matches = (
-            AuthorAlias.objects.filter(name__icontains=query)
+            AuthorAlias.objects.filter(name__icontains=query, author__is_blocked=False)
             .select_related("author")
             .annotate(novel_count=Count("author__novels__novel", distinct=True))
             .order_by("-novel_count")[:limit]

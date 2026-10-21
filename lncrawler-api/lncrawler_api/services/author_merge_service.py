@@ -42,6 +42,8 @@ def merge_authors(source, target, candidate=None):
     """
     if source.pk == target.pk:
         raise AuthorMergeRefused("An author cannot be merged into itself.")
+    if source.is_blocked or target.is_blocked:
+        raise AuthorMergeRefused("blocked author")
 
     with transaction.atomic():
         # Lock both rows before reading links: a concurrent import must not credit
@@ -114,6 +116,8 @@ def undo_author_merge(merge):
                 f"'{later.target_name}' (#{later.pk}) first"
             )
         raise MergeError("The target author no longer exists.")
+    if merge.target.is_blocked:
+        raise MergeError("The target author is blocked; unblock it first.")
 
     with transaction.atomic():
         locked = lock_pks(Author, [merge.target_id])

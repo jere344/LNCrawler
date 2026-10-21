@@ -7,15 +7,25 @@ export const isBrowserSpeechSupported = (): boolean =>
 
 let voicesPromise: Promise<SpeechSynthesisVoice[]> | null = null;
 
+// Anti-fingerprinting user scripts wrap getVoices() and can throw or return
+// holes; a throw here would escape the effect and crash the reader.
+function readVoices(): SpeechSynthesisVoice[] {
+  try {
+    return (speechSynthesis.getVoices() ?? []).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 /** Voices load asynchronously in Chrome; wait for them (up to 3s). */
 export function getBrowserVoices(): Promise<SpeechSynthesisVoice[]> {
   if (!isBrowserSpeechSupported()) return Promise.resolve([]);
-  const now = speechSynthesis.getVoices();
+  const now = readVoices();
   if (now.length) return Promise.resolve(now);
   voicesPromise ??= new Promise(resolve => {
     const done = () => {
       speechSynthesis.removeEventListener('voiceschanged', done);
-      resolve(speechSynthesis.getVoices());
+      resolve(readVoices());
     };
     speechSynthesis.addEventListener('voiceschanged', done);
     setTimeout(done, 3000);

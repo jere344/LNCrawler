@@ -280,8 +280,6 @@ TAG_BIG_TAG_USAGE = 200
 
 # Author merge (services/author_merge_service.py). The LLM judge (AuthorMergeTask)
 # reuses LLM_PROVIDER/MODEL/API_KEY and runs through LLMRequest.
-# Only "same" verdicts at or above this confidence are merged; the rest wait for review.
-AUTHOR_MERGE_LLM_MIN_CONFIDENCE = float(os.environ.get("AUTHOR_MERGE_LLM_MIN_CONFIDENCE", "0.85"))
 
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 

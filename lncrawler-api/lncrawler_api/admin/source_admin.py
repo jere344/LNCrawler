@@ -20,6 +20,7 @@ from ..models import (
     Chapter,
 )
 from ..models.sources_models import refresh_adult, refresh_adult_for_tags
+from ..services.author_block_service import block_authors, unblock_authors
 from ..services.author_merge_service import merge_authors, pick_target
 from ..services.merge_service import MergeError, merge_tags, rename_tag
 from ..utils.tag_utils import normalize_tag
@@ -35,9 +36,40 @@ TAG_AUTOCOMPLETE_FIELD = TagAlias._meta.get_field("tag")
 # Register all novel-related models
 @admin.register(Author)
 class AuthorAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "is_blocked")
+    list_filter = ("is_blocked",)
     search_fields = ("name",)
-    actions = ["merge_into_most_used"]
+    actions = ["merge_into_most_used", "block_selected", "unblock_selected"]
+
+    def get_queryset(self, request):
+        # Blocked authors stay listed here, so they can be unblocked.
+        qs = self.model.all_objects.get_queryset()
+        ordering = self.get_ordering(request)
+        if ordering:
+            qs = qs.order_by(*ordering)
+        return qs
+
+    def has_delete_permission(self, request, obj=None):
+        # Blocking replaces deletion: a real delete lets the next import recreate the author.
+        return False
+
+    @admin.action(description="Block selected authors")
+    def block_selected(self, request, queryset):
+        count = block_authors(list(queryset.values_list("pk", flat=True)))
+        self.message_user(
+            request,
+            f"Blocked {count} author(s): they were removed from their sources, which are kept.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Unblock selected authors")
+    def unblock_selected(self, request, queryset):
+        count = unblock_authors(list(queryset.values_list("pk", flat=True)))
+        self.message_user(
+            request,
+            f"Unblocked {count} author(s). Their source links come back on re-import.",
+            messages.SUCCESS,
+        )
 
     @admin.action(description="Merge selected into the most-used author")
     def merge_into_most_used(self, request, queryset):

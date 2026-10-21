@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from ..models import Author, AuthorMergeCandidate, LLMRequest, MergeCandidate, Tag, TagCluster
 from ..models.sources_models import refresh_adult_for_tags
+from ..utils.author_names import is_bracketed_original, normalize_author, romanization_fits
 from . import llm_service
 from . import tag_merge_service as tms
 from .author_merge_service import merge_candidate
@@ -504,37 +505,74 @@ def _auto_merge_candidate(candidate):
     )
 
 
-def _author_profile(author):
-    novels = [
-        {"title": src.title, "language": src.language}
-        for src in author.novels.order_by("pk")[:3]
-    ]
-    return {
-        "name": author.name,
-        "aliases": list(author.aliases.order_by("name").values_list("name", flat=True)),
-        "novels": novels,
-    }
+def _author_payload(candidate, authors):
+    """Names only, plus known aliases: the shared novel and the finder signals prove nothing."""
+    entry = {"id": candidate.pk, "names": [author.name for author in authors]}
+    aliases = [list(author.aliases.order_by("name").values_list("name", flat=True)) for author in authors]
+    if any(aliases):
+        entry["aliases"] = aliases
+    return entry
+
+
+def _author_merge_refusal(candidate, item):
+    """Why the judged pair must not merge, or None when its relation allows a merge."""
+    if item["relation"] not in AuthorMergeTask.MERGE_RELATIONS:
+        return f"relation {item['relation']}"
+    first, second = candidate.author_names
+    names = {normalize_author(name) for name in (first, second)}
+    # The names must be the candidate's own: a reply for another id is refused.
+    parts = str(item.get("names") or "").split(" / ", 1)
+    if len(parts) != 2 or {normalize_author(part) for part in parts} != names:
+        return "names do not match the candidate"
+    if item["relation"] == "bracketed_original" and not is_bracketed_original(first, second):
+        return "not a bracketed original"
+    if item["relation"] in ("romanization", "same_name") and not romanization_fits(first, second):
+        return "romanization does not match the character count"
+    return None
 
 
 @register
 class AuthorMergeTask(LLMTask):
-    """Judge whether two author names from the finder refer to the same person."""
+    """Judge how two author names from the finder relate; only name-based relations merge."""
 
     name = "author_merge"
     label = "Author merge judge"
     target_type = "author_merge_candidate"
-    prompt_version = "2"
+    prompt_version = "5"
     batch_size = 20
-    max_tokens = 2048
+    max_tokens = 4096
 
+    RELATIONS = (
+        "other_party", "bracketed_original", "romanization", "translation", "same_name",
+        "different", "unsure",
+    )
+    MERGE_RELATIONS = {"bracketed_original", "romanization", "translation", "same_name"}
+
+    # Relations are listed in the order the model must test them: other_party first,
+    # otherwise it reads a translation group's name as a translation of the author's.
     SYSTEM_PROMPT = (
-        "You decide whether two author names refer to the same person: pen names, "
-        "translations and romanizations of one name across languages are the same person. "
-        "Illustrators, translators and other credited staff are different people. "
-        "A name that lists several people (for example 'Okina Baba and Tsukasa Kiryu') "
-        "is NEVER the same as one of the people it lists: answer different. "
-        'Reply with JSON only, in the form {"results": [{"id": <candidate id>, '
-        '"verdict": "same"|"different", "confidence": <0..1>}]}.'
+        "Two author names were credited on the same novel by different sources. Decide whether they "
+        "name the same author: a person, or a group or team credited as the author. Sharing a novel "
+        "proves nothing: sources also credit translators, illustrators, publishers and websites. "
+        "Judge from the names only, and answer with the first relation that applies:\n"
+        "1. other_party: one name is a website, platform, publisher, translation or scanlation group, "
+        "a placeholder ('Unknown', 'Admin'), lists several people, or is a member of a group named by "
+        "the other ('Barrista Lee' / 'Team Barrista').\n"
+        "2. bracketed_original: one is the other plus its original form in brackets "
+        "('Lucky Old Cat' / 'Lucky Old Cat (天运老猫)').\n"
+        "3. romanization: one is the romanization of the other, every character accounted for "
+        "('Er Gen' / '耳根', not 'Li Xian' / '李闲鱼').\n"
+        "4. translation: one is the meaning of the other in another language "
+        "('I Eat Tomatoes' / '我吃西红柿').\n"
+        "5. same_name: the same name spelled differently: typo, other romanization or long vowels, "
+        "accents, word order, spacing, punctuation, or added label text such as 'Author:', "
+        "'Written by', a leading article or 'Team' ('Yuu Kamiya' / 'Yu Kamiya', "
+        "'Team Barrista' / 'Barrista'). Any other word added or missing makes them different "
+        "('Tomato Fan' / 'Tomato', 'Mr. Mo' / 'Mo').\n"
+        "6. different: different names, even one syllable apart ('Wang Yu' / 'Wang Yi').\n"
+        "7. unsure: anything else, including names you only guess are pen names of each other.\n"
+        'Reply with JSON only: {"results": [{"id": <id>, "names": "<A> / <B>", '
+        '"evidence": "<a few words: what differs>", "relation": "<relation>"}]}.'
     )
 
     def enqueue(self, limit):
@@ -585,11 +623,7 @@ class AuthorMergeTask(LLMTask):
                 candidate.reason = "author merged away"
                 candidate.save(update_fields=["status", "reason", "updated_at"])
                 continue
-            payload.append({
-                "id": candidate.pk,
-                "authors": [_author_profile(author) for author in authors],
-                "signals": candidate.signals,
-            })
+            payload.append(_author_payload(candidate, authors))
         if not payload:
             return None
         return [
@@ -614,22 +648,22 @@ class AuthorMergeTask(LLMTask):
         for item in items:
             if not isinstance(item, dict):
                 continue
-            candidate_id, verdict = item.get("id"), item.get("verdict")
+            candidate_id, relation = item.get("id"), item.get("relation")
             if type(candidate_id) is not int or candidate_id not in allowed:
                 continue
-            if verdict not in ("same", "different"):
+            if relation not in self.RELATIONS:
                 continue
             results.append({
                 "id": candidate_id,
-                "verdict": verdict,
-                "confidence": llm_service.parse_confidence(item.get("confidence"), strict=True),
+                "names": str(item.get("names") or ""),
+                "evidence": str(item.get("evidence") or "")[:200],
+                "relation": relation,
             })
         if not results:
             raise LLMParseError("no valid author entries in reply")
         return {"results": results}
 
     def apply(self, request, result):
-        min_confidence = settings.AUTHOR_MERGE_LLM_MIN_CONFIDENCE
         for item in result["results"]:
             candidate = AuthorMergeCandidate.objects.filter(pk=item["id"]).first()
             # Only pending candidates are judged: a decided one keeps its decision on re-apply.
@@ -639,14 +673,12 @@ class AuthorMergeTask(LLMTask):
             candidate.llm_model = request.model
             candidate.save(update_fields=["llm_response", "llm_model", "updated_at"])
 
-            if item["verdict"] == "different":
+            refusal = _author_merge_refusal(candidate, item)
+            if refusal is not None:
+                candidate.llm_response = {**item, "refused": refusal}
                 candidate.status = AuthorMergeCandidate.STATUS_REJECTED
                 candidate.decided_at = timezone.now()
-                candidate.save(update_fields=["status", "decided_at", "updated_at"])
-                continue
-            if item["confidence"] < min_confidence:
-                candidate.status = AuthorMergeCandidate.STATUS_REVIEW
-                candidate.save(update_fields=["status", "updated_at"])
+                candidate.save(update_fields=["llm_response", "status", "decided_at", "updated_at"])
                 continue
 
             merge_candidate(candidate)

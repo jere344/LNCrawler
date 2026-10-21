@@ -4,6 +4,7 @@ from unittest import mock
 
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 
 from ..models import source_links
 from ..models.source_links import AUTHOR_IMPORT_ATTEMPTS, AuthorImportError, _set_source_authors
@@ -17,12 +18,14 @@ from ..models import (
     Novel,
     NovelFromSource,
 )
-from ..services.author_merge_service import merge_authors, undo_author_merge
+from ..services.author_block_service import block_authors, unblock_authors
+from ..services.author_merge_service import AuthorMergeRefused, merge_authors, undo_author_merge
 from ..services.llm_service import LLMParseError
 from ..services.llm_tasks import REGISTRY
 from ..services.merge_common import sorted_pk_signature
 from ..services.merge_service import MergeError
-from ..utils.author_names import normalize_author, script_runs
+from ..utils.author_names import is_bracketed_original, normalize_author, romanization_fits, script_runs
+from ..views.novels_views import _author_ids
 
 
 class AuthorNameTests(SimpleTestCase):
@@ -40,6 +43,21 @@ class AuthorNameTests(SimpleTestCase):
         self.assertEqual(runs[0], "cuttlefish that loves diving")
         self.assertEqual(script_runs("Okina Baba and Tsukasa Kiryu"), [])
         self.assertEqual(script_runs("Okina Baba"), [])
+
+    def test_bracketed_original(self):
+        self.assertTrue(is_bracketed_original("Lucky Old Cat", "Lucky Old Cat（天运老猫）"))
+        self.assertTrue(is_bracketed_original("Lucky Old Cat【天运老猫】", "Lucky Old Cat"))
+        self.assertFalse(is_bracketed_original("Lucky Old Cat", "Old Cat (天运老猫)"))
+        self.assertFalse(is_bracketed_original("・", "(一缕)"))
+
+    def test_romanization_fits(self):
+        self.assertTrue(romanization_fits("Lu·Xun", "鲁迅"))
+        self.assertFalse(romanization_fits("Li Xian", "李闲鱼"))
+        self.assertTrue(romanization_fits("Bi-Rim", "비림"))
+        # Latin spelling variants are left to the LLM.
+        self.assertTrue(romanization_fits("Yuu Kamiya", "Yu Kamiya"))
+        # Kana is not checked: romaji syllables do not map to characters.
+        self.assertTrue(romanization_fits("Nanashi", "ななし"))
 
 
 class AuthorResolveTests(TestCase):
@@ -243,6 +261,27 @@ class AuthorFinderTests(TestCase):
         self.assertEqual(candidate.reason, AuthorMergeCandidate.REASON_MIXED_SCRIPT)
         self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_APPLIED)
 
+    def test_mixed_script_name_merges_into_its_latin_author_when_the_cjk_part_is_unknown(self):
+        latin = Author.objects.create(name="A Wisp Of Netherworld Inferno")
+        combined = Author.objects.create(name="A Wisp Of Netherworld Inferno (一缕冥火)")
+
+        call_command("find_author_candidates")
+
+        self.assertFalse(Author.objects.filter(pk=combined.pk).exists())
+        self.assertTrue(Author.objects.filter(pk=latin.pk).exists())
+        candidate = AuthorMergeCandidate.objects.get()
+        self.assertEqual(candidate.reason, AuthorMergeCandidate.REASON_MIXED_SCRIPT)
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_APPLIED)
+
+    def test_mixed_script_name_is_skipped_when_only_its_cjk_part_resolves(self):
+        Author.objects.create(name="一缕冥火")
+        combined = Author.objects.create(name="A Wisp Of Netherworld Inferno (一缕冥火)")
+
+        call_command("find_author_candidates")
+
+        self.assertTrue(Author.objects.filter(pk=combined.pk).exists())
+        self.assertFalse(AuthorMergeCandidate.objects.exists())
+
     def test_cross_source_pair_is_queued_for_review(self):
         cjk = Author.objects.create(name="爱潜水的乌贼")
         latin = Author.objects.create(name="Cuttlefish That Loves Diving")
@@ -350,28 +389,100 @@ class AuthorMergeTaskTests(TestCase):
             prompt_version=self.task.prompt_version,
         )
 
-    def _apply(self, verdict, confidence):
-        result = {"results": [{"id": self.candidate.pk, "verdict": verdict, "confidence": confidence}]}
+    def _apply(self, relation, candidate=None, names=None):
+        candidate = candidate or self.candidate
+        names = names or " / ".join(candidate.author_names)
+        result = {"results": [{"id": candidate.pk, "names": names, "relation": relation}]}
         self.task.apply(self.request, result)
-        self.candidate.refresh_from_db()
+        candidate.refresh_from_db()
+        return candidate
 
-    def test_same_with_high_confidence_merges(self):
-        self._apply("same", 0.95)
+    def _pair(self, first, second):
+        """A pending candidate for two new authors, with a request that covers only it."""
+        authors = [Author.objects.create(name=name) for name in (first, second)]
+        candidate = AuthorMergeCandidate.objects.create(
+            signature=sorted_pk_signature([author.pk for author in authors]),
+            author_ids=sorted(author.pk for author in authors),
+            author_names=[first, second],
+            reason=AuthorMergeCandidate.REASON_CROSS_SOURCE,
+        )
+        self.request.target_ids = [candidate.pk]
+        self.request.save(update_fields=["target_ids"])
+        return candidate
+
+    def test_translation_with_matching_names_merges(self):
+        self._apply("translation")
 
         self.assertEqual(self.candidate.status, AuthorMergeCandidate.STATUS_APPLIED)
         self.assertEqual(Author.objects.count(), 1)
 
-    def test_same_with_low_confidence_waits_for_review(self):
-        self._apply("same", 0.5)
+    def test_unsure_different_and_other_party_are_rejected(self):
+        for relation in ("unsure", "different", "other_party"):
+            with self.subTest(relation=relation):
+                AuthorMergeCandidate.objects.filter(pk=self.candidate.pk).update(
+                    status=AuthorMergeCandidate.STATUS_PENDING, llm_response=None,
+                )
+                self._apply(relation)
 
-        self.assertEqual(self.candidate.status, AuthorMergeCandidate.STATUS_REVIEW)
-        self.assertEqual(Author.objects.count(), 2)
+                self.assertEqual(self.candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
+                self.assertEqual(Author.objects.count(), 2)
 
-    def test_different_is_rejected(self):
-        self._apply("different", 0.99)
+    def test_names_of_another_candidate_are_rejected(self):
+        self._apply("translation", names="Okina Baba / Tsukasa Kiryu")
 
         self.assertEqual(self.candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
+        self.assertEqual(self.candidate.llm_response["refused"], "names do not match the candidate")
         self.assertEqual(Author.objects.count(), 2)
+
+    def test_romanization_with_a_wrong_character_count_is_rejected(self):
+        candidate = self._pair("Li Xian", "李闲鱼")
+
+        self._apply("romanization", candidate=candidate)
+
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
+        self.assertEqual(candidate.llm_response["refused"], "romanization does not match the character count")
+        self.assertEqual(Author.objects.count(), 4)
+
+    def test_same_name_merges(self):
+        candidate = self._pair("Cuttlefish", "Author : Cuttlefish")
+
+        self._apply("same_name", candidate=candidate)
+
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_APPLIED)
+        self.assertEqual(Author.objects.count(), 3)
+
+    def test_same_name_with_a_wrong_character_count_is_rejected(self):
+        candidate = self._pair("Li Xian", "李闲鱼")
+
+        self._apply("same_name", candidate=candidate)
+
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
+        self.assertEqual(Author.objects.count(), 4)
+
+    def test_romanization_with_matching_character_count_merges(self):
+        candidate = self._pair("Er Gen", "耳根")
+
+        self._apply("romanization", candidate=candidate)
+
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_APPLIED)
+        self.assertEqual(Author.objects.count(), 3)
+
+    def test_bracketed_original_merges(self):
+        candidate = self._pair("A Wisp Of Netherworld Inferno", "A Wisp Of Netherworld Inferno (一缕冥火)")
+
+        self._apply("bracketed_original", candidate=candidate)
+
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_APPLIED)
+        self.assertEqual(Author.objects.count(), 3)
+
+    def test_bracketed_original_on_unrelated_names_is_rejected(self):
+        candidate = self._pair("Okina Baba", "Tsukasa Kiryu")
+
+        self._apply("bracketed_original", candidate=candidate)
+
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
+        self.assertEqual(candidate.llm_response["refused"], "not a bracketed original")
+        self.assertEqual(Author.objects.count(), 4)
 
     def test_different_rejects_a_combined_name_pair_and_keeps_both_authors(self):
         combined = Author.objects.create(name="Okina Baba and Tsukasa Kiryu")
@@ -385,9 +496,8 @@ class AuthorMergeTaskTests(TestCase):
         self.request.target_ids = [candidate.pk]
         self.request.save(update_fields=["target_ids"])
 
-        self.task.apply(self.request, {"results": [{"id": candidate.pk, "verdict": "different", "confidence": 0.99}]})
+        self._apply("different", candidate=candidate)
 
-        candidate.refresh_from_db()
         self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
         self.assertTrue(Author.objects.filter(pk=combined.pk).exists())
         self.assertTrue(Author.objects.filter(pk=okina.pk).exists())
@@ -416,7 +526,7 @@ class AuthorMergeTaskTests(TestCase):
         self.request.target_ids = [self.candidate.pk, left_out.pk]
         self.request.save(update_fields=["target_ids"])
 
-        self._apply("different", 0.99)  # the reply covers only self.candidate
+        self._apply("different")  # the reply covers only self.candidate
 
         left_out.refresh_from_db()
         self.assertEqual(left_out.status, AuthorMergeCandidate.STATUS_ERROR)
@@ -424,13 +534,17 @@ class AuthorMergeTaskTests(TestCase):
 
     def test_parse_drops_invalid_entries_and_rejects_empty_replies(self):
         content = (
-            '{"results": [{"id": %d, "verdict": "same", "confidence": 2},'
-            ' {"id": 999, "verdict": "same", "confidence": 1}]}' % self.candidate.pk
+            '{"results": [{"id": %d, "names": "Pen Name / Real Name", "relation": "translation"},'
+            ' {"id": %d, "names": "Pen Name / Real Name", "relation": "same"},'
+            ' {"id": 999, "names": "Pen Name / Real Name", "relation": "translation"}]}'
+            % (self.candidate.pk, self.candidate.pk)
         )
         result = self.task.parse(self.request, content)
-        self.assertEqual(result["results"], [{"id": self.candidate.pk, "verdict": "same", "confidence": 1.0}])
+        self.assertEqual(result["results"], [
+            {"id": self.candidate.pk, "names": "Pen Name / Real Name", "evidence": "", "relation": "translation"},
+        ])
         with self.assertRaises(LLMParseError):
-            self.task.parse(self.request, '{"results": [{"id": 999, "verdict": "same"}]}')
+            self.task.parse(self.request, '{"results": [{"id": 999, "relation": "translation"}]}')
 
 
 class ImportAuthorLockingTests(TestCase):
@@ -475,3 +589,154 @@ class ImportAuthorLockingTests(TestCase):
                 _set_source_authors(self.source, ["Cuttlefish That Loves Diving"])
         self.assertEqual(lock.call_count, AUTHOR_IMPORT_ATTEMPTS)
         self.assertEqual(list(self.source.authors.all()), [self.okina])
+
+
+class BlockedAuthorTests(TestCase):
+    def setUp(self):
+        self.external = ExternalSource.objects.create(source_name="s")
+        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.blocked = Author.objects.create(name="Blocked Name")
+        self.other = Author.objects.create(name="Other")
+        self.s1 = self._source("http://s/1", self.blocked, self.other)
+        self.s2 = self._source("http://s/2", self.blocked)
+
+    def _source(self, url, *authors):
+        source = NovelFromSource.objects.create(
+            novel=self.novel, external_source=self.external, title="N", source_url=url
+        )
+        source.authors.add(*authors)
+        return source
+
+    def _block(self):
+        block_authors([self.blocked.pk])
+        self.blocked.refresh_from_db()  # merge_authors reads the flag from the instance
+
+    def test_block_unlinks_the_author_and_keeps_the_sources(self):
+        self.assertEqual(block_authors([self.blocked.pk]), 1)
+
+        self.assertEqual(list(self.s1.authors.all()), [self.other])
+        self.assertEqual(list(self.s2.authors.all()), [])
+        self.assertTrue(NovelFromSource.objects.filter(pk=self.s2.pk).exists())
+        self.assertFalse(Author.objects.filter(pk=self.blocked.pk).exists())
+        self.assertTrue(Author.all_objects.filter(pk=self.blocked.pk, is_blocked=True).exists())
+
+    def test_import_skips_a_blocked_name_and_creates_no_author(self):
+        self._block()
+        source = self._source("http://s/3")
+        count = Author.all_objects.count()
+
+        _set_source_authors(source, ["Blocked Name", "Other"])
+
+        self.assertEqual(list(source.authors.all()), [self.other])
+        self.assertEqual(Author.all_objects.count(), count)
+
+    def test_import_skips_a_normalized_variant_of_a_blocked_name(self):
+        self._block()
+        source = self._source("http://s/3")
+        count = Author.all_objects.count()
+
+        _set_source_authors(source, ["  blocked  NAME ", "Other"])
+
+        self.assertEqual(list(source.authors.all()), [self.other])
+        self.assertEqual(Author.all_objects.count(), count)
+
+    def test_import_skips_an_alias_of_a_blocked_author(self):
+        AuthorAlias.objects.create(name="Old Blocked Alias", author=self.blocked)
+        self._block()
+        source = self._source("http://s/3")
+        count = Author.all_objects.count()
+
+        _set_source_authors(source, ["Old Blocked Alias", "Other"])
+
+        self.assertEqual(list(source.authors.all()), [self.other])
+        self.assertEqual(Author.all_objects.count(), count)
+
+    def test_find_returns_none_for_a_blocked_name(self):
+        self._block()
+
+        self.assertIsNone(Author.find("Blocked Name"))
+        self.assertIsNone(Author.resolve("blocked name"))
+
+    def test_merge_is_refused_when_either_side_is_blocked(self):
+        self._block()
+
+        with self.assertRaisesMessage(AuthorMergeRefused, "blocked author"):
+            merge_authors(self.other, self.blocked)
+        with self.assertRaisesMessage(AuthorMergeRefused, "blocked author"):
+            merge_authors(self.blocked, self.other)
+        self.assertTrue(Author.all_objects.filter(pk=self.blocked.pk).exists())
+
+    def test_block_rejects_open_candidates_that_contain_the_author(self):
+        third = Author.objects.create(name="Third Name")
+        candidate = AuthorMergeCandidate.objects.create(
+            signature=sorted_pk_signature([self.blocked.pk, third.pk]),
+            author_ids=sorted([self.blocked.pk, third.pk]),
+            author_names=["Blocked Name", "Third Name"],
+            reason=AuthorMergeCandidate.REASON_CROSS_SOURCE,
+        )
+
+        block_authors([self.blocked.pk])
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, AuthorMergeCandidate.STATUS_REJECTED)
+        self.assertEqual(candidate.reason, "author blocked")
+
+    def test_filter_and_autocomplete_hide_the_blocked_author_and_its_aliases(self):
+        AuthorAlias.objects.create(name="Old Blocked Alias", author=self.blocked)
+        self._block()
+
+        self.assertEqual(_author_ids(["Blocked Name", "Old Blocked Alias"]), set())
+        self.assertEqual(_author_ids(["Other"]), {self.other.pk})
+        for query in ["blocked", "old blocked"]:
+            response = self.client.get(
+                reverse("autocomplete_suggestion"), {"type": "author", "query": query}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, [])
+        response = self.client.get(
+            reverse("autocomplete_suggestion"), {"type": "author", "query": "other"}
+        )
+        self.assertEqual([entry["name"] for entry in response.data], ["Other"])
+
+    def test_unblock_restores_visibility_and_a_reimport_links_it_again(self):
+        self._block()
+
+        self.assertEqual(unblock_authors([self.blocked.pk]), 1)
+
+        self.assertTrue(Author.objects.filter(pk=self.blocked.pk).exists())
+        source = self._source("http://s/3")
+        _set_source_authors(source, ["Blocked Name"])
+        self.assertEqual(list(source.authors.all()), [self.blocked])
+        self.assertEqual(list(self.s2.authors.all()), [])  # old links are not restored
+        self.assertEqual(Author.all_objects.count(), 2)
+
+
+    def test_a_blocked_duplicate_does_not_shadow_a_visible_one(self):
+        self._block()
+        visible = Author.objects.create(name="blocked name")  # same key, higher pk
+        source = self._source("http://s/3")
+
+        _set_source_authors(source, ["Blocked Name"])
+
+        self.assertEqual(list(source.authors.all()), [visible])
+        self.assertEqual(Author.find("BLOCKED NAME"), visible)
+
+    def test_undo_is_refused_when_the_target_is_blocked(self):
+        third = Author.objects.create(name="Third Name")
+        merge = merge_authors(third, self.blocked)
+        self._block()
+
+        with self.assertRaisesMessage(MergeError, "blocked"):
+            undo_author_merge(merge)
+        self.assertFalse(Author.all_objects.filter(name="Third Name").exists())
+
+    def test_admin_lists_blocked_authors_and_cannot_delete(self):
+        from django.contrib.admin.sites import site
+        from django.test import RequestFactory
+
+        self._block()
+        model_admin = site._registry[Author]
+        request = RequestFactory().get("/")
+
+        self.assertIn(self.blocked, model_admin.get_queryset(request))
+        self.assertFalse(model_admin.has_delete_permission(request))

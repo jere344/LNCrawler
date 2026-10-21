@@ -8,9 +8,10 @@ rejected or undone.
 A. Normalized equality: authors that share one key ("I Eat Tomatoes" and
    "i eat  tomatoes") are merged at once, reason ``normalized``.
 B. Mixed script: a name such as "Cuttlefish That Loves Diving 爱潜水的乌贼" whose
-   Latin and CJK parts all resolve to existing authors. If they resolve to one
-   author, the mixed name is merged into it at once. If they resolve to two, the
-   pair is queued, reason ``mixed_script``. Resolving never creates an author.
+   Latin parts all resolve to existing authors. An unresolved CJK part is ignored.
+   If the resolved parts are one author, the mixed name is merged into it at once.
+   If they are two, the pair is queued, reason ``mixed_script``. Resolving never
+   creates an author.
 C. Cross-source: in one novel, two sources that differ by exactly one author
    each probably credit the same person under two names. Queued, reason
    ``cross_source``.
@@ -28,7 +29,7 @@ from django.db.models import Count
 from lncrawler_api.models import Author, AuthorMergeCandidate, NovelFromSource
 from lncrawler_api.services.author_merge_service import merge_candidate, pick_target
 from lncrawler_api.services.merge_common import ordered_pair, sorted_pk_signature
-from lncrawler_api.utils.author_names import script_runs
+from lncrawler_api.utils.author_names import script_runs_with_kind
 
 # Candidate pairs keep at most this many novel ids in their signals.
 NOVEL_IDS_CAP = 10
@@ -126,13 +127,17 @@ class Command(BaseCommand):
 
     def _rule_b(self):
         for author in list(Author.objects.order_by("pk")):
-            runs = script_runs(author.name)
+            runs = script_runs_with_kind(author.name)
             if len(runs) < 2:
                 continue
-            found = [Author.find(run) for run in runs]
-            if any(match is None for match in found):
+            found = [(kind, Author.find(run)) for kind, run in runs]
+            # An unresolved Latin run skips the name; an unresolved CJK run is ignored.
+            if any(match is None for kind, match in found if kind == "latin"):
                 continue
-            resolved = {match.pk: match for match in found if match.pk != author.pk}
+            resolved = {
+                match.pk: match for _kind, match in found
+                if match is not None and match.pk != author.pk
+            }
             signals = {"combined_name": author.name}
             if len(resolved) == 1:
                 target = next(iter(resolved.values()))
@@ -161,6 +166,8 @@ class Command(BaseCommand):
 
         authors = Author.objects.in_bulk({pk for key in pairs for pk in key})
         for (low, high), novel_ids in sorted(pairs.items()):
+            if low not in authors or high not in authors:
+                continue  # blocked author
             a, b = authors[low], authors[high]
             if not self._is_new_pair(a, b):
                 continue

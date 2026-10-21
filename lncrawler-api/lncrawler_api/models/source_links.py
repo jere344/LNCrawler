@@ -33,7 +33,9 @@ def _set_source_authors(novel_from_source, names):
     merged-away aliases), locks the sorted union of their authors in one statement,
     then links. ``merge_authors`` locks the same rows in the same order, so an
     author merged away in the meantime is missing from the lock result; that
-    attempt rolls back and the names are resolved again.
+    attempt rolls back and the names are resolved again. Blocked names are skipped
+    (``Author.resolve`` returns None), and an author blocked during the import drops
+    out of the lock result, so that attempt is retried too.
 
     Raises ``AuthorImportError`` when every attempt failed.
     """

@@ -105,11 +105,22 @@ class Person(models.Model):
         return self.name
 
 
+class VisibleAuthorManager(models.Manager):
+    """Default manager: blocked authors are hidden from every query and relation."""
+    def get_queryset(self):
+        return super().get_queryset().filter(is_blocked=False)
+
+
 class Author(Person):
     """Author of a novel"""
     # Comparison key (case/width/spacing/edge-punctuation-insensitive), always derived
     # from ``name`` in save(). Not unique: two authors can share a key until merged.
     normalized = models.CharField(max_length=255, db_index=True, blank=True, default="", editable=False)
+    # Blocked authors are unlinked from their sources and never recreated by an import.
+    is_blocked = models.BooleanField(default=False, db_index=True)
+
+    objects = VisibleAuthorManager()
+    all_objects = models.Manager()
 
     class Meta:
         indexes = [
@@ -128,14 +139,30 @@ class Author(Person):
         """Return the existing author for ``name`` (or a merged-away alias of it), else None.
 
         Never creates an author, so read paths such as filters can use it safely.
+        Blocked authors are never returned.
+        """
+        author = cls._find_any(name)
+        return None if author is None or author.is_blocked else author
+
+    @classmethod
+    def _find_any(cls, name):
+        """``find`` without the blocked check: a blocked author is returned as well.
+
+        A visible author wins over a blocked one sharing the key, so blocking one of
+        two not-yet-merged duplicates leaves the other one usable.
         """
         key = normalize_author(name)
         if not key:
             return None
-        author = cls.objects.filter(normalized=key).order_by("pk").first()
+        author = cls.all_objects.filter(normalized=key).order_by("is_blocked", "pk").first()
         if author is not None:
             return author
-        alias = AuthorAlias.objects.filter(normalized=key).select_related("author").first()
+        alias = (
+            AuthorAlias.objects.filter(normalized=key)
+            .select_related("author")
+            .order_by("author__is_blocked", "pk")
+            .first()
+        )
         return alias.author if alias is not None else None
 
     @classmethod
@@ -143,12 +170,14 @@ class Author(Person):
         """Return the author for ``name``, following a merged-away alias first.
 
         Keeps re-imports from recreating an author that was merged into another.
-        None for a blank name.
+        None for a blank name, and for a blocked name (the name is blocklisted).
         """
         name = (name or "").strip()[: cls._meta.get_field('name').max_length]
         if not normalize_author(name):
             return None
-        author = cls.find(name)
+        author = cls._find_any(name)
+        if author is not None and author.is_blocked:
+            return None
         if author is None:
             author = cls.objects.create(name=name)
         return author
