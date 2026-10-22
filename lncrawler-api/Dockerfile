@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM python:3.14-slim
 
 
@@ -14,14 +15,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set up the working directory
 WORKDIR /app/lncrawler-api
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install the Chromium browser used by the crawler's Playwright backend.
+# Install Playwright and its Chromium browser first, so changing another
+# requirement does not download the browser again.
 # Native (curl_cffi) crawling works without it; the browser is the antibot fallback.
-RUN playwright install --with-deps chromium \
+COPY requirements-playwright.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-playwright.txt \
+    && playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
+
+# Install the other Python dependencies (pip's download cache is kept between builds).
+# The constraint fails the build if requirements.txt pins another Playwright
+# version than requirements-playwright.txt (the browser above would not match).
+COPY requirements.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt -c requirements-playwright.txt
 
 # Copy the startup scripts
 COPY start.sh start_crawler.sh start_scheduler.sh /app/lncrawler-api/

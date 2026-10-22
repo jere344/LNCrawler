@@ -34,6 +34,7 @@ services:
 
   api:
     build: ./lncrawler-api
+    image: lncrawler-api
     restart: unless-stopped
     volumes: &api-volumes
       - ./lncrawler-api:/app/lncrawler-api
@@ -79,7 +80,9 @@ services:
   # queue. Scale with usage: set CRAWLER_REPLICAS in .env, or run
   #   docker compose up -d --scale crawler=N
   crawler:
-    build: ./lncrawler-api
+    # Same image as api (built once by the api service), never pulled.
+    image: lncrawler-api
+    pull_policy: never
     restart: unless-stopped
     # tini as PID 1 (reaps orphaned Chromium grandchildren from job subprocesses).
     init: true
@@ -109,7 +112,8 @@ services:
   # download jobs onto the crawler queue; it is toggled from the admin
   # (HarvestConfig). Merged into one process to save a whole Django interpreter.
   scheduler:
-    build: ./lncrawler-api
+    image: lncrawler-api
+    pull_policy: never
     restart: unless-stopped
     volumes: *api-volumes
     environment: *api-env
