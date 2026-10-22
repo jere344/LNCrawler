@@ -29,4 +29,4 @@ class SchedulerLLMGateTests(TestCase):
         with mock.patch.object(scheduler_module, "call_command") as call:
             scheduler_module.run_llm_queue_task()
 
-        call.assert_called_once_with("run_llm_requests")
+        call.assert_called_once_with("run_llm")

@@ -1,12 +1,12 @@
 from django.core.management.base import BaseCommand
 
-from ...models import LLMRequest
+from ...models import Candidate
 from ...services import llm_service, llm_tasks
 
 
 class Command(BaseCommand):
     help = (
-        "Enqueue and process LLMRequest rows (see services/llm_tasks.py). "
+        "Judge pending candidates with the LLM (see services/llm_tasks.py). "
         "Without a task, every task takes turns."
     )
 
@@ -16,13 +16,13 @@ class Command(BaseCommand):
             "--limit",
             type=int,
             default=None,
-            help="Max requests to process this run (default: until the provider limits, "
+            help="Max LLM calls to make this run (default: until the provider limits, "
                  "the daily budget or an empty queue stops it).",
         )
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Only enqueue and report pending rows; make no LLM call.",
+            help="Only report the pending candidates; make no LLM call.",
         )
 
     def handle(self, *args, **options):
@@ -31,9 +31,8 @@ class Command(BaseCommand):
 
         if options["dry_run"]:
             for name in names:
-                created = llm_tasks._top_up(llm_tasks.REGISTRY[name], options["limit"])
-                pending = LLMRequest.objects.filter(task=name, status=LLMRequest.STATUS_PENDING).count()
-                self.stdout.write(f"{name}: enqueued {created}, pending {pending} (dry run, no LLM call)")
+                pending = Candidate.objects.filter(kind=name, status=Candidate.STATUS_PENDING).count()
+                self.stdout.write(f"{name}: pending {pending} (dry run, no LLM call)")
             return
 
         if not llm_service.is_configured():

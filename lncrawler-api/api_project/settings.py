@@ -205,7 +205,7 @@ LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
 
 # Cross-source novel dedup (find_merge_candidates). certainty is 0..1; the
-# command only queues candidates, the LLM judge (run_llm_queue) or a
+# command only queues candidates, the LLM judge (run_llm) or a
 # human merges them.
 # Pairs at/above this certainty are queued for manual review.
 MERGE_REVIEW_LOW = 0.5
@@ -278,13 +278,20 @@ def _llm_chain_entry(name):
 
 LLM_PROVIDER_SETTINGS = {name: _llm_chain_entry(name) for name in LLM_PROVIDERS}
 
-# Novel merge judge (LLMRequest task "novel_merge", see services/llm_tasks.py).
-# A confident "different" verdict dismisses a low-certainty pair (status skipped)
-# so the reviewer never sees it. Certainty at/above the cap always stays queued.
-MERGE_LLM_DISMISS_CONFIDENCE = float(os.environ.get("MERGE_LLM_DISMISS_CONFIDENCE", "0.9"))
-MERGE_LLM_DISMISS_MAX_CERTAINTY = float(os.environ.get("MERGE_LLM_DISMISS_MAX_CERTAINTY", "0.8"))
-# A "same" verdict at/above this confidence merges the pair (decision auto).
-MERGE_LLM_AUTO_CONFIDENCE = float(os.environ.get("MERGE_LLM_AUTO_CONFIDENCE", "0.95"))
+# LLM decisions, one workflow for every kind (services/llm_tasks.py, decide()).
+# A confident yes or no is applied; a low-confidence or unsure answer, or a safeguard,
+# waits for review.
+# A "same" / "yes" verdict at/above these confidences is applied without review.
+NOVEL_MERGE_AUTO_CONFIDENCE = float(os.environ.get("NOVEL_MERGE_AUTO_CONFIDENCE", "0.95"))
+AUTHOR_MERGE_AUTO_CONFIDENCE = float(os.environ.get("AUTHOR_MERGE_AUTO_CONFIDENCE", "0.95"))
+# Measured on gemma-4-26b: every wrong set came at 0.9 or below, correct ones up to 1.0.
+TAG_MERGE_AUTO_CONFIDENCE = float(os.environ.get("TAG_MERGE_AUTO_CONFIDENCE", "0.95"))
+# R18 tags at/above this confidence are flagged adult (below it: review).
+TAG_R18_AUTO_CONFIDENCE = float(os.environ.get("TAG_R18_AUTO_CONFIDENCE", "0.85"))
+# Safeguards: a tag merge joining two tags used by more than this many sources, and an
+# R18 tag on at least this many novels, wait for review.
+TAG_BIG_TAG_USAGE = int(os.environ.get("TAG_BIG_TAG_USAGE", "200"))
+TAG_R18_REVIEW_NOVELS = int(os.environ.get("TAG_R18_REVIEW_NOVELS", "10"))
 
 # Automatic tag merging (find_tag_merge_candidates / TagMergeTask).
 # Embeddings: any OpenAI-compatible /embeddings endpoint; see services/embedding_service.py.
@@ -309,18 +316,6 @@ TAG_COOC_TOP_K = 5
 TAG_TRGM_MIN = 0.6
 # Largest group sent to the judge as one cluster.
 TAG_CLUSTER_MAX = 12
-# LLM judging reuses the LLM chain (batch sizes live in llm_tasks.py).
-# R18 tag classifier (services/llm_tasks.py, TagR18Task). Runs through LLMRequest.
-# Only R18 verdicts at or above this confidence flag the tag as adult.
-TAG_R18_LLM_MIN_CONFIDENCE = float(os.environ.get("TAG_R18_LLM_MIN_CONFIDENCE", "0.85"))
-# Safeguards: sets below this confidence, or joining two tags used by more than
-# TAG_BIG_TAG_USAGE sources, wait for review instead of being applied.
-# Measured on gemma-4-26b: every wrong set came at 0.9 or below, correct ones up to 1.0.
-TAG_AUTO_MIN_CONFIDENCE = 0.95
-TAG_BIG_TAG_USAGE = 200
-
-# Author merge (services/author_merge_service.py). The LLM judge (AuthorMergeTask)
-# reuses the LLM chain and runs through LLMRequest.
 
 IMPORT_FOLDER_PATH = os.path.join(BASE_DIR.parent, 'imports')
 

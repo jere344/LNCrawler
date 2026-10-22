@@ -7,9 +7,9 @@
 import json
 import random
 
-from django.db.models import Count
+from django.db.models import Count, Q
 
-from lncrawler_api.models import MergeCandidate, Novel
+from lncrawler_api.models import Candidate, Novel
 
 LIMIT = 60
 random.seed(1)
@@ -51,30 +51,41 @@ def novel_profile(novel):
 pairs = []
 
 # Different works: the confident "same" pile (reviewed as wrong) and rejected pairs.
-wrong = MergeCandidate.objects.filter(novel_a__isnull=False, novel_b__isnull=False).filter(
-    status=MergeCandidate.STATUS_PENDING, llm_verdict__same=True,
-) | MergeCandidate.objects.filter(
-    novel_a__isnull=False, novel_b__isnull=False, status=MergeCandidate.STATUS_REJECTED,
+# A novel_merge verdict stores the answer as "yes" (same) or "no" (different).
+wrong = list(
+    Candidate.objects.filter(kind=Candidate.KIND_NOVEL_MERGE).filter(
+        Q(status=Candidate.STATUS_REVIEW, verdict__answer="yes")
+        | Q(status=Candidate.STATUS_REJECTED)
+    )
 )
-wrong = list(wrong.distinct())
 random.shuffle(wrong)
-for c in wrong[:LIMIT]:
+for c in wrong:
+    found = {str(novel.pk): novel for novel in Novel.objects.filter(pk__in=c.target_ids)}
+    if len(found) != 2:
+        continue
+    a, b = (found[str(pk)] for pk in c.target_ids)
     pairs.append({
         "label": "different", "origin": c.status, "candidate": str(c.pk),
-        "old_verdict": c.llm_verdict,
-        "a": novel_profile(c.novel_a), "b": novel_profile(c.novel_b),
+        "old_verdict": c.verdict,
+        "a": novel_profile(a), "b": novel_profile(b),
     })
+    if sum(p["label"] == "different" for p in pairs) >= LIMIT:
+        break
 
 # Same works: novels you merged by hand that hold sources from two different sites.
-survivors = Novel.objects.filter(
-    pk__in=[
-        c.novel_a_id or c.novel_b_id
-        for c in MergeCandidate.objects.filter(
-            status=MergeCandidate.STATUS_MERGED, decision=MergeCandidate.DECISION_REVIEW,
-        )
-        if (c.novel_a_id or c.novel_b_id)
-    ]
-).annotate(sites=Count("sources__external_source", distinct=True)).filter(sites__gte=2)
+# A merged novel is the survivor of an applied novel_merge candidate decided by a human.
+# Both ids of the pair are read: the merged-away one no longer exists, so the query below drops it.
+survivor_ids = {
+    pk
+    for c in Candidate.objects.filter(
+        kind=Candidate.KIND_NOVEL_MERGE, status=Candidate.STATUS_APPLIED,
+        decided_by=Candidate.DECIDED_HUMAN,
+    )
+    for pk in c.target_ids
+}
+survivors = Novel.objects.filter(pk__in=list(survivor_ids)).annotate(
+    sites=Count("sources__external_source", distinct=True)
+).filter(sites__gte=2)
 survivors = list(survivors)
 random.shuffle(survivors)
 for novel in survivors[:LIMIT]:

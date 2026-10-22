@@ -9,7 +9,7 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Author, AuthorMergeCandidate
+from ..models import Author, Candidate
 
 logger = logging.getLogger("lncrawler_api.merge")
 
@@ -28,11 +28,15 @@ def block_authors(pks):
             author.save(update_fields=["is_blocked"])
         blocked_pks = [author.pk for author in authors]
         for pk in blocked_pks:
-            AuthorMergeCandidate.objects.filter(
-                status__in=[AuthorMergeCandidate.STATUS_PENDING, AuthorMergeCandidate.STATUS_REVIEW],
-                author_ids__contains=[pk],
+            Candidate.objects.filter(
+                kind=Candidate.KIND_AUTHOR_MERGE,
+                status__in=[Candidate.STATUS_PENDING, Candidate.STATUS_REVIEW],
+                target_ids__contains=[pk],
             ).update(
-                status=AuthorMergeCandidate.STATUS_REJECTED,
+                status=Candidate.STATUS_REJECTED,
+                decided_by=Candidate.DECIDED_HUMAN,
+                # An answer still in flight then finds the claim gone and is dropped.
+                claimed_at=None,
                 reason="author blocked",
                 decided_at=timezone.now(),
                 updated_at=timezone.now(),

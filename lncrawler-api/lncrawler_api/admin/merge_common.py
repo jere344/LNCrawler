@@ -1,7 +1,19 @@
-"""Admin actions shared by the tag and author merge admins."""
+"""Admin helpers shared by the candidate and LLM admins."""
+import json
+
 from django.contrib import messages
+from django.utils.html import format_html
 
 from ..services.merge_service import MergeError
+
+
+def _pretty_json(value):
+    if value is None:
+        return "-"
+    return format_html(
+        '<pre style="white-space:pre-wrap">{}</pre>',
+        json.dumps(value, indent=2, ensure_ascii=False),
+    )
 
 
 def undo_and_report(modeladmin, request, items, undo, label, noun):

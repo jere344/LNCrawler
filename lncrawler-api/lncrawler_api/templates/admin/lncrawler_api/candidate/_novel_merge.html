@@ -1,0 +1,29 @@
+{% load i18n %}
+{% for side in sides %}
+  <div style="flex:1 1 260px;min-width:260px;border:1px solid var(--hairline-color,#ddd);border-radius:6px;padding:12px 14px;">
+    {% if side %}
+      <h2 style="margin-top:0;"><a href="{{ side.admin_url }}">{{ side.title }}</a></h2>
+      <p class="help">{{ side.slug }} &middot; {{ side.source_count }} {% trans 'source(s)' %}</p>
+      {% for source in side.sources %}
+        <div style="display:flex;gap:10px;margin:10px 0;border-top:1px solid var(--hairline-color,#eee);padding-top:10px;">
+          {% if source.cover %}
+            <img src="{{ source.cover }}" alt="" style="width:60px;height:86px;object-fit:cover;border-radius:4px;">
+          {% endif %}
+          <div>
+            <strong>{{ source.name }}</strong> <span class="help">[{{ source.language|default:"-" }}]</span><br>
+            {% if source.url|slice:":4" == "http" %}<a href="{{ source.url }}" target="_blank" rel="noopener">{{ source.title }}</a>{% else %}{{ source.title }}{% endif %}
+            {% if source.novelupdates_url|slice:":4" == "http" %}<br><a href="{{ source.novelupdates_url }}" target="_blank" rel="noopener">NovelUpdates</a>{% endif %}
+            {% if source.authors %}<br><span class="help">{% trans 'Authors' %}: {{ source.authors|join:", " }}</span>{% endif %}
+            {% if source.alternative_titles %}<br><span class="help">{% trans 'Alt. titles' %}: {{ source.alternative_titles|join:", " }}</span>{% endif %}
+            {% if source.tags %}<br><span class="help">{% trans 'Tags' %}: {{ source.tags|join:", " }}</span>{% endif %}
+            {% if source.synopsis %}<br><span class="help">{{ source.synopsis }}</span>{% endif %}
+          </div>
+        </div>
+      {% empty %}
+        <p class="help">{% trans 'No sources.' %}</p>
+      {% endfor %}
+    {% else %}
+      <p>{% trans 'This novel no longer exists.' %}</p>
+    {% endif %}
+  </div>
+{% endfor %}

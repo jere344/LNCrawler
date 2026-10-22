@@ -10,11 +10,12 @@ Cheap deterministic funnel:
    (noisy-OR, so independent signals corroborate each other). Penalty signals
    (sequel mismatch) then scale it down, since titles are folded for blocking
    and lose the sequel number.
-3. Store — write a ``MergeCandidate`` per pair. Nothing is merged here: the
+3. Store — write a ``novel_merge`` Candidate per pair. Nothing is merged here: the
    LLM judge merges the pairs it is sure about, the rest wait for the admin
    review page.
 
-Re-running is safe: pairs a human already rejected/merged are left untouched.
+Re-running is safe: pairs a human already decided are left untouched, pairs blocked
+by a rejected or undone candidate (``candidate_blocks``) are never proposed again.
 """
 from collections import defaultdict
 
@@ -24,8 +25,9 @@ from django.db import connection, transaction
 from django.db.models import Count
 from django.utils import timezone
 
-from lncrawler_api.models import MergeCandidate, Novel, NovelFromSource, NovelSimilarity
-from lncrawler_api.services.merge_common import ordered_pair
+from lncrawler_api.models import Candidate, Novel, NovelFromSource, NovelSimilarity
+from lncrawler_api.services.candidate_blocks import blocked_pairs, pair_key
+from lncrawler_api.services.merge_common import ordered_pair, sorted_pk_signature
 from lncrawler_api.utils.title_signals import normalize_text, sequel_number
 
 # Per-signal weights fed into the noisy-OR. ``src`` (same source URL) and ``nu``
@@ -89,7 +91,7 @@ def combo_certainty(signals):
 
 
 class Command(BaseCommand):
-    help = "Find probable duplicate novels and queue MergeCandidate rows."
+    help = "Find probable duplicate novels and queue novel_merge candidates."
 
     def add_arguments(self, parser):
         parser.add_argument("--review-low", type=float, default=None,
@@ -126,8 +128,8 @@ class Command(BaseCommand):
         stats = self._store(pair_signals, allowed)
         self.stdout.write(self.style.SUCCESS(
             "merge candidates: {candidates} pair(s), "
-            "{stale} stale removed out of {novels} novel(s), "
-            "{blocks} block key(s)".format(
+            "{blocked} blocked, {stale} stale removed, {gone} open row(s) of missing novels removed, "
+            "out of {novels} novel(s), {blocks} block key(s)".format(
                 novels=len(data["titles"]), blocks=len(data["blocks"]), **stats
             )
         ))
@@ -420,23 +422,25 @@ class Command(BaseCommand):
 
     # ---------------------------------------------------------------- store
     def _store(self, pair_signals, allowed):
-        stats = {"candidates": 0, "stale": 0}
+        stats = {"candidates": 0, "stale": 0, "blocked": 0, "gone": 0}
+        blocked = blocked_pairs(Candidate.KIND_NOVEL_MERGE)
 
-        if not self.dry_run:
-            # Drop candidates whose novel was merged away outside this command.
-            MergeCandidate.objects.filter(status=MergeCandidate.STATUS_PENDING).filter(
-                novel_a__isnull=True
-            ).update(status=MergeCandidate.STATUS_SKIPPED)
-            MergeCandidate.objects.filter(status=MergeCandidate.STATUS_PENDING).filter(
-                novel_b__isnull=True
-            ).update(status=MergeCandidate.STATUS_SKIPPED)
-
-        # One preload keyed by the unordered pair replaces a lookup per pair.
-        # Rows whose FK was SET_NULL by a merge are not live pairs.
-        existing = {
-            ordered_pair(row.novel_a_id, row.novel_b_id): row
-            for row in MergeCandidate.objects.filter(novel_a__isnull=False, novel_b__isnull=False)
-        }
+        # An open row naming a novel that no longer exists can never be judged or applied:
+        # the merge or delete that removed the novel should have deleted it already.
+        known = {str(pk) for pk in Novel.objects.values_list("pk", flat=True)}
+        rows = list(Candidate.objects.filter(kind=Candidate.KIND_NOVEL_MERGE))
+        gone = [
+            row for row in rows
+            if row.status in Candidate.OPEN_STATUSES
+            and row.claimed_at is None  # in flight: the runner drops it when it finds the novel gone
+            and any(str(pk) not in known for pk in row.target_ids)
+        ]
+        stats["gone"] = len(gone)
+        if gone and not self.dry_run:
+            Candidate.objects.filter(pk__in=[row.pk for row in gone]).delete()
+        gone_pks = {row.pk for row in gone}
+        # One preload keyed by signature replaces a lookup per pair.
+        existing = {row.signature: row for row in rows if row.pk not in gone_pks}
 
         involved = {nid for pair in pair_signals for nid in pair}
         novels = {n.pk: n for n in Novel.objects.filter(pk__in=involved)}
@@ -449,53 +453,62 @@ class Command(BaseCommand):
             certainty = combo_certainty(signals)
             if certainty < self.review_low:
                 continue
-            kept.add((a_id, b_id))
-            row = existing.get((a_id, b_id))
-            # A pair a human (or the LLM dismissal) already settled stays as is.
-            if row is not None and row.status != MergeCandidate.STATUS_PENDING:
+            key = pair_key(a_id, b_id)
+            kept.add(key)
+            if key in blocked:
+                stats["blocked"] += 1
+                continue
+            signature = sorted_pk_signature([str(a_id), str(b_id)])
+            row = existing.get(signature)
+            # A pair a human or the LLM already decided stays as it is.
+            if row is not None and row.status not in Candidate.OPEN_STATUSES:
                 continue
             stats["candidates"] += 1
             if self.dry_run:
                 continue
-            if row is not None:
-                row.certainty = certainty
-                row.signals = signals
-                row.updated_at = now
-                to_update.append(row)
-                continue
             novel_a, novel_b = novels.get(a_id), novels.get(b_id)
             if novel_a is None or novel_b is None:
                 continue
-            to_create.append(MergeCandidate(
-                novel_a=novel_a,
-                novel_b=novel_b,
-                novel_a_id_snapshot=novel_a.pk,
-                novel_b_id_snapshot=novel_b.pk,
-                title_a=novel_a.title,
-                title_b=novel_b.title,
+            names = [novel_a.title, novel_b.title]
+            if row is not None:
+                row.certainty = certainty
+                row.signals = signals
+                row.target_names = names
+                row.updated_at = now
+                to_update.append(row)
+                continue
+            to_create.append(Candidate(
+                kind=Candidate.KIND_NOVEL_MERGE,
+                signature=signature,
+                target_ids=[str(a_id), str(b_id)],
+                target_names=names,
                 certainty=certainty,
                 signals=signals,
             ))
 
-        # Pending rows the machine queued and nobody settled go stale once their
-        # pair no longer reaches review_low. Only pairs this run looked at (both
-        # novels in ``allowed``) are judged, so a --limit run leaves the rest alone.
+        # Undecided rows the machine queued go stale once their pair no longer reaches
+        # review_low. Only pairs this run looked at (both novels in ``allowed``) are judged,
+        # so a --limit run leaves the rest alone. Claimed rows are left to the runner.
         # A pair that comes back is re-created and re-judged by the LLM.
+        allowed_str = {str(pk) for pk in allowed}
         stale = [
-            row.pk for pair, row in existing.items()
-            if row.status == MergeCandidate.STATUS_PENDING
-            and pair[0] in allowed and pair[1] in allowed
-            and pair not in kept
+            row.pk for row in existing.values()
+            if row.status in (Candidate.STATUS_PENDING, Candidate.STATUS_REVIEW)
+            and not row.decided_by
+            and row.claimed_at is None
+            and len(row.target_ids) == 2
+            and all(pk in allowed_str for pk in pair_key(*row.target_ids))
+            and pair_key(*row.target_ids) not in kept
         ]
         stats["stale"] = len(stale)
         if stale and not self.dry_run:
-            MergeCandidate.objects.filter(pk__in=stale).delete()
+            Candidate.objects.filter(pk__in=stale).delete()
 
         if to_create:
-            MergeCandidate.objects.bulk_create(to_create)
+            Candidate.objects.bulk_create(to_create)
         if to_update:
-            MergeCandidate.objects.bulk_update(
-                to_update, ["certainty", "signals", "updated_at"]
+            Candidate.objects.bulk_update(
+                to_update, ["certainty", "signals", "target_names", "updated_at"]
             )
 
         return stats

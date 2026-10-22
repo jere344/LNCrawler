@@ -1,10 +1,11 @@
-"""Tests for tag autocomplete, normalization, merging and automatic clustering."""
+"""Tests for tag autocomplete, normalization, merging and the tag_merge / tag_r18 candidates."""
 
 import json
 import os
 import shutil
 import tempfile
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
@@ -14,16 +15,14 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ..models import (
+    Candidate,
     ExternalSource,
+    LLMCall,
+    LLMUsage,
     Novel,
     NovelFromSource,
     Tag,
     TagAlias,
-    TagCluster,
-    LLMRequest,
-    LLMUsage,
-    TagMerge,
-    TagNoMerge,
 )
 from django.conf import settings
 from django.contrib import admin
@@ -33,13 +32,74 @@ from django.contrib.messages import get_messages
 from django.db import IntegrityError
 from ..admin.source_admin import TagAdmin, TagAdminForm
 from ..models import sources_models
-from ..models.source_links import TAG_IMPORT_ATTEMPTS, TagImportError, TagImportRetry
+from ..models.source_links import TAG_IMPORT_ATTEMPTS, TagImportError
 from ..models.sources_models import _set_source_tags, refresh_adult_for_tags
-from ..services import MergeError, llm_service, merge_tags, rename_tag, undo_tag_cluster, undo_tag_merge
+from ..services import MergeError, llm_service, merge_tags, rename_tag
 from ..services import embedding_service, llm_tasks, merge_service
 from ..services import tag_merge_service as tms
+from ..services.candidate_blocks import blocked_pairs, pair_key
+from ..services.candidate_service import (
+    CandidateError,
+    apply_candidate,
+    reject_candidate,
+    undo_candidate,
+)
 from ..services.merge_common import sorted_pk_signature
 from ..utils.tag_utils import normalize_tag
+
+
+def tag_rows():
+    """Every tag_merge candidate row."""
+    return Candidate.objects.filter(kind=Candidate.KIND_TAG_MERGE)
+
+
+def tag_candidate(*tags, **extra):
+    """A candidate naming these tags, in the order the finder writes them."""
+    ids = [tag.pk for tag in tags]
+    return Candidate.objects.create(
+        kind=Candidate.KIND_TAG_MERGE,
+        signature=sorted_pk_signature(ids),
+        target_ids=ids,
+        target_names=[tag.name for tag in tags],
+        **extra,
+    )
+
+
+def run_judge(reply, task="tag_merge", limit=None, **overrides):
+    """Run ``run_llm`` for one task with ``reply`` as the model's answer.
+
+    ``reply`` is an exception to raise, a str sent as-is, a dict sent as JSON, or a
+    function of the messages returning one of those. ``limit`` caps the calls of the run.
+    Returns the ``_post_chat`` mock, so a test can count the calls.
+    """
+    settings_overrides = {"LLM_API_KEY": "test-key", **overrides}
+
+    def post(messages, *args, **kwargs):
+        value = reply(messages) if callable(reply) else reply
+        if isinstance(value, Exception):
+            raise value
+        content = value if isinstance(value, str) else json.dumps(value)
+        return content, 10, None
+
+    with override_settings(**settings_overrides), \
+            mock.patch.object(llm_service, "_post_chat", side_effect=post) as mocked:
+        call_command("run_llm", task, limit=limit)
+    return mocked
+
+
+def no_sets_for_each_group(messages):
+    """A reply that rejects every group the prompt holds: no set proposed."""
+    groups = messages[-1]["content"].count("Group ")
+    return {"groups": [{"group": number, "sets": []} for number in range(1, groups + 1)]}
+
+
+def make_tags(*names):
+    return [Tag.objects.create(name=name) for name in names]
+
+
+def answer(*sets):
+    """A tag_merge reply with one group holding the given sets."""
+    return {"groups": [{"group": 1, "sets": list(sets)}]}
 
 
 class TagAutocompleteAliasTests(TestCase):
@@ -163,44 +223,72 @@ class TagMergeUndoTests(TestCase):
             novel=self.novel, external_source=self.external, title="N", source_url=url
         )
 
-    def test_merge_records_a_tagmerge(self):
+    def test_merge_records_an_applied_candidate_with_its_undo_entry(self):
         merge_tags(self.source, self.target)
 
-        merge = TagMerge.objects.get()
-        self.assertEqual(merge.kind, TagMerge.KIND_MERGE)
-        self.assertEqual(merge.source_name, "Another World")
-        self.assertEqual(merge.target, self.target)
-        self.assertEqual(sorted(merge.all_source_ids), sorted([self.s2.pk, self.s3.pk]))
-        self.assertEqual(merge.added_source_ids, [self.s3.pk])
-        self.assertEqual(len(merge.moved_alias_ids), 1)
+        candidate = tag_rows().get()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(candidate.decided_by, Candidate.DECIDED_HUMAN)
+        [entry] = candidate.undo
+        self.assertEqual(entry["type"], "tag_merge")
+        self.assertEqual(entry["source_name"], "Another World")
+        self.assertEqual(entry["target_id"], self.target.pk)
+        self.assertEqual(sorted(entry["all_source_ids"]), sorted([self.s2.pk, self.s3.pk]))
+        self.assertEqual(entry["added_source_ids"], [self.s3.pk])
+        self.assertEqual(len(entry["moved_alias_ids"]), 1)
         self.assertEqual(set(self.target.novels.all()), {self.s1, self.s2, self.s3})
 
     def test_undo_restores_links_and_aliases(self):
         merge_tags(self.source, self.target)
-        merge = TagMerge.objects.get()
+        candidate = tag_rows().get()
 
-        undo_tag_merge(merge)
+        undo_candidate(candidate)
 
         restored = Tag.objects.get(name="Another World")
         self.assertEqual(set(restored.novels.all()), {self.s2, self.s3})
         self.assertEqual(set(self.target.novels.all()), {self.s1, self.s2})
         self.assertEqual(TagAlias.objects.get(name="Otherworld").tag, restored)
         self.assertFalse(TagAlias.objects.filter(name="Another World").exists())
-        merge.refresh_from_db()
-        self.assertIsNotNone(merge.undone_at)
-        with self.assertRaises(MergeError):
-            undo_tag_merge(merge)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_UNDONE)
+        self.assertIsNotNone(candidate.undone_at)
+        with self.assertRaises(CandidateError):
+            undo_candidate(candidate)
 
-    def test_rename_keeps_old_name_as_alias_and_undoes(self):
-        renamed = rename_tag(self.source, "Isekai World")
-
-        self.assertEqual(renamed.name, "Isekai World")
+    def test_rename_is_undone_through_the_candidate_that_holds_it(self):
+        # A rename the LLM proposed as a set's canonical name, held by that set's candidate.
+        entry = merge_service.apply_rename(self.source, "Isekai World")
         self.assertEqual(TagAlias.objects.get(name="Another World").tag, self.source)
+        candidate = tag_candidate(self.source, status=Candidate.STATUS_APPLIED, undo=[entry])
 
-        undo_tag_merge(TagMerge.objects.get(kind=TagMerge.KIND_RENAME))
+        undo_candidate(candidate)
+
         self.source.refresh_from_db()
         self.assertEqual(self.source.name, "Another World")
         self.assertFalse(TagAlias.objects.filter(name="Another World").exists())
+
+    def test_admin_rename_records_a_candidate_that_undoes_it(self):
+        rename_tag(self.source, "Isekai World")
+
+        candidate = tag_rows().get()
+        self.assertEqual((candidate.status, candidate.decided_by), (Candidate.STATUS_APPLIED, Candidate.DECIDED_HUMAN))
+        undo_candidate(candidate)
+        self.source.refresh_from_db()
+        self.assertEqual(self.source.name, "Another World")
+
+    def test_rename_to_the_same_name_records_nothing(self):
+        rename_tag(self.source, "Another World")
+        self.assertFalse(tag_rows().exists())
+
+    def test_undo_refuses_an_entry_marked_not_undoable(self):
+        candidate = tag_candidate(
+            self.source, status=Candidate.STATUS_APPLIED,
+            undo=[{"type": "tag_merge", "legacy_id": 1, "undoable": False}],
+        )
+        with self.assertRaisesRegex(CandidateError, "without the data needed"):
+            undo_candidate(candidate)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
 
     def test_rename_onto_existing_key_is_refused(self):
         with self.assertRaises(MergeError):
@@ -312,7 +400,7 @@ class TagAdultPropagationTests(TestCase):
         plain.refresh_from_db()
         self.assertTrue(plain.is_adult)  # Erotica took Smut's R18 flag
 
-        undo_tag_merge(TagMerge.objects.get(source_name="Smut"))
+        undo_candidate(tag_rows().get())
         erotica.refresh_from_db()
         moved.refresh_from_db()
         plain.refresh_from_db()
@@ -341,7 +429,7 @@ class BuildClustersTests(SimpleTestCase):
 
     def test_drops_blocked_pairs_before_clustering(self):
         edges = {(1, 2): {"embed": 0.95}, (2, 3): {"trgm": 0.7}}
-        clusters = tms.build_clusters(edges, max_size=12, blocked=[(2, 1)])
+        clusters = tms.build_clusters(edges, max_size=12, blocked=[pair_key(2, 1)])
         self.assertEqual(clusters, [([2, 3], {"2-3": {"trgm": 0.7}})])
 
     def test_no_edges_no_clusters(self):
@@ -369,7 +457,7 @@ class EdgeSignalTests(SimpleTestCase):
         self.assertNotIn((20, 21), edges)
 
 
-class JudgeTagClustersTests(TestCase):
+class JudgeTagMergeTests(TestCase):
     def setUp(self):
         self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
         self.external = ExternalSource.objects.create(source_name="s")
@@ -385,38 +473,17 @@ class JudgeTagClustersTests(TestCase):
             novel=self.novel, external_source=self.external, title="N", source_url=url
         )
 
-    def _cluster(self, *tags):
-        ids = [tag.pk for tag in tags]
-        return TagCluster.objects.create(
-            signature=sorted_pk_signature(ids),
-            tag_ids=ids,
-            tag_names=[tag.name for tag in tags],
-        )
-
-    def _judge(self, response=None, side_effect=None):
-        # A str reply is returned as-is (not JSON), so tests can send unparseable text.
-        content = response if isinstance(response, str) else json.dumps(response)
-        patcher = mock.patch.object(
-            llm_service, "_post_chat", return_value=(content, 10), side_effect=side_effect
-        )
-        with override_settings(LLM_API_KEY="test-key"), patcher as chat:
-            call_command("run_llm_requests", "tag_merge")
-        return chat
-
-    @staticmethod
-    def _answer(*sets):
-        return {"groups": [{"group": 1, "sets": list(sets)}]}
-
     def test_valid_answer_merges_into_existing_canonical_tag(self):
-        cluster = self._cluster(self.isekai, self.another)
-        chat = self._judge(self._answer(
+        candidate = tag_candidate(self.isekai, self.another)
+        chat = run_judge(answer(
             {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.95}
         ))
 
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_APPLIED)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(candidate.decided_by, Candidate.DECIDED_LLM)
         self.assertFalse(Tag.objects.filter(pk=self.another.pk).exists())
-        self.assertEqual(TagMerge.objects.get().cluster, cluster)
+        self.assertEqual([entry["type"] for entry in candidate.undo], ["tag_merge"])
         self.assertEqual(TagAlias.objects.get(name="Another World").tag, self.isekai)
         self.assertEqual(chat.call_count, 1)
         self.assertIn("(2 novels)", chat.call_args[0][0][-1]["content"])
@@ -427,112 +494,110 @@ class JudgeTagClustersTests(TestCase):
         self._source("http://s/3").tags.add(otherworld)
         self._source("http://s/4").tags.add(otherworld)
         self._source("http://s/5").tags.add(tale)
-        cluster = self._cluster(tale, otherworld)
+        candidate = tag_candidate(tale, otherworld)
 
-        self._judge(self._answer(
+        run_judge(answer(
             {"members": ["t1", "t2"], "canonical": "Other Realm", "confidence": 0.95}
         ))
 
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_APPLIED)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
         survivor = Tag.objects.get(name="Other Realm")
         self.assertEqual(survivor.pk, otherworld.pk)
         self.assertFalse(Tag.objects.filter(pk=tale.pk).exists())
         self.assertEqual(TagAlias.objects.get(name="Otherworld").tag, survivor)
+        self.assertEqual({entry["type"] for entry in candidate.undo}, {"tag_merge", "tag_rename"})
 
     def test_low_confidence_goes_to_review_without_changes(self):
-        cluster = self._cluster(self.isekai, self.another)
-        self._judge(self._answer(
+        candidate = tag_candidate(self.isekai, self.another)
+        run_judge(answer(
             {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}
         ))
 
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_REVIEW)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REVIEW)
+        self.assertIn("low confidence", candidate.reason)
         self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
-        self.assertFalse(TagMerge.objects.exists())
+        self.assertEqual(candidate.undo, [])
 
     def test_widely_used_tags_go_to_review(self):
-        cluster = self._cluster(self.isekai, self.another)
+        candidate = tag_candidate(self.isekai, self.another)
         self._source("http://s/3").tags.add(self.another)
         with override_settings(TAG_BIG_TAG_USAGE=1):
-            self._judge(self._answer(
+            run_judge(answer(
                 {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.99}
             ))
 
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_REVIEW)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REVIEW)
+        self.assertIn("widely used", candidate.reason)
         self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
 
-    def test_blocked_pair_goes_to_review(self):
-        cluster = self._cluster(self.isekai, self.another)
-        TagNoMerge.objects.create(tag_a=self.isekai, tag_b=self.another)
-        self._judge(self._answer(
+    def test_pair_marked_not_mergeable_goes_to_review(self):
+        # A rejected pair blocks that pair inside any larger candidate that holds it.
+        third = Tag.objects.create(name="Third Tag")
+        tag_candidate(self.isekai, self.another, status=Candidate.STATUS_REJECTED)
+        candidate = tag_candidate(self.isekai, self.another, third)
+
+        run_judge(answer(
             {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.99}
         ))
 
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_REVIEW)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REVIEW)
+        self.assertIn("not mergeable", candidate.reason)
+        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
 
     def test_garbage_labels_are_dropped(self):
-        cluster = self._cluster(self.isekai, self.another)
-        self._judge(self._answer(
+        candidate = tag_candidate(self.isekai, self.another)
+        run_judge(answer(
             {"members": ["t1", "t9", "t2", 5], "canonical": "Isekai", "confidence": 0.95},
             {"members": ["t1", "t7"], "canonical": "Other", "confidence": 0.99},
         ))
 
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_APPLIED)
-        self.assertEqual(TagMerge.objects.count(), 1)
-        self.assertEqual(cluster.llm_response["sets"][0]["members"], [self.isekai.pk, self.another.pk])
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(sum(entry["type"] == "tag_merge" for entry in candidate.undo), 1)
+        self.assertEqual(candidate.verdict["sets"][0]["members"], [self.isekai.pk, self.another.pk])
 
-    def test_unparseable_answer_is_retried_with_backoff(self):
-        cluster = self._cluster(self.isekai, self.another)
-        self._judge("no json")
+    def test_sets_with_only_unknown_labels_are_retried_not_rejected(self):
+        # "T1" is not a label the prompt sent: the answer is unusable, not a "no".
+        candidate = tag_candidate(self.isekai, self.another)
+        run_judge(answer({"members": ["T1", "T2"], "canonical": "Isekai", "confidence": 0.99}))
 
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(cluster.requeue_count, 0)
-        request = LLMRequest.objects.get(task="tag_merge")
-        self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
-        self.assertEqual(request.attempts, 1)
-        self.assertIsNotNone(request.not_before)
-        self.assertIn("no JSON object", request.error)
-
-    def test_reapplying_a_done_request_skips_clusters_no_longer_pending(self):
-        cluster = self._cluster(self.isekai, self.another)
-        # Low confidence: the cluster ends in review, so it is no longer pending.
-        self._judge(self._answer(
-            {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}
-        ))
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_REVIEW)
-        batch_id = cluster.llm_batch
-        request = LLMRequest.objects.get(task="tag_merge")
-        self.assertEqual(request.status, LLMRequest.STATUS_DONE)
-
-        llm_tasks.REGISTRY["tag_merge"].apply(request, request.response)
-
-        cluster.refresh_from_db()
-        self.assertEqual(cluster.status, TagCluster.STATUS_REVIEW)
-        self.assertEqual(cluster.llm_batch, batch_id)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 1)
         self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
 
-    def test_force_applies_review_cluster(self):
-        cluster = self._cluster(self.isekai, self.another)
-        cluster.llm_response = {"sets": [{
-            "members": [self.isekai.pk, self.another.pk],
-            "canonical": "Isekai",
-            "confidence": 0.2,
-        }]}
-        cluster.status = TagCluster.STATUS_REVIEW
-        cluster.save()
+    def test_unparseable_answer_is_retried_with_backoff(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        run_judge("no json")
 
-        self.assertEqual(tms.apply_cluster(cluster, force=True), TagCluster.STATUS_APPLIED)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 1)
+        self.assertIsNotNone(candidate.not_before)
+        self.assertIn("no JSON object", candidate.reason)
+
+    def test_reviewer_applies_a_review_candidate(self):
+        candidate = tag_candidate(self.isekai, self.another, status=Candidate.STATUS_REVIEW, verdict={
+            "answer": "yes", "confidence": 0.2, "reason": "", "sets": [{
+                "members": [self.isekai.pk, self.another.pk],
+                "canonical": "Isekai",
+                "confidence": 0.2,
+            }],
+        })
+
+        apply_candidate(candidate)
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
         self.assertFalse(Tag.objects.filter(pk=self.another.pk).exists())
 
 
 class FindTagMergeCandidatesTests(TestCase):
-    def test_cooccurring_tags_become_one_pending_cluster_once(self):
+    def test_cooccurring_tags_become_one_pending_candidate_once(self):
         novel_a = Novel.objects.create(title="A", slug="a", novel_path="a")
         novel_b = Novel.objects.create(title="B", slug="b", novel_path="b")
         external = ExternalSource.objects.create(source_name="s")
@@ -551,9 +616,9 @@ class FindTagMergeCandidatesTests(TestCase):
         call_command("find_tag_merge_candidates", "--skip-embed")
         call_command("find_tag_merge_candidates", "--skip-embed")
 
-        cluster = TagCluster.objects.get()
-        self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(sorted(cluster.tag_ids), sorted([isekai.pk, another.pk]))
+        candidate = tag_rows().get()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(sorted(candidate.target_ids), sorted([isekai.pk, another.pk]))
 
 
 class EmbeddingRequestTests(SimpleTestCase):
@@ -601,7 +666,7 @@ class _FakeResponse:
 
 
 class SafeguardSurvivorTests(TestCase):
-    """A set whose canonical name resolves outside the group is held or applied explicitly."""
+    """A set whose canonical name resolves outside the group is held for a human."""
 
     def setUp(self):
         self.novel = Novel.objects.create(title="N", slug="sg", novel_path="sg")
@@ -611,16 +676,12 @@ class SafeguardSurvivorTests(TestCase):
         self.outside = Tag.objects.create(name="Shared Name")
         self._source("http://sg/1").tags.add(self.isekai)
         self._source("http://sg/2").tags.add(self.another)
-        self.cluster = TagCluster.objects.create(
-            signature="sg-1",
-            tag_ids=[self.isekai.pk, self.another.pk],
-            tag_names=["Isekai", "Another World"],
-            llm_response={"sets": [{
-                "members": [self.isekai.pk, self.another.pk],
-                "canonical": "Shared Name",
-                "confidence": 0.99,
-            }]},
-        )
+        self.candidate = tag_candidate(self.isekai, self.another)
+        self.judgement = {"answer": "yes", "confidence": 0.99, "reason": "", "sets": [{
+            "members": [self.isekai.pk, self.another.pk],
+            "canonical": "Shared Name",
+            "confidence": 0.99,
+        }]}
 
     def _source(self, url):
         return NovelFromSource.objects.create(
@@ -628,15 +689,21 @@ class SafeguardSurvivorTests(TestCase):
         )
 
     def test_merge_into_outside_tag_goes_to_review(self):
-        self.assertEqual(tms.apply_cluster(self.cluster), TagCluster.STATUS_REVIEW)
-        self.assertIn("outside the group", self.cluster.error)
+        status = llm_tasks.settle(llm_tasks.REGISTRY["tag_merge"], self.candidate, self.judgement)
+
+        self.assertEqual(status, Candidate.STATUS_REVIEW)
+        self.candidate.refresh_from_db()
+        self.assertIn("outside the group", self.candidate.reason)
         self.assertTrue(Tag.objects.filter(pk=self.isekai.pk).exists())
 
-    def test_force_merges_into_outside_tag(self):
-        self.assertEqual(tms.apply_cluster(self.cluster, force=True), TagCluster.STATUS_APPLIED)
-        self.assertFalse(Tag.objects.filter(pk=self.isekai.pk).exists())
-        self.assertFalse(Tag.objects.filter(pk=self.another.pk).exists())
-        self.assertEqual(TagMerge.objects.filter(target=self.outside).count(), 2)
+    def test_reviewer_cannot_force_a_merge_into_outside_tag(self):
+        # There is no force: the reviewer's apply runs the safeguards again and refuses.
+        llm_tasks.settle(llm_tasks.REGISTRY["tag_merge"], self.candidate, self.judgement)
+        self.candidate.refresh_from_db()
+
+        with self.assertRaisesMessage(CandidateError, "outside the group"):
+            apply_candidate(self.candidate)
+        self.assertTrue(Tag.objects.filter(pk=self.isekai.pk).exists())
 
 
 class RenameAliasClashTests(TestCase):
@@ -667,43 +734,45 @@ class ChainedUndoTests(TestCase):
         self.gamma = Tag.objects.create(name="Gamma")
         self.s1.tags.add(self.alpha)
         self.s2.tags.add(self.beta)
-        self.cluster = TagCluster.objects.create(signature="ch-1", tag_ids=[], tag_names=[])
-        merge_tags(self.alpha, self.beta, self.cluster)
-        merge_tags(self.beta, self.gamma, self.cluster)
+        alpha_pk, beta_pk = self.alpha.pk, self.beta.pk  # read before delete() clears them
+        merge_tags(self.alpha, self.beta)
+        merge_tags(self.beta, self.gamma)
+        self.first = tag_rows().get(signature=sorted_pk_signature([alpha_pk, beta_pk]))
+        self.second = tag_rows().exclude(pk=self.first.pk).get()
 
     def _source(self, url):
         return NovelFromSource.objects.create(
             novel=self.novel, external_source=self.external, title="N", source_url=url
         )
 
-    def test_older_merge_names_the_later_one(self):
-        first = TagMerge.objects.get(source_name="Alpha")
-        with self.assertRaisesRegex(MergeError, "Undo the later merge of 'Beta' into 'Gamma'"):
-            undo_tag_merge(first)
+    def test_older_merge_is_refused_while_the_later_one_stands(self):
+        with self.assertRaisesRegex(MergeError, "merged away"):
+            undo_candidate(self.first)
 
-    def test_cluster_undo_blocks_pairs_across_the_chain(self):
-        undo_tag_cluster(self.cluster)
-
-        alpha = Tag.objects.get(name="Alpha")
-        beta = Tag.objects.get(name="Beta")
-        blocked = {
-            tuple(sorted(pair))
-            for pair in TagNoMerge.objects.values_list("tag_a_id", "tag_b_id")
-        }
-        self.assertIn(tuple(sorted((alpha.pk, beta.pk))), blocked)
-        self.assertIn(tuple(sorted((beta.pk, self.gamma.pk))), blocked)
-
-    def test_cluster_undo_handles_the_chain_newest_first(self):
-        undo_tag_cluster(self.cluster)
+    def test_undoing_the_chain_newest_first_restores_every_tag(self):
+        undo_candidate(self.second)
+        undo_candidate(self.first)
 
         alpha = Tag.objects.get(name="Alpha")
         beta = Tag.objects.get(name="Beta")
         self.assertEqual(set(alpha.novels.all()), {self.s1})
         self.assertEqual(set(beta.novels.all()), {self.s2})
         self.assertEqual(set(self.gamma.novels.all()), set())
-        self.cluster.refresh_from_db()
-        self.assertEqual(self.cluster.status, TagCluster.STATUS_UNDONE)
-        self.assertTrue(TagMerge.objects.filter(undone_at__isnull=False).count() == 2)
+        self.first.refresh_from_db()
+        self.second.refresh_from_db()
+        self.assertEqual(self.first.status, Candidate.STATUS_UNDONE)
+        self.assertEqual(self.second.status, Candidate.STATUS_UNDONE)
+
+    def test_undone_chain_blocks_its_pairs(self):
+        undo_candidate(self.second)
+        undo_candidate(self.first)
+
+        alpha = Tag.objects.get(name="Alpha")
+        beta = Tag.objects.get(name="Beta")
+        self.assertEqual(
+            blocked_pairs(Candidate.KIND_TAG_MERGE),
+            {pair_key(alpha.pk, beta.pk), pair_key(beta.pk, self.gamma.pk)},
+        )
 
 
 class TagAdminRenameTests(TestCase):
@@ -723,7 +792,7 @@ class TagAdminRenameTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("alias", str(form.errors))
 
-    def test_saving_a_new_name_records_a_rename(self):
+    def test_saving_a_new_name_keeps_the_old_name_as_an_alias(self):
         form = TagAdminForm(data={"name": "Isekai Life"}, instance=self.tag)
         self.assertTrue(form.is_valid(), form.errors)
         obj = form.save(commit=False)
@@ -732,7 +801,6 @@ class TagAdminRenameTests(TestCase):
         self.tag.refresh_from_db()
         self.assertEqual(self.tag.name, "Isekai Life")
         self.assertEqual(TagAlias.objects.get(name="Isekai").tag, self.tag)
-        self.assertTrue(TagMerge.objects.filter(kind=TagMerge.KIND_RENAME).exists())
 
 
 class ImportTagLockingTests(TestCase):
@@ -794,15 +862,17 @@ class NoMergePairMoveTests(TestCase):
         self.novel = Novel.objects.create(title="N", slug="nm", novel_path="nm")
         self.external = ExternalSource.objects.create(source_name="nm")
 
-    def test_pairs_follow_the_target_and_duplicates_are_dropped(self):
-        TagNoMerge.objects.create(tag_a=self.source, tag_b=self.other)
-        TagNoMerge.objects.create(tag_a=self.source, tag_b=self.target)
-        TagNoMerge.objects.create(tag_a=self.target, tag_b=self.other)
+    def test_rejected_pairs_follow_the_target_and_duplicates_collapse(self):
+        tag_candidate(self.source, self.other, status=Candidate.STATUS_REJECTED)
+        tag_candidate(self.source, self.target, status=Candidate.STATUS_REJECTED)
+        tag_candidate(self.target, self.other, status=Candidate.STATUS_REJECTED)
 
         merge_tags(self.source, self.target)
 
-        pairs = {tuple(sorted(p)) for p in TagNoMerge.objects.values_list("tag_a_id", "tag_b_id")}
-        self.assertEqual(pairs, {tuple(sorted((self.target.pk, self.other.pk)))})
+        self.assertEqual(
+            blocked_pairs(Candidate.KIND_TAG_MERGE),
+            {pair_key(self.target.pk, self.other.pk)},
+        )
 
 
 class EmbeddingResetTests(TestCase):
@@ -815,9 +885,10 @@ class EmbeddingResetTests(TestCase):
 
     def test_undo_rename_clears_stored_vector(self):
         tag = Tag.objects.create(name="Isekai")
-        rename_tag(tag, "Isekai Life")
+        entry = merge_service.apply_rename(tag, "Isekai Life")
+        candidate = tag_candidate(tag, status=Candidate.STATUS_APPLIED, undo=[entry])
         Tag.objects.filter(pk=tag.pk).update(embedding=b"\x00\x00\x80\x3f", embedding_model="m")
-        undo_tag_merge(TagMerge.objects.get(kind=TagMerge.KIND_RENAME))
+        undo_candidate(candidate)
         tag.refresh_from_db()
         self.assertIsNone(tag.embedding)
         self.assertEqual(tag.embedding_model, "")
@@ -869,35 +940,31 @@ class ClusterAtomicityTests(TestCase):
                 novel=self.novel, external_source=self.external, title="N",
                 source_url=f"http://at/{i}",
             ).tags.add(tag)
-        ids = [self.tags[n].pk for n in ["Isekai", "Another World", "Foo Bar", "Foo Baz"]]
-        self.cluster = TagCluster.objects.create(
-            signature="at-1",
-            tag_ids=ids,
-            tag_names=list(self.tags),
-            llm_response={"sets": [
-                {"members": ids[:2], "canonical": "Isekai", "confidence": 0.95},
-                {"members": ids[2:], "canonical": "Foo Bar", "confidence": 0.95},
-            ]},
-        )
+        self.ids = [self.tags[n].pk for n in ["Isekai", "Another World", "Foo Bar", "Foo Baz"]]
+        self.candidate = tag_candidate(*self.tags.values())
+        self.judgement = {"answer": "yes", "confidence": 0.95, "reason": "", "sets": [
+            {"members": self.ids[:2], "canonical": "Isekai", "confidence": 0.95},
+            {"members": self.ids[2:], "canonical": "Foo Bar", "confidence": 0.95},
+        ]}
 
     def test_failure_in_second_set_rolls_back_the_first(self):
-        real_merge = tms.merge_tags
+        real_fold = tms.fold_tag
         calls = []
 
-        def flaky_merge(source, target, cluster=None):
+        def flaky_fold(source, target, candidate=None):
             calls.append(source.name)
             if len(calls) == 2:
                 raise MergeError("boom")
-            return real_merge(source, target, cluster)
+            return real_fold(source, target, candidate=candidate)
 
-        with mock.patch.object(tms, "merge_tags", side_effect=flaky_merge):
-            status = tms.apply_cluster(self.cluster, force=True)
+        with mock.patch.object(tms, "fold_tag", side_effect=flaky_fold):
+            status = llm_tasks.settle(llm_tasks.REGISTRY["tag_merge"], self.candidate, self.judgement)
 
-        self.assertEqual(status, TagCluster.STATUS_ERROR)
-        self.cluster.refresh_from_db()
-        self.assertEqual(self.cluster.error, "boom")
+        self.assertEqual(status, Candidate.STATUS_REVIEW)
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.reason, "boom")
+        self.assertEqual(self.candidate.undo, [])
         self.assertTrue(Tag.objects.filter(name="Another World").exists())
-        self.assertFalse(TagMerge.objects.exists())
 
 
 class JudgePromptTests(SimpleTestCase):
@@ -999,7 +1066,7 @@ class UndoSameKeyTagTests(TestCase):
     def test_undo_reuses_a_tag_already_carrying_the_key(self):
         # Someone recreated the same-key tag after the merge; undo must reuse it.
         again = Tag.objects.create(name="ALPHA")
-        undo_tag_merge(TagMerge.objects.get())
+        undo_candidate(tag_rows().get())
 
         self.assertEqual(Tag.objects.filter(normalized="alpha").count(), 1)
         self.assertEqual(Tag.objects.get(normalized="alpha").pk, again.pk)
@@ -1014,332 +1081,411 @@ class RenameIntegrityTests(TestCase):
                 rename_tag(tag, "Isekai Life")
         tag.refresh_from_db()
         self.assertEqual(tag.name, "Isekai")
-        self.assertFalse(TagMerge.objects.exists())
+        self.assertFalse(tag_rows().exists())
 
 
-class ClusterReplanTests(TestCase):
+class TagR18ThresholdTests(TestCase):
+    """An explicit rating on a tag that many novels use waits for a human, whatever the confidence."""
+
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="rp", novel_path="rp")
-        self.external = ExternalSource.objects.create(source_name="rp")
-        self.isekai = Tag.objects.create(name="Isekai")
-        self.another = Tag.objects.create(name="Another World")
-        for i, tag in enumerate([self.isekai, self.another]):
+        self.novel = Novel.objects.create(title="N", slug="r18", novel_path="r18")
+        self.external = ExternalSource.objects.create(source_name="r18")
+        self.tag = Tag.objects.create(name="Smut")
+        for i in range(2):
             NovelFromSource.objects.create(
                 novel=self.novel, external_source=self.external, title="N",
-                source_url=f"http://rp/{i}",
-            ).tags.add(tag)
-        self.cluster = TagCluster.objects.create(
-            signature="rp-1",
-            tag_ids=[self.isekai.pk, self.another.pk],
-            tag_names=["Isekai", "Another World"],
-            llm_response={"sets": [{
-                "members": [self.isekai.pk, self.another.pk],
-                "canonical": "Isekai",
-                "confidence": 0.95,
-            }]},
+                source_url=f"http://r18/{i}",
+            ).tags.add(self.tag)
+        self.candidate = Candidate.objects.create(
+            kind=Candidate.KIND_TAG_R18,
+            signature=sorted_pk_signature([self.tag.pk]),
+            target_ids=[self.tag.pk],
+            target_names=[self.tag.name],
         )
 
-    def test_plan_that_changed_under_the_lock_is_requeued(self):
-        real_plan = tms.plan_sets
-        calls = []
+    def _run(self):
+        return run_judge({"tags": [{"id": self.tag.pk, "rating": "explicit", "confidence": 0.99}]},
+                         task="tag_r18")
 
-        def shifting_plan(sets):
-            calls.append(1)
-            # The second planning (under the lock) sees nothing left to merge.
-            return real_plan(sets if len(calls) == 1 else [])
+    def test_explicit_tag_on_too_many_novels_goes_to_review(self):
+        with override_settings(TAG_R18_REVIEW_NOVELS=2):
+            self._run()
 
-        with mock.patch.object(tms, "plan_sets", side_effect=shifting_plan):
-            status = tms.apply_cluster(self.cluster)
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
+        self.assertEqual(self.candidate.reason, "tag on 2 novels")
+        self.tag.refresh_from_db()
+        self.assertFalse(self.tag.is_adult)
 
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(status, TagCluster.STATUS_PENDING)
-        self.cluster.refresh_from_db()
-        self.assertEqual(self.cluster.error, tms.REQUEUE_MESSAGE)
-        self.assertIsNone(self.cluster.llm_response)
-        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
-        self.assertFalse(TagMerge.objects.exists())
+    def test_explicit_tag_below_the_threshold_is_flagged(self):
+        with override_settings(TAG_R18_REVIEW_NOVELS=3):
+            self._run()
 
-    def test_integrity_error_while_applying_sets_error(self):
-        with mock.patch.object(tms, "_apply_set", side_effect=IntegrityError("dup key")):
-            status = tms.apply_cluster(self.cluster)
-        self.assertEqual(status, TagCluster.STATUS_ERROR)
-        self.cluster.refresh_from_db()
-        self.assertEqual(self.cluster.status, TagCluster.STATUS_ERROR)
-        self.assertIn("dup key", self.cluster.error)
-        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
+        self.tag.refresh_from_db()
+        self.assertTrue(self.tag.is_adult)
 
 
-class _JudgeFixture(TestCase):
-    def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="jf", novel_path="jf")
-        self.external = ExternalSource.objects.create(source_name="jf")
-        self.tags = [Tag.objects.create(name=n) for n in ["Isekai", "Another World", "Foo", "Bar"]]
-        for i, tag in enumerate(self.tags):
-            NovelFromSource.objects.create(
-                novel=self.novel, external_source=self.external, title="N",
-                source_url=f"http://jf/{i}",
-            ).tags.add(tag)
-        self.cluster_a = self._cluster(self.tags[0:2], "jf-a", created_offset=0)
-        self.cluster_b = self._cluster(self.tags[2:4], "jf-b", created_offset=1)
-
-    def _cluster(self, tags, signature, created_offset=0):
-        cluster = TagCluster.objects.create(
-            signature=signature,
-            tag_ids=[t.pk for t in tags],
-            tag_names=[t.name for t in tags],
-        )
-        TagCluster.objects.filter(pk=cluster.pk).update(
-            created_at=timezone.now() - timedelta(days=10 - created_offset)
-        )
-        return cluster
-
-    def _run_judge(self, chat, **overrides):
-        """Run one tag_merge run. ``chat`` is an exception to raise, or a function
-        returning the reply (a dict is sent as JSON, a str as-is). ``batch_size``
-        sets the tags per call and ``limit`` the requests per run."""
-        batch_size = overrides.pop("batch_size", 2)
-        limit = overrides.pop("limit", 1)
-        settings_overrides = {"LLM_API_KEY": "k", **overrides}
-
-        def post(messages, *args, **kwargs):
-            if isinstance(chat, Exception):
-                raise chat
-            reply = chat if isinstance(chat, str) else chat(messages, *args, **kwargs)
-            return (reply if isinstance(reply, str) else json.dumps(reply)), 10
-
-        with override_settings(**settings_overrides), \
-                mock.patch.object(llm_tasks.TagMergeTask, "batch_size", batch_size), \
-                mock.patch.object(llm_service, "_post_chat", side_effect=post) as mocked:
-            call_command("run_llm_requests", "tag_merge", limit=limit)
-        return mocked
-
-    def _run_until_failed(self, chat, **overrides):
-        """Tick once per allowed attempt, making the request due again each time."""
-        for _ in range(llm_tasks.REGISTRY["tag_merge"].max_attempts):
-            LLMRequest.objects.filter(task="tag_merge").update(not_before=None)
-            self._run_judge(chat, **overrides)
 
 
-class TagJudgeBudgetTests(_JudgeFixture):
-    def test_unusable_paid_call_still_counts_against_the_daily_budget(self):
-        def paid_but_unusable(*args, **kwargs):
-            # _post_chat writes the LLMUsage row before the reply is checked.
-            LLMUsage.objects.create(purpose="tag_merge", tokens=10)
-            return "no json"
-
-        self._run_judge(paid_but_unusable, LLM_DAILY_REQUESTS=1)
-
-        # The shared request cap is spent by the ledger row, so the retry makes no call.
-        LLMRequest.objects.filter(task="tag_merge").update(not_before=None)
-        mocked = self._run_judge(lambda *a, **k: {"groups": []}, LLM_DAILY_REQUESTS=1)
-        self.assertEqual(mocked.call_count, 0)
-
-    def test_rate_limited_call_leaves_the_cluster_untouched(self):
-        self._run_judge(llm_service.RateLimited(retry_after=None))
-        self.cluster_a.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(self.cluster_a.requeue_count, 0)
-        request = LLMRequest.objects.get(task="tag_merge", target_ids=[self.cluster_a.pk])
-        self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
-        self.assertEqual(request.attempts, 0)
-        self.assertIsNotNone(request.not_before)
-
-    def test_parse_error_retries_the_request_without_requeueing_the_cluster(self):
-        self._run_judge("no json")
-        self.cluster_a.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(self.cluster_a.requeue_count, 0)
-        request = LLMRequest.objects.get(task="tag_merge", target_ids=[self.cluster_a.pk])
-        self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
-        self.assertEqual(request.attempts, 1)
+TWO_SETS = answer(
+    {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.95},
+    {"members": ["t3", "t4"], "canonical": "Foo Bar", "confidence": 0.95},
+)
 
 
-class TagJudgeOrderTests(_JudgeFixture):
-    def test_requeued_clusters_are_judged_after_fresh_ones(self):
-        # cluster_b is older but has been requeued once, so it must wait behind cluster_a.
-        TagCluster.objects.filter(pk=self.cluster_b.pk).update(requeue_count=1)
-        mocked = self._run_judge(lambda *a, **k: {"groups": []})
-        self.assertEqual(mocked.call_count, 1)
-        self.assertIn("Isekai", mocked.call_args[0][0][-1]["content"])
-        self.assertNotIn("Foo", mocked.call_args[0][0][-1]["content"])
-
-
-class TagJudgeFailureTests(_JudgeFixture):
-    def test_failed_batch_requeues_every_cluster_in_it(self):
-        # Both clusters fit one call (4 tags), so one bad reply hits both.
-        self._run_until_failed("no json", batch_size=4)
-        request = LLMRequest.objects.get(task="tag_merge")
-        self.assertEqual(request.status, LLMRequest.STATUS_FAILED)
-        self.assertEqual(request.attempts, 3)
-        for cluster in (self.cluster_a, self.cluster_b):
-            cluster.refresh_from_db()
-            self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
-            self.assertEqual(cluster.requeue_count, 1)
-            self.assertIn("no JSON object", cluster.error)
-            self.assertIsNone(cluster.llm_batch)
-
-    def test_requeued_clusters_are_judged_alone(self):
-        self._run_until_failed("no json", batch_size=4)
-        # Both clusters would fit one call; requeued ones must each get their own.
-        mocked = self._run_judge(lambda *a, **k: {"groups": []},
-                                 batch_size=10, limit=2)
-        self.assertEqual(mocked.call_count, 2)
-        first, second = (call.args[0][-1]["content"] for call in mocked.call_args_list)
-        self.assertIn("Isekai", first)
-        self.assertNotIn("Foo", first)
-        self.assertIn("Foo", second)
-        self.assertNotIn("Isekai", second)
-
-    def test_failed_single_cluster_request_is_closed_as_error(self):
-        # Two clusters of two tags, one call per tick: only cluster_a is sent.
-        self._run_until_failed("no json", batch_size=2)
-        self.cluster_a.refresh_from_db()
-        self.cluster_b.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_ERROR)
-        self.assertIn("no JSON object", self.cluster_a.error)
-        self.assertEqual(self.cluster_b.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(self.cluster_b.requeue_count, 0)
-
-    def test_http_error_is_capped_like_a_parse_error(self):
-        self._run_until_failed(llm_service.LLMError("HTTP 500"), batch_size=4)
-        request = LLMRequest.objects.get(task="tag_merge")
-        self.assertEqual(request.status, LLMRequest.STATUS_FAILED)
-        self.assertEqual(request.attempts, 3)
-        self.cluster_a.refresh_from_db()
-        self.assertEqual(self.cluster_a.requeue_count, 1)
-
-    def test_failed_request_is_not_retried_within_the_same_run(self):
-        # Three calls allowed, two clusters: each is tried once, then the run stops.
-        mocked = self._run_judge("no json", limit=3, batch_size=2)
-        self.assertEqual(mocked.call_count, 2)
-        for cluster in (self.cluster_a, self.cluster_b):
-            cluster.refresh_from_db()
-            self.assertEqual(cluster.requeue_count, 0)
-            self.assertEqual(cluster.status, TagCluster.STATUS_PENDING)
-        for request in LLMRequest.objects.filter(task="tag_merge"):
-            self.assertEqual(request.attempts, 1)
-            self.assertEqual(request.status, LLMRequest.STATUS_PENDING)
-
-
-class TagJudgeInFlightTests(_JudgeFixture):
-    """The reply is read against the batch that was sent, not the state after the call."""
-
-    TWO_GROUPS = {"groups": [
-        {"group": 1, "sets": [{"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}]},
-        {"group": 2, "sets": [{"members": ["t1", "t2"], "canonical": "Foo", "confidence": 0.5}]},
+def tag_judgement(*sets):
+    """A judgement as ``settle`` takes it: every proposed set confident enough to apply."""
+    return {"answer": "yes", "confidence": 0.95, "reason": "", "sets": [
+        {"members": [tag.pk for tag in members], "canonical": canonical, "confidence": 0.95}
+        for members, canonical in sets
     ]}
 
-    def test_cluster_leaving_pending_during_the_call_does_not_shift_the_labels(self):
-        def leave_pending(*args, **kwargs):
-            TagCluster.objects.filter(pk=self.cluster_a.pk).update(status=TagCluster.STATUS_REVIEW)
-            return self.TWO_GROUPS
 
-        self._run_judge(leave_pending, batch_size=4)
+class PlanChangedRetryTests(TestCase):
+    """A plan that changed between its first look and the lock is retried, never applied."""
 
-        self.cluster_a.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_REVIEW)
-        self.assertIsNone(self.cluster_a.llm_batch)
-        self.cluster_b.refresh_from_db()
-        self.assertEqual(self.cluster_b.llm_response["sets"][0]["members"], [self.tags[2].pk, self.tags[3].pk])
-        self.assertEqual(self.cluster_b.llm_response["sets"][0]["canonical"], "Foo")
+    def setUp(self):
+        self.isekai, self.another, self.foo_bar, self.foo_baz = make_tags(
+            "Isekai", "Another World", "Foo Bar", "Foo Baz",
+        )
+        self.candidate = tag_candidate(self.isekai, self.another, self.foo_bar, self.foo_baz)
 
-    def test_tag_deleted_during_the_call_does_not_shift_the_labels(self):
-        def delete_tag(*args, **kwargs):
-            Tag.objects.filter(pk=self.tags[1].pk).delete()
-            return self.TWO_GROUPS
+    def assertRetriedNothingMerged(self):
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(self.candidate.attempts, 1)
+        self.assertIsNotNone(self.candidate.not_before)
+        self.assertIsNone(self.candidate.claimed_at)
+        self.assertEqual(self.candidate.undo, [])
+        self.assertEqual(self.candidate.reason, "tags changed while the answer was pending")
+        self.assertEqual(Tag.objects.count(), 4)
+        self.assertFalse(TagAlias.objects.exists())
 
-        self._run_judge(delete_tag, batch_size=4)
+    def test_lock_that_reports_a_tag_gone_counts_an_attempt_and_merges_nothing(self):
+        # The lock returns fewer tags than the plan holds: the answer is stale.
+        with mock.patch.object(tms, "lock_pks", return_value=set()):
+            run_judge(TWO_SETS)
+        self.assertRetriedNothingMerged()
 
-        self.cluster_b.refresh_from_db()
-        self.assertEqual(self.cluster_b.llm_response["sets"][0]["members"], [self.tags[2].pk, self.tags[3].pk])
-        self.assertEqual(self.cluster_b.llm_response["sets"][0]["canonical"], "Foo")
+    def test_fresh_plan_with_another_signature_counts_an_attempt_and_merges_nothing(self):
+        with mock.patch.object(tms, "_plan_signature", side_effect=["before", "after"]):
+            run_judge(TWO_SETS)
+        self.assertRetriedNothingMerged()
 
-    def test_overlapping_answer_does_not_overwrite_an_earlier_judgement(self):
-        self._run_judge(lambda *a, **k: {"groups": [
-            {"group": 1, "sets": [{"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}]},
-        ]})
-        self.cluster_a.refresh_from_db()
-        self.assertIsNotNone(self.cluster_a.llm_batch)
-        # Back to pending while keeping the earlier answer, then a second request judges it.
-        TagCluster.objects.filter(pk=self.cluster_a.pk).update(status=TagCluster.STATUS_PENDING)
-        self._run_judge(lambda *a, **k: {"groups": [
-            {"group": 1, "sets": [{"members": ["t1", "t2"], "canonical": "Other", "confidence": 0.5}]},
-        ]})
+    def test_retry_is_judged_alone_and_applied_on_the_next_run(self):
+        with mock.patch.object(tms, "lock_pks", return_value=set()):
+            run_judge(TWO_SETS)
+        Candidate.objects.update(not_before=None)
 
-        self.cluster_a.refresh_from_db()
-        self.assertEqual(self.cluster_a.status, TagCluster.STATUS_PENDING)
-        self.assertEqual(self.cluster_a.llm_response["sets"][0]["canonical"], "Isekai")
+        mocked = run_judge(TWO_SETS, limit=1)
+
+        self.assertEqual(mocked.call_count, 1)
+        self.assertNotIn("Group 2:", mocked.call_args[0][0][-1]["content"])
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(self.candidate.attempts, 1)
+        self.assertFalse(Tag.objects.filter(name="Another World").exists())
+        self.assertFalse(Tag.objects.filter(name="Foo Baz").exists())
+
+    def test_max_attempts_closes_the_candidate_as_error(self):
+        max_attempts = llm_tasks.REGISTRY["tag_merge"].max_attempts
+        with mock.patch.object(tms, "lock_pks", return_value=set()):
+            for _ in range(max_attempts):
+                Candidate.objects.update(not_before=None)
+                self.assertEqual(run_judge(TWO_SETS).call_count, 1)
+
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_ERROR)
+        self.assertEqual(self.candidate.attempts, max_attempts)
+        self.assertIsNone(self.candidate.not_before)
+        self.assertEqual(self.candidate.reason, "tags changed while the answer was pending")
+        self.assertEqual(Tag.objects.count(), 4)
+        # An errored candidate is out of the queue: the next run makes no call.
+        self.assertEqual(run_judge(TWO_SETS).call_count, 0)
 
 
-class TagJudgeTokenBudgetTests(_JudgeFixture):
-    def test_stops_before_any_call_when_budget_below_reserve(self):
-        mocked = self._run_judge(lambda *a, **k: {"groups": []}, LLM_DAILY_TOKENS=100)
+class RollbackTests(TestCase):
+    """A failure in a later set rolls back the earlier ones of the same candidate."""
+
+    def setUp(self):
+        self.isekai, self.another, self.foo_bar, self.foo_baz = make_tags(
+            "Isekai", "Another World", "Foo Bar", "Foo Baz",
+        )
+        self.candidate = tag_candidate(self.isekai, self.another, self.foo_bar, self.foo_baz)
+        self.judgement = tag_judgement(
+            ([self.isekai, self.another], "Isekai"),
+            ([self.foo_bar, self.foo_baz], "Foo Bar"),
+        )
+
+    def test_later_set_failure_leaves_no_tag_deleted_and_no_alias(self):
+        real_fold = tms.fold_tag
+        calls = []
+
+        def flaky_fold(source, target, candidate=None):
+            calls.append(source.name)
+            if len(calls) == 2:
+                raise MergeError("boom")
+            return real_fold(source, target, candidate=candidate)
+
+        with mock.patch.object(tms, "fold_tag", side_effect=flaky_fold):
+            status = llm_tasks.settle(llm_tasks.REGISTRY["tag_merge"], self.candidate, self.judgement)
+
+        self.assertEqual(status, Candidate.STATUS_REVIEW)
+        self.assertEqual(len(calls), 2)
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
+        self.assertEqual(self.candidate.reason, "boom")
+        self.assertEqual(self.candidate.undo, [])
+        self.assertEqual(
+            set(Tag.objects.values_list("name", flat=True)),
+            {"Isekai", "Another World", "Foo Bar", "Foo Baz"},
+        )
+        self.assertFalse(TagAlias.objects.exists())
+
+
+class ReviewUnderLockTests(TestCase):
+    def test_safeguard_tripping_under_the_lock_sends_the_candidate_to_review(self):
+        isekai, another = make_tags("Isekai", "Another World")
+        candidate = tag_candidate(isekai, another)
+        judgement = tag_judgement(([isekai, another], "Isekai"))
+
+        # The first look (judge) is clean; the read under the lock is not.
+        with mock.patch.object(
+            tms, "review_reasons",
+            side_effect=[[], ["'Isekai' joins several widely used tags"]],
+        ):
+            status = llm_tasks.settle(llm_tasks.REGISTRY["tag_merge"], candidate, judgement)
+
+        self.assertEqual(status, Candidate.STATUS_REVIEW)
+        candidate.refresh_from_db()
+        self.assertIn("widely used", candidate.reason)
+        self.assertEqual(candidate.undo, [])
+        self.assertTrue(Tag.objects.filter(name="Another World").exists())
+
+
+class TagMergeIntegrityTests(TestCase):
+    def test_integrity_error_while_applying_is_a_failed_attempt(self):
+        isekai, another = make_tags("Isekai", "Another World")
+        candidate = tag_candidate(isekai, another)
+        with mock.patch.object(tms, "_apply_set", side_effect=IntegrityError("dup key")):
+            run_judge(answer({"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.95}))
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 1)
+        self.assertIn("dup key", candidate.reason)
+        self.assertTrue(Tag.objects.filter(name="Another World").exists())
+
+
+class TagMergePackTests(SimpleTestCase):
+    def test_a_batch_closes_once_its_tags_reach_batch_size(self):
+        task = llm_tasks.TagMergeTask()
+        task.batch_size = 4
+        candidates = [
+            SimpleNamespace(target_ids=[1, 2, 3]),
+            SimpleNamespace(target_ids=[4, 5, 6]),
+            SimpleNamespace(target_ids=[7, 8, 9]),
+        ]
+        batches = task.pack(candidates)
+        self.assertEqual([[c.target_ids[0] for c in batch] for batch in batches], [[1, 4], [7]])
+
+    def test_no_candidates_no_batches(self):
+        self.assertEqual(llm_tasks.TagMergeTask().pack([]), [])
+
+
+class TagMergeQueueOrderTests(TestCase):
+    """Oldest first, packed to ``batch_size``; a retried candidate goes alone."""
+
+    def setUp(self):
+        self.old = tag_candidate(*make_tags("Tango", "Mango"))
+        self.middle = tag_candidate(*make_tags("Samba", "Rumba"))
+        self.new = tag_candidate(*make_tags("Polka", "Salsa"))
+
+    def test_oldest_candidates_are_packed_to_batch_size_then_the_rest_follows(self):
+        with mock.patch.object(llm_tasks.TagMergeTask, "batch_size", 4):
+            first = run_judge(no_sets_for_each_group, limit=1)
+            content = first.call_args[0][0][-1]["content"]
+            self.assertIn("Tango", content)
+            self.assertIn("Samba", content)
+            self.assertNotIn("Polka", content)
+            self.assertEqual(Candidate.objects.get(pk=self.new.pk).status, Candidate.STATUS_PENDING)
+
+            second = run_judge(no_sets_for_each_group, limit=1)
+            content = second.call_args[0][0][-1]["content"]
+            self.assertIn("Polka", content)
+            self.assertNotIn("Tango", content)
+
+        for candidate in (self.old, self.middle, self.new):
+            candidate.refresh_from_db()
+            self.assertEqual(candidate.status, Candidate.STATUS_REJECTED)
+
+    def test_a_run_without_limit_makes_one_call_per_batch(self):
+        with mock.patch.object(llm_tasks.TagMergeTask, "batch_size", 4):
+            mocked = run_judge(no_sets_for_each_group)
+        self.assertEqual(mocked.call_count, 2)
+        self.assertEqual(tag_rows().filter(status=Candidate.STATUS_REJECTED).count(), 3)
+
+    def test_retried_candidate_is_sent_alone_and_fresh_ones_are_packed(self):
+        Candidate.objects.filter(pk=self.old.pk).update(attempts=1)
+        with mock.patch.object(llm_tasks.TagMergeTask, "batch_size", 4):
+            first = run_judge(no_sets_for_each_group, limit=1)
+            content = first.call_args[0][0][-1]["content"]
+            self.assertIn("Samba", content)
+            self.assertIn("Polka", content)
+            self.assertNotIn("Tango", content)
+
+            second = run_judge(no_sets_for_each_group, limit=1)
+            content = second.call_args[0][0][-1]["content"]
+            self.assertIn("Tango", content)
+            self.assertNotIn("Group 2:", content)
+
+
+class ClaimedCandidateTests(TestCase):
+    """A candidate in flight is not claimed again, and a human cannot decide it meanwhile."""
+
+    def test_claimed_candidate_is_not_sent_again(self):
+        candidate = tag_candidate(*make_tags("Tango", "Mango"), claimed_at=timezone.now())
+        mocked = run_judge(no_sets_for_each_group)
+        self.assertEqual(mocked.call_count, 0)
+        candidate.refresh_from_db()
+        self.assertIsNotNone(candidate.claimed_at)
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+
+    def test_stuck_claim_is_taken_back_after_the_window(self):
+        candidate = tag_candidate(
+            *make_tags("Tango", "Mango"), claimed_at=timezone.now() - timedelta(minutes=31),
+        )
+        mocked = run_judge(no_sets_for_each_group)
+        self.assertEqual(mocked.call_count, 1)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REJECTED)
+        self.assertIsNone(candidate.claimed_at)
+
+    def test_answer_is_dropped_when_a_human_decided_the_candidate_in_flight(self):
+        candidate = tag_candidate(*make_tags("Tango", "Mango"))
+
+        def decide_meanwhile(messages):
+            Candidate.objects.filter(pk=candidate.pk).update(
+                status=Candidate.STATUS_REJECTED, claimed_at=None,
+            )
+            return no_sets_for_each_group(messages)
+
+        run_judge(decide_meanwhile)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REJECTED)
+        self.assertIsNone(candidate.verdict)
+        self.assertEqual(candidate.attempts, 0)
+
+    def test_human_reject_and_apply_are_refused_while_claimed(self):
+        candidate = tag_candidate(*make_tags("Tango", "Mango"), status=Candidate.STATUS_REVIEW,
+                                  claimed_at=timezone.now())
+        with self.assertRaises(CandidateError):
+            reject_candidate(candidate)
+        with self.assertRaises(CandidateError):
+            apply_candidate(candidate)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REVIEW)
+        self.assertEqual(Tag.objects.count(), 2)
+
+
+class UndoTargetGoneTests(TestCase):
+    def setUp(self):
+        self.isekai, self.another = make_tags("Isekai", "Another World")
+        self.candidate = tag_candidate(self.isekai, self.another)
+        llm_tasks.settle(
+            llm_tasks.REGISTRY["tag_merge"], self.candidate,
+            tag_judgement(([self.isekai, self.another], "Isekai")),
+        )
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
+
+    def test_undo_restores_the_folded_tag_while_the_target_exists(self):
+        undo_candidate(self.candidate)
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_UNDONE)
+        self.assertTrue(Tag.objects.filter(name="Another World").exists())
+
+    def test_undo_with_the_target_gone_raises_and_keeps_the_candidate_applied(self):
+        Tag.objects.filter(pk=self.isekai.pk).delete()
+        with self.assertRaises(MergeError):
+            undo_candidate(self.candidate)
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
+        self.assertIsNone(self.candidate.undone_at)
+        self.assertTrue(all(not entry.get("undone_at") for entry in self.candidate.undo))
+
+
+class TagMergeBudgetTests(TestCase):
+    """The shared budget counts every reply the provider sent, usable or not."""
+
+    def setUp(self):
+        self.candidate = tag_candidate(*make_tags("Tango", "Mango"))
+
+    def test_unusable_paid_call_still_counts_against_the_daily_budget(self):
+        def paid_but_unusable(messages):
+            # _post_chat logs the LLMCall of every reply before the answer is checked.
+            LLMCall.objects.create(kind="tag_merge", tokens=10)
+            return "no json"
+
+        run_judge(paid_but_unusable, LLM_DAILY_REQUESTS=1)
+        self.assertEqual(LLMCall.objects.filter(kind="tag_merge").count(), 1)
+
+        Candidate.objects.update(not_before=None)
+        mocked = run_judge(no_sets_for_each_group, LLM_DAILY_REQUESTS=1)
         self.assertEqual(mocked.call_count, 0)
 
-    def test_budget_checked_before_every_call(self):
-        def spend(*args, **kwargs):
-            LLMUsage.objects.create(purpose="tag_merge", tokens=7000)
-            return {"groups": []}
+    def test_rate_limited_call_leaves_the_candidate_untouched(self):
+        run_judge(llm_service.RateLimited(retry_after=None))
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(self.candidate.attempts, 0)
+        self.assertIsNotNone(self.candidate.not_before)
 
-        # Each call is charged CALL_TOKENS (1500): after the first, 1000 of 8000 is left.
-        mocked = self._run_judge(spend, LLM_DAILY_TOKENS=8000, LLM_TOKENS_PER_MINUTE=100000,
-                                 limit=3, batch_size=2)
+    def test_http_error_is_a_failed_attempt_with_its_reason(self):
+        run_judge(llm_service.LLMError("HTTP 500"))
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(self.candidate.attempts, 1)
+        self.assertIn("HTTP 500", self.candidate.reason)
+
+    def test_failed_batch_fails_every_candidate_in_it(self):
+        other = tag_candidate(*make_tags("Samba", "Rumba"))
+        with mock.patch.object(llm_tasks.TagMergeTask, "batch_size", 4):
+            run_judge("no json")
+        for candidate in (self.candidate, other):
+            candidate.refresh_from_db()
+            self.assertEqual(candidate.attempts, 1)
+            self.assertIsNotNone(candidate.not_before)
+
+    def test_failed_candidate_is_not_retried_within_the_same_run(self):
+        other = tag_candidate(*make_tags("Samba", "Rumba"))
+        with mock.patch.object(llm_tasks.TagMergeTask, "batch_size", 2):
+            mocked = run_judge("no json", limit=3)
+        self.assertEqual(mocked.call_count, 2)
+        for candidate in (self.candidate, other):
+            candidate.refresh_from_db()
+            self.assertEqual(candidate.attempts, 1)
+            self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+
+    def test_no_call_when_the_token_budget_is_below_one_call(self):
+        mocked = run_judge(no_sets_for_each_group, LLM_DAILY_TOKENS=100)
+        self.assertEqual(mocked.call_count, 0)
+
+    def test_budget_is_checked_before_every_call(self):
+        other = tag_candidate(*make_tags("Samba", "Rumba"))
+        third = tag_candidate(*make_tags("Polka", "Salsa"))
+
+        def spend(messages):
+            # One paid call of 7000 tokens: the next call (CALL_TOKENS) no longer fits.
+            LLMCall.objects.create(kind="tag_merge", tokens=7000)
+            return no_sets_for_each_group(messages)
+
+        with mock.patch.object(llm_tasks.TagMergeTask, "batch_size", 2):
+            mocked = run_judge(spend, LLM_DAILY_TOKENS=8000, LLM_TOKENS_PER_MINUTE=100000)
         self.assertEqual(mocked.call_count, 1)
-
-
-class ReplanUnderLockTests(TestCase):
-    setUp = ClusterReplanTests.setUp
-
-    def test_consistent_plan_with_new_review_reason_goes_to_review(self):
-        with mock.patch.object(tms, "review_reasons",
-                               side_effect=[[], ["'Isekai' joins several widely used tags"]]):
-            status = tms.apply_cluster(self.cluster)
-
-        self.assertEqual(status, TagCluster.STATUS_REVIEW)
-        self.cluster.refresh_from_db()
-        self.assertEqual(self.cluster.status, TagCluster.STATUS_REVIEW)
-        self.assertEqual(self.cluster.requeue_count, 0)
-        self.assertIn("widely used", self.cluster.error)
-        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
-        self.assertFalse(TagMerge.objects.exists())
-
-    def test_requeue_cap_moves_cluster_to_error(self):
-        TagCluster.objects.filter(pk=self.cluster.pk).update(requeue_count=tms.MAX_REQUEUES - 1)
-        self.cluster.refresh_from_db()
-        real_plan = tms.plan_sets
-        calls = []
-
-        def shifting_plan(sets):
-            calls.append(1)
-            return real_plan(sets if len(calls) == 1 else [])
-
-        with mock.patch.object(tms, "plan_sets", side_effect=shifting_plan):
-            status = tms.apply_cluster(self.cluster)
-
-        self.assertEqual(status, TagCluster.STATUS_ERROR)
-        self.cluster.refresh_from_db()
-        self.assertEqual(self.cluster.error, tms.REQUEUE_LIMIT_MESSAGE)
-        self.assertEqual(self.cluster.requeue_count, tms.MAX_REQUEUES)
-
-    def test_each_requeue_increments_the_count(self):
-        real_plan = tms.plan_sets
-        calls = []
-
-        def shifting_plan(sets):
-            calls.append(1)
-            return real_plan(sets if len(calls) == 1 else [])
-
-        with mock.patch.object(tms, "plan_sets", side_effect=shifting_plan):
-            status = tms.apply_cluster(self.cluster)
-
-        self.assertEqual(status, TagCluster.STATUS_PENDING)
-        self.cluster.refresh_from_db()
-        self.assertEqual(self.cluster.requeue_count, 1)
-
-
-class UndoClusterLockTests(ChainedUndoTests):
-    def test_cluster_undo_takes_one_lock_call(self):
-        real_lock = merge_service.lock_pks
-        with mock.patch.object(merge_service, "lock_pks", wraps=real_lock) as spy:
-            undo_tag_cluster(self.cluster)
-        self.assertEqual(spy.call_count, 1)
+        for candidate in (other, third):
+            candidate.refresh_from_db()
+            self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+            self.assertEqual(candidate.attempts, 0)

@@ -15,3 +15,4 @@ from .tag_merge_models import *
 from .author_merge_models import *
 from .cover_models import *
 from .llm_models import *
+from .candidate_models import *

@@ -154,7 +154,7 @@ Everything lives in `.env`; [`.env.example`](.env.example) documents every defau
 | Source logins | `LNCRAWL_<KEY>_USERNAME` / `LNCRAWL_<KEY>_PASSWORD`, `<KEY>` = source domain label uppercased |
 | Maintenance | `SCHEDULER_ENABLED` (`True`), `LNCRAWL_PRUNE_APPLY` (`False` skips the destructive prune) |
 | Harvest feeder | `HARVEST_INTERVAL`, `HARVEST_REFRESH_SECONDS`, `HARVEST_SCAN_TIMEOUT` — enable it in **Admin → Maintenance → Harvest** |
-| LLM (optional) | `MERGE_LLM_*`, `TAG_LLM_DAILY_LIMIT` — any OpenAI-compatible endpoint for merge/tag decisions |
+| LLM (optional) | `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_DAILY_REQUESTS`, `LLM_DAILY_TOKENS`, `*_AUTO_CONFIDENCE` (novel, author, tag, R18), `TAG_BIG_TAG_USAGE`, `TAG_R18_REVIEW_NOVELS` — any OpenAI-compatible endpoint for merge/tag decisions |
 | Error reporting | `GITHUB_REPO`, `GITHUB_TOKEN` (`issues:write`), `GITHUB_ISSUES_ENABLED` |
 
 </details>

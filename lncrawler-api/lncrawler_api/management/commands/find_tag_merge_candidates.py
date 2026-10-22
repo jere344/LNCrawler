@@ -2,16 +2,17 @@
 
 Stage 1 of automatic tag merging. Embeds tag names that lack a current vector,
 then combines three signals (embedding neighbours, cross-source co-occurrence,
-trigram similarity) into clusters stored as pending ``TagCluster`` rows. Nothing
-is merged here; ``TagMergeTask`` decides, through the ``run_llm_queue`` task (``run_llm_requests``).
+trigram similarity) into clusters stored as pending ``tag_merge`` candidates. Nothing
+is merged here; ``TagMergeTask`` decides, through the ``run_llm`` command.
 Re-running is safe: a group that was already stored, in any status, is skipped by its signature.
 """
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from lncrawler_api.models import NovelFromSource, TagNoMerge
+from lncrawler_api.models import Candidate, NovelFromSource
 from lncrawler_api.services import tag_merge_service as tms
+from lncrawler_api.services.candidate_blocks import blocked_pairs
 
 
 class Command(BaseCommand):
@@ -49,10 +50,7 @@ class Command(BaseCommand):
         trgm = tms.trigram_edges(settings.TAG_TRGM_MIN)
 
         edges = tms.merge_signal_edges(embed=embed, cooc=cooc, trgm=trgm)
-        blocked = {
-            tuple(sorted(pair))
-            for pair in TagNoMerge.objects.values_list("tag_a_id", "tag_b_id")
-        }
+        blocked = blocked_pairs(Candidate.KIND_TAG_MERGE)
         clusters = tms.build_clusters(
             edges, max_size=settings.TAG_CLUSTER_MAX, blocked=blocked
         )

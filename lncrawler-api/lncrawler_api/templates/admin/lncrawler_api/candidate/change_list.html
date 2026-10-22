@@ -2,10 +2,10 @@
 {% load i18n %}
 
 {% block object-tools-items %}
-  {% if review_button %}
+  {% for link in review_links %}
     <li>
-      <a href="{{ review_button.url }}" class="addlink">{{ review_button.label }}</a>
+      <a href="{{ link.url }}" class="addlink">{{ link.label }} ({{ link.count }})</a>
     </li>
-  {% endif %}
+  {% endfor %}
   {{ block.super }}
 {% endblock %}

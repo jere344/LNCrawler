@@ -100,9 +100,16 @@ def build_split_plan(
     new_slug="",
     rename_title="",
     target_novel=None,
+    novel_id=None,
 ):
-    """Inspect a split/move without changing anything, for the admin preview."""
+    """Inspect a split/move without changing anything, for the admin preview.
+
+    ``novel_id``, when given, is the primary key the new novel will take: refused when a
+    novel already has it.
+    """
     remaining = _validate_selection(novel, sources)
+    if novel_id and Novel.objects.filter(pk=novel_id).exists():
+        raise SplitError("The novel's id is taken.")
 
     plan = SplitPlan(
         novel=novel,
@@ -215,11 +222,15 @@ def _run_target_moves(plan, files):
             )
 
 
-def split_novel(novel, sources, new_title, new_slug="", rename_title=""):
-    """Extract ``sources`` into a brand new novel and return it."""
+def split_novel(novel, sources, new_title, new_slug="", rename_title="", novel_id=None):
+    """Extract ``sources`` into a brand new novel and return it.
+
+    ``novel_id`` gives the new novel that primary key: a merge undo restores the
+    merged-away novel under its old id.
+    """
     plan = build_split_plan(
         novel, sources, new_title=new_title, new_slug=new_slug,
-        rename_title=rename_title,
+        rename_title=rename_title, novel_id=novel_id,
     )
 
     try:
@@ -229,7 +240,8 @@ def split_novel(novel, sources, new_title, new_slug="", rename_title=""):
                 # aliases before the novel table, so a stale alias would re-join them.
                 NovelAlias.objects.filter(slug=plan.new_slug).delete()
                 target = Novel.objects.create(
-                    title=plan.new_title, slug=plan.new_slug, novel_path=plan.new_slug
+                    **({"pk": novel_id} if novel_id else {}),
+                    title=plan.new_title, slug=plan.new_slug, novel_path=plan.new_slug,
                 )
                 for source in plan.sources:
                     move_source_to_novel(source, target, move_files=True, files=files)

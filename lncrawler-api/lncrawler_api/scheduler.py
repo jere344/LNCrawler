@@ -239,7 +239,7 @@ def find_merge_candidates_task():
         lambda: call_command_isolated('find_merge_candidates'),
     )
 
-# Drain the LLMRequest queue (services/llm_tasks.py): every LLM workflow takes turns,
+# Drain the candidate queue (services/llm_tasks.py): every LLM workflow takes turns,
 # paced by the provider's per-minute and daily limits (llm_service.can_afford), so a
 # tick stays short. Only when an LLM is configured.
 @scheduler.register_task(interval=60, name="run_llm_queue")
@@ -250,7 +250,7 @@ def run_llm_queue_task():
         "Running LLM queue...",
         "LLM queue run completed",
         "Error running LLM queue: {error}",
-        lambda: call_command('run_llm_requests'),
+        lambda: call_command('run_llm'),
     )
 
 # Rebuild tag merge clusters daily: embeds new tags and groups likely duplicates.

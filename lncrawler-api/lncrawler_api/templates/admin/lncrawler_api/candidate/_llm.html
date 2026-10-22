@@ -1,0 +1,27 @@
+{% load i18n %}
+<div style="flex:0 1 340px;min-width:280px;border:1px solid var(--hairline-color,#ddd);border-radius:6px;padding:12px 14px;">
+  <h2 style="margin-top:0;">{% trans 'LLM judgement' %}</h2>
+  <table>
+    <tr><th>{% trans 'Answer' %}</th><td><strong>{{ llm.answer|default:"-" }}</strong></td></tr>
+    {% if llm.rating %}<tr><th>{% trans 'Rating' %}</th><td>{{ llm.rating }}</td></tr>{% endif %}
+    {% if llm.relation %}<tr><th>{% trans 'Relation' %}</th><td>{{ llm.relation }}</td></tr>{% endif %}
+    <tr>
+      <th>{% trans 'Confidence' %}</th>
+      <td>
+        {% if llm.confidence is None %}-{% else %}{{ llm.confidence|floatformat:2 }}{% endif %}
+        <span class="help">({% trans 'threshold' %} {{ llm.threshold|floatformat:2 }})</span>
+        {% if llm.below_threshold %}<span style="color:#c62828;">{% trans 'below the threshold' %}</span>{% endif %}
+      </td>
+    </tr>
+    <tr><th>{% trans 'Model' %}</th><td>{{ llm.provider }} {{ llm.model|default:"-" }}</td></tr>
+    <tr><th>{% trans 'Prompt version' %}</th><td>{{ llm.prompt_version|default:"-" }}</td></tr>
+    <tr>
+      <th>{% trans 'LLM call' %}</th>
+      <td>{% if llm.url %}<a href="{{ llm.url }}">{% trans 'Open the call' %}</a>{% else %}-{% endif %}</td>
+    </tr>
+  </table>
+  {% if llm.llm_reason %}
+    <p style="margin-top:10px;"><strong>{% trans 'Reason' %}</strong></p>
+    <p style="white-space:pre-wrap;">{{ llm.llm_reason }}</p>
+  {% endif %}
+</div>

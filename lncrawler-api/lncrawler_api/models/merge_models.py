@@ -14,7 +14,7 @@ class MergeCandidate(models.Model):
     blocking and scoring. ``certainty`` is a normalized 0..1 score; the raw
     per-signal breakdown lives in ``signals`` so the admin can explain *why* a
     pair was flagged. Every candidate starts in review; decision ``auto`` marks
-    one the LLM judge merged (``settings.MERGE_LLM_AUTO_CONFIDENCE``).
+    one the LLM judge merged (``settings.NOVEL_MERGE_AUTO_CONFIDENCE``).
 
     The FKs are ``SET_NULL`` so a row survives as an audit record after a merge
     deletes one of the novels; the ``*_snapshot`` fields keep the pair readable

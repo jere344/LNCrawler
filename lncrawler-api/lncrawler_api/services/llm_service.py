@@ -11,7 +11,7 @@ deterministic review queue. A task's JSON schema is sent as ``response_format``
 (structured output) unless the provider sets ``json_schema`` to false.
 
 Calls are made from the LLM workflows in services/llm_tasks.py (run through the
-``LLMRequest`` queue). They run as bounded
+``Candidate`` queue). They run as bounded
 scheduler tasks so a slow or rate-limited provider can never block the rest of
 the maintenance loop.
 """
@@ -28,7 +28,7 @@ from django.conf import settings
 from django.db.models import Count, Sum
 from django.utils import timezone
 
-from ..models import LLMProviderCooldown, LLMUsage
+from ..models import LLMCall, LLMProviderCooldown
 
 logger = logging.getLogger("lncrawler_api.merge")
 
@@ -48,6 +48,8 @@ KEYLESS_PROVIDERS = {"ollama"}
 LEGACY_COOLDOWN = 60
 # A provider that is down or refuses the key (401/402/403/5xx/network) is skipped this long.
 UNAVAILABLE_COOLDOWN = 300
+# Provider of the LLMCall rows migration 0097 copied from the old request log (history only).
+REQUEST_LOG_PROVIDER = "(request log)"
 
 # No authors in the profiles: one author writes many novels, and a shared author name
 # made the judge call different works the same at full confidence. Candidate search
@@ -122,7 +124,7 @@ class Provider:
     requests_per_minute: int | None
     tokens_per_minute: int | None
     cooldown: int
-    # The legacy single provider counts every LLMUsage row, so rows written before
+    # The legacy single provider counts every LLMCall row, so rows written before
     # the provider column existed still count.
     shared_usage: bool
     # Provider-specific fields merged into every request body (e.g. turning thinking off).
@@ -294,18 +296,32 @@ def _total_tokens(payload):
         return 0
 
 
+def _log_call(purpose, provider, model, prompt_version, candidate_ids, tokens, raw_response, error=""):
+    """Write the LLMCall of one provider reply: the call history and the budget read it."""
+    return LLMCall.objects.create(
+        kind=purpose,
+        provider=provider.name,
+        model=model,
+        prompt_version=prompt_version,
+        tokens=tokens,
+        raw_response=raw_response,
+        error=error,
+        candidate_ids=list(candidate_ids or []),
+    )
+
+
 def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout=None, session=None,
-               response_schema=None):
-    """POST one chat-completions request. Returns ``(content, total_tokens)``.
+               response_schema=None, candidate_ids=None, prompt_version=""):
+    """POST one chat-completions request. Returns ``(content, total_tokens, call)``.
 
     ``provider`` is a ``Provider`` of the chain, a provider name or None (the legacy
     single provider). ``response_schema`` is sent as structured output when the
     provider takes it. Every response the provider returned (HTTP 200, truncated ones
-    included) is written to ``LLMUsage`` under ``purpose`` (the task name) and the
-    provider that answered. A 429 or other HTTP error is not charged and writes
-    nothing. A reply cut off by the token cap, or empty, raises ``LLMTruncated``.
-    A 429 raises ``RateLimited``; a 401/402/403, 5xx or network error raises
-    ``ProviderUnavailable``.
+    included) is written as an ``LLMCall`` under ``purpose`` (the task name), with the
+    provider that answered and ``candidate_ids``. A 429 or other HTTP error is not
+    charged and writes nothing. A reply cut off by the token cap, or empty, raises
+    ``LLMTruncated``. A 429 raises ``RateLimited``; a 401/402/403, 5xx or network
+    error raises ``ProviderUnavailable``.
     """
     if not isinstance(provider, Provider):
         provider = _legacy_provider(provider)
@@ -348,31 +364,40 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
     try:
         payload = resp.json()
     except ValueError as exc:
-        LLMUsage.objects.create(purpose=purpose, provider=provider.name, tokens=0)
-        raise LLMError(f"non-JSON response (HTTP {resp.status_code}): {resp.text[:300]}") from exc
+        error = f"non-JSON response (HTTP {resp.status_code}): {resp.text[:300]}"
+        _log_call(purpose, provider, model, prompt_version, candidate_ids, 0, resp.text, error)
+        raise LLMError(error) from exc
 
     total_tokens = _total_tokens(payload)
-    LLMUsage.objects.create(purpose=purpose, provider=provider.name, tokens=total_tokens)
     try:
         choice = payload["choices"][0]
         content = choice["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
-        raise LLMError(f"unexpected response shape: {payload}") from exc
+        error = f"unexpected response shape: {payload}"
+        _log_call(purpose, provider, model, prompt_version, candidate_ids, total_tokens, resp.text, error)
+        raise LLMError(error) from exc
     finish_reason = choice.get("finish_reason")
     if finish_reason == "length" or not isinstance(content, str) or not content.strip():
         completion = (payload.get("usage") or {}).get("completion_tokens")
-        raise LLMTruncated(
+        error = (
             f"LLM reply truncated or empty (finish_reason={finish_reason!r}, "
             f"completion_tokens={completion}, total_tokens={total_tokens})"
         )
-    return content, total_tokens
+        _log_call(purpose, provider, model, prompt_version, candidate_ids, total_tokens, resp.text, error)
+        raise LLMTruncated(error)
+    call = _log_call(purpose, provider, model, prompt_version, candidate_ids, total_tokens, resp.text)
+    return content, total_tokens, call
 
 
 def _usage(provider=None):
-    """LLMUsage rows charged to ``provider`` (every row for the legacy single provider)."""
+    """LLMCall rows charged to ``provider`` (every row for the legacy single provider).
+
+    Rows of the old request log copied by migration 0097 (``REQUEST_LOG_PROVIDER``)
+    are not counted: the copied usage rows of the same replies already are.
+    """
     if provider is None or provider.shared_usage:
-        return LLMUsage.objects.all()
-    return LLMUsage.objects.filter(provider=provider.name)
+        return LLMCall.objects.exclude(provider=REQUEST_LOG_PROVIDER)
+    return LLMCall.objects.filter(provider=provider.name)
 
 
 def tokens_used_today(provider=None):
@@ -399,7 +424,7 @@ CALL_TOKENS = 2500
 
 
 def requests_used_today(provider=None):
-    """Provider replies received today across every workflow (one LLMUsage row each)."""
+    """Provider replies received today across every workflow (one LLMCall row each)."""
     return _usage(provider).filter(created_at__date=timezone.localdate()).count()
 
 
@@ -467,10 +492,13 @@ def can_afford(provider=None):
     )
 
 
-def chat(messages, max_tokens, purpose, session=None, response_schema=None):
+def chat(messages, max_tokens, purpose, session=None, response_schema=None, candidate_ids=None,
+         prompt_version=""):
     """Send one call to the first provider of the chain that takes it.
 
-    Returns ``(content, total_tokens, provider)``. A 429 cools the provider down for
+    Returns ``(content, total_tokens, provider, call)``, ``call`` being the LLMCall of
+    the reply used. ``candidate_ids`` and ``prompt_version`` are logged on every
+    LLMCall of the request. A 429 cools the provider down for
     its Retry-After (or its cooldown when there is none), an outage for
     UNAVAILABLE_COOLDOWN, and the next provider is tried. Parse and truncation errors
     are the request's fault, not the provider's, so they propagate. Another HTTP error
@@ -485,9 +513,10 @@ def chat(messages, max_tokens, purpose, session=None, response_schema=None):
         if not provider.configured or cooldown_until(provider) or not _affordable(provider):
             continue
         try:
-            content, tokens = _post_chat(
+            content, tokens, call = _post_chat(
                 messages, max_tokens, purpose, provider=provider, session=session,
-                response_schema=response_schema,
+                response_schema=response_schema, candidate_ids=candidate_ids,
+                prompt_version=prompt_version,
             )
         except RateLimited as exc:
             start_cooldown(provider, _cooldown_seconds(exc.retry_after, provider.cooldown), "HTTP 429")
@@ -503,7 +532,7 @@ def chat(messages, max_tokens, purpose, session=None, response_schema=None):
             logger.warning("LLM provider %s failed, trying the next one: %s", provider.name, exc)
             error = exc
             continue
-        return content, tokens, provider
+        return content, tokens, provider, call
 
     if error is not None:
         raise error

@@ -9,12 +9,30 @@ from ..management.commands.find_merge_candidates import combo_certainty, normali
 from ..models import (
     AlternativeTitle,
     Author,
+    Candidate,
     ExternalSource,
-    MergeCandidate,
     Novel,
     NovelFromSource,
 )
+from ..services.merge_common import sorted_pk_signature
 from .helpers import MergeTestCase, make_novel
+
+
+def novel_rows():
+    """Every novel_merge candidate row, as the finder writes them."""
+    return Candidate.objects.filter(kind=Candidate.KIND_NOVEL_MERGE)
+
+
+def pair_candidate(a, b, **extra):
+    """A novel_merge candidate for the pair ``a``, ``b`` under the finder's own signature."""
+    ids = [str(a.pk), str(b.pk)]
+    return Candidate.objects.create(
+        kind=Candidate.KIND_NOVEL_MERGE,
+        target_ids=ids,
+        target_names=[a.title, b.title],
+        signature=sorted_pk_signature(ids),
+        **extra,
+    )
 
 
 class NormalizeTests(MergeTestCase):
@@ -41,9 +59,9 @@ class FindMergeCandidatesTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
-        self.assertEqual(candidate.status, MergeCandidate.STATUS_PENDING)
-        self.assertEqual(candidate.decision, MergeCandidate.DECISION_REVIEW)
+        candidate = novel_rows().get()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.decided_by, "")
         self.assertIn("title", candidate.signals)
 
     def test_placeholder_cover_is_ignored(self):
@@ -61,20 +79,17 @@ class FindMergeCandidatesTests(MergeTestCase):
         with override_settings(MERGE_PLACEHOLDER_MIN_NOVELS=2):
             call_command("find_merge_candidates", trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.exists())
+        self.assertFalse(novel_rows().exists())
 
     def test_rejected_pair_is_not_requeued(self):
         a = make_novel("Same Title", "same-a")
         b = make_novel("Same Title", "same-b")
-        MergeCandidate.objects.create(
-            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
-            status=MergeCandidate.STATUS_REJECTED,
-        )
+        pair_candidate(a, b, status=Candidate.STATUS_REJECTED)
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
-        self.assertEqual(candidate.status, MergeCandidate.STATUS_REJECTED)
+        candidate = novel_rows().get()
+        self.assertEqual(candidate.status, Candidate.STATUS_REJECTED)
 
     def test_same_source_url_creates_a_candidate(self):
         # A renamed novel has no title overlap; the shared source URL still wins.
@@ -87,7 +102,7 @@ class FindMergeCandidatesTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertIn("src", candidate.signals)
         self.assertGreaterEqual(candidate.certainty, 0.99)
 
@@ -101,7 +116,7 @@ class FindMergeCandidatesTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.exists())
+        self.assertFalse(novel_rows().exists())
 
 
 class SurvivorPickTests(MergeTestCase):
@@ -120,48 +135,6 @@ class SurvivorPickTests(MergeTestCase):
         self.assertIs(pick_merge_survivor(thin, fat), fat)
         self.assertIs(pick_merge_survivor(fat, thin), fat)
 
-    def test_merge_survives_a_stale_null_fk_candidate(self):
-        # A prior merge can leave an audit row whose other FK is already NULL;
-        # Postgres LEAST/GREATEST ignore NULL, so its effective pair key is
-        # (B, B). Merging A into B nulls this active row's novel_a -> (B, B),
-        # which must NOT collide with the stale row (the constraint is partial).
-        from ..services.merge_service import merge_novels
-
-        a = Novel.objects.create(title="A", slug="a", novel_path="a")
-        b = Novel.objects.create(title="B", slug="b", novel_path="b")
-        MergeCandidate.objects.create(
-            novel_a=b, novel_b=None, title_a=b.title,
-            status=MergeCandidate.STATUS_SKIPPED, certainty=0.5,
-        )
-        MergeCandidate.objects.create(
-            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
-            status=MergeCandidate.STATUS_PENDING, certainty=0.9,
-        )
-
-        merge_novels(a, b)
-
-        self.assertFalse(Novel.objects.filter(pk=a.pk).exists())
-        self.assertTrue(Novel.objects.filter(pk=b.pk).exists())
-
-    def test_deleting_a_novel_directly_survives_a_stale_null_fk_candidate(self):
-        # Same SET_NULL collapse as above, but via the admin/model delete path
-        # (Novel.delete()), not a merge.
-        a = Novel.objects.create(title="A", slug="a", novel_path="a")
-        b = Novel.objects.create(title="B", slug="b", novel_path="b")
-        MergeCandidate.objects.create(
-            novel_a=b, novel_b=None, title_a=b.title,
-            status=MergeCandidate.STATUS_SKIPPED, certainty=0.5,
-        )
-        MergeCandidate.objects.create(
-            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
-            status=MergeCandidate.STATUS_PENDING, certainty=0.9,
-        )
-
-        a.delete()
-
-        self.assertFalse(Novel.objects.filter(pk=a.pk).exists())
-        self.assertTrue(Novel.objects.filter(pk=b.pk).exists())
-
 
 class MergeCandidateReviewViewTests(MergeTestCase):
     def setUp(self):
@@ -173,16 +146,12 @@ class MergeCandidateReviewViewTests(MergeTestCase):
         self.b = Novel.objects.create(title="Worm", slug="worm", novel_path="worm")
         self.make_source(self.a, self.es, "Worm (Parahumans #1)", "http://x/a", "worm-para", "site")
         self.make_source(self.b, self.es, "Worm", "http://x/b", "worm", "site")
-        self.candidate = MergeCandidate.objects.create(
-            novel_a=self.a,
-            novel_b=self.b,
-            title_a=self.a.title,
-            title_b=self.b.title,
-            certainty=0.9,
+        self.candidate = pair_candidate(
+            self.a, self.b, status=Candidate.STATUS_REVIEW, certainty=0.9,
         )
 
     def review_url(self):
-        return reverse("admin:lncrawler_api_mergecandidate_review")
+        return reverse("admin:lncrawler_api_candidate_review", args=["novel_merge"])
 
     def test_page_shows_the_highest_certainty_candidate(self):
         response = self.client.get(self.review_url())
@@ -192,11 +161,11 @@ class MergeCandidateReviewViewTests(MergeTestCase):
 
     def test_merge_action_merges_and_advances(self):
         response = self.client.post(
-            self.review_url(), {"candidate": str(self.candidate.pk), "action": "merge"}
+            self.review_url(), {"candidate": str(self.candidate.pk), "action": "apply"}
         )
         self.assertRedirects(response, self.review_url())
         self.candidate.refresh_from_db()
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_MERGED)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
         self.assertEqual(Novel.objects.count(), 1)
 
     def test_reject_action_marks_rejected(self):
@@ -204,7 +173,7 @@ class MergeCandidateReviewViewTests(MergeTestCase):
             self.review_url(), {"candidate": str(self.candidate.pk), "action": "reject"}
         )
         self.candidate.refresh_from_db()
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_REJECTED)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REJECTED)
 
     def test_merge_keeps_the_most_complete_side(self):
         # Both novels share one source URL (a rename/bad import): the merge must
@@ -213,14 +182,12 @@ class MergeCandidateReviewViewTests(MergeTestCase):
         fat = Novel.objects.create(title="Fate Points B", slug="fp-fat", novel_path="fp-fat")
         self.make_source(thin, self.es, "Fate Points A", "http://rr/58682", "fp-thin", "site", chapters=1)
         self.make_source(fat, self.es, "Fate Points B", "http://rr/58682", "fp-fat", "site", chapters=5)
-        c = MergeCandidate.objects.create(
-            novel_a=thin, novel_b=fat, title_a=thin.title, title_b=fat.title, certainty=0.99
-        )
+        c = pair_candidate(thin, fat, status=Candidate.STATUS_REVIEW, certainty=0.99)
 
-        self.client.post(self.review_url(), {"candidate": str(c.pk), "action": "merge"})
+        self.client.post(self.review_url(), {"candidate": str(c.pk), "action": "apply"})
 
         c.refresh_from_db()
-        self.assertEqual(c.status, MergeCandidate.STATUS_MERGED)
+        self.assertEqual(c.status, Candidate.STATUS_APPLIED)
         survivor = Novel.objects.get(pk=fat.pk)
         self.assertEqual(survivor.sources.get().chapters.count(), 5)
         self.assertFalse(Novel.objects.filter(pk=thin.pk).exists())
@@ -230,21 +197,19 @@ class MergeCandidateReviewViewTests(MergeTestCase):
             self.review_url(), {"candidate": str(self.candidate.pk), "action": "skip"}
         )
         self.candidate.refresh_from_db()
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
 
     def test_skip_advances_and_reset_restores(self):
         c = Novel.objects.create(title="Frieren", slug="frieren-c", novel_path="frieren-c")
         d = Novel.objects.create(title="Frieren", slug="frieren-d", novel_path="frieren-d")
-        MergeCandidate.objects.create(
-            novel_a=c, novel_b=d, title_a=c.title, title_b=d.title, certainty=0.4
-        )
+        pair_candidate(c, d, status=Candidate.STATUS_REVIEW, certainty=0.4)
 
         self.client.post(
             self.review_url(), {"candidate": str(self.candidate.pk), "action": "skip"}
         )
         self.assertIn(
-            str(self.candidate.pk),
-            self.client.session.get("merge_review_skipped", []),
+            self.candidate.pk,
+            self.client.session.get("candidate_review_skipped_novel_merge", []),
         )
 
         # The skipped candidate is gone from the pass; the next one shows instead.
@@ -260,7 +225,7 @@ class MergeCandidateReviewViewTests(MergeTestCase):
 
     def test_changelist_exposes_the_review_button(self):
         response = self.client.get(
-            reverse("admin:lncrawler_api_mergecandidate_changelist")
+            reverse("admin:lncrawler_api_candidate_changelist")
         )
         self.assertContains(response, self.review_url())
 
@@ -284,7 +249,7 @@ class DiscriminantTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertNotIn("edition_mismatch", candidate.signals)
         self.assertIn("title", candidate.signals)
 
@@ -303,10 +268,10 @@ class DiscriminantTests(MergeTestCase):
             )
 
         call_command("find_merge_candidates")
-        self.assertFalse(MergeCandidate.objects.exists())
+        self.assertFalse(novel_rows().exists())
 
         self._review_all()
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertIn("title", candidate.signals)
         self.assertIn("sequel_mismatch", candidate.signals)
         self.assertLess(candidate.certainty, 0.5)
@@ -319,7 +284,7 @@ class DiscriminantTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertIn("src", candidate.signals)
         self.assertGreaterEqual(candidate.certainty, 0.99)
 
@@ -329,7 +294,7 @@ class DiscriminantTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertIn("path", candidate.signals)
         self.assertGreaterEqual(candidate.certainty, 0.99)
 
@@ -338,7 +303,7 @@ class DiscriminantTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertIn("author", candidate.signals)
         self.assertIn("chapters", candidate.signals)
 
@@ -347,7 +312,7 @@ class DiscriminantTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.exists())
+        self.assertFalse(novel_rows().exists())
 
     def test_same_site_different_titles_is_not_penalised(self):
         # A shared novelupdates_url queues the pair; one site listing the two
@@ -365,7 +330,7 @@ class DiscriminantTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertNotIn("same_site", candidate.signals)
         self.assertIn("nu", candidate.signals)
         self.assertGreaterEqual(candidate.certainty, 0.9)
@@ -376,7 +341,7 @@ class DiscriminantTests(MergeTestCase):
 
         self._review_all()
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertGreaterEqual(candidate.signals["title"], 0.4)
 
     def test_rerunning_does_not_duplicate_rows(self):
@@ -386,7 +351,7 @@ class DiscriminantTests(MergeTestCase):
         call_command("find_merge_candidates", trigram_min=-1)
         call_command("find_merge_candidates", trigram_min=-1)
 
-        self.assertEqual(MergeCandidate.objects.count(), 1)
+        self.assertEqual(novel_rows().count(), 1)
 
     def _add_cover(self, novel, phash, url):
         NovelFromSource.objects.create(
@@ -403,7 +368,7 @@ class DiscriminantTests(MergeTestCase):
 
         self._review_all(trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertAlmostEqual(candidate.signals["phash"], 1 - 2 / 16)
 
     def test_distant_covers_are_not_matched(self):
@@ -414,7 +379,7 @@ class DiscriminantTests(MergeTestCase):
 
         self._review_all(trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.exists())
+        self.assertFalse(novel_rows().exists())
 
     def test_covers_at_the_max_distance_are_queued(self):
         # 6 bits spread over 6 different bytes: no 16-bit band survives intact.
@@ -425,7 +390,7 @@ class DiscriminantTests(MergeTestCase):
 
         self._review_all(trigram_min=-1)
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertAlmostEqual(candidate.signals["phash"], 1 - 6 / 16)
 
     def test_near_flat_covers_never_match(self):
@@ -442,7 +407,7 @@ class DiscriminantTests(MergeTestCase):
 
         self._review_all(trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.filter(signals__has_key="phash").exists())
+        self.assertFalse(novel_rows().filter(signals__has_key="phash").exists())
 
     def test_normal_cover_alone_is_not_queued(self):
         # Sites reuse covers: an exact cover match with unrelated titles stays
@@ -454,21 +419,19 @@ class DiscriminantTests(MergeTestCase):
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.exists())
+        self.assertFalse(novel_rows().exists())
 
     def test_stale_pending_row_is_removed(self):
         # Queued by an earlier run; the pair no longer has any signal to back it.
         a = make_novel("Alpha Story", "alpha")
         b = make_novel("Beta Tale", "beta")
-        MergeCandidate.objects.create(
-            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
-            certainty=0.75, status=MergeCandidate.STATUS_PENDING,
-            decision=MergeCandidate.DECISION_REVIEW, signals={"phash": 1.0},
+        pair_candidate(
+            a, b, certainty=0.75, status=Candidate.STATUS_PENDING, signals={"phash": 1.0},
         )
 
         call_command("find_merge_candidates", trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.exists())
+        self.assertFalse(novel_rows().exists())
 
     def test_near_identical_placeholder_covers_are_ignored(self):
         # Three novels share one default cover, re-encoded slightly differently.
@@ -483,7 +446,7 @@ class DiscriminantTests(MergeTestCase):
         with override_settings(MERGE_PLACEHOLDER_MIN_NOVELS=3):
             self._review_all(trigram_min=-1)
 
-        self.assertFalse(MergeCandidate.objects.filter(signals__has_key="phash").exists())
+        self.assertFalse(novel_rows().filter(signals__has_key="phash").exists())
 
     def test_fuzzy_match_uses_source_titles(self):
         # Novel.title differs completely; only the source titles are similar.
@@ -494,7 +457,7 @@ class DiscriminantTests(MergeTestCase):
 
         self._review_all()
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertGreaterEqual(candidate.signals["title"], 0.4)
 
     def test_fuzzy_match_uses_alternative_titles(self):
@@ -507,7 +470,7 @@ class DiscriminantTests(MergeTestCase):
 
         self._review_all()
 
-        candidate = MergeCandidate.objects.get()
+        candidate = novel_rows().get()
         self.assertGreaterEqual(candidate.signals["alt"], 0.4)
 
     def _add_translated_pair(self, chapters):

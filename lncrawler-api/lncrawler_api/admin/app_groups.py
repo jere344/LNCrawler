@@ -11,7 +11,7 @@ APP_GROUPS = [
         "Novels",
         [
             "Novel",
-            "MergeCandidate",
+            "Candidate",
             "NovelAlias",
             "NovelSimilarity",
             "NovelRating",
@@ -22,8 +22,8 @@ APP_GROUPS = [
     (
         "Authors, Tags & Translators",
         [
-            "Author", "AuthorAlias", "AuthorMergeCandidate", "AuthorMerge",
-            "Editor", "Translator", "Tag", "TagAlias", "TagCluster", "TagMerge", "TagNoMerge",
+            "Author", "AuthorAlias",
+            "Editor", "Translator", "Tag", "TagAlias",
         ],
     ),
     ("Sources", ["ExternalSource", "NovelFromSource", "PlaceholderCover", "SourceVote"]),
@@ -33,7 +33,7 @@ APP_GROUPS = [
     ),
     ("Profiles & Social", ["Friendship", "ProfilePinnedNovel"]),
     ("Harvesting", ["HarvestCandidate", "HarvestConfig"]),
-    ("Jobs & Scheduler", ["Job", "ScheduledTask", "LLMRequest"]),
+    ("Jobs & Scheduler", ["Job", "ScheduledTask", "LLMCall"]),
 ]
 
 _GROUP_OF = {model: name for name, models in APP_GROUPS for model in models}

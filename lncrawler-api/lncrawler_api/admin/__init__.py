@@ -1,6 +1,7 @@
 # Import all admin modules to ensure they are registered
 from . import (
     author_merge_admin,
+    candidate_admin,
     chat_admin,
     chapter_admin,
     comment_admin,
@@ -8,12 +9,10 @@ from . import (
     downloader_admin,
     harvest_admin,
     llm_admin,
-    merge_admin,
     novel_admin,
     review_admin,
     scheduler_admin,
     source_admin,
-    tag_merge_admin,
     user_admin,
 )
 

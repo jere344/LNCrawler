@@ -1,0 +1,17 @@
+{% load i18n %}
+{% for author in authors %}
+  <div style="flex:1 1 260px;min-width:260px;border:1px solid var(--hairline-color,#ddd);border-radius:6px;padding:12px 14px;">
+    <h2 style="margin-top:0;"><a href="{{ author.admin_url }}">{{ author.name }}</a></h2>
+    <p class="help">{% trans 'Novels' %}: {{ author.novel_count }}</p>
+    {% if author.aliases %}
+      <p><span class="help">{% trans 'Aliases' %}:</span> {{ author.aliases|join:", " }}</p>
+    {% endif %}
+    {% if author.titles %}
+      <ul>
+        {% for title in author.titles %}<li>{{ title }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% empty %}
+  <p>{% trans 'No authors.' %}</p>
+{% endfor %}

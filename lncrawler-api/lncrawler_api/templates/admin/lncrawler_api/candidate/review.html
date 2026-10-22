@@ -1,0 +1,65 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{{ list_url }}">{% trans 'Candidates' %}</a>
+  &rsaquo; {{ kind_label }}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ kind_label }}: {% trans 'review' %}</h1>
+
+{% if not candidate %}
+  <p>
+    {% trans 'No candidates left in review for this kind.' %}
+    <a href="{{ list_url }}">{% trans 'Back to the list' %}</a>.
+  </p>
+  {% if can_reset %}
+  <form method="post" style="margin-top:12px;">{% csrf_token %}
+    <button type="submit" name="action" value="reset">{% trans 'Review the skipped candidates again' %}</button>
+  </form>
+  {% endif %}
+{% else %}
+  <p class="help">
+    {{ remaining }} {% trans 'candidate(s) waiting, LLM "yes" first (most confident first, then certainty), then "unsure", then "no".' %}
+  </p>
+
+  <div style="margin:12px 0;padding:10px 14px;border-radius:6px;background:var(--darkened-bg,#f0f0f0);">
+    <span style="font-size:18px;"><strong>#{{ candidate.pk }}</strong></span>
+    <span class="help">&middot; {{ candidate.get_status_display }}</span>
+    {% if kind == "novel_merge" %}
+      <span class="help">&middot; {% trans 'Certainty' %}: {{ certainty_pct }}%</span>
+    {% endif %}
+    {% if candidate.signals %}
+      <span class="help">&middot;
+        {% for key, value in candidate.signals.items %}{{ key }}={{ value|floatformat:2 }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </span>
+    {% endif %}
+  </div>
+
+  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+    <div style="flex:1 1 560px;min-width:320px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+      {% include targets_template %}
+    </div>
+    {% include "admin/lncrawler_api/candidate/_llm.html" %}
+  </div>
+
+  <form method="post" style="margin-top:18px;">{% csrf_token %}
+    <input type="hidden" name="candidate" value="{{ candidate.pk }}">
+    <div class="submit-row">
+      <button type="submit" name="action" value="apply" class="default" style="background:#2e7d32;">
+        {% trans 'Apply (ignores the safeguards)' %}
+      </button>
+      <button type="submit" name="action" value="reject" style="background:#c62828;">
+        {% trans 'Reject' %}
+      </button>
+      <button type="submit" name="action" value="rejudge">{% trans 'Re-judge (send back to the LLM)' %}</button>
+      <button type="submit" name="action" value="skip">{% trans 'Skip for now' %}</button>
+    </div>
+  </form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,23 @@
+{% load i18n %}
+<div style="flex:1 1 300px;min-width:260px;border:1px solid var(--hairline-color,#ddd);border-radius:6px;padding:12px 14px;">
+  <h2 style="margin-top:0;">{% trans 'Tags in this candidate' %}</h2>
+  <table>
+    <tr><th>{% trans 'Tag' %}</th><th>{% trans 'Novels' %}</th></tr>
+    {% for tag in tags %}
+      <tr>
+        <td>{% if tag.admin_url %}<a href="{{ tag.admin_url }}">{{ tag.name }}</a>{% else %}{{ tag.name }}{% endif %}</td>
+        <td>{{ tag.usage }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+  {% if sets %}
+    <h2>{% trans 'Proposed sets' %}</h2>
+    {% for set in sets %}
+      <p>
+        <strong>{{ set.canonical|default:"-" }}</strong>
+        {% if set.confidence is not None %}<span class="help">({{ set.confidence|floatformat:2 }})</span>{% endif %}<br>
+        <span class="help">{{ set.members|join:", " }}</span>
+      </p>
+    {% endfor %}
+  {% endif %}
+</div>

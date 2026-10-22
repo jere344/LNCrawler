@@ -1,22 +1,23 @@
-"""Tests for the optional LLM gray-band adjudication."""
+"""Tests for the LLM judge of novel merges: the reply parsing, the provider call, the
+LLMCall ledger the budget reads, and the decision the runner makes on a novel candidate.
 
-import importlib
+The runner's own rules (decide, claims, drop of gone targets) are in test_llm_runner.
+"""
+
 import json
-from datetime import timedelta
+import shutil
+import tempfile
 from unittest import mock
 
-from django.apps import apps
-from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from ..models import ExternalSource, LLMRequest, LLMUsage, MergeCandidate, Novel, NovelFromSource
+from ..models import Candidate, LLMCall, Novel
 from ..services import llm_service, llm_tasks
 from .helpers import MergeTestCase
-
-migration = importlib.import_module("lncrawler_api.migrations.0088_port_merge_llm_verdicts")
+from .test_candidate_apply import novel_pair, two_novels
 
 
 def _chat_payload(content, finish_reason="stop", total_tokens=120):
@@ -47,15 +48,35 @@ class _Session:
         return self.response
 
 
+class _Sequence(_Session):
+    """A session answering each request with the next response of the list."""
+
+    def __init__(self, responses):
+        super().__init__(None)
+        self.responses = list(responses)
+
+    def post(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        return self.responses.pop(0)
+
+
 def _judge_pair(profile_a, profile_b, session=None):
-    """One judge call and parse: what the removed llm_service.judge() did."""
-    content, _tokens = llm_service._post_chat(
+    """One judge call and parse, as the novel_merge task makes it."""
+    content, _tokens, _call = llm_service._post_chat(
         llm_service.build_messages(profile_a, profile_b),
         llm_tasks.REGISTRY["novel_merge"].max_tokens,
         "novel_merge",
         session=session,
     )
     return llm_service._parse_content(content)
+
+
+def _provider(name):
+    return llm_service.Provider(
+        name=name, url=f"http://{name}.test", api_key="k", model=name, reasoning_effort="",
+        daily_requests=None, daily_tokens=None, requests_per_minute=None,
+        tokens_per_minute=None, cooldown=60, shared_usage=False,
+    )
 
 
 class ParseTests(MergeTestCase):
@@ -135,140 +156,133 @@ class JudgeTests(MergeTestCase):
         self.assertTrue(llm_service.is_configured())
 
 
-class JudgeCommandTests(MergeTestCase):
+class OutputDirMixin:
+    """Novel merges write under LNCRAWL_OUTPUT_PATH: give each test its own directory."""
+
     def setUp(self):
         super().setUp()
-        self.es = ExternalSource.objects.create(source_name="site")
-        self.a = Novel.objects.create(title="Alpha", slug="alpha", novel_path="alpha")
-        self.b = Novel.objects.create(title="Alpha!", slug="alpha-b", novel_path="alpha-b")
-        self.candidate = MergeCandidate.objects.create(
-            novel_a=self.a, novel_b=self.b, title_a=self.a.title, title_b=self.b.title,
-            certainty=0.7, decision=MergeCandidate.DECISION_REVIEW,
+        self.tmp = tempfile.mkdtemp(prefix="lncrawl-merge-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        output = override_settings(LNCRAWL_OUTPUT_PATH=self.tmp)
+        output.enable()
+        self.addCleanup(output.disable)
+
+
+class JudgeCommandTests(OutputDirMixin, MergeTestCase):
+    def setUp(self):
+        super().setUp()
+        self.first, self.second = two_novels(self)
+        self.candidate = novel_pair(
+            self.first, self.second, status=Candidate.STATUS_PENDING, verdict=None,
         )
+        patcher = mock.patch.object(llm_service, "chat")
+        self.chat = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_noop_when_unconfigured(self):
         with override_settings(LLM_API_KEY=""):
-            call_command("run_llm_requests", "novel_merge")
+            call_command("run_llm", "novel_merge")
+        self.chat.assert_not_called()
         self.candidate.refresh_from_db()
-        self.assertIsNone(self.candidate.llm_checked_at)
-        self.assertFalse(LLMRequest.objects.exists())
+        self.assertEqual(self.candidate.status, Candidate.STATUS_PENDING)
 
     def test_stores_verdict(self):
         verdict = {"same": True, "confidence": 0.9, "reason": "same work"}
-        with mock.patch.object(llm_service, "_post_chat",
-                               return_value=(json.dumps(verdict), 120)):
-            with override_settings(LLM_API_KEY="key"):
-                call_command("run_llm_requests", "novel_merge")
+        self.chat.return_value = (json.dumps(verdict), 120, "provider", None)
+        with override_settings(LLM_API_KEY="key"):
+            call_command("run_llm", "novel_merge")
         self.candidate.refresh_from_db()
-        self.assertEqual(self.candidate.llm_verdict, verdict)
-        self.assertIsNotNone(self.candidate.llm_checked_at)
-        self.assertEqual(LLMRequest.objects.get().status, LLMRequest.STATUS_DONE)
+        self.assertEqual(self.candidate.verdict["answer"], "yes")
+        self.assertAlmostEqual(self.candidate.confidence, 0.9)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
 
     def test_respects_daily_budget(self):
-        with mock.patch.object(llm_service, "_post_chat") as post:
-            with override_settings(LLM_API_KEY="key", LLM_DAILY_REQUESTS=0):
-                call_command("run_llm_requests", "novel_merge")
-        post.assert_not_called()
+        with override_settings(LLM_API_KEY="key", LLM_DAILY_REQUESTS=0):
+            call_command("run_llm", "novel_merge")
+        self.chat.assert_not_called()
         self.candidate.refresh_from_db()
-        self.assertIsNone(self.candidate.llm_verdict)
-        self.assertIsNone(self.candidate.llm_checked_at)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_PENDING)
+        self.assertIsNone(self.candidate.verdict)
 
 
-@override_settings(MERGE_LLM_DISMISS_CONFIDENCE=0.9, MERGE_LLM_DISMISS_MAX_CERTAINTY=0.8)
-class JudgeDismissTests(MergeTestCase):
+class JudgeDecisionTests(OutputDirMixin, MergeTestCase):
+    """The novel_merge decision, through the command, with the default thresholds."""
+
     def setUp(self):
         super().setUp()
-        self.a = Novel.objects.create(title="Alpha", slug="alpha", novel_path="alpha")
-        self.b = Novel.objects.create(title="Alpha!", slug="alpha-b", novel_path="alpha-b")
-        self.candidate = MergeCandidate.objects.create(
-            novel_a=self.a, novel_b=self.b, title_a=self.a.title, title_b=self.b.title,
-            certainty=0.7, decision=MergeCandidate.DECISION_REVIEW,
+        self.first, self.second = two_novels(self)
+        self.candidate = novel_pair(
+            self.first, self.second, status=Candidate.STATUS_PENDING, verdict=None,
         )
+        patcher = mock.patch.object(llm_service, "chat")
+        self.chat = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _judge(self, verdict):
-        with mock.patch.object(llm_service, "_post_chat",
-                               return_value=(json.dumps(verdict), 120)):
-            with override_settings(LLM_API_KEY="key"):
-                call_command("run_llm_requests", "novel_merge")
+        self.chat.return_value = (json.dumps(verdict), 120, "provider", None)
+        with override_settings(LLM_API_KEY="key"):
+            call_command("run_llm", "novel_merge")
         self.candidate.refresh_from_db()
 
-    def test_confident_different_on_weak_candidate_is_skipped(self):
+    def test_confident_different_is_rejected(self):
         self._judge({"same": False, "confidence": 0.95, "reason": "different works"})
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_SKIPPED)
-        self.assertIsNotNone(self.candidate.llm_checked_at)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REJECTED)
+        self.assertEqual(self.candidate.decided_by, Candidate.DECIDED_LLM)
 
-    def test_high_certainty_different_verdict_stays_pending(self):
-        self.candidate.certainty = 0.9
-        self.candidate.save(update_fields=["certainty"])
-        self._judge({"same": False, "confidence": 0.95, "reason": "different works"})
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
-
-    def test_unconfident_different_verdict_stays_pending(self):
+    def test_unconfident_different_waits_for_review(self):
         self._judge({"same": False, "confidence": 0.5, "reason": "unsure"})
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
 
-    @override_settings(MERGE_LLM_AUTO_CONFIDENCE=0.95)
-    def test_same_verdict_below_auto_confidence_stays_pending(self):
+    def test_same_verdict_below_auto_confidence_waits_for_review(self):
         self._judge({"same": True, "confidence": 0.9, "reason": "same work"})
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
-        self.assertEqual(Novel.objects.count(), 2)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
+        self.assertEqual(Novel.objects.filter(pk__in=[self.first.pk, self.second.pk]).count(), 2)
 
-    @override_settings(MERGE_LLM_AUTO_CONFIDENCE=0.95)
     def test_confident_same_verdict_merges_the_pair(self):
         self._judge({"same": True, "confidence": 0.97, "reason": "same work"})
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_MERGED)
-        self.assertEqual(self.candidate.decision, MergeCandidate.DECISION_AUTO)
-        self.assertIsNotNone(self.candidate.merged_at)
-        self.assertEqual(Novel.objects.count(), 1)
-
-    @override_settings(MERGE_LLM_AUTO_CONFIDENCE=0.95)
-    def test_confident_same_verdict_in_a_chain_stays_pending(self):
-        c = Novel.objects.create(title="Alpha?", slug="alpha-c", novel_path="alpha-c")
-        MergeCandidate.objects.create(
-            novel_a=self.b, novel_b=c, title_a=self.b.title, title_b=c.title,
-            certainty=0.6, decision=MergeCandidate.DECISION_REVIEW,
-        )
-        # Both pairs get the verdict; each sees the other still pending.
-        self._judge({"same": True, "confidence": 0.99, "reason": "same work"})
-        self.assertEqual(self.candidate.status, MergeCandidate.STATUS_PENDING)
-        self.assertEqual(Novel.objects.count(), 3)
+        self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(self.candidate.decided_by, Candidate.DECIDED_LLM)
+        self.assertEqual(Novel.objects.filter(pk__in=[self.first.pk, self.second.pk]).count(), 1)
 
 
 class ReviewQueueOrderTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        user = get_user_model().objects.create_superuser("admin", "a@a.com", "pw")
+        user = self.make_superuser()
         self.client.force_login(user)
         self.count = 0
 
+    def make_superuser(self):
+        from django.contrib.auth import get_user_model
+
+        return get_user_model().objects.create_superuser("admin", "a@a.com", "pw")
+
     def _candidate(self, certainty, verdict=None):
         self.count += 1
-        a = Novel.objects.create(
-            title=f"Left {self.count}", slug=f"left-{self.count}", novel_path=f"left-{self.count}"
-        )
-        b = Novel.objects.create(
-            title=f"Right {self.count}", slug=f"right-{self.count}", novel_path=f"right-{self.count}"
-        )
-        return MergeCandidate.objects.create(
-            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title, certainty=certainty,
-            llm_verdict=verdict,
-            llm_checked_at=timezone.now() if verdict is not None else None,
+        return Candidate.objects.create(
+            kind=Candidate.KIND_NOVEL_MERGE,
+            target_ids=[self.count * 2, self.count * 2 + 1],
+            target_names=[f"Left {self.count}", f"Right {self.count}"],
+            signature=f"queue-{self.count}",
+            status=Candidate.STATUS_REVIEW,
+            certainty=certainty,
+            verdict=verdict,
+            confidence=verdict["confidence"] if verdict else None,
         )
 
     def test_review_queue_order(self):
-        judged_same_high = self._candidate(0.5, {"same": True, "confidence": 0.95, "reason": ""})
-        judged_same_low = self._candidate(0.9, {"same": True, "confidence": 0.6, "reason": ""})
+        judged_same_high = self._candidate(0.5, {"answer": "yes", "confidence": 0.95, "reason": ""})
+        judged_same_low = self._candidate(0.9, {"answer": "yes", "confidence": 0.6, "reason": ""})
         unjudged_high = self._candidate(0.95)
         unjudged_low = self._candidate(0.6)
-        judged_different = self._candidate(0.99, {"same": False, "confidence": 0.3, "reason": ""})
+        judged_different = self._candidate(0.99, {"answer": "no", "confidence": 0.3, "reason": ""})
 
-        url = reverse("admin:lncrawler_api_mergecandidate_review")
+        url = reverse("admin:lncrawler_api_candidate_review", args=["novel_merge"])
         expected = [judged_same_high, judged_same_low, unjudged_high, unjudged_low, judged_different]
         for candidate in expected:
             response = self.client.get(url)
             self.assertEqual(response.context["candidate"].pk, candidate.pk)
             self.client.post(url, {"candidate": str(candidate.pk), "action": "skip"})
-
 
 
 class RequestBodyTests(MergeTestCase):
@@ -289,7 +303,7 @@ class RequestBodyTests(MergeTestCase):
         self.assertNotIn("reasoning_effort", self._body(session))
 
     @override_settings(LLM_API_KEY="key")
-    def test_judge_uses_merge_llm_max_tokens(self):
+    def test_judge_uses_novel_merge_max_tokens(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}')))
         _judge_pair({"title": "a"}, {"title": "b"}, session=session)
         self.assertEqual(self._body(session)["max_tokens"], 2048)
@@ -315,242 +329,126 @@ class TruncationTests(MergeTestCase):
             _judge_pair({"title": "a"}, {"title": "b"}, session=session)
 
 
-class UsageLedgerTests(MergeTestCase):
+class LLMCallLedgerTests(MergeTestCase):
+    """Every reply the provider returned is one LLMCall: the budget and the history read it."""
+
     def test_row_written_for_success_and_truncated_replies(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}', total_tokens=900)))
         _judge_pair({"title": "a"}, {"title": "b"}, session=session)
         session = _Session(_Response(200, _chat_payload("", "length", total_tokens=2048)))
         with self.assertRaises(llm_service.LLMTruncated):
             _judge_pair({"title": "a"}, {"title": "b"}, session=session)
-        rows = list(LLMUsage.objects.order_by("pk").values_list("purpose", "tokens"))
+        rows = list(LLMCall.objects.order_by("pk").values_list("kind", "tokens"))
         self.assertEqual(rows, [("novel_merge", 900), ("novel_merge", 2048)])
+
+    def test_non_json_reply_is_charged_and_kept(self):
+        session = _Session(_Response(200, _chat_payload("not json", total_tokens=300)))
+        with self.assertRaises(llm_service.LLMError):
+            _judge_pair({"title": "a"}, {"title": "b"}, session=session)
+        call = LLMCall.objects.get()
+        self.assertEqual(call.tokens, 300)
+
+    def test_fallback_reply_is_charged_to_the_provider_that_answered(self):
+        session = _Sequence([
+            _Response(500, text="down"),
+            _Response(200, _chat_payload('{"same": true}', total_tokens=300)),
+        ])
+        messages = llm_service.build_messages({"title": "a"}, {"title": "b"})
+        providers = [_provider("first"), _provider("second")]
+        with mock.patch.object(llm_service, "providers", return_value=providers):
+            with override_settings(LLM_API_KEY="key"):
+                _content, tokens, provider, _call = llm_service.chat(
+                    messages, 2048, "novel_merge", session=session,
+                )
+        self.assertEqual(provider.name, "second")
+        self.assertEqual(tokens, 300)
+        # The 500 of the first provider is not charged: one row, under the second.
+        call = LLMCall.objects.get()
+        self.assertEqual((call.provider, call.tokens), ("second", 300))
 
     def test_no_row_on_rate_limit_or_http_error(self):
         for response in (_Response(429, headers={}), _Response(500, text="boom")):
             session = _Session(response)
             with self.assertRaises(llm_service.LLMError):
                 _judge_pair({"title": "a"}, {"title": "b"}, session=session)
-        self.assertFalse(LLMUsage.objects.exists())
+        self.assertFalse(LLMCall.objects.exists())
 
     def test_missing_usage_records_zero(self):
         payload = {"choices": [{"message": {"content": '{"same": true}'}, "finish_reason": "stop"}]}
         session = _Session(_Response(200, payload))
         _judge_pair({"title": "a"}, {"title": "b"}, session=session)
-        self.assertEqual(LLMUsage.objects.get().tokens, 0)
+        self.assertEqual(LLMCall.objects.get().tokens, 0)
 
     @override_settings(LLM_DAILY_TOKENS=1000)
     def test_budget_left_counts_all_purposes(self):
-        LLMUsage.objects.create(purpose="novel_merge", tokens=300)
-        LLMUsage.objects.create(purpose="tag_merge", tokens=200)
+        LLMCall.objects.create(kind="novel_merge", tokens=300)
+        LLMCall.objects.create(kind="tag_merge", tokens=200)
         self.assertEqual(llm_service.tokens_used_today(), 500)
         self.assertEqual(llm_service.token_budget_left(), 500)
 
 
-class JudgeTokenBudgetTests(MergeTestCase):
+class JudgeTokenBudgetTests(OutputDirMixin, MergeTestCase):
     def setUp(self):
         super().setUp()
         self.candidates = []
         for n in (1, 2):
             a = Novel.objects.create(title=f"A{n}", slug=f"a{n}", novel_path=f"a{n}")
             b = Novel.objects.create(title=f"B{n}", slug=f"b{n}", novel_path=f"b{n}")
-            self.candidates.append(MergeCandidate.objects.create(
-                novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
-                certainty=0.9 - n / 10, decision=MergeCandidate.DECISION_REVIEW,
+            self.candidates.append(Candidate.objects.create(
+                kind=Candidate.KIND_NOVEL_MERGE, target_ids=[str(a.pk), str(b.pk)],
+                target_names=[a.title, b.title], signature=f"budget-{n}",
+                status=Candidate.STATUS_PENDING,
             ))
 
     @override_settings(LLM_API_KEY="key",
                        LLM_DAILY_TOKENS=171000, LLM_TOKENS_PER_MINUTE=1000000)
     def test_stops_before_call_when_budget_below_one_call(self):
-        # 1000 left is below CALL_TOKENS (1500).
-        LLMUsage.objects.create(purpose="tag_merge", tokens=170000)
-        with mock.patch.object(llm_service, "_post_chat") as post:
-            call_command("run_llm_requests", "novel_merge")
-        post.assert_not_called()
+        # 1000 left is below CALL_TOKENS (2500).
+        LLMCall.objects.create(kind="tag_merge", tokens=170000)
+        with mock.patch.object(llm_service, "chat") as chat:
+            call_command("run_llm", "novel_merge")
+        chat.assert_not_called()
 
     @override_settings(LLM_API_KEY="key",
                        LLM_DAILY_TOKENS=4000, LLM_TOKENS_PER_MINUTE=1000000)
     def test_budget_checked_before_every_call(self):
         def spend(*args, **kwargs):
-            LLMUsage.objects.create(purpose="novel_merge", tokens=5000)
-            return json.dumps({"same": True, "confidence": 0.9, "reason": "same"}), 5000
+            LLMCall.objects.create(kind="novel_merge", tokens=5000)
+            return json.dumps({"same": True, "confidence": 0.9, "reason": "same"}), 5000, "p", None
 
-        with mock.patch.object(llm_service, "_post_chat", side_effect=spend) as post:
-            call_command("run_llm_requests", "novel_merge")
-        self.assertEqual(post.call_count, 1)
+        with mock.patch.object(llm_service, "chat", side_effect=spend) as chat:
+            call_command("run_llm", "novel_merge")
+        self.assertEqual(chat.call_count, 1)
         self.candidates[0].refresh_from_db()
         self.candidates[1].refresh_from_db()
-        self.assertIsNotNone(self.candidates[0].llm_checked_at)
-        self.assertIsNone(self.candidates[1].llm_checked_at)
+        self.assertEqual(self.candidates[0].status, Candidate.STATUS_REVIEW)
+        self.assertEqual(self.candidates[1].status, Candidate.STATUS_PENDING)
 
     @override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=180000)
-    def test_truncated_reply_leaves_candidate_unchecked(self):
+    def test_truncated_reply_leaves_candidate_unchecked_and_is_charged(self):
         payload = _chat_payload("", "length", total_tokens=2048)
         with mock.patch.object(llm_service.requests, "post",
                                return_value=_Response(200, payload)):
-            call_command("run_llm_requests", "novel_merge")
+            call_command("run_llm", "novel_merge")
         for candidate in self.candidates:
             candidate.refresh_from_db()
-            self.assertIsNone(candidate.llm_checked_at)
-            self.assertIsNone(candidate.llm_verdict)
-        # Each failed request goes back to the queue with a backoff, not FAILED yet.
-        for req in LLMRequest.objects.filter(task="novel_merge"):
-            self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
-            self.assertEqual(req.attempts, 1)
-            self.assertIsNotNone(req.not_before)
-        self.assertEqual(list(LLMUsage.objects.values_list("tokens", flat=True)), [2048, 2048])
+            self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+            self.assertIsNone(candidate.verdict)
+            # Each failed request goes back to the queue with a backoff, not ERROR yet.
+            self.assertEqual(candidate.attempts, 1)
+            self.assertIsNotNone(candidate.not_before)
+        self.assertTrue(LLMCall.objects.exists())
+        self.assertEqual(set(LLMCall.objects.values_list("tokens", flat=True)), {2048})
 
-
-@override_settings(LLM_API_KEY="key")
-class NovelMergeTaskTests(MergeTestCase):
-    def _candidate(self, n, certainty, **extra):
-        a = Novel.objects.create(title=f"A{n}", slug=f"qa{n}", novel_path=f"qa{n}")
-        b = Novel.objects.create(title=f"B{n}", slug=f"qb{n}", novel_path=f"qb{n}")
-        return MergeCandidate.objects.create(
-            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title,
-            certainty=certainty, decision=MergeCandidate.DECISION_REVIEW, **extra,
-        )
-
-    @staticmethod
-    def _request(candidate, status, **extra):
-        return LLMRequest.objects.create(
-            task="novel_merge",
-            target_type="merge_candidate",
-            target_ids=[str(candidate.pk)],
-            prompt_version=llm_tasks.REGISTRY["novel_merge"].prompt_version,
-            status=status,
-            **extra,
-        )
-
-    def test_enqueue_skips_covered_and_requeues_after_done_clear(self):
-        pending = self._candidate(1, 0.9)
-        failed = self._candidate(2, 0.8)
-        judged = self._candidate(3, 0.7, llm_checked_at=timezone.now())
-        self._request(pending, LLMRequest.STATUS_PENDING)
-        self._request(failed, LLMRequest.STATUS_FAILED)
-        self._request(judged, LLMRequest.STATUS_DONE)
-        task = llm_tasks.REGISTRY["novel_merge"]
-
-        self.assertEqual(task.enqueue(10), 0)
-
-        # Someone cleared the verdict to re-judge: the DONE request no longer covers it.
-        judged.llm_checked_at = None
-        judged.save(update_fields=["llm_checked_at"])
-        self.assertEqual(task.enqueue(10), 1)
-        newest = LLMRequest.objects.filter(task="novel_merge").order_by("-created_at").first()
-        self.assertEqual(newest.target_ids, [str(judged.pk)])
-
-    def test_rejudge_action_sends_pairs_back_unjudged(self):
-        from django.contrib import admin
-        from ..admin.merge_admin import MergeCandidateAdmin
-
-        verdict = {"same": False, "confidence": 1.0, "reason": "different"}
-        skipped = self._candidate(1, 0.5, status=MergeCandidate.STATUS_SKIPPED,
-                                  llm_verdict=verdict, llm_checked_at=timezone.now())
-        pending = self._candidate(2, 0.9, llm_verdict=verdict, llm_checked_at=timezone.now())
-        merged = self._candidate(3, 0.9, status=MergeCandidate.STATUS_MERGED)
-        stale = self._candidate(4, 0.9, status=MergeCandidate.STATUS_SKIPPED)
-        stale.novel_b.delete()
-        self._request(skipped, LLMRequest.STATUS_DONE)
-
-        model_admin = MergeCandidateAdmin(MergeCandidate, admin.site)
-        with mock.patch.object(model_admin, "message_user"):
-            model_admin.rejudge_candidates(None, MergeCandidate.objects.all())
-
-        for candidate in (skipped, pending):
-            candidate.refresh_from_db()
-            self.assertEqual(candidate.status, MergeCandidate.STATUS_PENDING)
-            self.assertIsNone(candidate.llm_checked_at)
-            self.assertIsNone(candidate.llm_verdict)
-        merged.refresh_from_db()
-        stale.refresh_from_db()
-        self.assertEqual(merged.status, MergeCandidate.STATUS_MERGED)
-        self.assertEqual(stale.status, MergeCandidate.STATUS_SKIPPED)
-        # Both re-judged pairs are queued again; the DONE request does not cover them.
-        self.assertEqual(llm_tasks.REGISTRY["novel_merge"].enqueue(10), 2)
-
-    @override_settings(MERGE_LLM_DISMISS_CONFIDENCE=0.9, MERGE_LLM_DISMISS_MAX_CERTAINTY=0.8)
-    def test_apply_does_not_dismiss_candidate_no_longer_pending(self):
-        candidate = self._candidate(1, 0.7, status=MergeCandidate.STATUS_REJECTED)
-        req = self._request(candidate, LLMRequest.STATUS_RUNNING, model="openai/test")
-
-        llm_tasks.REGISTRY["novel_merge"].apply(
-            req, {"same": False, "confidence": 0.95, "reason": "different works"}
-        )
-
-        candidate.refresh_from_db()
-        self.assertEqual(candidate.status, MergeCandidate.STATUS_REJECTED)
-        self.assertEqual(candidate.llm_reason, "different works")
-        self.assertEqual(candidate.llm_model, "openai/test")
-        self.assertIsNotNone(candidate.llm_checked_at)
-
-
-    def test_requeued_done_request_keeps_its_verdict(self):
-        verdict = {"same": True, "confidence": 0.9, "reason": "same work"}
-        candidate = self._candidate(1, 0.7, llm_verdict=verdict, llm_checked_at=timezone.now())
-        req = self._request(candidate, LLMRequest.STATUS_PENDING, response=verdict)
-
-        with mock.patch.object(llm_service, "_post_chat") as post:
-            llm_tasks.run_task("novel_merge", 1)
-
-        post.assert_not_called()
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
-        self.assertEqual(req.response, verdict)
-
-    def test_reapply_ignores_skipped_requests(self):
-        from django.contrib import admin as django_admin
-        from ..admin.llm_admin import LLMRequestAdmin
-
-        candidate = self._candidate(1, 0.7)
-        self._request(candidate, LLMRequest.STATUS_DONE, response={"skipped": "no targets left"})
-        model_admin = LLMRequestAdmin(LLMRequest, django_admin.site)
-
-        with mock.patch.object(model_admin, "message_user"):
-            model_admin.reapply_result(None, LLMRequest.objects.all())
-
-        candidate.refresh_from_db()
-        self.assertIsNone(candidate.llm_verdict)
-        self.assertIsNone(candidate.llm_checked_at)
-
-
-class PortMergeVerdictsMigrationTests(MergeTestCase):
-    def _candidate(self, n, **extra):
-        a = Novel.objects.create(title=f"A{n}", slug=f"ma{n}", novel_path=f"ma{n}")
-        b = Novel.objects.create(title=f"B{n}", slug=f"mb{n}", novel_path=f"mb{n}")
-        return MergeCandidate.objects.create(
-            novel_a=a, novel_b=b, title_a=a.title, title_b=b.title, **extra,
-        )
-
-    def test_forward_creates_done_request_per_judged_candidate(self):
-        verdict = {"same": True, "confidence": 0.9, "reason": "same work"}
-        checked_at = timezone.now() - timedelta(days=3)
-        judged = self._candidate(
-            1, llm_verdict=verdict, llm_reason="same work",
-            llm_model="openai/gpt-oss-20b", llm_checked_at=checked_at,
-        )
-        self._candidate(2)  # never judged
-        self._candidate(3, llm_verdict=verdict)  # verdict without a check time
-
-        migration.port_verdicts(apps, None)
-
-        req = LLMRequest.objects.get(task="novel_merge")
-        self.assertEqual(req.target_ids, [str(judged.pk)])
-        self.assertEqual(req.target_type, "merge_candidate")
-        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
-        self.assertEqual(req.response, verdict)
-        self.assertEqual(req.model, "openai/gpt-oss-20b")
-        self.assertEqual(req.attempts, 1)
-        self.assertEqual(req.tokens, 0)
-        self.assertEqual(req.finished_at, checked_at)
-        self.assertEqual(req.created_at, checked_at)
-        self.assertFalse(LLMUsage.objects.exists())
-
-    def test_reverse_deletes_only_novel_merge_requests(self):
-        LLMRequest.objects.create(task="tag_r18", target_type="tag", target_ids=[1], prompt_version="1")
-        LLMRequest.objects.create(
-            task="novel_merge", target_type="merge_candidate", target_ids=["x"], prompt_version="1",
-        )
-
-        migration.unport_verdicts(apps, None)
-
-        self.assertEqual(list(LLMRequest.objects.values_list("task", flat=True)), ["tag_r18"])
+    @override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=180000)
+    def test_non_json_reply_leaves_candidate_unchecked_and_is_charged(self):
+        payload = _chat_payload("I cannot decide.", total_tokens=400)
+        with mock.patch.object(llm_service.requests, "post",
+                               return_value=_Response(200, payload)):
+            call_command("run_llm", "novel_merge")
+        self.candidates[0].refresh_from_db()
+        self.assertEqual(self.candidates[0].status, Candidate.STATUS_PENDING)
+        self.assertIsNone(self.candidates[0].verdict)
+        self.assertEqual(self.candidates[0].attempts, 1)
+        self.assertTrue(LLMCall.objects.exists())
+        self.assertEqual(set(LLMCall.objects.values_list("tokens", flat=True)), {400})

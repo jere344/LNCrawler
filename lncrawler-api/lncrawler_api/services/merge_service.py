@@ -15,7 +15,7 @@ the folder moves together.
 import logging
 import os
 from dataclasses import dataclass, field
-from itertools import combinations
+from types import SimpleNamespace
 from typing import Optional
 
 from django.db import IntegrityError, transaction
@@ -26,7 +26,9 @@ from ..db_locks import lock_pks
 from ..models.sources_models import refresh_adult_for_tags
 from ..utils.slug import slugify
 from ..utils.tag_utils import normalize_tag
+from .manual_merge import pair_candidate, record_manual_merge, record_manual_rename
 from ..models import (
+    Candidate,
     Comment,
     Novel,
     NovelAlias,
@@ -39,11 +41,7 @@ from ..models import (
     Review,
     Tag,
     TagAlias,
-    TagCluster,
-    TagMerge,
-    TagNoMerge,
 )
-from .merge_common import find_later_merge, repoint_orphaned_merges
 from .novel_operations import (
     FileOperationError,
     dedupe_source,
@@ -292,16 +290,33 @@ def _merge_reading_list_items(source, target):
     ReadingListItem.objects.filter(novel=source).delete()
 
 
-def merge_novels(source_novel, target_novel, move_files=True):
+def merge_novels(source_novel, target_novel, move_files=True, return_moves=False, candidate=None):
     """Merge ``source_novel`` into ``target_novel`` and delete the former.
 
     The database writes and the folder changes succeed or fail together. Sources
     of one site that are different works coexist: each keeps its own folder.
+
+    With ``return_moves`` the result is ``(target_novel, moves)``, where ``moves``
+    lists the source ids moved over as they were and the ids folded into the
+    target's copies. The candidate undo entry is built from it.
+
+    ``candidate`` is the one being applied, which is left alone. Other open novel_merge
+    candidates naming the source are deleted. Without a candidate (a manual merge) the
+    pair's candidate, if any, is recorded as applied by a human.
     """
     if source_novel.pk == target_novel.pk:
         raise MergeError("A novel cannot be merged into itself.")
 
+    source_pk = source_novel.pk
     source_sources = list(source_novel.sources.all())
+    moved_ids, deduped_ids = [], []
+    # The source is gone after the merge: its undo data is read first.
+    snapshot = {
+        "title": source_novel.title,
+        "slug": source_novel.slug,
+        "is_dmca": source_novel.is_dmca,
+        "added_by": source_novel.added_by_id,
+    }
 
     try:
         with file_journal() as files:
@@ -313,6 +328,7 @@ def merge_novels(source_novel, target_novel, move_files=True):
                     duplicate = find_duplicate(target_novel, source)
                     if duplicate is None:
                         move_source_to_novel(source, target_novel, move_files, files=files)
+                        moved_ids.append(source.pk)
                     elif source_completeness(source) > source_completeness(duplicate):
                         # Keep the incoming copy: fold the target's weaker copy into it
                         # first, freeing the (novel, source_url) slot, then repoint.
@@ -320,13 +336,16 @@ def merge_novels(source_novel, target_novel, move_files=True):
                             duplicate, source, move_files, files=files,
                             dest_novel=target_novel,
                         )
+                        deduped_ids.append(duplicate.pk)
                         move_source_to_novel(source, target_novel, move_files, files=files)
+                        moved_ids.append(source.pk)
                     else:
                         # Keep the existing target copy: drop the incoming one.
                         dedupe_source(
                             source, duplicate, move_files, files=files,
                             dest_novel=target_novel,
                         )
+                        deduped_ids.append(source.pk)
 
                 _merge_novel_ratings(source_novel, target_novel)
                 _merge_similarities(source_novel, target_novel)
@@ -343,7 +362,25 @@ def merge_novels(source_novel, target_novel, move_files=True):
                 )
                 _merge_reading_list_items(source_novel, target_novel)
 
+                if candidate is None:
+                    # Recorded before the drop below, so the pair's own open row is not deleted.
+                    record_manual_merge(
+                        Candidate.KIND_NOVEL_MERGE, [source_pk, target_novel.pk],
+                        [snapshot["title"], target_novel.title],
+                        {
+                            "type": "novel_merge",
+                            "source_id": str(source_pk),
+                            "target_id": str(target_novel.pk),
+                            "moved_source_ids": moved_ids,
+                            **snapshot,
+                        },
+                        row=pair_candidate(Candidate.KIND_NOVEL_MERGE, [source_pk, target_novel.pk]),
+                    )
                 source_novel.delete()
+                Candidate.drop_open_naming(
+                    [source_pk], kinds=[Candidate.KIND_NOVEL_MERGE],
+                    exclude_pk=candidate.pk if candidate is not None else None,
+                )
                 recount_comment_count(target_novel)
                 files.schedule()
     except FileOperationError as exc:
@@ -353,91 +390,105 @@ def merge_novels(source_novel, target_novel, move_files=True):
         "Merged novel '%s' (%s) into '%s' (%s)",
         source_novel.title, source_novel.slug, target_novel.title, target_novel.slug,
     )
+    if return_moves:
+        return target_novel, {"moved_source_ids": moved_ids, "deduped_source_ids": deduped_ids}
     return target_novel
 
 
-def merge_tags(source_tag, target_tag, cluster=None):
-    """Fold ``source_tag`` into ``target_tag`` and remember the old name.
+def fold_tag(source_tag, target_tag, candidate=None):
+    """Fold ``source_tag`` into ``target_tag``. Returns the undo entry of the change.
 
-    Every source tagged with the duplicate is retagged, and a ``TagAlias``
-    records the discarded name so a future import of it resolves to the target
-    instead of recreating the duplicate. The change is stored as a ``TagMerge``
-    so ``undo_tag_merge`` can reverse it.
+    The caller holds the transaction. Every source tagged with the duplicate is
+    retagged, and a ``TagAlias`` records the discarded name so a future import of it
+    resolves to the target instead of recreating the duplicate. The entry lists what
+    moved, so the change can be reversed (``undo_tag_entry``).
+
+    ``candidate`` is the one being applied, which is left alone. Other open tag_merge and
+    tag_r18 candidates naming the source are deleted.
     """
     if source_tag.pk == target_tag.pk:
         raise MergeError("A tag cannot be merged into itself.")
 
     name = source_tag.name
+    source_id = source_tag.pk
 
-    with transaction.atomic():
-        # Lock both rows before reading links: a concurrent import must not attach
-        # new sources to the source tag between the read and the delete.
-        if len(lock_pks(Tag, [source_tag.pk, target_tag.pk])) != 2:
-            raise MergeError("A tag was merged away concurrently; reload and try again.")
+    # Lock both rows before reading links: a concurrent import must not attach
+    # new sources to the source tag between the read and the delete.
+    if len(lock_pks(Tag, [source_tag.pk, target_tag.pk])) != 2:
+        raise MergeError("A tag was merged away concurrently; reload and try again.")
 
-        source_ids = list(source_tag.novels.values_list("pk", flat=True))
-        target_ids = set(target_tag.novels.values_list("pk", flat=True))
-        moved_alias_ids = list(
-            TagAlias.objects.filter(tag=source_tag).values_list("pk", flat=True)
-        )
-        TagAlias.objects.filter(pk__in=moved_alias_ids).update(tag=target_tag)
-        target_tag.novels.add(*source_ids)
-        _move_no_merge_pairs(source_tag, target_tag)
-        source_was_adult, target_was_adult = source_tag.is_adult, target_tag.is_adult
-        if source_tag.is_adult and not target_tag.is_adult:
-            # The merged-into tag keeps the R18 flag so its novels stay adult.
-            target_tag.is_adult = True
-            target_tag.save(update_fields=["is_adult"])
-        if target_tag.is_adult:
-            refresh_adult_for_tags([target_tag.pk])
-        source_tag.delete()
-        TagAlias.objects.update_or_create(name=name, defaults={"tag": target_tag})
-        TagMerge.objects.create(
-            cluster=cluster,
-            kind=TagMerge.KIND_MERGE,
-            source_name=name,
-            target=target_tag,
-            target_name=target_tag.name,
-            all_source_ids=source_ids,
-            added_source_ids=[pk for pk in source_ids if pk not in target_ids],
-            moved_alias_ids=moved_alias_ids,
-            source_was_adult=source_was_adult,
-            target_was_adult=target_was_adult,
-        )
-
+    source_ids = list(source_tag.novels.values_list("pk", flat=True))
+    target_ids = set(target_tag.novels.values_list("pk", flat=True))
+    moved_alias_ids = list(
+        TagAlias.objects.filter(tag=source_tag).values_list("pk", flat=True)
+    )
+    TagAlias.objects.filter(pk__in=moved_alias_ids).update(tag=target_tag)
+    target_tag.novels.add(*source_ids)
+    source_was_adult, target_was_adult = source_tag.is_adult, target_tag.is_adult
+    if source_tag.is_adult and not target_tag.is_adult:
+        # The merged-into tag keeps the R18 flag so its novels stay adult.
+        target_tag.is_adult = True
+        target_tag.save(update_fields=["is_adult"])
+    if target_tag.is_adult:
+        refresh_adult_for_tags([target_tag.pk])
+    source_tag.delete()
+    Candidate.drop_open_naming(
+        [source_id], kinds=[Candidate.KIND_TAG_MERGE, Candidate.KIND_TAG_R18],
+        exclude_pk=candidate.pk if candidate is not None else None,
+    )
+    TagAlias.objects.update_or_create(name=name, defaults={"tag": target_tag})
     logger.info("Merged tag '%s' into '%s'", name, target_tag.name)
+    return {
+        "type": "tag_merge",
+        "source_id": source_id,
+        "source_name": name,
+        "target_id": target_tag.pk,
+        "target_name": target_tag.name,
+        "all_source_ids": source_ids,
+        "added_source_ids": [pk for pk in source_ids if pk not in target_ids],
+        "moved_alias_ids": moved_alias_ids,
+        "source_was_adult": source_was_adult,
+        "target_was_adult": target_was_adult,
+    }
+
+
+def merge_tags(source_tag, target_tag):
+    """Fold ``source_tag`` into ``target_tag`` (``fold_tag``) and record it as an applied candidate.
+
+    The undo entry lives on the pair's tag_merge candidate, which a human applied (see
+    ``manual_merge.record_manual_merge``).
+    """
+    with transaction.atomic():
+        # Passed to fold_tag as the candidate it leaves alone, so its open row is not deleted.
+        pks = [source_tag.pk, target_tag.pk]  # read before fold_tag deletes the source
+        pair = pair_candidate(Candidate.KIND_TAG_MERGE, pks)
+        entry = fold_tag(source_tag, target_tag, candidate=pair)
+        record_manual_merge(
+            Candidate.KIND_TAG_MERGE, pks, [entry["source_name"], entry["target_name"]], entry, row=pair,
+        )
     return target_tag
 
 
-def _move_no_merge_pairs(source_tag, target_tag):
-    """Re-point the source's "not mergeable" pairs at the target.
-
-    A pair that would become a self-pair, or duplicate one the target already has,
-    is dropped instead.
-    """
-    for row in list(TagNoMerge.objects.filter(Q(tag_a=source_tag) | Q(tag_b=source_tag))):
-        other = row.tag_b_id if row.tag_a_id == source_tag.pk else row.tag_a_id
-        row.delete()
-        if other == target_tag.pk:
-            continue
-        if TagNoMerge.objects.filter(
-            Q(tag_a_id=target_tag.pk, tag_b_id=other) | Q(tag_a_id=other, tag_b_id=target_tag.pk)
-        ).exists():
-            continue
-        TagNoMerge.objects.create(tag_a_id=target_tag.pk, tag_b_id=other)
+def rename_tag(tag, new_name):
+    """Give ``tag`` a new name (``apply_rename``) and record it as an applied candidate. Returns the tag."""
+    with transaction.atomic():
+        entry = apply_rename(tag, new_name)
+        if entry is not None:
+            record_manual_rename(tag.pk, entry)
+    return tag
 
 
-def rename_tag(tag, new_name, cluster=None):
-    """Give ``tag`` a new name, keeping the old name as an alias.
+def apply_rename(tag, new_name):
+    """Give ``tag`` a new name, keeping the old name as an alias. Returns the undo entry.
 
-    Raises ``MergeError`` when another tag, or an alias of another tag, already
-    has the new name's key, or when the save loses a race with such a tag. The
-    caller should merge into that tag instead.
+    Returns None when the name does not change. Raises ``MergeError`` when another
+    tag, or an alias of another tag, already has the new name's key, or when the save
+    loses a race with such a tag. The caller should merge into that tag instead.
     """
     new_name = new_name.strip()[: Tag._meta.get_field("name").max_length]
     old_name = tag.name
     if new_name == old_name:
-        return tag
+        return None
 
     key = normalize_tag(new_name)
     if Tag.objects.filter(normalized=key).exclude(pk=tag.pk).exists():
@@ -467,28 +518,9 @@ def rename_tag(tag, new_name, cluster=None):
             raise MergeError(
                 f"'{new_name}' conflicts with an existing tag or alias; merge into it instead."
             ) from exc
-        TagMerge.objects.create(
-            cluster=cluster,
-            kind=TagMerge.KIND_RENAME,
-            source_name=old_name,
-            target=tag,
-            target_name=new_name,
-            renamed_from=old_name,
-        )
 
     logger.info("Renamed tag '%s' to '%s'", old_name, new_name)
-    return tag
-
-
-def block_tag_pair(tag_a_id, tag_b_id):
-    """Record that two tags must never be proposed as duplicates again."""
-    if tag_a_id == tag_b_id:
-        return
-    exists = TagNoMerge.objects.filter(
-        Q(tag_a_id=tag_a_id, tag_b_id=tag_b_id) | Q(tag_a_id=tag_b_id, tag_b_id=tag_a_id)
-    ).exists()
-    if not exists:
-        TagNoMerge.objects.create(tag_a_id=tag_a_id, tag_b_id=tag_b_id)
+    return {"type": "tag_rename", "target_id": tag.pk, "target_name": new_name, "renamed_from": old_name}
 
 
 def _undo_merge(merge):
@@ -514,10 +546,6 @@ def _undo_merge(merge):
     TagAlias.objects.filter(pk__in=merge.moved_alias_ids, tag=target).update(tag=source)
     TagAlias.objects.filter(name=merge.source_name, tag=target).delete()
 
-    # A later merge may have taken this name away (this tag was its target). Point
-    # those records at the restored tag so they can be undone in turn.
-    repoint_orphaned_merges(TagMerge, merge.source_name, source)
-
     restored = list(
         NovelFromSource.objects.filter(pk__in=merge.all_source_ids).values_list("pk", flat=True)
     )
@@ -531,6 +559,7 @@ def _undo_merge(merge):
             tag.is_adult = was_adult
             tag.save(update_fields=["is_adult"])
     refresh_adult_for_tags([source.pk, target.pk])
+    return source
 
 
 def _undo_rename(merge):
@@ -548,100 +577,43 @@ def _undo_rename(merge):
     tag.save()
 
 
-def undo_tag_merge(merge):
-    """Reverse one ``TagMerge``: restore the merged-away tag or the old name."""
-    if merge.undone_at is not None:
-        raise MergeError("This change was already undone.")
-    if merge.target is None:
-        # The target was merged away later. Its own merge must be undone first.
-        later = find_later_merge(TagMerge, merge)
-        if later is not None:
-            raise MergeError(
-                f"Undo the later merge of '{later.source_name}' into "
-                f"'{later.target_name}' (#{later.pk}) first"
-            )
-        raise MergeError("The target tag no longer exists.")
+def undo_tag_entry(entry):
+    """Reverse one undo entry (``fold_tag`` or ``apply_rename``) and return the restored ids.
 
-    with transaction.atomic():
-        # The target and (for a merge) the tag holding the source's key, in one
-        # statement ordered by pk. Inside undo_tag_cluster these rows are already
-        # locked by its single lock_pks call, so this is a no-op there.
-        filters = Q(pk=merge.target_id)
-        if merge.kind == TagMerge.KIND_MERGE:
-            filters |= Q(normalized=normalize_tag(merge.source_name))
-        locked = set(
-            Tag.objects.select_for_update()
-            .filter(filters)
-            .order_by("pk")
-            .values_list("pk", flat=True)
-        )
-        if merge.target_id not in locked:
-            raise MergeError("The target tag was merged away; reload and try again.")
-
-        if merge.kind == TagMerge.KIND_RENAME:
-            _undo_rename(merge)
-        else:
-            _undo_merge(merge)
-        merge.undone_at = timezone.now()
-        merge.save(update_fields=["undone_at"])
-
-    logger.info("Undid tag change: %s", merge)
-    return merge
-
-
-def undo_tag_cluster(cluster):
-    """Undo every live change a cluster made and keep its members apart.
-
-    Changes are reversed newest first, and each one is reloaded just before it is
-    undone so links that a newer undo repaired (chained merges) are seen. Each
-    merged set then gets a ``TagNoMerge`` pair for every two of its members, so
-    the same proposal is not made again.
+    The restored tag of a merge is a new row, so the returned ``source_id`` can differ
+    from the entry's. Callers repoint the ids they hold. Refused when the target is
+    gone or the restored key is taken.
     """
     with transaction.atomic():
-        merges = list(
-            cluster.merges.filter(undone_at__isnull=True).order_by("-created_at", "-pk")
-        )
-        # Lock every target and every live source-key tag in one sorted call before
-        # the first undo. Restored tags are new rows, so they need no lock.
-        wanted = {merge.target_id for merge in merges if merge.target_id is not None}
-        for merge in merges:
-            if merge.kind == TagMerge.KIND_MERGE:
-                key_pk = (
-                    Tag.objects.filter(normalized=normalize_tag(merge.source_name))
-                    .values_list("pk", flat=True)
-                    .first()
-                )
-                if key_pk is not None:
-                    wanted.add(key_pk)
-        lock_pks(Tag, wanted)
+        # The target and (for a merge) the tag holding the source's key, locked in one
+        # statement ordered by pk. The target is also looked up by its name's key: undoing
+        # a later merge of it (A->B then B->C, undone newest first) recreates it under a new pk.
+        target_key = normalize_tag(entry["target_name"])
+        filters = Q(pk=entry["target_id"]) | Q(normalized=target_key)
+        if entry["type"] == "tag_merge":
+            filters |= Q(normalized=normalize_tag(entry["source_name"]))
+        locked = list(Tag.objects.select_for_update().filter(filters).order_by("pk"))
+        target = next((tag for tag in locked if tag.pk == entry["target_id"]), None)
+        if target is None:
+            target = next((tag for tag in locked if tag.normalized == target_key), None)
+        if target is None:
+            raise MergeError("The target tag was merged away or deleted; reload and try again.")
 
-        for merge in merges:
-            merge.refresh_from_db()
-            undo_tag_merge(merge)
-
-        # Each undo can re-point older merges (chains), so reload every merge now and
-        # read its final target. Restored sources have new ids: resolve them by key.
-        sets = {}
-        for merge in merges:
-            merge.refresh_from_db()
-            if merge.kind != TagMerge.KIND_MERGE:
-                continue
-            target_id = merge.target_id
-            if target_id is None:
-                found = Tag.objects.filter(normalized=normalize_tag(merge.target_name)).first()
-                target_id = found.pk if found is not None else None
-            if target_id is None:
-                continue
-            members = sets.setdefault(target_id, {target_id})
-            source = Tag.objects.filter(normalized=normalize_tag(merge.source_name)).first()
-            if source is not None:
-                members.add(source.pk)
-        for members in sets.values():
-            for a, b in combinations(sorted(members), 2):
-                block_tag_pair(a, b)
-
-        cluster.status = TagCluster.STATUS_UNDONE
-        cluster.save(update_fields=["status", "updated_at"])
-
-    logger.info("Undid tag cluster %s", cluster.pk)
-    return cluster
+        if entry["type"] == "tag_rename":
+            _undo_rename(SimpleNamespace(
+                target=target,
+                renamed_from=entry["renamed_from"],
+                target_name=entry["target_name"],
+            ))
+            return {"target_id": target.pk}
+        source = _undo_merge(SimpleNamespace(
+            target=target,
+            source_name=entry["source_name"],
+            moved_alias_ids=entry["moved_alias_ids"],
+            all_source_ids=entry["all_source_ids"],
+            added_source_ids=entry["added_source_ids"],
+            source_was_adult=entry["source_was_adult"],
+            target_was_adult=entry["target_was_adult"],
+        ))
+    logger.info("Undid tag entry %s", entry)
+    return {"source_id": source.pk, "target_id": target.pk}

@@ -1,0 +1,20 @@
+{% load i18n %}
+<div style="flex:1 1 360px;min-width:300px;border:1px solid var(--hairline-color,#ddd);border-radius:6px;padding:12px 14px;">
+  {% if tag %}
+    <h2 style="margin-top:0;">{% trans 'Tag' %}: <a href="{{ tag_admin_url }}">{{ tag.name }}</a></h2>
+    <p class="help">{% trans 'Novels using this tag' %}: {{ novel_count }}</p>
+    {% for novel in novels %}
+      <div style="display:flex;gap:10px;align-items:center;margin:6px 0;">
+        {% if novel.cover %}<img src="{{ novel.cover }}" alt="" style="width:40px;height:58px;object-fit:cover;border-radius:4px;">{% endif %}
+        <a href="{{ novel.admin_url }}">{{ novel.title }}</a>
+      </div>
+    {% empty %}
+      <p class="help">{% trans 'No novel uses this tag.' %}</p>
+    {% endfor %}
+    {% if novel_count > novels|length %}
+      <p class="help">{% trans 'and' %} {{ novel_count|add:"-6" }} {% trans 'more' %}</p>
+    {% endif %}
+  {% else %}
+    <p>{% trans 'This tag no longer exists.' %}</p>
+  {% endif %}
+</div>

@@ -143,8 +143,7 @@ class TagAdmin(admin.ModelAdmin):
     change_list_template = "admin/lncrawler_api/tag/change_list.html"
 
     def save_model(self, request, obj, form, change):
-        # Renames go through rename_tag so the old name becomes an alias and the
-        # change is recorded as a TagMerge (undoable).
+        # Renames go through rename_tag so the old name becomes an alias.
         if change and "name" in form.changed_data:
             rename_tag(Tag.objects.get(pk=obj.pk), obj.name)
             if "is_adult" in form.changed_data:

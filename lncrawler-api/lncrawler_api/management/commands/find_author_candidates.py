@@ -1,33 +1,31 @@
-"""Find probable duplicate authors: merge the sure ones, queue the doubtful ones.
+"""Find probable duplicate authors and queue each pair for LLM judging.
 
-Three rules, run in this order. Every candidate is a pair of authors. A pair
-whose signature already has a row, in any status, is skipped, so re-running is
-safe. Rule A is the exception: it still merges such a pair, unless its row was
-rejected or undone.
+Nothing is merged here. Every pair found by one of three rules becomes a pending
+``author_merge`` candidate, and the ``run_llm`` command (``AuthorMergeTask``) decides it. The rule is kept in the candidate's ``signals``.
 
 A. Normalized equality: authors that share one key ("I Eat Tomatoes" and
-   "i eat  tomatoes") are merged at once, reason ``normalized``.
+   "i eat  tomatoes"), rule ``normalized``.
 B. Mixed script: a name such as "Cuttlefish That Loves Diving 爱潜水的乌贼" whose
    Latin parts all resolve to existing authors. An unresolved CJK part is ignored.
-   If the resolved parts are one author, the mixed name is merged into it at once.
-   If they are two, the pair is queued, reason ``mixed_script``. Resolving never
+   If the resolved parts are one author, the pair is that author and the mixed name.
+   If they are two, the pair is those two. Rule ``mixed_script``. Resolving never
    creates an author.
 C. Cross-source: in one novel, two sources that differ by exactly one author
-   each probably credit the same person under two names. Queued, reason
-   ``cross_source``.
+   each probably credit the same person under two names. Rule ``cross_source``.
 
-Nothing here calls the LLM: the ``run_llm_queue`` task (``AuthorMergeTask``, run by
-``run_llm_requests``) decides the queued pairs. ``--dry-run`` reports what would happen and writes nothing.
+A pair that already has a candidate in an open status only has its signals refreshed. A
+pair with a candidate that is decided (rejected, applied, undone) or blocked by a
+merge chain (``candidate_blocks``) is skipped. Re-running is safe. ``--dry-run``
+reports what would be queued and writes nothing.
 """
 from collections import defaultdict
 from itertools import combinations
 
 from django.core.management.base import BaseCommand
-from django.db import transaction
 from django.db.models import Count
 
-from lncrawler_api.models import Author, AuthorMergeCandidate, NovelFromSource
-from lncrawler_api.services.author_merge_service import merge_candidate, pick_target
+from lncrawler_api.models import Author, Candidate, NovelFromSource
+from lncrawler_api.services.candidate_blocks import blocked_pairs, pair_key
 from lncrawler_api.services.merge_common import ordered_pair, sorted_pk_signature
 from lncrawler_api.utils.author_names import script_runs_with_kind
 
@@ -36,15 +34,16 @@ NOVEL_IDS_CAP = 10
 
 
 class Command(BaseCommand):
-    help = "Merge duplicate authors by normalized name and queue doubtful pairs for LLM judging."
+    help = "Queue probable duplicate authors for LLM judging."
 
     def add_arguments(self, parser):
         parser.add_argument("--dry-run", action="store_true",
-                            help="Report what would be merged or queued; write nothing.")
+                            help="Report what would be queued; write nothing.")
 
     def handle(self, *args, **options):
         self.dry_run = options["dry_run"]
         self.counts = defaultdict(int)
+        self.blocked = blocked_pairs(Candidate.KIND_AUTHOR_MERGE)
 
         self._rule_a()
         self._rule_b()
@@ -52,50 +51,36 @@ class Command(BaseCommand):
 
         prefix = "dry run: nothing written, would " if self.dry_run else ""
         self.stdout.write(self.style.SUCCESS(
-            f"{prefix}merge {self.counts['merged']}, queue {self.counts['queued']}; "
-            f"skipped {self.counts['known']} known; "
-            f"{self.counts['error']} error(s)"
+            f"{prefix}queue {self.counts['queued']}; "
+            f"skipped {self.counts['known']} known"
         ))
 
-    def _is_new_pair(self, a, b):
-        """False for a pair that already has a row, in any status."""
-        if AuthorMergeCandidate.objects.filter(signature=sorted_pk_signature([a.pk, b.pk])).exists():
-            self.counts["known"] += 1
-            return False
-        return True
-
-    def _store(self, a, b, reason, signals, merge_into=None):
-        """Queue the pair as pending, or merge it at once into ``merge_into`` when given.
-
-        A row of the same pair is reused instead of creating one. The row and the
-        merge commit together, so a failed merge leaves no pending row.
-        Returns the surviving author after a merge, or None when nothing was merged.
-        """
-        if self.dry_run:
-            self.counts["merged" if merge_into is not None else "queued"] += 1
-            return None
+    def _store(self, a, b, rule, signals):
+        """Queue the pair as a pending candidate, or refresh the open one that names it."""
         first, second = ordered_pair(a, b, key=lambda author: author.pk)
         signature = sorted_pk_signature([first.pk, second.pk])
-        with transaction.atomic():
-            candidate = (
-                AuthorMergeCandidate.objects.filter(signature=signature).first()
-                or AuthorMergeCandidate(signature=signature)
+        row = Candidate.objects.filter(kind=Candidate.KIND_AUTHOR_MERGE, signature=signature).first()
+        decided = row is not None and row.status not in Candidate.OPEN_STATUSES
+        if decided or pair_key(first.pk, second.pk) in self.blocked:
+            self.counts["known"] += 1
+            return
+        self.counts["queued"] += 1
+        if self.dry_run:
+            return
+        signals = {"rule": rule, **signals}
+        names = [first.name, second.name]
+        if row is None:
+            Candidate.objects.create(
+                kind=Candidate.KIND_AUTHOR_MERGE,
+                signature=signature,
+                target_ids=[first.pk, second.pk],
+                target_names=names,
+                signals=signals,
             )
-            candidate.author_ids = [first.pk, second.pk]
-            candidate.author_names = [first.name, second.name]
-            candidate.signals = signals
-            candidate.reason = reason
-            candidate.save()
-            if merge_into is None:
-                self.counts["queued"] += 1
-                return None
-            outcome = merge_candidate(candidate, target=merge_into)
-        if outcome == "merged":
-            self.counts["merged"] += 1
-            return merge_into
-        if outcome == "error":
-            self.counts["error"] += 1
-        return None
+        else:
+            row.target_names = names
+            row.signals = signals
+            row.save(update_fields=["target_names", "signals", "updated_at"])
 
     def _rule_a(self):
         keys = list(
@@ -110,20 +95,7 @@ class Command(BaseCommand):
             authors = list(Author.objects.filter(normalized=key).order_by("pk"))
             survivor = authors[0]
             for other in authors[1:]:
-                existing = AuthorMergeCandidate.objects.filter(
-                    signature=sorted_pk_signature([survivor.pk, other.pk])
-                ).first()
-                if existing is not None and existing.status in (
-                    AuthorMergeCandidate.STATUS_REJECTED, AuthorMergeCandidate.STATUS_UNDONE,
-                ):
-                    self.counts["known"] += 1
-                    continue
-                merged_into = self._store(
-                    survivor, other, "normalized", {"normalized": key},
-                    merge_into=pick_target(survivor, other),
-                )
-                if merged_into is not None:
-                    survivor = merged_into
+                self._store(survivor, other, "normalized", {"normalized": key})
 
     def _rule_b(self):
         for author in list(Author.objects.order_by("pk")):
@@ -140,13 +112,10 @@ class Command(BaseCommand):
             }
             signals = {"combined_name": author.name}
             if len(resolved) == 1:
-                target = next(iter(resolved.values()))
-                if self._is_new_pair(author, target):
-                    self._store(author, target, "mixed_script", signals, merge_into=target)
+                self._store(author, next(iter(resolved.values())), "mixed_script", signals)
             elif len(resolved) == 2:
                 first, second = resolved.values()
-                if self._is_new_pair(first, second):
-                    self._store(first, second, "mixed_script", signals)
+                self._store(first, second, "mixed_script", signals)
 
     def _rule_c(self):
         by_novel = defaultdict(lambda: defaultdict(set))
@@ -168,8 +137,8 @@ class Command(BaseCommand):
         for (low, high), novel_ids in sorted(pairs.items()):
             if low not in authors or high not in authors:
                 continue  # blocked author
-            a, b = authors[low], authors[high]
-            if not self._is_new_pair(a, b):
-                continue
             ids = sorted(str(pk) for pk in novel_ids)  # novel pks are UUIDs, not JSON
-            self._store(a, b, "cross_source", {"novels": len(ids), "novel_ids": ids[:NOVEL_IDS_CAP]})
+            self._store(
+                authors[low], authors[high], "cross_source",
+                {"novels": len(ids), "novel_ids": ids[:NOVEL_IDS_CAP]},
+            )

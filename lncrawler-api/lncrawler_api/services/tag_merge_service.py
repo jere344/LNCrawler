@@ -7,9 +7,9 @@ same concept, from three signals:
 - co-occurrence across different sources of the same novel (``cooccurrence_edges``),
 - trigram similarity of the normalized keys (``trigram_edges``).
 
-Groups are stored as ``TagCluster`` rows. Stage 2 (``TagMergeTask`` in services/llm_tasks.py) asks
-an LLM which members are strictly interchangeable, and ``apply_cluster`` merges
-them, or holds them for review when a safeguard trips.
+Groups are stored as ``tag_merge`` candidates. Stage 2
+(``TagMergeTask`` in services/llm_tasks.py) asks an LLM which members are strictly interchangeable,
+and ``apply_sets`` merges them, or the candidate is held for review when a safeguard trips.
 
 Every pure function here takes plain data so it can be unit tested without the
 network. Helpers that touch the database are kept small and explicit.
@@ -22,15 +22,16 @@ from itertools import combinations
 
 import numpy as np
 from django.conf import settings
-from django.db import IntegrityError, connection, transaction
+from django.db import connection, transaction
 from django.db.models import Count, Q
 from scipy import sparse
 
 from . import embedding_service, llm_service
+from .candidate_blocks import blocked_pairs, pair_key
 from .merge_common import sorted_pk_signature
-from .merge_service import MergeError, block_tag_pair, merge_tags, rename_tag
+from .merge_service import MergeError, apply_rename, fold_tag
 from ..db_locks import lock_pks
-from ..models import Tag, TagCluster, TagNoMerge
+from ..models import Candidate, Tag
 
 logger = logging.getLogger("lncrawler_api.merge")
 
@@ -265,14 +266,14 @@ def build_clusters(edges, max_size, blocked=()):
     """Group tags into clusters, strongest pairs first, capped at ``max_size``.
 
     ``edges`` maps ``(a, b)`` to ``{signal: score}``; a pair's rank is its best
-    signal. Pairs in ``blocked`` are dropped first. Returns
-    ``[(sorted_member_ids, {"a-b": signals})]`` for groups of two or more.
+    signal. Pairs in ``blocked`` (``candidate_blocks.pair_key`` pairs) are dropped
+    first. Returns ``[(sorted_member_ids, {"a-b": signals})]`` for groups of two or more.
     """
-    blocked = {tuple(sorted(pair)) for pair in blocked}
+    blocked = set(blocked)
     usable = {}
     for pair, signals in edges.items():
         a, b = sorted(pair)
-        if (a, b) in blocked or not signals:
+        if pair_key(a, b) in blocked or not signals:
             continue
         usable[(a, b)] = signals
     ranked = sorted(usable.items(), key=lambda item: (-max(item[1].values()), item[0]))
@@ -316,21 +317,21 @@ def build_clusters(edges, max_size, blocked=()):
 
 
 def store_clusters(clusters):
-    """Create a pending ``TagCluster`` per new group. Returns how many were created."""
+    """Create a pending ``tag_merge`` candidate per new group. Returns how many were created.
+
+    A group that already has a candidate, whatever its status, is left alone.
+    """
     all_ids = {pk for ids, _ in clusters for pk in ids}
     names = dict(Tag.objects.filter(pk__in=all_ids).values_list("pk", "name"))
     created = 0
     for ids, signals in clusters:
         signature = sorted_pk_signature(ids)
-        if TagCluster.objects.filter(signature=signature).exists():
-            continue
-        TagCluster.objects.create(
+        _row, made = Candidate.objects.get_or_create(
+            kind=Candidate.KIND_TAG_MERGE,
             signature=signature,
-            tag_ids=ids,
-            tag_names=[names[pk] for pk in ids],
-            signals=signals,
+            defaults={"target_ids": ids, "target_names": [names[pk] for pk in ids], "signals": signals},
         )
-        created += 1
+        created += made
     return created
 
 
@@ -479,71 +480,38 @@ def plan_sets(sets):
 
 
 def review_reasons(plans, usage):
-    """Why proposed sets must wait for a human. Empty list means safe to apply."""
-    min_confidence = settings.TAG_AUTO_MIN_CONFIDENCE
+    """Why proposed sets must wait for a human. Empty list means safe to apply.
+
+    The confidence is not checked here: the candidate's ``decide`` owns that.
+    """
     big_usage = settings.TAG_BIG_TAG_USAGE
-    all_ids = {pk for plan in plans for pk in plan["ids"]}
-    blocked = {
-        tuple(sorted(pair))
-        for pair in TagNoMerge.objects.filter(
-            tag_a_id__in=all_ids, tag_b_id__in=all_ids
-        ).values_list("tag_a_id", "tag_b_id")
-    }
+    blocked = blocked_pairs(Candidate.KIND_TAG_MERGE)
 
     reasons = []
     for plan in plans:
         proposed = plan["proposed"]
         name = proposed["canonical"]
-        if proposed["confidence"] < min_confidence:
-            reasons.append(
-                f"'{name}' confidence {proposed['confidence']:.2f} is below {min_confidence}"
-            )
         if plan["outside"]:
             reasons.append(
                 f"'{name}' merges into existing tag '{plan['survivor'].name}' outside the group"
             )
         if sum(1 for pk in plan["ids"] if usage.get(pk, 0) > big_usage) >= 2:
             reasons.append(f"'{name}' joins several widely used tags")
-        if any(pair in blocked for pair in combinations(sorted(plan["ids"]), 2)):
+        if any(pair_key(a, b) in blocked for a, b in combinations(sorted(plan["ids"]), 2)):
             reasons.append(f"'{name}' contains a pair marked as not mergeable")
     return reasons
 
 
-def _set_status(cluster, status):
-    cluster.status = status
-    cluster.save(update_fields=["status", "error", "updated_at"])
-    return status
+class PlanChanged(Exception):
+    """The tags changed between planning and taking the lock: the answer is stale."""
 
 
-def _apply_set(plan, cluster):
-    survivor = plan["survivor"]
-    if not Tag.objects.filter(pk=survivor.pk).exists():
-        raise MergeError(f"'{survivor.name}' was merged away while this cluster was applied.")
-    if plan["rename"]:
-        survivor = rename_tag(survivor, plan["proposed"]["canonical"], cluster)
-    for tag in plan["members"]:
-        if tag.pk == survivor.pk:
-            continue
-        # A member may already be gone if an earlier set in this cluster merged it.
-        if Tag.objects.filter(pk=tag.pk).exists():
-            merge_tags(tag, survivor, cluster)
-
-
-class _PlanChanged(Exception):
-    """Internal: the tags changed between planning and taking the cluster lock."""
-
-
-class _NeedsReview(Exception):
-    """Internal: under the lock the plan is unchanged but a safeguard now trips."""
+class NeedsReview(Exception):
+    """Under the lock the plan is unchanged but a safeguard now trips."""
 
     def __init__(self, reasons):
         super().__init__("; ".join(reasons))
         self.reasons = reasons
-
-
-REQUEUE_MESSAGE = "tags changed since planning; re-queued next run"
-REQUEUE_LIMIT_MESSAGE = "plan kept changing"
-MAX_REQUEUES = 3
 
 
 def _plan_signature(plans):
@@ -558,90 +526,56 @@ def _plan_signature(plans):
     )
 
 
-def _requeue(cluster, reason=None):
-    """Send a cluster back to pending, or give up after MAX_REQUEUES.
+def candidate_sets(candidate):
+    """The sets the LLM proposed for one tag_merge candidate (its verdict)."""
+    return (candidate.verdict or {}).get("sets") or []
 
-    ``reason`` explains why the cluster is going back (for example a failed LLM
-    reply); without it the plan-changed messages are used.
+
+def _apply_set(plan, candidate):
+    """Run one planned set. Returns the undo entries of what it changed."""
+    entries = []
+    survivor = plan["survivor"]
+    if not Tag.objects.filter(pk=survivor.pk).exists():
+        raise MergeError(f"'{survivor.name}' was merged away while this cluster was applied.")
+    if plan["rename"]:
+        entry = apply_rename(survivor, plan["proposed"]["canonical"])
+        if entry is not None:
+            entries.append(entry)
+    for tag in plan["members"]:
+        if tag.pk == survivor.pk:
+            continue
+        # A member may already be gone if an earlier set in this cluster merged it.
+        if Tag.objects.filter(pk=tag.pk).exists():
+            entries.append(fold_tag(tag, survivor, candidate=candidate))
+    return entries
+
+
+def apply_sets(candidate):
+    """Apply the sets of a tag_merge candidate and return the undo entries of the change.
+
+    The caller holds the transaction. The candidate's tags are locked first, then
+    planned again under those locks. A plan that changed since the first look writes
+    nothing and raises ``PlanChanged``; a safeguard that trips under the lock raises
+    ``NeedsReview``. A ``MergeError`` rolls the caller's transaction back.
     """
-    cluster.requeue_count += 1
-    cluster.llm_response = None
-    cluster.llm_model = ""
-    cluster.llm_batch = None
-    cluster.judged_at = None
-    if cluster.requeue_count >= MAX_REQUEUES:
-        cluster.status = TagCluster.STATUS_ERROR
-        cluster.error = reason or REQUEUE_LIMIT_MESSAGE
-    else:
-        cluster.status = TagCluster.STATUS_PENDING
-        cluster.error = reason or REQUEUE_MESSAGE
-    cluster.save(update_fields=[
-        "status", "error", "requeue_count", "llm_response", "llm_model",
-        "llm_batch", "judged_at", "updated_at",
-    ])
-    return cluster.status
-
-
-def apply_cluster(cluster, force=False):
-    """Apply the LLM's sets for ``cluster``, or hold it for review. Returns the new status.
-
-    Without ``force`` the safeguards in ``review_reasons`` can send the cluster
-    to review with nothing applied. With ``force`` (admin) they are skipped.
-
-    All sets run in one transaction. The cluster's tags are locked first, then
-    planned again under those locks; if the plan changed since the first look,
-    nothing is written and the cluster goes back to pending for a fresh judgement.
-    A MergeError or IntegrityError sets status ``error`` and rolls everything back.
-    """
-    sets = (cluster.llm_response or {}).get("sets") or []
-    if not sets:
-        cluster.error = ""
-        return _set_status(cluster, TagCluster.STATUS_NO_MERGE)
-
+    sets = candidate_sets(candidate)
     plans, usage = plan_sets(sets)
     if not plans:
-        cluster.error = ""
-        return _set_status(cluster, TagCluster.STATUS_NO_MERGE)
-
-    if not force:
-        reasons = review_reasons(plans, usage)
-        if reasons:
-            cluster.error = "; ".join(reasons)
-            return _set_status(cluster, TagCluster.STATUS_REVIEW)
+        raise PlanChanged("no set has two live tags left")
 
     involved = {pk for plan in plans for pk in plan["ids"]}
     signature = _plan_signature(plans)
-    try:
-        with transaction.atomic():
-            if lock_pks(Tag, involved) != involved:
-                raise _PlanChanged()
-            fresh, fresh_usage = plan_sets(sets)
-            if _plan_signature(fresh) != signature:
-                raise _PlanChanged()
-            # Same plan, but a safeguard may trip now that usage is read under the lock.
-            if not force:
-                reasons = review_reasons(fresh, fresh_usage)
-                if reasons:
-                    raise _NeedsReview(reasons)
-            for plan in fresh:
-                _apply_set(plan, cluster)
-    except _PlanChanged:
-        return _requeue(cluster)
-    except _NeedsReview as exc:
-        cluster.error = "; ".join(exc.reasons)
-        return _set_status(cluster, TagCluster.STATUS_REVIEW)
-    except (MergeError, IntegrityError) as exc:
-        cluster.error = str(exc)
-        return _set_status(cluster, TagCluster.STATUS_ERROR)
+    if lock_pks(Tag, involved) != involved:
+        raise PlanChanged("a tag of the plan was merged away or deleted")
+    fresh, fresh_usage = plan_sets(sets)
+    if _plan_signature(fresh) != signature:
+        raise PlanChanged("the tags changed since the plan was made")
+    # Same plan, but a safeguard may trip now that usage is read under the lock.
+    reasons = review_reasons(fresh, fresh_usage)
+    if reasons:
+        raise NeedsReview(reasons)
 
-    cluster.error = ""
-    return _set_status(cluster, TagCluster.STATUS_APPLIED)
-
-
-def reject_cluster(cluster):
-    """Mark every pair inside the proposed sets as not mergeable, then reject."""
-    for proposed in (cluster.llm_response or {}).get("sets") or []:
-        for a, b in combinations(sorted(proposed["members"]), 2):
-            if Tag.objects.filter(pk=a).exists() and Tag.objects.filter(pk=b).exists():
-                block_tag_pair(a, b)
-    return _set_status(cluster, TagCluster.STATUS_REJECTED)
+    entries = []
+    for plan in fresh:
+        entries.extend(_apply_set(plan, candidate))
+    return entries

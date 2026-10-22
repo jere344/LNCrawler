@@ -1,4 +1,8 @@
-"""Tests for the LLMRequest queue and the tag_r18 task (services/llm_tasks.py)."""
+"""Tests for the tag_r18 task (services/llm_tasks.py), the per-minute caps and the provider
+chain (services/llm_service.py), on the Candidate queue and the LLMCall ledger.
+
+The runner's claims, retries and drop of gone targets are in test_llm_runner.
+"""
 
 import json
 from datetime import timedelta
@@ -7,37 +11,42 @@ from unittest import mock
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 
-from ..models import ExternalSource, LLMProviderCooldown, LLMRequest, LLMUsage, Novel, Tag
+from ..models import Candidate, ExternalSource, LLMCall, LLMProviderCooldown, Novel, Tag
 from ..services import llm_service, llm_tasks
-from ..services.llm_service import ProviderUnavailable, RateLimited
+from ..services.llm_service import LLMParseError, ProviderUnavailable, RateLimited
+from ..services.tag_r18_service import queue_r18_candidates
 from .helpers import MergeTestCase
+from .test_llm_runner import make_candidate, reply
 
 
 @override_settings(LLM_API_KEY="key")
 class TagR18TaskTests(MergeTestCase):
-    def make_request(self, tag_ids, **extra):
-        return LLMRequest.objects.create(
-            task="tag_r18",
-            target_type="tag",
-            target_ids=list(tag_ids),
-            prompt_version="1",
-            **extra,
-        )
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(llm_service, "chat")
+        self.chat = patcher.start()
+        self.addCleanup(patcher.stop)
 
-    def test_enqueue_batches_unflagged_tags_and_skips_covered(self):
+    def make_request(self, tag, **extra):
+        return make_candidate("tag_r18", [tag.pk], [tag.name], **extra)
+
+    def test_queue_makes_one_candidate_per_non_adult_tag_without_one(self):
         for name in ("Alpha", "Beta", "Gamma"):
             Tag.objects.create(name=name)
         Tag.objects.create(name="Adult", is_adult=True)
-        task = llm_tasks.REGISTRY["tag_r18"]
 
-        with mock.patch.object(llm_tasks.TagR18Task, "batch_size", 2):
-            self.assertEqual(task.enqueue(5), 2)
-            self.assertEqual(task.enqueue(5), 0)
+        self.assertEqual(queue_r18_candidates(5), 3)
+        self.assertEqual(queue_r18_candidates(5), 0)
+        targets = sorted(c.target_ids[0] for c in Candidate.objects.filter(kind="tag_r18"))
+        self.assertEqual(len(targets), 3)
 
-        batch_sizes = sorted(len(req.target_ids) for req in LLMRequest.objects.filter(task="tag_r18"))
-        self.assertEqual(batch_sizes, [1, 2])
+    def test_queue_respects_its_limit(self):
+        for name in ("Alpha", "Beta", "Gamma"):
+            Tag.objects.create(name=name)
+        self.assertEqual(queue_r18_candidates(2), 2)
+        self.assertEqual(queue_r18_candidates(5), 1)
 
-    def test_success_flags_only_confident_r18_tags(self):
+    def test_confident_explicit_tag_is_flagged_and_weak_one_is_not(self):
         strong = Tag.objects.create(name="Smut")
         weak = Tag.objects.create(name="Romance")
         novel = Novel.objects.create(title="Novel", slug="novel", novel_path="n")
@@ -47,18 +56,16 @@ class TagR18TaskTests(MergeTestCase):
         src_b = self.make_source(novel, site_b, "B", "https://b.example/n", "novel-b", "src-b")
         src_a.tags.add(strong)
         src_b.tags.add(weak)
-        req = self.make_request([strong.pk, weak.pk])
+        strong_candidate = self.make_request(strong)
+        weak_candidate = self.make_request(weak)
 
-        reply = json.dumps({
-            "tags": [
-                {"id": strong.pk, "rating": "explicit", "confidence": 0.95},
-                {"id": weak.pk, "rating": "explicit", "confidence": 0.5},
-            ]
-        })
-        with mock.patch.object(llm_service, "_post_chat", return_value=(reply, 42)):
-            counts = llm_tasks.run_task("tag_r18", 5)
+        self.chat.return_value = reply({"tags": [
+            {"id": strong.pk, "rating": "explicit", "confidence": 0.95},
+            {"id": weak.pk, "rating": "explicit", "confidence": 0.5},
+        ]})
+        counts = llm_tasks.run_queue(["tag_r18"])
 
-        self.assertEqual(counts["done"], 1)
+        self.assertEqual(counts["done"], 2)
         strong.refresh_from_db()
         weak.refresh_from_db()
         src_a.refresh_from_db()
@@ -67,233 +74,175 @@ class TagR18TaskTests(MergeTestCase):
         self.assertFalse(weak.is_adult)
         self.assertTrue(src_a.is_adult)
         self.assertFalse(src_b.is_adult)
-
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
-        self.assertEqual(req.tokens, 42)
-        self.assertEqual(len(req.response["tags"]), 2)
+        strong_candidate.refresh_from_db()
+        weak_candidate.refresh_from_db()
+        self.assertEqual(strong_candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(weak_candidate.status, Candidate.STATUS_REVIEW)
 
     def test_parse_error_retries_then_fails(self):
         tag = Tag.objects.create(name="Smut")
-        req = self.make_request([tag.pk])
+        candidate = self.make_request(tag)
+        self.chat.side_effect = LLMParseError("no JSON object in reply")
 
-        with mock.patch.object(llm_service, "_post_chat", return_value=("not json", 5)):
-            counts = llm_tasks.run_task("tag_r18", 1)
-
-        req.refresh_from_db()
+        counts = llm_tasks.run_queue(["tag_r18"])
         self.assertEqual(counts["retry"], 1)
-        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
-        self.assertEqual(req.attempts, 1)
-        self.assertIsNotNone(req.not_before)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 1)
+        self.assertIsNotNone(candidate.not_before)
 
-        # Make it due again with one attempt left before max_attempts.
-        LLMRequest.objects.filter(pk=req.pk).update(not_before=None, attempts=2)
-        with mock.patch.object(llm_service, "_post_chat", return_value=("not json", 5)):
-            counts = llm_tasks.run_task("tag_r18", 1)
+        for _ in range(2):
+            Candidate.objects.update(not_before=None)
+            llm_tasks.run_queue(["tag_r18"])
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_ERROR)
+        self.assertEqual(candidate.attempts, 3)
 
-        req.refresh_from_db()
-        self.assertEqual(counts["failed"], 1)
-        self.assertEqual(req.status, LLMRequest.STATUS_FAILED)
-        self.assertEqual(req.attempts, 3)
+    def test_rate_limit_keeps_candidates_pending_and_stops_run(self):
+        first = self.make_request(Tag.objects.create(name="A1"))
+        second = self.make_request(Tag.objects.create(name="B1"))
+        self.chat.side_effect = RateLimited(retry_after="30")
 
-    def test_rate_limit_keeps_request_pending_and_stops_run(self):
-        first = Tag.objects.create(name="A1")
-        second = Tag.objects.create(name="B1")
-        r1 = self.make_request([first.pk])
-        r2 = self.make_request([second.pk])
+        counts = llm_tasks.run_queue(["tag_r18"], limit=5)
 
-        with mock.patch.object(
-            llm_service, "_post_chat", side_effect=RateLimited(retry_after="30")
-        ) as post:
-            counts = llm_tasks.run_task("tag_r18", 5)
-
-        self.assertEqual(post.call_count, 1)
+        self.assertEqual(self.chat.call_count, 1)
         self.assertTrue(counts["rate_limited"])
-        for req in (r1, r2):
-            req.refresh_from_db()
-            self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
-            self.assertEqual(req.attempts, 0)
-        self.assertIsNotNone(r1.not_before)
+        for candidate in (first, second):
+            candidate.refresh_from_db()
+            self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+            self.assertEqual(candidate.attempts, 0)
+        self.assertIsNotNone(first.not_before)
 
-    @override_settings(LLM_DAILY_TOKENS=10000, LLM_TOKENS_PER_MINUTE=100000)
-    def test_shared_budget_too_low_for_one_call_prevents_calls(self):
-        tag = Tag.objects.create(name="Smut")
-        # Another workflow spent most of the shared budget: 10000 - 9000 left is
-        # below one call (llm_service.CALL_TOKENS).
-        LLMUsage.objects.create(purpose="novel_merge", tokens=9000)
-        pending = self.make_request([tag.pk])
+    def test_tag_already_adult_is_dropped_without_a_call(self):
+        tag = Tag.objects.create(name="Smut", is_adult=True)
+        candidate = self.make_request(tag)
 
-        with mock.patch.object(llm_service, "_post_chat") as post:
-            llm_tasks.run_task("tag_r18", 5)
+        llm_tasks.run_queue(["tag_r18"])
 
-        post.assert_not_called()
-        pending.refresh_from_db()
-        self.assertEqual(pending.status, LLMRequest.STATUS_PENDING)
+        self.chat.assert_not_called()
+        self.assertFalse(Candidate.objects.filter(pk=candidate.pk).exists())
 
     def test_parse_drops_unknown_ids_and_non_finite_confidence(self):
         tag = Tag.objects.create(name="Smut")
-        req = self.make_request([tag.pk])
-        result = llm_tasks.REGISTRY["tag_r18"].parse(
-            req, '{"tags": [{"id": %d, "rating": "explicit", "confidence": NaN}, {"id": 999999, "rating": "explicit", "confidence": 1}]}' % tag.pk
+        candidate = make_candidate("tag_r18", [tag.pk])
+        content = (
+            '{"tags": [{"id": %d, "rating": "explicit", "confidence": NaN}, '
+            '{"id": 999999, "rating": "explicit", "confidence": 1}]}' % tag.pk
         )
-        self.assertEqual(
-            result,
-            {"tags": [{"id": tag.pk, "rating": "explicit", "r18": True, "confidence": 0.0}]},
-        )
+        result = llm_tasks.REGISTRY["tag_r18"].parse([candidate], None, content)
+        self.assertEqual(set(result), {candidate.pk})
+        self.assertEqual(result[candidate.pk]["answer"], "yes")
+        self.assertEqual(result[candidate.pk]["confidence"], 0.0)
 
     def test_suggestive_tag_is_not_flagged_adult(self):
         tag = Tag.objects.create(name="Sexy")
-        req = self.make_request([tag.pk])
-
-        reply = json.dumps({"tags": [{"id": tag.pk, "rating": "suggestive", "confidence": 0.99}]})
-        with mock.patch.object(llm_service, "_post_chat", return_value=(reply, 10)):
-            counts = llm_tasks.run_task("tag_r18", 5)
-
-        self.assertEqual(counts["done"], 1)
-        tag.refresh_from_db()
-        self.assertFalse(tag.is_adult)
-        req.refresh_from_db()
-        self.assertEqual(req.response["tags"][0]["rating"], "suggestive")
-        self.assertFalse(req.response["tags"][0]["r18"])
+        candidate = make_candidate("tag_r18", [tag.pk])
+        content = json.dumps({"tags": [{"id": tag.pk, "rating": "suggestive", "confidence": 0.99}]})
+        result = llm_tasks.REGISTRY["tag_r18"].parse([candidate], None, content)
+        self.assertEqual(result[candidate.pk]["answer"], "no")
+        self.assertEqual(result[candidate.pk]["rating"], "suggestive")
 
     def test_parse_skips_unknown_rating(self):
         porn = Tag.objects.create(name="Porn")
         smut = Tag.objects.create(name="Smut")
-        req = self.make_request([porn.pk, smut.pk])
-        result = llm_tasks.REGISTRY["tag_r18"].parse(
-            req,
+        porn_candidate = make_candidate("tag_r18", [porn.pk])
+        smut_candidate = make_candidate("tag_r18", [smut.pk])
+        content = (
             '{"tags": [{"id": %d, "rating": "porn", "confidence": 1}, '
-            '{"id": %d, "rating": "explicit", "confidence": 0.9}]}' % (porn.pk, smut.pk),
+            '{"id": %d, "rating": "explicit", "confidence": 0.9}]}' % (porn.pk, smut.pk)
         )
-        self.assertEqual(
-            result,
-            {"tags": [{"id": smut.pk, "rating": "explicit", "r18": True, "confidence": 0.9}]},
+        result = llm_tasks.REGISTRY["tag_r18"].parse(
+            [porn_candidate, smut_candidate], None, content,
         )
+        self.assertEqual(result[porn_candidate.pk]["answer"], "no")
+        self.assertEqual(result[porn_candidate.pk]["rating"], "omitted")
+        self.assertEqual(result[smut_candidate.pk]["answer"], "yes")
+        self.assertEqual(result[smut_candidate.pk]["confidence"], 0.9)
 
     def test_parse_accepts_an_empty_list(self):
         # The model lists only explicit or suggestive tags, so a clean batch is an empty list.
         tag = Tag.objects.create(name="Romance")
-        req = self.make_request([tag.pk])
-        self.assertEqual(llm_tasks.REGISTRY["tag_r18"].parse(req, '{"tags": []}'), {"tags": []})
-
-    def test_batch_with_no_tags_left_is_closed_without_a_call(self):
-        tag = Tag.objects.create(name="Smut", is_adult=True)
-        req = self.make_request([tag.pk])
-
-        with mock.patch.object(llm_service, "_post_chat") as post:
-            llm_tasks.run_task("tag_r18", 5)
-
-        post.assert_not_called()
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
+        candidate = make_candidate("tag_r18", [tag.pk])
+        result = llm_tasks.REGISTRY["tag_r18"].parse([candidate], None, '{"tags": []}')
+        self.assertEqual(result[candidate.pk]["answer"], "no")
 
 
 @override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=100000,
                    LLM_TOKENS_PER_MINUTE=8000, LLM_REQUESTS_PER_MINUTE=30)
-class LLMQueueTests(MergeTestCase):
-    def make_tag_request(self, name):
-        tag = Tag.objects.create(name=name)
-        return LLMRequest.objects.create(
-            task="tag_r18", target_type="tag", target_ids=[tag.pk], prompt_version="1",
-        )
+class LLMBudgetRunTests(MergeTestCase):
+    """The per-minute caps read the LLMCall rows, so the runner stops before a call."""
 
-    def make_merge_request(self):
-        # The cluster does not exist, so the real build_messages would close it; tests patch it.
-        return LLMRequest.objects.create(
-            task="tag_merge", target_type="tag_cluster", target_ids=[0], prompt_version="1",
-        )
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(llm_service, "chat")
+        self.chat = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def make_tag_candidate(self, name):
+        tag = Tag.objects.create(name=name)
+        return make_candidate("tag_r18", [tag.pk], [name])
+
+    def make_merge_candidate(self):
+        first = Tag.objects.create(name="M1")
+        second = Tag.objects.create(name="M2")
+        return make_candidate("tag_merge", [first.pk, second.pk], ["M1", "M2"])
 
     def test_per_minute_token_cap_stops_the_pass(self):
-        req = self.make_tag_request("Smut")
-        # 6501 + CALL_TOKENS (1500) is over LLM_TOKENS_PER_MINUTE (8000).
-        LLMUsage.objects.create(purpose="tag_r18", tokens=8000 - llm_service.CALL_TOKENS + 1)
+        candidate = self.make_tag_candidate("Smut")
+        # Used + CALL_TOKENS is over LLM_TOKENS_PER_MINUTE (8000).
+        LLMCall.objects.create(kind="tag_r18", tokens=8000 - llm_service.CALL_TOKENS + 1)
 
-        with mock.patch.object(llm_service, "_post_chat") as post:
-            llm_tasks.run_task("tag_r18", 5)
+        llm_tasks.run_queue(["tag_r18"], limit=5)
 
-        post.assert_not_called()
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
+        self.chat.assert_not_called()
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
 
     @override_settings(LLM_REQUESTS_PER_MINUTE=2)
     def test_per_minute_request_cap_stops_the_pass(self):
-        req = self.make_tag_request("Smut")
-        LLMUsage.objects.create(purpose="tag_r18", tokens=0)
-        LLMUsage.objects.create(purpose="tag_r18", tokens=0)
+        candidate = self.make_tag_candidate("Smut")
+        LLMCall.objects.create(kind="tag_r18", tokens=0)
+        LLMCall.objects.create(kind="tag_r18", tokens=0)
 
-        with mock.patch.object(llm_service, "_post_chat") as post:
-            llm_tasks.run_task("tag_r18", 5)
+        llm_tasks.run_queue(["tag_r18"], limit=5)
 
-        post.assert_not_called()
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
+        self.chat.assert_not_called()
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
 
     def test_usage_older_than_a_minute_does_not_count(self):
-        self.make_tag_request("Smut")
-        old = LLMUsage.objects.create(purpose="tag_r18", tokens=8000)
-        LLMUsage.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(seconds=61))
+        self.make_tag_candidate("Smut")
+        old = LLMCall.objects.create(kind="tag_r18", tokens=8000)
+        LLMCall.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(seconds=61))
+        self.chat.side_effect = LLMParseError("no JSON object in reply")
 
-        with mock.patch.object(llm_service, "_post_chat", return_value=("not json", 5)) as post:
-            llm_tasks.run_task("tag_r18", 5)
+        llm_tasks.run_queue(["tag_r18"], limit=5)
 
-        post.assert_called_once()
+        self.chat.assert_called_once()
 
     def test_round_robin_takes_one_call_per_task_in_turn(self):
-        self.make_tag_request("A1")
-        second = self.make_tag_request("B1")
-        self.make_merge_request()
+        self.make_tag_candidate("A1")
+        merge = self.make_merge_candidate()
+        self.chat.side_effect = LLMParseError("no JSON object in reply")
 
-        with mock.patch.object(llm_tasks.TagMergeTask, "build_messages", return_value=[]), \
-                mock.patch.object(llm_service, "_post_chat", return_value=("not json", 5)) as post:
-            llm_tasks.run_queue(["tag_r18", "tag_merge"], limit=2)
+        llm_tasks.run_queue(["tag_r18", "tag_merge"], limit=2)
 
-        self.assertEqual([call.args[2] for call in post.call_args_list], ["tag_r18", "tag_merge"])
-        second.refresh_from_db()
-        self.assertEqual(second.status, LLMRequest.STATUS_PENDING)
-        self.assertEqual(second.attempts, 0)
+        self.assertEqual([call.args[2] for call in self.chat.call_args_list], ["tag_r18", "tag_merge"])
+        merge.refresh_from_db()
+        self.assertEqual(merge.attempts, 1)
 
     def test_rate_limit_stops_every_task(self):
-        self.make_tag_request("A1")
-        merge = self.make_merge_request()
+        self.make_tag_candidate("A1")
+        merge = self.make_merge_candidate()
+        self.chat.side_effect = RateLimited(retry_after="30")
 
-        with mock.patch.object(llm_tasks.TagMergeTask, "build_messages", return_value=[]), \
-                mock.patch.object(llm_service, "_post_chat",
-                                  side_effect=RateLimited(retry_after="30")) as post:
-            counts = llm_tasks.run_queue(["tag_r18", "tag_merge"], limit=5)
+        counts = llm_tasks.run_queue(["tag_r18", "tag_merge"], limit=5)
 
-        self.assertEqual(post.call_count, 1)
+        self.assertEqual(self.chat.call_count, 1)
         self.assertTrue(counts["rate_limited"])
         merge.refresh_from_db()
-        self.assertEqual(merge.status, LLMRequest.STATUS_PENDING)
+        self.assertEqual(merge.status, Candidate.STATUS_PENDING)
         self.assertEqual(merge.attempts, 0)
-
-    def test_top_up_keeps_at_most_queue_backlog_pending(self):
-        for n in range(8):
-            Tag.objects.create(name=f"T{n}")
-        task = llm_tasks.REGISTRY["tag_r18"]
-
-        with mock.patch.object(llm_tasks.TagR18Task, "batch_size", 1):
-            self.assertEqual(llm_tasks._top_up(task, None), llm_tasks.QUEUE_BACKLOG)
-            self.assertEqual(llm_tasks._top_up(task, None), 0)
-
-        self.assertEqual(
-            LLMRequest.objects.filter(task="tag_r18", status=LLMRequest.STATUS_PENDING).count(),
-            llm_tasks.QUEUE_BACKLOG,
-        )
-
-    def test_usage_row_purpose_is_the_task_name(self):
-        self.make_tag_request("Smut")
-        response = mock.Mock(status_code=200, headers={}, text="")
-        response.json.return_value = {
-            "choices": [{"message": {"content": "not json"}, "finish_reason": "stop"}],
-            "usage": {"total_tokens": 7},
-        }
-        session = mock.Mock()
-        session.post.return_value = response
-
-        llm_tasks.run_task("tag_r18", 1, session=session)
-
-        self.assertEqual(LLMUsage.objects.get().purpose, "tag_r18")
 
 
 CHAIN_SETTINGS = {
@@ -311,12 +260,12 @@ CHAIN_SETTINGS = {
 
 
 def _answers(replies):
-    """A ``_post_chat`` stand-in: per provider name, a ``(content, tokens)`` reply or an exception to raise."""
+    """A ``_post_chat`` stand-in: per provider name, a ``(content, tokens, call)`` reply or an exception to raise."""
     def post(messages, max_tokens, purpose, provider=None, **kwargs):
-        reply = replies[provider.name]
-        if isinstance(reply, Exception):
-            raise reply
-        return reply
+        reply_for = replies[provider.name]
+        if isinstance(reply_for, Exception):
+            raise reply_for
+        return reply_for
     return post
 
 
@@ -326,71 +275,53 @@ class ProviderChainTests(MergeTestCase):
         super().setUp()
         self.tag = Tag.objects.create(name="Smut")
         self.reply = json.dumps({"tags": [{"id": self.tag.pk, "rating": "explicit", "confidence": 0.95}]})
-        self.ok = (self.reply, 42)
+        self.ok = (self.reply, 42, None)
 
-    def make_request(self):
-        return LLMRequest.objects.create(
-            task="tag_r18", target_type="tag", target_ids=[self.tag.pk], prompt_version="1",
-        )
+    def make_candidate(self):
+        return make_candidate("tag_r18", [self.tag.pk], [self.tag.name])
 
     def test_first_provider_answers(self):
-        req = self.make_request()
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": self.ok})) as post:
-            counts = llm_tasks.run_task("tag_r18", 1)
+            _content, _tokens, provider, _call = llm_service.chat([], 10, "tag_r18")
 
-        self.assertEqual(counts["done"], 1)
         self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["cerebras"])
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
-        self.assertEqual(req.model, "gpt-oss-120b")
+        self.assertEqual(provider.model, "gpt-oss-120b")
 
     def test_rate_limit_without_retry_after_falls_through_to_next_provider(self):
-        req = self.make_request()
         replies = {"cerebras": RateLimited(), "groq": self.ok}
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)) as post:
-            counts = llm_tasks.run_task("tag_r18", 1)
+            _content, _tokens, provider, _call = llm_service.chat([], 10, "tag_r18")
 
-        self.assertEqual(counts["done"], 1)
         self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["cerebras", "groq"])
+        self.assertEqual(provider.model, "openai/gpt-oss-20b")
         cooling = LLMProviderCooldown.objects.get(name="cerebras")
         self.assertGreater(cooling.until, timezone.now() + timedelta(seconds=3500))
         self.assertLess(cooling.until, timezone.now() + timedelta(seconds=3700))
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_DONE)
-        self.assertEqual(req.attempts, 1)
-        self.assertEqual(req.model, "openai/gpt-oss-20b")
 
     def test_cooling_provider_is_skipped_until_its_cooldown_ends(self):
         LLMProviderCooldown.objects.create(
             name="cerebras", until=timezone.now() + timedelta(hours=1), reason="HTTP 429",
         )
-        self.make_request()
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": self.ok, "groq": self.ok})) as post:
-            llm_tasks.run_task("tag_r18", 1)
+            llm_service.chat([], 10, "tag_r18")
         self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["groq"])
 
-        # A new tag: the first one is already flagged, so its request would be closed without a call.
         LLMProviderCooldown.objects.filter(name="cerebras").update(until=timezone.now() - timedelta(seconds=1))
-        other = Tag.objects.create(name="Other")
-        LLMRequest.objects.create(
-            task="tag_r18", target_type="tag", target_ids=[other.pk], prompt_version="1",
-        )
-        reply = json.dumps({"tags": [{"id": other.pk, "rating": "explicit", "confidence": 0.95}]})
-        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": (reply, 42)})) as post:
-            llm_tasks.run_task("tag_r18", 1)
+        with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": self.ok})) as post:
+            llm_service.chat([], 10, "tag_r18")
         self.assertEqual([c.kwargs["provider"].name for c in post.call_args_list], ["cerebras"])
 
-    def test_every_provider_rate_limited_gives_the_request_back(self):
-        req = self.make_request()
+    def test_every_provider_rate_limited_gives_the_candidate_back(self):
+        candidate = self.make_candidate()
         replies = {"cerebras": RateLimited(), "groq": RateLimited()}
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
-            counts = llm_tasks.run_task("tag_r18", 1)
+            counts = llm_tasks.run_queue(["tag_r18"])
 
         self.assertTrue(counts["rate_limited"])
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
-        self.assertEqual(req.attempts, 0)
-        self.assertAlmostEqual((req.not_before - timezone.now()).total_seconds(), 60, delta=5)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 0)
+        self.assertAlmostEqual((candidate.not_before - timezone.now()).total_seconds(), 60, delta=5)
         self.assertFalse(llm_service.can_afford())
 
     @override_settings(LLM_PROVIDER_SETTINGS={
@@ -400,12 +331,12 @@ class ProviderChainTests(MergeTestCase):
         LLMProviderCooldown.objects.create(
             name="cerebras", until=timezone.now() + timedelta(hours=1), reason="HTTP 429",
         )
-        LLMUsage.objects.create(purpose="tag_r18", provider="groq", tokens=0)
-        LLMUsage.objects.create(purpose="tag_r18", provider="groq", tokens=0)
-        self.make_request()
+        LLMCall.objects.create(kind="tag_r18", provider="groq", tokens=0)
+        LLMCall.objects.create(kind="tag_r18", provider="groq", tokens=0)
+        self.make_candidate()
 
         with mock.patch.object(llm_service, "_post_chat") as post:
-            llm_tasks.run_task("tag_r18", 1)
+            llm_tasks.run_queue(["tag_r18"])
 
         post.assert_not_called()
         self.assertFalse(llm_service.can_afford())
@@ -416,7 +347,7 @@ class ProviderChainTests(MergeTestCase):
         session.post.return_value = mock.Mock(status_code=503, headers={}, text="busy")
         with self.assertRaises(ProviderUnavailable):
             llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session)
-        self.assertFalse(LLMUsage.objects.exists())
+        self.assertFalse(LLMCall.objects.exists())
 
         response = mock.Mock(status_code=200, headers={}, text="")
         response.json.return_value = {
@@ -426,7 +357,8 @@ class ProviderChainTests(MergeTestCase):
         session.post.return_value = response
         llm_service._post_chat([], 10, "tag_r18", provider=cerebras, session=session)
 
-        self.assertEqual(LLMUsage.objects.get().provider, "cerebras")
+        call = LLMCall.objects.get()
+        self.assertEqual((call.provider, call.kind, call.tokens), ("cerebras", "tag_r18", 7))
         self.assertEqual(session.post.call_args.args[0], "https://api.cerebras.ai/v1/chat/completions")
         self.assertEqual(session.post.call_args.kwargs["headers"]["Authorization"], "Bearer cerebras-key")
         self.assertEqual(session.post.call_args.kwargs["json"]["model"], "gpt-oss-120b")
@@ -473,7 +405,7 @@ class ProviderChainTests(MergeTestCase):
         self.assertNotIn("response_format", session.post.call_args.kwargs["json"])
 
     def test_run_queue_passes_the_task_schema_to_post_chat(self):
-        self.make_request()
+        self.make_candidate()
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"cerebras": self.ok})) as post:
             llm_tasks.run_queue(["tag_r18"])
 
@@ -482,7 +414,7 @@ class ProviderChainTests(MergeTestCase):
     def test_chat_outage_cools_the_provider_for_five_minutes_and_falls_through(self):
         replies = {"cerebras": ProviderUnavailable("HTTP 503: busy"), "groq": self.ok}
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
-            content, tokens, provider = llm_service.chat([], 10, "tag_r18")
+            content, _tokens, provider, _call = llm_service.chat([], 10, "tag_r18")
 
         self.assertEqual(provider.name, "groq")
         self.assertEqual(content, self.reply)
@@ -492,7 +424,7 @@ class ProviderChainTests(MergeTestCase):
     def test_other_http_error_tries_the_next_provider_without_cooldown(self):
         replies = {"cerebras": llm_service.LLMError("HTTP 400: unknown model"), "groq": self.ok}
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
-            _content, _tokens, provider = llm_service.chat([], 10, "tag_r18")
+            _content, _tokens, provider, _call = llm_service.chat([], 10, "tag_r18")
 
         self.assertEqual(provider.name, "groq")
         self.assertFalse(LLMProviderCooldown.objects.exists())
@@ -524,22 +456,20 @@ class ProviderChainTests(MergeTestCase):
         settings = {**CHAIN_SETTINGS, "cerebras": {**CHAIN_SETTINGS["cerebras"], "model": ""}}
         with override_settings(LLM_PROVIDER_SETTINGS=settings), \
                 mock.patch.object(llm_service, "_post_chat", side_effect=_answers({"groq": self.ok})):
-            _content, _tokens, provider = llm_service.chat([], 10, "tag_r18")
+            _content, _tokens, provider, _call = llm_service.chat([], 10, "tag_r18")
         self.assertEqual(provider.name, "groq")
 
-    def test_every_provider_down_records_why_on_the_request(self):
-        req = LLMRequest.objects.create(
-            task="tag_r18", target_type="tag", target_ids=[self.tag.pk], prompt_version="1",
-        )
+    def test_every_provider_down_records_why_on_the_candidate(self):
+        candidate = self.make_candidate()
         replies = {"cerebras": ProviderUnavailable("HTTP 401: bad key"), "groq": RateLimited(retry_after="30")}
         with mock.patch.object(llm_service, "_post_chat", side_effect=_answers(replies)):
             llm_tasks.run_queue(["tag_r18"])
 
-        req.refresh_from_db()
-        self.assertEqual(req.status, LLMRequest.STATUS_PENDING)
-        self.assertEqual(req.attempts, 0)
-        self.assertIn("cerebras: HTTP 401: bad key", req.error)
-        self.assertIn("groq: HTTP 429", req.error)
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 0)
+        self.assertIn("cerebras: HTTP 401: bad key", candidate.reason)
+        self.assertIn("groq: HTTP 429", candidate.reason)
 
 
 class ParseConfidenceTests(SimpleTestCase):
