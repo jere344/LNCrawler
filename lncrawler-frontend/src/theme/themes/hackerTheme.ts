@@ -271,7 +271,6 @@ export const getHackerTheme = () =>
 
 export const hackerTheme: ThemeOption = {
     id: "hacker",
-    name: "H4CK3R",
     isDark: true,
     getTheme: getHackerTheme,
     hidden: true,

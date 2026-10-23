@@ -38,11 +38,6 @@ interface ReaderToolbarProps {
   onSettings: () => void;
   onListen: () => void;
   onCloseControls: () => void;
-  // Add URL props
-  prevUrl?: string;
-  nextUrl?: string;
-  homeUrl?: string;
-  chapterListUrl?: string;
 }
 
 /**

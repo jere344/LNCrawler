@@ -12,7 +12,6 @@ export interface Comment {
   chapter_id?: number;
   source_slug?: string;
   replies?: Comment[];
-  has_replies?: boolean;
   upvotes: number;
   downvotes: number;
   vote_score: number;

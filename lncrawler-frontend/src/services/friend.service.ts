@@ -1,13 +1,7 @@
 import api from './api';
-import { User, FriendRequest } from '@models/user_types';
+import { FriendRequest } from '@models/user_types';
 
 const friendService = {
-  // Accepted friends of the current user
-  listFriends: async (): Promise<User[]> => {
-    const response = await api.get('/friends/');
-    return response.data;
-  },
-
   // Friend requests: incoming (default) or outgoing
   listRequests: async (direction: 'incoming' | 'outgoing' = 'incoming'): Promise<FriendRequest[]> => {
     const response = await api.get('/friends/requests/', { params: { type: direction } });

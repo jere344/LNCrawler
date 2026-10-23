@@ -6,21 +6,13 @@
     "delete": "Sil",
     "edit": "Düzenle",
     "share": "Paylaş",
-    "back": "Geri",
     "home": "Ana Sayfa",
     "unknown": "Bilinmiyor",
-    "loading": "Yükleniyor...",
     "viewMore": "Daha Fazla Gör",
     "showMore": "Daha Fazla Göster",
     "showLess": "Daha Az Göster",
     "na": "Yok",
     "breadcrumb": "gezinme yolu",
-    "menu": "menü",
-    "login": "Giriş Yap",
-    "register": "Kayıt Ol",
-    "profile": "Profil",
-    "logout": "Çıkış Yap",
-    "account": "Hesap",
     "seeMore": "Daha fazla göster",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Bölüm {number}",
     "comments": "{count, plural, =0 {Yorum yok} one {# yorum} other {# yorum}}",
     "chapters": "{count, plural, one {# bölüm} other {# bölüm}}",
-    "novels": "{count, plural, one {# roman} other {# roman}}",
     "imagesCount": "{count, plural, one {# görsel} other {# görsel}}",
     "volumes": "{count, plural, one {# cilt} other {# cilt}}",
-    "items": "{count, plural, one {# öğe} other {# öğe}}",
-    "ratings": "{count, plural, one {# değerlendirme} other {# değerlendirme}}",
     "stars": "{count, plural, one {# yıldız} other {# yıldız}}",
-    "replies": "{count, plural, one {# yanıt} other {# yanıt}}",
     "unreadChapters": "{count, plural, one {# okunmamış bölüm} other {# okunmamış bölüm}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Profil verileri yüklenemedi. Lütfen tekrar deneyin.",
-    "failedLoadReviews": "İncelemeleriniz yüklenemedi. Lütfen tekrar deneyin.",
-    "failedLoadLists": "Okuma listeleriniz yüklenemedi. Lütfen tekrar deneyin.",
     "updatedSuccess": "Profil başarıyla güncellendi!",
     "updateFailed": "Profil güncellenemedi. Lütfen tekrar deneyin.",
     "passwordChanged": "Şifre başarıyla değiştirildi!",
     "passwordChangeFailed": "Şifre değiştirilemedi. Lütfen tekrar deneyin.",
-    "heading": "Profil",
     "changePhoto": "Fotoğrafı Değiştir",
     "email": "E-posta",
     "editProfile": "Profili Düzenle",
@@ -157,14 +142,8 @@
     "security": "Güvenlik",
     "changePassword": "Şifre Değiştir",
     "currentPassword": "Mevcut Şifre",
-    "myReadingLists": "Okuma Listelerim",
-    "noReadingLists": "Henüz hiç okuma listesi oluşturmadınız.",
-    "browseReadingLists": "Okuma Listelerine Göz At",
-    "myReviews": "İncelemelerim",
-    "noReviews": "Henüz hiç inceleme yazmadınız.",
     "bio": "Biyografi",
     "changeBanner": "Bannerı değiştir",
-    "viewPublicProfile": "Genel profili görüntüle",
     "notFound": "Kullanıcı bulunamadı.",
     "privateSection": "Bu bölüm gizli.",
     "emptySection": "Burada henüz gösterilecek bir şey yok.",
@@ -195,8 +174,7 @@
       "library": "Kütüphane",
       "readingLists": "Okuma listeleri",
       "reviews": "İncelemeler",
-      "comments": "Yorumlar",
-      "friends": "Arkadaşlar"
+      "comments": "Yorumlar"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Ana sayfada gösterilecek dilleri seçin",
     "contentHelper": "Ana sayfa, seçtiğiniz her dilden romanları karıştırır. Tüm dilleri göstermek için boş bırakın."
   },
-  "readingStats": {
-    "heading": "Okuma İstatistikleri",
-    "progress": "Okuma İlerlemesi",
-    "onlyBookmarked": "Yalnızca yer imlerine eklenen romanları dahil et",
-    "chaptersRead": "Okunan Bölümler:",
-    "chaptersLeft": "Kalan Bölümler:",
-    "percentComplete": "%{percent} tamamlandı",
-    "totalWordsRead": "Okunan Toplam Kelime",
-    "approxPages": "Yaklaşık {count, plural, one {# sayfa} other {# sayfa}}"
-  },
   "home": {
     "loadFailed": "Ana sayfa verileri yüklenemedi. Lütfen daha sonra tekrar deneyin.",
     "introHeading": "Light Novel okumak için harika bir yer mi arıyorsunuz?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Kütüphaneniz",
     "empty": "Kütüphaneniz boş",
     "emptyHint": "Romanları kütüphanenize eklemek için yer imlerine ekleyin.",
-    "bookmarks": "Yer İmleriniz",
     "recommended": "Size Önerilenler",
     "notRated": "Puanlanmadı",
     "editNote": "Notu düzenle",
@@ -311,7 +278,6 @@
     "sortBy": "Sıralama ölçütü",
     "mirrorHidden": "Bu kullanıcı notlarını ve/veya puanlarını gizli tutuyor.",
     "select": "Seç",
-    "selectAll": "Tümünü seç",
     "selectedCount": "{count, plural, one {# seçildi} other {# seçildi}}",
     "clearSelection": "Temizle",
     "moveTo": "Şuraya taşı",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {# romanı kütüphanenizden kaldır?} other {# romanı kütüphanenizden kaldır?}} Bu işlem geri alınamaz.",
     "addNote": "Not ekle",
     "moreActions": "Diğer işlemler",
-    "dragToFolder": "Bir romanı bir klasöre sürükleyerek dosyalayın",
     "sort": {
       "custom": "Özel sıralama",
       "title": "Başlık",
@@ -355,7 +320,6 @@
     "authors": "Yazarlar",
     "authorsPlaceholder": "Yazar aramak için yazın...",
     "language": "Dil",
-    "any": "Herhangi",
     "minimumRating": "Minimum Puan",
     "clear": "Temizle",
     "sortBy": "Sıralama Ölçütü",
@@ -379,7 +343,6 @@
     "languageFilter": "Dil:",
     "ratingFilter": "Min Puan: {rating}",
     "sortFilter": "Sırala: {sortBy} ({sortOrder})",
-    "searching": "Aranıyor...",
     "foundCount": "{count, plural, =0 {Roman bulunamadı} one {# roman bulundu} other {# roman bulundu}}",
     "noResults": "Kriterlerinize uyan roman bulunamadı",
     "noResultsHint": "Filtrelerinizi veya arama terimlerinizi değiştirmeyi deneyin",
@@ -387,10 +350,8 @@
     "noAuthors": "Yazar bulunamadı",
     "loading": "Yükleniyor...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Arama sonuçları | LNCrawler",
     "metaDefaultTitle": "Light Novel Ara | LNCrawler",
     "metaQueryTitle": "\"{query}\" için arama sonuçları | LNCrawler",
-    "metaSearchingTitle": "Aranıyor... | LNCrawler",
     "metaDescription": "LNCrawler'da geniş bir Asya light novel koleksiyonunu arayın ve keşfedin. Etiket, yazar, dil ve daha fazlasına göre filtreleyin.",
     "metaQueryDescription": "\"{query}\" ile eşleşen light novel'ları bulun. {count, plural, =0 {} one {# sonuç bulundu.} other {# sonuç bulundu.}} LNCrawler'da keşfedin.",
     "metaKeywords": "light novel ara, web novel bul, LNCrawler arama, roman keşfi"
@@ -424,7 +385,6 @@
     "heading": "Görsel Galerisi",
     "countFrom": "{novel} için {count} görsel",
     "showSmall": "Küçük görselleri göster ({count} filtrelendi)",
-    "loadingDimensions": "Görsel boyutları yükleniyor...",
     "noImagesFiltered": "Mevcut filtre ayarlarıyla gösterilecek görsel yok.",
     "noImagesPage": "Bu galeri sayfasında görsel bulunamadı.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Okumaya Devam Et",
     "continueFrom": "{chapter} bölümünden devam et",
     "chapterList": "Bölüm Listesi",
-    "viewAllChapters": "Tüm {count} bölümü görüntüle",
     "browseAllChapters": "Tüm bölümlere göz at",
     "imageGallery": "Görsel Galerisi",
-    "browseAllImages": "Tüm görsellere göz at",
     "viewImageGallery": "Görsel galerisini görüntüle",
     "download": "İndir",
-    "downloadEpub": "EPUB olarak indir",
     "downloadTooltip": "Bu romanı EPUB dosyası olarak indir",
     "downloadFull": "Tam roman",
     "volumeN": "Cilt {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Roman Kaynağı Yükleniyor | LNCrawler",
     "metaDescription": "{source} kaynağından {title} okuyun. Özet: {synopsis}",
     "metaLoadingDescription": "LNCrawler'da bu roman kaynağının ayrıntıları yükleniyor."
-  },
-  "rating": {
-    "noRatings": "Puan yok"
-  },
-  "tags": {
-    "more": "+{count} Daha"
   },
   "updateButton": {
     "startFailed": "Güncelleme görevi başlatılamadı.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Sonraki: {next}",
     "unknownLanguage": "Bilinmeyen dil",
     "authors": "Yazarlar",
-    "totalChapters": "Toplam Bölüm",
     "availableChapters": "Mevcut bölümler",
     "views": "Görüntülemeler",
     "lastUpdated": "Son Güncelleme",
     "weekly": "(Haftalık)",
     "allTimes": "(Tüm zamanlar)",
-    "thisWeek": "(Bu hafta)",
-    "votes": "(Oylar: {count})",
     "rank": "Sıra {rank}",
-    "added": "{time} eklendi",
     "chaptersCount": "{count} Bölüm",
     "removeFromHistory": "Geçmişten kaldır",
     "lastRead": "Son okuma:",
@@ -700,7 +647,6 @@
     "removeFromList": "Listeden Kaldır",
     "hot": "POPÜLER",
     "viewsThisWeek": "Bu hafta {count} görüntüleme",
-    "allTimeViews": "Tüm Zamanların Görüntülemeleri",
     "tags": "Etiketler"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Okuyucu ayarlarını aç",
     "chapterComments": "Bölüm Yorumları",
     "markedRead": "Bölüm başarıyla okundu olarak işaretlendi!",
-    "unlockScrolling": "Kaydırmayı aç",
-    "lockScrolling": "Kaydırmayı kilitle",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Sayfa {current} / {total}",
     "listen": "Dinle"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Düzen",
     "gestures": "Jestler",
     "behavior": "Davranış",
-    "pageMode": "Sayfa Modu",
     "import": "İçe Aktar",
     "export": "Dışa Aktar",
     "resetDefaults": "Varsayılanlara Sıfırla",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Yalnızca oynatıcı açıkken çalışır.",
     "keepScreenOn": "Ekranı açık tut",
     "keepScreenOnHint": "Sesli okuma sırasında. Pili korumak için kapatın; çoğu cihazda ses çalmaya devam eder."
-  },
-  "pageSettings": {
-    "enablePageMode": "Sayfa Modunu Etkinleştir",
-    "enablePageModeHint": "Kaydırmaya dayalı okumadan sayfaya dayalı okumaya geç",
-    "pageMarginHorizontal": "Yatay kenar boşluğu: {margin}%",
-    "pageMarginVertical": "Dikey kenar boşluğu: {margin}%",
-    "pageColumnGap": "Sütun aralığı: {gap}px",
-    "showPageNumbers": "Sayfa Numaralarını Göster",
-    "showPageNumbersHint": "Geçerli sayfayı ve toplam sayfaları göster",
-    "showPageSlider": "Sayfa Kaydırıcısını Göster",
-    "showPageSliderHint": "Sayfalar arasında hızlı gezinmek için kaydırıcı göster"
   },
   "themes": {
     "light": "Açık",

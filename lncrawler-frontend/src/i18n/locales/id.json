@@ -6,21 +6,13 @@
     "delete": "Hapus",
     "edit": "Edit",
     "share": "Bagikan",
-    "back": "Kembali",
     "home": "Beranda",
     "unknown": "Tidak diketahui",
-    "loading": "Memuat...",
     "viewMore": "Lihat Selengkapnya",
     "showMore": "Tampilkan Lebih Banyak",
     "showLess": "Tampilkan Lebih Sedikit",
     "na": "T/A",
     "breadcrumb": "remah roti",
-    "menu": "menu",
-    "login": "Masuk",
-    "register": "Daftar",
-    "profile": "Profil",
-    "logout": "Keluar",
-    "account": "Akun",
     "seeMore": "Lihat selengkapnya",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Bab {number}",
     "comments": "{count, plural, =0 {Tidak ada komentar} one {# komentar} other {# komentar}}",
     "chapters": "{count, plural, one {# bab} other {# bab}}",
-    "novels": "{count, plural, one {# novel} other {# novel}}",
     "imagesCount": "{count, plural, one {# gambar} other {# gambar}}",
     "volumes": "{count, plural, one {# volume} other {# volume}}",
-    "items": "{count, plural, one {# item} other {# item}}",
-    "ratings": "{count, plural, one {# penilaian} other {# penilaian}}",
     "stars": "{count, plural, one {# bintang} other {# bintang}}",
-    "replies": "{count, plural, one {# balasan} other {# balasan}}",
     "unreadChapters": "{count, plural, one {# bab belum dibaca} other {# bab belum dibaca}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Gagal memuat data profil. Silakan coba lagi.",
-    "failedLoadReviews": "Gagal memuat ulasan Anda. Silakan coba lagi.",
-    "failedLoadLists": "Gagal memuat daftar bacaan Anda. Silakan coba lagi.",
     "updatedSuccess": "Profil berhasil diperbarui!",
     "updateFailed": "Gagal memperbarui profil. Silakan coba lagi.",
     "passwordChanged": "Kata sandi berhasil diubah!",
     "passwordChangeFailed": "Gagal mengubah kata sandi. Silakan coba lagi.",
-    "heading": "Profil",
     "changePhoto": "Ganti Foto",
     "email": "Email",
     "editProfile": "Edit Profil",
@@ -157,14 +142,8 @@
     "security": "Keamanan",
     "changePassword": "Ganti Kata Sandi",
     "currentPassword": "Kata Sandi Saat Ini",
-    "myReadingLists": "Daftar Bacaan Saya",
-    "noReadingLists": "Anda belum membuat daftar bacaan apa pun.",
-    "browseReadingLists": "Jelajahi Daftar Bacaan",
-    "myReviews": "Ulasan Saya",
-    "noReviews": "Anda belum menulis ulasan apa pun.",
     "bio": "Bio",
     "changeBanner": "Ubah spanduk",
-    "viewPublicProfile": "Lihat profil publik",
     "notFound": "Pengguna tidak ditemukan.",
     "privateSection": "Bagian ini bersifat privat.",
     "emptySection": "Belum ada yang ditampilkan di sini.",
@@ -195,8 +174,7 @@
       "library": "Perpustakaan",
       "readingLists": "Daftar bacaan",
       "reviews": "Ulasan",
-      "comments": "Komentar",
-      "friends": "Teman"
+      "comments": "Komentar"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Pilih bahasa untuk ditampilkan di beranda",
     "contentHelper": "Beranda mencampur novel dari setiap bahasa yang Anda pilih. Biarkan kosong untuk menampilkan semua bahasa."
   },
-  "readingStats": {
-    "heading": "Statistik Bacaan",
-    "progress": "Progres Bacaan",
-    "onlyBookmarked": "Hanya sertakan novel yang ditandai",
-    "chaptersRead": "Bab Dibaca:",
-    "chaptersLeft": "Bab Tersisa:",
-    "percentComplete": "{percent}% selesai",
-    "totalWordsRead": "Total Kata Dibaca",
-    "approxPages": "Sekitar {count, plural, one {# halaman} other {# halaman}}"
-  },
   "home": {
     "loadFailed": "Gagal memuat data beranda. Silakan coba lagi nanti.",
     "introHeading": "Mencari tempat terbaik untuk membaca Light Novel?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Perpustakaan Anda",
     "empty": "Perpustakaan Anda kosong",
     "emptyHint": "Tandai novel untuk menambahkannya ke perpustakaan Anda.",
-    "bookmarks": "Markah Anda",
     "recommended": "Direkomendasikan untuk Anda",
     "notRated": "Belum dinilai",
     "editNote": "Edit catatan",
@@ -311,7 +278,6 @@
     "sortBy": "Urutkan berdasarkan",
     "mirrorHidden": "Pengguna ini menjaga catatan dan/atau peringkatnya tetap privat.",
     "select": "Pilih",
-    "selectAll": "Pilih semua",
     "selectedCount": "{count, plural, one {# dipilih} other {# dipilih}}",
     "clearSelection": "Bersihkan",
     "moveTo": "Pindahkan ke",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {Hapus # novel dari perpustakaan Anda?} other {Hapus # novel dari perpustakaan Anda?}} Tindakan ini tidak dapat dibatalkan.",
     "addNote": "Tambah catatan",
     "moreActions": "Tindakan lainnya",
-    "dragToFolder": "Seret novel ke folder untuk menyimpannya",
     "sort": {
       "custom": "Urutan khusus",
       "title": "Judul",
@@ -355,7 +320,6 @@
     "authors": "Penulis",
     "authorsPlaceholder": "Ketik untuk mencari penulis...",
     "language": "Bahasa",
-    "any": "Apa saja",
     "minimumRating": "Penilaian Minimum",
     "clear": "Hapus",
     "sortBy": "Urutkan Berdasarkan",
@@ -379,7 +343,6 @@
     "languageFilter": "Bahasa:",
     "ratingFilter": "Penilaian Min: {rating}",
     "sortFilter": "Urutkan: {sortBy} ({sortOrder})",
-    "searching": "Mencari...",
     "foundCount": "{count, plural, =0 {Tidak ada novel ditemukan} one {Ditemukan # novel} other {Ditemukan # novel}}",
     "noResults": "Tidak ada novel yang cocok dengan kriteria Anda",
     "noResultsHint": "Coba sesuaikan filter atau istilah pencarian Anda",
@@ -387,10 +350,8 @@
     "noAuthors": "Tidak ada penulis ditemukan",
     "loading": "Memuat...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Hasil pencarian | LNCrawler",
     "metaDefaultTitle": "Cari Light Novel | LNCrawler",
     "metaQueryTitle": "Hasil pencarian untuk \"{query}\" | LNCrawler",
-    "metaSearchingTitle": "Mencari... | LNCrawler",
     "metaDescription": "Cari dan temukan koleksi besar light novel Asia di LNCrawler. Filter berdasarkan tag, penulis, bahasa, dan lainnya.",
     "metaQueryDescription": "Temukan light novel yang cocok dengan \"{query}\". {count, plural, =0 {} one {Ditemukan # hasil.} other {Ditemukan # hasil.}} Jelajahi di LNCrawler.",
     "metaKeywords": "cari light novel, temukan web novel, pencarian LNCrawler, penemuan novel"
@@ -424,7 +385,6 @@
     "heading": "Galeri Gambar",
     "countFrom": "{count} gambar dari {novel}",
     "showSmall": "Tampilkan gambar kecil ({count} difilter)",
-    "loadingDimensions": "Memuat dimensi gambar...",
     "noImagesFiltered": "Tidak ada gambar untuk ditampilkan dengan pengaturan filter saat ini.",
     "noImagesPage": "Tidak ada gambar ditemukan di halaman galeri ini.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Lanjutkan Membaca",
     "continueFrom": "Lanjutkan dari {chapter}",
     "chapterList": "Daftar Bab",
-    "viewAllChapters": "Lihat semua {count} bab",
     "browseAllChapters": "Jelajahi semua bab",
     "imageGallery": "Galeri Gambar",
-    "browseAllImages": "Jelajahi semua gambar",
     "viewImageGallery": "Lihat galeri gambar",
     "download": "Unduh",
-    "downloadEpub": "Unduh sebagai EPUB",
     "downloadTooltip": "Unduh novel ini sebagai file EPUB",
     "downloadFull": "Novel lengkap",
     "volumeN": "Volume {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Memuat Sumber Novel | LNCrawler",
     "metaDescription": "Baca {title} dari {source}. Sinopsis: {synopsis}",
     "metaLoadingDescription": "Memuat detail sumber novel ini di LNCrawler."
-  },
-  "rating": {
-    "noRatings": "Tidak ada penilaian"
-  },
-  "tags": {
-    "more": "+{count} Lagi"
   },
   "updateButton": {
     "startFailed": "Gagal memulai tugas pembaruan.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Berikutnya: {next}",
     "unknownLanguage": "Bahasa tidak dikenal",
     "authors": "Penulis",
-    "totalChapters": "Total Bab",
     "availableChapters": "Bab Tersedia",
     "views": "Tampilan",
     "lastUpdated": "Terakhir Diperbarui",
     "weekly": "(Mingguan)",
     "allTimes": "(Sepanjang waktu)",
-    "thisWeek": "(Minggu ini)",
-    "votes": "(Suara: {count})",
     "rank": "Peringkat {rank}",
-    "added": "Ditambahkan {time}",
     "chaptersCount": "{count} Bab",
     "removeFromHistory": "Hapus dari riwayat",
     "lastRead": "Terakhir dibaca:",
@@ -700,7 +647,6 @@
     "removeFromList": "Hapus dari Daftar",
     "hot": "PANAS",
     "viewsThisWeek": "{count} tampilan minggu ini",
-    "allTimeViews": "Tampilan Sepanjang Waktu",
     "tags": "Tag"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Buka pengaturan pembaca",
     "chapterComments": "Komentar Bab",
     "markedRead": "Bab berhasil ditandai sudah dibaca!",
-    "unlockScrolling": "Buka kunci gulir",
-    "lockScrolling": "Kunci gulir",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Halaman {current} dari {total}",
     "listen": "Dengarkan"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Tata Letak",
     "gestures": "Gestur",
     "behavior": "Perilaku",
-    "pageMode": "Mode Halaman",
     "import": "Impor",
     "export": "Ekspor",
     "resetDefaults": "Atur Ulang ke Default",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Hanya saat pemutar terbuka.",
     "keepScreenOn": "Biarkan layar tetap menyala",
     "keepScreenOnHint": "Saat membacakan dengan suara. Matikan untuk menghemat baterai; audio tetap berjalan di sebagian besar perangkat."
-  },
-  "pageSettings": {
-    "enablePageMode": "Aktifkan Mode Halaman",
-    "enablePageModeHint": "Beralih dari membaca berbasis gulir ke berbasis halaman",
-    "pageMarginHorizontal": "Margin horizontal: {margin}%",
-    "pageMarginVertical": "Margin vertikal: {margin}%",
-    "pageColumnGap": "Jarak kolom: {gap}px",
-    "showPageNumbers": "Tampilkan Nomor Halaman",
-    "showPageNumbersHint": "Tampilkan halaman saat ini dan total halaman",
-    "showPageSlider": "Tampilkan Penggeser Halaman",
-    "showPageSliderHint": "Tampilkan penggeser untuk menavigasi antar halaman dengan cepat"
   },
   "themes": {
     "light": "Terang",

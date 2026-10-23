@@ -5,13 +5,11 @@ import { Link } from 'react-router-dom';
 interface NovelTagsProps {
   tags: string[];
   chipSize?: "small" | "medium";
-  maxVisible?: number;
 }
 
-const NovelTags: React.FC<NovelTagsProps> = ({ 
-  tags, 
+const NovelTags: React.FC<NovelTagsProps> = ({
+  tags,
   chipSize = "medium",
-  maxVisible = 20
 }) => {
   const theme = useTheme();
   const [showAll, setShowAll] = useState(false);
@@ -20,6 +18,7 @@ const NovelTags: React.FC<NovelTagsProps> = ({
     return null;
   }
 
+  const maxVisible = 20;
   const displayTags = showAll ? tags : tags.slice(0, maxVisible);
   const hasMore = tags.length > maxVisible;
 

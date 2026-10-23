@@ -257,7 +257,6 @@ export const getGalaxyTheme = () =>
 
 export const galaxyTheme: ThemeOption = {
     id: "galaxy",
-    name: "Galaxy",
     isDark: true,
     getTheme: getGalaxyTheme,
     hidden: true,

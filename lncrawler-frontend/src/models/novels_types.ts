@@ -85,7 +85,7 @@ export interface NovelFromSource {
   is_adult?: boolean;
 }
 
-export interface NovelVolume {
+interface NovelVolume {
   volume_id: number;
   title: string;
   start_chapter: number;
@@ -159,25 +159,13 @@ export interface Chapter {
   has_content: boolean;
 }
 
-export interface ChapterListResponse {
-  novel_id: string;
-  novel_title: string;
-  novel_slug: string;
-  source_id: string;
-  source_name: string;
-  source_slug: string;
-  chapters: Chapter[];
-  source_overview_image_url?: string | null;
-  is_dmca?: boolean;
-}
-
 export interface ReadingHistory {
   id: string;
   last_read_chapter : Chapter | null;
   last_read_at: string;
 }
 
-export interface DetailedReadingHistory {
+interface DetailedReadingHistory {
   id: string;
   last_read_chapter : Chapter | null;
   last_read_at: string;

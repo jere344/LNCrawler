@@ -18,9 +18,6 @@ interface ReaderControlsProps {
   onNext: () => void;
   onGoToComments?: () => void;
   variant?: 'full' | 'compact';
-  // Add URL props
-  prevUrl?: string;
-  nextUrl?: string;
 }
 
 /**

@@ -1,6 +1,5 @@
 import os
 import threading
-import time
 import logging
 from pathlib import Path
 import django
@@ -640,7 +639,7 @@ class DownloaderService:
             }
 
             # Include import message if available
-            if hasattr(job, 'import_message') and job.import_message:
+            if job.import_message:
                 result['import_message'] = job.import_message
 
             return result

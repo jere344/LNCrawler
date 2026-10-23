@@ -462,25 +462,3 @@ def run_epub_job(job_id, payload):
         # retry them forever.
         logger.warning("EPUB job %s failed: %s", job_id, e, exc_info=True)
         job.update_status(Job.STATUS_FAILED, str(e) or "EPUB build failed")
-
-
-def _demo():
-    """Standalone smoke check for the pure helpers (no Django needed)."""
-    body = '<p>hi</p><img src="images/abc.jpg"/><img src="http://x/y/z.png"/>'
-    out, copied = _rewrite_images(body, {"abc.jpg"})
-    assert "../images/abc.jpg" in out, out
-    assert copied == ["abc.jpg"], copied
-    # image not present in the chapter's image list stays untouched
-    assert "http://x/y/z.png" in out, out
-    # raw ampersands and unclosed tags are repaired into well-formed XML
-    fixed = _to_xhtml("<p>a & b<br><p>c")
-    assert "&amp;" in fixed, fixed
-    assert "<br />" in fixed, fixed
-    import xml.etree.ElementTree as ET
-
-    ET.fromstring(f"<root>{fixed}</root>")
-    print("epub_service helpers OK")
-
-
-if __name__ == "__main__":
-    _demo()

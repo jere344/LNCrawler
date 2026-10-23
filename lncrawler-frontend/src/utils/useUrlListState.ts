@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDebounce } from '@utils/useDebounce';
 
-export type UrlParamUpdates = Record<string, string | null | undefined>;
+type UrlParamUpdates = Record<string, string | null | undefined>;
 
 // Reads and writes list state (filters, sort, search, page) in the URL, so
 // back/forward and shared links restore the same view.

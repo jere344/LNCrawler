@@ -130,7 +130,6 @@ export const getSepiaToneTheme = () => makeTheme(sepiaTokens);
 
 export const sepiaToneTheme: ThemeOption = {
     id: "sepia",
-    name: "Sepia",
     isDark: false,
     getTheme: getSepiaToneTheme,
     hidden: false,

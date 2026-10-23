@@ -220,8 +220,6 @@ def _claim(task, now):
             return []
         fresh = [candidate for candidate in rows if candidate.attempts == 0]
         batches = task.pack(fresh or rows[:1])
-        if not batches:
-            return []
         batch = batches[0]
         # The claim token: a write only lands while the candidate still carries it.
         Candidate.objects.filter(pk__in=[candidate.pk for candidate in batch]).update(claimed_at=now)
@@ -458,11 +456,6 @@ def run_queue(task_names=None, limit=None, session=None, stdout=None):
                 stop = True
                 break
     return counts
-
-
-def run_task(task_name, limit, session=None, stdout=None):
-    """Process up to ``limit`` calls of one kind. See ``run_queue``."""
-    return run_queue([task_name], limit, session, stdout)
 
 
 def _pair_novels(candidate):

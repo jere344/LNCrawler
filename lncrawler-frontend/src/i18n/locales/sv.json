@@ -6,21 +6,13 @@
     "delete": "Ta bort",
     "edit": "Redigera",
     "share": "Dela",
-    "back": "Tillbaka",
     "home": "Hem",
     "unknown": "Okänd",
-    "loading": "Laddar...",
     "viewMore": "Visa mer",
     "showMore": "Visa mer",
     "showLess": "Visa mindre",
     "na": "Ej tillämpligt",
     "breadcrumb": "brödsmulor",
-    "menu": "meny",
-    "login": "Logga in",
-    "register": "Registrera",
-    "profile": "Profil",
-    "logout": "Logga ut",
-    "account": "Konto",
     "seeMore": "Visa mer",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Kapitel {number}",
     "comments": "{count, plural, =0 {Inga kommentarer} one {# kommentar} other {# kommentarer}}",
     "chapters": "{count, plural, one {# kapitel} other {# kapitel}}",
-    "novels": "{count, plural, one {# roman} other {# romaner}}",
     "imagesCount": "{count, plural, one {# bild} other {# bilder}}",
     "volumes": "{count, plural, one {# volym} other {# volymer}}",
-    "items": "{count, plural, one {# objekt} other {# objekt}}",
-    "ratings": "{count, plural, one {# betyg} other {# betyg}}",
     "stars": "{count, plural, one {# stjärna} other {# stjärnor}}",
-    "replies": "{count, plural, one {# svar} other {# svar}}",
     "unreadChapters": "{count, plural, one {# oläst kapitel} other {# olästa kapitel}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Det gick inte att ladda profildata. Försök igen.",
-    "failedLoadReviews": "Det gick inte att ladda dina recensioner. Försök igen.",
-    "failedLoadLists": "Det gick inte att ladda dina läslistor. Försök igen.",
     "updatedSuccess": "Profilen uppdaterades!",
     "updateFailed": "Det gick inte att uppdatera profilen. Försök igen.",
     "passwordChanged": "Lösenordet ändrades!",
     "passwordChangeFailed": "Det gick inte att ändra lösenordet. Försök igen.",
-    "heading": "Profil",
     "changePhoto": "Byt foto",
     "email": "E-post",
     "editProfile": "Redigera profil",
@@ -157,14 +142,8 @@
     "security": "Säkerhet",
     "changePassword": "Byt lösenord",
     "currentPassword": "Nuvarande lösenord",
-    "myReadingLists": "Mina läslistor",
-    "noReadingLists": "Du har inte skapat några läslistor än.",
-    "browseReadingLists": "Bläddra bland läslistor",
-    "myReviews": "Mina recensioner",
-    "noReviews": "Du har inte skrivit några recensioner än.",
     "bio": "Bio",
     "changeBanner": "Ändra banner",
-    "viewPublicProfile": "Visa offentlig profil",
     "notFound": "Användaren hittades inte.",
     "privateSection": "Det här avsnittet är privat.",
     "emptySection": "Inget att visa här ännu.",
@@ -195,8 +174,7 @@
       "library": "Bibliotek",
       "readingLists": "Läslistor",
       "reviews": "Recensioner",
-      "comments": "Kommentarer",
-      "friends": "Vänner"
+      "comments": "Kommentarer"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Välj språk att visa på startsidan",
     "contentHelper": "Startsidan blandar romaner från alla språk du väljer. Lämna tomt för att visa alla språk."
   },
-  "readingStats": {
-    "heading": "Lässtatistik",
-    "progress": "Läsframsteg",
-    "onlyBookmarked": "Inkludera endast bokmärkta romaner",
-    "chaptersRead": "Lästa kapitel:",
-    "chaptersLeft": "Återstående kapitel:",
-    "percentComplete": "{percent}% klart",
-    "totalWordsRead": "Totalt antal lästa ord",
-    "approxPages": "Ungefär {count, plural, one {# sida} other {# sidor}}"
-  },
   "home": {
     "loadFailed": "Det gick inte att ladda startsidans data. Försök igen senare.",
     "introHeading": "Letar du efter en bra plats att läsa light novels på?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Ditt bibliotek",
     "empty": "Ditt bibliotek är tomt",
     "emptyHint": "Bokmärk romaner för att lägga till dem i ditt bibliotek.",
-    "bookmarks": "Dina bokmärken",
     "recommended": "Rekommenderat för dig",
     "notRated": "Inte betygsatt",
     "editNote": "Redigera anteckning",
@@ -311,7 +278,6 @@
     "sortBy": "Sortera efter",
     "mirrorHidden": "Den här användaren håller sina anteckningar och/eller betyg privata.",
     "select": "Välj",
-    "selectAll": "Välj alla",
     "selectedCount": "{count, plural, one {# vald} other {# valda}}",
     "clearSelection": "Rensa",
     "moveTo": "Flytta till",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {Ta bort # roman från ditt bibliotek?} other {Ta bort # romaner från ditt bibliotek?}} Detta kan inte ångras.",
     "addNote": "Lägg till en anteckning",
     "moreActions": "Fler åtgärder",
-    "dragToFolder": "Dra en roman till en mapp för att arkivera den",
     "sort": {
       "custom": "Anpassad ordning",
       "title": "Titel",
@@ -355,7 +320,6 @@
     "authors": "Författare",
     "authorsPlaceholder": "Skriv för att söka författare...",
     "language": "Språk",
-    "any": "Alla",
     "minimumRating": "Minsta betyg",
     "clear": "Rensa",
     "sortBy": "Sortera efter",
@@ -379,7 +343,6 @@
     "languageFilter": "Språk:",
     "ratingFilter": "Min. betyg: {rating}",
     "sortFilter": "Sortering: {sortBy} ({sortOrder})",
-    "searching": "Söker...",
     "foundCount": "{count, plural, =0 {Inga romaner hittades} one {Hittade # roman} other {Hittade # romaner}}",
     "noResults": "Inga romaner hittades som matchar dina kriterier",
     "noResultsHint": "Prova att justera dina filter eller söktermer",
@@ -387,10 +350,8 @@
     "noAuthors": "Inga författare hittades",
     "loading": "Laddar...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Sökresultat | LNCrawler",
     "metaDefaultTitle": "Sök light novels | LNCrawler",
     "metaQueryTitle": "Sökresultat för \"{query}\" | LNCrawler",
-    "metaSearchingTitle": "Söker... | LNCrawler",
     "metaDescription": "Sök och upptäck en enorm samling asiatiska light novels på LNCrawler. Filtrera efter taggar, författare, språk med mera.",
     "metaQueryDescription": "Hitta light novels som matchar \"{query}\". {count, plural, =0 {} one {Hittade # resultat.} other {Hittade # resultat.}} Utforska på LNCrawler.",
     "metaKeywords": "sök light novels, hitta web novels, LNCrawler-sökning, upptäck romaner"
@@ -424,7 +385,6 @@
     "heading": "Bildgalleri",
     "countFrom": "{count} bilder från {novel}",
     "showSmall": "Visa små bilder ({count} filtrerade)",
-    "loadingDimensions": "Laddar bildmått...",
     "noImagesFiltered": "Inga bilder att visa med nuvarande filterinställningar.",
     "noImagesPage": "Inga bilder hittades på denna gallerisida.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Fortsätt läsa",
     "continueFrom": "Fortsätt från {chapter}",
     "chapterList": "Kapitellista",
-    "viewAllChapters": "Visa alla {count} kapitel",
     "browseAllChapters": "Bläddra bland alla kapitel",
     "imageGallery": "Bildgalleri",
-    "browseAllImages": "Bläddra bland alla bilder",
     "viewImageGallery": "Visa bildgalleriet",
     "download": "Ladda ner",
-    "downloadEpub": "Ladda ner som EPUB",
     "downloadTooltip": "Ladda ner den här romanen som en EPUB-fil",
     "downloadFull": "Hela romanen",
     "volumeN": "Volym {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Laddar romankälla | LNCrawler",
     "metaDescription": "Läs {title} från {source}. Sammanfattning: {synopsis}",
     "metaLoadingDescription": "Laddar information om denna romankälla på LNCrawler."
-  },
-  "rating": {
-    "noRatings": "Inga betyg"
-  },
-  "tags": {
-    "more": "+{count} till"
   },
   "updateButton": {
     "startFailed": "Det gick inte att starta uppdateringsjobbet.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Nästa: {next}",
     "unknownLanguage": "Okänt språk",
     "authors": "Författare",
-    "totalChapters": "Totalt antal kapitel",
     "availableChapters": "Tillgängliga kapitel",
     "views": "Visningar",
     "lastUpdated": "Senast uppdaterad",
     "weekly": "(Veckovis)",
     "allTimes": "(Genom tiderna)",
-    "thisWeek": "(Denna vecka)",
-    "votes": "(Röster: {count})",
     "rank": "Rang {rank}",
-    "added": "Tillagd {time}",
     "chaptersCount": "{count} kapitel",
     "removeFromHistory": "Ta bort från historiken",
     "lastRead": "Senast läst:",
@@ -700,7 +647,6 @@
     "removeFromList": "Ta bort från listan",
     "hot": "HET",
     "viewsThisWeek": "{count} visningar denna vecka",
-    "allTimeViews": "Visningar genom tiderna",
     "tags": "Taggar"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Öppna läsarinställningar",
     "chapterComments": "Kapitelkommentarer",
     "markedRead": "Kapitlet markerades som läst!",
-    "unlockScrolling": "Lås upp rullning",
-    "lockScrolling": "Lås rullning",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Sida {current} av {total}",
     "listen": "Lyssna"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Layout",
     "gestures": "Gester",
     "behavior": "Beteende",
-    "pageMode": "Sidläge",
     "import": "Importera",
     "export": "Exportera",
     "resetDefaults": "Återställ till standard",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Fungerar bara när spelaren är öppen.",
     "keepScreenOn": "Håll skärmen på",
     "keepScreenOnHint": "Under uppläsning. Stäng av för att spara batteri; ljudet fortsätter spela på de flesta enheter."
-  },
-  "pageSettings": {
-    "enablePageMode": "Aktivera sidläge",
-    "enablePageModeHint": "Byt från rullningsbaserad till sidbaserad läsning",
-    "pageMarginHorizontal": "Vågrät marginal: {margin}%",
-    "pageMarginVertical": "Lodrät marginal: {margin}%",
-    "pageColumnGap": "Kolumnavstånd: {gap}px",
-    "showPageNumbers": "Visa sidnummer",
-    "showPageNumbersHint": "Visa aktuell sida och totalt antal sidor",
-    "showPageSlider": "Visa sidreglage",
-    "showPageSliderHint": "Visa ett reglage för att snabbt navigera mellan sidor"
   },
   "themes": {
     "light": "Ljust",

@@ -127,14 +127,6 @@ def effective_edition(title, edition):
     return key or _title_edition_key(title)
 
 
-def same_work_titles(title_a, title_b, min_ratio=0.8):
-    """Whether two source titles plausibly name the same work.
-
-    Title-only form of :func:`same_work`, for rows without an explicit edition.
-    """
-    return same_work(title_a, "", title_b, "", min_ratio)
-
-
 def same_work(title_a, edition_a, title_b, edition_b, min_ratio=0.8):
     """Whether two source rows of one site plausibly name the same work.
 

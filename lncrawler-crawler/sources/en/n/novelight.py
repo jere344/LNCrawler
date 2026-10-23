@@ -116,9 +116,6 @@ class NoveLightCrawler(Crawler):
             "x-requested-with": "XMLHttpRequest",
         }
         chapters_lists = soup.select("select#select-pagination-chapter > option")
-        bar = self.progress_bar(
-            total=len(chapters_lists), desc="Chapters list", unit="page"
-        )
         encountered_paid_chapter = False
         for page in reversed(chapters_lists):
             if encountered_paid_chapter:
@@ -145,8 +142,6 @@ class NoveLightCrawler(Crawler):
                             url=self.absolute_url(a["href"]),
                         )
                     )
-            bar.update()
-        bar.close()
         if encountered_paid_chapter:
             logger.warning(
                 "WARNING: Paid chapters are not supported and will be skipped."

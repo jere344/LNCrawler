@@ -20,7 +20,6 @@ from typing import Optional
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
-from django.utils import timezone
 
 from ..db_locks import lock_pks
 from ..models.sources_models import refresh_adult_for_tags
@@ -76,10 +75,6 @@ class MergePlan:
     sources: list = field(default_factory=list)
     related_counts: dict = field(default_factory=dict)
     warnings: list = field(default_factory=list)
-
-    @property
-    def has_warnings(self):
-        return bool(self.warnings)
 
 
 def build_merge_plan(source_novel, target_novel, move_files=True):

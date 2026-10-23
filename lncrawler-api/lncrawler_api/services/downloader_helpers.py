@@ -30,7 +30,7 @@ def choose_crawl_output_path(source_host, title, edition="", source_url=""):
         url_known = url_rows.exists()
 
     default = lncrawler_paths.get_novel_output_path(
-        source=source_host, novel=title, create=False
+        source=source_host, novel=title
     )
     rel = os.path.relpath(default, settings.LNCRAWL_OUTPUT_PATH)
     owner = NovelFromSource.objects.filter(source_path=rel).order_by('pk').first()

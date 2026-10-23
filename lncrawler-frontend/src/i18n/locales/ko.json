@@ -6,21 +6,13 @@
     "delete": "삭제",
     "edit": "편집",
     "share": "공유",
-    "back": "뒤로",
     "home": "홈",
     "unknown": "알 수 없음",
-    "loading": "불러오는 중...",
     "viewMore": "더 보기",
     "showMore": "더 보기",
     "showLess": "접기",
     "na": "해당 없음",
     "breadcrumb": "이동 경로",
-    "menu": "메뉴",
-    "login": "로그인",
-    "register": "회원가입",
-    "profile": "프로필",
-    "logout": "로그아웃",
-    "account": "계정",
     "seeMore": "더 보기",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "{number}화",
     "comments": "{count, plural, =0 {댓글 없음} one {댓글 #개} other {댓글 #개}}",
     "chapters": "{count, plural, one {#화} other {#화}}",
-    "novels": "{count, plural, one {#작품} other {#작품}}",
     "imagesCount": "{count, plural, one {#장의 이미지} other {#장의 이미지}}",
     "volumes": "{count, plural, other {# 권}}",
-    "items": "{count, plural, one {#개 항목} other {#개 항목}}",
-    "ratings": "{count, plural, one {#개 평가} other {#개 평가}}",
     "stars": "{count, plural, one {별 #개} other {별 #개}}",
-    "replies": "{count, plural, one {답글 #개} other {답글 #개}}",
     "unreadChapters": "{count, plural, one {읽지 않은 화 #개} other {읽지 않은 화 #개}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "프로필 데이터를 불러오지 못했습니다. 다시 시도해 주세요.",
-    "failedLoadReviews": "리뷰를 불러오지 못했습니다. 다시 시도해 주세요.",
-    "failedLoadLists": "읽기 목록을 불러오지 못했습니다. 다시 시도해 주세요.",
     "updatedSuccess": "프로필이 업데이트되었습니다!",
     "updateFailed": "프로필 업데이트에 실패했습니다. 다시 시도해 주세요.",
     "passwordChanged": "비밀번호가 변경되었습니다!",
     "passwordChangeFailed": "비밀번호 변경에 실패했습니다. 다시 시도해 주세요.",
-    "heading": "프로필",
     "changePhoto": "사진 변경",
     "email": "이메일",
     "editProfile": "프로필 편집",
@@ -157,14 +142,8 @@
     "security": "보안",
     "changePassword": "비밀번호 변경",
     "currentPassword": "현재 비밀번호",
-    "myReadingLists": "내 읽기 목록",
-    "noReadingLists": "아직 읽기 목록을 만들지 않았습니다.",
-    "browseReadingLists": "읽기 목록 둘러보기",
-    "myReviews": "내 리뷰",
-    "noReviews": "아직 리뷰를 작성하지 않았습니다.",
     "bio": "소개",
     "changeBanner": "배너 변경",
-    "viewPublicProfile": "공개 프로필 보기",
     "notFound": "사용자를 찾을 수 없습니다.",
     "privateSection": "이 섹션은 비공개입니다.",
     "emptySection": "아직 표시할 내용이 없습니다.",
@@ -195,8 +174,7 @@
       "library": "라이브러리",
       "readingLists": "읽기 목록",
       "reviews": "리뷰",
-      "comments": "댓글",
-      "friends": "친구"
+      "comments": "댓글"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "홈 페이지에 표시할 언어 선택",
     "contentHelper": "홈 페이지에는 선택한 모든 언어의 소설이 함께 표시됩니다. 비워 두면 모든 언어가 표시됩니다."
   },
-  "readingStats": {
-    "heading": "읽기 통계",
-    "progress": "읽기 진행률",
-    "onlyBookmarked": "북마크한 소설만 포함",
-    "chaptersRead": "읽은 화:",
-    "chaptersLeft": "남은 화:",
-    "percentComplete": "{percent}% 완료",
-    "totalWordsRead": "읽은 총 단어 수",
-    "approxPages": "약 {count, plural, one {#페이지} other {#페이지}}"
-  },
   "home": {
     "loadFailed": "홈 페이지 데이터를 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
     "introHeading": "라이트노벨을 읽을 좋은 곳을 찾고 계신가요?",
@@ -294,7 +262,6 @@
     "yourLibrary": "내 라이브러리",
     "empty": "라이브러리가 비어 있습니다",
     "emptyHint": "소설을 북마크하면 라이브러리에 추가됩니다.",
-    "bookmarks": "내 북마크",
     "recommended": "추천 도서",
     "notRated": "평가 안 함",
     "editNote": "메모 편집",
@@ -311,7 +278,6 @@
     "sortBy": "정렬 기준",
     "mirrorHidden": "이 사용자는 메모 및/또는 평점을 비공개로 유지합니다.",
     "select": "선택",
-    "selectAll": "전체 선택",
     "selectedCount": "{count, plural, one {#개 선택됨} other {#개 선택됨}}",
     "clearSelection": "지우기",
     "moveTo": "이동 대상",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {라이브러리에서 #편의 소설을 삭제할까요?} other {라이브러리에서 #편의 소설을 삭제할까요?}} 이 작업은 되돌릴 수 없습니다.",
     "addNote": "메모 추가",
     "moreActions": "더 많은 작업",
-    "dragToFolder": "소설을 폴더로 끌어다 정리하세요",
     "sort": {
       "custom": "사용자 지정 순서",
       "title": "제목",
@@ -355,7 +320,6 @@
     "authors": "저자",
     "authorsPlaceholder": "저자를 입력하여 검색...",
     "language": "언어",
-    "any": "모두",
     "minimumRating": "최소 평점",
     "clear": "지우기",
     "sortBy": "정렬 기준",
@@ -379,7 +343,6 @@
     "languageFilter": "언어:",
     "ratingFilter": "최소 평점: {rating}",
     "sortFilter": "정렬: {sortBy} ({sortOrder})",
-    "searching": "검색 중...",
     "foundCount": "{count, plural, =0 {소설을 찾을 수 없음} one {소설 #편 발견} other {소설 #편 발견}}",
     "noResults": "조건에 맞는 소설을 찾을 수 없습니다",
     "noResultsHint": "필터나 검색어를 조정해 보세요",
@@ -387,10 +350,8 @@
     "noAuthors": "저자를 찾을 수 없습니다",
     "loading": "불러오는 중...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "검색 결과 | LNCrawler",
     "metaDefaultTitle": "라이트노벨 검색 | LNCrawler",
     "metaQueryTitle": "\"{query}\" 검색 결과 | LNCrawler",
-    "metaSearchingTitle": "검색 중... | LNCrawler",
     "metaDescription": "LNCrawler에서 방대한 아시아 라이트노벨 컬렉션을 검색하고 발견하세요. 태그, 저자, 언어 등으로 필터링할 수 있습니다.",
     "metaQueryDescription": "\"{query}\"와 일치하는 라이트노벨을 찾아보세요. {count, plural, =0 {} one {#개의 결과를 찾았습니다.} other {#개의 결과를 찾았습니다.}} LNCrawler에서 살펴보세요.",
     "metaKeywords": "라이트노벨 검색, 웹소설 찾기, LNCrawler 검색, 소설 발견"
@@ -424,7 +385,6 @@
     "heading": "이미지 갤러리",
     "countFrom": "{novel}의 이미지 {count}장",
     "showSmall": "작은 이미지 표시({count}장 필터링됨)",
-    "loadingDimensions": "이미지 크기 불러오는 중...",
     "noImagesFiltered": "현재 필터 설정으로 표시할 이미지가 없습니다.",
     "noImagesPage": "이 갤러리 페이지에는 이미지가 없습니다.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "계속 읽기",
     "continueFrom": "{chapter}부터 계속",
     "chapterList": "화 목록",
-    "viewAllChapters": "전체 {count}화 보기",
     "browseAllChapters": "모든 화 둘러보기",
     "imageGallery": "이미지 갤러리",
-    "browseAllImages": "모든 이미지 둘러보기",
     "viewImageGallery": "이미지 갤러리 보기",
     "download": "다운로드",
-    "downloadEpub": "EPUB로 다운로드",
     "downloadTooltip": "이 소설을 EPUB 파일로 다운로드",
     "downloadFull": "전체 소설",
     "volumeN": "{n}권",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "소설 소스 불러오는 중 | LNCrawler",
     "metaDescription": "{source}의 {title}을(를) 읽어보세요. 줄거리: {synopsis}",
     "metaLoadingDescription": "LNCrawler에서 이 소설 소스의 세부 정보를 불러오는 중입니다."
-  },
-  "rating": {
-    "noRatings": "평점 없음"
-  },
-  "tags": {
-    "more": "+{count}개 더보기"
   },
   "updateButton": {
     "startFailed": "업데이트 작업 시작에 실패했습니다.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. 다음: {next}",
     "unknownLanguage": "알 수 없는 언어",
     "authors": "저자",
-    "totalChapters": "총 화수",
     "availableChapters": "열람 가능한 챕터",
     "views": "조회수",
     "lastUpdated": "최근 업데이트",
     "weekly": "(주간)",
     "allTimes": "(전체 기간)",
-    "thisWeek": "(이번 주)",
-    "votes": "(투표: {count})",
     "rank": "{rank}위",
-    "added": "{time} 추가됨",
     "chaptersCount": "{count}화",
     "removeFromHistory": "기록에서 삭제",
     "lastRead": "마지막 읽음:",
@@ -700,7 +647,6 @@
     "removeFromList": "목록에서 제거",
     "hot": "HOT",
     "viewsThisWeek": "이번 주 {count}회 조회",
-    "allTimeViews": "전체 조회수",
     "tags": "태그"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "리더 설정 열기",
     "chapterComments": "화 댓글",
     "markedRead": "화를 읽음으로 표시했습니다!",
-    "unlockScrolling": "스크롤 잠금 해제",
-    "lockScrolling": "스크롤 잠금",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "{total}페이지 중 {current}페이지",
     "listen": "듣기"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "레이아웃",
     "gestures": "제스처",
     "behavior": "동작",
-    "pageMode": "페이지 모드",
     "import": "가져오기",
     "export": "내보내기",
     "resetDefaults": "기본값으로 재설정",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "플레이어가 열려 있을 때만 작동합니다.",
     "keepScreenOn": "화면 켜 두기",
     "keepScreenOnHint": "음성으로 읽는 동안에만 적용됩니다. 끄면 배터리를 아낄 수 있으며, 대부분의 기기에서는 소리가 계속 재생됩니다."
-  },
-  "pageSettings": {
-    "enablePageMode": "페이지 모드 활성화",
-    "enablePageModeHint": "스크롤 방식에서 페이지 방식 읽기로 전환",
-    "pageMarginHorizontal": "가로 여백: {margin}%",
-    "pageMarginVertical": "세로 여백: {margin}%",
-    "pageColumnGap": "단 간격: {gap}px",
-    "showPageNumbers": "페이지 번호 표시",
-    "showPageNumbersHint": "현재 페이지와 전체 페이지 수 표시",
-    "showPageSlider": "페이지 슬라이더 표시",
-    "showPageSliderHint": "페이지 간을 빠르게 이동할 수 있는 슬라이더 표시"
   },
   "themes": {
     "light": "라이트",

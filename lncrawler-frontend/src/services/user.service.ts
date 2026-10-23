@@ -5,7 +5,7 @@ export type LibrarySort = 'custom' | 'title' | 'date_added' | 'rating';
 
 export const LIBRARY_SORTS: LibrarySort[] = ['custom', 'title', 'date_added', 'rating'];
 
-export interface LibraryQuery {
+interface LibraryQuery {
   page?: number;
   pageSize?: number;
   search?: string;
@@ -49,11 +49,6 @@ const userService = {
   },
 
   // Library folders
-  getLibraryFolders: async (): Promise<LibraryFolder[]> => {
-    const response = await api.get(`/users/library/folders/`);
-    return response.data;
-  },
-
   createLibraryFolder: async (name: string): Promise<LibraryFolder> => {
     const response = await api.post(`/users/library/folders/`, { name });
     return response.data;

@@ -483,12 +483,6 @@ const ChapterReader = () => {
     setCookie(READER_COOKIE_PREFIX + key, JSON.stringify(value), READER_COOKIE_DAYS);
   };
 
-  // Add these variables to generate navigation URLs
-  const prevUrl = chapter?.prev_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.prev_chapter}` : undefined;
-  const nextUrl = chapter?.next_chapter ? `/novels/${novelSlug}/${sourceSlug}/chapter/${chapter.next_chapter}` : undefined;
-  const homeUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}` : undefined;
-  const chapterListUrl = novelSlug && sourceSlug ? `/novels/${novelSlug}/${sourceSlug}/chapterlist` : undefined;
-
   // Handle swipe gestures
   const { swipeHandlers } = useReaderGestures({
     chapter,
@@ -585,10 +579,6 @@ const ChapterReader = () => {
       onSettings={() => setControlsVisible(true)}
       onListen={() => { setControlsVisible(false); tts.start(); }}
       onCloseControls={() => setControlsVisible(false)}
-      prevUrl={prevUrl}
-      nextUrl={nextUrl}
-      homeUrl={homeUrl}
-      chapterListUrl={chapterListUrl}
     />
   );
 
@@ -711,8 +701,6 @@ const ChapterReader = () => {
               nightModeScheduleEnabled={readerSettings.nightModeScheduleEnabled}
               nightModeStartTime={readerSettings.nightModeStartTime}
               nightModeEndTime={readerSettings.nightModeEndTime}
-              leftEdgeTapBehavior={readerSettings.leftEdgeTapBehavior}
-              rightEdgeTapBehavior={readerSettings.rightEdgeTapBehavior}
               onContentClick={handleContentClick}
             >
               {memoizedChapterContent.chapter && (
@@ -745,8 +733,6 @@ const ChapterReader = () => {
             onPrevious={handlePrevChapter}
             onNext={handleNextChapter}
             onGoToComments={handleSwitchToComments}
-            prevUrl={prevUrl}
-            nextUrl={nextUrl}
           />
         </Paper>
       </Container>
@@ -770,9 +756,6 @@ const ChapterReader = () => {
         }}
         onNavigate={handleSettingsNavigate}
         isAuthenticated={isAuthenticated}
-        prevUrl={prevUrl}
-        nextUrl={nextUrl}
-        homeUrl={homeUrl}
       />
 
       {/* Add keyboard navigation handler */}

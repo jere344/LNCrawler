@@ -277,7 +277,6 @@ export const getHighContrastTheme = () =>
 
 export const highContrastTheme: ThemeOption = {
     id: "highContrast",
-    name: "High Contrast",
     isDark: true,
     getTheme: getHighContrastTheme,
     hidden: false,

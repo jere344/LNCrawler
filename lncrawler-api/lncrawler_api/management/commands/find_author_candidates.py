@@ -15,8 +15,7 @@ C. Cross-source: in one novel, two sources that differ by exactly one author
 
 A pair that already has a candidate in an open status only has its signals refreshed. A
 pair with a candidate that is decided (rejected, applied, undone) or blocked by a
-merge chain (``candidate_blocks``) is skipped. Re-running is safe. ``--dry-run``
-reports what would be queued and writes nothing.
+merge chain (``candidate_blocks``) is skipped. Re-running is safe.
 """
 from collections import defaultdict
 from itertools import combinations
@@ -36,12 +35,7 @@ NOVEL_IDS_CAP = 10
 class Command(BaseCommand):
     help = "Queue probable duplicate authors for LLM judging."
 
-    def add_arguments(self, parser):
-        parser.add_argument("--dry-run", action="store_true",
-                            help="Report what would be queued; write nothing.")
-
     def handle(self, *args, **options):
-        self.dry_run = options["dry_run"]
         self.counts = defaultdict(int)
         self.blocked = blocked_pairs(Candidate.KIND_AUTHOR_MERGE)
 
@@ -49,9 +43,8 @@ class Command(BaseCommand):
         self._rule_b()
         self._rule_c()
 
-        prefix = "dry run: nothing written, would " if self.dry_run else ""
         self.stdout.write(self.style.SUCCESS(
-            f"{prefix}queue {self.counts['queued']}; "
+            f"queued {self.counts['queued']}; "
             f"skipped {self.counts['known']} known"
         ))
 
@@ -65,8 +58,6 @@ class Command(BaseCommand):
             self.counts["known"] += 1
             return
         self.counts["queued"] += 1
-        if self.dry_run:
-            return
         signals = {"rule": rule, **signals}
         names = [first.name, second.name]
         if row is None:

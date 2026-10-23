@@ -56,11 +56,6 @@ def script_runs_with_kind(name):
     return runs
 
 
-def script_runs(name):
-    """Return the normalized Latin and CJK runs of a mixed-script name, else []."""
-    return [run for _kind, run in script_runs_with_kind(name)]
-
-
 def is_bracketed_original(first, second):
     """True when one name is the other followed by a bracketed part, e.g. "Name (原名)"."""
     first, second = normalize_author(first), normalize_author(second)

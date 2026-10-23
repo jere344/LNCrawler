@@ -351,11 +351,6 @@ class Scraper(TaskManager, SoupMaker):
         )
         return self.post_response(url, data=data, headers=headers, **kwargs)
 
-    def download_file(self, url: str, output_file: str, **kwargs) -> None:
-        response = self.__process_request("get", url, **kwargs)
-        with open(output_file, "wb") as f:
-            f.write(response.content)
-
     def download_image(self, url: str, headers: Optional[MutableMapping] = None, **kwargs):
         if url.startswith("data:"):
             content = base64.b64decode(url.split("base64,")[-1])

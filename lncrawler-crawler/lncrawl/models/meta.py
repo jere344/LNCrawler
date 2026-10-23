@@ -15,7 +15,3 @@ class MetaInfo(Model):
         self.novel = novel
         self.session = session
         self.update(kwargs)
-
-    @staticmethod
-    def from_novel(novel: Novel, session: Optional[Session] = None) -> "MetaInfo":
-        return MetaInfo(novel=novel, session=session)

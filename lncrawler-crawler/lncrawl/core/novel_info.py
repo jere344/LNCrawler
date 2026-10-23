@@ -165,13 +165,8 @@ def save_metadata(app, completed: bool = False) -> None:
             completed=completed,
             user_input=app.user_input,
             output_path=app.output_path,
-            output_formats=app.output_formats,
-            pack_by_volume=app.pack_by_volume,
             good_file_name=app.good_file_name,
             download_chapters=[chap.id for chap in app.chapters],
-            # Never persist crawler cookies/headers: meta.json is written under
-            # the publicly served library root and can hold live login sessions.
-            proxies={},
         ),
     )
 

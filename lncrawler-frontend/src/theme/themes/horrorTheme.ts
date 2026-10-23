@@ -285,7 +285,6 @@ export const getHorrorTheme = () =>
 
 export const horrorTheme: ThemeOption = {
     id: "horror",
-    name: "Horror",
     isDark: true,
     getTheme: getHorrorTheme,
     hidden: true,

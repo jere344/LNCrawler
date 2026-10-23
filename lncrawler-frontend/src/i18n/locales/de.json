@@ -6,21 +6,13 @@
     "delete": "Löschen",
     "edit": "Bearbeiten",
     "share": "Teilen",
-    "back": "Zurück",
     "home": "Startseite",
     "unknown": "Unbekannt",
-    "loading": "Wird geladen...",
     "viewMore": "Mehr anzeigen",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
     "na": "N/V",
     "breadcrumb": "Navigationspfad",
-    "menu": "Menü",
-    "login": "Anmelden",
-    "register": "Registrieren",
-    "profile": "Profil",
-    "logout": "Abmelden",
-    "account": "Konto",
     "seeMore": "Mehr anzeigen",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Kapitel {number}",
     "comments": "{count, plural, =0 {Keine Kommentare} one {# Kommentar} other {# Kommentare}}",
     "chapters": "{count, plural, one {# Kapitel} other {# Kapitel}}",
-    "novels": "{count, plural, one {# Roman} other {# Romane}}",
     "imagesCount": "{count, plural, one {# Bild} other {# Bilder}}",
     "volumes": "{count, plural, one {# Band} other {# Bände}}",
-    "items": "{count, plural, one {# Element} other {# Elemente}}",
-    "ratings": "{count, plural, one {# Bewertung} other {# Bewertungen}}",
     "stars": "{count, plural, one {# Stern} other {# Sterne}}",
-    "replies": "{count, plural, one {# Antwort} other {# Antworten}}",
     "unreadChapters": "{count, plural, one {# ungelesenes Kapitel} other {# ungelesene Kapitel}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Profildaten konnten nicht geladen werden. Bitte versuche es erneut.",
-    "failedLoadReviews": "Deine Bewertungen konnten nicht geladen werden. Bitte versuche es erneut.",
-    "failedLoadLists": "Deine Leselisten konnten nicht geladen werden. Bitte versuche es erneut.",
     "updatedSuccess": "Profil erfolgreich aktualisiert!",
     "updateFailed": "Profil konnte nicht aktualisiert werden. Bitte versuche es erneut.",
     "passwordChanged": "Passwort erfolgreich geändert!",
     "passwordChangeFailed": "Passwort konnte nicht geändert werden. Bitte versuche es erneut.",
-    "heading": "Profil",
     "changePhoto": "Foto ändern",
     "email": "E-Mail",
     "editProfile": "Profil bearbeiten",
@@ -157,14 +142,8 @@
     "security": "Sicherheit",
     "changePassword": "Passwort ändern",
     "currentPassword": "Aktuelles Passwort",
-    "myReadingLists": "Meine Leselisten",
-    "noReadingLists": "Du hast noch keine Leselisten erstellt.",
-    "browseReadingLists": "Leselisten durchsuchen",
-    "myReviews": "Meine Bewertungen",
-    "noReviews": "Du hast noch keine Bewertungen geschrieben.",
     "bio": "Über mich",
     "changeBanner": "Banner ändern",
-    "viewPublicProfile": "Öffentliches Profil ansehen",
     "notFound": "Benutzer nicht gefunden.",
     "privateSection": "Dieser Bereich ist privat.",
     "emptySection": "Hier gibt es noch nichts zu sehen.",
@@ -195,8 +174,7 @@
       "library": "Bibliothek",
       "readingLists": "Leselisten",
       "reviews": "Rezensionen",
-      "comments": "Kommentare",
-      "friends": "Freunde"
+      "comments": "Kommentare"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Wähle Sprachen aus, die auf der Startseite angezeigt werden sollen",
     "contentHelper": "Die Startseite mischt Romane aus allen von dir ausgewählten Sprachen. Leer lassen, um alle Sprachen anzuzeigen."
   },
-  "readingStats": {
-    "heading": "Lesestatistik",
-    "progress": "Lesefortschritt",
-    "onlyBookmarked": "Nur mit Lesezeichen versehene Romane einbeziehen",
-    "chaptersRead": "Gelesene Kapitel:",
-    "chaptersLeft": "Verbleibende Kapitel:",
-    "percentComplete": "{percent}% abgeschlossen",
-    "totalWordsRead": "Insgesamt gelesene Wörter",
-    "approxPages": "Ungefähr {count, plural, one {# Seite} other {# Seiten}}"
-  },
   "home": {
     "loadFailed": "Daten der Startseite konnten nicht geladen werden. Bitte versuche es später erneut.",
     "introHeading": "Suchst du einen großartigen Ort zum Lesen von Light Novels?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Deine Bibliothek",
     "empty": "Deine Bibliothek ist leer",
     "emptyHint": "Setze Lesezeichen für Romane, um sie zu deiner Bibliothek hinzuzufügen.",
-    "bookmarks": "Deine Lesezeichen",
     "recommended": "Für dich empfohlen",
     "notRated": "Nicht bewertet",
     "editNote": "Notiz bearbeiten",
@@ -311,7 +278,6 @@
     "sortBy": "Sortieren nach",
     "mirrorHidden": "Dieser Benutzer hält seine Notizen und/oder Bewertungen privat.",
     "select": "Auswählen",
-    "selectAll": "Alle auswählen",
     "selectedCount": "{count, plural, one {# ausgewählt} other {# ausgewählt}}",
     "clearSelection": "Leeren",
     "moveTo": "Verschieben nach",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {# Roman aus deiner Bibliothek entfernen?} other {# Romane aus deiner Bibliothek entfernen?}} Dies kann nicht rückgängig gemacht werden.",
     "addNote": "Notiz hinzufügen",
     "moreActions": "Weitere Aktionen",
-    "dragToFolder": "Ziehe einen Roman auf einen Ordner, um ihn abzulegen",
     "sort": {
       "custom": "Benutzerdefinierte Reihenfolge",
       "title": "Titel",
@@ -355,7 +320,6 @@
     "authors": "Autoren",
     "authorsPlaceholder": "Tippe, um Autoren zu suchen...",
     "language": "Sprache",
-    "any": "Beliebig",
     "minimumRating": "Mindestbewertung",
     "clear": "Löschen",
     "sortBy": "Sortieren nach",
@@ -379,7 +343,6 @@
     "languageFilter": "Sprache:",
     "ratingFilter": "Mindestbewertung: {rating}",
     "sortFilter": "Sortierung: {sortBy} ({sortOrder})",
-    "searching": "Suche läuft...",
     "foundCount": "{count, plural, =0 {Keine Romane gefunden} one {# Roman gefunden} other {# Romane gefunden}}",
     "noResults": "Keine Romane entsprechen deinen Kriterien",
     "noResultsHint": "Versuche, deine Filter oder Suchbegriffe anzupassen",
@@ -387,10 +350,8 @@
     "noAuthors": "Keine Autoren gefunden",
     "loading": "Wird geladen...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Suchergebnisse | LNCrawler",
     "metaDefaultTitle": "Light Novels suchen | LNCrawler",
     "metaQueryTitle": "Suchergebnisse für „{query}“ | LNCrawler",
-    "metaSearchingTitle": "Suche läuft... | LNCrawler",
     "metaDescription": "Suche und entdecke eine riesige Sammlung asiatischer Light Novels auf LNCrawler. Filtere nach Tags, Autoren, Sprache und mehr.",
     "metaQueryDescription": "Finde Light Novels, die zu „{query}“ passen. {count, plural, =0 {} one {# Ergebnis gefunden.} other {# Ergebnisse gefunden.}} Entdecke mehr auf LNCrawler.",
     "metaKeywords": "Light Novels suchen, Web Novels finden, LNCrawler Suche, Roman-Entdeckung"
@@ -424,7 +385,6 @@
     "heading": "Bildergalerie",
     "countFrom": "{count} Bilder aus {novel}",
     "showSmall": "Kleine Bilder anzeigen ({count} gefiltert)",
-    "loadingDimensions": "Bildabmessungen werden geladen...",
     "noImagesFiltered": "Mit den aktuellen Filtereinstellungen sind keine Bilder anzuzeigen.",
     "noImagesPage": "In dieser Galerieseite wurden keine Bilder gefunden.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Weiterlesen",
     "continueFrom": "Weiter ab {chapter}",
     "chapterList": "Kapitelliste",
-    "viewAllChapters": "Alle {count} Kapitel ansehen",
     "browseAllChapters": "Alle Kapitel durchsuchen",
     "imageGallery": "Bildergalerie",
-    "browseAllImages": "Alle Bilder durchsuchen",
     "viewImageGallery": "Bildergalerie ansehen",
     "download": "Herunterladen",
-    "downloadEpub": "Als EPUB herunterladen",
     "downloadTooltip": "Diesen Roman als EPUB-Datei herunterladen",
     "downloadFull": "Vollständiger Roman",
     "volumeN": "Band {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Romanquelle wird geladen | LNCrawler",
     "metaDescription": "Lies {title} aus {source}. Zusammenfassung: {synopsis}",
     "metaLoadingDescription": "Details dieser Romanquelle werden auf LNCrawler geladen."
-  },
-  "rating": {
-    "noRatings": "Keine Bewertungen"
-  },
-  "tags": {
-    "more": "+{count} mehr"
   },
   "updateButton": {
     "startFailed": "Aktualisierungsauftrag konnte nicht gestartet werden.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Nächstes: {next}",
     "unknownLanguage": "Unbekannte Sprache",
     "authors": "Autoren",
-    "totalChapters": "Kapitel insgesamt",
     "availableChapters": "Verfügbare Kapitel",
     "views": "Aufrufe",
     "lastUpdated": "Zuletzt aktualisiert",
     "weekly": "(Wöchentlich)",
     "allTimes": "(Insgesamt)",
-    "thisWeek": "(Diese Woche)",
-    "votes": "(Stimmen: {count})",
     "rank": "Rang {rank}",
-    "added": "Hinzugefügt {time}",
     "chaptersCount": "{count} Kapitel",
     "removeFromHistory": "Aus dem Verlauf entfernen",
     "lastRead": "Zuletzt gelesen:",
@@ -700,7 +647,6 @@
     "removeFromList": "Aus Liste entfernen",
     "hot": "BELIEBT",
     "viewsThisWeek": "{count} Aufrufe diese Woche",
-    "allTimeViews": "Aufrufe insgesamt",
     "tags": "Tags"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Lesereinstellungen öffnen",
     "chapterComments": "Kapitelkommentare",
     "markedRead": "Kapitel erfolgreich als gelesen markiert!",
-    "unlockScrolling": "Scrollen entsperren",
-    "lockScrolling": "Scrollen sperren",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Seite {current} von {total}",
     "listen": "Anhören"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Layout",
     "gestures": "Gesten",
     "behavior": "Verhalten",
-    "pageMode": "Seitenmodus",
     "import": "Importieren",
     "export": "Exportieren",
     "resetDefaults": "Auf Standard zurücksetzen",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Nur solange der Player geöffnet ist.",
     "keepScreenOn": "Bildschirm eingeschaltet lassen",
     "keepScreenOnHint": "Während des Vorlesens. Ausschalten spart Akku; der Ton läuft auf den meisten Geräten weiter."
-  },
-  "pageSettings": {
-    "enablePageMode": "Seitenmodus aktivieren",
-    "enablePageModeHint": "Von scrollbasiertem zu seitenbasiertem Lesen wechseln",
-    "pageMarginHorizontal": "Horizontaler Rand: {margin}%",
-    "pageMarginVertical": "Vertikaler Rand: {margin}%",
-    "pageColumnGap": "Spaltenabstand: {gap}px",
-    "showPageNumbers": "Seitennummern anzeigen",
-    "showPageNumbersHint": "Aktuelle Seite und Gesamtseitenzahl anzeigen",
-    "showPageSlider": "Seitenregler anzeigen",
-    "showPageSliderHint": "Regler zum schnellen Navigieren zwischen Seiten anzeigen"
   },
   "themes": {
     "light": "Hell",

@@ -93,14 +93,6 @@ class Command(
             "--sleep", type=float, default=0.2,
             help="Seconds to sleep between deletions.",
         )
-        # Accepted for compatibility only; phase 3 no longer skips compressed sources.
-        parser.add_argument(
-            "--include-compressed", action="store_true",
-            help=(
-                "No-op for phase 3: compressed sources are always examined, since "
-                "chapters are read without extracting json.7z."
-            ),
-        )
         parser.add_argument(
             "--force", action="store_true",
             help="Delete even when attached user data exists.",

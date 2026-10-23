@@ -348,7 +348,7 @@ const SourceDetail = () => {
         )}
         {novelSlug && (
           <SectionContainer title={t('sourceDetail.reviews')} icon={<MenuBookIcon />}>
-            <Reviews novelSlug={novelSlug} showAddReview={true} />
+            <Reviews novelSlug={novelSlug} />
           </SectionContainer>
         )}
 

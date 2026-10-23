@@ -34,20 +34,14 @@ import ReadOnlyMDXEditor from '../common/reviews/ReadOnlyMDXEditor';
 
 interface ReviewsProps {
   novelSlug: string;
-  initialReviews?: Review[];
-  showAddReview?: boolean;
 }
 
-const Reviews: React.FC<ReviewsProps> = ({ 
-  novelSlug, 
-  initialReviews,
-  showAddReview = true 
-}) => {
+const Reviews: React.FC<ReviewsProps> = ({ novelSlug }) => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [reviews, setReviews] = useState<Review[]>(initialReviews || []);
-  const [loading, setLoading] = useState(!initialReviews);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -77,11 +71,9 @@ const Reviews: React.FC<ReviewsProps> = ({
   };
 
   useEffect(() => {
-    if (!initialReviews) {
-      loadReviews();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; novelSlug/initialReviews are the inputs
-  }, [novelSlug, initialReviews]);
+    loadReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t intentionally omitted; novelSlug is the input
+  }, [novelSlug]);
 
   const handleReviewAdded = (newReview: Review) => {
     if (editingReview) {
@@ -152,7 +144,7 @@ const Reviews: React.FC<ReviewsProps> = ({
       )}
 
       {/* Add Review Section */}
-      {showAddReview && !showReviewForm && (user || reviews.length > 0) && (
+      {!showReviewForm && (user || reviews.length > 0) && (
         <Box sx={{ mb: 3 }}>
           <Button
             variant="contained"
@@ -196,7 +188,7 @@ const Reviews: React.FC<ReviewsProps> = ({
           }}>
             {t('reviews.empty')}
           </Typography>
-          {showAddReview && !user && (
+          {!user && (
             <Button
               variant="contained"
               onClick={() => navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))}

@@ -1,14 +1,10 @@
 import api from './api';
+import { API_BASE_URL } from './config';
 import { SourceDetailResponse } from '@models/novels_types';
 import type { NovelSort } from '../generated/sharedConstants';
 
 // Novel service functions updated for the new URL structure
 export const novelService = {
-  listNovels: async (page = 1, pageSize = 24) => {
-    const response = await api.get(`/novels/?page=${page}&page_size=${pageSize}`);
-    return response.data;
-  },
-  
   // Get novel details by slug
   getNovelDetail: async (novelSlug: string) => {
     const response = await api.get(`/novels/${novelSlug}/`);
@@ -189,8 +185,7 @@ export const novelService = {
   // URL for downloading a source as EPUB once it is ready. Pass a volume to get
   // only that volume; omit it for the full novel. Used as a plain link, not via api.get.
   getSourceEpubUrl: (novelSlug: string, sourceSlug: string, volume?: number) => {
-    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
     const query = volume !== undefined ? `?volume=${volume}` : '';
-    return `${base}/novels/${encodeURIComponent(novelSlug)}/${encodeURIComponent(sourceSlug)}/download/${query}`;
+    return `${API_BASE_URL}/novels/${encodeURIComponent(novelSlug)}/${encodeURIComponent(sourceSlug)}/download/${query}`;
   },
 };

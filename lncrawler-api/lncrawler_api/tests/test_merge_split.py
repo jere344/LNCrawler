@@ -44,8 +44,6 @@ from ..services.novel_operations import dedupe_source
 from ..utils import resolve_novel_slug
 from .helpers import MergeTestCase, write_chapter
 
-from .helpers import MergeTestCase, write_chapter
-
 
 class MergeNovelsTests(MergeTestCase):
     def setUp(self):

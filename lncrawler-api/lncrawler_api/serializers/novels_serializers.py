@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from ..models import (
-    Novel, Author, Tag,
+    Novel,
     WeeklySourceView,
     NovelBookmark
 )
@@ -384,15 +384,3 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     def get_position(self, obj):
         bookmark = self._bookmark(obj)
         return bookmark.position if bookmark else 0
-
-
-class AuthorSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Author
-        fields = ['name']
-
-
-class TagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Tag
-        fields = ['name']

@@ -39,7 +39,6 @@ from urllib.parse import unquote
 from bs4 import BeautifulSoup, Tag
 from PIL import Image
 
-from lncrawl.core.arguments import get_args
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, Volume
@@ -798,8 +797,6 @@ class EpubCrawler(Crawler):
         return self.cleaner.extract_contents(body)
 
     def extract_chapter_images(self, chapter: Chapter) -> None:
-        if get_args().ignore_images:
-            return
         if not chapter.body or "<img" not in chapter.body:
             return
         source = self._chapter_source.get(chapter.id) or self._split_epub_url(chapter.url)

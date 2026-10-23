@@ -85,13 +85,10 @@ def truncate_component(text: str, max_bytes: int = 180) -> str:
     return cut.strip() or text[: max_bytes // 4]
 
 
-def get_novel_output_path(source, novel, create=True) -> str:
+def get_novel_output_path(source, novel) -> str:
     """
     Get the output path for a novel based on its source and name.
     The path format is BASE / NOVEL / SOURCE
-
-    With ``create=False`` nothing is written to disk; the caller creates the
-    folder it finally settles on.
     """
     # settings.py LNCRAWL_OUTPUT_PATH
     BASE_DIR = settings.LNCRAWL_OUTPUT_PATH
@@ -111,9 +108,6 @@ def get_novel_output_path(source, novel, create=True) -> str:
     
     novel_dir = os.path.join(BASE_DIR, novel)
     source_dir = os.path.join(novel_dir, source)
-    if create:
-        # Creates the base, novel and source folders that are missing.
-        os.makedirs(source_dir, exist_ok=True)
     return source_dir
 
 

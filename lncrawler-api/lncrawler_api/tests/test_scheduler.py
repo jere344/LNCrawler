@@ -4,6 +4,8 @@ from unittest import mock
 
 from django.test import TestCase, override_settings
 
+from .llm_helpers import llm_chain
+
 
 class SchedulerOrphanTaskTests(TestCase):
     def test_orphan_task_rows_are_removed(self):
@@ -22,7 +24,7 @@ class SchedulerOrphanTaskTests(TestCase):
 
 
 class SchedulerLLMGateTests(TestCase):
-    @override_settings(LLM_PROVIDER="ollama", LLM_API_KEY="")
+    @override_settings(**llm_chain("ollama", api_key=""))
     def test_keyless_provider_is_not_skipped(self):
         from .. import scheduler as scheduler_module
 

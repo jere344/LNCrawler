@@ -53,7 +53,7 @@ export interface NeuralVoice {
 /** Cache API bucket holding the Piper models (Kokoro uses transformers.js' own). */
 export const TTS_CACHE_NAME = 'lncrawler-tts-v1';
 
-export const PIPER_VOICES_BASE = 'https://huggingface.co/rhasspy/piper-voices/resolve/main';
+const PIPER_VOICES_BASE = 'https://huggingface.co/rhasspy/piper-voices/resolve/main';
 
 export const KOKORO_MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 /** Download size of the Kokoro model per device (q8 for wasm, fp32 for webgpu). */
@@ -185,7 +185,7 @@ const supertonicVoices: NeuralVoice[] = SUPERTONIC_LANGS.flatMap(lang =>
   })),
 );
 
-export const NEURAL_VOICES: NeuralVoice[] = [...supertonicVoices, ...kokoroVoices, ...piperVoices];
+const NEURAL_VOICES: NeuralVoice[] = [...supertonicVoices, ...kokoroVoices, ...piperVoices];
 
 export const getNeuralVoice = (id: string | undefined): NeuralVoice | undefined =>
   id ? NEURAL_VOICES.find(v => v.id === id) : undefined;
@@ -218,7 +218,7 @@ export const supertonicFileUrls = (): string[] => [
 export const supertonicStyleUrl = (style: string): string => `${SUPERTONIC_BASE}/voice_styles/${style}.json`;
 
 /** Path of a Piper voice inside the piper-voices repository, without extension. */
-export const piperVoicePath = (piperId: string): string => {
+const piperVoicePath = (piperId: string): string => {
   const [locale, speaker, quality] = piperId.split('-');
   return `${locale.split('_')[0]}/${locale}/${speaker}/${quality}/${piperId}`;
 };

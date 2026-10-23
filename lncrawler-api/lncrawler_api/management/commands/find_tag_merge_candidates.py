@@ -19,14 +19,11 @@ class Command(BaseCommand):
     help = "Embed new tags and queue clusters of possibly-duplicate tags for LLM judging."
 
     def add_arguments(self, parser):
-        parser.add_argument("--dry-run", action="store_true",
-                            help="Build clusters and report them; no API calls, no writes.")
         parser.add_argument("--skip-embed", action="store_true",
                             help="Do not call the embeddings API; use stored vectors only.")
 
     def handle(self, *args, **options):
-        dry_run = options["dry_run"]
-        if not dry_run and not options["skip_embed"]:
+        if not options["skip_embed"]:
             embedded = tms.embed_missing()
             self.stdout.write(f"embedded {embedded} tag(s)")
 
@@ -54,12 +51,6 @@ class Command(BaseCommand):
         clusters = tms.build_clusters(
             edges, max_size=settings.TAG_CLUSTER_MAX, blocked=blocked
         )
-
-        if dry_run:
-            self.stdout.write(
-                f"[dry-run] {len(edges)} candidate pair(s), {len(clusters)} cluster(s)."
-            )
-            return
 
         created = tms.store_clusters(clusters)
         self.stdout.write(self.style.SUCCESS(

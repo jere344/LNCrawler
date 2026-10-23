@@ -135,7 +135,6 @@ class Command(BaseCommand):
                 ('my library folders', '/users/library/folders/'),
                 ('my reading history', '/users/reading-history/'),
                 ('my reading lists', '/users/reading-lists/'),
-                ('my reviews', '/users/reviews/'),
                 ('my friends', '/friends/'),
                 ('my friend requests', '/friends/requests/'),
                 ('my profile', f'/users/profile/{username}/'),

@@ -6,21 +6,13 @@
     "delete": "حذف",
     "edit": "تعديل",
     "share": "مشاركة",
-    "back": "رجوع",
     "home": "الرئيسية",
     "unknown": "غير معروف",
-    "loading": "جارٍ التحميل...",
     "viewMore": "عرض المزيد",
     "showMore": "إظهار المزيد",
     "showLess": "إظهار أقل",
     "na": "غير متاح",
     "breadcrumb": "مسار التنقل",
-    "menu": "القائمة",
-    "login": "تسجيل الدخول",
-    "register": "إنشاء حساب",
-    "profile": "الملف الشخصي",
-    "logout": "تسجيل الخروج",
-    "account": "الحساب",
     "seeMore": "عرض المزيد",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "الفصل {number}",
     "comments": "{count, plural, =0 {لا توجد تعليقات} one {# تعليق} two {# تعليقان} few {# تعليقات} many {# تعليقًا} other {# تعليق}}",
     "chapters": "{count, plural, one {# فصل} two {# فصلان} few {# فصول} many {# فصلًا} other {# فصل}}",
-    "novels": "{count, plural, one {# رواية} two {# روايتان} few {# روايات} many {# رواية} other {# رواية}}",
     "imagesCount": "{count, plural, one {# صورة} two {# صورتان} few {# صور} many {# صورة} other {# صورة}}",
     "volumes": "{count, plural, one {# مجلد} two {# مجلدان} few {# مجلدات} many {# مجلدًا} other {# مجلد}}",
-    "items": "{count, plural, one {# عنصر} two {# عنصران} few {# عناصر} many {# عنصرًا} other {# عنصر}}",
-    "ratings": "{count, plural, one {# تقييم} two {# تقييمان} few {# تقييمات} many {# تقييمًا} other {# تقييم}}",
     "stars": "{count, plural, one {# نجمة} two {# نجمتان} few {# نجوم} many {# نجمة} other {# نجمة}}",
-    "replies": "{count, plural, one {# رد} two {# ردان} few {# ردود} many {# ردًا} other {# رد}}",
     "unreadChapters": "{count, plural, one {# فصل غير مقروء} two {# فصلان غير مقروءين} few {# فصول غير مقروءة} many {# فصلًا غير مقروء} other {# فصل غير مقروء}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "فشل تحميل بيانات الملف الشخصي. يرجى المحاولة مرة أخرى.",
-    "failedLoadReviews": "فشل تحميل مراجعاتك. يرجى المحاولة مرة أخرى.",
-    "failedLoadLists": "فشل تحميل قوائم القراءة الخاصة بك. يرجى المحاولة مرة أخرى.",
     "updatedSuccess": "تم تحديث الملف الشخصي بنجاح!",
     "updateFailed": "فشل تحديث الملف الشخصي. يرجى المحاولة مرة أخرى.",
     "passwordChanged": "تم تغيير كلمة المرور بنجاح!",
     "passwordChangeFailed": "فشل تغيير كلمة المرور. يرجى المحاولة مرة أخرى.",
-    "heading": "الملف الشخصي",
     "changePhoto": "تغيير الصورة",
     "email": "البريد الإلكتروني",
     "editProfile": "تعديل الملف الشخصي",
@@ -157,14 +142,8 @@
     "security": "الأمان",
     "changePassword": "تغيير كلمة المرور",
     "currentPassword": "كلمة المرور الحالية",
-    "myReadingLists": "قوائم القراءة الخاصة بي",
-    "noReadingLists": "لم تنشئ أي قوائم قراءة بعد.",
-    "browseReadingLists": "تصفح قوائم القراءة",
-    "myReviews": "مراجعاتي",
-    "noReviews": "لم تكتب أي مراجعات بعد.",
     "bio": "نبذة",
     "changeBanner": "تغيير الغلاف",
-    "viewPublicProfile": "عرض الملف الشخصي العام",
     "notFound": "لم يتم العثور على المستخدم.",
     "privateSection": "هذا القسم خاص.",
     "emptySection": "لا يوجد شيء لعرضه هنا بعد.",
@@ -195,8 +174,7 @@
       "library": "المكتبة",
       "readingLists": "قوائم القراءة",
       "reviews": "المراجعات",
-      "comments": "التعليقات",
-      "friends": "الأصدقاء"
+      "comments": "التعليقات"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "اختر اللغات لعرضها في الصفحة الرئيسية",
     "contentHelper": "تخلط الصفحة الرئيسية الروايات من كل لغة تختارها. اتركها فارغة لعرض جميع اللغات."
   },
-  "readingStats": {
-    "heading": "إحصائيات القراءة",
-    "progress": "تقدم القراءة",
-    "onlyBookmarked": "تضمين الروايات المحفوظة فقط",
-    "chaptersRead": "الفصول المقروءة:",
-    "chaptersLeft": "الفصول المتبقية:",
-    "percentComplete": "اكتمل {percent}%",
-    "totalWordsRead": "إجمالي الكلمات المقروءة",
-    "approxPages": "حوالي {count, plural, one {# صفحة} two {# صفحتان} few {# صفحات} many {# صفحة} other {# صفحة}}"
-  },
   "home": {
     "loadFailed": "فشل تحميل بيانات الصفحة الرئيسية. يرجى المحاولة لاحقًا.",
     "introHeading": "هل تبحث عن مكان رائع لقراءة الروايات الخفيفة؟",
@@ -294,7 +262,6 @@
     "yourLibrary": "مكتبتك",
     "empty": "مكتبتك فارغة",
     "emptyHint": "احفظ الروايات لإضافتها إلى مكتبتك.",
-    "bookmarks": "إشاراتك المرجعية",
     "recommended": "مقترح لك",
     "notRated": "غير مُقيَّم",
     "editNote": "تعديل الملاحظة",
@@ -311,7 +278,6 @@
     "sortBy": "الترتيب حسب",
     "mirrorHidden": "يحتفظ هذا المستخدم بملاحظاته و/أو تقييماته خاصة.",
     "select": "تحديد",
-    "selectAll": "تحديد الكل",
     "selectedCount": "{count, plural, one {تم تحديد واحد} two {تم تحديد اثنين} few {تم تحديد #} many {تم تحديد #} other {تم تحديد #}}",
     "clearSelection": "مسح",
     "moveTo": "نقل إلى",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {إزالة رواية واحدة من مكتبتك؟} two {إزالة روايتين من مكتبتك؟} few {إزالة # روايات من مكتبتك؟} many {إزالة # رواية من مكتبتك؟} other {إزالة # رواية من مكتبتك؟}} لا يمكن التراجع عن هذا.",
     "addNote": "إضافة ملاحظة",
     "moreActions": "مزيد من الإجراءات",
-    "dragToFolder": "اسحب رواية إلى مجلد لتصنيفها",
     "sort": {
       "custom": "ترتيب مخصص",
       "title": "العنوان",
@@ -355,7 +320,6 @@
     "authors": "المؤلفون",
     "authorsPlaceholder": "اكتب للبحث عن المؤلفين...",
     "language": "اللغة",
-    "any": "أي",
     "minimumRating": "الحد الأدنى للتقييم",
     "clear": "مسح",
     "sortBy": "ترتيب حسب",
@@ -379,7 +343,6 @@
     "languageFilter": "اللغة:",
     "ratingFilter": "الحد الأدنى للتقييم: {rating}",
     "sortFilter": "الترتيب: {sortBy} ({sortOrder})",
-    "searching": "جارٍ البحث...",
     "foundCount": "{count, plural, =0 {لم يتم العثور على روايات} one {تم العثور على # رواية} two {تم العثور على روايتين} few {تم العثور على # روايات} many {تم العثور على # رواية} other {تم العثور على # رواية}}",
     "noResults": "لم يتم العثور على روايات مطابقة لمعاييرك",
     "noResultsHint": "حاول تعديل عوامل التصفية أو مصطلحات البحث",
@@ -387,10 +350,8 @@
     "noAuthors": "لم يتم العثور على مؤلفين",
     "loading": "جارٍ التحميل...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "نتائج البحث | LNCrawler",
     "metaDefaultTitle": "البحث عن الروايات الخفيفة | LNCrawler",
     "metaQueryTitle": "نتائج البحث عن \"{query}\" | LNCrawler",
-    "metaSearchingTitle": "جارٍ البحث... | LNCrawler",
     "metaDescription": "ابحث واكتشف مجموعة ضخمة من الروايات الخفيفة الآسيوية على LNCrawler. صفِّ حسب الوسوم والمؤلفين واللغة والمزيد.",
     "metaQueryDescription": "اعثر على الروايات الخفيفة المطابقة لـ \"{query}\". {count, plural, =0 {} one {تم العثور على # نتيجة.} two {تم العثور على نتيجتين.} few {تم العثور على # نتائج.} many {تم العثور على # نتيجة.} other {تم العثور على # نتيجة.}} استكشف على LNCrawler.",
     "metaKeywords": "البحث عن الروايات الخفيفة، العثور على روايات الويب، بحث LNCrawler، اكتشاف الروايات"
@@ -424,7 +385,6 @@
     "heading": "معرض الصور",
     "countFrom": "{count} صورة من {novel}",
     "showSmall": "إظهار الصور الصغيرة ({count} مُصفّاة)",
-    "loadingDimensions": "جارٍ تحميل أبعاد الصور...",
     "noImagesFiltered": "لا توجد صور لعرضها بإعدادات التصفية الحالية.",
     "noImagesPage": "لم يتم العثور على صور في صفحة المعرض هذه.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "متابعة القراءة",
     "continueFrom": "المتابعة من {chapter}",
     "chapterList": "قائمة الفصول",
-    "viewAllChapters": "عرض جميع الفصول البالغ عددها {count}",
     "browseAllChapters": "تصفح جميع الفصول",
     "imageGallery": "معرض الصور",
-    "browseAllImages": "تصفح جميع الصور",
     "viewImageGallery": "عرض معرض الصور",
     "download": "تنزيل",
-    "downloadEpub": "التنزيل بصيغة EPUB",
     "downloadTooltip": "تنزيل هذه الرواية كملف EPUB",
     "downloadFull": "الرواية كاملة",
     "volumeN": "المجلد {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "جارٍ تحميل مصدر الرواية | LNCrawler",
     "metaDescription": "اقرأ {title} من {source}. الملخص: {synopsis}",
     "metaLoadingDescription": "جارٍ تحميل تفاصيل مصدر هذه الرواية على LNCrawler."
-  },
-  "rating": {
-    "noRatings": "لا توجد تقييمات"
-  },
-  "tags": {
-    "more": "+{count} المزيد"
   },
   "updateButton": {
     "startFailed": "فشل بدء مهمة التحديث.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. التالي: {next}",
     "unknownLanguage": "لغة غير معروفة",
     "authors": "المؤلفون",
-    "totalChapters": "إجمالي الفصول",
     "availableChapters": "الفصول المتاحة",
     "views": "المشاهدات",
     "lastUpdated": "آخر تحديث",
     "weekly": "(أسبوعيًا)",
     "allTimes": "(على الإطلاق)",
-    "thisWeek": "(هذا الأسبوع)",
-    "votes": "(الأصوات: {count})",
     "rank": "المرتبة {rank}",
-    "added": "أُضيف {time}",
     "chaptersCount": "{count} فصلًا",
     "removeFromHistory": "إزالة من السجل",
     "lastRead": "آخر قراءة:",
@@ -700,7 +647,6 @@
     "removeFromList": "إزالة من القائمة",
     "hot": "رائج",
     "viewsThisWeek": "{count} مشاهدة هذا الأسبوع",
-    "allTimeViews": "المشاهدات على الإطلاق",
     "tags": "الوسوم"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "فتح إعدادات القارئ",
     "chapterComments": "تعليقات الفصل",
     "markedRead": "تم وضع علامة مقروء على الفصل بنجاح!",
-    "unlockScrolling": "إلغاء قفل التمرير",
-    "lockScrolling": "قفل التمرير",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "الصفحة {current} من {total}",
     "listen": "استماع"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "التخطيط",
     "gestures": "الإيماءات",
     "behavior": "السلوك",
-    "pageMode": "وضع الصفحات",
     "import": "استيراد",
     "export": "تصدير",
     "resetDefaults": "إعادة التعيين إلى الإعدادات الافتراضية",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "يعمل فقط أثناء فتح المشغّل.",
     "keepScreenOn": "إبقاء الشاشة مضاءة",
     "keepScreenOnHint": "أثناء القراءة بصوت مسموع. أوقفه لتوفير البطارية؛ يستمر الصوت في العمل على معظم الأجهزة."
-  },
-  "pageSettings": {
-    "enablePageMode": "تمكين وضع الصفحات",
-    "enablePageModeHint": "التبديل من القراءة بالتمرير إلى القراءة بالصفحات",
-    "pageMarginHorizontal": "الهامش الأفقي: {margin}%",
-    "pageMarginVertical": "الهامش الرأسي: {margin}%",
-    "pageColumnGap": "الفجوة بين الأعمدة: {gap}px",
-    "showPageNumbers": "إظهار أرقام الصفحات",
-    "showPageNumbersHint": "عرض الصفحة الحالية وإجمالي الصفحات",
-    "showPageSlider": "إظهار شريط تمرير الصفحات",
-    "showPageSliderHint": "عرض شريط تمرير للتنقل السريع بين الصفحات"
   },
   "themes": {
     "light": "فاتح",

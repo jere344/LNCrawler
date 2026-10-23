@@ -6,21 +6,13 @@
     "delete": "Supprimer",
     "edit": "Modifier",
     "share": "Partager",
-    "back": "Retour",
     "home": "Accueil",
     "unknown": "Inconnu",
-    "loading": "Chargement...",
     "viewMore": "Voir plus",
     "showMore": "Afficher plus",
     "showLess": "Afficher moins",
     "na": "N/D",
     "breadcrumb": "fil d'Ariane",
-    "menu": "menu",
-    "login": "Connexion",
-    "register": "S'inscrire",
-    "profile": "Profil",
-    "logout": "Déconnexion",
-    "account": "Compte",
     "seeMore": "Voir plus",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Chapitre {number}",
     "comments": "{count, plural, =0 {Aucun commentaire} one {# commentaire} other {# commentaires}}",
     "chapters": "{count, plural, one {# chapitre} other {# chapitres}}",
-    "novels": "{count, plural, one {# roman} other {# romans}}",
     "imagesCount": "{count, plural, one {# image} other {# images}}",
     "volumes": "{count, plural, one {# tome} other {# tomes}}",
-    "items": "{count, plural, one {# élément} other {# éléments}}",
-    "ratings": "{count, plural, one {# évaluation} other {# évaluations}}",
     "stars": "{count, plural, one {# étoile} other {# étoiles}}",
-    "replies": "{count, plural, one {# réponse} other {# réponses}}",
     "unreadChapters": "{count, plural, one {# chapitre non lu} other {# chapitres non lus}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Échec du chargement des données du profil. Veuillez réessayer.",
-    "failedLoadReviews": "Échec du chargement de vos avis. Veuillez réessayer.",
-    "failedLoadLists": "Échec du chargement de vos listes de lecture. Veuillez réessayer.",
     "updatedSuccess": "Profil mis à jour avec succès !",
     "updateFailed": "Échec de la mise à jour du profil. Veuillez réessayer.",
     "passwordChanged": "Mot de passe modifié avec succès !",
     "passwordChangeFailed": "Échec de la modification du mot de passe. Veuillez réessayer.",
-    "heading": "Profil",
     "changePhoto": "Changer la photo",
     "email": "E-mail",
     "editProfile": "Modifier le profil",
@@ -157,14 +142,8 @@
     "security": "Sécurité",
     "changePassword": "Changer le mot de passe",
     "currentPassword": "Mot de passe actuel",
-    "myReadingLists": "Mes listes de lecture",
-    "noReadingLists": "Vous n'avez pas encore créé de liste de lecture.",
-    "browseReadingLists": "Parcourir les listes de lecture",
-    "myReviews": "Mes avis",
-    "noReviews": "Vous n'avez pas encore écrit d'avis.",
     "bio": "Bio",
     "changeBanner": "Changer la bannière",
-    "viewPublicProfile": "Voir le profil public",
     "notFound": "Utilisateur introuvable.",
     "privateSection": "Cette section est privée.",
     "emptySection": "Rien à afficher ici pour le moment.",
@@ -195,8 +174,7 @@
       "library": "Bibliothèque",
       "readingLists": "Listes de lecture",
       "reviews": "Critiques",
-      "comments": "Commentaires",
-      "friends": "Amis"
+      "comments": "Commentaires"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Choisissez les langues à afficher sur la page d'accueil",
     "contentHelper": "La page d'accueil mélange les romans de toutes les langues que vous sélectionnez. Laissez vide pour afficher toutes les langues."
   },
-  "readingStats": {
-    "heading": "Statistiques de lecture",
-    "progress": "Progression de lecture",
-    "onlyBookmarked": "Inclure uniquement les romans mis en favori",
-    "chaptersRead": "Chapitres lus :",
-    "chaptersLeft": "Chapitres restants :",
-    "percentComplete": "{percent}% terminé",
-    "totalWordsRead": "Total de mots lus",
-    "approxPages": "Environ {count, plural, one {# page} other {# pages}}"
-  },
   "home": {
     "loadFailed": "Échec du chargement des données de la page d'accueil. Veuillez réessayer plus tard.",
     "introHeading": "Vous cherchez un bon endroit pour lire des light novels ?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Votre bibliothèque",
     "empty": "Votre bibliothèque est vide",
     "emptyHint": "Mettez des romans en favori pour les ajouter à votre bibliothèque.",
-    "bookmarks": "Vos favoris",
     "recommended": "Recommandé pour vous",
     "notRated": "Non noté",
     "editNote": "Modifier la note",
@@ -311,7 +278,6 @@
     "sortBy": "Trier par",
     "mirrorHidden": "Cet utilisateur garde ses notes et/ou évaluations privées.",
     "select": "Sélectionner",
-    "selectAll": "Tout sélectionner",
     "selectedCount": "{count, plural, one {# sélectionné} other {# sélectionnés}}",
     "clearSelection": "Effacer",
     "moveTo": "Déplacer vers",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {Retirer # roman de votre bibliothèque ?} other {Retirer # romans de votre bibliothèque ?}} Cette action est irréversible.",
     "addNote": "Ajouter une note",
     "moreActions": "Plus d'actions",
-    "dragToFolder": "Glissez un roman sur un dossier pour le classer",
     "sort": {
       "custom": "Ordre personnalisé",
       "title": "Titre",
@@ -355,7 +320,6 @@
     "authors": "Auteurs",
     "authorsPlaceholder": "Tapez pour rechercher des auteurs...",
     "language": "Langue",
-    "any": "Toutes",
     "minimumRating": "Note minimale",
     "clear": "Effacer",
     "sortBy": "Trier par",
@@ -379,7 +343,6 @@
     "languageFilter": "Langue :",
     "ratingFilter": "Note min : {rating}",
     "sortFilter": "Tri : {sortBy} ({sortOrder})",
-    "searching": "Recherche en cours...",
     "foundCount": "{count, plural, =0 {Aucun roman trouvé} one {# roman trouvé} other {# romans trouvés}}",
     "noResults": "Aucun roman ne correspond à vos critères",
     "noResultsHint": "Essayez d'ajuster vos filtres ou vos termes de recherche",
@@ -387,10 +350,8 @@
     "noAuthors": "Aucun auteur trouvé",
     "loading": "Chargement...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Résultats de recherche | LNCrawler",
     "metaDefaultTitle": "Rechercher des light novels | LNCrawler",
     "metaQueryTitle": "Résultats de recherche pour « {query} » | LNCrawler",
-    "metaSearchingTitle": "Recherche en cours... | LNCrawler",
     "metaDescription": "Recherchez et découvrez une vaste collection de light novels asiatiques sur LNCrawler. Filtrez par tags, auteurs, langue et plus encore.",
     "metaQueryDescription": "Trouvez des light novels correspondant à « {query} ». {count, plural, =0 {} one {# résultat trouvé.} other {# résultats trouvés.}} Explorez sur LNCrawler.",
     "metaKeywords": "rechercher light novels, trouver web novels, recherche LNCrawler, découverte de romans"
@@ -424,7 +385,6 @@
     "heading": "Galerie d'images",
     "countFrom": "{count} images de {novel}",
     "showSmall": "Afficher les petites images ({count} filtrées)",
-    "loadingDimensions": "Chargement des dimensions des images...",
     "noImagesFiltered": "Aucune image à afficher avec les paramètres de filtre actuels.",
     "noImagesPage": "Aucune image trouvée dans cette page de galerie.",
     "imageAlt": "{chapter} : {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Continuer la lecture",
     "continueFrom": "Continuer depuis {chapter}",
     "chapterList": "Liste des chapitres",
-    "viewAllChapters": "Voir les {count} chapitres",
     "browseAllChapters": "Parcourir tous les chapitres",
     "imageGallery": "Galerie d'images",
-    "browseAllImages": "Parcourir toutes les images",
     "viewImageGallery": "Voir la galerie d'images",
     "download": "Télécharger",
-    "downloadEpub": "Télécharger en EPUB",
     "downloadTooltip": "Télécharger ce roman au format EPUB",
     "downloadFull": "Roman complet",
     "volumeN": "Tome {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Chargement de la source du roman | LNCrawler",
     "metaDescription": "Lisez {title} depuis {source}. Synopsis : {synopsis}",
     "metaLoadingDescription": "Chargement des détails de cette source de roman sur LNCrawler."
-  },
-  "rating": {
-    "noRatings": "Aucune note"
-  },
-  "tags": {
-    "more": "+{count} de plus"
   },
   "updateButton": {
     "startFailed": "Échec du démarrage de la tâche de mise à jour.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Prochain : {next}",
     "unknownLanguage": "Langue inconnue",
     "authors": "Auteurs",
-    "totalChapters": "Nombre total de chapitres",
     "availableChapters": "Chapitres disponibles",
     "views": "Vues",
     "lastUpdated": "Dernière mise à jour",
     "weekly": "(Hebdomadaire)",
     "allTimes": "(Toutes périodes)",
-    "thisWeek": "(Cette semaine)",
-    "votes": "(Votes : {count})",
     "rank": "Rang {rank}",
-    "added": "Ajouté {time}",
     "chaptersCount": "{count} chapitres",
     "removeFromHistory": "Retirer de l'historique",
     "lastRead": "Dernière lecture :",
@@ -700,7 +647,6 @@
     "removeFromList": "Retirer de la liste",
     "hot": "TENDANCE",
     "viewsThisWeek": "{count} vues cette semaine",
-    "allTimeViews": "Vues totales",
     "tags": "Étiquettes"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Ouvrir les paramètres de lecture",
     "chapterComments": "Commentaires du chapitre",
     "markedRead": "Chapitre marqué comme lu avec succès !",
-    "unlockScrolling": "Déverrouiller le défilement",
-    "lockScrolling": "Verrouiller le défilement",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Page {current} sur {total}",
     "listen": "Écouter"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Mise en page",
     "gestures": "Gestes",
     "behavior": "Comportement",
-    "pageMode": "Mode page",
     "import": "Importer",
     "export": "Exporter",
     "resetDefaults": "Réinitialiser par défaut",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Uniquement lorsque le lecteur est ouvert.",
     "keepScreenOn": "Garder l’écran allumé",
     "keepScreenOnHint": "Pendant la lecture à voix haute. Désactivez pour économiser la batterie ; le son continue sur la plupart des appareils."
-  },
-  "pageSettings": {
-    "enablePageMode": "Activer le mode page",
-    "enablePageModeHint": "Passer d'une lecture par défilement à une lecture par pages",
-    "pageMarginHorizontal": "Marge horizontale : {margin}%",
-    "pageMarginVertical": "Marge verticale : {margin}%",
-    "pageColumnGap": "Écart entre les pages : {gap}px",
-    "showPageNumbers": "Afficher les numéros de page",
-    "showPageNumbersHint": "Afficher la page actuelle et le nombre total de pages",
-    "showPageSlider": "Afficher le curseur de page",
-    "showPageSliderHint": "Afficher un curseur pour naviguer rapidement entre les pages"
   },
   "themes": {
     "light": "Clair",

@@ -10,7 +10,6 @@ from ..serializers.reviews_serializers import (
 from ..utils.ip_utils import get_client_ip
 from ..utils.pagination import paginated_reviews_response
 from ..utils import resolve_novel_slug
-from ..utils.query_helpers import exclude_adult
 
 
 @api_view(['GET'])
@@ -46,16 +45,12 @@ def add_review(request, novel_slug):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET', 'PUT', 'DELETE'])
+@api_view(['PUT', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def review_detail(request, review_id):
-    """Get, update, or delete a specific review"""
+    """Update or delete a specific review"""
     review = get_object_or_404(Review, id=review_id)
-    
-    if request.method == 'GET':
-        serializer = ReviewSerializer(review, context={'request': request})
-        return Response(serializer.data)
-    
+
     # Only the review author can modify or delete
     if review.user != request.user:
         return Response(
@@ -142,12 +137,3 @@ def remove_reaction(request, review_id):
     
     reaction.delete()
     return Response({'message': 'Reaction removed'}, status=status.HTTP_200_OK)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def user_reviews(request):
-    """Get all reviews by the authenticated user"""
-    reviews = Review.objects.filter(user=request.user).select_related('novel').prefetch_related('reactions__user')
-    reviews = exclude_adult(reviews, request.user, 'novel__')
-    return paginated_reviews_response(request, reviews, ReviewSerializer)

@@ -29,21 +29,21 @@ export type PrivacySection =
 
 export type FriendshipStatus = 'self' | 'friends' | 'request_sent' | 'request_received' | 'none';
 
-export interface ProfileStats {
+interface ProfileStats {
     word_read: number;
     chapters_read_count: number;
     chapters_not_read_yet_count: number;
     novels_count: number;
 }
 
-export interface ReadingProgress {
+interface ReadingProgress {
     novel: Novel;
     last_read_at: string;
     last_read_chapter: number | null;
     source_slug?: string | null;
 }
 
-export interface GenreCount {
+interface GenreCount {
     name: string;
     count: number;
 }

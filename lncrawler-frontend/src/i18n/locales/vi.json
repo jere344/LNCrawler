@@ -6,21 +6,13 @@
     "delete": "Xóa",
     "edit": "Chỉnh sửa",
     "share": "Chia sẻ",
-    "back": "Quay lại",
     "home": "Trang chủ",
     "unknown": "Không rõ",
-    "loading": "Đang tải...",
     "viewMore": "Xem thêm",
     "showMore": "Hiện thêm",
     "showLess": "Thu gọn",
     "na": "Không có",
     "breadcrumb": "đường dẫn điều hướng",
-    "menu": "trình đơn",
-    "login": "Đăng nhập",
-    "register": "Đăng ký",
-    "profile": "Trang cá nhân",
-    "logout": "Đăng xuất",
-    "account": "Tài khoản",
     "seeMore": "Xem thêm",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Chương {number}",
     "comments": "{count, plural, =0 {Chưa có bình luận} one {# bình luận} other {# bình luận}}",
     "chapters": "{count, plural, one {# chương} other {# chương}}",
-    "novels": "{count, plural, one {# tiểu thuyết} other {# tiểu thuyết}}",
     "imagesCount": "{count, plural, one {# hình ảnh} other {# hình ảnh}}",
     "volumes": "{count, plural, other {# tập}}",
-    "items": "{count, plural, one {# mục} other {# mục}}",
-    "ratings": "{count, plural, one {# đánh giá} other {# đánh giá}}",
     "stars": "{count, plural, one {# sao} other {# sao}}",
-    "replies": "{count, plural, one {# trả lời} other {# trả lời}}",
     "unreadChapters": "{count, plural, one {# chương chưa đọc} other {# chương chưa đọc}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Tải dữ liệu trang cá nhân thất bại. Vui lòng thử lại.",
-    "failedLoadReviews": "Tải đánh giá của bạn thất bại. Vui lòng thử lại.",
-    "failedLoadLists": "Tải danh sách đọc của bạn thất bại. Vui lòng thử lại.",
     "updatedSuccess": "Cập nhật trang cá nhân thành công!",
     "updateFailed": "Cập nhật trang cá nhân thất bại. Vui lòng thử lại.",
     "passwordChanged": "Đổi mật khẩu thành công!",
     "passwordChangeFailed": "Đổi mật khẩu thất bại. Vui lòng thử lại.",
-    "heading": "Trang cá nhân",
     "changePhoto": "Đổi ảnh",
     "email": "Email",
     "editProfile": "Chỉnh sửa trang cá nhân",
@@ -157,14 +142,8 @@
     "security": "Bảo mật",
     "changePassword": "Đổi mật khẩu",
     "currentPassword": "Mật khẩu hiện tại",
-    "myReadingLists": "Danh sách đọc của tôi",
-    "noReadingLists": "Bạn chưa tạo danh sách đọc nào.",
-    "browseReadingLists": "Xem danh sách đọc",
-    "myReviews": "Đánh giá của tôi",
-    "noReviews": "Bạn chưa viết đánh giá nào.",
     "bio": "Tiểu sử",
     "changeBanner": "Đổi ảnh bìa",
-    "viewPublicProfile": "Xem hồ sơ công khai",
     "notFound": "Không tìm thấy người dùng.",
     "privateSection": "Phần này là riêng tư.",
     "emptySection": "Chưa có gì để hiển thị ở đây.",
@@ -195,8 +174,7 @@
       "library": "Thư viện",
       "readingLists": "Danh sách đọc",
       "reviews": "Đánh giá",
-      "comments": "Bình luận",
-      "friends": "Bạn bè"
+      "comments": "Bình luận"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Chọn ngôn ngữ hiển thị trên trang chủ",
     "contentHelper": "Trang chủ trộn lẫn tiểu thuyết từ mọi ngôn ngữ bạn chọn. Để trống để hiển thị tất cả ngôn ngữ."
   },
-  "readingStats": {
-    "heading": "Thống kê đọc",
-    "progress": "Tiến độ đọc",
-    "onlyBookmarked": "Chỉ bao gồm tiểu thuyết đã đánh dấu",
-    "chaptersRead": "Số chương đã đọc:",
-    "chaptersLeft": "Số chương còn lại:",
-    "percentComplete": "Hoàn thành {percent}%",
-    "totalWordsRead": "Tổng số từ đã đọc",
-    "approxPages": "Khoảng {count, plural, one {# trang} other {# trang}}"
-  },
   "home": {
     "loadFailed": "Tải dữ liệu trang chủ thất bại. Vui lòng thử lại sau.",
     "introHeading": "Đang tìm một nơi tuyệt vời để đọc tiểu thuyết ánh sáng?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Thư viện của bạn",
     "empty": "Thư viện của bạn trống",
     "emptyHint": "Đánh dấu tiểu thuyết để thêm chúng vào thư viện.",
-    "bookmarks": "Dấu trang của bạn",
     "recommended": "Đề xuất cho bạn",
     "notRated": "Chưa đánh giá",
     "editNote": "Sửa ghi chú",
@@ -311,7 +278,6 @@
     "sortBy": "Sắp xếp theo",
     "mirrorHidden": "Người dùng này giữ ghi chú và/hoặc đánh giá của họ ở chế độ riêng tư.",
     "select": "Chọn",
-    "selectAll": "Chọn tất cả",
     "selectedCount": "{count, plural, one {Đã chọn #} other {Đã chọn #}}",
     "clearSelection": "Xóa",
     "moveTo": "Di chuyển đến",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {Xóa # tiểu thuyết khỏi thư viện của bạn?} other {Xóa # tiểu thuyết khỏi thư viện của bạn?}} Hành động này không thể hoàn tác.",
     "addNote": "Thêm ghi chú",
     "moreActions": "Thao tác khác",
-    "dragToFolder": "Kéo một tiểu thuyết vào thư mục để lưu trữ",
     "sort": {
       "custom": "Thứ tự tùy chỉnh",
       "title": "Tiêu đề",
@@ -355,7 +320,6 @@
     "authors": "Tác giả",
     "authorsPlaceholder": "Nhập để tìm tác giả...",
     "language": "Ngôn ngữ",
-    "any": "Bất kỳ",
     "minimumRating": "Đánh giá tối thiểu",
     "clear": "Xóa",
     "sortBy": "Sắp xếp theo",
@@ -379,7 +343,6 @@
     "languageFilter": "Ngôn ngữ:",
     "ratingFilter": "Đánh giá tối thiểu: {rating}",
     "sortFilter": "Sắp xếp: {sortBy} ({sortOrder})",
-    "searching": "Đang tìm kiếm...",
     "foundCount": "{count, plural, =0 {Không tìm thấy tiểu thuyết} one {Tìm thấy # tiểu thuyết} other {Tìm thấy # tiểu thuyết}}",
     "noResults": "Không tìm thấy tiểu thuyết phù hợp với tiêu chí của bạn",
     "noResultsHint": "Hãy thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm",
@@ -387,10 +350,8 @@
     "noAuthors": "Không tìm thấy tác giả",
     "loading": "Đang tải...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Kết quả tìm kiếm | LNCrawler",
     "metaDefaultTitle": "Tìm kiếm tiểu thuyết ánh sáng | LNCrawler",
     "metaQueryTitle": "Kết quả tìm kiếm cho “{query}” | LNCrawler",
-    "metaSearchingTitle": "Đang tìm kiếm... | LNCrawler",
     "metaDescription": "Tìm kiếm và khám phá bộ sưu tập tiểu thuyết ánh sáng châu Á phong phú trên LNCrawler. Lọc theo thẻ, tác giả, ngôn ngữ, v.v.",
     "metaQueryDescription": "Tìm tiểu thuyết ánh sáng khớp với “{query}”. {count, plural, =0 {} one {Tìm thấy # kết quả.} other {Tìm thấy # kết quả.}} Khám phá trên LNCrawler.",
     "metaKeywords": "tìm tiểu thuyết ánh sáng, tìm web novel, tìm kiếm LNCrawler, khám phá tiểu thuyết"
@@ -424,7 +385,6 @@
     "heading": "Thư viện ảnh",
     "countFrom": "{count} hình ảnh từ {novel}",
     "showSmall": "Hiện hình ảnh nhỏ ({count} đã lọc)",
-    "loadingDimensions": "Đang tải kích thước hình ảnh...",
     "noImagesFiltered": "Không có hình ảnh để hiển thị với cài đặt bộ lọc hiện tại.",
     "noImagesPage": "Không tìm thấy hình ảnh trong trang thư viện này.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Tiếp tục đọc",
     "continueFrom": "Tiếp tục từ {chapter}",
     "chapterList": "Danh sách chương",
-    "viewAllChapters": "Xem tất cả {count} chương",
     "browseAllChapters": "Duyệt tất cả chương",
     "imageGallery": "Thư viện ảnh",
-    "browseAllImages": "Duyệt tất cả hình ảnh",
     "viewImageGallery": "Xem thư viện ảnh",
     "download": "Tải xuống",
-    "downloadEpub": "Tải xuống dưới dạng EPUB",
     "downloadTooltip": "Tải tiểu thuyết này dưới dạng tệp EPUB",
     "downloadFull": "Tiểu thuyết đầy đủ",
     "volumeN": "Tập {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Đang tải nguồn tiểu thuyết | LNCrawler",
     "metaDescription": "Đọc {title} từ {source}. Tóm tắt: {synopsis}",
     "metaLoadingDescription": "Đang tải chi tiết nguồn tiểu thuyết này trên LNCrawler."
-  },
-  "rating": {
-    "noRatings": "Chưa có đánh giá"
-  },
-  "tags": {
-    "more": "+{count} thêm"
   },
   "updateButton": {
     "startFailed": "Không thể bắt đầu tác vụ cập nhật.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Tiếp theo: {next}",
     "unknownLanguage": "Ngôn ngữ không xác định",
     "authors": "Tác giả",
-    "totalChapters": "Tổng số chương",
     "availableChapters": "Chương có sẵn",
     "views": "Lượt xem",
     "lastUpdated": "Cập nhật gần đây",
     "weekly": "(Hàng tuần)",
     "allTimes": "(Mọi thời đại)",
-    "thisWeek": "(Tuần này)",
-    "votes": "(Phiếu: {count})",
     "rank": "Hạng {rank}",
-    "added": "Đã thêm {time}",
     "chaptersCount": "{count} chương",
     "removeFromHistory": "Xóa khỏi lịch sử",
     "lastRead": "Đọc lần cuối:",
@@ -700,7 +647,6 @@
     "removeFromList": "Xóa khỏi danh sách",
     "hot": "HOT",
     "viewsThisWeek": "{count} lượt xem tuần này",
-    "allTimeViews": "Lượt xem mọi thời đại",
     "tags": "Thẻ"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Mở cài đặt trình đọc",
     "chapterComments": "Bình luận chương",
     "markedRead": "Đã đánh dấu chương là đã đọc thành công!",
-    "unlockScrolling": "Mở khóa cuộn",
-    "lockScrolling": "Khóa cuộn",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Trang {current} / {total}",
     "listen": "Nghe"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Bố cục",
     "gestures": "Cử chỉ",
     "behavior": "Hành vi",
-    "pageMode": "Chế độ trang",
     "import": "Nhập",
     "export": "Xuất",
     "resetDefaults": "Đặt lại về mặc định",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Chỉ hoạt động khi trình phát đang mở.",
     "keepScreenOn": "Giữ màn hình sáng",
     "keepScreenOnHint": "Trong lúc đọc to. Tắt để tiết kiệm pin; âm thanh vẫn tiếp tục trên đa số thiết bị."
-  },
-  "pageSettings": {
-    "enablePageMode": "Bật chế độ trang",
-    "enablePageModeHint": "Chuyển từ đọc theo cuộn sang đọc theo trang",
-    "pageMarginHorizontal": "Lề ngang: {margin}%",
-    "pageMarginVertical": "Lề dọc: {margin}%",
-    "pageColumnGap": "Khoảng cách cột: {gap}px",
-    "showPageNumbers": "Hiện số trang",
-    "showPageNumbersHint": "Hiển thị trang hiện tại và tổng số trang",
-    "showPageSlider": "Hiện thanh trượt trang",
-    "showPageSliderHint": "Hiển thị thanh trượt để nhanh chóng điều hướng giữa các trang"
   },
   "themes": {
     "light": "Sáng",

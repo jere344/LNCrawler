@@ -2,7 +2,7 @@
 
 The executor only needs the ORM and the project models to run a claimed job; it
 never serves HTTP. Dropping the web-only apps (admin, sessions, messages,
-staticfiles, DRF/simplejwt/corsheaders/sitemaps/authtoken) keeps each short-lived
+staticfiles, DRF/corsheaders/sitemaps/authtoken) keeps each short-lived
 job subprocess several MB smaller. Everything else is imported from the shared
 settings so there is a single source of truth.
 

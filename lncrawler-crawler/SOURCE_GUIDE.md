@@ -14,7 +14,7 @@ Written from the first big batch (~97 files, 14 functional sources). Goal: get a
 
 - `lncrawl` can't be imported without deps (`curl_cffi`, etc.). The crawler has no requirements file of its own; the subset it needs is pinned in `lncrawler-api/requirements.txt`. Create one **once per session** in the scratchpad and reuse it:
   ```bash
-  python3 -m venv "$SCRATCHPAD/venv" && "$SCRATCHPAD/venv/bin/pip" install -q curl_cffi==0.16.3 beautifulsoup4==4.15.0 lxml==6.1.3 lxml_html_clean==0.4.5 requests==2.34.2 tenacity==9.1.4 python-slugify==9.1.2 pillow==12.3.0 python-box==7.4.1 text-unidecode==1.3
+  python3 -m venv "$SCRATCHPAD/venv" && "$SCRATCHPAD/venv/bin/pip" install -q curl_cffi==0.16.3 beautifulsoup4==4.15.0 lxml==6.1.3 lxml_html_clean==0.4.5 requests==2.34.2 tenacity==9.1.4 python-slugify==9.1.2 pillow==12.3.0 text-unidecode==1.3
   ```
   Then smoke-test with the real class: `"$SCRATCHPAD/venv/bin/python" -I` with `sys.path` set explicitly to the `lncrawler-crawler/` directory (do not run from inside a downloaded/scratch dir).
 - `sources/` is a sibling of `lncrawl/`, not inside it.

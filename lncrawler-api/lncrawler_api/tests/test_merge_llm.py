@@ -12,11 +12,11 @@ from unittest import mock
 from django.core.management import call_command
 from django.test import override_settings
 from django.urls import reverse
-from django.utils import timezone
 
 from ..models import Candidate, LLMCall, Novel
 from ..services import llm_service, llm_tasks
 from .helpers import MergeTestCase
+from .llm_helpers import llm_chain
 from .test_candidate_apply import novel_pair, two_novels
 
 
@@ -61,11 +61,12 @@ class _Sequence(_Session):
 
 
 def _judge_pair(profile_a, profile_b, session=None):
-    """One judge call and parse, as the novel_merge task makes it."""
+    """One judge call and parse, as the novel_merge task makes it, on the first provider of the chain."""
     content, _tokens, _call = llm_service._post_chat(
         llm_service.build_messages(profile_a, profile_b),
         llm_tasks.REGISTRY["novel_merge"].max_tokens,
         "novel_merge",
+        provider=llm_service.providers()[0],
         session=session,
     )
     return llm_service._parse_content(content)
@@ -75,7 +76,7 @@ def _provider(name):
     return llm_service.Provider(
         name=name, url=f"http://{name}.test", api_key="k", model=name, reasoning_effort="",
         daily_requests=None, daily_tokens=None, requests_per_minute=None,
-        tokens_per_minute=None, cooldown=60, shared_usage=False,
+        tokens_per_minute=None, cooldown=60,
     )
 
 
@@ -123,6 +124,7 @@ class ParseTests(MergeTestCase):
         self.assertTrue(llm_service._parse_content('{"same": "yes"}')["same"])
 
 
+@override_settings(**llm_chain())
 class JudgeTests(MergeTestCase):
     def test_judge_parses_openai_shape(self):
         payload = {"choices": [{"message": {"content":
@@ -147,11 +149,11 @@ class JudgeTests(MergeTestCase):
         with self.assertRaises(llm_service.LLMError):
             _judge_pair({"title": "a"}, {"title": "b"}, session=session)
 
-    @override_settings(LLM_API_KEY="")
+    @override_settings(**llm_chain(api_key=""))
     def test_is_configured_false_without_key(self):
         self.assertFalse(llm_service.is_configured())
 
-    @override_settings(LLM_API_KEY="k")
+    @override_settings(**llm_chain())
     def test_is_configured_true_with_key(self):
         self.assertTrue(llm_service.is_configured())
 
@@ -180,7 +182,7 @@ class JudgeCommandTests(OutputDirMixin, MergeTestCase):
         self.addCleanup(patcher.stop)
 
     def test_noop_when_unconfigured(self):
-        with override_settings(LLM_API_KEY=""):
+        with override_settings(**llm_chain(api_key="")):
             call_command("run_llm", "novel_merge")
         self.chat.assert_not_called()
         self.candidate.refresh_from_db()
@@ -189,7 +191,7 @@ class JudgeCommandTests(OutputDirMixin, MergeTestCase):
     def test_stores_verdict(self):
         verdict = {"same": True, "confidence": 0.9, "reason": "same work"}
         self.chat.return_value = (json.dumps(verdict), 120, "provider", None)
-        with override_settings(LLM_API_KEY="key"):
+        with override_settings(**llm_chain()):
             call_command("run_llm", "novel_merge")
         self.candidate.refresh_from_db()
         self.assertEqual(self.candidate.verdict["answer"], "yes")
@@ -197,7 +199,7 @@ class JudgeCommandTests(OutputDirMixin, MergeTestCase):
         self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
 
     def test_respects_daily_budget(self):
-        with override_settings(LLM_API_KEY="key", LLM_DAILY_REQUESTS=0):
+        with override_settings(**llm_chain(daily_requests=0)):
             call_command("run_llm", "novel_merge")
         self.chat.assert_not_called()
         self.candidate.refresh_from_db()
@@ -220,7 +222,7 @@ class JudgeDecisionTests(OutputDirMixin, MergeTestCase):
 
     def _judge(self, verdict):
         self.chat.return_value = (json.dumps(verdict), 120, "provider", None)
-        with override_settings(LLM_API_KEY="key"):
+        with override_settings(**llm_chain()):
             call_command("run_llm", "novel_merge")
         self.candidate.refresh_from_db()
 
@@ -290,25 +292,26 @@ class RequestBodyTests(MergeTestCase):
     def _body(session):
         return session.calls[0][1]["json"]
 
-    @override_settings(LLM_API_KEY="key", LLM_REASONING_EFFORT="low")
+    @override_settings(**llm_chain(reasoning_effort="low"))
     def test_reasoning_effort_sent_when_set(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}')))
         _judge_pair({"title": "a"}, {"title": "b"}, session=session)
         self.assertEqual(self._body(session)["reasoning_effort"], "low")
 
-    @override_settings(LLM_API_KEY="key", LLM_REASONING_EFFORT="")
+    @override_settings(**llm_chain(reasoning_effort=""))
     def test_reasoning_effort_omitted_when_empty(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}')))
         _judge_pair({"title": "a"}, {"title": "b"}, session=session)
         self.assertNotIn("reasoning_effort", self._body(session))
 
-    @override_settings(LLM_API_KEY="key")
+    @override_settings(**llm_chain())
     def test_judge_uses_novel_merge_max_tokens(self):
         session = _Session(_Response(200, _chat_payload('{"same": true}')))
         _judge_pair({"title": "a"}, {"title": "b"}, session=session)
         self.assertEqual(self._body(session)["max_tokens"], 2048)
 
 
+@override_settings(**llm_chain())
 class TruncationTests(MergeTestCase):
     def test_length_finish_reason_raises_truncated(self):
         session = _Session(_Response(200, _chat_payload('{"same": tr', finish_reason="length")))
@@ -329,6 +332,7 @@ class TruncationTests(MergeTestCase):
             _judge_pair({"title": "a"}, {"title": "b"}, session=session)
 
 
+@override_settings(**llm_chain())
 class LLMCallLedgerTests(MergeTestCase):
     """Every reply the provider returned is one LLMCall: the budget and the history read it."""
 
@@ -356,7 +360,7 @@ class LLMCallLedgerTests(MergeTestCase):
         messages = llm_service.build_messages({"title": "a"}, {"title": "b"})
         providers = [_provider("first"), _provider("second")]
         with mock.patch.object(llm_service, "providers", return_value=providers):
-            with override_settings(LLM_API_KEY="key"):
+            with override_settings(**llm_chain()):
                 _content, tokens, provider, _call = llm_service.chat(
                     messages, 2048, "novel_merge", session=session,
                 )
@@ -379,12 +383,13 @@ class LLMCallLedgerTests(MergeTestCase):
         _judge_pair({"title": "a"}, {"title": "b"}, session=session)
         self.assertEqual(LLMCall.objects.get().tokens, 0)
 
-    @override_settings(LLM_DAILY_TOKENS=1000)
-    def test_budget_left_counts_all_purposes(self):
-        LLMCall.objects.create(kind="novel_merge", tokens=300)
-        LLMCall.objects.create(kind="tag_merge", tokens=200)
-        self.assertEqual(llm_service.tokens_used_today(), 500)
-        self.assertEqual(llm_service.token_budget_left(), 500)
+    @override_settings(**llm_chain(daily_tokens=1000))
+    def test_budget_left_counts_all_purposes_of_the_provider(self):
+        LLMCall.objects.create(kind="novel_merge", provider="groq", tokens=300)
+        LLMCall.objects.create(kind="tag_merge", provider="groq", tokens=200)
+        LLMCall.objects.create(kind="tag_merge", provider="cerebras", tokens=100)
+        self.assertEqual(llm_service.tokens_used_today(), 600)
+        self.assertEqual(llm_service.token_budget_left(llm_service.providers()[0]), 500)
 
 
 class JudgeTokenBudgetTests(OutputDirMixin, MergeTestCase):
@@ -400,20 +405,18 @@ class JudgeTokenBudgetTests(OutputDirMixin, MergeTestCase):
                 status=Candidate.STATUS_PENDING,
             ))
 
-    @override_settings(LLM_API_KEY="key",
-                       LLM_DAILY_TOKENS=171000, LLM_TOKENS_PER_MINUTE=1000000)
+    @override_settings(**llm_chain(daily_tokens=171000, tokens_per_minute=1000000))
     def test_stops_before_call_when_budget_below_one_call(self):
         # 1000 left is below CALL_TOKENS (2500).
-        LLMCall.objects.create(kind="tag_merge", tokens=170000)
+        LLMCall.objects.create(kind="tag_merge", provider="groq", tokens=170000)
         with mock.patch.object(llm_service, "chat") as chat:
             call_command("run_llm", "novel_merge")
         chat.assert_not_called()
 
-    @override_settings(LLM_API_KEY="key",
-                       LLM_DAILY_TOKENS=4000, LLM_TOKENS_PER_MINUTE=1000000)
+    @override_settings(**llm_chain(daily_tokens=4000, tokens_per_minute=1000000))
     def test_budget_checked_before_every_call(self):
         def spend(*args, **kwargs):
-            LLMCall.objects.create(kind="novel_merge", tokens=5000)
+            LLMCall.objects.create(kind="novel_merge", provider="groq", tokens=5000)
             return json.dumps({"same": True, "confidence": 0.9, "reason": "same"}), 5000, "p", None
 
         with mock.patch.object(llm_service, "chat", side_effect=spend) as chat:
@@ -424,7 +427,7 @@ class JudgeTokenBudgetTests(OutputDirMixin, MergeTestCase):
         self.assertEqual(self.candidates[0].status, Candidate.STATUS_REVIEW)
         self.assertEqual(self.candidates[1].status, Candidate.STATUS_PENDING)
 
-    @override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=180000)
+    @override_settings(**llm_chain(daily_tokens=180000))
     def test_truncated_reply_leaves_candidate_unchecked_and_is_charged(self):
         payload = _chat_payload("", "length", total_tokens=2048)
         with mock.patch.object(llm_service.requests, "post",
@@ -440,7 +443,7 @@ class JudgeTokenBudgetTests(OutputDirMixin, MergeTestCase):
         self.assertTrue(LLMCall.objects.exists())
         self.assertEqual(set(LLMCall.objects.values_list("tokens", flat=True)), {2048})
 
-    @override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=180000)
+    @override_settings(**llm_chain(daily_tokens=180000))
     def test_non_json_reply_leaves_candidate_unchecked_and_is_charged(self):
         payload = _chat_payload("I cannot decide.", total_tokens=400)
         with mock.patch.object(llm_service.requests, "post",

@@ -101,7 +101,6 @@ class Command(BaseCommand):
         parser.add_argument("--trigram-min", type=float, default=None,
                             help="Fuzzy title similarity floor; <0 disables the trigram pass.")
         parser.add_argument("--limit", type=int, default=0, help="Only consider N novels (0 = all).")
-        parser.add_argument("--dry-run", action="store_true")
 
     def handle(self, *args, **options):
         self.review_low = options["review_low"]
@@ -114,7 +113,6 @@ class Command(BaseCommand):
         if trigram_min is None:
             trigram_min = settings.MERGE_TRIGRAM_MIN
         self.trigram_min = trigram_min
-        self.dry_run = options["dry_run"]
         limit = options["limit"]
 
         data = self._load(limit)
@@ -436,7 +434,7 @@ class Command(BaseCommand):
             and any(str(pk) not in known for pk in row.target_ids)
         ]
         stats["gone"] = len(gone)
-        if gone and not self.dry_run:
+        if gone:
             Candidate.objects.filter(pk__in=[row.pk for row in gone]).delete()
         gone_pks = {row.pk for row in gone}
         # One preload keyed by signature replaces a lookup per pair.
@@ -464,8 +462,6 @@ class Command(BaseCommand):
             if row is not None and row.status not in Candidate.OPEN_STATUSES:
                 continue
             stats["candidates"] += 1
-            if self.dry_run:
-                continue
             novel_a, novel_b = novels.get(a_id), novels.get(b_id)
             if novel_a is None or novel_b is None:
                 continue
@@ -501,7 +497,7 @@ class Command(BaseCommand):
             and pair_key(*row.target_ids) not in kept
         ]
         stats["stale"] = len(stale)
-        if stale and not self.dry_run:
+        if stale:
             Candidate.objects.filter(pk__in=stale).delete()
 
         if to_create:

@@ -210,7 +210,6 @@ export const getCatTheme = () =>
 
 export const catTheme: ThemeOption = {
     id: "cat",
-    name: "Feline",
     isDark: false,
     getTheme: getCatTheme,
     hidden: true,

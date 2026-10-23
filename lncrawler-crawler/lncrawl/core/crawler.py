@@ -7,7 +7,6 @@ from typing import Generator, List, Optional, Union
 from bs4 import Tag
 
 from ..models import Chapter, SearchResult, Volume
-from .arguments import get_args
 from .cleaner import TextCleaner
 from .exeptions import RetryErrorGroup
 from .scraper import Scraper
@@ -131,16 +130,7 @@ class Crawler(Scraper):
 
     # -- utility ------------------------------------------------------- #
 
-    def index_of_chapter(self, url: str) -> int:
-        url = self.absolute_url(url)
-        for chapter in self.chapters:
-            if chapter.url.rstrip("/") == url:
-                return chapter.id
-        return 0
-
     def extract_chapter_images(self, chapter: Chapter) -> None:
-        if get_args().ignore_images:
-            return
         # Most chapters have no inline image; skip the extra parse.
         if not chapter.body or "<img" not in chapter.body:
             return
@@ -167,7 +157,6 @@ class Crawler(Scraper):
     def download_chapters(
         self,
         chapters: List[Chapter],
-        fail_fast: bool = False,
     ) -> Generator[Chapter, None, None]:
         from collections import deque
 
@@ -195,8 +184,6 @@ class Crawler(Scraper):
                 except KeyboardInterrupt:
                     raise
                 except Exception as e:
-                    if fail_fast:
-                        raise
                     if isinstance(e, RetryErrorGroup):
                         # Expected per-chapter network/IO failure. Tolerated
                         # (chapter marked failed, download continues), so it is

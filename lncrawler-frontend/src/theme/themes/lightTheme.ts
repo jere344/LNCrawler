@@ -137,7 +137,6 @@ export const getLightTheme = () => makeTheme(lightTokens);
 
 export const lightTheme: ThemeOption = {
     id: "light",
-    name: "Light",
     isDark: false,
     getTheme: getLightTheme,
     hidden: false,

@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, Union
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 from .exeptions import LNException
 
@@ -32,13 +32,3 @@ class SoupMaker:
         else:
             raise LNException("Could not parse response")
         return BeautifulSoup(html, features=self._parser)
-
-    def make_tag(
-        self,
-        data: Union[object, bytes, str],
-        encoding: Optional[str] = None,
-    ) -> Tag:
-        soup = self.make_soup(data, encoding)
-        body = soup.find("body")
-        assert body is not None
-        return next(body.children)

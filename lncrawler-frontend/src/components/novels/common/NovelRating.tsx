@@ -9,7 +9,6 @@ interface NovelRatingProps {
   initialUserRating: number | null;
   initialAvgRating: number | null;
   initialRatingCount: number;
-  onRatingSuccess?: (avgRating: number, ratingCount: number, userRating: number) => void;
   disabled?: boolean;
   size?: 'small' | 'medium' | 'large';
 }
@@ -19,7 +18,6 @@ const NovelRating: React.FC<NovelRatingProps> = ({
   initialUserRating,
   initialAvgRating,
   initialRatingCount,
-  onRatingSuccess,
   disabled = false,
   size = 'small',
 }) => {
@@ -38,9 +36,6 @@ const NovelRating: React.FC<NovelRatingProps> = ({
       setUserRating(ratingResponse.user_rating);
       setAvgRating(ratingResponse.avg_rating);
       setRatingCount(ratingResponse.rating_count);
-      if (onRatingSuccess) {
-        onRatingSuccess(ratingResponse.avg_rating, ratingResponse.rating_count, ratingResponse.user_rating);
-      }
     } catch (err) {
       console.error('Error rating novel:', err);
       // Optionally, revert to previous state or show an error message

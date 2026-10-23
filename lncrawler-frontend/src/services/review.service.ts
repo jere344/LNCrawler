@@ -56,12 +56,7 @@ export const reviewService = {
     return response.data;
   },
 
-  // Get, update, or delete a specific review
-  getReview: async (reviewId: string): Promise<Review> => {
-    const response = await api.get(`/reviews/${reviewId}/`);
-    return response.data;
-  },
-
+  // Update or delete a specific review
   updateReview: async (reviewId: string, reviewData: Partial<CreateReviewData>): Promise<Review> => {
     const response = await api.put(`/reviews/${reviewId}/`, reviewData);
     return response.data;
@@ -80,14 +75,6 @@ export const reviewService = {
   // Remove a reaction from a review
   removeReaction: async (reviewId: string): Promise<{ message: string }> => {
     const response = await api.delete(`/reviews/${reviewId}/reactions/remove/`);
-    return response.data;
-  },
-
-  // Get user's reviews
-  getUserReviews: async (page = 1, pageSize = 20): Promise<ReviewsResponse> => {
-    const response = await api.get(`/users/reviews/`, {
-      params: { page, page_size: pageSize }
-    });
     return response.data;
   }
 };

@@ -5,7 +5,7 @@ import { ReadingListResponse } from '@models/readinglist_types';
 import { Review } from './review.service';
 import type { Comment } from '@models/comments_types';
 
-export interface PublicLibraryQuery {
+interface PublicLibraryQuery {
   page?: number;
   pageSize?: number;
   search?: string;

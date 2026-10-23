@@ -9,7 +9,6 @@ def _env_int(name: str, default: int) -> int:
 
 DEFAULT_WORKERS = _env_int("LNCRAWL_WORKERS", 5) or 5
 MAX_REQUESTS_PER_DOMAIN = _env_int("LNCRAWL_MAX_PER_DOMAIN", 5) or 5
-DEFAULT_PARSER = "lxml"
 META_FILE_NAME = "meta.json"
 DEFAULT_OUTPUT_PATH = os.getenv("LNCRAWL_OUTPUT_PATH") or os.path.abspath("Lightnovels")
 TIMEOUT = (

@@ -171,10 +171,3 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         if kind == 'chapter':
             return target.chapter_id
         return None
-
-
-class CommentVoteSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CommentVote
-        fields = ['id', 'comment', 'vote_type', 'ip_address', 'created_at']
-        read_only_fields = ['id', 'created_at', 'ip_address']

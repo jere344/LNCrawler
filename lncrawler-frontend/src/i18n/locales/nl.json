@@ -6,21 +6,13 @@
     "delete": "Verwijderen",
     "edit": "Bewerken",
     "share": "Delen",
-    "back": "Terug",
     "home": "Home",
     "unknown": "Onbekend",
-    "loading": "Laden...",
     "viewMore": "Meer bekijken",
     "showMore": "Meer tonen",
     "showLess": "Minder tonen",
     "na": "N.v.t.",
     "breadcrumb": "breadcrumb",
-    "menu": "menu",
-    "login": "Inloggen",
-    "register": "Registreren",
-    "profile": "Profiel",
-    "logout": "Uitloggen",
-    "account": "Account",
     "seeMore": "Meer weergeven",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Hoofdstuk {number}",
     "comments": "{count, plural, =0 {Geen reacties} one {# reactie} other {# reacties}}",
     "chapters": "{count, plural, one {# hoofdstuk} other {# hoofdstukken}}",
-    "novels": "{count, plural, one {# roman} other {# romans}}",
     "imagesCount": "{count, plural, one {# afbeelding} other {# afbeeldingen}}",
     "volumes": "{count, plural, one {# deel} other {# delen}}",
-    "items": "{count, plural, one {# item} other {# items}}",
-    "ratings": "{count, plural, one {# beoordeling} other {# beoordelingen}}",
     "stars": "{count, plural, one {# ster} other {# sterren}}",
-    "replies": "{count, plural, one {# antwoord} other {# antwoorden}}",
     "unreadChapters": "{count, plural, one {# ongelezen hoofdstuk} other {# ongelezen hoofdstukken}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Profielgegevens laden mislukt. Probeer het opnieuw.",
-    "failedLoadReviews": "Je beoordelingen laden mislukt. Probeer het opnieuw.",
-    "failedLoadLists": "Je leeslijsten laden mislukt. Probeer het opnieuw.",
     "updatedSuccess": "Profiel succesvol bijgewerkt!",
     "updateFailed": "Profiel bijwerken mislukt. Probeer het opnieuw.",
     "passwordChanged": "Wachtwoord succesvol gewijzigd!",
     "passwordChangeFailed": "Wachtwoord wijzigen mislukt. Probeer het opnieuw.",
-    "heading": "Profiel",
     "changePhoto": "Foto wijzigen",
     "email": "E-mail",
     "editProfile": "Profiel bewerken",
@@ -157,14 +142,8 @@
     "security": "Beveiliging",
     "changePassword": "Wachtwoord wijzigen",
     "currentPassword": "Huidig wachtwoord",
-    "myReadingLists": "Mijn leeslijsten",
-    "noReadingLists": "Je hebt nog geen leeslijsten gemaakt.",
-    "browseReadingLists": "Leeslijsten bekijken",
-    "myReviews": "Mijn beoordelingen",
-    "noReviews": "Je hebt nog geen beoordelingen geschreven.",
     "bio": "Bio",
     "changeBanner": "Banner wijzigen",
-    "viewPublicProfile": "Openbaar profiel bekijken",
     "notFound": "Gebruiker niet gevonden.",
     "privateSection": "Dit gedeelte is privé.",
     "emptySection": "Nog niets te tonen.",
@@ -195,8 +174,7 @@
       "library": "Bibliotheek",
       "readingLists": "Leeslijsten",
       "reviews": "Recensies",
-      "comments": "Opmerkingen",
-      "friends": "Vrienden"
+      "comments": "Opmerkingen"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Kies talen om op de startpagina te tonen",
     "contentHelper": "De startpagina mengt romans uit elke taal die je selecteert. Laat leeg om alle talen te tonen."
   },
-  "readingStats": {
-    "heading": "Leesstatistieken",
-    "progress": "Leesvoortgang",
-    "onlyBookmarked": "Alleen romans met bladwijzer opnemen",
-    "chaptersRead": "Gelezen hoofdstukken:",
-    "chaptersLeft": "Resterende hoofdstukken:",
-    "percentComplete": "{percent}% voltooid",
-    "totalWordsRead": "Totaal gelezen woorden",
-    "approxPages": "Ongeveer {count, plural, one {# pagina} other {# pagina's}}"
-  },
   "home": {
     "loadFailed": "Startpaginagegevens laden mislukt. Probeer het later opnieuw.",
     "introHeading": "Zoek je een geweldige plek om light novels te lezen?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Jouw bibliotheek",
     "empty": "Je bibliotheek is leeg",
     "emptyHint": "Voeg romans toe aan je bladwijzers om ze in je bibliotheek te plaatsen.",
-    "bookmarks": "Jouw bladwijzers",
     "recommended": "Aanbevolen voor jou",
     "notRated": "Niet beoordeeld",
     "editNote": "Notitie bewerken",
@@ -311,7 +278,6 @@
     "sortBy": "Sorteren op",
     "mirrorHidden": "Deze gebruiker houdt zijn/haar notities en/of beoordelingen privé.",
     "select": "Selecteren",
-    "selectAll": "Alles selecteren",
     "selectedCount": "{count, plural, one {# geselecteerd} other {# geselecteerd}}",
     "clearSelection": "Wissen",
     "moveTo": "Verplaatsen naar",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {# roman uit je bibliotheek verwijderen?} other {# romans uit je bibliotheek verwijderen?}} Dit kan niet ongedaan worden gemaakt.",
     "addNote": "Notitie toevoegen",
     "moreActions": "Meer acties",
-    "dragToFolder": "Sleep een roman naar een map om deze op te bergen",
     "sort": {
       "custom": "Aangepaste volgorde",
       "title": "Titel",
@@ -355,7 +320,6 @@
     "authors": "Auteurs",
     "authorsPlaceholder": "Typ om auteurs te zoeken...",
     "language": "Taal",
-    "any": "Alle",
     "minimumRating": "Minimale beoordeling",
     "clear": "Wissen",
     "sortBy": "Sorteren op",
@@ -379,7 +343,6 @@
     "languageFilter": "Taal:",
     "ratingFilter": "Min. beoordeling: {rating}",
     "sortFilter": "Sorteren: {sortBy} ({sortOrder})",
-    "searching": "Zoeken...",
     "foundCount": "{count, plural, =0 {Geen romans gevonden} one {# roman gevonden} other {# romans gevonden}}",
     "noResults": "Geen romans gevonden die aan je criteria voldoen",
     "noResultsHint": "Probeer je filters of zoektermen aan te passen",
@@ -387,10 +350,8 @@
     "noAuthors": "Geen auteurs gevonden",
     "loading": "Laden...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Zoekresultaten | LNCrawler",
     "metaDefaultTitle": "Light novels zoeken | LNCrawler",
     "metaQueryTitle": "Zoekresultaten voor \"{query}\" | LNCrawler",
-    "metaSearchingTitle": "Zoeken... | LNCrawler",
     "metaDescription": "Zoek en ontdek een enorme verzameling Aziatische light novels op LNCrawler. Filter op tags, auteurs, taal en meer.",
     "metaQueryDescription": "Vind light novels die overeenkomen met \"{query}\". {count, plural, =0 {} one {# resultaat gevonden.} other {# resultaten gevonden.}} Ontdek op LNCrawler.",
     "metaKeywords": "light novels zoeken, web novels vinden, LNCrawler zoeken, romans ontdekken"
@@ -424,7 +385,6 @@
     "heading": "Afbeeldingengalerij",
     "countFrom": "{count} afbeeldingen van {novel}",
     "showSmall": "Kleine afbeeldingen tonen ({count} gefilterd)",
-    "loadingDimensions": "Afbeeldingsafmetingen laden...",
     "noImagesFiltered": "Geen afbeeldingen om weer te geven met de huidige filterinstellingen.",
     "noImagesPage": "Geen afbeeldingen gevonden op deze galerijpagina.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Verder lezen",
     "continueFrom": "Verdergaan vanaf {chapter}",
     "chapterList": "Hoofdstukkenlijst",
-    "viewAllChapters": "Alle {count} hoofdstukken bekijken",
     "browseAllChapters": "Alle hoofdstukken bekijken",
     "imageGallery": "Afbeeldingengalerij",
-    "browseAllImages": "Alle afbeeldingen bekijken",
     "viewImageGallery": "Afbeeldingengalerij bekijken",
     "download": "Downloaden",
-    "downloadEpub": "Downloaden als EPUB",
     "downloadTooltip": "Deze roman downloaden als EPUB-bestand",
     "downloadFull": "Volledige roman",
     "volumeN": "Deel {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Romanbron laden | LNCrawler",
     "metaDescription": "Lees {title} uit {source}. Samenvatting: {synopsis}",
     "metaLoadingDescription": "Details van deze romanbron laden op LNCrawler."
-  },
-  "rating": {
-    "noRatings": "Geen beoordelingen"
-  },
-  "tags": {
-    "more": "+{count} meer"
   },
   "updateButton": {
     "startFailed": "Bijwerktaak starten mislukt.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Volgende: {next}",
     "unknownLanguage": "Onbekende taal",
     "authors": "Auteurs",
-    "totalChapters": "Totaal aantal hoofdstukken",
     "availableChapters": "Beschikbare hoofdstukken",
     "views": "Weergaven",
     "lastUpdated": "Laatst bijgewerkt",
     "weekly": "(Wekelijks)",
     "allTimes": "(Aller tijden)",
-    "thisWeek": "(Deze week)",
-    "votes": "(Stemmen: {count})",
     "rank": "Rang {rank}",
-    "added": "Toegevoegd {time}",
     "chaptersCount": "{count} hoofdstukken",
     "removeFromHistory": "Uit geschiedenis verwijderen",
     "lastRead": "Laatst gelezen:",
@@ -700,7 +647,6 @@
     "removeFromList": "Uit lijst verwijderen",
     "hot": "HOT",
     "viewsThisWeek": "{count} weergaven deze week",
-    "allTimeViews": "Weergaven aller tijden",
     "tags": "Tags"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Lezerinstellingen openen",
     "chapterComments": "Hoofdstukreacties",
     "markedRead": "Hoofdstuk succesvol als gelezen gemarkeerd!",
-    "unlockScrolling": "Scrollen ontgrendelen",
-    "lockScrolling": "Scrollen vergrendelen",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Pagina {current} van {total}",
     "listen": "Luisteren"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Indeling",
     "gestures": "Gebaren",
     "behavior": "Gedrag",
-    "pageMode": "Paginamodus",
     "import": "Importeren",
     "export": "Exporteren",
     "resetDefaults": "Terugzetten naar standaard",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Alleen terwijl de speler open is.",
     "keepScreenOn": "Scherm aanhouden",
     "keepScreenOnHint": "Tijdens het voorlezen. Uitzetten bespaart batterij; het geluid blijft op de meeste apparaten doorspelen."
-  },
-  "pageSettings": {
-    "enablePageMode": "Paginamodus inschakelen",
-    "enablePageModeHint": "Schakel over van scrollen naar paginagebaseerd lezen",
-    "pageMarginHorizontal": "Horizontale marge: {margin}%",
-    "pageMarginVertical": "Verticale marge: {margin}%",
-    "pageColumnGap": "Kolomafstand: {gap}px",
-    "showPageNumbers": "Paginanummers tonen",
-    "showPageNumbersHint": "Toon de huidige pagina en het totale aantal pagina's",
-    "showPageSlider": "Paginaschuifregelaar tonen",
-    "showPageSliderHint": "Toon een schuifregelaar om snel tussen pagina's te navigeren"
   },
   "themes": {
     "light": "Licht",

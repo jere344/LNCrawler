@@ -8,7 +8,6 @@ from ..utils.title_signals import (
     effective_edition,
     normalize_edition,
     same_work,
-    same_work_titles,
     sequel_number,
 )
 
@@ -47,29 +46,6 @@ class SequelNumberTests(SimpleTestCase):
 
     def test_no_sequel(self):
         self.assertIsNone(sequel_number("Foo"))
-
-
-class SameWorkTests(SimpleTestCase):
-    def test_article_only_difference_is_the_same_work(self):
-        self.assertTrue(same_work_titles("The Foo", "Foo"))
-
-    def test_sequel_is_a_different_work(self):
-        self.assertFalse(same_work_titles("Foo", "Foo 2"))
-
-    def test_edition_is_a_different_work(self):
-        self.assertFalse(same_work_titles("Foo (WN)", "Foo (LN)"))
-
-    def test_same_edition_marker_is_the_same_work(self):
-        self.assertTrue(same_work_titles("Foo (WN)", "Foo (WN)"))
-
-    def test_same_work_titles_is_same_work_without_editions(self):
-        pairs = [
-            ("The Foo", "Foo"), ("Foo", "Foo 2"), ("Foo (WN)", "Foo (LN)"),
-            ("Foo (WN)", "Foo (WN)"), ("Foo (WN) (LN)", "Foo"), ("Foo", "Foo (WN) (LN)"),
-            ("Foo (WN) (LN)", "Foo (WN) (LN)"), ("Foo", "Bar"),
-        ]
-        for a, b in pairs:
-            self.assertEqual(same_work_titles(a, b), same_work(a, "", b, ""), (a, b))
 
 
 class EditionNormalizationTests(SimpleTestCase):

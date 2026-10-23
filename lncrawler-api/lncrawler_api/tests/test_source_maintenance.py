@@ -562,13 +562,6 @@ class ReadChaptersNoExtractTests(TestCase):
             ["json/00002.json", "json/00003.json"],
         )
 
-    def test_single_chapter_wrapper_returns_dict(self):
-        fake_run, _ = _fake_7z_extract({"json/00007.json": self._member(7)})
-        with patch("subprocess.run", side_effect=fake_run):
-            chapter = chapter_utils.read_chapter_no_extract(self.tmp, 7)
-
-        self.assertEqual(chapter, {"title": "c7", "body": "<p>hi</p>"})
-
     def test_real_7z_batch_reads_without_extracting(self):
         if not shutil.which("7z"):
             self.skipTest("7z not available")

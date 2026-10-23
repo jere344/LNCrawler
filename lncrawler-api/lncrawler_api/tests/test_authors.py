@@ -24,7 +24,7 @@ from ..services.llm_service import LLMParseError
 from ..services.llm_tasks import REGISTRY, settle
 from ..services.merge_common import sorted_pk_signature
 from ..services.merge_service import MergeError
-from ..utils.author_names import is_bracketed_original, normalize_author, romanization_fits, script_runs
+from ..utils.author_names import is_bracketed_original, normalize_author, romanization_fits
 from ..views.novels_views import _author_ids
 
 
@@ -75,13 +75,6 @@ class AuthorNameTests(SimpleTestCase):
     def test_normalize_keeps_cjk_and_brackets(self):
         self.assertEqual(normalize_author("爱潜水的乌贼"), "爱潜水的乌贼")
         self.assertEqual(normalize_author("Pen (Real)"), "pen (real)")
-
-    def test_script_runs_only_for_mixed_names_without_separator(self):
-        runs = script_runs("Cuttlefish That Loves Diving 爱潜水的乌贼")
-        self.assertEqual(len(runs), 2)
-        self.assertEqual(runs[0], "cuttlefish that loves diving")
-        self.assertEqual(script_runs("Okina Baba and Tsukasa Kiryu"), [])
-        self.assertEqual(script_runs("Okina Baba"), [])
 
     def test_bracketed_original(self):
         self.assertTrue(is_bracketed_original("Lucky Old Cat", "Lucky Old Cat（天运老猫）"))
@@ -346,15 +339,6 @@ class AuthorFinderTests(TestCase):
         candidate = author_rows().get()
         self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
         self.assertEqual(candidate.signals["rule"], "normalized")
-
-    def test_dry_run_writes_nothing(self):
-        Author.objects.create(name="I Eat Tomatoes")
-        Author.objects.create(name="i eat  tomatoes")
-
-        call_command("find_author_candidates", "--dry-run")
-
-        self.assertEqual(Author.objects.count(), 2)
-        self.assertEqual(author_rows().count(), 0)
 
     def test_refused_merge_goes_back_to_review_with_the_alias_reason(self):
         first = Author.objects.create(name="I Eat Tomatoes")

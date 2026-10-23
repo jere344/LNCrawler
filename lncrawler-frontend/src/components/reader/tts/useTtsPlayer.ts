@@ -18,7 +18,6 @@ import {
   isBrowserSpeechSupported,
   pickBrowserVoice,
   speak,
-  voicesForLang,
 } from './browserSpeech';
 import {
   cancelJobs,
@@ -97,7 +96,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const [errorKind, setErrorKind] = useState<TtsErrorKind | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [chunkIndex, setChunkIndex] = useState(-1);
-  const [chunkCount, setChunkCount] = useState(0);
   const [blockIndex, setBlockIndex] = useState(-1);
   const [blockCount, setBlockCount] = useState(0);
   const [download, setDownload] = useState<{ loaded: number; total: number } | null>(null);
@@ -212,7 +210,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     const { prefs: p, chapterTitle: title } = argsRef.current;
     const doc = buildDocument(root, { lang: argsRef.current.lang, skipNotes: p.ttsSkipNotes, title: p.ttsReadTitle ? title : undefined });
     docRef.current = doc;
-    setChunkCount(doc.chunks.length);
     setBlockCount(doc.blockCount);
     clearPrefetch();
     return doc;
@@ -794,14 +791,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- wake lock helpers use refs only
   }, []);
 
-  // Device voices available for the current language (for warnings).
-  const [hasBrowserVoice, setHasBrowserVoice] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    getBrowserVoices().then(v => { if (!cancelled) setHasBrowserVoice(voicesForLang(v, lang).length > 0); });
-    return () => { cancelled = true; };
-  }, [lang]);
-
   const blockProgress = blockCount > 0 && blockIndex >= 0 ? (blockIndex + 1) / blockCount : 0;
   const currentBlockNumber = (() => {
     const doc = docRef.current;
@@ -821,10 +810,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     engine,
     neuralVoice,
     neuralFallback,
-    hasBrowserVoice,
     download,
     chunkIndex,
-    chunkCount,
     paragraph: currentBlockNumber,
     paragraphCount: readableBlocks,
     progress: blockProgress,

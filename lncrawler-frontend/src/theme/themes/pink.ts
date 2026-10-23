@@ -367,7 +367,6 @@ export const getPinkTheme = () =>
 
 export const pinkTheme: ThemeOption = {
     id: "pink",
-    name: "Pink",
     isDark: false,
     getTheme: getPinkTheme,
     hidden: true,

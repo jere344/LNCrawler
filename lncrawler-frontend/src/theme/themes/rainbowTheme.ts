@@ -234,7 +234,6 @@ export const getRainbowTheme = () =>
 
 export const rainbowTheme: ThemeOption = {
     id: "rainbow",
-    name: "Rainbow",
     isDark: false,
     getTheme: getRainbowTheme,
     hidden: true,

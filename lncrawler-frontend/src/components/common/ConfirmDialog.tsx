@@ -7,7 +7,6 @@ interface ConfirmDialogProps {
   title: string;
   message: ReactNode;
   confirmLabel: string;
-  cancelLabel?: string;
   confirmColor?: 'primary' | 'error';
   loading?: boolean;
   onConfirm: () => void;
@@ -20,7 +19,6 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   title,
   message,
   confirmLabel,
-  cancelLabel,
   confirmColor = 'primary',
   loading = false,
   onConfirm,
@@ -35,7 +33,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <Typography>{message}</Typography>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{cancelLabel ?? t('common.cancel')}</Button>
+        <Button onClick={onClose}>{t('common.cancel')}</Button>
         <Button color={confirmColor} variant="contained" onClick={onConfirm} disabled={loading}>
           {confirmLabel}
         </Button>

@@ -6,21 +6,13 @@
     "delete": "Удалить",
     "edit": "Редактировать",
     "share": "Поделиться",
-    "back": "Назад",
     "home": "Главная",
     "unknown": "Неизвестно",
-    "loading": "Загрузка...",
     "viewMore": "Показать больше",
     "showMore": "Показать больше",
     "showLess": "Показать меньше",
     "na": "Н/Д",
     "breadcrumb": "навигационная цепочка",
-    "menu": "меню",
-    "login": "Войти",
-    "register": "Регистрация",
-    "profile": "Профиль",
-    "logout": "Выйти",
-    "account": "Аккаунт",
     "seeMore": "Показать больше",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Глава {number}",
     "comments": "{count, plural, =0 {Нет комментариев} one {# комментарий} few {# комментария} many {# комментариев} other {# комментария}}",
     "chapters": "{count, plural, one {# глава} few {# главы} many {# глав} other {# главы}}",
-    "novels": "{count, plural, one {# роман} few {# романа} many {# романов} other {# романа}}",
     "imagesCount": "{count, plural, one {# изображение} few {# изображения} many {# изображений} other {# изображения}}",
     "volumes": "{count, plural, one {# том} few {# тома} many {# томов} other {# тома}}",
-    "items": "{count, plural, one {# элемент} few {# элемента} many {# элементов} other {# элемента}}",
-    "ratings": "{count, plural, one {# оценка} few {# оценки} many {# оценок} other {# оценки}}",
     "stars": "{count, plural, one {# звезда} few {# звезды} many {# звёзд} other {# звезды}}",
-    "replies": "{count, plural, one {# ответ} few {# ответа} many {# ответов} other {# ответа}}",
     "unreadChapters": "{count, plural, one {# непрочитанная глава} few {# непрочитанные главы} many {# непрочитанных глав} other {# непрочитанные главы}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Не удалось загрузить данные профиля. Пожалуйста, попробуйте ещё раз.",
-    "failedLoadReviews": "Не удалось загрузить ваши отзывы. Пожалуйста, попробуйте ещё раз.",
-    "failedLoadLists": "Не удалось загрузить ваши списки чтения. Пожалуйста, попробуйте ещё раз.",
     "updatedSuccess": "Профиль успешно обновлён!",
     "updateFailed": "Не удалось обновить профиль. Пожалуйста, попробуйте ещё раз.",
     "passwordChanged": "Пароль успешно изменён!",
     "passwordChangeFailed": "Не удалось изменить пароль. Пожалуйста, попробуйте ещё раз.",
-    "heading": "Профиль",
     "changePhoto": "Изменить фото",
     "email": "Электронная почта",
     "editProfile": "Редактировать профиль",
@@ -157,14 +142,8 @@
     "security": "Безопасность",
     "changePassword": "Изменить пароль",
     "currentPassword": "Текущий пароль",
-    "myReadingLists": "Мои списки чтения",
-    "noReadingLists": "Вы ещё не создали ни одного списка чтения.",
-    "browseReadingLists": "Просмотреть списки чтения",
-    "myReviews": "Мои отзывы",
-    "noReviews": "Вы ещё не написали ни одного отзыва.",
     "bio": "О себе",
     "changeBanner": "Изменить баннер",
-    "viewPublicProfile": "Посмотреть публичный профиль",
     "notFound": "Пользователь не найден.",
     "privateSection": "Этот раздел приватный.",
     "emptySection": "Здесь пока нечего показать.",
@@ -195,8 +174,7 @@
       "library": "Библиотека",
       "readingLists": "Списки чтения",
       "reviews": "Рецензии",
-      "comments": "Комментарии",
-      "friends": "Друзья"
+      "comments": "Комментарии"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Выберите языки для отображения на главной странице",
     "contentHelper": "На главной странице смешиваются романы на всех выбранных вами языках. Оставьте пустым, чтобы показывать все языки."
   },
-  "readingStats": {
-    "heading": "Статистика чтения",
-    "progress": "Прогресс чтения",
-    "onlyBookmarked": "Включать только добавленные в закладки романы",
-    "chaptersRead": "Глав прочитано:",
-    "chaptersLeft": "Глав осталось:",
-    "percentComplete": "{percent}% завершено",
-    "totalWordsRead": "Всего слов прочитано",
-    "approxPages": "Примерно {count, plural, one {# страница} few {# страницы} many {# страниц} other {# страницы}}"
-  },
   "home": {
     "loadFailed": "Не удалось загрузить данные главной страницы. Пожалуйста, попробуйте позже.",
     "introHeading": "Ищете отличное место для чтения ранобэ?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Ваша библиотека",
     "empty": "Ваша библиотека пуста",
     "emptyHint": "Добавляйте романы в закладки, чтобы они появились в вашей библиотеке.",
-    "bookmarks": "Ваши закладки",
     "recommended": "Рекомендовано для вас",
     "notRated": "Без оценки",
     "editNote": "Редактировать заметку",
@@ -311,7 +278,6 @@
     "sortBy": "Сортировать по",
     "mirrorHidden": "Этот пользователь скрывает свои заметки и/или оценки.",
     "select": "Выбрать",
-    "selectAll": "Выбрать все",
     "selectedCount": "{count, plural, one {Выбрано #} few {Выбрано #} many {Выбрано #} other {Выбрано #}}",
     "clearSelection": "Очистить",
     "moveTo": "Переместить в",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {Удалить # роман из вашей библиотеки?} few {Удалить # романа из вашей библиотеки?} many {Удалить # романов из вашей библиотеки?} other {Удалить # романа из вашей библиотеки?}} Это действие нельзя отменить.",
     "addNote": "Добавить заметку",
     "moreActions": "Другие действия",
-    "dragToFolder": "Перетащите роман в папку, чтобы отнести его туда",
     "sort": {
       "custom": "Особый порядок",
       "title": "Название",
@@ -355,7 +320,6 @@
     "authors": "Авторы",
     "authorsPlaceholder": "Введите для поиска авторов...",
     "language": "Язык",
-    "any": "Любой",
     "minimumRating": "Минимальный рейтинг",
     "clear": "Очистить",
     "sortBy": "Сортировать по",
@@ -379,7 +343,6 @@
     "languageFilter": "Язык:",
     "ratingFilter": "Мин. рейтинг: {rating}",
     "sortFilter": "Сортировка: {sortBy} ({sortOrder})",
-    "searching": "Поиск...",
     "foundCount": "{count, plural, =0 {Романы не найдены} one {Найден # роман} few {Найдено # романа} many {Найдено # романов} other {Найдено # романа}}",
     "noResults": "Романы, соответствующие вашим критериям, не найдены",
     "noResultsHint": "Попробуйте изменить фильтры или поисковые запросы",
@@ -387,10 +350,8 @@
     "noAuthors": "Авторы не найдены",
     "loading": "Загрузка...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Результаты поиска | LNCrawler",
     "metaDefaultTitle": "Поиск ранобэ | LNCrawler",
     "metaQueryTitle": "Результаты поиска по запросу \"{query}\" | LNCrawler",
-    "metaSearchingTitle": "Поиск... | LNCrawler",
     "metaDescription": "Ищите и находите огромную коллекцию азиатских ранобэ на LNCrawler. Фильтруйте по тегам, авторам, языку и многому другому.",
     "metaQueryDescription": "Найдите ранобэ, соответствующие запросу \"{query}\". {count, plural, =0 {} one {Найден # результат.} few {Найдено # результата.} many {Найдено # результатов.} other {Найдено # результата.}} Изучайте на LNCrawler.",
     "metaKeywords": "поиск ранобэ, найти веб-романы, поиск LNCrawler, поиск романов"
@@ -424,7 +385,6 @@
     "heading": "Галерея изображений",
     "countFrom": "{count} изображений из {novel}",
     "showSmall": "Показать маленькие изображения (отфильтровано {count})",
-    "loadingDimensions": "Загрузка размеров изображений...",
     "noImagesFiltered": "Нет изображений для отображения с текущими настройками фильтра.",
     "noImagesPage": "На этой странице галереи изображения не найдены.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Продолжить чтение",
     "continueFrom": "Продолжить с {chapter}",
     "chapterList": "Список глав",
-    "viewAllChapters": "Просмотреть все {count} глав",
     "browseAllChapters": "Просмотреть все главы",
     "imageGallery": "Галерея изображений",
-    "browseAllImages": "Просмотреть все изображения",
     "viewImageGallery": "Открыть галерею изображений",
     "download": "Скачать",
-    "downloadEpub": "Скачать как EPUB",
     "downloadTooltip": "Скачать этот роман в виде файла EPUB",
     "downloadFull": "Полный роман",
     "volumeN": "Том {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Загрузка источника романа | LNCrawler",
     "metaDescription": "Читайте {title} из {source}. Синопсис: {synopsis}",
     "metaLoadingDescription": "Загрузка деталей этого источника романа на LNCrawler."
-  },
-  "rating": {
-    "noRatings": "Нет оценок"
-  },
-  "tags": {
-    "more": "+{count} ещё"
   },
   "updateButton": {
     "startFailed": "Не удалось запустить задачу обновления.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Далее: {next}",
     "unknownLanguage": "Неизвестный язык",
     "authors": "Авторы",
-    "totalChapters": "Всего глав",
     "availableChapters": "Доступные главы",
     "views": "Просмотры",
     "lastUpdated": "Последнее обновление",
     "weekly": "(За неделю)",
     "allTimes": "(За всё время)",
-    "thisWeek": "(На этой неделе)",
-    "votes": "(Голосов: {count})",
     "rank": "Место {rank}",
-    "added": "Добавлено {time}",
     "chaptersCount": "{count} глав",
     "removeFromHistory": "Удалить из истории",
     "lastRead": "Последнее чтение:",
@@ -700,7 +647,6 @@
     "removeFromList": "Удалить из списка",
     "hot": "ХИТ",
     "viewsThisWeek": "{count} просмотров за эту неделю",
-    "allTimeViews": "Просмотры за всё время",
     "tags": "Теги"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Открыть настройки читалки",
     "chapterComments": "Комментарии к главе",
     "markedRead": "Глава успешно отмечена как прочитанная!",
-    "unlockScrolling": "Разблокировать прокрутку",
-    "lockScrolling": "Заблокировать прокрутку",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Страница {current} из {total}",
     "listen": "Слушать"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Макет",
     "gestures": "Жесты",
     "behavior": "Поведение",
-    "pageMode": "Режим страниц",
     "import": "Импорт",
     "export": "Экспорт",
     "resetDefaults": "Сбросить до значений по умолчанию",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Только когда проигрыватель открыт.",
     "keepScreenOn": "Не выключать экран",
     "keepScreenOnHint": "Во время озвучивания. Отключите, чтобы экономить заряд; на большинстве устройств звук продолжает играть."
-  },
-  "pageSettings": {
-    "enablePageMode": "Включить режим страниц",
-    "enablePageModeHint": "Переключиться с прокрутки на чтение по страницам",
-    "pageMarginHorizontal": "Горизонтальный отступ: {margin}%",
-    "pageMarginVertical": "Вертикальный отступ: {margin}%",
-    "pageColumnGap": "Расстояние между колонками: {gap}px",
-    "showPageNumbers": "Показывать номера страниц",
-    "showPageNumbersHint": "Отображать текущую страницу и общее количество страниц",
-    "showPageSlider": "Показывать ползунок страниц",
-    "showPageSliderHint": "Отображать ползунок для быстрого перехода между страницами"
   },
   "themes": {
     "light": "Светлая",

@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
+import { API_BASE_URL } from './config';
 
 // Errors already sent this session, so a render/loop that throws on every
 // frame does not flood the backend.
@@ -60,7 +60,7 @@ const topFrame = (stack: string): string =>
 const isExtensionError = (stack: string): boolean =>
   EXTENSION_ORIGIN.test(topFrame(stack)) || isInjectedScript(stack);
 
-export interface ErrorContext {
+interface ErrorContext {
   url?: string;
   context?: string;
 }

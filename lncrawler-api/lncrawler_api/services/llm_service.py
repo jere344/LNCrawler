@@ -4,10 +4,10 @@ Any OpenAI-compatible chat-completions endpoint works (Cloudflare, Cerebras, Gem
 OpenAI, Ollama). Providers form an ordered fallback chain (``LLM_PROVIDERS``, see
 ``providers()``): a call goes to the first provider that is configured, not cooling
 down and under its limits. A 429 or an outage puts that provider on cooldown
-(``LLMProviderCooldown``) and the same call is sent to the next one. Without
-``LLM_PROVIDERS``, ``LLM_PROVIDER`` alone is the chain. With no API key configured
-the service reports ``is_configured() == False`` and everything degrades to the
-deterministic review queue. A task's JSON schema is sent as ``response_format``
+(``LLMProviderCooldown``) and the same call is sent to the next one. With no chain
+configured (``LLM_PROVIDERS`` empty, or no API key on any provider) the service
+reports ``is_configured() == False`` and everything degrades to the deterministic
+review queue. A task's JSON schema is sent as ``response_format``
 (structured output) unless the provider sets ``json_schema`` to false.
 
 Calls are made from the LLM workflows in services/llm_tasks.py (run through the
@@ -44,8 +44,6 @@ PROVIDER_URLS = {
 # Providers that run locally and need no API key.
 KEYLESS_PROVIDERS = {"ollama"}
 
-# Single-provider mode, 429 without Retry-After: the old runner default.
-LEGACY_COOLDOWN = 60
 # A provider that is down or refuses the key (401/402/403/5xx/network) is skipped this long.
 UNAVAILABLE_COOLDOWN = 300
 # Provider of the LLMCall rows migration 0097 copied from the old request log (history only).
@@ -124,9 +122,6 @@ class Provider:
     requests_per_minute: int | None
     tokens_per_minute: int | None
     cooldown: int
-    # The legacy single provider counts every LLMCall row, so rows written before
-    # the provider column existed still count.
-    shared_usage: bool
     # Provider-specific fields merged into every request body (e.g. turning thinking off).
     extra_body: dict = field(default_factory=dict)
     # False for a provider that rejects response_format.
@@ -137,36 +132,8 @@ class Provider:
         return bool(self.url and self.model) and (self.name in KEYLESS_PROVIDERS or bool(self.api_key))
 
 
-def provider_url(provider=None):
-    override = settings.LLM_BASE_URL
-    if override:
-        return override
-    provider = provider or settings.LLM_PROVIDER
-    return PROVIDER_URLS.get(provider)
-
-
-def _legacy_provider(name=None):
-    name = name or settings.LLM_PROVIDER
-    return Provider(
-        name=name,
-        url=provider_url(name),
-        api_key=settings.LLM_API_KEY,
-        model=settings.LLM_MODEL,
-        reasoning_effort=settings.LLM_REASONING_EFFORT,
-        daily_requests=settings.LLM_DAILY_REQUESTS,
-        daily_tokens=settings.LLM_DAILY_TOKENS,
-        requests_per_minute=settings.LLM_REQUESTS_PER_MINUTE,
-        tokens_per_minute=settings.LLM_TOKENS_PER_MINUTE,
-        cooldown=LEGACY_COOLDOWN,
-        shared_usage=True,
-        json_schema=settings.LLM_JSON_SCHEMA,
-    )
-
-
 def providers():
-    """The fallback chain, in the order it is tried."""
-    if not settings.LLM_PROVIDERS:
-        return [_legacy_provider()]
+    """The fallback chain, in the order it is tried. Empty when no LLM_PROVIDERS are set."""
     chain = []
     for name in settings.LLM_PROVIDERS:
         entry = settings.LLM_PROVIDER_SETTINGS[name]
@@ -181,7 +148,6 @@ def providers():
             requests_per_minute=entry["requests_per_minute"],
             tokens_per_minute=entry["tokens_per_minute"],
             cooldown=entry["cooldown"],
-            shared_usage=False,
             extra_body=entry.get("extra_body") or {},
             json_schema=entry.get("json_schema", True),
         ))
@@ -310,32 +276,26 @@ def _log_call(purpose, provider, model, prompt_version, candidate_ids, tokens, r
     )
 
 
-def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout=None, session=None,
-               response_schema=None, candidate_ids=None, prompt_version=""):
-    """POST one chat-completions request. Returns ``(content, total_tokens, call)``.
+def _post_chat(messages, max_tokens, purpose, provider, session=None, response_schema=None,
+               candidate_ids=None, prompt_version=""):
+    """POST one chat-completions request to ``provider``. Returns ``(content, total_tokens, call)``.
 
-    ``provider`` is a ``Provider`` of the chain, a provider name or None (the legacy
-    single provider). ``response_schema`` is sent as structured output when the
-    provider takes it. Every response the provider returned (HTTP 200, truncated ones
-    included) is written as an ``LLMCall`` under ``purpose`` (the task name), with the
-    provider that answered and ``candidate_ids``. A 429 or other HTTP error is not
-    charged and writes nothing. A reply cut off by the token cap, or empty, raises
-    ``LLMTruncated``. A 429 raises ``RateLimited``; a 401/402/403, 5xx or network
-    error raises ``ProviderUnavailable``.
+    ``response_schema`` is sent as structured output when the provider takes it. Every
+    response the provider returned (HTTP 200, truncated ones included) is written as an
+    ``LLMCall`` under ``purpose`` (the task name), with the provider that answered and
+    ``candidate_ids``. A 429 or other HTTP error is not charged and writes nothing. A
+    reply cut off by the token cap, or empty, raises ``LLMTruncated``. A 429 raises
+    ``RateLimited``; a 401/402/403, 5xx or network error raises ``ProviderUnavailable``.
     """
-    if not isinstance(provider, Provider):
-        provider = _legacy_provider(provider)
     if not provider.url:
         raise LLMError(f"unknown LLM provider: {provider.name}")
-    model = model or provider.model
-    timeout = timeout or settings.LLM_TIMEOUT
 
     headers = {"Content-Type": "application/json"}
     key = provider.api_key
     if key:
         headers["Authorization"] = f"Bearer {key}"
     body = {
-        "model": model,
+        "model": provider.model,
         "temperature": 0,
         "max_tokens": max_tokens,
         "messages": messages,
@@ -352,7 +312,7 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
 
     poster = (session or requests).post
     try:
-        resp = poster(provider.url, headers=headers, json=body, timeout=timeout)
+        resp = poster(provider.url, headers=headers, json=body, timeout=settings.LLM_TIMEOUT)
     except requests.RequestException as exc:
         raise ProviderUnavailable(f"{type(exc).__name__}: {exc}") from exc
     if resp.status_code == 429:
@@ -365,7 +325,7 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
         payload = resp.json()
     except ValueError as exc:
         error = f"non-JSON response (HTTP {resp.status_code}): {resp.text[:300]}"
-        _log_call(purpose, provider, model, prompt_version, candidate_ids, 0, resp.text, error)
+        _log_call(purpose, provider, provider.model, prompt_version, candidate_ids, 0, resp.text, error)
         raise LLMError(error) from exc
 
     total_tokens = _total_tokens(payload)
@@ -374,7 +334,7 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
         content = choice["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
         error = f"unexpected response shape: {payload}"
-        _log_call(purpose, provider, model, prompt_version, candidate_ids, total_tokens, resp.text, error)
+        _log_call(purpose, provider, provider.model, prompt_version, candidate_ids, total_tokens, resp.text, error)
         raise LLMError(error) from exc
     finish_reason = choice.get("finish_reason")
     if finish_reason == "length" or not isinstance(content, str) or not content.strip():
@@ -383,19 +343,19 @@ def _post_chat(messages, max_tokens, purpose, provider=None, model=None, timeout
             f"LLM reply truncated or empty (finish_reason={finish_reason!r}, "
             f"completion_tokens={completion}, total_tokens={total_tokens})"
         )
-        _log_call(purpose, provider, model, prompt_version, candidate_ids, total_tokens, resp.text, error)
+        _log_call(purpose, provider, provider.model, prompt_version, candidate_ids, total_tokens, resp.text, error)
         raise LLMTruncated(error)
-    call = _log_call(purpose, provider, model, prompt_version, candidate_ids, total_tokens, resp.text)
+    call = _log_call(purpose, provider, provider.model, prompt_version, candidate_ids, total_tokens, resp.text)
     return content, total_tokens, call
 
 
 def _usage(provider=None):
-    """LLMCall rows charged to ``provider`` (every row for the legacy single provider).
+    """LLMCall rows charged to ``provider``, or every row when None (the admin's global view).
 
     Rows of the old request log copied by migration 0097 (``REQUEST_LOG_PROVIDER``)
     are not counted: the copied usage rows of the same replies already are.
     """
-    if provider is None or provider.shared_usage:
+    if provider is None:
         return LLMCall.objects.exclude(provider=REQUEST_LOG_PROVIDER)
     return LLMCall.objects.filter(provider=provider.name)
 
@@ -407,14 +367,11 @@ def tokens_used_today(provider=None):
     return used["total"] or 0
 
 
-def token_budget_left(provider=None):
-    """Tokens left in today's budget. Negative once it is overspent.
+def token_budget_left(provider):
+    """Tokens left in today's budget of ``provider``. Negative once it is overspent.
 
-    Without a provider: the shared LLM_DAILY_TOKENS. With one: its daily_tokens cap,
-    which must not be None.
+    Its daily_tokens cap, which must not be None.
     """
-    if provider is None:
-        return settings.LLM_DAILY_TOKENS - tokens_used_today()
     return provider.daily_tokens - tokens_used_today(provider)
 
 
@@ -543,26 +500,3 @@ def chat(messages, max_tokens, purpose, session=None, response_schema=None, cand
     exc = RateLimited(retry_after=retry_after)
     exc.reason = "; ".join(reasons)
     raise exc
-
-
-def _cap_text(cap):
-    return "no cap" if cap is None else str(cap)
-
-
-def _budget_segment(provider):
-    minute_requests, minute_tokens = minute_usage(provider)
-    segment = (
-        f"{provider.name}: {requests_used_today(provider)}/{_cap_text(provider.daily_requests)} requests, "
-        f"{tokens_used_today(provider)}/{_cap_text(provider.daily_tokens)} tokens, "
-        f"{minute_requests}/{_cap_text(provider.requests_per_minute)} requests and "
-        f"{minute_tokens}/{_cap_text(provider.tokens_per_minute)} tokens in the last minute"
-    )
-    until = cooldown_until(provider)
-    if until:
-        segment += f", cooling down until {timezone.localtime(until):%H:%M:%S}"
-    return segment
-
-
-def budget_status():
-    """Today's usage of each configured provider against its caps, for log lines."""
-    return "; ".join(_budget_segment(p) for p in providers() if p.configured)

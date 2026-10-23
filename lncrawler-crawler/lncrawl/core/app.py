@@ -44,9 +44,7 @@ class App:
         self.crawler_links: List = []
         self.search_results: List[dict] = []
         self.output_path = ""
-        self.pack_by_volume = False
         self.chapters: List[Chapter] = []
-        self.output_formats: dict = {}
         self.good_file_name = ""
 
     def destroy(self) -> None:

@@ -1,8 +1,7 @@
 import { reportError } from './errorReporter';
 import { getCookie } from '../utils/cookies';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../utils/storage';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8185';
+import { API_BASE_URL } from './config';
 
 interface RequestConfig {
   headers?: Record<string, string>;

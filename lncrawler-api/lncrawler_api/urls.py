@@ -11,7 +11,6 @@ from .views.sitemap import (
     NovelSitemap,
     SourceSitemap,
     ChapterListSitemap,
-    # ChapterReaderSitemap,
     ImageGallerySitemap,
 )
 
@@ -24,7 +23,6 @@ sitemaps = {
     'novels': NovelSitemap,
     'sources': SourceSitemap,
     'chapterlists': ChapterListSitemap,
-    # 'chapters': ChapterReaderSitemap,
     'galleries': ImageGallerySitemap,
 }
 
@@ -83,7 +81,6 @@ urlpatterns = [
     path('reviews/<uuid:review_id>/', reviews_views.review_detail, name='review_detail'),
     path('reviews/<uuid:review_id>/reactions/add/', reviews_views.add_reaction, name='add_reaction'),
     path('reviews/<uuid:review_id>/reactions/remove/', reviews_views.remove_reaction, name='remove_reaction'),
-    path('users/reviews/', reviews_views.user_reviews, name='user_reviews'),
 
     # Novel detail and source endpoints
     path('novels/<slug:novel_slug>/', novels_views.novel_detail_by_slug, name='novel_detail_by_slug'),

@@ -130,7 +130,6 @@ export const getOceanicTheme = () => makeTheme(oceanicTokens);
 
 export const oceanicTheme: ThemeOption = {
     id: "oceanic",
-    name: "Oceanic",
     isDark: true,
     getTheme: getOceanicTheme,
     hidden: false,

@@ -167,7 +167,7 @@ export function buildDocument(root: HTMLElement, opts: BuildOptions): TtsDocumen
 }
 
 /** DOM Range covering [start, end) of a block's text. */
-export function rangeFor(el: HTMLElement, start: number, end: number): Range | null {
+function rangeFor(el: HTMLElement, start: number, end: number): Range | null {
   const nodes = textNodes(el);
   const range = document.createRange();
   let offset = 0;
@@ -221,7 +221,7 @@ const highlightRegistry = (): HighlightRegistry | null =>
 const HighlightCtor = (): (new (...ranges: Range[]) => unknown) | null =>
   (window as unknown as { Highlight?: new (...ranges: Range[]) => unknown }).Highlight ?? null;
 
-export const supportsSentenceHighlight = () => !!highlightRegistry() && !!HighlightCtor();
+const supportsSentenceHighlight = () => !!highlightRegistry() && !!HighlightCtor();
 
 /** Inject the highlight styles; colors come from the MUI theme. */
 export function ensureHighlightStyle(blockColor: string, sentenceColor: string): void {

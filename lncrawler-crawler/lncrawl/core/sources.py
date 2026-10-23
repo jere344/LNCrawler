@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 crawler_list: List[Type[Crawler]] = []
 crawler_map: Dict[str, Type[Crawler]] = {}
-rejected_sources: List[str] = []
 _loaded = False
 
 # Lazy source index: host -> source file. Built from a static AST scan of the
@@ -299,21 +298,12 @@ def get_crawler_by_url(url: str) -> Optional[Type[Crawler]]:
     return cls if cls is not None and _is_usable(cls) else None
 
 
-def prepare_crawler(url: str, crawler_file: Optional[str] = None) -> Crawler:
+def prepare_crawler(url: str) -> Crawler:
     """Instantiate the right crawler for the given novel URL."""
-    if crawler_file:
-        module = _import_module_from_path(crawler_file)
-        if module is None:
-            raise ValueError(f"Could not load crawler file: {crawler_file}")
-        classes = _apply_module(crawler_file, module)
-        if not classes:
-            raise ValueError(f"No crawler found in {crawler_file}")
-        crawler_type = classes[0]
-    else:
-        crawler_type = get_crawler_by_url(url)
-        if crawler_type is None:
-            host = urlparse(url).hostname
-            raise ValueError(f"No crawler available for host: {host}")
+    crawler_type = get_crawler_by_url(url)
+    if crawler_type is None:
+        host = urlparse(url).hostname
+        raise ValueError(f"No crawler available for host: {host}")
 
     crawler = crawler_type()
     crawler.novel_url = url

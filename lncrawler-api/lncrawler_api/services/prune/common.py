@@ -3,12 +3,11 @@
 import logging
 from datetime import timedelta
 
+from lncrawler_api.utils.chapter_utils import FAIL_MESSAGE
 from lncrawler_api.utils.lncrawler_paths import sanitize
 from lncrawler_api.utils.text import strip_html
 
 logger = logging.getLogger("lncrawler_api")
-
-FAIL_MESSAGE = "Failed to download chapter body"
 
 # A novel is never pruned before it has had time to settle, so a fresh crawl
 # (or a bad first import) cannot be wiped before it is even reviewed.

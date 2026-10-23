@@ -261,7 +261,6 @@ export const getWindows98Theme = () =>
 
 export const windows98Theme: ThemeOption = {
     id: "windows98",
-    name: "Windows 98",
     isDark: false,
     getTheme: getWindows98Theme,
     hidden: true,

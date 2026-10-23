@@ -6,21 +6,13 @@
     "delete": "हटाएं",
     "edit": "संपादित करें",
     "share": "साझा करें",
-    "back": "वापस",
     "home": "होम",
     "unknown": "अज्ञात",
-    "loading": "लोड हो रहा है...",
     "viewMore": "और देखें",
     "showMore": "और दिखाएं",
     "showLess": "कम दिखाएं",
     "na": "लागू नहीं",
     "breadcrumb": "ब्रेडक्रंब",
-    "menu": "मेनू",
-    "login": "लॉगिन",
-    "register": "रजिस्टर करें",
-    "profile": "प्रोफ़ाइल",
-    "logout": "लॉगआउट",
-    "account": "खाता",
     "seeMore": "और देखें",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "अध्याय {number}",
     "comments": "{count, plural, =0 {कोई टिप्पणी नहीं} one {# टिप्पणी} other {# टिप्पणियां}}",
     "chapters": "{count, plural, one {# अध्याय} other {# अध्याय}}",
-    "novels": "{count, plural, one {# उपन्यास} other {# उपन्यास}}",
     "imagesCount": "{count, plural, one {# छवि} other {# छवियां}}",
     "volumes": "{count, plural, one {# खंड} other {# खंड}}",
-    "items": "{count, plural, one {# आइटम} other {# आइटम}}",
-    "ratings": "{count, plural, one {# रेटिंग} other {# रेटिंग}}",
     "stars": "{count, plural, one {# सितारा} other {# सितारे}}",
-    "replies": "{count, plural, one {# जवाब} other {# जवाब}}",
     "unreadChapters": "{count, plural, one {# अपठित अध्याय} other {# अपठित अध्याय}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "प्रोफ़ाइल डेटा लोड करने में विफल। कृपया पुनः प्रयास करें।",
-    "failedLoadReviews": "आपकी समीक्षाएं लोड करने में विफल। कृपया पुनः प्रयास करें।",
-    "failedLoadLists": "आपकी पठन सूचियां लोड करने में विफल। कृपया पुनः प्रयास करें।",
     "updatedSuccess": "प्रोफ़ाइल सफलतापूर्वक अपडेट हुई!",
     "updateFailed": "प्रोफ़ाइल अपडेट करने में विफल। कृपया पुनः प्रयास करें।",
     "passwordChanged": "पासवर्ड सफलतापूर्वक बदला गया!",
     "passwordChangeFailed": "पासवर्ड बदलने में विफल। कृपया पुनः प्रयास करें।",
-    "heading": "प्रोफ़ाइल",
     "changePhoto": "फ़ोटो बदलें",
     "email": "ईमेल",
     "editProfile": "प्रोफ़ाइल संपादित करें",
@@ -157,14 +142,8 @@
     "security": "सुरक्षा",
     "changePassword": "पासवर्ड बदलें",
     "currentPassword": "मौजूदा पासवर्ड",
-    "myReadingLists": "मेरी पठन सूचियां",
-    "noReadingLists": "आपने अभी तक कोई पठन सूची नहीं बनाई है।",
-    "browseReadingLists": "पठन सूचियां ब्राउज़ करें",
-    "myReviews": "मेरी समीक्षाएं",
-    "noReviews": "आपने अभी तक कोई समीक्षा नहीं लिखी है।",
     "bio": "परिचय",
     "changeBanner": "बैनर बदलें",
-    "viewPublicProfile": "सार्वजनिक प्रोफ़ाइल देखें",
     "notFound": "उपयोगकर्ता नहीं मिला।",
     "privateSection": "यह अनुभाग निजी है।",
     "emptySection": "यहाँ अभी दिखाने के लिए कुछ नहीं है।",
@@ -195,8 +174,7 @@
       "library": "लाइब्रेरी",
       "readingLists": "पठन सूचियाँ",
       "reviews": "समीक्षाएँ",
-      "comments": "टिप्पणियाँ",
-      "friends": "मित्र"
+      "comments": "टिप्पणियाँ"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "होम पेज पर दिखाने के लिए भाषाएं चुनें",
     "contentHelper": "होम पेज आपकी चुनी हुई हर भाषा के उपन्यास मिलाता है। सभी भाषाएं दिखाने के लिए इसे खाली छोड़ें।"
   },
-  "readingStats": {
-    "heading": "पठन आंकड़े",
-    "progress": "पठन प्रगति",
-    "onlyBookmarked": "केवल बुकमार्क किए गए उपन्यास शामिल करें",
-    "chaptersRead": "पढ़े गए अध्याय:",
-    "chaptersLeft": "शेष अध्याय:",
-    "percentComplete": "{percent}% पूर्ण",
-    "totalWordsRead": "कुल पढ़े गए शब्द",
-    "approxPages": "लगभग {count, plural, one {# पृष्ठ} other {# पृष्ठ}}"
-  },
   "home": {
     "loadFailed": "होम पेज डेटा लोड करने में विफल। कृपया बाद में पुनः प्रयास करें।",
     "introHeading": "लाइट नॉवेल पढ़ने के लिए बेहतरीन जगह ढूंढ रहे हैं?",
@@ -294,7 +262,6 @@
     "yourLibrary": "आपकी लाइब्रेरी",
     "empty": "आपकी लाइब्रेरी खाली है",
     "emptyHint": "उपन्यासों को बुकमार्क करें ताकि वे आपकी लाइब्रेरी में जुड़ जाएं।",
-    "bookmarks": "आपके बुकमार्क",
     "recommended": "आपके लिए अनुशंसित",
     "notRated": "रेटिंग नहीं",
     "editNote": "नोट संपादित करें",
@@ -311,7 +278,6 @@
     "sortBy": "क्रमबद्ध करें",
     "mirrorHidden": "यह उपयोगकर्ता अपने नोट्स और/या रेटिंग निजी रखता है।",
     "select": "चुनें",
-    "selectAll": "सभी चुनें",
     "selectedCount": "{count, plural, one {# चयनित} other {# चयनित}}",
     "clearSelection": "साफ़ करें",
     "moveTo": "इसमें ले जाएँ",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {अपनी लाइब्रेरी से # उपन्यास हटाएँ?} other {अपनी लाइब्रेरी से # उपन्यास हटाएँ?}} इसे पूर्ववत नहीं किया जा सकता।",
     "addNote": "नोट जोड़ें",
     "moreActions": "और क्रियाएँ",
-    "dragToFolder": "किसी उपन्यास को फ़ोल्डर पर खींचकर उसे वर्गीकृत करें",
     "sort": {
       "custom": "कस्टम क्रम",
       "title": "शीर्षक",
@@ -355,7 +320,6 @@
     "authors": "लेखक",
     "authorsPlaceholder": "लेखक खोजने के लिए टाइप करें...",
     "language": "भाषा",
-    "any": "कोई भी",
     "minimumRating": "न्यूनतम रेटिंग",
     "clear": "साफ़ करें",
     "sortBy": "इसके अनुसार क्रमबद्ध करें",
@@ -379,7 +343,6 @@
     "languageFilter": "भाषा:",
     "ratingFilter": "न्यूनतम रेटिंग: {rating}",
     "sortFilter": "क्रम: {sortBy} ({sortOrder})",
-    "searching": "खोज हो रही है...",
     "foundCount": "{count, plural, =0 {कोई उपन्यास नहीं मिला} one {# उपन्यास मिला} other {# उपन्यास मिले}}",
     "noResults": "आपके मानदंडों से मेल खाता कोई उपन्यास नहीं मिला",
     "noResultsHint": "अपने फ़िल्टर या खोज शब्दों को बदलकर देखें",
@@ -387,10 +350,8 @@
     "noAuthors": "कोई लेखक नहीं मिला",
     "loading": "लोड हो रहा है...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "खोज परिणाम | LNCrawler",
     "metaDefaultTitle": "लाइट नॉवेल खोजें | LNCrawler",
     "metaQueryTitle": "\"{query}\" के लिए खोज परिणाम | LNCrawler",
-    "metaSearchingTitle": "खोज हो रही है... | LNCrawler",
     "metaDescription": "LNCrawler पर एशियाई लाइट नॉवेल के विशाल संग्रह को खोजें और जानें। टैग, लेखक, भाषा और बहुत कुछ से फ़िल्टर करें।",
     "metaQueryDescription": "\"{query}\" से मेल खाते लाइट नॉवेल खोजें। {count, plural, =0 {} one {# परिणाम मिला।} other {# परिणाम मिले।}} LNCrawler पर Explore करें।",
     "metaKeywords": "लाइट नॉवेल खोजें, वेब नॉवेल खोजें, LNCrawler खोज, उपन्यास खोज"
@@ -424,7 +385,6 @@
     "heading": "छवि गैलरी",
     "countFrom": "{novel} से {count} छवियां",
     "showSmall": "छोटी छवियां दिखाएं ({count} फ़िल्टर की गईं)",
-    "loadingDimensions": "छवि आयाम लोड हो रहे हैं...",
     "noImagesFiltered": "वर्तमान फ़िल्टर सेटिंग्स के साथ दिखाने के लिए कोई छवि नहीं।",
     "noImagesPage": "इस गैलरी पृष्ठ में कोई छवि नहीं मिली।",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "पढ़ना जारी रखें",
     "continueFrom": "{chapter} से जारी रखें",
     "chapterList": "अध्याय सूची",
-    "viewAllChapters": "सभी {count} अध्याय देखें",
     "browseAllChapters": "सभी अध्याय ब्राउज़ करें",
     "imageGallery": "छवि गैलरी",
-    "browseAllImages": "सभी छवियां ब्राउज़ करें",
     "viewImageGallery": "छवि गैलरी देखें",
     "download": "डाउनलोड",
-    "downloadEpub": "EPUB के रूप में डाउनलोड करें",
     "downloadTooltip": "इस उपन्यास को EPUB फ़ाइल के रूप में डाउनलोड करें",
     "downloadFull": "पूरा उपन्यास",
     "volumeN": "खंड {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "उपन्यास स्रोत लोड हो रहा है | LNCrawler",
     "metaDescription": "{source} से {title} पढ़ें। सारांश: {synopsis}",
     "metaLoadingDescription": "LNCrawler पर इस उपन्यास स्रोत का विवरण लोड हो रहा है।"
-  },
-  "rating": {
-    "noRatings": "कोई रेटिंग नहीं"
-  },
-  "tags": {
-    "more": "+{count} और"
   },
   "updateButton": {
     "startFailed": "अपडेट कार्य शुरू करने में विफल।",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. अगला: {next}",
     "unknownLanguage": "अज्ञात भाषा",
     "authors": "लेखक",
-    "totalChapters": "कुल अध्याय",
     "availableChapters": "उपलब्ध अध्याय",
     "views": "व्यूज़",
     "lastUpdated": "अंतिम अपडेट",
     "weekly": "(साप्ताहिक)",
     "allTimes": "(अब तक)",
-    "thisWeek": "(इस सप्ताह)",
-    "votes": "(वोट: {count})",
     "rank": "रैंक {rank}",
-    "added": "{time} जोड़ा गया",
     "chaptersCount": "{count} अध्याय",
     "removeFromHistory": "इतिहास से हटाएं",
     "lastRead": "अंतिम बार पढ़ा:",
@@ -700,7 +647,6 @@
     "removeFromList": "सूची से हटाएं",
     "hot": "हॉट",
     "viewsThisWeek": "इस सप्ताह {count} व्यूज़",
-    "allTimeViews": "अब तक के व्यूज़",
     "tags": "टैग"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "रीडर सेटिंग्स खोलें",
     "chapterComments": "अध्याय टिप्पणियां",
     "markedRead": "अध्याय सफलतापूर्वक पढ़ा हुआ चिह्नित हुआ!",
-    "unlockScrolling": "स्क्रॉलिंग अनलॉक करें",
-    "lockScrolling": "स्क्रॉलिंग लॉक करें",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "पृष्ठ {current} / {total}",
     "listen": "सुनें"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "लेआउट",
     "gestures": "जेस्चर",
     "behavior": "व्यवहार",
-    "pageMode": "पेज मोड",
     "import": "आयात करें",
     "export": "निर्यात करें",
     "resetDefaults": "डिफ़ॉल्ट पर रीसेट करें",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "केवल तब जब प्लेयर खुला हो।",
     "keepScreenOn": "स्क्रीन चालू रखें",
     "keepScreenOnHint": "पढ़कर सुनाने के दौरान। बैटरी बचाने के लिए बंद करें; ज़्यादातर डिवाइस पर ऑडियो चलता रहता है।"
-  },
-  "pageSettings": {
-    "enablePageMode": "पेज मोड सक्षम करें",
-    "enablePageModeHint": "स्क्रॉल आधारित से पेज आधारित पठन पर स्विच करें",
-    "pageMarginHorizontal": "क्षैतिज मार्जिन: {margin}%",
-    "pageMarginVertical": "लंबवत मार्जिन: {margin}%",
-    "pageColumnGap": "स्तंभ अंतराल: {gap}px",
-    "showPageNumbers": "पृष्ठ संख्याएं दिखाएं",
-    "showPageNumbersHint": "वर्तमान पृष्ठ और कुल पृष्ठ दिखाएं",
-    "showPageSlider": "पेज स्लाइडर दिखाएं",
-    "showPageSliderHint": "पृष्ठों के बीच तेज़ी से नेविगेट करने के लिए स्लाइडर दिखाएं"
   },
   "themes": {
     "light": "लाइट",

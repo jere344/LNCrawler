@@ -18,7 +18,6 @@ from ..models import (
     Candidate,
     ExternalSource,
     LLMCall,
-    LLMUsage,
     Novel,
     NovelFromSource,
     Tag,
@@ -47,6 +46,8 @@ from ..services.candidate_service import (
 from ..services.merge_common import sorted_pk_signature
 from ..utils.tag_utils import normalize_tag
 
+from .llm_helpers import llm_chain
+
 
 def tag_rows():
     """Every tag_merge candidate row."""
@@ -65,14 +66,14 @@ def tag_candidate(*tags, **extra):
     )
 
 
-def run_judge(reply, task="tag_merge", limit=None, **overrides):
+def run_judge(reply, task="tag_merge", limit=None, **caps):
     """Run ``run_llm`` for one task with ``reply`` as the model's answer.
 
     ``reply`` is an exception to raise, a str sent as-is, a dict sent as JSON, or a
     function of the messages returning one of those. ``limit`` caps the calls of the run.
+    ``caps`` are fields of the chain's provider (see ``llm_chain``).
     Returns the ``_post_chat`` mock, so a test can count the calls.
     """
-    settings_overrides = {"LLM_API_KEY": "test-key", **overrides}
 
     def post(messages, *args, **kwargs):
         value = reply(messages) if callable(reply) else reply
@@ -81,7 +82,7 @@ def run_judge(reply, task="tag_merge", limit=None, **overrides):
         content = value if isinstance(value, str) else json.dumps(value)
         return content, 10, None
 
-    with override_settings(**settings_overrides), \
+    with override_settings(**llm_chain(**caps)), \
             mock.patch.object(llm_service, "_post_chat", side_effect=post) as mocked:
         call_command("run_llm", task, limit=limit)
     return mocked
@@ -319,27 +320,6 @@ class TagAdultPropagationTests(TestCase):
         source.refresh_from_db()
         self.assertFalse(source.is_adult)
 
-    def test_recompute_flags_existing_links_to_r18_tag(self):
-        tag = Tag.objects.create(name="Yuri")
-        source = self._source("http://s/3")
-        source.tags.add(tag)
-        Tag.objects.filter(pk=tag.pk).update(is_adult=True)
-        call_command("recompute_adult")
-        source.refresh_from_db()
-        self.assertTrue(source.is_adult)
-
-    def test_recompute_keeps_the_sources_own_flag(self):
-        source = self._source("http://s/4", is_adult=True, adult_from_source=True)
-        call_command("recompute_adult")
-        source.refresh_from_db()
-        self.assertTrue(source.is_adult)
-
-    def test_recompute_clears_a_flag_with_no_reason_left(self):
-        source = self._source("http://s/6", is_adult=True)
-        call_command("recompute_adult")
-        source.refresh_from_db()
-        self.assertFalse(source.is_adult)
-
     def test_unflagging_a_tag_clears_only_the_sources_it_made_adult(self):
         tag = Tag.objects.create(name="Adult", is_adult=True)
         other_r18 = Tag.objects.create(name="Smut", is_adult=True)
@@ -358,27 +338,6 @@ class TagAdultPropagationTests(TestCase):
         self.assertFalse(only_tag.is_adult)
         self.assertTrue(own_flag.is_adult)
         self.assertTrue(two_tags.is_adult)
-
-    def test_recompute_from_meta_restores_the_crawler_flag(self):
-        with tempfile.TemporaryDirectory() as root, override_settings(LNCRAWL_OUTPUT_PATH=root):
-            for name, adult in (("n/plain", False), ("n/explicit", True)):
-                os.makedirs(os.path.join(root, name))
-                with open(os.path.join(root, name, "meta.json"), "w", encoding="utf-8") as f:
-                    json.dump({"novel": {"is_adult": adult}}, f)
-            # Both look adult: an R18 tag overwrote the first one before the
-            # own flag was stored separately (migration 0086 copied it).
-            plain = self._source("http://s/10", source_path="n/plain",
-                                 is_adult=True, adult_from_source=True)
-            explicit = self._source("http://s/11", source_path="n/explicit",
-                                    is_adult=True, adult_from_source=True)
-            no_meta = self._source("http://s/12", source_path="n/missing",
-                                   is_adult=True, adult_from_source=True)
-            call_command("recompute_adult", "--from-meta")
-        for source in (plain, explicit, no_meta):
-            source.refresh_from_db()
-        self.assertFalse(plain.is_adult)
-        self.assertTrue(explicit.is_adult)
-        self.assertTrue(no_meta.is_adult)  # no meta.json: kept as it was
 
     def test_merge_into_r18_tag_flags_moved_sources(self):
         target = Tag.objects.create(name="Harem", is_adult=True)
@@ -1418,7 +1377,7 @@ class UndoTargetGoneTests(TestCase):
 
 
 class TagMergeBudgetTests(TestCase):
-    """The shared budget counts every reply the provider sent, usable or not."""
+    """The provider's budget counts every reply it sent, usable or not."""
 
     def setUp(self):
         self.candidate = tag_candidate(*make_tags("Tango", "Mango"))
@@ -1426,14 +1385,14 @@ class TagMergeBudgetTests(TestCase):
     def test_unusable_paid_call_still_counts_against_the_daily_budget(self):
         def paid_but_unusable(messages):
             # _post_chat logs the LLMCall of every reply before the answer is checked.
-            LLMCall.objects.create(kind="tag_merge", tokens=10)
+            LLMCall.objects.create(kind="tag_merge", provider="groq", tokens=10)
             return "no json"
 
-        run_judge(paid_but_unusable, LLM_DAILY_REQUESTS=1)
+        run_judge(paid_but_unusable, daily_requests=1)
         self.assertEqual(LLMCall.objects.filter(kind="tag_merge").count(), 1)
 
         Candidate.objects.update(not_before=None)
-        mocked = run_judge(no_sets_for_each_group, LLM_DAILY_REQUESTS=1)
+        mocked = run_judge(no_sets_for_each_group, daily_requests=1)
         self.assertEqual(mocked.call_count, 0)
 
     def test_rate_limited_call_leaves_the_candidate_untouched(self):
@@ -1470,7 +1429,7 @@ class TagMergeBudgetTests(TestCase):
             self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
 
     def test_no_call_when_the_token_budget_is_below_one_call(self):
-        mocked = run_judge(no_sets_for_each_group, LLM_DAILY_TOKENS=100)
+        mocked = run_judge(no_sets_for_each_group, daily_tokens=100)
         self.assertEqual(mocked.call_count, 0)
 
     def test_budget_is_checked_before_every_call(self):
@@ -1479,11 +1438,11 @@ class TagMergeBudgetTests(TestCase):
 
         def spend(messages):
             # One paid call of 7000 tokens: the next call (CALL_TOKENS) no longer fits.
-            LLMCall.objects.create(kind="tag_merge", tokens=7000)
+            LLMCall.objects.create(kind="tag_merge", provider="groq", tokens=7000)
             return no_sets_for_each_group(messages)
 
         with mock.patch.object(llm_tasks.TagMergeTask, "batch_size", 2):
-            mocked = run_judge(spend, LLM_DAILY_TOKENS=8000, LLM_TOKENS_PER_MINUTE=100000)
+            mocked = run_judge(spend, daily_tokens=8000, tokens_per_minute=100000)
         self.assertEqual(mocked.call_count, 1)
         for candidate in (other, third):
             candidate.refresh_from_db()

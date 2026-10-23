@@ -4,7 +4,6 @@ import hashlib
 import importlib
 from datetime import timedelta
 
-from django.apps import apps
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
@@ -15,6 +14,7 @@ from ..models import Candidate, LLMCall
 migration = importlib.import_module("lncrawler_api.migrations.0097_candidate_data")
 
 MIGRATE_FROM = [("lncrawler_api", "0095_mergecandidate_merged_at")]
+MIGRATE_TO = [("lncrawler_api", "0097_candidate_data")]
 
 
 def signature(*pks):
@@ -287,13 +287,16 @@ class CandidateDataMigrationTests(TransactionTestCase):
 
     def test_rerunning_the_copy_adds_nothing(self):
         self._create_old_rows()
-        self._migrate_to_leaf()
+        # Stop at 0097: 0098 drops the old tables the copy reads from.
+        executor = MigrationExecutor(connection)
+        executor.migrate(MIGRATE_TO)
+        copied_apps = executor.loader.project_state(MIGRATE_TO).apps
 
         candidates_before = Candidate.objects.count()
         calls_before = LLMCall.objects.count()
         undo_before = {c.pk: len(c.undo) for c in Candidate.objects.all()}
 
-        migration.copy_candidates(apps, None)
+        migration.copy_candidates(copied_apps, None)
 
         self.assertEqual(Candidate.objects.count(), candidates_before)
         self.assertEqual(LLMCall.objects.count(), calls_before)

@@ -6,21 +6,13 @@
     "delete": "Slet",
     "edit": "Rediger",
     "share": "Del",
-    "back": "Tilbage",
     "home": "Hjem",
     "unknown": "Ukendt",
-    "loading": "Indlæser...",
     "viewMore": "Se mere",
     "showMore": "Vis mere",
     "showLess": "Vis mindre",
     "na": "Ikke relevant",
     "breadcrumb": "brødkrumme",
-    "menu": "menu",
-    "login": "Log ind",
-    "register": "Tilmeld",
-    "profile": "Profil",
-    "logout": "Log ud",
-    "account": "Konto",
     "seeMore": "Vis mere",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "Kapitel {number}",
     "comments": "{count, plural, =0 {Ingen kommentarer} one {# kommentar} other {# kommentarer}}",
     "chapters": "{count, plural, one {# kapitel} other {# kapitler}}",
-    "novels": "{count, plural, one {# roman} other {# romaner}}",
     "imagesCount": "{count, plural, one {# billede} other {# billeder}}",
     "volumes": "{count, plural, one {# bind} other {# bind}}",
-    "items": "{count, plural, one {# element} other {# elementer}}",
-    "ratings": "{count, plural, one {# bedømmelse} other {# bedømmelser}}",
     "stars": "{count, plural, one {# stjerne} other {# stjerner}}",
-    "replies": "{count, plural, one {# svar} other {# svar}}",
     "unreadChapters": "{count, plural, one {# ulæst kapitel} other {# ulæste kapitler}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "Kunne ikke indlæse profildata. Prøv igen.",
-    "failedLoadReviews": "Kunne ikke indlæse dine anmeldelser. Prøv igen.",
-    "failedLoadLists": "Kunne ikke indlæse dine læselister. Prøv igen.",
     "updatedSuccess": "Profilen blev opdateret!",
     "updateFailed": "Kunne ikke opdatere profilen. Prøv igen.",
     "passwordChanged": "Adgangskoden blev ændret!",
     "passwordChangeFailed": "Kunne ikke ændre adgangskoden. Prøv igen.",
-    "heading": "Profil",
     "changePhoto": "Skift foto",
     "email": "E-mail",
     "editProfile": "Rediger profil",
@@ -157,14 +142,8 @@
     "security": "Sikkerhed",
     "changePassword": "Skift adgangskode",
     "currentPassword": "Nuværende adgangskode",
-    "myReadingLists": "Mine læselister",
-    "noReadingLists": "Du har ikke oprettet nogen læselister endnu.",
-    "browseReadingLists": "Gennemse læselister",
-    "myReviews": "Mine anmeldelser",
-    "noReviews": "Du har ikke skrevet nogen anmeldelser endnu.",
     "bio": "Bio",
     "changeBanner": "Skift banner",
-    "viewPublicProfile": "Se offentlig profil",
     "notFound": "Bruger ikke fundet.",
     "privateSection": "Dette afsnit er privat.",
     "emptySection": "Der er ikke noget at vise endnu.",
@@ -195,8 +174,7 @@
       "library": "Bibliotek",
       "readingLists": "Læselister",
       "reviews": "Anmeldelser",
-      "comments": "Kommentarer",
-      "friends": "Venner"
+      "comments": "Kommentarer"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "Vælg sprog, der skal vises på forsiden",
     "contentHelper": "Forsiden blander romaner fra alle de sprog, du vælger. Lad stå tomt for at vise alle sprog."
   },
-  "readingStats": {
-    "heading": "Læsestatistik",
-    "progress": "Læsefremgang",
-    "onlyBookmarked": "Medtag kun bogmærkede romaner",
-    "chaptersRead": "Læste kapitler:",
-    "chaptersLeft": "Resterende kapitler:",
-    "percentComplete": "{percent}% færdig",
-    "totalWordsRead": "Samlet antal læste ord",
-    "approxPages": "Cirka {count, plural, one {# side} other {# sider}}"
-  },
   "home": {
     "loadFailed": "Kunne ikke indlæse data til forsiden. Prøv igen senere.",
     "introHeading": "Leder du efter et godt sted at læse light novels?",
@@ -294,7 +262,6 @@
     "yourLibrary": "Dit bibliotek",
     "empty": "Dit bibliotek er tomt",
     "emptyHint": "Bogmærk romaner for at føje dem til dit bibliotek.",
-    "bookmarks": "Dine bogmærker",
     "recommended": "Anbefalet til dig",
     "notRated": "Ikke bedømt",
     "editNote": "Rediger note",
@@ -311,7 +278,6 @@
     "sortBy": "Sortér efter",
     "mirrorHidden": "Denne bruger holder sine noter og/eller vurderinger private.",
     "select": "Vælg",
-    "selectAll": "Vælg alle",
     "selectedCount": "{count, plural, one {# valgt} other {# valgt}}",
     "clearSelection": "Ryd",
     "moveTo": "Flyt til",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {Fjern # roman fra dit bibliotek?} other {Fjern # romaner fra dit bibliotek?}} Dette kan ikke fortrydes.",
     "addNote": "Tilføj en note",
     "moreActions": "Flere handlinger",
-    "dragToFolder": "Træk en roman over på en mappe for at arkivere den",
     "sort": {
       "custom": "Brugerdefineret rækkefølge",
       "title": "Titel",
@@ -355,7 +320,6 @@
     "authors": "Forfattere",
     "authorsPlaceholder": "Skriv for at søge efter forfattere...",
     "language": "Sprog",
-    "any": "Alle",
     "minimumRating": "Minimum bedømmelse",
     "clear": "Ryd",
     "sortBy": "Sortér efter",
@@ -379,7 +343,6 @@
     "languageFilter": "Sprog:",
     "ratingFilter": "Min. bedømmelse: {rating}",
     "sortFilter": "Sortér: {sortBy} ({sortOrder})",
-    "searching": "Søger...",
     "foundCount": "{count, plural, =0 {Ingen romaner fundet} one {Fandt # roman} other {Fandt # romaner}}",
     "noResults": "Ingen romaner fundet, der matcher dine kriterier",
     "noResultsHint": "Prøv at justere dine filtre eller søgeord",
@@ -387,10 +350,8 @@
     "noAuthors": "Ingen forfattere fundet",
     "loading": "Indlæser...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "Søgeresultater | LNCrawler",
     "metaDefaultTitle": "Søg light novels | LNCrawler",
     "metaQueryTitle": "Søgeresultater for \"{query}\" | LNCrawler",
-    "metaSearchingTitle": "Søger... | LNCrawler",
     "metaDescription": "Søg og opdag en enorm samling af asiatiske light novels på LNCrawler. Filtrér efter tags, forfattere, sprog og meget mere.",
     "metaQueryDescription": "Find light novels, der matcher \"{query}\". {count, plural, =0 {} one {Fandt # resultat.} other {Fandt # resultater.}} Udforsk på LNCrawler.",
     "metaKeywords": "søg light novels, find web novels, LNCrawler-søgning, opdag romaner"
@@ -424,7 +385,6 @@
     "heading": "Billedgalleri",
     "countFrom": "{count} billeder fra {novel}",
     "showSmall": "Vis små billeder ({count} filtreret)",
-    "loadingDimensions": "Indlæser billedmål...",
     "noImagesFiltered": "Ingen billeder at vise med de aktuelle filterindstillinger.",
     "noImagesPage": "Ingen billeder fundet på denne galleriside.",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "Fortsæt læsning",
     "continueFrom": "Fortsæt fra {chapter}",
     "chapterList": "Kapitelliste",
-    "viewAllChapters": "Se alle {count} kapitler",
     "browseAllChapters": "Gennemse alle kapitler",
     "imageGallery": "Billedgalleri",
-    "browseAllImages": "Gennemse alle billeder",
     "viewImageGallery": "Se billedgalleriet",
     "download": "Download",
-    "downloadEpub": "Download som EPUB",
     "downloadTooltip": "Download denne roman som EPUB-fil",
     "downloadFull": "Fuld roman",
     "volumeN": "Bind {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "Indlæser romankilde | LNCrawler",
     "metaDescription": "Læs {title} fra {source}. Synopsis: {synopsis}",
     "metaLoadingDescription": "Indlæser detaljer om denne romankilde på LNCrawler."
-  },
-  "rating": {
-    "noRatings": "Ingen bedømmelser"
-  },
-  "tags": {
-    "more": "+{count} mere"
   },
   "updateButton": {
     "startFailed": "Kunne ikke starte opdateringsjobbet.",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}. Næste: {next}",
     "unknownLanguage": "Ukendt sprog",
     "authors": "Forfattere",
-    "totalChapters": "Kapitler i alt",
     "availableChapters": "Tilgængelige kapitler",
     "views": "Visninger",
     "lastUpdated": "Senest opdateret",
     "weekly": "(Ugentligt)",
     "allTimes": "(Gennem tiden)",
-    "thisWeek": "(Denne uge)",
-    "votes": "(Stemmer: {count})",
     "rank": "Rang {rank}",
-    "added": "Tilføjet {time}",
     "chaptersCount": "{count} kapitler",
     "removeFromHistory": "Fjern fra historikken",
     "lastRead": "Senest læst:",
@@ -700,7 +647,6 @@
     "removeFromList": "Fjern fra listen",
     "hot": "HOT",
     "viewsThisWeek": "{count} visninger denne uge",
-    "allTimeViews": "Visninger gennem tiden",
     "tags": "Tags"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "Åbn læserindstillinger",
     "chapterComments": "Kapitelkommentarer",
     "markedRead": "Kapitlet blev markeret som læst!",
-    "unlockScrolling": "Lås rulning op",
-    "lockScrolling": "Lås rulning",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "Side {current} af {total}",
     "listen": "Lyt"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "Layout",
     "gestures": "Bevægelser",
     "behavior": "Adfærd",
-    "pageMode": "Sidenstilstand",
     "import": "Importér",
     "export": "Eksportér",
     "resetDefaults": "Nulstil til standard",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "Virker kun mens afspilleren er åben.",
     "keepScreenOn": "Hold skærmen tændt",
     "keepScreenOnHint": "Mens der læses op. Slå fra for at spare batteri; lyden fortsætter på de fleste enheder."
-  },
-  "pageSettings": {
-    "enablePageMode": "Aktiver sidenstilstand",
-    "enablePageModeHint": "Skift fra rullebaseret til sidebaseret læsning",
-    "pageMarginHorizontal": "Vandret margen: {margin}%",
-    "pageMarginVertical": "Lodret margen: {margin}%",
-    "pageColumnGap": "Spalteafstand: {gap}px",
-    "showPageNumbers": "Vis sidetal",
-    "showPageNumbersHint": "Vis aktuel side og det samlede antal sider",
-    "showPageSlider": "Vis sideskyder",
-    "showPageSliderHint": "Vis en skyder til hurtigt at navigere mellem sider"
   },
   "themes": {
     "light": "Lyst",

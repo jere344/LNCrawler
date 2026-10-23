@@ -232,10 +232,6 @@ class NovelFromSource(models.Model):
         return None
     
     @property
-    def volumes_count(self):
-        return self.volumes.count()
-    
-    @property
     def vote_score(self):
         return self.upvotes - self.downvotes
     

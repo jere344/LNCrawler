@@ -35,7 +35,7 @@ const localeBackend = {
     },
 };
 
-export const FALLBACK_LANGUAGE = 'en';
+const FALLBACK_LANGUAGE = 'en';
 
 export const isRtl = (code: string): boolean => (RTL_LANGUAGES as readonly string[]).includes(code);
 

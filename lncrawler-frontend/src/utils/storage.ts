@@ -28,11 +28,3 @@ export const writeLocalStorage = (key: string, value: unknown): void => {
         // ignore quota / disabled storage
     }
 };
-
-export const removeLocalStorage = (key: string): void => {
-    try {
-        localStorage.removeItem(key);
-    } catch {
-        // ignore disabled storage
-    }
-};

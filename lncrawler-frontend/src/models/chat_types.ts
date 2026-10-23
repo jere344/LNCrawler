@@ -1,6 +1,6 @@
 import { User } from './user_types';
 
-export interface ChatParent {
+interface ChatParent {
   id: string;
   author_name: string;
   message: string;

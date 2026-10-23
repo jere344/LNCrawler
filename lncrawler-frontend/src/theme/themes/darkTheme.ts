@@ -140,7 +140,6 @@ export const getDarkTheme = () => makeTheme(darkTokens);
 
 export const darkTheme: ThemeOption = {
     id: "dark",
-    name: "Dark",
     isDark: true,
     getTheme: getDarkTheme,
     hidden: false,

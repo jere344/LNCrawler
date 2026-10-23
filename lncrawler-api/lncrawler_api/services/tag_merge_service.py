@@ -345,19 +345,6 @@ def tag_usage(tag_ids):
     )
 
 
-def refresh_cluster_members(cluster):
-    """Return the cluster's tags that still exist, updating the stored snapshot."""
-    found = Tag.objects.in_bulk(cluster.tag_ids)
-    tags = [found[pk] for pk in cluster.tag_ids if pk in found]
-    ids = [tag.pk for tag in tags]
-    names = [tag.name for tag in tags]
-    if ids != cluster.tag_ids or names != cluster.tag_names:
-        cluster.tag_ids = ids
-        cluster.tag_names = names
-        cluster.save(update_fields=["tag_ids", "tag_names", "updated_at"])
-    return tags
-
-
 def build_judge_messages(groups):
     """Chat messages asking the model to judge ``groups``.
 

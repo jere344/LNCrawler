@@ -354,7 +354,6 @@ export const getTransTheme = () =>
 
 export const tfTheme: ThemeOption = {
     id: "tf",
-    name: "TF",
     isDark: false,
     getTheme: getTransTheme,
     hidden: true,

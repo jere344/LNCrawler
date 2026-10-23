@@ -16,10 +16,11 @@ from ..services import llm_service, llm_tasks
 from ..services.llm_service import LLMParseError, ProviderUnavailable, RateLimited
 from ..services.tag_r18_service import queue_r18_candidates
 from .helpers import MergeTestCase
+from .llm_helpers import llm_chain
 from .test_llm_runner import make_candidate, reply
 
 
-@override_settings(LLM_API_KEY="key")
+@override_settings(**llm_chain())
 class TagR18TaskTests(MergeTestCase):
     def setUp(self):
         super().setUp()
@@ -167,8 +168,7 @@ class TagR18TaskTests(MergeTestCase):
         self.assertEqual(result[candidate.pk]["answer"], "no")
 
 
-@override_settings(LLM_API_KEY="key", LLM_DAILY_TOKENS=100000,
-                   LLM_TOKENS_PER_MINUTE=8000, LLM_REQUESTS_PER_MINUTE=30)
+@override_settings(**llm_chain(daily_tokens=100000, tokens_per_minute=8000, requests_per_minute=30))
 class LLMBudgetRunTests(MergeTestCase):
     """The per-minute caps read the LLMCall rows, so the runner stops before a call."""
 
@@ -189,8 +189,8 @@ class LLMBudgetRunTests(MergeTestCase):
 
     def test_per_minute_token_cap_stops_the_pass(self):
         candidate = self.make_tag_candidate("Smut")
-        # Used + CALL_TOKENS is over LLM_TOKENS_PER_MINUTE (8000).
-        LLMCall.objects.create(kind="tag_r18", tokens=8000 - llm_service.CALL_TOKENS + 1)
+        # Used + CALL_TOKENS is over tokens_per_minute (8000).
+        LLMCall.objects.create(kind="tag_r18", provider="groq", tokens=8000 - llm_service.CALL_TOKENS + 1)
 
         llm_tasks.run_queue(["tag_r18"], limit=5)
 
@@ -198,11 +198,11 @@ class LLMBudgetRunTests(MergeTestCase):
         candidate.refresh_from_db()
         self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
 
-    @override_settings(LLM_REQUESTS_PER_MINUTE=2)
+    @override_settings(**llm_chain(daily_tokens=100000, tokens_per_minute=8000, requests_per_minute=2))
     def test_per_minute_request_cap_stops_the_pass(self):
         candidate = self.make_tag_candidate("Smut")
-        LLMCall.objects.create(kind="tag_r18", tokens=0)
-        LLMCall.objects.create(kind="tag_r18", tokens=0)
+        LLMCall.objects.create(kind="tag_r18", provider="groq", tokens=0)
+        LLMCall.objects.create(kind="tag_r18", provider="groq", tokens=0)
 
         llm_tasks.run_queue(["tag_r18"], limit=5)
 
@@ -212,7 +212,7 @@ class LLMBudgetRunTests(MergeTestCase):
 
     def test_usage_older_than_a_minute_does_not_count(self):
         self.make_tag_candidate("Smut")
-        old = LLMCall.objects.create(kind="tag_r18", tokens=8000)
+        old = LLMCall.objects.create(kind="tag_r18", provider="groq", tokens=8000)
         LLMCall.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(seconds=61))
         self.chat.side_effect = LLMParseError("no JSON object in reply")
 

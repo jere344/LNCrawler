@@ -89,7 +89,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'rest_framework',
-    'rest_framework_simplejwt',
     'corsheaders',
     'lncrawler_api',
     'auth_app',
@@ -194,11 +193,9 @@ STATICFILES_DIRS = [
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-MEDIA_FULL_URL = SITE_URL.rstrip("/") + "/" + MEDIA_URL.rstrip("/") + "/"
 
 LNCRAWL_OUTPUT_PATH = os.environ.get('LNCRAWL_OUTPUT_PATH') or os.path.join(BASE_DIR.parent, 'Lightnovels')
 LNCRAWL_URL = "lightnovels/"
-LNCRAWL_FULL_URL = SITE_URL.rstrip("/") + "/" + LNCRAWL_URL.rstrip("/") + "/"
 
 # Hours a generated EPUB is reused before being rebuilt even if the source
 # hasn't changed. Also invalidated immediately when the source is updated.
@@ -221,30 +218,13 @@ MERGE_PHASH_MAX_DISTANCE = 6
 
 # LLM API shared by every LLM workflow (novel merge judge, tag merge judge, R18
 # tag classifier). services/llm_service.py accepts any OpenAI-compatible
-# chat-completions endpoint (see PROVIDER_URLS there to switch provider).
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "groq")
-LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
-LLM_MODEL = os.environ.get("LLM_MODEL", "openai/gpt-oss-20b")
-# Reasoning models spend hidden tokens against max_tokens; "low" keeps replies short.
-# Empty omits the field for providers that reject it.
-LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "low")
-LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "")  # non-empty overrides the provider's default endpoint
+# chat-completions endpoint (see PROVIDER_URLS there for the default endpoints).
 LLM_TIMEOUT = 90  # free tiers take up to ~30s on a 50-tag call
-# Daily caps shared by every workflow (see llm_service.can_afford): a request only
-# starts when it fits under both. Groq's free tier allows this model 1k requests
-# and 200k tokens per day; the token default keeps a margin under that.
-LLM_DAILY_REQUESTS = int(os.environ.get("LLM_DAILY_REQUESTS", "1000"))
-LLM_DAILY_TOKENS = int(os.environ.get("LLM_DAILY_TOKENS", "180000"))
-# Per-minute caps (Groq free tier for gpt-oss-20b: 30 requests and 8K tokens per minute).
-LLM_REQUESTS_PER_MINUTE = int(os.environ.get("LLM_REQUESTS_PER_MINUTE", "30"))
-LLM_TOKENS_PER_MINUTE = int(os.environ.get("LLM_TOKENS_PER_MINUTE", "8000"))
-# Structured output (the task's JSON schema as response_format). Turn it off for a
-# provider that rejects response_format.
-LLM_JSON_SCHEMA = os.environ.get("LLM_JSON_SCHEMA", "true").lower() not in ("0", "false", "no")
 # Fallback chain: provider names tried in order, e.g. "cloudflare,groq". Each reads its own
-# LLM_<NAME>_* variables below. A provider that answers 429 sleeps for Retry-After
-# (or its COOLDOWN when there is none) and the next one takes the call.
-# Empty: a single provider built from the LLM_* settings above.
+# LLM_<NAME>_* variables below (API_KEY, MODEL, BASE_URL, DAILY_REQUESTS, DAILY_TOKENS, ...).
+# A provider that answers 429 sleeps for Retry-After (or its COOLDOWN when there is none)
+# and the next one takes the call.
+# Empty: the LLM is not configured (every LLM workflow degrades to the review queue).
 LLM_PROVIDERS = [n.strip().lower() for n in os.environ.get("LLM_PROVIDERS", "").split(",") if n.strip()]
 
 
@@ -323,7 +303,6 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',

@@ -6,21 +6,13 @@
     "delete": "ลบ",
     "edit": "แก้ไข",
     "share": "แชร์",
-    "back": "กลับ",
     "home": "หน้าแรก",
     "unknown": "ไม่ทราบ",
-    "loading": "กำลังโหลด...",
     "viewMore": "ดูเพิ่มเติม",
     "showMore": "แสดงเพิ่มเติม",
     "showLess": "ย่อ",
     "na": "ไม่มี",
     "breadcrumb": "เส้นทางนำทาง",
-    "menu": "เมนู",
-    "login": "เข้าสู่ระบบ",
-    "register": "ลงทะเบียน",
-    "profile": "โปรไฟล์",
-    "logout": "ออกจากระบบ",
-    "account": "บัญชี",
     "seeMore": "ดูเพิ่มเติม",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "บทที่ {number}",
     "comments": "{count, plural, =0 {ยังไม่มีความคิดเห็น} one {# ความคิดเห็น} other {# ความคิดเห็น}}",
     "chapters": "{count, plural, one {# บท} other {# บท}}",
-    "novels": "{count, plural, one {# เรื่อง} other {# เรื่อง}}",
     "imagesCount": "{count, plural, one {# รูปภาพ} other {# รูปภาพ}}",
     "volumes": "{count, plural, other {# เล่ม}}",
-    "items": "{count, plural, one {# รายการ} other {# รายการ}}",
-    "ratings": "{count, plural, one {# คะแนน} other {# คะแนน}}",
     "stars": "{count, plural, one {# ดาว} other {# ดาว}}",
-    "replies": "{count, plural, one {# การตอบกลับ} other {# การตอบกลับ}}",
     "unreadChapters": "{count, plural, one {# บทที่ยังไม่ได้อ่าน} other {# บทที่ยังไม่ได้อ่าน}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "โหลดข้อมูลโปรไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง",
-    "failedLoadReviews": "โหลดรีวิวของคุณไม่สำเร็จ กรุณาลองอีกครั้ง",
-    "failedLoadLists": "โหลดรายการอ่านของคุณไม่สำเร็จ กรุณาลองอีกครั้ง",
     "updatedSuccess": "อัปเดตโปรไฟล์สำเร็จ!",
     "updateFailed": "อัปเดตโปรไฟล์ไม่สำเร็จ กรุณาลองอีกครั้ง",
     "passwordChanged": "เปลี่ยนรหัสผ่านสำเร็จ!",
     "passwordChangeFailed": "เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองอีกครั้ง",
-    "heading": "โปรไฟล์",
     "changePhoto": "เปลี่ยนรูป",
     "email": "อีเมล",
     "editProfile": "แก้ไขโปรไฟล์",
@@ -157,14 +142,8 @@
     "security": "ความปลอดภัย",
     "changePassword": "เปลี่ยนรหัสผ่าน",
     "currentPassword": "รหัสผ่านปัจจุบัน",
-    "myReadingLists": "รายการอ่านของฉัน",
-    "noReadingLists": "คุณยังไม่ได้สร้างรายการอ่านใดๆ",
-    "browseReadingLists": "เรียกดูรายการอ่าน",
-    "myReviews": "รีวิวของฉัน",
-    "noReviews": "คุณยังไม่ได้เขียนรีวิวใดๆ",
     "bio": "แนะนำตัว",
     "changeBanner": "เปลี่ยนแบนเนอร์",
-    "viewPublicProfile": "ดูโปรไฟล์สาธารณะ",
     "notFound": "ไม่พบผู้ใช้",
     "privateSection": "ส่วนนี้เป็นส่วนตัว",
     "emptySection": "ยังไม่มีอะไรให้แสดงที่นี่",
@@ -195,8 +174,7 @@
       "library": "คลัง",
       "readingLists": "รายการอ่าน",
       "reviews": "รีวิว",
-      "comments": "ความคิดเห็น",
-      "friends": "เพื่อน"
+      "comments": "ความคิดเห็น"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "เลือกภาษาที่จะแสดงบนหน้าแรก",
     "contentHelper": "หน้าแรกจะรวมนิยายจากทุกภาษาที่คุณเลือก เว้นว่างไว้เพื่อแสดงทุกภาษา"
   },
-  "readingStats": {
-    "heading": "สถิติการอ่าน",
-    "progress": "ความคืบหน้าการอ่าน",
-    "onlyBookmarked": "รวมเฉพาะนิยายที่บุ๊กมาร์กไว้",
-    "chaptersRead": "บทที่อ่านแล้ว:",
-    "chaptersLeft": "บทที่เหลือ:",
-    "percentComplete": "เสร็จสิ้น {percent}%",
-    "totalWordsRead": "จำนวนคำทั้งหมดที่อ่าน",
-    "approxPages": "ประมาณ {count, plural, one {# หน้า} other {# หน้า}}"
-  },
   "home": {
     "loadFailed": "โหลดข้อมูลหน้าแรกไม่สำเร็จ กรุณาลองใหม่ภายหลัง",
     "introHeading": "กำลังมองหาที่อ่านไลต์โนเวลที่ดีอยู่หรือไม่?",
@@ -294,7 +262,6 @@
     "yourLibrary": "คลังของคุณ",
     "empty": "คลังของคุณว่างเปล่า",
     "emptyHint": "บุ๊กมาร์กนิยายเพื่อเพิ่มลงในคลังของคุณ",
-    "bookmarks": "บุ๊กมาร์กของคุณ",
     "recommended": "แนะนำสำหรับคุณ",
     "notRated": "ยังไม่ให้คะแนน",
     "editNote": "แก้ไขบันทึก",
@@ -311,7 +278,6 @@
     "sortBy": "เรียงตาม",
     "mirrorHidden": "ผู้ใช้รายนี้เก็บบันทึกและ/หรือคะแนนเป็นส่วนตัว",
     "select": "เลือก",
-    "selectAll": "เลือกทั้งหมด",
     "selectedCount": "{count, plural, one {เลือก #} other {เลือก #}}",
     "clearSelection": "ล้าง",
     "moveTo": "ย้ายไปยัง",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {ลบ # เรื่องออกจากคลังของคุณหรือไม่?} other {ลบ # เรื่องออกจากคลังของคุณหรือไม่?}} การกระทำนี้ไม่สามารถย้อนกลับได้",
     "addNote": "เพิ่มบันทึก",
     "moreActions": "การดำเนินการเพิ่มเติม",
-    "dragToFolder": "ลากนิยายไปยังโฟลเดอร์เพื่อจัดเก็บ",
     "sort": {
       "custom": "ลำดับกำหนดเอง",
       "title": "ชื่อเรื่อง",
@@ -355,7 +320,6 @@
     "authors": "ผู้แต่ง",
     "authorsPlaceholder": "พิมพ์เพื่อค้นหาผู้แต่ง...",
     "language": "ภาษา",
-    "any": "ทั้งหมด",
     "minimumRating": "คะแนนขั้นต่ำ",
     "clear": "ล้าง",
     "sortBy": "จัดเรียงตาม",
@@ -379,7 +343,6 @@
     "languageFilter": "ภาษา:",
     "ratingFilter": "คะแนนขั้นต่ำ: {rating}",
     "sortFilter": "จัดเรียง: {sortBy} ({sortOrder})",
-    "searching": "กำลังค้นหา...",
     "foundCount": "{count, plural, =0 {ไม่พบนิยาย} one {พบ # เรื่อง} other {พบ # เรื่อง}}",
     "noResults": "ไม่พบนิยายที่ตรงกับเงื่อนไขของคุณ",
     "noResultsHint": "ลองปรับตัวกรองหรือคำค้นหาของคุณ",
@@ -387,10 +350,8 @@
     "noAuthors": "ไม่พบผู้แต่ง",
     "loading": "กำลังโหลด...",
     "optionWithCount": "{name} ({count})",
-    "siteName": "ผลการค้นหา | LNCrawler",
     "metaDefaultTitle": "ค้นหาไลต์โนเวล | LNCrawler",
     "metaQueryTitle": "ผลการค้นหาสำหรับ “{query}” | LNCrawler",
-    "metaSearchingTitle": "กำลังค้นหา... | LNCrawler",
     "metaDescription": "ค้นหาและค้นพบคอลเลกชันไลต์โนเวลเอเชียมากมายบน LNCrawler กรองตามแท็ก ผู้แต่ง ภาษา และอื่นๆ",
     "metaQueryDescription": "ค้นหาไลต์โนเวลที่ตรงกับ “{query}” {count, plural, =0 {} one {พบ # ผลลัพธ์} other {พบ # ผลลัพธ์}} สำรวจบน LNCrawler",
     "metaKeywords": "ค้นหาไลต์โนเวล, หานิยายเว็บ, ค้นหา LNCrawler, ค้นพบนิยาย"
@@ -424,7 +385,6 @@
     "heading": "แกลเลอรีรูปภาพ",
     "countFrom": "{count} รูปจาก {novel}",
     "showSmall": "แสดงรูปภาพขนาดเล็ก ({count} ถูกกรอง)",
-    "loadingDimensions": "กำลังโหลดขนาดรูปภาพ...",
     "noImagesFiltered": "ไม่มีรูปภาพให้แสดงด้วยการตั้งค่าตัวกรองปัจจุบัน",
     "noImagesPage": "ไม่พบรูปภาพในหน้าแกลเลอรีนี้",
     "imageAlt": "{chapter}: {name}",
@@ -505,13 +465,10 @@
     "continueReading": "อ่านต่อ",
     "continueFrom": "อ่านต่อจาก {chapter}",
     "chapterList": "รายการบท",
-    "viewAllChapters": "ดูทั้งหมด {count} บท",
     "browseAllChapters": "เรียกดูทุกบท",
     "imageGallery": "แกลเลอรีรูปภาพ",
-    "browseAllImages": "เรียกดูรูปภาพทั้งหมด",
     "viewImageGallery": "ดูแกลเลอรีรูปภาพ",
     "download": "ดาวน์โหลด",
-    "downloadEpub": "ดาวน์โหลดเป็น EPUB",
     "downloadTooltip": "ดาวน์โหลดนิยายเรื่องนี้เป็นไฟล์ EPUB",
     "downloadFull": "นิยายฉบับเต็ม",
     "volumeN": "เล่มที่ {n}",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "กำลังโหลดแหล่งนิยาย | LNCrawler",
     "metaDescription": "อ่าน {title} จาก {source} เรื่องย่อ: {synopsis}",
     "metaLoadingDescription": "กำลังโหลดรายละเอียดของแหล่งนิยายนี้บน LNCrawler"
-  },
-  "rating": {
-    "noRatings": "ยังไม่มีคะแนน"
-  },
-  "tags": {
-    "more": "+{count} เพิ่มเติม"
   },
   "updateButton": {
     "startFailed": "เริ่มงานอัปเดตไม่สำเร็จ",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread} ถัดไป: {next}",
     "unknownLanguage": "ภาษาไม่ทราบ",
     "authors": "ผู้แต่ง",
-    "totalChapters": "จำนวนบททั้งหมด",
     "availableChapters": "ตอนที่พร้อมอ่าน",
     "views": "ยอดเข้าชม",
     "lastUpdated": "อัปเดตล่าสุด",
     "weekly": "(รายสัปดาห์)",
     "allTimes": "(ตลอดกาล)",
-    "thisWeek": "(สัปดาห์นี้)",
-    "votes": "(โหวต: {count})",
     "rank": "อันดับ {rank}",
-    "added": "เพิ่มเมื่อ {time}",
     "chaptersCount": "{count} บท",
     "removeFromHistory": "ลบออกจากประวัติ",
     "lastRead": "อ่านล่าสุด:",
@@ -700,7 +647,6 @@
     "removeFromList": "ลบออกจากรายการ",
     "hot": "HOT",
     "viewsThisWeek": "{count} ครั้งที่เข้าชมสัปดาห์นี้",
-    "allTimeViews": "ยอดเข้าชมตลอดกาล",
     "tags": "แท็ก"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "เปิดการตั้งค่าตัวอ่าน",
     "chapterComments": "ความคิดเห็นของบท",
     "markedRead": "ทำเครื่องหมายบทว่าอ่านแล้วสำเร็จ!",
-    "unlockScrolling": "ปลดล็อกการเลื่อน",
-    "lockScrolling": "ล็อกการเลื่อน",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "หน้า {current} จาก {total}",
     "listen": "ฟัง"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "เลย์เอาต์",
     "gestures": "ท่าทาง",
     "behavior": "พฤติกรรม",
-    "pageMode": "โหมดหน้า",
     "import": "นำเข้า",
     "export": "ส่งออก",
     "resetDefaults": "รีเซ็ตเป็นค่าเริ่มต้น",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "ใช้ได้เฉพาะขณะที่เปิดตัวเล่นอยู่",
     "keepScreenOn": "เปิดหน้าจอค้างไว้",
     "keepScreenOnHint": "ขณะอ่านออกเสียง ปิดเพื่อประหยัดแบตเตอรี่ เสียงจะยังคงเล่นต่อในอุปกรณ์ส่วนใหญ่"
-  },
-  "pageSettings": {
-    "enablePageMode": "เปิดใช้งานโหมดหน้า",
-    "enablePageModeHint": "เปลี่ยนจากการอ่านแบบเลื่อนเป็นการอ่านแบบแบ่งหน้า",
-    "pageMarginHorizontal": "ระยะขอบแนวนอน: {margin}%",
-    "pageMarginVertical": "ระยะขอบแนวตั้ง: {margin}%",
-    "pageColumnGap": "ช่องว่างระหว่างคอลัมน์: {gap}px",
-    "showPageNumbers": "แสดงเลขหน้า",
-    "showPageNumbersHint": "แสดงหน้าปัจจุบันและจำนวนหน้าทั้งหมด",
-    "showPageSlider": "แสดงแถบเลื่อนหน้า",
-    "showPageSliderHint": "แสดงแถบเลื่อนเพื่อนำทางระหว่างหน้าอย่างรวดเร็ว"
   },
   "themes": {
     "light": "สว่าง",

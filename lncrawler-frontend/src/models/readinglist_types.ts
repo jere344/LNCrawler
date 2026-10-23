@@ -9,7 +9,7 @@ export interface ReadingListItem {
   added_at: string;
 }
 
-export type ReadingListRole = 'owner' | 'editor' | 'reader';
+type ReadingListRole = 'owner' | 'editor' | 'reader';
 
 export interface ReadingListCollaborator {
   id: string;

@@ -6,21 +6,13 @@
     "delete": "削除",
     "edit": "編集",
     "share": "共有",
-    "back": "戻る",
     "home": "ホーム",
     "unknown": "不明",
-    "loading": "読み込み中...",
     "viewMore": "もっと見る",
     "showMore": "もっと表示",
     "showLess": "表示を減らす",
     "na": "該当なし",
     "breadcrumb": "パンくずリスト",
-    "menu": "メニュー",
-    "login": "ログイン",
-    "register": "登録",
-    "profile": "プロフィール",
-    "logout": "ログアウト",
-    "account": "アカウント",
     "seeMore": "もっと見る",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "第{number}章",
     "comments": "{count, plural, =0 {コメントなし} one {#件のコメント} other {#件のコメント}}",
     "chapters": "{count, plural, one {#章} other {#章}}",
-    "novels": "{count, plural, one {#作品} other {#作品}}",
     "imagesCount": "{count, plural, one {#枚の画像} other {#枚の画像}}",
     "volumes": "{count, plural, other {# 巻}}",
-    "items": "{count, plural, one {#件} other {#件}}",
-    "ratings": "{count, plural, one {#件の評価} other {#件の評価}}",
     "stars": "{count, plural, one {#つ星} other {#つ星}}",
-    "replies": "{count, plural, one {#件の返信} other {#件の返信}}",
     "unreadChapters": "{count, plural, one {#章が未読} other {#章が未読}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "プロフィールデータの読み込みに失敗しました。もう一度お試しください。",
-    "failedLoadReviews": "レビューの読み込みに失敗しました。もう一度お試しください。",
-    "failedLoadLists": "読書リストの読み込みに失敗しました。もう一度お試しください。",
     "updatedSuccess": "プロフィールを更新しました！",
     "updateFailed": "プロフィールの更新に失敗しました。もう一度お試しください。",
     "passwordChanged": "パスワードを変更しました！",
     "passwordChangeFailed": "パスワードの変更に失敗しました。もう一度お試しください。",
-    "heading": "プロフィール",
     "changePhoto": "写真を変更",
     "email": "メール",
     "editProfile": "プロフィールを編集",
@@ -157,14 +142,8 @@
     "security": "セキュリティ",
     "changePassword": "パスワードを変更",
     "currentPassword": "現在のパスワード",
-    "myReadingLists": "マイ読書リスト",
-    "noReadingLists": "まだ読書リストを作成していません。",
-    "browseReadingLists": "読書リストを見る",
-    "myReviews": "マイレビュー",
-    "noReviews": "まだレビューを書いていません。",
     "bio": "自己紹介",
     "changeBanner": "バナーを変更",
-    "viewPublicProfile": "公開プロフィールを表示",
     "notFound": "ユーザーが見つかりません。",
     "privateSection": "このセクションは非公開です。",
     "emptySection": "まだ表示するものはありません。",
@@ -195,8 +174,7 @@
       "library": "ライブラリ",
       "readingLists": "読書リスト",
       "reviews": "レビュー",
-      "comments": "コメント",
-      "friends": "友達"
+      "comments": "コメント"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "ホームページに表示する言語を選択",
     "contentHelper": "ホームページには、選択した各言語の小説が混在して表示されます。空欄にするとすべての言語が表示されます。"
   },
-  "readingStats": {
-    "heading": "読書統計",
-    "progress": "読書の進捗",
-    "onlyBookmarked": "ブックマークした小説のみを含める",
-    "chaptersRead": "読んだ章：",
-    "chaptersLeft": "残りの章：",
-    "percentComplete": "{percent}% 完了",
-    "totalWordsRead": "読んだ総語数",
-    "approxPages": "約{count, plural, one {#ページ} other {#ページ}}"
-  },
   "home": {
     "loadFailed": "ホームページのデータ読み込みに失敗しました。しばらくしてからもう一度お試しください。",
     "introHeading": "ライトノベルを読むのに最適な場所をお探しですか？",
@@ -294,7 +262,6 @@
     "yourLibrary": "あなたのライブラリ",
     "empty": "ライブラリは空です",
     "emptyHint": "小説をブックマークするとライブラリに追加されます。",
-    "bookmarks": "あなたのブックマーク",
     "recommended": "あなたへのおすすめ",
     "notRated": "未評価",
     "editNote": "メモを編集",
@@ -311,7 +278,6 @@
     "sortBy": "並び替え",
     "mirrorHidden": "このユーザーはメモや評価を非公開にしています。",
     "select": "選択",
-    "selectAll": "すべて選択",
     "selectedCount": "{count, plural, one {#件選択中} other {#件選択中}}",
     "clearSelection": "クリア",
     "moveTo": "移動先",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {ライブラリから#作品を削除しますか？} other {ライブラリから#作品を削除しますか？}} この操作は元に戻せません。",
     "addNote": "メモを追加",
     "moreActions": "その他の操作",
-    "dragToFolder": "小説をフォルダにドラッグして整理",
     "sort": {
       "custom": "カスタム順",
       "title": "タイトル",
@@ -355,7 +320,6 @@
     "authors": "作者",
     "authorsPlaceholder": "作者を入力して検索...",
     "language": "言語",
-    "any": "すべて",
     "minimumRating": "最低評価",
     "clear": "クリア",
     "sortBy": "並び替え",
@@ -379,7 +343,6 @@
     "languageFilter": "言語：",
     "ratingFilter": "最低評価：{rating}",
     "sortFilter": "並び替え：{sortBy}（{sortOrder}）",
-    "searching": "検索中...",
     "foundCount": "{count, plural, =0 {小説が見つかりません} one {#件の小説が見つかりました} other {#件の小説が見つかりました}}",
     "noResults": "条件に一致する小説が見つかりません",
     "noResultsHint": "フィルターや検索キーワードを調整してみてください",
@@ -387,10 +350,8 @@
     "noAuthors": "作者が見つかりません",
     "loading": "読み込み中...",
     "optionWithCount": "{name}（{count}）",
-    "siteName": "検索結果 | LNCrawler",
     "metaDefaultTitle": "ライトノベルを検索 | LNCrawler",
     "metaQueryTitle": "「{query}」の検索結果 | LNCrawler",
-    "metaSearchingTitle": "検索中... | LNCrawler",
     "metaDescription": "LNCrawlerで膨大なアジアのライトノベルのコレクションを検索・発見しましょう。タグ、作者、言語などで絞り込めます。",
     "metaQueryDescription": "「{query}」に一致するライトノベルを検索します。{count, plural, =0 {} one {#件の結果が見つかりました。} other {#件の結果が見つかりました。}} LNCrawlerで探してみましょう。",
     "metaKeywords": "ライトノベル検索, Web小説を探す, LNCrawler検索, 小説の発見"
@@ -424,7 +385,6 @@
     "heading": "画像ギャラリー",
     "countFrom": "{novel}の画像{count}枚",
     "showSmall": "小さい画像を表示（{count}枚を絞り込み）",
-    "loadingDimensions": "画像のサイズを読み込み中...",
     "noImagesFiltered": "現在のフィルター設定で表示できる画像がありません。",
     "noImagesPage": "このギャラリーページには画像が見つかりません。",
     "imageAlt": "{chapter}：{name}",
@@ -505,13 +465,10 @@
     "continueReading": "読書を続ける",
     "continueFrom": "{chapter}から続ける",
     "chapterList": "章一覧",
-    "viewAllChapters": "全{count}章を表示",
     "browseAllChapters": "すべての章を見る",
     "imageGallery": "画像ギャラリー",
-    "browseAllImages": "すべての画像を見る",
     "viewImageGallery": "画像ギャラリーを表示",
     "download": "ダウンロード",
-    "downloadEpub": "EPUBとしてダウンロード",
     "downloadTooltip": "この小説をEPUBファイルとしてダウンロード",
     "downloadFull": "全編",
     "volumeN": "第{n}巻",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "小説ソースを読み込み中 | LNCrawler",
     "metaDescription": "{source}の{title}を読みましょう。あらすじ：{synopsis}",
     "metaLoadingDescription": "LNCrawlerでこの小説ソースの詳細を読み込み中。"
-  },
-  "rating": {
-    "noRatings": "評価なし"
-  },
-  "tags": {
-    "more": "+{count} 件"
   },
   "updateButton": {
     "startFailed": "更新ジョブの開始に失敗しました。",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}。次：{next}",
     "unknownLanguage": "不明な言語",
     "authors": "作者",
-    "totalChapters": "総章数",
     "availableChapters": "利用可能な章",
     "views": "閲覧数",
     "lastUpdated": "最終更新",
     "weekly": "（週間）",
     "allTimes": "（全期間）",
-    "thisWeek": "（今週）",
-    "votes": "（投票数：{count}）",
     "rank": "第{rank}位",
-    "added": "{time}に追加",
     "chaptersCount": "{count}章",
     "removeFromHistory": "履歴から削除",
     "lastRead": "最終閲覧：",
@@ -700,7 +647,6 @@
     "removeFromList": "リストから削除",
     "hot": "HOT",
     "viewsThisWeek": "今週{count}回閲覧",
-    "allTimeViews": "総閲覧数",
     "tags": "タグ"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "リーダー設定を開く",
     "chapterComments": "章のコメント",
     "markedRead": "章を既読にしました！",
-    "unlockScrolling": "スクロールを解除",
-    "lockScrolling": "スクロールをロック",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "{total}ページ中{current}ページ",
     "listen": "聴く"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "レイアウト",
     "gestures": "ジェスチャー",
     "behavior": "動作",
-    "pageMode": "ページモード",
     "import": "インポート",
     "export": "エクスポート",
     "resetDefaults": "デフォルトに戻す",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "プレーヤーが開いている間のみ有効です。",
     "keepScreenOn": "画面をオンのままにする",
     "keepScreenOnHint": "読み上げ中のみ有効です。オフにするとバッテリーを節約できます。多くの端末では音声は再生され続けます。"
-  },
-  "pageSettings": {
-    "enablePageMode": "ページモードを有効にする",
-    "enablePageModeHint": "スクロール方式からページ方式の読書に切り替えます",
-    "pageMarginHorizontal": "左右の余白: {margin}%",
-    "pageMarginVertical": "上下の余白: {margin}%",
-    "pageColumnGap": "段組みの間隔: {gap}px",
-    "showPageNumbers": "ページ番号を表示",
-    "showPageNumbersHint": "現在のページと総ページ数を表示します",
-    "showPageSlider": "ページスライダーを表示",
-    "showPageSliderHint": "ページ間を素早く移動するためのスライダーを表示します"
   },
   "themes": {
     "light": "ライト",

@@ -275,6 +275,17 @@ def find_author_candidates_task():
         lambda: call_command_isolated('find_author_candidates'),
     )
 
+# Queue non-adult tags for the R18 classifier daily. A tag is queued once, whatever
+# its verdict, so a run only picks up tags created since the last one.
+@scheduler.register_task(interval=DAY, name="find_r18_candidates")  # daily
+def find_r18_candidates_task():
+    _run_job(
+        "Queueing tags for the R18 classifier...",
+        "R18 tag queueing completed successfully",
+        "Error queueing tags for the R18 classifier: {error}",
+        lambda: call_command_isolated('find_r18_candidates'),
+    )
+
 # Task to compress low traffic novels weekly.
 # Guardrails live in the command itself: single-threaded 7z (-mmt=1), low CPU
 # priority (nice), a pause between sources, and an id-batched scan. It targets
@@ -322,7 +333,6 @@ def update_popular_sources():
 # Bounded --limit per run so a 40k-novel first pass spreads over many runs.
 @scheduler.register_task(interval=600, name="prune_library")
 def prune_library_task():
-    import os
     if os.getenv("LNCRAWL_PRUNE_APPLY", "1").lower() in ("0", "false", "no"):
         return
     _run_job(

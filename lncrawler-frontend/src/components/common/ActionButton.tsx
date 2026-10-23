@@ -19,12 +19,6 @@ interface ActionButtonProps {
   startIcon: React.ReactNode;
   
   /**
-   * The icon to display in the background (will be rotated)
-   * If not provided, startIcon will be used
-   */
-  backgroundIcon?: React.ReactNode;
-  
-  /**
    * Button color variant
    */
   color?: "inherit" | "primary" | "secondary" | "success" | "error" | "info" | "warning";
@@ -79,7 +73,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   title,
   subtitle,
   startIcon,
-  backgroundIcon,
   color = "primary",
   onClick,
   to,
@@ -137,7 +130,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
           </Typography>
         )}
       </Box>
-      {React.cloneElement((backgroundIcon || startIcon) as React.ReactElement<{ sx?: SxProps<Theme> }>, { 
+      {React.cloneElement(startIcon as React.ReactElement<{ sx?: SxProps<Theme> }>, {
         sx: { 
           position: 'absolute', 
           right: '5px', 

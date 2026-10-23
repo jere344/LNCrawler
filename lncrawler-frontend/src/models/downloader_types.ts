@@ -1,10 +1,4 @@
 // Search-related types
-export interface SearchResponse {
-  status: string;
-  message: string;
-  job_id: string;
-}
-
 export interface SearchStatus {
   status: string;
   status_display: string;
@@ -14,12 +8,6 @@ export interface SearchStatus {
   progress?: number;
   total_items?: number;
   progress_percentage?: number;
-}
-
-export interface Novel {
-  id: string;
-  title: string;
-  url: string;
 }
 
 export interface SearchSource {
@@ -43,12 +31,6 @@ export interface SearchResults {
 export interface DownloadParams {
   novel_index: number;
   source_index: number;
-}
-
-export interface DownloadResponse {
-  status: string;
-  message: string;
-  job_id: string;
 }
 
 export interface SelectedNovel {

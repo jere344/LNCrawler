@@ -25,7 +25,6 @@ from pathlib import Path
 from PIL import Image
 
 from ..models.chapter import Chapter
-from .arguments import get_args
 
 logger = logging.getLogger(__name__)
 
@@ -139,10 +138,8 @@ def _restore_archive(source_dir: Path, archive: Path) -> bool:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def _chapter_file(chapter: Chapter, output_path: str, pack_by_volume: bool) -> Path:
+def _chapter_file(chapter: Chapter, output_path: str) -> Path:
     dir_name = Path(output_path) / "json"
-    if pack_by_volume:
-        dir_name = dir_name / ("Volume " + str(chapter.volume).rjust(2, "0"))
     chapter_name = str(chapter.id).rjust(5, "0")
     return dir_name / (chapter_name + ".json")
 
@@ -150,14 +147,6 @@ def _chapter_file(chapter: Chapter, output_path: str, pack_by_volume: bool) -> P
 def _save_chapter(file_name: Path, chapter: Chapter, output_path: str) -> None:
     if not chapter.body:
         chapter.body = "<p><i>Failed to download chapter body</i></p>"
-
-    args = get_args()
-    source_url = html.escape(chapter.url or "", quote=True)
-    source_notice = (
-        f'<br><p><small>Source: <a href="{source_url}">{source_url}</a></small></p>'
-    )
-    if args.add_source_url and not chapter.body.endswith(source_notice):
-        chapter.body += source_notice
 
     title = html.escape(chapter.title or "")
     title = f"<h1>{title}</h1>"
@@ -221,7 +210,7 @@ def fetch_chapter_body(app) -> None:
 
     file_names = {}
     for chapter in app.chapters:
-        file_name = _chapter_file(chapter, app.output_path, app.pack_by_volume)
+        file_name = _chapter_file(chapter, app.output_path)
         file_names[chapter.id] = file_name
         try:
             with open(file_name, "r", encoding="utf-8") as file:
@@ -349,7 +338,7 @@ def _discard_failed_images(app, chapter, failed) -> None:
         return
 
     # The chapter body was dropped from memory after being saved; reload it.
-    file_name = _chapter_file(chapter, app.output_path, app.pack_by_volume)
+    file_name = _chapter_file(chapter, app.output_path)
     try:
         with file_name.open("r", encoding="utf-8") as fp:
             data = json.load(fp)

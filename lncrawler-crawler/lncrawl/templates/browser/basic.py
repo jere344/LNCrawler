@@ -133,7 +133,6 @@ class BasicBrowserTemplate(Crawler):
     def download_chapters(
         self,
         chapters: List[Chapter],
-        fail_fast: bool = False,
     ) -> Generator[Chapter, None, None]:
         # Native backend first: it can batch chapters in parallel, but keep the
         # number of in-flight futures bounded so large novels do not pin every
@@ -198,8 +197,6 @@ class BasicBrowserTemplate(Crawler):
                         logger.error("Failed to get chapter body: %s", e)
                     if isinstance(e, KeyboardInterrupt):
                         break
-                    if fail_fast:
-                        raise
                 finally:
                     yield chapter
         finally:

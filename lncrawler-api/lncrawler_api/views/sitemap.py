@@ -116,47 +116,6 @@ class ChapterListSitemap(BaseSitemap):
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/chapterlist/'
 
-# class ChapterReaderSitemap(BaseSitemap):
-#     priority = 0.6
-#     changefreq = 'weekly'
-
-#     def items(self):
-#         chapters_to_include = []
-#         novel_sources = NovelFromSource.objects.select_related('novel').all()
-
-#         for nfs in novel_sources:
-#             # Get the first chapter with content
-#             first_chapter = Chapter.objects.filter(
-#                 novel_from_source=nfs,
-#                 has_content=True
-#             ).order_by('chapter_id').first()
-
-#             if first_chapter:
-#                 chapters_to_include.append(first_chapter)
-
-#             # Get the last chapter with content
-#             last_chapter = Chapter.objects.filter(
-#                 novel_from_source=nfs,
-#                 has_content=True
-#             ).order_by('-chapter_id').first()
-
-#             if last_chapter:
-#                 # Avoid adding the same chapter twice if it's the only chapter
-#                 if not first_chapter or first_chapter.id != last_chapter.id:
-#                     chapters_to_include.append(last_chapter)
-        
-#         return chapters_to_include
-
-#     def lastmod(self, obj):
-#         # obj is a Chapter instance.
-#         # Use last_chapter_update from NovelFromSource if available, else NovelFromSource.updated_at.
-#         # Chapter model itself does not have an updated_at field per user's file.
-#         if obj.novel_from_source:
-#             return obj.novel_from_source.last_chapter_update or obj.novel_from_source.updated_at
-#         return None # Should ideally not happen if data is consistent
-
-#     def location(self, obj):
-#         return f'/novels/{obj.novel_from_source.novel.slug}/{obj.novel_from_source.source_slug}/chapter/{obj.chapter_id}/'
 
 class ImageGallerySitemap(BaseSitemap):
     priority = 0.5

@@ -105,7 +105,7 @@ export const getChapterName = (title: string): string => {
     return latestChapterTitle || "";
 };
 
-export interface NovelSourceTarget {
+interface NovelSourceTarget {
     slug: string;
     prefered_source?: { source_slug?: string | null } | null;
     reading_history?: { source_slug?: string | null } | null;
@@ -126,7 +126,7 @@ export const getNovelDisplayTitle = (novel: {
     prefered_source?: { title?: string | null } | null;
 }): string => (novel.reading_source ?? novel.prefered_source)?.title || novel.title;
 
-export interface SourceLinkProps {
+interface SourceLinkProps {
     to?: string;
     state?: unknown;
 }
@@ -151,7 +151,7 @@ export const getChapterLabel = (t: TFunction, title?: string | null, chapterId?:
 }
 
 
-export const languageCodeToFlag = (language?: string | null): string => {
+const languageCodeToFlag = (language?: string | null): string => {
     const languageMap: Record<LanguageCode, string> = {
         'en': 'gb',
         'fr': 'fr',

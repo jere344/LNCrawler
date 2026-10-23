@@ -12,11 +12,6 @@ interface ReaderNavigationProps {
   onNext: () => void;
   onHome: () => void;
   variant?: 'buttons' | 'compact';
-  showLabels?: boolean;
-  // Add URL props
-  prevUrl?: string;
-  nextUrl?: string;
-  homeUrl?: string;
 }
 
 /**
@@ -30,7 +25,6 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
   onNext,
   onHome,
   variant = 'buttons',
-  showLabels = true,
 }) => {
   const { t } = useTranslation();
 
@@ -43,7 +37,7 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             onClick={onPrevious}
             variant="outlined"
           >
-            {showLabels ? t('readerControls.previousChapter') : ''}
+            {t('readerControls.previousChapter')}
           </Button>
         ) : <></>}
         
@@ -53,7 +47,7 @@ const ReaderNavigation: React.FC<ReaderNavigationProps> = ({
             onClick={onNext}
             variant="contained"
           >
-            {showLabels ? t('readerControls.nextChapter') : ''}
+            {t('readerControls.nextChapter')}
           </Button>
         )}
       </Box>

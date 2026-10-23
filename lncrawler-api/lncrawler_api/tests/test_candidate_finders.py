@@ -138,14 +138,6 @@ class AuthorFinderTests(TestCase):
             Candidate.STATUS_REJECTED,
         )
 
-    def test_dry_run_writes_nothing(self):
-        Author.objects.create(name="Tomato Eater")
-        Author.objects.create(name="tomato  eater")
-
-        call_command("find_author_candidates", "--dry-run", stdout=StringIO())
-
-        self.assertFalse(Candidate.objects.exists())
-
 
 class NovelFinderTests(MergeTestCase):
     def test_pair_sharing_a_source_url_is_queued(self):
@@ -211,16 +203,6 @@ class NovelFinderTests(MergeTestCase):
 
         self.assertFalse(Candidate.objects.filter(pk=orphan.pk).exists())
         self.assertIn("1 open row(s) of missing novels removed", out.getvalue())
-
-    def test_dry_run_writes_nothing(self):
-        first = make_novel("First Work", "first-work")
-        second = make_novel("Second Work", "second-work")
-        source_on(first, "http://shared/1", "site-a")
-        source_on(second, "http://shared/1", "site-b")
-
-        call_command("find_merge_candidates", "--dry-run", stdout=StringIO())
-
-        self.assertFalse(Candidate.objects.exists())
 
 
 class R18FinderTests(TestCase):

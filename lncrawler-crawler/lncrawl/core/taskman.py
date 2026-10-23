@@ -16,38 +16,11 @@ def _host_semaphore(hostname: str) -> Semaphore:
     return Semaphore(MAX_REQUESTS_PER_DOMAIN)
 
 
-class _NullProgress:
-    """Stand-in for the upstream tqdm progress bar (no console in the API)."""
-
-    disable = True
-
-    def __init__(self, iterable: Optional[Iterable] = None) -> None:
-        self._iterable = iterable
-
-    def __iter__(self):
-        return iter(self._iterable or [])
-
-    def __enter__(self) -> "_NullProgress":
-        return self
-
-    def __exit__(self, *exc) -> None:
-        self.close()
-
-    def update(self, n: int = 1) -> None:
-        pass
-
-    def clear(self) -> None:
-        pass
-
-    def close(self) -> None:
-        pass
-
-
 class TaskManager:
     """Thread pool + per-domain concurrency gate.
 
-    Trimmed from upstream: no tqdm progress bars (a no-op shim is kept for
-    source compatibility) and progress is polled by the API instead.
+    Trimmed from upstream: no tqdm progress bars; progress is polled by the API
+    instead.
     """
 
     def __init__(
@@ -97,17 +70,6 @@ class TaskManager:
         # Rate limiting is applied per HTTP request in Scraper.__process_request.
         return self._executor.submit(fn, *args, **kwargs)
 
-    @staticmethod
-    def progress_bar(
-        iterable: Optional[Iterable] = None,
-        unit: Optional[str] = None,
-        desc: Optional[str] = None,
-        total: Optional[float] = None,
-        timeout: Optional[float] = None,
-        disable: bool = False,
-    ) -> _NullProgress:
-        return _NullProgress(iterable)
-
     def domain_gate(self, hostname: Optional[str]) -> Semaphore:
         return _host_semaphore(hostname or "")
 
@@ -122,14 +84,10 @@ class TaskManager:
         self,
         futures: Iterable[Future],
         timeout: Optional[float] = None,
-        fail_fast: bool = False,
         **kwargs: Any,
     ) -> Generator[Any, None, None]:
         try:
             for future in futures:
-                if fail_fast:
-                    yield future.result(timeout)
-                    continue
                 try:
                     yield future.result(timeout)
                 except KeyboardInterrupt:
@@ -139,22 +97,6 @@ class TaskManager:
                     yield None
         finally:
             self.cancel_futures(futures)
-
-    def resolve_futures(
-        self,
-        futures: Iterable[Future],
-        timeout: Optional[float] = None,
-        fail_fast: bool = False,
-        **kwargs: Any,
-    ) -> list:
-        return list(
-            self.resolve_as_generator(
-                futures=futures,
-                timeout=timeout,
-                fail_fast=fail_fast,
-                **kwargs,
-            )
-        )
 
     def resolve_bounded(
         self,

@@ -139,7 +139,7 @@ def _is_unsafe_member(name: str) -> bool:
     return ".." in re.split(r"[\\/]+", name)
 
 
-def _extract_tar_7zip(tar_file_path: Path, remove_archive: bool = False) -> bool:
+def _extract_tar_7zip(tar_file_path: Path) -> bool:
     """Unpack a 7z archive into its own folder (caller holds the source lock)."""
     tar_file_path = Path(tar_file_path)
     temp_dir = None
@@ -174,11 +174,7 @@ def _extract_tar_7zip(tar_file_path: Path, remove_archive: bool = False) -> bool
                     os.remove(dst)
                 shutil.move(src, dst)
 
-        if remove_archive:
-            print(f"Extraction successful. Deleting {tar_file_path}")
-            tar_file_path.unlink()
-        else:
-            print(f"Extraction successful. Keeping {tar_file_path}")
+        print(f"Extraction successful. Keeping {tar_file_path}")
         return True
     except Exception as e:
         print(f"Error while extracting {tar_file_path} to {tar_file_path.parent}: {e}")
@@ -188,10 +184,10 @@ def _extract_tar_7zip(tar_file_path: Path, remove_archive: bool = False) -> bool
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def extract_tar_7zip_folder(tar_file_path: Path, remove_archive: bool = False) -> bool:
+def extract_tar_7zip_folder(tar_file_path: Path) -> bool:
     tar_file_path = Path(tar_file_path)
     with source_lock(tar_file_path.parent):
-        return _extract_tar_7zip(tar_file_path, remove_archive=remove_archive)
+        return _extract_tar_7zip(tar_file_path)
 
 
 def get_chapter(source_absolute_path: str, chapter_number: int) -> dict:
@@ -209,7 +205,7 @@ def get_chapter(source_absolute_path: str, chapter_number: int) -> dict:
             if not chapter_path.exists():
                 compressed_path = source_dir / "json.7z"
                 if compressed_path.exists():
-                    if _extract_tar_7zip(compressed_path, remove_archive=False):
+                    if _extract_tar_7zip(compressed_path):
                         print(f"Extracted {compressed_path} to {source_absolute_path}")
                     else:
                         print(f"Failed to extract {compressed_path}")
@@ -312,11 +308,6 @@ def read_chapters_no_extract(source_absolute_path: str, chapter_numbers, strict=
             raise ChapterReadError(f"cannot read {source_absolute_path}: {e}") from e
         logger.error("Error reading chapters from %s: %s", source_absolute_path, e)
     return chapters
-
-
-def read_chapter_no_extract(source_absolute_path: str, chapter_number: int) -> dict:
-    """Single-chapter form of ``read_chapters_no_extract``."""
-    return read_chapters_no_extract(source_absolute_path, [chapter_number]).get(chapter_number)
 
 
 def chapter_dict_has_content(chapter: dict) -> bool:

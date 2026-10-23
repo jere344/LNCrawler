@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.contrib import admin
 from django.db.models import Count, Sum
 from django.utils import timezone
@@ -36,7 +35,7 @@ def _providers_today():
 
 
 def _usage_today():
-    """Today's LLMCall rows per task against the shared daily caps, and the last minute (see llm_service.can_afford)."""
+    """Today's LLMCall rows per task, and all LLMCall rows of the last minute."""
     today = timezone.localdate()
     by_kind = {
         row["kind"]: row
@@ -60,13 +59,9 @@ def _usage_today():
         "rows": rows,
         "requests": sum(r["requests"] for r in rows),
         "tokens": sum(r["tokens"] for r in rows),
-        "requests_cap": settings.LLM_DAILY_REQUESTS,
-        "tokens_cap": settings.LLM_DAILY_TOKENS,
         "minute": {
             "requests": minute_requests,
             "tokens": minute_tokens,
-            "requests_cap": settings.LLM_REQUESTS_PER_MINUTE,
-            "tokens_cap": settings.LLM_TOKENS_PER_MINUTE,
         },
         "providers": _providers_today(),
     }

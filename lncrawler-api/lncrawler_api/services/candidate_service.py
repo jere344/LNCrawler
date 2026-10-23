@@ -50,12 +50,12 @@ def _ensure_unclaimed(candidate):
         raise CandidateError("This candidate is being judged by the LLM; try again once the judgement is saved.")
 
 
-def _mark(candidate, status, reason=""):
+def _mark(candidate, status):
     _ensure_unclaimed(candidate)
     candidate.status = status
     candidate.decided_by = Candidate.DECIDED_HUMAN
     candidate.decided_at = timezone.now()
-    candidate.reason = reason
+    candidate.reason = ""
     candidate.save(update_fields=["status", "decided_by", "decided_at", "reason", "updated_at"])
 
 

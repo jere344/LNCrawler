@@ -15,6 +15,7 @@ from ..services.merge_service import fold_tag, merge_novels
 from ..services.candidate_service import CandidateError
 from ..services.llm_service import LLMError, RateLimited
 from .helpers import MergeTestCase, make_novel
+from .llm_helpers import llm_chain
 
 
 def make_candidate(kind, target_ids, names=(), **extra):
@@ -67,7 +68,7 @@ class DecideRuleTests(SimpleTestCase):
         self.assertEqual((status, reason), (Candidate.STATUS_REVIEW, "unsure"))
 
 
-@override_settings(LLM_API_KEY="key")
+@override_settings(**llm_chain())
 class RunnerTests(MergeTestCase):
     def setUp(self):
         super().setUp()
@@ -308,7 +309,7 @@ class RunnerTests(MergeTestCase):
         self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
 
 
-@override_settings(LLM_API_KEY="key")
+@override_settings(**llm_chain())
 class DropTargetGoneTests(MergeTestCase):
     """Open candidates whose target is gone are deleted, never closed as system."""
 
@@ -503,7 +504,7 @@ class ReviewFixTests(MergeTestCase):
         self.assertEqual(len(task.safeguards(candidate, {"answer": "yes"})), 1)
 
 
-@override_settings(LLM_API_KEY="key")
+@override_settings(**llm_chain())
 class RoundTwoFixTests(MergeTestCase):
     def setUp(self):
         super().setUp()
@@ -555,7 +556,7 @@ class MigrationFallbackTests(SimpleTestCase):
         self.assertFalse(spec["signature"].startswith("legacy:"))
 
 
-@override_settings(LLM_API_KEY="key")
+@override_settings(**llm_chain())
 class DecidedRowTests(MergeTestCase):
     def setUp(self):
         super().setUp()

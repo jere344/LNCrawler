@@ -6,21 +6,13 @@
     "delete": "删除",
     "edit": "编辑",
     "share": "分享",
-    "back": "返回",
     "home": "首页",
     "unknown": "未知",
-    "loading": "加载中...",
     "viewMore": "查看更多",
     "showMore": "显示更多",
     "showLess": "收起",
     "na": "不适用",
     "breadcrumb": "面包屑导航",
-    "menu": "菜单",
-    "login": "登录",
-    "register": "注册",
-    "profile": "个人资料",
-    "logout": "退出登录",
-    "account": "账户",
     "seeMore": "查看更多",
     "dmca": "DMCA",
     "r18": "R18"
@@ -35,13 +27,9 @@
     "chapter": "第{number}章",
     "comments": "{count, plural, =0 {暂无评论} one {#条评论} other {#条评论}}",
     "chapters": "{count, plural, one {#章} other {#章}}",
-    "novels": "{count, plural, one {#部作品} other {#部作品}}",
     "imagesCount": "{count, plural, one {#张图片} other {#张图片}}",
     "volumes": "{count, plural, other {# 卷}}",
-    "items": "{count, plural, one {#项} other {#项}}",
-    "ratings": "{count, plural, one {#个评分} other {#个评分}}",
     "stars": "{count, plural, one {#颗星} other {#颗星}}",
-    "replies": "{count, plural, one {#条回复} other {#条回复}}",
     "unreadChapters": "{count, plural, one {#章未读} other {#章未读}}"
   },
   "languages": {
@@ -140,13 +128,10 @@
   },
   "profile": {
     "failedLoad": "加载个人资料数据失败。请重试。",
-    "failedLoadReviews": "加载您的评论失败。请重试。",
-    "failedLoadLists": "加载您的阅读列表失败。请重试。",
     "updatedSuccess": "个人资料更新成功！",
     "updateFailed": "更新个人资料失败。请重试。",
     "passwordChanged": "密码修改成功！",
     "passwordChangeFailed": "修改密码失败。请重试。",
-    "heading": "个人资料",
     "changePhoto": "更换头像",
     "email": "邮箱",
     "editProfile": "编辑资料",
@@ -157,14 +142,8 @@
     "security": "安全",
     "changePassword": "修改密码",
     "currentPassword": "当前密码",
-    "myReadingLists": "我的阅读列表",
-    "noReadingLists": "您还没有创建任何阅读列表。",
-    "browseReadingLists": "浏览阅读列表",
-    "myReviews": "我的评论",
-    "noReviews": "您还没有撰写任何评论。",
     "bio": "简介",
     "changeBanner": "更换横幅",
-    "viewPublicProfile": "查看公开资料",
     "notFound": "未找到用户。",
     "privateSection": "此部分为私密。",
     "emptySection": "这里暂时没有内容可显示。",
@@ -195,8 +174,7 @@
       "library": "书库",
       "readingLists": "阅读列表",
       "reviews": "评论",
-      "comments": "留言",
-      "friends": "好友"
+      "comments": "留言"
     }
   },
   "friends": {
@@ -259,16 +237,6 @@
     "contentPlaceholder": "选择要在首页显示的语言",
     "contentHelper": "首页会混合显示您所选每种语言的小说。留空则显示所有语言。"
   },
-  "readingStats": {
-    "heading": "阅读统计",
-    "progress": "阅读进度",
-    "onlyBookmarked": "仅包含已收藏的小说",
-    "chaptersRead": "已读章节：",
-    "chaptersLeft": "剩余章节：",
-    "percentComplete": "已完成 {percent}%",
-    "totalWordsRead": "阅读总字数",
-    "approxPages": "约 {count, plural, one {#页} other {#页}}"
-  },
   "home": {
     "loadFailed": "加载首页数据失败。请稍后重试。",
     "introHeading": "在寻找阅读轻小说的好去处？",
@@ -294,7 +262,6 @@
     "yourLibrary": "您的书库",
     "empty": "您的书库是空的",
     "emptyHint": "收藏小说即可将其添加到书库。",
-    "bookmarks": "您的收藏",
     "recommended": "为您推荐",
     "notRated": "未评分",
     "editNote": "编辑笔记",
@@ -311,7 +278,6 @@
     "sortBy": "排序方式",
     "mirrorHidden": "该用户将笔记和/或评分设为私密。",
     "select": "选择",
-    "selectAll": "全选",
     "selectedCount": "{count, plural, one {已选择 # 项} other {已选择 # 项}}",
     "clearSelection": "清除",
     "moveTo": "移动到",
@@ -321,7 +287,6 @@
     "removeConfirmBody": "{count, plural, one {从您的书库中移除 # 部小说？} other {从您的书库中移除 # 部小说？}} 此操作无法撤销。",
     "addNote": "添加备注",
     "moreActions": "更多操作",
-    "dragToFolder": "将小说拖到文件夹中以归档",
     "sort": {
       "custom": "自定义顺序",
       "title": "标题",
@@ -355,7 +320,6 @@
     "authors": "作者",
     "authorsPlaceholder": "输入作者进行搜索...",
     "language": "语言",
-    "any": "任意",
     "minimumRating": "最低评分",
     "clear": "清除",
     "sortBy": "排序方式",
@@ -379,7 +343,6 @@
     "languageFilter": "语言：",
     "ratingFilter": "最低评分：{rating}",
     "sortFilter": "排序：{sortBy}（{sortOrder}）",
-    "searching": "搜索中...",
     "foundCount": "{count, plural, =0 {未找到小说} one {找到 # 部小说} other {找到 # 部小说}}",
     "noResults": "没有符合条件的小说",
     "noResultsHint": "请尝试调整筛选条件或搜索词",
@@ -387,10 +350,8 @@
     "noAuthors": "未找到作者",
     "loading": "加载中...",
     "optionWithCount": "{name}（{count}）",
-    "siteName": "搜索结果 | LNCrawler",
     "metaDefaultTitle": "搜索轻小说 | LNCrawler",
     "metaQueryTitle": "“{query}”的搜索结果 | LNCrawler",
-    "metaSearchingTitle": "搜索中... | LNCrawler",
     "metaDescription": "在 LNCrawler 上搜索并发现海量亚洲轻小说。按标签、作者、语言等筛选。",
     "metaQueryDescription": "查找与“{query}”匹配的轻小说。{count, plural, =0 {} one {找到 # 个结果。} other {找到 # 个结果。}} 到 LNCrawler 探索。",
     "metaKeywords": "搜索轻小说, 查找网络小说, LNCrawler 搜索, 小说发现"
@@ -424,7 +385,6 @@
     "heading": "图片画廊",
     "countFrom": "来自 {novel} 的 {count} 张图片",
     "showSmall": "显示小图片（已筛选 {count} 张）",
-    "loadingDimensions": "正在加载图片尺寸...",
     "noImagesFiltered": "当前筛选设置下没有可显示的图片。",
     "noImagesPage": "此画廊页面中没有找到图片。",
     "imageAlt": "{chapter}：{name}",
@@ -505,13 +465,10 @@
     "continueReading": "继续阅读",
     "continueFrom": "从 {chapter} 继续",
     "chapterList": "章节列表",
-    "viewAllChapters": "查看全部 {count} 章",
     "browseAllChapters": "浏览所有章节",
     "imageGallery": "图片画廊",
-    "browseAllImages": "浏览所有图片",
     "viewImageGallery": "查看图片画廊",
     "download": "下载",
-    "downloadEpub": "下载为 EPUB",
     "downloadTooltip": "将此小说下载为 EPUB 文件",
     "downloadFull": "完整小说",
     "volumeN": "第 {n} 卷",
@@ -535,12 +492,6 @@
     "metaLoadingTitle": "正在加载小说来源 | LNCrawler",
     "metaDescription": "阅读来自 {source} 的 {title}。简介：{synopsis}",
     "metaLoadingDescription": "正在加载此小说来源在 LNCrawler 上的详情。"
-  },
-  "rating": {
-    "noRatings": "暂无评分"
-  },
-  "tags": {
-    "more": "+{count} 更多"
   },
   "updateButton": {
     "startFailed": "启动更新任务失败。",
@@ -677,16 +628,12 @@
     "unreadTooltip": "{unread}。下一个：{next}",
     "unknownLanguage": "未知语言",
     "authors": "作者",
-    "totalChapters": "总章节数",
     "availableChapters": "可读章节",
     "views": "浏览量",
     "lastUpdated": "最近更新",
     "weekly": "（每周）",
     "allTimes": "（全部时间）",
-    "thisWeek": "（本周）",
-    "votes": "（投票：{count}）",
     "rank": "第 {rank} 名",
-    "added": "添加于{time}",
     "chaptersCount": "{count} 章",
     "removeFromHistory": "从历史记录中移除",
     "lastRead": "上次阅读：",
@@ -700,7 +647,6 @@
     "removeFromList": "从列表中移除",
     "hot": "HOT",
     "viewsThisWeek": "本周 {count} 次浏览",
-    "allTimeViews": "总浏览量",
     "tags": "标签"
   },
   "downloader": {
@@ -779,10 +725,6 @@
     "openSettings": "打开阅读器设置",
     "chapterComments": "章节评论",
     "markedRead": "章节已成功标记为已读！",
-    "unlockScrolling": "解锁滚动",
-    "lockScrolling": "锁定滚动",
-    "pageIndicator": "{current} / {total}",
-    "pageOf": "第 {current} 页，共 {total} 页",
     "listen": "收听"
   },
   "readerControls": {
@@ -805,7 +747,6 @@
     "layout": "布局",
     "gestures": "手势",
     "behavior": "行为",
-    "pageMode": "翻页模式",
     "import": "导入",
     "export": "导出",
     "resetDefaults": "恢复默认设置",
@@ -994,17 +935,6 @@
     "tapToSeekHint": "仅在播放器打开时可用。",
     "keepScreenOn": "保持屏幕常亮",
     "keepScreenOnHint": "在朗读时生效。关闭可节省电量；大多数设备上声音仍会继续播放。"
-  },
-  "pageSettings": {
-    "enablePageMode": "启用翻页模式",
-    "enablePageModeHint": "从滚动阅读切换为翻页阅读",
-    "pageMarginHorizontal": "水平边距：{margin}%",
-    "pageMarginVertical": "垂直边距：{margin}%",
-    "pageColumnGap": "栏间距：{gap}px",
-    "showPageNumbers": "显示页码",
-    "showPageNumbersHint": "显示当前页和总页数",
-    "showPageSlider": "显示页面滑块",
-    "showPageSliderHint": "显示用于快速在页面间跳转的滑块"
   },
   "themes": {
     "light": "浅色",

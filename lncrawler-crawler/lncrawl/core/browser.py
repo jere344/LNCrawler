@@ -12,7 +12,7 @@ import logging
 import threading
 from typing import Any, Dict, List, Optional
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -26,37 +26,6 @@ class By(enum.Enum):
     TAG_NAME = "tag name"
     CLASS_NAME = "class name"
     CSS_SELECTOR = "css selector"
-
-
-class Element:
-    def __init__(self, tag: Tag, browser: "Browser" = None, selector: str = None) -> None:
-        self._tag = tag
-        self._browser = browser
-        self._selector = selector
-
-    def as_tag(self) -> Tag:
-        return self._tag
-
-    @property
-    def text(self) -> str:
-        return self._tag.get_text(strip=True)
-
-    def get(self, key: str, default=None):
-        return self._tag.get(key, default)
-
-    def get_attribute(self, key: str):
-        return self._tag.get(key)
-
-    def __getitem__(self, key: str):
-        return self._tag[key]
-
-    def click(self) -> None:
-        if self._browser is not None and self._selector:
-            self._browser.click(self._selector)
-
-    def send_keys(self, text: str) -> None:
-        if self._browser is not None and self._selector:
-            self._browser.fill(self._selector, text)
 
 
 class Browser:
@@ -217,61 +186,3 @@ class Browser:
     def wait(self, selector: str, by=None, timeout: Optional[float] = None) -> None:
         if by in (None, By.CSS_SELECTOR):
             self._call(self._wait_for(selector))
-
-    # -- element helpers ---------------------------------------------- #
-
-    def find(self, selector: str, by: By = By.CSS_SELECTOR) -> Optional[Element]:
-        soup = self.soup
-        tag = None
-        if by in (None, By.CSS_SELECTOR):
-            tag = soup.select_one(selector)
-        elif by == By.TAG_NAME:
-            tag = soup.find(selector)
-        elif by == By.CLASS_NAME:
-            tag = soup.find(class_=selector)
-        elif by == By.ID:
-            tag = soup.find(id=selector)
-        elif by == By.NAME:
-            tag = soup.find(attrs={"name": selector})
-        return Element(tag, self, selector) if tag else None
-
-    def find_all(self, selector: str, by: By = By.CSS_SELECTOR) -> List[Element]:
-        if by in (None, By.CSS_SELECTOR):
-            return [
-                Element(tag, self, selector) for tag in self.soup.select(selector)
-            ]
-        single = self.find(selector, by)
-        return [single] if single else []
-
-    async def _click(self, selector: str) -> None:
-        await self._ensure()
-        await self._page.click(selector)
-
-    def click(self, selector: str, by: By = By.CSS_SELECTOR) -> None:
-        self._call(self._click(selector))
-
-    async def _fill(self, selector: str, text: str) -> None:
-        await self._ensure()
-        await self._page.fill(selector, text)
-
-    def fill(self, selector: str, text: str) -> None:
-        self._call(self._fill(selector, text))
-
-    async def _execute_js(self, script: str, arg=None):
-        await self._ensure()
-        return await self._page.evaluate(script, arg)
-
-    def execute_js(self, script: str, arg=None):
-        return self._call(self._execute_js(script, arg))
-
-    @property
-    def cookies(self) -> Dict[str, str]:
-        async def _cookies():
-            await self._ensure()
-            items = await self._context.cookies()
-            return {c["name"]: c["value"] for c in items}
-
-        try:
-            return self._call(_cookies())
-        except Exception:
-            return {}

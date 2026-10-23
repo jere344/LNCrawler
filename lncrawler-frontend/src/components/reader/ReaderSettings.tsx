@@ -104,9 +104,6 @@ interface ReaderSettingsProps {
   chapterInfo: ChapterInfo;
   onNavigate: (type: 'prev' | 'home' | 'next') => void;
   isAuthenticated?: boolean;
-  prevUrl?: string;
-  nextUrl?: string;
-  homeUrl?: string;
   novelLanguage: string;
   onTtsBeforePreview?: () => void;
   focusTts?: boolean;
@@ -120,9 +117,6 @@ const ReaderSettings = ({
   chapterInfo,
   onNavigate,
   isAuthenticated = false,
-  prevUrl,
-  nextUrl,
-  homeUrl,
   novelLanguage,
   onTtsBeforePreview,
   focusTts = false,
@@ -333,9 +327,6 @@ const ReaderSettings = ({
           onPrevious={() => onNavigate('prev')}
           onNext={() => onNavigate('next')}
           onHome={() => onNavigate('home')}
-          prevUrl={prevUrl}
-          nextUrl={nextUrl}
-          homeUrl={homeUrl}
         />
 
         <Divider sx={{ mb: 2 }} />
