@@ -5,20 +5,32 @@ The www host redirects to tw.hjwzw.com.  Book pages expose metadata in
 ``og:novel:*`` meta tags, the chapter list is one page at ``/Book/Chapter/<id>``
 and chapter text sits in the ``text-indent`` container of ``/Book/Read/<id>,<cid>``.
 Text is stored as-is (Traditional Chinese).  The site search endpoint returns
-an interstitial page for every query, so ``search_novel`` returns no results.
-Browse uses the genre listing ``/Channel/<genre>/<page>``.
+an interstitial page for every query. Search therefore runs over a catalog built
+from the genre listings ``/Channel/<genre>/<page>`` (fetched sequentially and
+cached on disk for a week, see ``lncrawl.core.catalog_cache``). Browse stays live.
 """
 
 import logging
+import random
 import re
+import time
+from datetime import timedelta
 from typing import Dict, List
 from urllib.parse import quote
 
+from lncrawl.core.catalog_cache import cached_catalog
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
+
+try:  # optional: Traditional/Simplified matching when opencc is installed
+    from opencc import OpenCC
+
+    _to_simplified = OpenCC("t2s").convert
+except ImportError:  # pragma: no cover - depends on environment
+    _to_simplified = None
 
 GENRES = [
     "玄幻", "奇幻", "武俠", "仙俠", "都市", "言情", "歷史",
@@ -26,6 +38,12 @@ GENRES = [
 ]
 MAX_PAGES_PER_GENRE = 50
 BOOK_HREF_RE = re.compile(r"^(?:https?://[^/]+)?/Book/(\d+)/?$")
+_CHALLENGE_MARKERS = ("Just a moment", "cf-browser-verification", "captcha-delivery")
+
+
+def _normalize(text: str) -> str:
+    text = (text or "").strip().lower()
+    return _to_simplified(text) if _to_simplified else text
 
 
 class HjwzwCrawler(Crawler):
@@ -33,11 +51,76 @@ class HjwzwCrawler(Crawler):
     language = "zh"
     has_mtl = False
 
+    def initialize(self) -> None:
+        # Listing pages are spaced out: bursts get the IP flagged.
+        self.init_executor(ratelimit=1)
+
+    def _download_all_novels(self) -> List[dict]:
+        novels: List[dict] = []
+        seen = set()
+        first = True
+        for genre in GENRES:
+            for page in range(1, MAX_PAGES_PER_GENRE + 1):
+                if not first:
+                    time.sleep(random.uniform(1.0, 2.5))
+                first = False
+                resp = self.get_response(
+                    self.absolute_url(f"/Channel/{quote(genre)}/{page}")
+                )
+                if any(m in resp.text[:4096] for m in _CHALLENGE_MARKERS):
+                    raise LNException(
+                        f"Listing {genre}/{page} is a bot challenge, catalog not built"
+                    )
+                soup = self.make_soup(resp)
+                books = self._book_links(soup)
+                if not books:
+                    # An empty first page or a page without the listing container is a block, not the end
+                    if page == 1 or not soup.select_one("#BookMark"):
+                        raise LNException(
+                            f"Listing {genre}/{page} has no books, catalog not built"
+                        )
+                    break
+                new_items = 0
+                for book_id, title in books:
+                    if book_id in seen:
+                        continue
+                    seen.add(book_id)
+                    new_items += 1
+                    novels.append(
+                        {"title": title, "url": self.absolute_url(f"/Book/{book_id}")}
+                    )
+                if new_items == 0:
+                    break
+        if len(novels) < 20:
+            raise LNException(f"Genre walk found only {len(novels)} novels, catalog not built")
+        return novels
+
+    def _fetch_all_novels(self, build: bool = False) -> List[dict]:
+        return cached_catalog(
+            "hjwzw_catalog",
+            self._download_all_novels,
+            ttl=timedelta(days=7),
+            min_interval=timedelta(hours=1),
+            build=build,
+        )
+
+    def warm_catalog(self) -> int:
+        return len(self._fetch_all_novels(build=True))
+
     def search_novel(self, query: str) -> List[SearchResult]:
         # /Search.aspx answers every query with a 530-byte interstitial page,
-        # so no results can be extracted.
-        logger.info("hjwzw: on-site search is not available")
-        return []
+        # so search runs over the genre-listing catalog instead.
+        terms = [_normalize(t) for t in query.split() if t.strip()]
+        if not terms:
+            return []
+        results: List[SearchResult] = []
+        for rec in self._fetch_all_novels():
+            title = _normalize(rec.get("title", ""))
+            if all(term in title for term in terms):
+                results.append(SearchResult(title=rec["title"], url=rec["url"]))
+                if len(results) >= 20:
+                    break
+        return results
 
     def browse_novels(self, offset=0, limit=50):
         results: Dict[str, SearchResult] = {}

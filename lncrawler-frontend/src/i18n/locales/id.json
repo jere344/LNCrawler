@@ -747,6 +747,7 @@
     "colors": "Warna",
     "layout": "Tata Letak",
     "gestures": "Gestur",
+    "keyboard": "Keyboard",
     "behavior": "Perilaku",
     "import": "Impor",
     "export": "Ekspor",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Tombol + Otomatis",
     "allowSelection": "Izinkan Pemilihan/Salin Teks",
     "rememberPosition": "Ingat Posisi Membaca",
-    "keyboardNavigation": "Navigasi Papan Ketik",
-    "keyboardHint": "Gunakan tombol panah dan spasi untuk navigasi",
     "centerTapSettings": "Ketuk Tengah untuk Membuka Pengaturan",
     "centerTapHint": "Ketuk bagian tengah layar untuk membuka panel pengaturan",
     "doNothing": "Lakukan Nihil",
@@ -777,8 +776,8 @@
     "changeChapter": "Ganti Bab",
     "hidden": "Tombol tandai sudah dibaca akan disembunyikan.",
     "shownNotAuto": "Tombol tandai sudah dibaca akan ditampilkan tetapi bab tidak akan ditandai secara otomatis.",
-    "autoPrev": "Bab sebelumnya akan otomatis ditandai sudah dibaca saat berpindah ke bab baru.",
-    "bothEnabled": "Penandaan manual melalui tombol dan penandaan otomatis saat mengganti bab keduanya diaktifkan."
+    "autoPrev": "Bab otomatis ditandai sudah dibaca saat Anda mencapai akhirnya atau pindah ke bab lain.",
+    "bothEnabled": "Tombol tandai sudah dibaca ditampilkan, dan bab juga ditandai otomatis saat Anda mencapai akhirnya atau pindah ke bab lain."
   },
   "colorSettings": {
     "heading": "Warna",
@@ -814,6 +813,22 @@
     "doNothing": "Lakukan Nihil",
     "previousChapter": "Bab Sebelumnya",
     "nextChapter": "Bab Berikutnya"
+  },
+  "keyboardSettings": {
+    "enable": "Pintasan keyboard",
+    "enableHint": "Pintasan dijeda saat panel ini terbuka. \"Jangan lakukan apa pun\" mempertahankan perilaku default browser.",
+    "arrowLeft": "Panah kiri",
+    "arrowRight": "Panah kanan",
+    "arrowUp": "Panah atas",
+    "arrowDown": "Panah bawah",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Spasi",
+    "doNothing": "Jangan lakukan apa pun",
+    "scrollUp": "Gulir ke atas satu halaman",
+    "scrollDown": "Gulir ke bawah satu halaman",
+    "previousChapter": "Bab sebelumnya",
+    "nextChapter": "Bab berikutnya"
   },
   "layoutSettings": {
     "margin": "Margin: {margin}%",

@@ -747,6 +747,7 @@
     "colors": "Màu sắc",
     "layout": "Bố cục",
     "gestures": "Cử chỉ",
+    "keyboard": "Bàn phím",
     "behavior": "Hành vi",
     "import": "Nhập",
     "export": "Xuất",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Nút + Tự động",
     "allowSelection": "Cho phép chọn/sao chép văn bản",
     "rememberPosition": "Ghi nhớ vị trí đọc",
-    "keyboardNavigation": "Điều hướng bằng bàn phím",
-    "keyboardHint": "Dùng phím mũi tên và dấu cách để điều hướng",
     "centerTapSettings": "Nhấp giữa để mở cài đặt",
     "centerTapHint": "Nhấp vào giữa màn hình để mở bảng cài đặt",
     "doNothing": "Không làm gì",
@@ -777,8 +776,8 @@
     "changeChapter": "Đổi chương",
     "hidden": "Các nút đánh dấu đã đọc sẽ bị ẩn.",
     "shownNotAuto": "Các nút đánh dấu đã đọc sẽ hiển thị nhưng chương sẽ không được đánh dấu tự động.",
-    "autoPrev": "Chương trước sẽ tự động được đánh dấu đã đọc khi chuyển sang chương mới.",
-    "bothEnabled": "Cả đánh dấu thủ công qua nút và đánh dấu tự động khi đổi chương đều được bật."
+    "autoPrev": "Chương sẽ tự động được đánh dấu đã đọc khi bạn đọc đến cuối chương hoặc chuyển sang chương khác.",
+    "bothEnabled": "Hiển thị các nút đánh dấu đã đọc, đồng thời chương cũng sẽ tự động được đánh dấu khi bạn đọc đến cuối chương hoặc chuyển sang chương khác."
   },
   "colorSettings": {
     "heading": "Màu sắc",
@@ -814,6 +813,22 @@
     "doNothing": "Không làm gì",
     "previousChapter": "Chương trước",
     "nextChapter": "Chương sau"
+  },
+  "keyboardSettings": {
+    "enable": "Phím tắt",
+    "enableHint": "Phím tắt sẽ tạm dừng khi bảng này đang mở. \"Không làm gì\" giữ nguyên hành vi mặc định của trình duyệt.",
+    "arrowLeft": "Mũi tên trái",
+    "arrowRight": "Mũi tên phải",
+    "arrowUp": "Mũi tên lên",
+    "arrowDown": "Mũi tên xuống",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Dấu cách",
+    "doNothing": "Không làm gì",
+    "scrollUp": "Cuộn lên một trang",
+    "scrollDown": "Cuộn xuống một trang",
+    "previousChapter": "Chương trước",
+    "nextChapter": "Chương tiếp theo"
   },
   "layoutSettings": {
     "margin": "Lề: {margin}%",

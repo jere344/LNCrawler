@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Akatsuki (暁 〜小説投稿サイト〜, www.akatsuki-novels.com) - Japanese.
 
-Server-rendered UTF-8 HTML, no login needed for the pages sampled. The site has
-no keyword search (every search path tried returned 404), so search_novel is
-not implemented. Browse uses the ranking page followed by the paged novel index.
+Server-rendered UTF-8 HTML, no login needed for the pages sampled. Search is the
+keyword form on /novels/index/ (POST ``data[Novel][multi_keyword]``), which
+redirects to a results page with a ``multi_keyword~<hash>`` path. Browse uses the
+ranking page followed by the paged novel index.
 
 Novel metadata: /novels/view/{id} (synopsis, status, keywords, genre, original
 work). Title, author and chapter list: the TOC /stories/index/novel_id~{id}.
@@ -25,9 +26,11 @@ logger = logging.getLogger(__name__)
 
 SITE = "https://www.akatsuki-novels.com"
 MAX_PAGES = 200
+_SEARCH_LIMIT = 20
 
 _NOVEL_ID_RE = re.compile(r"novel_id~(\d+)")
 _STORY_RE = re.compile(r"/stories/view/(\d+)/novel_id~(\d+)")
+_AUTHOR_RE = re.compile(r"（作者：\s*(.+?)\s*）")
 _BR_RE = re.compile(r"(?i)<br\s*/?>")
 _TAG_RE = re.compile(r"<[^>]+>")
 _JUNK = ".affiliate-box, .story-affiliate-bottom, .paging_for_view, .table_of_contents"
@@ -60,6 +63,56 @@ class AkatsukiCrawler(Crawler):
     base_url = "https://www.akatsuki-novels.com/"
     language = "ja"
     has_mtl = False
+
+    def initialize(self) -> None:
+        # Requests are spaced out: bursts get the IP flagged.
+        self.init_executor(ratelimit=1)
+
+    # -- search ---------------------------------------------------------- #
+
+    def _search_results(self, soup) -> List[SearchResult]:
+        results: List[SearchResult] = []
+        seen = set()
+        for a in soup.select('a.novel-title[href*="/stories/index/novel_id~"]'):
+            match = _NOVEL_ID_RE.search(a.get("href", ""))
+            if not match or match.group(1) in seen:
+                continue
+            title = a.get_text(" ", strip=True)
+            if not title:
+                continue
+            seen.add(match.group(1))
+            card = a.find_parent(class_="topicsBox")
+            author = _AUTHOR_RE.search(card.get_text(" ", strip=True)) if card else None
+            results.append(
+                SearchResult(
+                    title=title,
+                    url=f"{SITE}/stories/index/novel_id~{match.group(1)}",
+                    info=author.group(1) if author else None,
+                )
+            )
+        return results
+
+    def search_novel(self, query: str) -> List[SearchResult]:
+        keyword = " ".join(query.split())
+        if not keyword:
+            return []
+        soup = self.submit_form_for_soup(
+            f"{SITE}/novels/index/",
+            data={
+                "_method": "POST",
+                "data[Novel][multi_keyword]": keyword,
+                "data[Novel][original_keywords]": "",
+                "data[Novel][categories_keyword]": "",
+            },
+        )
+        results = self._search_results(soup)
+        next_link = soup.select_one('a[href*="multi_keyword~"][href$="/page~2"]')
+        if next_link and len(results) < _SEARCH_LIMIT:
+            seen = {r.url for r in results}
+            for r in self._search_results(self.get_soup(self.absolute_url(next_link["href"]))):
+                if r.url not in seen:
+                    results.append(r)
+        return results[:_SEARCH_LIMIT]
 
     # -- browse ---------------------------------------------------------- #
 

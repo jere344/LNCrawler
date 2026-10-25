@@ -13,6 +13,7 @@ import TextFieldsIcon from '@mui/icons-material/TextFields';
 import PaletteIcon from '@mui/icons-material/Palette';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
+import KeyboardIcon from '@mui/icons-material/Keyboard';
 import SettingsIcon from '@mui/icons-material/Settings';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 
@@ -22,6 +23,7 @@ import ColorSettings from './settings/ColorSettings';
 import LayoutSettings from './settings/LayoutSettings';
 import BehaviorSettings from './settings/BehaviorSettings';
 import GestureSettings from './settings/GestureSettings';
+import KeyboardSettings from './settings/KeyboardSettings';
 import ReaderNavigation from './controls/ReaderNavigation';
 import SettingsSection from './SettingsSection';
 import { defaultSettings } from './readerDefaults';
@@ -36,6 +38,7 @@ const TTS_SECTION_ID = 'reader-settings-tts';
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
 export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter';
+export type KeyAction = 'none' | 'scrollUp' | 'scrollDown' | 'prevChapter' | 'nextChapter';
 
 export interface ReaderSettings extends TtsPrefs {
   fontSize: number;
@@ -54,6 +57,13 @@ export interface ReaderSettings extends TtsPrefs {
   savePosition: boolean;
   markReadBehavior: MarkReadBehavior;
   keyboardNavigation: boolean;
+  keyArrowLeft: KeyAction;
+  keyArrowRight: KeyAction;
+  keyArrowUp: KeyAction;
+  keyArrowDown: KeyAction;
+  keyPageUp: KeyAction;
+  keyPageDown: KeyAction;
+  keySpace: KeyAction;
   swipeLeftGesture: SwipeGesture;
   swipeRightGesture: SwipeGesture;
   hideScrollbar: boolean;
@@ -79,6 +89,8 @@ const NUMERIC_RANGES: Partial<Record<keyof ReaderSettings, [number, number]>> = 
   nightModeStrength: [10, 90],
 };
 
+const KEY_ACTIONS: readonly KeyAction[] = ['none', 'scrollUp', 'scrollDown', 'prevChapter', 'nextChapter'];
+
 const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   ...(TTS_ENUM_VALUES as Partial<Record<keyof ReaderSettings, readonly string[]>>),
   textAlign: ['left', 'center', 'justify', 'right'],
@@ -87,6 +99,13 @@ const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   markReadBehavior: ['none', 'button', 'automatic', 'buttonAutomatic'],
   swipeLeftGesture: ['none', 'prevChapter', 'nextChapter'],
   swipeRightGesture: ['none', 'prevChapter', 'nextChapter'],
+  keyArrowLeft: KEY_ACTIONS,
+  keyArrowRight: KEY_ACTIONS,
+  keyArrowUp: KEY_ACTIONS,
+  keyArrowDown: KEY_ACTIONS,
+  keyPageUp: KEY_ACTIONS,
+  keyPageDown: KEY_ACTIONS,
+  keySpace: KEY_ACTIONS,
 };
 
 export interface ChapterInfo {
@@ -403,29 +422,40 @@ const ReaderSettings = ({
           <GestureSettings
             swipeLeftGesture={settings.swipeLeftGesture}
             swipeRightGesture={settings.swipeRightGesture}
+            leftEdgeTapBehavior={settings.leftEdgeTapBehavior}
+            rightEdgeTapBehavior={settings.rightEdgeTapBehavior}
+            centerTapToOpenSettings={settings.centerTapToOpenSettings}
             onSwipeGestureChange={(direction, gesture) => updateSetting(direction === 'left' ? 'swipeLeftGesture' : 'swipeRightGesture', gesture)}
+            onEdgeTapChange={(edge, behavior) => updateSetting(edge === 'left' ? 'leftEdgeTapBehavior' : 'rightEdgeTapBehavior', behavior)}
+            onCenterTapToOpenSettingsChange={(enabled) => updateSetting('centerTapToOpenSettings', enabled)}
+          />
+        </SettingsSection>
+
+        {/* Keyboard Settings */}
+        <SettingsSection
+          title={t('readerSettings.keyboard')}
+          icon={<KeyboardIcon color="primary" />}
+        >
+          <KeyboardSettings
+            keyboardNavigation={settings.keyboardNavigation}
+            keyBindings={settings}
+            onKeyboardNavigationChange={(enabled) => updateSetting('keyboardNavigation', enabled)}
+            onKeyActionChange={(key, action) => updateSetting(key, action)}
           />
         </SettingsSection>
 
         {/* Behavior Settings */}
-        <SettingsSection 
-          title={t('readerSettings.behavior')} 
+        <SettingsSection
+          title={t('readerSettings.behavior')}
           icon={<SettingsIcon color="primary" />}
         >
-          <BehaviorSettings 
-            leftEdgeTapBehavior={settings.leftEdgeTapBehavior}
-            rightEdgeTapBehavior={settings.rightEdgeTapBehavior}
+          <BehaviorSettings
             textSelectable={settings.textSelectable}
             savePosition={settings.savePosition}
             markReadBehavior={settings.markReadBehavior}
-            keyboardNavigation={settings.keyboardNavigation}
-            centerTapToOpenSettings={settings.centerTapToOpenSettings}
-            onEdgeTapChange={(edge, behavior) => updateSetting(edge === 'left' ? 'leftEdgeTapBehavior' : 'rightEdgeTapBehavior', behavior)}
             onTextSelectableChange={(selectable) => updateSetting('textSelectable', selectable)}
             onSavePositionChange={(save) => updateSetting('savePosition', save)}
             onMarkReadBehaviorChange={(behavior) => updateSetting('markReadBehavior', behavior)}
-            onKeyboardNavigationChange={(enabled) => updateSetting('keyboardNavigation', enabled)}
-            onCenterTapToOpenSettingsChange={(enabled) => updateSetting('centerTapToOpenSettings', enabled)}
             isAuthenticated={isAuthenticated}
           />
         </SettingsSection>

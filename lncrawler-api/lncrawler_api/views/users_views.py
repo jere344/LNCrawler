@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, F, IntegerField, Max, OuterRef, Q, Subquery
 
 import uuid
@@ -449,43 +449,50 @@ def delete_reading_history(request, history_id):
 @permission_classes([IsAuthenticated])
 def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
     """
-    Mark a chapter as read for the authenticated user.
-    Updates or creates a reading history entry.
+    Mark a chapter as read for the authenticated user. Progress only moves
+    forward: a chapter at or before the current one leaves the history (and
+    word count) unchanged.
     """
     # Get the novel, source, and chapter
     novel = resolve_novel_slug(novel_slug)
     source = get_source_or_404(novel, source_slug)
     chapter = get_chapter_or_404(source, chapter_number)
-    
-    # Update or create reading history for this novel
-    previous_chapter_id = (
-        ReadingHistory.objects.filter(user=request.user, novel=novel)
-        .values_list("last_read_chapter_id", flat=True)
-        .first()
-    )
-    try:
-        reading_history, created = ReadingHistory.objects.update_or_create(
+
+    # Progress only moves forward: re-reading or navigating from an older
+    # chapter must not rewind it, nor count its words again. The row is locked
+    # so concurrent marks cannot both pass the check.
+    with transaction.atomic():
+        reading_history, created = ReadingHistory.objects.get_or_create(
             user=request.user,
             novel=novel,
-            defaults={
-                'source': source,
-                'last_read_chapter': chapter
-            }
+            defaults={'source': source, 'last_read_chapter': chapter},
         )
-    except IntegrityError:
-        reading_history = ReadingHistory.objects.get(user=request.user, novel=novel)
-        created = False
+        if not created:
+            reading_history = (
+                ReadingHistory.objects.select_for_update(of=("self",))
+                .select_related("last_read_chapter")
+                .get(pk=reading_history.pk)
+            )
+            current = (
+                reading_history.last_read_chapter.chapter_id
+                if reading_history.last_read_chapter
+                else None
+            )
+            if current is not None and chapter.chapter_id <= current:
+                serializer = ReadingHistorySerializer(reading_history, profile='detail')
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            reading_history.source = source
+            reading_history.last_read_chapter = chapter
+            reading_history.save()
 
-    # Only count words when advancing to a different chapter, so revisiting a
-    # chapter does not inflate the total. F() avoids lost updates under concurrency.
-    if previous_chapter_id != chapter.id:
+        # F() avoids lost updates under concurrency.
         body = chapter.body
         word_count = body.count(' ') if body else 0
         if word_count:
             get_user_model().objects.filter(pk=request.user.pk).update(
                 word_read=F('word_read') + word_count
             )
-    
+
     serializer = ReadingHistorySerializer(reading_history, profile='detail')
     
     if created:

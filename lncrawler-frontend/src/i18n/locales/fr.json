@@ -747,6 +747,7 @@
     "colors": "Couleurs",
     "layout": "Mise en page",
     "gestures": "Gestes",
+    "keyboard": "Clavier",
     "behavior": "Comportement",
     "import": "Importer",
     "export": "Exporter",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Bouton + automatique",
     "allowSelection": "Autoriser la sélection/copie de texte",
     "rememberPosition": "Mémoriser la position de lecture",
-    "keyboardNavigation": "Navigation au clavier",
-    "keyboardHint": "Utilisez les flèches et l'espace pour naviguer",
     "centerTapSettings": "Appui au centre pour ouvrir les paramètres",
     "centerTapHint": "Appuyez au centre de l'écran pour ouvrir le panneau des paramètres",
     "doNothing": "Ne rien faire",
@@ -777,8 +776,8 @@
     "changeChapter": "Changer de chapitre",
     "hidden": "Les boutons de marquage comme lu seront masqués.",
     "shownNotAuto": "Les boutons de marquage comme lu seront affichés mais les chapitres ne seront pas marqués automatiquement.",
-    "autoPrev": "Le chapitre précédent sera automatiquement marqué comme lu lors du passage à un nouveau chapitre.",
-    "bothEnabled": "Le marquage manuel via les boutons et le marquage automatique lors du changement de chapitre sont activés."
+    "autoPrev": "Les chapitres sont automatiquement marqués comme lus lorsque vous atteignez leur fin ou passez à un autre chapitre.",
+    "bothEnabled": "Les boutons de marquage comme lu sont affichés, et les chapitres sont aussi marqués automatiquement lorsque vous atteignez leur fin ou passez à un autre chapitre."
   },
   "colorSettings": {
     "heading": "Couleurs",
@@ -812,6 +811,22 @@
     "swipeLeft": "Balayage vers la gauche",
     "swipeRight": "Balayage vers la droite",
     "doNothing": "Ne rien faire",
+    "previousChapter": "Chapitre précédent",
+    "nextChapter": "Chapitre suivant"
+  },
+  "keyboardSettings": {
+    "enable": "Raccourcis clavier",
+    "enableHint": "Les raccourcis sont suspendus pendant que ce panneau est ouvert. « Ne rien faire » conserve le comportement par défaut du navigateur.",
+    "arrowLeft": "Flèche gauche",
+    "arrowRight": "Flèche droite",
+    "arrowUp": "Flèche haut",
+    "arrowDown": "Flèche bas",
+    "pageUp": "Page précédente",
+    "pageDown": "Page suivante",
+    "space": "Espace",
+    "doNothing": "Ne rien faire",
+    "scrollUp": "Remonter d'une page",
+    "scrollDown": "Descendre d'une page",
     "previousChapter": "Chapitre précédent",
     "nextChapter": "Chapitre suivant"
   },

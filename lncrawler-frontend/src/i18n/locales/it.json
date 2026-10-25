@@ -747,6 +747,7 @@
     "colors": "Colori",
     "layout": "Layout",
     "gestures": "Gesti",
+    "keyboard": "Tastiera",
     "behavior": "Comportamento",
     "import": "Importa",
     "export": "Esporta",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Pulsante + automatico",
     "allowSelection": "Consenti selezione/copia del testo",
     "rememberPosition": "Ricorda posizione di lettura",
-    "keyboardNavigation": "Navigazione da tastiera",
-    "keyboardHint": "Usa le frecce e la barra spaziatrice per navigare",
     "centerTapSettings": "Tocco al centro per aprire le impostazioni",
     "centerTapHint": "Tocca il centro dello schermo per aprire il pannello delle impostazioni",
     "doNothing": "Non fare nulla",
@@ -777,8 +776,8 @@
     "changeChapter": "Cambia capitolo",
     "hidden": "I pulsanti segna come letto saranno nascosti.",
     "shownNotAuto": "I pulsanti segna come letto saranno mostrati ma i capitoli non verranno segnati automaticamente.",
-    "autoPrev": "Il capitolo precedente verrà segnato automaticamente come letto quando si passa a un nuovo capitolo.",
-    "bothEnabled": "Sono attivi sia la marcatura manuale tramite pulsanti sia la marcatura automatica al cambio di capitolo."
+    "autoPrev": "I capitoli vengono segnati automaticamente come letti quando raggiungi la fine o passi a un altro capitolo.",
+    "bothEnabled": "Vengono mostrati i pulsanti per segnare come letto e i capitoli vengono segnati anche automaticamente quando raggiungi la fine o passi a un altro capitolo."
   },
   "colorSettings": {
     "heading": "Colori",
@@ -812,6 +811,22 @@
     "swipeLeft": "Scorri a sinistra",
     "swipeRight": "Scorri a destra",
     "doNothing": "Non fare nulla",
+    "previousChapter": "Capitolo precedente",
+    "nextChapter": "Capitolo successivo"
+  },
+  "keyboardSettings": {
+    "enable": "Scorciatoie da tastiera",
+    "enableHint": "Le scorciatoie sono sospese mentre questo pannello è aperto. \"Non fare nulla\" mantiene il comportamento predefinito del browser.",
+    "arrowLeft": "Freccia sinistra",
+    "arrowRight": "Freccia destra",
+    "arrowUp": "Freccia su",
+    "arrowDown": "Freccia giù",
+    "pageUp": "Pag Su",
+    "pageDown": "Pag Giù",
+    "space": "Spazio",
+    "doNothing": "Non fare nulla",
+    "scrollUp": "Scorri su di una pagina",
+    "scrollDown": "Scorri giù di una pagina",
     "previousChapter": "Capitolo precedente",
     "nextChapter": "Capitolo successivo"
   },

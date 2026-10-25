@@ -747,6 +747,7 @@
     "colors": "Colors",
     "layout": "Layout",
     "gestures": "Gestures",
+    "keyboard": "Keyboard",
     "behavior": "Behavior",
     "import": "Import",
     "export": "Export",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Button + Automatic",
     "allowSelection": "Allow Text Selection/Copy",
     "rememberPosition": "Remember Reading Position",
-    "keyboardNavigation": "Keyboard Navigation",
-    "keyboardHint": "Use arrow keys and space for navigation",
     "centerTapSettings": "Center Tap to Open Settings",
     "centerTapHint": "Tap center of screen to open settings panel",
     "doNothing": "Do Nothing",
@@ -777,8 +776,8 @@
     "changeChapter": "Change Chapter",
     "hidden": "Mark as read buttons will be hidden.",
     "shownNotAuto": "Mark as read buttons will be shown but chapters won't be marked automatically.",
-    "autoPrev": "Previous chapter will be automatically marked as read when navigating to a new chapter.",
-    "bothEnabled": "Both manual marking via buttons and automatic marking when changing chapters are enabled."
+    "autoPrev": "Chapters are automatically marked as read when you reach their end or move to another chapter.",
+    "bothEnabled": "Mark as read buttons are shown, and chapters are also marked automatically when you reach their end or move to another chapter."
   },
   "colorSettings": {
     "heading": "Colors",
@@ -814,6 +813,22 @@
     "doNothing": "Do Nothing",
     "previousChapter": "Previous Chapter",
     "nextChapter": "Next Chapter"
+  },
+  "keyboardSettings": {
+    "enable": "Keyboard shortcuts",
+    "enableHint": "Shortcuts are paused while this panel is open. \"Do nothing\" keeps the browser's default behavior.",
+    "arrowLeft": "Left arrow",
+    "arrowRight": "Right arrow",
+    "arrowUp": "Up arrow",
+    "arrowDown": "Down arrow",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Space",
+    "doNothing": "Do nothing",
+    "scrollUp": "Scroll up one page",
+    "scrollDown": "Scroll down one page",
+    "previousChapter": "Previous chapter",
+    "nextChapter": "Next chapter"
   },
   "layoutSettings": {
     "margin": "Margin: {margin}%",

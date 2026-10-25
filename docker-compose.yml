@@ -70,6 +70,7 @@ services:
       ISSUE_REPORTS_TO_DISK: ${ISSUE_REPORTS_TO_DISK}
       ISSUE_REPORTS_DIR: ${ISSUE_REPORTS_DIR}
       LNCRAWL_OUTPUT_PATH: /app/Lightnovels
+      LNCRAWL_CACHE_DIR: /app/Lightnovels/.catalog-cache
     env_file: .env
     depends_on:
       db:

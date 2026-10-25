@@ -747,6 +747,7 @@
     "colors": "Colores",
     "layout": "Diseño",
     "gestures": "Gestos",
+    "keyboard": "Teclado",
     "behavior": "Comportamiento",
     "import": "Importar",
     "export": "Exportar",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Botón + automático",
     "allowSelection": "Permitir selección/copia de texto",
     "rememberPosition": "Recordar posición de lectura",
-    "keyboardNavigation": "Navegación por teclado",
-    "keyboardHint": "Usa las flechas y el espacio para navegar",
     "centerTapSettings": "Toque central para abrir ajustes",
     "centerTapHint": "Toca el centro de la pantalla para abrir el panel de ajustes",
     "doNothing": "No hacer nada",
@@ -777,8 +776,8 @@
     "changeChapter": "Cambiar de capítulo",
     "hidden": "Los botones de marcar como leído estarán ocultos.",
     "shownNotAuto": "Los botones de marcar como leído se mostrarán, pero los capítulos no se marcarán automáticamente.",
-    "autoPrev": "El capítulo anterior se marcará automáticamente como leído al pasar a un nuevo capítulo.",
-    "bothEnabled": "Están activados tanto el marcado manual mediante botones como el marcado automático al cambiar de capítulo."
+    "autoPrev": "Los capítulos se marcan automáticamente como leídos cuando llegas a su final o pasas a otro capítulo.",
+    "bothEnabled": "Se muestran los botones para marcar como leído, y los capítulos también se marcan automáticamente cuando llegas a su final o pasas a otro capítulo."
   },
   "colorSettings": {
     "heading": "Colores",
@@ -812,6 +811,22 @@
     "swipeLeft": "Deslizar a la izquierda",
     "swipeRight": "Deslizar a la derecha",
     "doNothing": "No hacer nada",
+    "previousChapter": "Capítulo anterior",
+    "nextChapter": "Capítulo siguiente"
+  },
+  "keyboardSettings": {
+    "enable": "Atajos de teclado",
+    "enableHint": "Los atajos se pausan mientras este panel está abierto. \"No hacer nada\" mantiene el comportamiento predeterminado del navegador.",
+    "arrowLeft": "Flecha izquierda",
+    "arrowRight": "Flecha derecha",
+    "arrowUp": "Flecha arriba",
+    "arrowDown": "Flecha abajo",
+    "pageUp": "Re Pág",
+    "pageDown": "Av Pág",
+    "space": "Espacio",
+    "doNothing": "No hacer nada",
+    "scrollUp": "Desplazar una página hacia arriba",
+    "scrollDown": "Desplazar una página hacia abajo",
     "previousChapter": "Capítulo anterior",
     "nextChapter": "Capítulo siguiente"
   },

@@ -747,6 +747,7 @@
     "colors": "Färger",
     "layout": "Layout",
     "gestures": "Gester",
+    "keyboard": "Tangentbord",
     "behavior": "Beteende",
     "import": "Importera",
     "export": "Exportera",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Knapp + automatisk",
     "allowSelection": "Tillåt textmarkering/kopiering",
     "rememberPosition": "Kom ihåg läsplacering",
-    "keyboardNavigation": "Tangentbordsnavigering",
-    "keyboardHint": "Använd piltangenter och mellanslag för navigering",
     "centerTapSettings": "Tryck i mitten för att öppna inställningar",
     "centerTapHint": "Tryck i mitten av skärmen för att öppna inställningspanelen",
     "doNothing": "Gör ingenting",
@@ -777,8 +776,8 @@
     "changeChapter": "Byt kapitel",
     "hidden": "Knappar för markera som läst döljs.",
     "shownNotAuto": "Knappar för markera som läst visas men kapitel markeras inte automatiskt.",
-    "autoPrev": "Föregående kapitel markeras automatiskt som läst när du navigerar till ett nytt kapitel.",
-    "bothEnabled": "Både manuell markering via knappar och automatisk markering vid kapitelbyte är aktiverat."
+    "autoPrev": "Kapitel markeras automatiskt som lästa när du når slutet av dem eller går till ett annat kapitel.",
+    "bothEnabled": "Knappar för att markera som läst visas, och kapitel markeras också automatiskt när du når slutet av dem eller går till ett annat kapitel."
   },
   "colorSettings": {
     "heading": "Färger",
@@ -812,6 +811,22 @@
     "swipeLeft": "Svep vänster",
     "swipeRight": "Svep höger",
     "doNothing": "Gör ingenting",
+    "previousChapter": "Föregående kapitel",
+    "nextChapter": "Nästa kapitel"
+  },
+  "keyboardSettings": {
+    "enable": "Tangentbordsgenvägar",
+    "enableHint": "Genvägar pausas medan den här panelen är öppen. \"Gör ingenting\" behåller webbläsarens standardbeteende.",
+    "arrowLeft": "Vänsterpil",
+    "arrowRight": "Högerpil",
+    "arrowUp": "Uppil",
+    "arrowDown": "Nedpil",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Mellanslag",
+    "doNothing": "Gör ingenting",
+    "scrollUp": "Rulla upp en sida",
+    "scrollDown": "Rulla ner en sida",
     "previousChapter": "Föregående kapitel",
     "nextChapter": "Nästa kapitel"
   },

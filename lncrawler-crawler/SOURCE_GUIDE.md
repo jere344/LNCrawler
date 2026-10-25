@@ -1,173 +1,130 @@
 # Adding a source — fast path
 
-Written from the first big batch (~97 files, 14 functional sources). Goal: get a source done in one pass, no re-discovery.
+Goal: one pass per source, no re-discovery. §7 is for the coordinator; agents can skip it.
 
-## 0. Rules that decide before you start
+## 0. Decide first
 
-- **No MTL.** Machine-translated / auto-"convert" / LLM-polished sites are not implemented. Create a stub: `is_disabled = True`, `has_mtl = True`, `disable_reason = "(Machine-translated (MTL) content — extremely low quality, intentionally excluded)"`. Quick tells: "convert", "MTL", "AI translated" in footer/synopsis, leftover prompts in synopses, no translator credits, bulk-imported novels with translator null and every chapter TRANSLATED (exclude).
-- **Prefer original / raw / human-curated** content, and languages with few sources.
-- **Live but not workable** (bot wall, paywall, client-side encryption, unscrapable) → disabled stub with an explanation.
-- **Dead / parked / non-resolving domains are skipped with no stub** (tests in §2) and reported as one line: `domain | none | skipped | reason`.
-- Don't commit. Don't touch unrelated uncommitted files.
+- **No MTL** (machine-translated, Vietnamese "convert"/"cv", AI/LLM-polished). Stub: `is_disabled = True`, `has_mtl = True`, `disable_reason = "Machine-translated (MTL) content — extremely low quality, intentionally excluded"`. Tells: "MTL"/"convert"/"AI translated" in footer or synopsis, no translator credits, every chapter bulk-imported. Mixed catalog with a per-novel MTL flag → implement, filter MTL novels out of search/browse, set `has_mtl` on read (readnovel_eu, truyenyy).
+- **Mirror aggregator** (catalog copied from other sites: per-novel `domain`/`source` field, identical text): if the mirrored hosts exist in `sources/` → stub "mirror of X (already covered by x.py)". LLM-rewritten synopses alone ≠ MTL.
+- **Live but unworkable** (hard bot wall, paywall, encryption) → disabled stub; `disable_reason` says what blocks it and how it was tested (curl_cffi / browser).
+- **Dead / parked / spam / not a novel site** → no file, one report line `domain | none | skipped | reason`.
+- Prefer original / raw / human-translated content. Don't commit; don't touch unrelated files.
 
-## 1. Environment (do once, 2 min — everyone lost time here)
+## 1. Environment and layout
 
-- `lncrawl` can't be imported without deps (`curl_cffi`, etc.). The crawler has no requirements file of its own; the subset it needs is pinned in `lncrawler-api/requirements.txt`. Create one **once per session** in the scratchpad and reuse it:
-  ```bash
-  python3 -m venv "$SCRATCHPAD/venv" && "$SCRATCHPAD/venv/bin/pip" install -q curl_cffi==0.16.3 beautifulsoup4==4.15.0 lxml==6.1.3 lxml_html_clean==0.4.5 requests==2.34.2 tenacity==9.1.4 python-slugify==9.1.2 pillow==12.3.0 text-unidecode==1.3
-  ```
-  Then smoke-test with the real class: `"$SCRATCHPAD/venv/bin/python" -I` with `sys.path` set explicitly to the `lncrawler-crawler/` directory (do not run from inside a downloaded/scratch dir).
-- `sources/` is a sibling of `lncrawl/`, not inside it.
-- Layout: `sources/<lang>/<first-letter>/<stem>.py`. **Exceptions:** names starting with a digit live flat in the language folder (`zh/23qb.py`, `en/9kafe.py`); some langs are flat (`es/skynovels.py`, `vi/truyencv.py`). Japanese: both `ja/` and `jp/` exist; use `ja/` for new ones. Check `ls sources/<lang>` first.
-- `base_url` **must be a literal str or list of literals** (the lazy index is an AST scan).
-- Before writing, `grep -rn "<domain>" sources/` and grep `base_url` / `search_url` in sibling files for aliases — the domain may already exist under another name (NovelBuddy was hidden in `novelfullme.py`). Improve the existing file instead of creating a second one; the loader keeps only the last class per host.
-- Duplicate scan after writing: AST over `sources/**/*.py`, normalise trailing `/` and `www.`.
+- A venv with the deps is given in your brief; run `python -I` with `sys.path` set to `lncrawler-crawler/`. (Creating one: `pip install curl_cffi==0.16.3 beautifulsoup4==4.15.0 lxml==6.1.3 lxml_html_clean==0.4.5 requests==2.34.2 tenacity==9.1.4 python-slugify==9.1.2 pillow==12.3.0 text-unidecode==1.3`.)
+- Path: `sources/<lang>/<first-letter>/<stem>.py`. Digit-leading names live flat (`zh/23qb.py`); some langs are flat (check `ls sources/<lang>`); Japanese → `ja/`. Stem must be importable: `-`/`.` → `_` (`berrys_cafe.py`). Create the letter folder if missing.
+- `base_url` must be a literal str or list of literals (AST-indexed). Include aliases/redirect hosts.
+- Before writing, `grep -rn "<domain>" sources/` (the host may hide under another name); improve the existing file instead of adding one — the loader keeps the last class per host.
 
-## 2. Triage in 3 curl calls (before any code)
+## 2. Triage (before any code)
 
-```bash
-UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36'
-getent hosts site                           # DNS first; failure = dead
-curl -sIL -A "$UA" https://site/            # status, final URL, server: cloudflare?
-curl -sL  -A "$UA" https://site/ | head -c 3000   # "Just a moment", __NEXT_DATA__, wp-json, SPA shell?
-curl -sL  -A "$UA" "https://site/wp-json/wp/v2/posts?per_page=1" | head -c 300
+`getent hosts site` first: failure or `::1`/`127.0.0.1`/`0.0.0.0` = dead. Then probe **through the crawler's scraper** — it already impersonates Chrome (curl_cffi), so plain-curl 403s are often false bot walls (Royal Road, mvlempyr, uukanshu pass this way):
+
+```python
+import sys; sys.path.insert(0, "<lncrawler-crawler dir>")
+from lncrawl.core.crawler import Crawler
+class P(Crawler):
+    base_url = "https://site/"
+    def read_novel_info(self): ...
+    def download_chapter_body(self, c): ...
+p = P(); p.initialize()   # __init__ doesn't call initialize(); needed in every smoke test
+r = p.scraper.get("https://site/", timeout=20)   # raw: get_response() raises on 4xx and hides the body
+print(r.status_code, r.text[:300])
 ```
 
-Decision table:
+Check page text and final URL, not just status: shutdown banners, for-sale and spam pages return 200.
 
-| Signal                                                                                                | Meaning        | Action                                              |
-| ----------------------------------------------------------------------------------------------------- | -------------- | --------------------------------------------------- |
-| 403 / "Just a moment" / `cf-mitigated` / Anubis / turnstile **in curl**                               | bot wall?      | **not final** — retest in a real browser (below)    |
-| DNS fail, curl 000 on apex+www, 404 root, JS redirect to /lander or for-sale page, tiny/unrelated 200  | dead           | skip, no stub; one-line report (§0)                 |
-| Login / coin / paywall for bodies (ebook stores: readmoo, bookwalker → test in browser first)          | paid           | disabled stub (or free chapters only if truly free) |
-| Body AES/devalue-encrypted client side                                                                | too complex    | disabled stub                                       |
-| `__NEXT_DATA__`, `/api/`, `wp-json`, RSS/Atom, Blogger `/feeds/posts/default?alt=json`, MediaWiki API | JSON available | **use it, don't scrape HTML**                       |
-| Madara / NovelFull / MangaStream / NovelMTL theme                                                     | known engine   | run `tools/match_template.py` (§2b), use its template |
-| Static HTML                                                                                           | scrape         | `Crawler` + bs4                                     |
+| Signal (via scraper) | Action |
+| --- | --- |
+| `__NEXT_DATA__` / `_next/data`, `/api/`, `wp-json`, RSS, Blogger feeds, MediaWiki API | use the JSON, don't scrape HTML |
+| Madara / NovelFull / MangaStream / NovelMTL look | `python -I tools/match_template.py <home> <novel> <chapter>`; `use <Template>` → subclass it. "partial match" is often a false positive (one selector hit) |
+| Static HTML | `Crawler` + bs4 |
+| 403 / "Just a moment" / turnstile / Anubis | check in a real browser (built-in pane). Data via XHR → call that API (often unwalled). Still stuck → stub "also blocked in a real browser". Never solve interactive challenges |
+| Login / coins / VIP for bodies; free preview window (first N chapters only: tadu, faloo, 17k) | stub — partial novels are worse than none |
+| Body encrypted, signed API + protobuf (neopage), chapter URL built by obfuscated per-page JS (8book), font glyph remapping (kawebook), server-side truncation (bilinovel "內容加載失敗") | stub, don't keep probing |
 
-Triage checks the homepage text and final URL, not only the status code: shutdown banners, spam and for-sale pages can return 200. Check home/genre APIs for shutdown banners too.
+Routes that kept paying off:
+- WordPress REST: categories = novels, posts = chapters. The API can live on another domain (mvlempyr → chap.heliosarchive.online): check the front-end JS.
+- Blogger: `/feeds/posts/default/-/<label>?alt=json`; if feeds are disabled, HTML label pages `/search/label/<x>` (xbookcn).
+- Novel page shows ~30 chapters / "load more": the full list is an `/ajax/...` endpoint named in inline JS (`grep -oE '[A-Za-z]+Url\s*=\s*"[^"]+"'`; NovelPing `/ajax/chapter-archive?novelId=`).
+- Next.js/RSC chapter lists behind `onClick`: grep JS chunks for fetch URLs. POST-only API (405 on GET): field names are in the JS bundle.
+- Always count chapters from the list/API, not the novel page.
 
-### Bot walls: curl failing is not a verdict
+## 3. Known traps
 
-A 403 / challenge from curl only means curl was blocked. Many sites let a real browser through (JS challenge solved, TLS/HTTP2 fingerprint, cookies). First try curl_cffi with `impersonate="chrome"` (yomu.com.br went 403 → 200). Aliyun WAF (17k, qidian) is not beaten by impersonation → stub. Before writing a disabled stub for a bot wall:
-
-1. Open the site's home page, a search page and a chapter page in a real browser (built-in browser pane / Chrome / headless Chromium via Playwright or Selenium) and see if content loads on its own (no interactive captcha).
-2. If it loads, find out *what* made it pass, because that decides the implementation:
-   - Pass only after the JS challenge resolves, cookie `cf_clearance` set → use the browser templates in `lncrawl/templates/browser/` (`BasicBrowserTemplate`, `SearchableBrowserTemplate`, `ChapterOnlyBrowserTemplate`, … via `core/browser.py`, `can_use_browser`), or the project's existing curl_cffi/impersonation path (check how `lncrawl/core/scraper.py` is set up and copy a source already doing this, e.g. the existing Cloudflare-fronted ones such as `novelfull`/`novelmtl` templates).
-   - Pass with plain requests once the right headers/impersonation are used → stay on `Crawler` + `get_soup`; test curl with `--http2`, a full browser header set, or `curl_cffi` with `impersonate="chrome"` before reaching for a browser.
-   - The page loads, but the data comes from an XHR/API call → watch the Network tab, call that API directly (often not behind the wall at all).
-3. Only if the browser also hits an interactive captcha / turnstile / Anubis proof-of-work that never resolves headless → disabled stub, reason says *"also blocked in a real browser"*.
-4. Passive Cloudflare JS challenge: use the browser template only if the challenge clears passively within ~10s in the real browser template; otherwise stub. Never solve interactive challenges or bypass CAPTCHAs. Record in the stub's `disable_reason` how it was tested (curl only / curl_cffi / browser) so it can be revisited.
-
-Browser-based sources are slower and heavier; prefer a JSON/API route when one exists and use the browser for the challenge/cookie only if possible.
-
-Free wins that kept coming up: WordPress REST categories = novels and posts = chapters; Next.js `pageProps`; RSS for chapter lists (Golden Novel); Blogger label feeds.
-
-Before investing in a site:
-- Check chapter counts via the chapter list / API / sitemap, not only the novel page.
-- Next.js/RSC payloads may embed chapter bodies, or hide chapter lists behind `onClick` without `href`: grep JS chunks for fetch/API calls before giving up.
-- POST-only JSON API returns 405 on GET: probe POST with a JSON body and find field names in the JS bundle.
-
-### 2b. Check against templates
-
-Before hand-writing any parser, run the checker on the home, a novel and a chapter URL. Use the venv from §1 as the interpreter, from the `lncrawler-crawler/` directory:
-
-```bash
-python -I tools/match_template.py <home> <novel> <chapter>
-```
-
-- `use <Template>`: subclass it and set only the site-specific bits. Don't hand-write.
-- `partial match — check`: open the page in a browser; the page may be JS-rendered or the template may need overrides.
-- `failed: HTTP 403` / `429` / `503` (the tool prints `failed: ...`): a bot wall, not a verdict. Retest per "Bot walls" above.
-- Audit hand-written sources with `python -I tools/match_template.py --existing` (static, no network): a listed source duplicates a template, migrate it. lightnovelheaven and mangaread stay hand-written: their search returns 12 results, the template caps at 10.
-
-## 3. Things that were wrong in specs (verify, don't trust)
-
-- Search parameter names (`tukhoa` ignored, real one was `search`).
-- Listing URL patterns (`/top/` 404, real one `/topfull/allvisit/N.html`).
-- Cover attribute: `data-src` / `data-original` / `_src` before `src` (placeholders).
-- Chapter body container (piaotia text was between `div.toplink` and `div.bottomlink`, not an ad marker). Sidebar links share chapter-list selectors: scope the chapter loop to the main container (e.g. `div.profile-main`).
-- Traps: custom `@font-face` glyph remapping (e.g. cs_prajad fonts on kawebook) makes text unreadable → stub. Client-side obfuscated body decode (scrambled `$.get` URLs, `eval`'d char offsets) → stub with reason "chapter bodies decoded client-side by obfuscated JS".
-- Chapter links from an API `link` may be an announcement page; check the real chapter URL (`/chapitre/<slug>/`).
-- Pagination: `?page=N` vs `/trang-N/` vs `page~N`; some endpoints repeat the last page instead of 404 → break when a page adds no new URLs. Sites that ignore `?page=N` and repeat the same list need an offset>0 short-circuit returning `[]`.
-- Encoding: GBK/Big5 sites need `encoding=` on `get_soup` and GBK-quoted query strings. curl error 16 under HTTP/2 → `http_version='v1'` plus a short retry.
+- Search param / listing URL from specs are often wrong (`tukhoa` → `search`; `/top/` → `/topfull/allvisit/N.html`). Site search may post to a third-party host or Google CSE → no usable search (§4b).
+- Covers: `data-src` / `data-original` / `_src` before `src`.
+- Scope chapter-list selectors to the main container (sidebars reuse them). Chapter bodies may sit between nav markers (piaotia: `div.toplink`…`div.bottomlink`). API `link` may point to an announcement page.
+- `absolute_url()` drops a trailing `/`; re-add before `urljoin` with relative pager links (kanunu8).
+- Pagination: `?page=N`, `/trang-N/`, `page~N`; endpoints that repeat the last page → stop when a page adds no new URLs.
+- GBK/Big5: `encoding="gbk"` on `get_soup`; GBK forms: `post_soup(url, data="k=" + quote(q.encode("gbk")), headers={"Content-Type": "application/x-www-form-urlencoded"})`. DEDE/jieqi search allows ~1 query/60 s, else a "信息提示" page → return `[]`, no retry loop. curl error 16 on HTTP/2 → `http_version='v1'`.
 - `get_json` sites often need `Referer` / `Origin` / `X-Requested-With`.
 
-## 4. Metadata checklist — fetch everything the site exposes
+## 4. Metadata checklist
 
-Novel level (set on `self`):
+Novel: `novel_title`, `novel_author` (join multiple), `novel_cover` (absolute, not a placeholder), `novel_synopsis` (no site boilerplate), `novel_tags` (genres + tags), `alternative_titles`, `self.status = NovelStatus.ongoing|completed|hiatus|unknown` (`from lncrawl.models import NovelStatus`; not on the base class, read via getattr — parse it, don't hard-code), `language`, `is_rtl` for ar/fa/he/ur, `has_mtl` / `is_adult` / `login_required` when true, translators via `self.translators`. Volumes: every `chapter.volume` exists, no empty volumes; single-chapter story = one Volume + one Chapter at `novel_url`.
 
-- [ ] `novel_title`
-- [ ] `novel_author` (join multiple; also artists/illustrators if listed)
-- [ ] `novel_cover` (absolute URL, real image not placeholder)
-- [ ] `novel_synopsis` (strip site boilerplate, emails, LLM leftovers)
-- [ ] `novel_tags` (genres + tags + keywords + category + type/perspective/style; `genres` and `tags` are merged by `novel_info.__format_tags`)
-- [ ] `alternative_titles`
-- [ ] `status` (`NovelStatus` ongoing / completed / hiatus; don't hard-code "ongoing" if the site tells)
-- [ ] `language` (class attr; folder-derived if empty), `is_rtl` for ar/fa/he/ur
-- [ ] translator / publisher / original-language / year / rating / view counts if exposed (translators via `self.translators` is read with `getattr`)
-- [ ] `has_mtl`, `is_adult`, `has_manga`, `login_required` where true
-- [ ] `volumes` (`Volume`) and `chapter.volume` consistent; no empty volumes. Single-chapter stories = one-entry Volume + one Chapter whose url is `novel_url`.
+Chapters: ids sequential from 1 in reading order (reverse newest-first lists); dedupe URLs; skip VIP/locked (lock icon or a class like 17k `span.ellipsis.vip`) and log the count. Body: no ads, scripts, nav, watermarks (Royal Road hides anti-piracy lines with classes from a `<style>` block).
 
-Chapter level:
+Listings:
+- `search_novel(query)` → ≤20 `SearchResult(title, url, info)`, all query terms must match; status/chapters/latest in `info`. No search at all → `[]` + docstring.
+- `browse_novels(offset, limit)` → popular/ranking; returns ≤ `limit`; fetch only the pages needed. Genre listings have no hook: iterate them inside `browse_novels` (naver_novel).
 
-- [ ] `id` sequential from 1 in reading order (reverse newest-first lists), `title`, `url`, `volume`
-- [ ] skip / mark locked, VIP, paid chapters (detect the lock icon; log count); dedupe duplicate URLs
-- [ ] extra fields you need later on the Chapter (`api_id`, `title_id`) are fine
+## 4b. Politeness (don't get flagged on first indexing)
 
-Listing level:
+Harvest walks `browse_novels` on every new source and many jobs hit one host; a ban loses the source for every user.
 
-- [ ] `search_novel(query)` → `SearchResult(title, url, info)`; put status / chapters / latest in `info`. If the site has no search, return `[]` and say so in the docstring.
-- [ ] `browse_novels(offset, limit)` → popular/ranking/latest; bounded pagination; returns ≤ `limit`.
-- [ ] Genres / categories / authors / languages / status listings: the base `Crawler` has no hook for them, so iterate genre pages inside `browse_novels` (that is how naver_novel does it) and keep genre/tag per novel.
-- [ ] Chapter body: stripped of ads, scripts, nav, share widgets, translator notes/watermarks; images only if they're content.
+- `self.init_executor(ratelimit=1)` in `initialize()` for any sizeable site (wraps every HTTP call). 429 + `Retry-After` is already handled; never retry-loop on 403/challenge — fail fast.
+- Every loop has a page cap and stops when a page adds nothing new. Prefer max `per_page`.
+- **No usable site search but an enumerable catalog** → `lncrawl/core/catalog_cache.py` `cached_catalog(key, builder, ttl=timedelta(days=7), build=...)` (example: `sources/en/m/mvlempyr.py`):
+  - Shared on disk (`LNCRAWL_CACHE_DIR`), one build at a time (flock).
+  - **Only `warm_catalog(self) -> int` builds** (`build=True`); the `warm_catalogs` scheduler task calls it every 12 h. `search_novel`/`browse_novels` read only and raise `LNException` at once if the catalog is missing — multi-source search has a 40 s budget (`lncrawl/core/search.py`) and drops a raising source.
+  - Builder: sequential, `time.sleep(random.uniform(1.0, 2.5))` between pages, raise on 403/challenge, raise if page 1 (or a genre's page 1) is empty or the total is implausibly small — never return a partial catalog. Store small JSON records (title, url, author, status).
+- Live tests: a few pages only (monkeypatch the page cap); never build a full catalog during development.
 
 ## 5. Skeleton
 
 ```python
 # -*- coding: utf-8 -*-
-"""Site name — what it hosts, language, features, quirks (encoding, API, limits)."""
+"""Site — what it hosts, language, route used (API/HTML), quirks."""
 import logging
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult, Volume  # whatever you use
+from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
 
 
 class XCrawler(Crawler):
-    base_url = ["https://example.com/"]   # literals only, include aliases
-    language = "xx"
-
-    def search_novel(self, query): ...
-    def browse_novels(self, offset, limit): ...
-    def read_novel_info(self): ...
-    def download_chapter_body(self, chapter) -> str: ...
-```
-
-Disabled stub:
-
-```python
-class XCrawler(Crawler):
     base_url = ["https://example.com/"]
     language = "xx"
+
+    def initialize(self):
+        self.init_executor(ratelimit=1)
+
+    def search_novel(self, query): ...
+    def browse_novels(self, offset=0, limit=50): ...
+    def read_novel_info(self): ...
+    def download_chapter_body(self, chapter) -> str: ...
+
+
+class YCrawler(Crawler):  # disabled stub; no parentheses inside the reason string
+    base_url = ["https://example.org/"]
+    language = "xx"
     is_disabled = True
-    disable_reason = "(Cloudflare managed challenge on every request; no public API)"
+    disable_reason = "Cloudflare challenge also in a real browser; no public API"
 ```
 
-Useful helpers: `get_soup(url, headers=, encoding=)`, `get_json(url, headers=)`, `absolute_url(url, page_url)`, `resolve_bounded([(fn, *args), ...])` for ordered parallel page fetches, `self.cleaner.extract_contents(tag)`.
+Helpers: `get_soup(url, headers=, encoding=)`, `get_json`, `post_soup`, `absolute_url`, `resolve_bounded([(fn, *args), ...])` (ordered parallel fetches), `self.cleaner.extract_contents(tag)` (for an API HTML fragment use `self.make_soup(html).body`).
 
-## 6. Verification (cheap, in this order)
+## 6. Verification
 
-1. `ast.parse` the file; duplicate-`base_url` scan.
-2. With the shared venv, run the **real class**: `search_novel("a common word")`, `browse_novels(0, 20)` and `(20, 10)`, `read_novel_info()` on one result, `download_chapter_body()` on first and last chapter. Print counts and the first 200 chars of a body.
-3. Force the API path to fail once if you wrote a fallback.
-4. Check one completed novel with volumes and one ongoing novel with many chapters.
-5. Record in the report: what was verified live vs only parsed.
+1. `ast.parse`; duplicate-host scan over `sources/**/*.py` (normalise `www.` and trailing `/`).
+2. Real class, **fresh instance per novel** (chapters accumulate otherwise), `initialize()` first: `search_novel`, `browse_novels(0, 20)` and `(20, 10)`, `read_novel_info` on a completed and an ongoing novel, `download_chapter_body` on first and last chapter (print counts + first 150 chars).
+3. Report what was verified live vs only parsed.
 
-## 7. How to split work between agents (what wasted tokens)
+## 7. Coordinator notes
 
-- The researcher → spec → implementer hand-off made the implementer **re-verify every selector** anyway. Better: a researcher only **triages** (3 curl calls above, one line per candidate: engine, API?, blocked?, languages, MTL?). Then **one agent per accepted source** probes and implements in the same context.
-- Give every agent: this guide, the existing-source list for its language (`ls sources/<lang>`), the venv path, and the no-MTL rule up front — mid-run policy changes cost a round-trip per agent.
-- Give agents the conclusion, not the search: "spec says X, but check Y" lists of known-wrong areas are in section 3.
-- Don't ask for dead-domain lists beyond the one-line `domain | none | skipped | reason` entries from triage.
-- Finish with one reviewer over the whole diff (imports, duplicate hosts, language/folder match, stubs have `disable_reason`, sequential chapter ids, bounded loops), then one implementer pass for fixes.
+- Triage agents give one line per candidate (engine, data route, blocked via scraper?, MTL?, catalog size, verdict); then one agent per accepted source probes and implements in one context.
+- Give each agent the brief (venv, hosts list, scratch-file prefix, no-MTL and politeness rules) up front; mid-run policy changes cost a round trip each.
+- End with one reviewer over the whole diff, then one fix pass.

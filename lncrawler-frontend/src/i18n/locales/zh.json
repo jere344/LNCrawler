@@ -747,6 +747,7 @@
     "colors": "颜色",
     "layout": "布局",
     "gestures": "手势",
+    "keyboard": "键盘",
     "behavior": "行为",
     "import": "导入",
     "export": "导出",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "按钮 + 自动",
     "allowSelection": "允许选择/复制文本",
     "rememberPosition": "记住阅读位置",
-    "keyboardNavigation": "键盘导航",
-    "keyboardHint": "使用方向键和空格进行导航",
     "centerTapSettings": "点击中央打开设置",
     "centerTapHint": "点击屏幕中央打开设置面板",
     "doNothing": "不执行任何操作",
@@ -777,8 +776,8 @@
     "changeChapter": "切换章节",
     "hidden": "标记为已读按钮将被隐藏。",
     "shownNotAuto": "标记为已读按钮将显示，但不会自动标记章节。",
-    "autoPrev": "切换到新章节时，上一章将自动标记为已读。",
-    "bothEnabled": "通过按钮手动标记和切换章节时自动标记均已启用。"
+    "autoPrev": "当您读到章节末尾或切换到其他章节时，章节会自动标记为已读。",
+    "bothEnabled": "显示“标记为已读”按钮，并且当您读到章节末尾或切换到其他章节时，章节也会自动标记为已读。"
   },
   "colorSettings": {
     "heading": "颜色",
@@ -812,6 +811,22 @@
     "swipeLeft": "向左滑动",
     "swipeRight": "向右滑动",
     "doNothing": "不执行任何操作",
+    "previousChapter": "上一章",
+    "nextChapter": "下一章"
+  },
+  "keyboardSettings": {
+    "enable": "键盘快捷键",
+    "enableHint": "打开此面板时快捷键会暂停。\"不执行任何操作\"会保留浏览器的默认行为。",
+    "arrowLeft": "左方向键",
+    "arrowRight": "右方向键",
+    "arrowUp": "上方向键",
+    "arrowDown": "下方向键",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "空格键",
+    "doNothing": "不执行任何操作",
+    "scrollUp": "向上滚动一页",
+    "scrollDown": "向下滚动一页",
     "previousChapter": "上一章",
     "nextChapter": "下一章"
   },

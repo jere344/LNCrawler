@@ -6,12 +6,20 @@ Novel info, volumes and chapter list come from ``/novel/<aid>.html`` and
 ``/novel/<aid>/catalog``; chapter text is in ``#TextContent`` on
 ``/novel/<aid>/<cid>.html``.  Browse uses the site ranking pages under
 ``/topfull/<order>/<page>.html``.  The on-site search is not usable (it
-redirects to a non-public host), so ``search_novel`` returns no results.
+redirects to a non-public host). Search therefore runs over the full rank
+catalog (all ``/topfull/allvisit`` pages), fetched sequentially and cached on
+disk for a week (see ``lncrawl.core.catalog_cache``).
 """
 
 import logging
+import random
 import re
+import time
+from datetime import timedelta
+from html import unescape
+from typing import List
 
+from lncrawl.core.catalog_cache import cached_catalog
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, SearchResult, Volume
@@ -19,6 +27,20 @@ from lncrawl.models import Chapter, SearchResult, Volume
 logger = logging.getLogger(__name__)
 
 MAX_RANK_PAGES = 200
+_RANK_URL = "/topfull/allvisit/{page}.html"
+_CHALLENGE_MARKERS = ("Just a moment", "cf-browser-verification", "captcha-delivery")
+
+try:  # optional: Traditional/Simplified matching when opencc is installed
+    from opencc import OpenCC
+
+    _to_simplified = OpenCC("t2s").convert
+except ImportError:  # pragma: no cover - depends on environment
+    _to_simplified = None
+
+
+def _normalize(text: str) -> str:
+    text = unescape(text or "").strip().lower()
+    return _to_simplified(text) if _to_simplified else text
 
 
 class LinovelibCrawler(Crawler):
@@ -26,11 +48,67 @@ class LinovelibCrawler(Crawler):
     language = "zh"
     has_mtl = False
 
-    def search_novel(self, query: str):
-        # /search.html redirects to 127.0.0.1 and no other search endpoint
-        # responded, so search is not available for this source.
-        logger.info("linovelib: on-site search is not available")
-        return []
+    def initialize(self) -> None:
+        # Rank pages are spaced out: bursts get the IP flagged.
+        self.init_executor(ratelimit=1)
+
+    def _download_all_novels(self) -> List[dict]:
+        novels: List[dict] = []
+        seen = set()
+        for page in range(1, MAX_RANK_PAGES + 1):
+            if page > 1:
+                time.sleep(random.uniform(1.0, 2.5))
+            resp = self.get_response(self.absolute_url(_RANK_URL.format(page=page)))
+            if any(marker in resp.text[:4096] for marker in _CHALLENGE_MARKERS):
+                raise LNException(f"Rank page {page} is a bot challenge, catalog not built")
+            soup = self.make_soup(resp)
+            items = soup.select(".rank_d_list .rank_d_b_name a[href]")
+            if not items:
+                # An empty first page or a page without the rank list is a block, not the end
+                if page == 1 or not soup.select(".rank_d_list"):
+                    raise LNException(f"Rank page {page} has no listing, catalog not built")
+                break
+            new_items = 0
+            for a in items:
+                url = self.absolute_url(a["href"])
+                title = a.get_text(" ", strip=True)
+                if url in seen or not title:
+                    continue
+                seen.add(url)
+                new_items += 1
+                novels.append({"title": title, "url": url, "rank": len(novels) + 1})
+            if new_items == 0:
+                break
+        else:
+            logger.warning("linovelib: rank page cap (%d) reached", MAX_RANK_PAGES)
+        if len(novels) < 20:
+            raise LNException(f"Rank walk found only {len(novels)} novels, catalog not built")
+        return novels
+
+    def _fetch_all_novels(self, build: bool = False) -> List[dict]:
+        return cached_catalog(
+            "linovelib_catalog",
+            self._download_all_novels,
+            ttl=timedelta(days=7),
+            min_interval=timedelta(hours=1),
+            build=build,
+        )
+
+    def warm_catalog(self) -> int:
+        return len(self._fetch_all_novels(build=True))
+
+    def search_novel(self, query: str) -> List[SearchResult]:
+        terms = [_normalize(t) for t in query.split() if t.strip()]
+        if not terms:
+            return []
+        results: List[SearchResult] = []
+        for rec in self._fetch_all_novels():
+            title = _normalize(rec.get("title", ""))
+            if all(term in title for term in terms):
+                results.append(SearchResult(title=rec["title"], url=rec["url"]))
+                if len(results) >= 20:
+                    break
+        return results
 
     def browse_novels(self, offset=0, limit=50):
         results = []

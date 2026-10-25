@@ -6,19 +6,41 @@ ReadOnline('<volid>', 'book') button. The reader is ?M=u&P=<volid>:<N>&L=book:
 N=0 is the table of contents, N=1..maxChapterID are the chapters. Text lives in
 <pre id="SourceText"> with U+3000 indents; pages are UTF-8. Listings are
 ?M=hd&P=<category>-<page>, with audio and Share entries mixed in (both skipped).
-Search is client-side Google CSE with no server endpoint, so search_novel returns [].
+Search is client-side Google CSE with no server endpoint, so search runs over a
+catalog built from the category listings (fetched sequentially and cached on disk
+for a week, see ``lncrawl.core.catalog_cache``).
 """
 
 import logging
+import random
 import re
+import time
+from datetime import timedelta
 from html import escape
+from typing import List
 
 from bs4 import NavigableString
 
+from lncrawl.core.catalog_cache import cached_catalog
 from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
+
+try:  # optional: Traditional/Simplified matching when opencc is installed
+    from opencc import OpenCC
+
+    _to_simplified = OpenCC("t2s").convert
+except ImportError:  # pragma: no cover - depends on environment
+    _to_simplified = None
+
+_CHALLENGE_MARKERS = ("Just a moment", "cf-browser-verification", "captcha-delivery")
+
+
+def _normalize(text: str) -> str:
+    text = (text or "").strip().lower()
+    return _to_simplified(text) if _to_simplified else text
 
 SITE = "https://haodoo.net"
 BOOK_ID_RE = re.compile(r"M=book&P=([0-9A-Za-z]+)")
@@ -58,10 +80,76 @@ class HaodooCrawler(Crawler):
     language = "zh"
     has_mtl = False
 
+    def initialize(self) -> None:
+        # Listing pages are spaced out: bursts get the IP flagged.
+        self.init_executor(ratelimit=1)
+
+    def _catalog_entries(self, cat, page):
+        """Like _listing_entries, but fails fast on a bot challenge page."""
+        resp = self.get_response(f"{SITE}/?M=hd&P={cat}-{page}")
+        if any(marker in resp.text[:4096] for marker in _CHALLENGE_MARKERS):
+            raise LNException(f"Listing {cat}-{page} is a bot challenge, catalog not built")
+        return self._parse_entries(self.make_soup(resp))
+
+    def _download_all_novels(self) -> List[dict]:
+        """Walk every category listing sequentially. The same held-page rule as
+        browse_novels drops the generic repeated page past the last real one."""
+        records: List[dict] = []
+        seen = set()
+        first = True
+        for cat in BROWSE_CATEGORIES:
+            held, held_ids = [], set()
+            for page in range(1, MAX_BROWSE_PAGES + 1):
+                if not first:
+                    time.sleep(random.uniform(1.0, 2.5))
+                first = False
+                entries = self._catalog_entries(cat, page)
+                ids = {sid for sid, _ in entries}
+                if ids and ids == held_ids:
+                    held = []
+                    break
+                self._add_records(held, records, seen)
+                held, held_ids = entries, ids
+                if not ids:
+                    break
+            else:
+                logger.warning("haodoo: page cap (%d) reached in category %s", MAX_BROWSE_PAGES, cat)
+                self._add_records(held, records, seen)
+        return records
+
+    @staticmethod
+    def _add_records(entries, records, seen):
+        for sid, title in entries:
+            if sid in seen:
+                continue
+            seen.add(sid)
+            records.append({"title": title, "url": f"{SITE}/?M=book&P={sid}"})
+
+    def _fetch_all_novels(self, build: bool = False) -> List[dict]:
+        return cached_catalog(
+            "haodoo_catalog",
+            self._download_all_novels,
+            ttl=timedelta(days=7),
+            min_interval=timedelta(hours=1),
+            build=build,
+        )
+
+    def warm_catalog(self) -> int:
+        return len(self._fetch_all_novels(build=True))
+
     def search_novel(self, query):
-        """Not supported: haodoo.net search runs client-side (Google CSE) and has no
-        server endpoint to query, so this returns an empty list without any request."""
-        return []
+        """haodoo.net search is client-side (Google CSE) with no endpoint, so match the
+        query against the cached category catalog. No request is made on a warm cache."""
+        terms = [_normalize(t) for t in query.split() if t.strip()]
+        if not terms:
+            return []
+        results = []
+        for rec in self._fetch_all_novels():
+            if all(term in _normalize(rec.get("title", "")) for term in terms):
+                results.append(SearchResult(title=rec["title"], url=rec["url"]))
+                if len(results) >= 20:
+                    break
+        return results
 
     def browse_novels(self, offset=0, limit=50):
         """Walk the category listings in order, skipping audio and Share entries,
@@ -93,7 +181,10 @@ class HaodooCrawler(Crawler):
 
     def _listing_entries(self, cat, page):
         """(series id, title) for each book link on one listing page; audio is skipped."""
-        soup = self.get_soup(f"{SITE}/?M=hd&P={cat}-{page}")
+        return self._parse_entries(self.get_soup(f"{SITE}/?M=hd&P={cat}-{page}"))
+
+    @staticmethod
+    def _parse_entries(soup):
         entries = []
         for a in soup.select("a[href]"):
             m = BOOK_ID_RE.search(a["href"])

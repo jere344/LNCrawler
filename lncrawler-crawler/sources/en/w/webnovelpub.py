@@ -12,5 +12,5 @@ class WebnovelPubCrawler(Crawler):
 
     is_disabled = True
     disable_reason = (
-        "Bot-protected: redirects to a JS challenge page (?ch=1&js=...); not reachable with plain HTTP"
+        "Home and novel pages are a ~480-byte JS loading shell (no challenge redirect any more); the data API was not located. Retested through the crawler scraper 2026-10"
     )

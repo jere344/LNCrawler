@@ -6,20 +6,41 @@ readable online chapters. Pages are GBK encoded and need browser impersonation
 Two chapter templates exist: domestic web-novel pages (``div.neirong``) and
 translated/classic pages (``#Article div.text``). Browse walks the category
 listings in site order. The site has no server-side search (the search box is
-a client-side Google CSE widget), so ``search_novel`` returns [].
+a client-side Google CSE widget), so search runs over a catalog built from the
+category listings, fetched sequentially and cached on disk for a week (see
+``lncrawl.core.catalog_cache``).
 """
 
 import logging
+import random
 import re
+import time
+from datetime import timedelta
 from typing import Iterator, List
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
+from lncrawl.core.catalog_cache import cached_catalog
 from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
+
+try:  # optional: Traditional/Simplified matching when opencc is installed
+    from opencc import OpenCC
+
+    _to_simplified = OpenCC("t2s").convert
+except ImportError:  # pragma: no cover - depends on environment
+    _to_simplified = None
+
+_CHALLENGE_MARKERS = ("Just a moment", "cf-browser-verification", "captcha-delivery")
+
+
+def _normalize(text: str) -> str:
+    text = (text or "").strip().lower()
+    return _to_simplified(text) if _to_simplified else text
 
 CATEGORY_PATHS = [
     "/files/chinese/",
@@ -47,10 +68,99 @@ class Kanunu8Crawler(Crawler):
     language = "zh"
     has_mtl = False
 
+    def initialize(self) -> None:
+        # Category listings are spaced out: bursts get the IP flagged.
+        self.init_executor(ratelimit=1)
+
+    @staticmethod
+    def _parse_listing_link(text: str):
+        # Listing text is "作者: 书名"
+        m = re.match(r"^(.*?)[:：]\s*(.+)$", text)
+        if m:
+            return m.group(1).strip(), m.group(2).strip()
+        return "", text
+
+    def _listing_soup(self, url: str) -> BeautifulSoup:
+        soup = self.get_soup(url, encoding="gbk")
+        if any(marker in str(soup)[:4096] for marker in _CHALLENGE_MARKERS):
+            raise LNException(f"Listing {url} is a bot challenge, catalog not built")
+        return soup
+
+    def _download_all_novels(self) -> List[dict]:
+        novels: List[dict] = []
+        seen = set()
+        first = True
+        for cat_path in CATEGORY_PATHS:
+            # Keep the trailing slash: pager links are relative ("29-2.html").
+            cat_url = self.absolute_url(cat_path).rstrip("/") + "/"
+            if not first:
+                time.sleep(random.uniform(1.0, 2.5))
+            first = False
+            soup = self._listing_soup(cat_url)
+            pager = sorted(
+                {
+                    a["href"]
+                    for a in soup.find_all("a", href=True)
+                    if PAGER_HREF_RE.match(a["href"])
+                },
+                key=lambda h: int(re.findall(r"\d+", h)[-1]),
+            )
+            page_urls = [cat_url] + [
+                urljoin(cat_url, h) for h in pager[: MAX_CATEGORY_PAGES - 1]
+            ]
+            for index, page_url in enumerate(page_urls):
+                if index > 0:
+                    time.sleep(random.uniform(1.0, 2.5))
+                    soup = self._listing_soup(page_url)
+                new_items = 0
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if not BOOK_HREF_RE.match(href):
+                        continue
+                    url = urljoin(cat_url, href)
+                    text = a.get_text(strip=True)
+                    if not text or url in seen:
+                        continue
+                    seen.add(url)
+                    new_items += 1
+                    author, title = self._parse_listing_link(text)
+                    novels.append({"title": title, "url": url, "author": author})
+                if new_items == 0:
+                    break
+        return novels
+
+    def _fetch_all_novels(self, build: bool = False) -> List[dict]:
+        return cached_catalog(
+            "kanunu8_catalog",
+            self._download_all_novels,
+            ttl=timedelta(days=7),
+            min_interval=timedelta(hours=1),
+            build=build,
+        )
+
+    def warm_catalog(self) -> int:
+        return len(self._fetch_all_novels(build=True))
+
     def search_novel(self, query: str) -> List[SearchResult]:
-        """The site has no server-side search (only a client-side Google CSE
-        box), so this always returns an empty list."""
-        return []
+        """No server-side search (the box is a client-side Google CSE widget),
+        so match the query against the cached category catalog."""
+        terms = [_normalize(t) for t in query.split() if t.strip()]
+        if not terms:
+            return []
+        results: List[SearchResult] = []
+        for rec in self._fetch_all_novels():
+            haystack = _normalize(f"{rec.get('title', '')} {rec.get('author', '')}")
+            if all(term in haystack for term in terms):
+                results.append(
+                    SearchResult(
+                        title=rec["title"],
+                        url=rec["url"],
+                        info=f"作者: {rec['author']}" if rec.get("author") else None,
+                    )
+                )
+                if len(results) >= 20:
+                    break
+        return results
 
     def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
         if getattr(self, "_browse_gen", None) is None:
@@ -69,6 +179,9 @@ class Kanunu8Crawler(Crawler):
         seen = set()
         for cat_path in CATEGORY_PATHS:
             cat_url = self.absolute_url(cat_path)
+            # absolute_url drops the trailing slash; pager hrefs are relative to the folder
+            if cat_path.endswith("/") and not cat_url.endswith("/"):
+                cat_url += "/"
             for soup in self._category_pages(cat_url):
                 for a in soup.find_all("a", href=True):
                     href = a["href"]

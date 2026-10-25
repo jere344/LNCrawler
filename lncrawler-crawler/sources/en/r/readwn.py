@@ -9,8 +9,9 @@ class ReadwnCrawler(Crawler):
         "https://readwn.com/",
     ]
     language = "en"
+    has_mtl = True
 
     is_disabled = True
     disable_reason = (
-        "Cloudflare challenge (HTTP 403 'Just a moment'); not reachable with plain HTTP"
+        "Now serves Wuxia Box (same catalog as wuxiabox.py): machine-translated (MTL) content, intentionally excluded"
     )

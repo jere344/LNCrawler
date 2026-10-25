@@ -31,6 +31,8 @@ _BOOK_RE = re.compile(r"/book/(\d+)\.html")
 class QiufengShuwuCrawler(Crawler):
     base_url = ["https://www.qiufengshuwu.com/", "https://qiufengshuwu.com/"]
     language = "zh"
+    is_disabled = True
+    disable_reason = "Search (/s.html) and rank pages (/top/allvisit_N/) return HTTP 403 to the crawler scraper (curl_cffi chrome impersonation); not tested in a real browser. Retested 2026-10"
 
     def search_novel(self, query: str) -> List[SearchResult]:
         """Not supported: /s.html is behind a Cloudflare Turnstile challenge.

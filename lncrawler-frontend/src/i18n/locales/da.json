@@ -747,6 +747,7 @@
     "colors": "Farver",
     "layout": "Layout",
     "gestures": "Bevægelser",
+    "keyboard": "Tastatur",
     "behavior": "Adfærd",
     "import": "Importér",
     "export": "Eksportér",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Knap + automatisk",
     "allowSelection": "Tillad tekstmarkering/kopiering",
     "rememberPosition": "Husk læseposition",
-    "keyboardNavigation": "Tastaturnavigation",
-    "keyboardHint": "Brug piletaster og mellemrum til navigation",
     "centerTapSettings": "Tryk i midten for at åbne indstillinger",
     "centerTapHint": "Tryk i midten af skærmen for at åbne indstillingspanelet",
     "doNothing": "Gør ingenting",
@@ -777,8 +776,8 @@
     "changeChapter": "Skift kapitel",
     "hidden": "Knapper til markér som læst skjules.",
     "shownNotAuto": "Knapper til markér som læst vises, men kapitler markeres ikke automatisk.",
-    "autoPrev": "Forrige kapitel markeres automatisk som læst, når du navigerer til et nyt kapitel.",
-    "bothEnabled": "Både manuel markering via knapper og automatisk markering ved kapitelskift er aktiveret."
+    "autoPrev": "Kapitler markeres automatisk som læst, når du når slutningen af dem eller går til et andet kapitel.",
+    "bothEnabled": "Knapperne til markering som læst vises, og kapitler markeres også automatisk, når du når slutningen af dem eller går til et andet kapitel."
   },
   "colorSettings": {
     "heading": "Farver",
@@ -812,6 +811,22 @@
     "swipeLeft": "Stryg til venstre",
     "swipeRight": "Stryg til højre",
     "doNothing": "Gør ingenting",
+    "previousChapter": "Forrige kapitel",
+    "nextChapter": "Næste kapitel"
+  },
+  "keyboardSettings": {
+    "enable": "Tastaturgenveje",
+    "enableHint": "Genveje er sat på pause, mens dette panel er åbent. \"Gør intet\" bevarer browserens standardadfærd.",
+    "arrowLeft": "Venstre pil",
+    "arrowRight": "Højre pil",
+    "arrowUp": "Op-pil",
+    "arrowDown": "Ned-pil",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Mellemrum",
+    "doNothing": "Gør intet",
+    "scrollUp": "Rul én side op",
+    "scrollDown": "Rul én side ned",
     "previousChapter": "Forrige kapitel",
     "nextChapter": "Næste kapitel"
   },

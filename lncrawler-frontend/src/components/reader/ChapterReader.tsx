@@ -23,7 +23,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
 import { alpha } from '@mui/material/styles';
 import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
-import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior } from './ReaderSettings';
+import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior, KeyAction } from './ReaderSettings';
 import { defaultSettings } from './readerDefaults';
 import { setCookie } from '@utils/cookies';
 import { READER_COOKIE_PREFIX, READER_COOKIE_DAYS } from '@utils/storage';
@@ -89,12 +89,28 @@ const ChapterReader = () => {
   // Chapter content cache and preload
   const { fetchChapterContent, preloadNextChapter } = useChapterCache(novelSlug, sourceSlug);
   const contentRef = useRef<HTMLDivElement>(null);
-  
+  // Sentinel placed after the chapter text, watched to detect the reader reaching its end
+  const endOfChapterRef = useRef<HTMLDivElement>(null);
+
+  // Key of the chapter already marked as read automatically (null if none)
+  const autoMarkedKeyRef = useRef<string | null>(null);
+
+  // Whether the TTS bar covers the bottom of the viewport (set once tts exists)
+  const ttsOpenRef = useRef(false);
+
   // Tags each chapter fetch so a slow older request can't overwrite a newer one
   const loadRequestIdRef = useRef(0);
-  
+
+  // Key of the chapter whose text is currently on screen (null while loading)
+  const loadedChapterKeyRef = useRef<string | null>(null);
+
   // Current chapter key for scroll position tracking
   const currentChapterKey = `${novelSlug}|${sourceSlug}|${chapterNumber}`;
+
+  // Automatic marking runs for signed-in users when the setting says so
+  const isAutoMarkEnabled = isAuthenticated &&
+    (readerSettings.markReadBehavior === 'automatic' ||
+     readerSettings.markReadBehavior === 'buttonAutomatic');
 
   // Memoize chapterData for CommentSection to prevent re-renders on scroll
   const chapterDataForComments = useMemo(() => {
@@ -117,6 +133,14 @@ const ChapterReader = () => {
     savePosition: readerSettings.savePosition,
   });
 
+  // Only save while the current chapter's text is on screen: during a load the
+  // DOM is the spinner or the previous chapter, which would overwrite the
+  // saved position before it is restored.
+  const saveScrollIfReady = (force = false) => {
+    if (loadedChapterKeyRef.current !== currentChapterKey) return;
+    saveScrollPosition(force);
+  };
+
   useEffect(() => {
     const loadCurrentChapter = async () => {
       if (!novelSlug || !sourceSlug || !chapterNumber) return;
@@ -125,16 +149,17 @@ const ChapterReader = () => {
       setError(null);
       setUnavailableChapter(null);
       setLoading(true);
+      loadedChapterKeyRef.current = null;
       try {
         const chapterData = await fetchChapterContent(
-          novelSlug, 
-          sourceSlug, 
+          novelSlug,
+          sourceSlug,
           parseInt(chapterNumber)
         );
         // Ignore a stale response if the user navigated to another chapter.
         if (requestId !== loadRequestIdRef.current) return;
         setChapter(chapterData);
-        
+
         // Preload next chapter if it exists
         if (chapterData.next_chapter) {
           preloadNextChapter(chapterData.next_chapter);
@@ -172,9 +197,70 @@ const ChapterReader = () => {
     setMarkReadSuccess(false);
   }, [novelSlug, sourceSlug, chapterNumber]);
 
+  // Key of the chapter currently shown, so a late response can tell it is stale
+  const latestChapterKeyRef = useRef(currentChapterKey);
+
+  // Mark the chapter as read once the reader reaches its end, so the last
+  // chapter (which has no "next" to navigate to) is recorded too
+  useEffect(() => {
+    latestChapterKeyRef.current = currentChapterKey;
+    if (!isAutoMarkEnabled || loading || !chapter || activeTab !== 0 ||
+        !novelSlug || !sourceSlug || !chapterNumber ||
+        autoMarkedKeyRef.current === currentChapterKey) return;
+    const endElement = endOfChapterRef.current;
+    if (!endElement) return;
+
+    const key = currentChapterKey;
+    let pending = false;
+    const stop = () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', checkEndReached);
+    };
+    // Checked on both visibility changes and scrolls: the end can already be on
+    // screen while the scroll guard below still holds, and the observer would
+    // not fire again until it leaves and re-enters the viewport
+    const checkEndReached = () => {
+      // Right after a route change the previous chapter is still on screen
+      if (pending || loadedChapterKeyRef.current !== key) return;
+      const bottomOverlay = ttsOpenRef.current
+        ? (isMobile ? TTS_BAR_HEIGHT.mobile : TTS_BAR_HEIGHT.desktop)
+        : 0;
+      if (endElement.getBoundingClientRect().top > window.innerHeight - bottomOverlay) return;
+      // A short chapter can look finished while its content is still laying out,
+      // so wait for a scroll before marking when the page can scroll
+      const doc = document.documentElement;
+      if (doc.scrollHeight > doc.clientHeight && window.scrollY <= 0) return;
+
+      // Stay subscribed until the request succeeds, so a failure retries on the
+      // next scroll
+      pending = true;
+      userService.markChapterAsRead(novelSlug, sourceSlug, parseInt(chapterNumber))
+        .then(() => {
+          autoMarkedKeyRef.current = key;
+          stop();
+          if (latestChapterKeyRef.current === key) setMarkReadSuccess(true);
+        })
+        .catch((error) => {
+          console.error('Error automatically marking chapter as read:', error);
+        })
+        .finally(() => {
+          pending = false;
+        });
+    };
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) checkEndReached();
+    });
+    observer.observe(endElement);
+    window.addEventListener('scroll', checkEndReached, { passive: true });
+    return stop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- novelSlug, sourceSlug and chapterNumber are encoded in currentChapterKey
+  }, [isAutoMarkEnabled, loading, chapter, activeTab, currentChapterKey]);
+
   // Restore scroll position when chapter content is loaded
   useEffect(() => {
     if (!loading && chapter) {
+      // The chapter's text is now committed, so saves for this key are safe
+      loadedChapterKeyRef.current = currentChapterKey;
       restoreScrollPosition();
     }
     return () => {
@@ -191,31 +277,31 @@ const ChapterReader = () => {
     // Save position periodically while reading
     const saveInterval = setInterval(() => {
       if (chapter && !loading && readerSettings.savePosition) {
-        saveScrollPosition();
+        saveScrollIfReady();
       }
     }, 60000); // Save every minute
-    
+
     // Save on page visibility change (tab switching, etc.)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        saveScrollPosition();
+        saveScrollIfReady();
       }
     };
-    
+
     // Use passive scroll listener with throttling
     let scrollTimeout: number | null = null;
     const handleScroll = () => {
       if (scrollTimeout === null) {
         scrollTimeout = window.setTimeout(() => {
           scrollTimeout = null;
-          saveScrollPosition();
+          saveScrollIfReady();
         }, SCROLL_SAVE_THROTTLE);
       }
     };
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('scroll', handleScroll, { passive: true });
-    
+
     // Cleanup
     return () => {
       clearInterval(saveInterval);
@@ -224,25 +310,24 @@ const ChapterReader = () => {
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('scroll', handleScroll);
-      saveScrollPosition(true); // Save one last time when component unmounts
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-subscribe only when the listed save inputs change
   }, [chapter, loading, readerSettings.savePosition, currentChapterKey]);
 
   const handleBackToChapters = () => {
-    saveScrollPosition(true);
+    saveScrollIfReady(true);
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
   };
 
   const handleBackToSource = () => {
-    saveScrollPosition(true);
+    saveScrollIfReady(true);
     navigate(`/novels/${novelSlug}/${sourceSlug}`);
   };
   
   // Add this function to handle automatic marking as read when navigating
   const handleChapterNavigation = async (direction: 'prev' | 'next') => {
     // Save current scroll position
-    saveScrollPosition(true);
+    saveScrollIfReady(true);
     
     // Get the chapter number to navigate to
     const targetChapter = direction === 'next' 
@@ -258,12 +343,11 @@ const ChapterReader = () => {
     if (!targetChapter && gapChapter == null) return;
     
     // For automatic marking settings, mark the current chapter as read when navigating away
-    if (isAuthenticated && 
-        chapterNumber && 
-        novelSlug && 
-        sourceSlug && 
-        (readerSettings.markReadBehavior === 'automatic' || 
-         readerSettings.markReadBehavior === 'buttonAutomatic')) {
+    if (isAutoMarkEnabled &&
+        chapterNumber &&
+        novelSlug &&
+        sourceSlug &&
+        autoMarkedKeyRef.current !== currentChapterKey) {
       try {
         await userService.markChapterAsRead(
           novelSlug,
@@ -319,6 +403,14 @@ const ChapterReader = () => {
     setControlsVisible(false);
   };
 
+  // Scroll by 80% of viewport height (1 = down, -1 = up)
+  const scrollPage = (direction: 1 | -1) => {
+    window.scrollBy({
+      top: direction * window.innerHeight * 0.8,
+      behavior: 'smooth'
+    });
+  };
+
   // Function to execute the appropriate behavior based on edge settings
   const handleEdgeBehavior = (edge: 'left' | 'right', behavior: EdgeTapBehavior) => {
     switch (behavior) {
@@ -326,18 +418,10 @@ const ChapterReader = () => {
         // Do nothing
         break;
       case 'scrollUp':
-        // Scroll up by 80% of viewport height
-        window.scrollBy({
-          top: -window.innerHeight * 0.8,
-          behavior: 'smooth'
-        });
+        scrollPage(-1);
         break;
       case 'scrollDown':
-        // Scroll down by 80% of viewport height
-        window.scrollBy({
-          top: window.innerHeight * 0.8,
-          behavior: 'smooth'
-        });
+        scrollPage(1);
         break;
       case 'chapter':
         // Navigate to previous or next chapter
@@ -493,6 +577,34 @@ const ChapterReader = () => {
     onPrevChapter: nonDefiniteHandlePrevChapter,
   });
 
+  // Keyboard bindings: KeyboardEvent.key value -> action, from the Keyboard settings
+  const keyBindings = useMemo<Record<string, KeyAction>>(() => ({
+    ArrowLeft: readerSettings.keyArrowLeft,
+    ArrowRight: readerSettings.keyArrowRight,
+    ArrowUp: readerSettings.keyArrowUp,
+    ArrowDown: readerSettings.keyArrowDown,
+    PageUp: readerSettings.keyPageUp,
+    PageDown: readerSettings.keyPageDown,
+    ' ': readerSettings.keySpace,
+  }), [readerSettings]);
+
+  const handleKeyAction = (action: KeyAction) => {
+    switch (action) {
+      case 'scrollUp':
+        scrollPage(-1);
+        break;
+      case 'scrollDown':
+        scrollPage(1);
+        break;
+      case 'prevChapter':
+        nonDefiniteHandlePrevChapter();
+        break;
+      case 'nextChapter':
+        nonDefiniteHandleNextChapter();
+        break;
+    }
+  };
+
   // Sources store ISO codes, but tolerate regional forms like 'zh-CN'.
   const novelLanguage = (chapter?.language || i18n.language || 'en').slice(0, 2).toLowerCase();
   const ttsLanguage = readerSettings.ttsLanguage || novelLanguage;
@@ -515,6 +627,7 @@ const ChapterReader = () => {
     topOffset: isMobile ? 0 : 64,
     bottomOffset: isMobile ? TTS_BAR_HEIGHT.mobile : TTS_BAR_HEIGHT.desktop,
   });
+  ttsOpenRef.current = tts.open;
 
   if (loading) {
     return (
@@ -595,8 +708,8 @@ const ChapterReader = () => {
         }}
         {...swipeHandlers}
       >
-        {/* Add breadcrumbs for desktop view only */}
-        {!isMobile && (
+        {/* Breadcrumbs on every viewport; the gutter keeps them off the screen edge on mobile */}
+        <Box sx={{ px: { xs: 2, md: 0 } }}>
           <BreadcrumbNav
             items={[
               {
@@ -619,7 +732,7 @@ const ChapterReader = () => {
               }
             ]}
           />
-        )}
+        </Box>
         
         <Paper 
           elevation={3} 
@@ -704,12 +817,13 @@ const ChapterReader = () => {
               onContentClick={handleContentClick}
             >
               {memoizedChapterContent.chapter && (
-                <ReaderContent 
-                  chapter={memoizedChapterContent.chapter} 
+                <ReaderContent
+                  chapter={memoizedChapterContent.chapter}
                   settings={memoizedChapterContent.settings}
                 />
               )}
             </ReaderViewport>
+            <Box ref={endOfChapterRef} aria-hidden="true" sx={{ height: 1 }} />
           </Box>
 
           {/* Comments Tab */}
@@ -761,9 +875,9 @@ const ChapterReader = () => {
       {/* Add keyboard navigation handler */}
       <ReaderKeyboardNavigation 
         enabled={readerSettings.keyboardNavigation}
-        onNextChapter={nonDefiniteHandleNextChapter}
-        onPrevChapter={nonDefiniteHandlePrevChapter}
         controlsVisible={controlsVisible}
+        bindings={keyBindings}
+        onAction={handleKeyAction}
       />
 
       <TtsPlayerBar

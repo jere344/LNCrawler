@@ -747,6 +747,7 @@
     "colors": "Kolory",
     "layout": "Układ",
     "gestures": "Gesty",
+    "keyboard": "Klawiatura",
     "behavior": "Zachowanie",
     "import": "Importuj",
     "export": "Eksportuj",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Przycisk + automatyczne",
     "allowSelection": "Zezwól na zaznaczanie/kopiowanie tekstu",
     "rememberPosition": "Zapamiętaj pozycję czytania",
-    "keyboardNavigation": "Nawigacja klawiaturą",
-    "keyboardHint": "Używaj klawiszy strzałek i spacji do nawigacji",
     "centerTapSettings": "Dotknięcie środka otwiera ustawienia",
     "centerTapHint": "Dotknij środka ekranu, aby otworzyć panel ustawień",
     "doNothing": "Nic nie rób",
@@ -777,8 +776,8 @@
     "changeChapter": "Zmień rozdział",
     "hidden": "Przyciski oznaczania jako przeczytane będą ukryte.",
     "shownNotAuto": "Przyciski oznaczania jako przeczytane będą widoczne, ale rozdziały nie będą oznaczane automatycznie.",
-    "autoPrev": "Poprzedni rozdział zostanie automatycznie oznaczony jako przeczytany podczas przechodzenia do nowego rozdziału.",
-    "bothEnabled": "Włączone jest zarówno ręczne oznaczanie przyciskami, jak i automatyczne oznaczanie przy zmianie rozdziałów."
+    "autoPrev": "Rozdziały są automatycznie oznaczane jako przeczytane, gdy dojdziesz do ich końca lub przejdziesz do innego rozdziału.",
+    "bothEnabled": "Wyświetlane są przyciski oznaczania jako przeczytane, a rozdziały są także oznaczane automatycznie, gdy dojdziesz do ich końca lub przejdziesz do innego rozdziału."
   },
   "colorSettings": {
     "heading": "Kolory",
@@ -812,6 +811,22 @@
     "swipeLeft": "Przesuń w lewo",
     "swipeRight": "Przesuń w prawo",
     "doNothing": "Nic nie rób",
+    "previousChapter": "Poprzedni rozdział",
+    "nextChapter": "Następny rozdział"
+  },
+  "keyboardSettings": {
+    "enable": "Skróty klawiaturowe",
+    "enableHint": "Skróty są wstrzymane, gdy ten panel jest otwarty. \"Nic nie rób\" zachowuje domyślne działanie przeglądarki.",
+    "arrowLeft": "Strzałka w lewo",
+    "arrowRight": "Strzałka w prawo",
+    "arrowUp": "Strzałka w górę",
+    "arrowDown": "Strzałka w dół",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Spacja",
+    "doNothing": "Nic nie rób",
+    "scrollUp": "Przewiń o jedną stronę w górę",
+    "scrollDown": "Przewiń o jedną stronę w dół",
     "previousChapter": "Poprzedni rozdział",
     "nextChapter": "Następny rozdział"
   },

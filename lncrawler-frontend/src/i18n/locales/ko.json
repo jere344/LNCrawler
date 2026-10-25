@@ -747,6 +747,7 @@
     "colors": "색상",
     "layout": "레이아웃",
     "gestures": "제스처",
+    "keyboard": "키보드",
     "behavior": "동작",
     "import": "가져오기",
     "export": "내보내기",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "버튼 + 자동",
     "allowSelection": "텍스트 선택/복사 허용",
     "rememberPosition": "읽기 위치 기억",
-    "keyboardNavigation": "키보드 탐색",
-    "keyboardHint": "화살표 키와 스페이스로 탐색",
     "centerTapSettings": "중앙 탭으로 설정 열기",
     "centerTapHint": "화면 중앙을 탭하여 설정 패널 열기",
     "doNothing": "아무것도 안 함",
@@ -777,8 +776,8 @@
     "changeChapter": "화 변경",
     "hidden": "읽음 버튼이 숨겨집니다.",
     "shownNotAuto": "읽음 버튼은 표시되지만 화가 자동으로 읽음 처리되지 않습니다.",
-    "autoPrev": "새 화로 이동하면 이전 화가 자동으로 읽음 처리됩니다.",
-    "bothEnabled": "버튼을 통한 수동 읽음 표시와 화 변경 시 자동 읽음 표시가 모두 활성화됩니다."
+    "autoPrev": "챕터의 끝에 도달하거나 다른 챕터로 이동하면 챕터가 자동으로 읽음 표시됩니다.",
+    "bothEnabled": "읽음 표시 버튼이 표시되며, 챕터의 끝에 도달하거나 다른 챕터로 이동하면 챕터도 자동으로 읽음 표시됩니다."
   },
   "colorSettings": {
     "heading": "색상",
@@ -814,6 +813,22 @@
     "doNothing": "아무것도 안 함",
     "previousChapter": "이전 화",
     "nextChapter": "다음 화"
+  },
+  "keyboardSettings": {
+    "enable": "키보드 단축키",
+    "enableHint": "이 패널이 열려 있는 동안에는 단축키가 일시 중지됩니다. \"동작 없음\"을 선택하면 브라우저 기본 동작이 유지됩니다.",
+    "arrowLeft": "왼쪽 화살표",
+    "arrowRight": "오른쪽 화살표",
+    "arrowUp": "위쪽 화살표",
+    "arrowDown": "아래쪽 화살표",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "스페이스",
+    "doNothing": "동작 없음",
+    "scrollUp": "한 페이지 위로 스크롤",
+    "scrollDown": "한 페이지 아래로 스크롤",
+    "previousChapter": "이전 챕터",
+    "nextChapter": "다음 챕터"
   },
   "layoutSettings": {
     "margin": "여백: {margin}%",

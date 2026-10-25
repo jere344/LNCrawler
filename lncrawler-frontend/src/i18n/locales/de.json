@@ -747,6 +747,7 @@
     "colors": "Farben",
     "layout": "Layout",
     "gestures": "Gesten",
+    "keyboard": "Tastatur",
     "behavior": "Verhalten",
     "import": "Importieren",
     "export": "Exportieren",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Schaltfläche + automatisch",
     "allowSelection": "Textauswahl/-kopieren erlauben",
     "rememberPosition": "Leseposition merken",
-    "keyboardNavigation": "Tastaturnavigation",
-    "keyboardHint": "Verwende die Pfeiltasten und die Leertaste zur Navigation",
     "centerTapSettings": "Tippen in die Mitte, um Einstellungen zu öffnen",
     "centerTapHint": "Tippe in die Mitte des Bildschirms, um das Einstellungsfenster zu öffnen",
     "doNothing": "Nichts tun",
@@ -777,8 +776,8 @@
     "changeChapter": "Kapitel wechseln",
     "hidden": "Schaltflächen zum Markieren als gelesen werden ausgeblendet.",
     "shownNotAuto": "Schaltflächen zum Markieren als gelesen werden angezeigt, aber Kapitel werden nicht automatisch markiert.",
-    "autoPrev": "Das vorherige Kapitel wird beim Wechsel zu einem neuen Kapitel automatisch als gelesen markiert.",
-    "bothEnabled": "Sowohl manuelles Markieren über Schaltflächen als auch automatisches Markieren beim Kapitelwechsel sind aktiviert."
+    "autoPrev": "Kapitel werden automatisch als gelesen markiert, wenn du das Kapitelende erreichst oder zu einem anderen Kapitel wechselst.",
+    "bothEnabled": "Die Schaltflächen zum Markieren als gelesen werden angezeigt, und Kapitel werden außerdem automatisch markiert, wenn du das Kapitelende erreichst oder zu einem anderen Kapitel wechselst."
   },
   "colorSettings": {
     "heading": "Farben",
@@ -812,6 +811,22 @@
     "swipeLeft": "Nach links wischen",
     "swipeRight": "Nach rechts wischen",
     "doNothing": "Nichts tun",
+    "previousChapter": "Vorheriges Kapitel",
+    "nextChapter": "Nächstes Kapitel"
+  },
+  "keyboardSettings": {
+    "enable": "Tastenkürzel",
+    "enableHint": "Kürzel sind pausiert, solange dieses Panel geöffnet ist. \"Nichts tun\" behält das Standardverhalten des Browsers bei.",
+    "arrowLeft": "Pfeil links",
+    "arrowRight": "Pfeil rechts",
+    "arrowUp": "Pfeil oben",
+    "arrowDown": "Pfeil unten",
+    "pageUp": "Bild auf",
+    "pageDown": "Bild ab",
+    "space": "Leertaste",
+    "doNothing": "Nichts tun",
+    "scrollUp": "Eine Seite nach oben scrollen",
+    "scrollDown": "Eine Seite nach unten scrollen",
     "previousChapter": "Vorheriges Kapitel",
     "nextChapter": "Nächstes Kapitel"
   },

@@ -747,6 +747,7 @@
     "colors": "Kleuren",
     "layout": "Indeling",
     "gestures": "Gebaren",
+    "keyboard": "Toetsenbord",
     "behavior": "Gedrag",
     "import": "Importeren",
     "export": "Exporteren",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Knop + automatisch",
     "allowSelection": "Tekstselectie/kopiëren toestaan",
     "rememberPosition": "Leespositie onthouden",
-    "keyboardNavigation": "Toetsenbordnavigatie",
-    "keyboardHint": "Gebruik pijltjestoetsen en spatie voor navigatie",
     "centerTapSettings": "Tik in het midden om instellingen te openen",
     "centerTapHint": "Tik in het midden van het scherm om het instellingenpaneel te openen",
     "doNothing": "Niets doen",
@@ -777,8 +776,8 @@
     "changeChapter": "Hoofdstuk wijzigen",
     "hidden": "Knoppen voor markeren als gelezen worden verborgen.",
     "shownNotAuto": "Knoppen voor markeren als gelezen worden getoond, maar hoofdstukken worden niet automatisch gemarkeerd.",
-    "autoPrev": "Het vorige hoofdstuk wordt automatisch als gelezen gemarkeerd bij het navigeren naar een nieuw hoofdstuk.",
-    "bothEnabled": "Zowel handmatig markeren via knoppen als automatisch markeren bij het wisselen van hoofdstuk is ingeschakeld."
+    "autoPrev": "Hoofdstukken worden automatisch als gelezen gemarkeerd wanneer je het einde bereikt of naar een ander hoofdstuk gaat.",
+    "bothEnabled": "Knoppen om als gelezen te markeren worden getoond, en hoofdstukken worden ook automatisch gemarkeerd wanneer je het einde bereikt of naar een ander hoofdstuk gaat."
   },
   "colorSettings": {
     "heading": "Kleuren",
@@ -812,6 +811,22 @@
     "swipeLeft": "Naar links vegen",
     "swipeRight": "Naar rechts vegen",
     "doNothing": "Niets doen",
+    "previousChapter": "Vorig hoofdstuk",
+    "nextChapter": "Volgend hoofdstuk"
+  },
+  "keyboardSettings": {
+    "enable": "Sneltoetsen",
+    "enableHint": "Sneltoetsen zijn gepauzeerd zolang dit paneel open is. \"Niets doen\" behoudt het standaardgedrag van de browser.",
+    "arrowLeft": "Pijl links",
+    "arrowRight": "Pijl rechts",
+    "arrowUp": "Pijl omhoog",
+    "arrowDown": "Pijl omlaag",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Spatiebalk",
+    "doNothing": "Niets doen",
+    "scrollUp": "Eén pagina omhoog scrollen",
+    "scrollDown": "Eén pagina omlaag scrollen",
     "previousChapter": "Vorig hoofdstuk",
     "nextChapter": "Volgend hoofdstuk"
   },

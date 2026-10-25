@@ -747,6 +747,7 @@
     "colors": "色",
     "layout": "レイアウト",
     "gestures": "ジェスチャー",
+    "keyboard": "キーボード",
     "behavior": "動作",
     "import": "インポート",
     "export": "エクスポート",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "ボタン＋自動",
     "allowSelection": "テキストの選択/コピーを許可",
     "rememberPosition": "読書位置を記憶",
-    "keyboardNavigation": "キーボードナビゲーション",
-    "keyboardHint": "矢印キーとスペースで移動できます",
     "centerTapSettings": "中央タップで設定を開く",
     "centerTapHint": "画面中央をタップして設定パネルを開きます",
     "doNothing": "何もしない",
@@ -777,8 +776,8 @@
     "changeChapter": "章を変更",
     "hidden": "既読ボタンは非表示になります。",
     "shownNotAuto": "既読ボタンは表示されますが、章は自動的に既読になりません。",
-    "autoPrev": "新しい章に移動すると、前の章が自動的に既読になります。",
-    "bothEnabled": "ボタンによる手動の既読と、章変更時の自動既読の両方が有効になります。"
+    "autoPrev": "章の末尾に到達するか、別の章に移動すると、章は自動的に既読になります。",
+    "bothEnabled": "既読ボタンを表示するとともに、章の末尾に到達するか別の章に移動すると、章も自動的に既読になります。"
   },
   "colorSettings": {
     "heading": "色",
@@ -812,6 +811,22 @@
     "swipeLeft": "左にスワイプ",
     "swipeRight": "右にスワイプ",
     "doNothing": "何もしない",
+    "previousChapter": "前の章",
+    "nextChapter": "次の章"
+  },
+  "keyboardSettings": {
+    "enable": "キーボードショートカット",
+    "enableHint": "このパネルを開いている間はショートカットは一時停止されます。「何もしない」を選ぶとブラウザの標準の動作になります。",
+    "arrowLeft": "左矢印",
+    "arrowRight": "右矢印",
+    "arrowUp": "上矢印",
+    "arrowDown": "下矢印",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "スペース",
+    "doNothing": "何もしない",
+    "scrollUp": "1ページ上にスクロール",
+    "scrollDown": "1ページ下にスクロール",
     "previousChapter": "前の章",
     "nextChapter": "次の章"
   },

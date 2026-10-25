@@ -747,6 +747,7 @@
     "colors": "Renkler",
     "layout": "Düzen",
     "gestures": "Jestler",
+    "keyboard": "Klavye",
     "behavior": "Davranış",
     "import": "İçe Aktar",
     "export": "Dışa Aktar",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Düğme + Otomatik",
     "allowSelection": "Metin Seçimine/Kopyalamaya İzin Ver",
     "rememberPosition": "Okuma Konumunu Hatırla",
-    "keyboardNavigation": "Klavye Gezinme",
-    "keyboardHint": "Gezinmek için ok tuşlarını ve boşluk tuşunu kullanın",
     "centerTapSettings": "Ayarları Açmak için Ortaya Dokunun",
     "centerTapHint": "Ayar panelini açmak için ekranın ortasına dokunun",
     "doNothing": "Hiçbir Şey Yapma",
@@ -777,8 +776,8 @@
     "changeChapter": "Bölümü Değiştir",
     "hidden": "Okundu olarak işaretle düğmeleri gizlenecek.",
     "shownNotAuto": "Okundu olarak işaretle düğmeleri gösterilecek ancak bölümler otomatik olarak işaretlenmeyecek.",
-    "autoPrev": "Yeni bölüme geçerken önceki bölüm otomatik olarak okundu işaretlenecek.",
-    "bothEnabled": "Düğmelerle manuel işaretleme ve bölüm değiştirirken otomatik işaretleme etkinleştirildi."
+    "autoPrev": "Bölümler, sonuna ulaştığınızda veya başka bir bölüme geçtiğinizde otomatik olarak okundu olarak işaretlenir.",
+    "bothEnabled": "Okundu olarak işaretleme düğmeleri gösterilir ve bölümler ayrıca sonuna ulaştığınızda veya başka bir bölüme geçtiğinizde otomatik olarak işaretlenir."
   },
   "colorSettings": {
     "heading": "Renkler",
@@ -814,6 +813,22 @@
     "doNothing": "Hiçbir Şey Yapma",
     "previousChapter": "Önceki Bölüm",
     "nextChapter": "Sonraki Bölüm"
+  },
+  "keyboardSettings": {
+    "enable": "Klavye kısayolları",
+    "enableHint": "Bu panel açıkken kısayollar duraklatılır. \"Hiçbir şey yapma\" tarayıcının varsayılan davranışını korur.",
+    "arrowLeft": "Sol ok",
+    "arrowRight": "Sağ ok",
+    "arrowUp": "Yukarı ok",
+    "arrowDown": "Aşağı ok",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Boşluk",
+    "doNothing": "Hiçbir şey yapma",
+    "scrollUp": "Bir sayfa yukarı kaydır",
+    "scrollDown": "Bir sayfa aşağı kaydır",
+    "previousChapter": "Önceki bölüm",
+    "nextChapter": "Sonraki bölüm"
   },
   "layoutSettings": {
     "margin": "Kenar Boşluğu: %{margin}",

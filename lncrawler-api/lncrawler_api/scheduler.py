@@ -363,6 +363,18 @@ def prune_epub_cache_task():
         lambda: call_command('prune_epub_cache'),
     )
 
+# Keep the catalog caches of sources with a warm_catalog() warm, so a user search
+# never waits on a cold build. Each source rebuilds only when its cache is stale,
+# so a run against a warm cache is cheap.
+@scheduler.register_task(interval=12 * HOUR, name="warm_catalogs")  # 12 hours
+def warm_catalogs_task():
+    _run_job(
+        "Warming source catalog caches...",
+        "Source catalog cache warm completed",
+        "Error warming source catalog caches: {error}",
+        lambda: call_command_isolated('warm_catalogs'),
+    )
+
 # Refresh the projected ranking columns that search sorts read. One set-based
 # UPDATE; only rows whose values changed are written, so frequent runs are cheap.
 @scheduler.register_task(interval=300, name="refresh_novel_rankings")  # 5 minutes

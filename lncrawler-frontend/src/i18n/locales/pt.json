@@ -747,6 +747,7 @@
     "colors": "Cores",
     "layout": "Esquema",
     "gestures": "Gestos",
+    "keyboard": "Teclado",
     "behavior": "Comportamento",
     "import": "Importar",
     "export": "Exportar",
@@ -767,8 +768,6 @@
     "buttonAndAutomatic": "Botão + automático",
     "allowSelection": "Permitir seleção/cópia de texto",
     "rememberPosition": "Memorizar posição de leitura",
-    "keyboardNavigation": "Navegação por teclado",
-    "keyboardHint": "Use as setas e o espaço para navegar",
     "centerTapSettings": "Toque central para abrir as definições",
     "centerTapHint": "Toque no centro do ecrã para abrir o painel de definições",
     "doNothing": "Não fazer nada",
@@ -777,8 +776,8 @@
     "changeChapter": "Mudar de capítulo",
     "hidden": "Os botões de marcar como lido ficarão ocultos.",
     "shownNotAuto": "Os botões de marcar como lido serão mostrados, mas os capítulos não serão marcados automaticamente.",
-    "autoPrev": "O capítulo anterior será automaticamente marcado como lido ao navegar para um novo capítulo.",
-    "bothEnabled": "Estão ativadas tanto a marcação manual através dos botões como a marcação automática ao mudar de capítulo."
+    "autoPrev": "Os capítulos são marcados automaticamente como lidos quando você chega ao fim deles ou muda para outro capítulo.",
+    "bothEnabled": "Os botões de marcar como lido são exibidos, e os capítulos também são marcados automaticamente quando você chega ao fim deles ou muda para outro capítulo."
   },
   "colorSettings": {
     "heading": "Cores",
@@ -814,6 +813,22 @@
     "doNothing": "Não fazer nada",
     "previousChapter": "Capítulo anterior",
     "nextChapter": "Capítulo seguinte"
+  },
+  "keyboardSettings": {
+    "enable": "Atalhos de teclado",
+    "enableHint": "Os atalhos ficam pausados enquanto este painel está aberto. \"Não fazer nada\" mantém o comportamento padrão do navegador.",
+    "arrowLeft": "Seta para a esquerda",
+    "arrowRight": "Seta para a direita",
+    "arrowUp": "Seta para cima",
+    "arrowDown": "Seta para baixo",
+    "pageUp": "Page Up",
+    "pageDown": "Page Down",
+    "space": "Espaço",
+    "doNothing": "Não fazer nada",
+    "scrollUp": "Rolar uma página para cima",
+    "scrollDown": "Rolar uma página para baixo",
+    "previousChapter": "Capítulo anterior",
+    "nextChapter": "Próximo capítulo"
   },
   "layoutSettings": {
     "margin": "Margem: {margin}%",
