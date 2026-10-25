@@ -1,5 +1,5 @@
 from django.db import models, transaction
-from django.db.models import Case, Exists, OuterRef, Value, When
+from django.db.models import Case, Count, Exists, F, OuterRef, Q, Value, When
 import logging
 import os
 import re
@@ -25,6 +25,7 @@ from .source_links import (
     _set_source_authors,
 )
 from ..db_locks import lock_pks
+from ..db_functions import search_norm
 from ..utils import chapter_utils, lncrawler_paths
 from ..utils.slug import slugify
 from ..utils.title_signals import edition_label_from_title, same_work
@@ -79,7 +80,8 @@ def refresh_adult(queryset=None):
     A source is adult when its own flag (``adult_from_source``: meta.json or an
     admin) is set, or when it carries an R18 tag. Both directions are applied,
     so unflagging a tag clears the sources it alone made adult. A novel is adult
-    when any of its sources is. Returns ``(flagged, cleared)``.
+    when more than half of its sources are (see ``adult_novel_ids``). Returns
+    ``(flagged, cleared)``.
     """
     queryset = NovelFromSource.objects.all() if queryset is None else queryset
     r18_tag = NovelFromSource.tags.through.objects.filter(
@@ -110,6 +112,23 @@ def refresh_adult_for_tags(tag_pks):
     return refresh_adult(NovelFromSource.objects.filter(tags__pk__in=tag_pks))
 
 
+def adult_novel_ids():
+    """Subquery of the ids of adult novels: more than half of their sources are adult."""
+    return (
+        NovelFromSource.objects.order_by()
+        .values("novel_id")
+        .annotate(adult=Count("pk", filter=Q(is_adult=True)), total=Count("pk"))
+        .filter(total__lt=2 * F("adult"))
+        .values("novel_id")
+    )
+
+
+def is_majority_adult(sources):
+    """Python twin of ``adult_novel_ids`` for already-loaded sources."""
+    flags = [source.is_adult for source in sources]
+    return 2 * sum(flags) > len(flags)
+
+
 def bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):
     # Django's bulk_update builds one statement with a CASE/WHEN per row per
     # field; a large chapter list becomes a single multi-MB query that can OOM
@@ -136,6 +155,8 @@ class NovelFromSource(models.Model):
     
     # Basic metadata
     title = models.CharField(max_length=500)
+    # Accent/case-folded title for search (see utils/search.py).
+    search_title = models.GeneratedField(expression=search_norm('title'), output_field=models.TextField(), db_persist=True)
     # Free-form edition label supplied by the crawler (e.g. "Web Novel",
     # "Official translation"). Blank when unknown; see title_signals.effective_edition.
     edition = models.CharField(max_length=100, blank=True, default="")
@@ -213,6 +234,7 @@ class NovelFromSource(models.Model):
             models.Index(fields=['language'], name='nfs_language_idx'),
             models.Index(fields=['-total_views'], name='nfs_total_views_idx'),
             GinIndex(OpClass(Upper('synopsis'), name='gin_trgm_ops'), name='nfs_synopsis_trgm_idx'),
+            GinIndex(fields=['search_title'], opclasses=['gin_trgm_ops'], name='nfs_search_title_trgm_idx'),
         ]
     
     def __str__(self):

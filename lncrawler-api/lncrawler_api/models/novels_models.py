@@ -5,6 +5,7 @@ from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db.models import F
 from django.db.models.functions import Upper
 
+from ..db_functions import search_norm
 from ..utils.author_names import normalize_author
 from ..utils.tag_utils import normalize_tag
 
@@ -15,6 +16,8 @@ class Novel(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
+    # Accent/case-folded title for search (see utils/search.py).
+    search_title = models.GeneratedField(expression=search_norm('title'), output_field=models.TextField(), db_persist=True)
     slug = models.SlugField(max_length=255, unique=True)
     novel_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
     created_at = models.DateTimeField(auto_now_add=True)
@@ -47,6 +50,7 @@ class Novel(models.Model):
             models.Index(fields=['-created_at'], name='novel_created_at_idx'),
             models.Index(fields=['added_by', '-created_at'], name='novel_added_by_idx'),
             GinIndex(OpClass(Upper('title'), name='gin_trgm_ops'), name='novel_title_trgm_idx'),
+            GinIndex(fields=['search_title'], opclasses=['gin_trgm_ops'], name='novel_search_title_trgm_idx'),
             models.Index(fields=['-rank_total_views', 'title'], name='novel_rank_views_idx'),
             models.Index(fields=['-rank_week_views', 'title'], name='novel_rank_week_idx'),
             models.Index(fields=['-rank_avg_rating', 'title'], name='novel_rank_rating_idx'),
@@ -311,11 +315,14 @@ class AuthorAlias(models.Model):
 class AlternativeTitle(models.Model):
     """Alternative / native title a novel is known by on a given source."""
     name = models.CharField(max_length=500, unique=True)
+    # Accent/case-folded title for search (see utils/search.py).
+    search_name = models.GeneratedField(expression=search_norm('name'), output_field=models.TextField(), db_persist=True)
 
     class Meta:
         ordering = ['name']
         indexes = [
             GinIndex(OpClass(Upper('name'), name='gin_trgm_ops'), name='alttitle_name_trgm_idx'),
+            GinIndex(fields=['search_name'], opclasses=['gin_trgm_ops'], name='alttitle_search_name_trgm_idx'),
         ]
 
     def __str__(self):

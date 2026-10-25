@@ -141,7 +141,7 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
 
 
 class AdultContentFilterTests(LanguageAwareSourceTestCase):
-    """R18 gating: a novel is adult if ANY of its sources is."""
+    """R18 gating: a novel is adult if more than half of its sources are."""
 
     def setUp(self):
         super().setUp()
@@ -161,8 +161,10 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
         return [n["title"] for n in response.data["results"]]
 
     def _flag_adult(self):
-        self.en_source.is_adult = True
-        self.en_source.save(update_fields=["is_adult"])
+        # Bilingue has two sources: flag both so the novel is adult (2/2).
+        for source in (self.en_source, self.fr_source):
+            source.is_adult = True
+            source.save(update_fields=["is_adult"])
 
     def test_anonymous_hides_adult_novels_on_home(self):
         self._flag_adult()
@@ -188,6 +190,17 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
         hide = self.client.get(reverse("search_novels"), {"adult": "hide"})
         self.assertNotIn("Bilingue", self._search_titles(hide))
 
+    def test_search_ignores_novel_with_only_half_adult_sources(self):
+        # 1 of 2 sources adult: not more than half, so the novel is not adult.
+        self.en_source.is_adult = True
+        self.en_source.save(update_fields=["is_adult"])
+        only = self.client.get(reverse("search_novels"), {"adult": "only"})
+        self.assertEqual(self._search_titles(only), [])
+
+        hide = self.client.get(reverse("search_novels"), {"adult": "hide"})
+        self.assertIn("Bilingue", self._search_titles(hide))
+        self.assertEqual(hide.data["hidden_adult"], 0)
+
     def test_sitemaps_exclude_adult_novel_and_its_sources(self):
         from ..views.sitemap import (
             ChapterListSitemap,
@@ -212,13 +225,20 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
             sitemap.get_latest_lastmod()
 
     def test_source_payload_reports_novel_level_adult_flag(self):
-        # A novel is adult if any source is, so even a source that is itself
-        # clean must report the novel-level flag (cards blur on it).
+        # A novel is adult if more than half of its sources are, so a clean
+        # source of an adult novel must still report the novel-level flag.
         from ..serializers import NovelSourceSerializer
         from ..utils.query_helpers import sources_queryset
 
+        clean = NovelFromSource.objects.create(
+            novel=self.novel,
+            external_source=ExternalSource.objects.create(source_name="de-site"),
+            title="Deutsch",
+            source_url="http://de/1",
+            language="en",
+        )
         self._flag_adult()
-        clean_source = sources_queryset(detailed=False).get(pk=self.fr_source.pk)
+        clean_source = sources_queryset(detailed=False).get(pk=clean.pk)
         data = NovelSourceSerializer(clean_source, profile="card").data
         self.assertTrue(data["is_adult"])
 

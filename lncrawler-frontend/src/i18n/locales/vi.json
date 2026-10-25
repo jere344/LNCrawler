@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Nội dung người lớn",
+    "adultTagsReason": "Tiểu thuyết có {tags}",
     "loadFailed": "Tải chi tiết nguồn thất bại. Vui lòng thử lại sau.",
     "backToHome": "Quay lại trang chủ",
     "notFound": "Không tìm thấy nguồn",

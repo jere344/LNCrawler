@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Yetişkin içerik",
+    "adultTagsReason": "Roman şunları içeriyor: {tags}",
     "loadFailed": "Kaynak ayrıntıları yüklenemedi. Lütfen daha sonra tekrar deneyin.",
     "backToHome": "Ana Sayfaya Dön",
     "notFound": "Kaynak bulunamadı",

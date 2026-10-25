@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Treści dla dorosłych",
+    "adultTagsReason": "Powieść zawiera {tags}",
     "loadFailed": "Nie udało się wczytać szczegółów źródła. Spróbuj ponownie później.",
     "backToHome": "Powrót do strony głównej",
     "notFound": "Nie znaleziono źródła",

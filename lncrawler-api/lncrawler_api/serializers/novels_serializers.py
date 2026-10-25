@@ -5,6 +5,7 @@ from ..models import (
     NovelBookmark
 )
 from django.db.models import Avg, Sum
+from ..models.sources_models import is_majority_adult
 from .mixins import ProfileFieldsMixin
 from .sources_serializers import NovelSourceSerializer
 from .reading_history_serializers import ReadingHistorySerializer
@@ -228,9 +229,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         return list(languages)
 
     def get_is_adult(self, obj):
-        # Novel-level flag: adult if any of its sources is adult. Reads the
+        # Novel-level flag: adult if more than half of its sources are. Reads the
         # prefetched sources, so no extra query.
-        return any(source.is_adult for source in obj.sources.all())
+        return is_majority_adult(obj.sources.all())
 
     def get_sources(self, obj):
         return NovelSourceSerializer(

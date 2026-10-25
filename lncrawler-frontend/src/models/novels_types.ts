@@ -83,6 +83,7 @@ export interface NovelFromSource {
   original_publisher: string | null;
   english_publisher: string | null;
   is_adult?: boolean;
+  adult_tags?: string[];
 }
 
 interface NovelVolume {

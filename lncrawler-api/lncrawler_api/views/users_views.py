@@ -12,7 +12,7 @@ import uuid
 from ..languages import parse_languages
 from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
-from ..models.sources_models import NovelFromSource
+from ..models.sources_models import NovelFromSource, adult_novel_ids
 from ..serializers.novels_serializers import NovelSerializer
 from ..serializers.reading_history_serializers import ReadingHistorySerializer
 from ..serializers.users_serializers import UserSerializer
@@ -29,15 +29,15 @@ from ..utils.query_helpers import (
 def _folder_count_annotation(allow_adult):
     """Count a folder's bookmarks, hiding adult novels unless allowed.
 
-    A novel is adult if ANY of its sources is, so this uses a subquery rather
-    than a per-source-row filter (which would count mixed-source novels).
+    A novel is adult if more than half of its sources are, so this uses a
+    subquery rather than a per-source-row filter (which would count mixed-source
+    novels).
     """
     if allow_adult:
         return Count("bookmarks")
-    adult_novel_ids = Novel.objects.filter(sources__is_adult=True).values("id")
     return Count(
         "bookmarks",
-        filter=~Q(bookmarks__novel_id__in=adult_novel_ids),
+        filter=~Q(bookmarks__novel_id__in=adult_novel_ids()),
         distinct=True,
     )
 

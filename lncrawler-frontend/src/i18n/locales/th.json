@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · เนื้อหาสำหรับผู้ใหญ่",
+    "adultTagsReason": "นิยายมี {tags}",
     "loadFailed": "โหลดรายละเอียดแหล่งไม่สำเร็จ กรุณาลองใหม่ภายหลัง",
     "backToHome": "กลับไปหน้าแรก",
     "notFound": "ไม่พบแหล่ง",

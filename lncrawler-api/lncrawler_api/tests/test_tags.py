@@ -32,7 +32,13 @@ from django.db import IntegrityError
 from ..admin.source_admin import TagAdmin, TagAdminForm
 from ..models import sources_models
 from ..models.source_links import TAG_IMPORT_ATTEMPTS, TagImportError
-from ..models.sources_models import _set_source_tags, refresh_adult_for_tags
+from ..models.sources_models import (
+    _set_source_tags,
+    adult_novel_ids,
+    is_majority_adult,
+    refresh_adult_for_tags,
+)
+from ..utils.query_helpers import exclude_adult, public_novels, public_sources
 from ..services import MergeError, llm_service, merge_tags, rename_tag
 from ..services import embedding_service, llm_tasks, merge_service
 from ..services import tag_merge_service as tms
@@ -313,6 +319,16 @@ class TagAdultPropagationTests(TestCase):
         source.refresh_from_db()
         self.assertTrue(source.is_adult)
 
+    def test_source_detail_lists_its_r18_tags(self):
+        from ..serializers import NovelSourceSerializer
+
+        Tag.objects.create(name="Harem", is_adult=True)
+        Tag.objects.create(name="Isekai")
+        source = self._source("http://s/3")
+        _set_source_tags(source, ["Harem", "Isekai"])
+        data = NovelSourceSerializer(source, profile="detail").data
+        self.assertEqual(data["adult_tags"], ["Harem"])
+
     def test_import_with_plain_tags_leaves_source_alone(self):
         Tag.objects.create(name="Isekai")
         source = self._source("http://s/2")
@@ -374,6 +390,72 @@ class TagAdultPropagationTests(TestCase):
         merge_tags(adult, target)
         target.refresh_from_db()
         self.assertTrue(target.is_adult)
+
+
+class NovelMajorityAdultTests(TestCase):
+    """A novel is adult when strictly more than half of its sources are."""
+
+    def _novel(self, slug, adult_flags):
+        novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+        for index, is_adult in enumerate(adult_flags):
+            NovelFromSource.objects.create(
+                novel=novel,
+                external_source=ExternalSource.objects.create(source_name=f"{slug}-{index}"),
+                title=slug,
+                source_url=f"http://{slug}/{index}",
+                is_adult=is_adult,
+            )
+        return novel
+
+    def setUp(self):
+        self.one_of_one = self._novel("one-of-one", [True])
+        self.one_of_two = self._novel("one-of-two", [True, False])
+        self.two_of_three = self._novel("two-of-three", [True, True, False])
+        self.clean = self._novel("clean", [False])
+
+    def _adult_ids(self):
+        return set(adult_novel_ids().values_list("novel_id", flat=True))
+
+    def _visible_ids(self, viewer=None):
+        public = public_novels(Novel.objects.all())
+        visible = exclude_adult(Novel.objects.all(), viewer)
+        self.assertEqual(set(public.values_list("pk", flat=True)),
+                         set(visible.values_list("pk", flat=True)))
+        return set(public.values_list("pk", flat=True))
+
+    def test_one_of_one_is_adult(self):
+        self.assertIn(self.one_of_one.pk, self._adult_ids())
+        self.assertTrue(is_majority_adult(self.one_of_one.sources.all()))
+        self.assertNotIn(self.one_of_one.pk, self._visible_ids())
+
+    def test_one_of_two_is_not_adult(self):
+        self.assertNotIn(self.one_of_two.pk, self._adult_ids())
+        self.assertFalse(is_majority_adult(self.one_of_two.sources.all()))
+        self.assertIn(self.one_of_two.pk, self._visible_ids())
+
+    def test_two_of_three_is_adult(self):
+        self.assertIn(self.two_of_three.pk, self._adult_ids())
+        self.assertTrue(is_majority_adult(self.two_of_three.sources.all()))
+        self.assertNotIn(self.two_of_three.pk, self._visible_ids())
+
+    def test_public_sources_follow_the_novel_rule(self):
+        visible = public_sources(NovelFromSource.objects.all())
+        novel_ids = set(visible.values_list("novel_id", flat=True))
+        self.assertEqual(novel_ids, {self.one_of_two.pk, self.clean.pk})
+
+    def test_novel_serializer_reports_the_same_rule(self):
+        from ..serializers import NovelSerializer
+
+        flags = {
+            novel.pk: NovelSerializer(novel, context={"request": None}).data["is_adult"]
+            for novel in (self.one_of_one, self.one_of_two, self.two_of_three, self.clean)
+        }
+        self.assertEqual(flags, {
+            self.one_of_one.pk: True,
+            self.one_of_two.pk: False,
+            self.two_of_three.pk: True,
+            self.clean.pk: False,
+        })
 
 
 class BuildClustersTests(SimpleTestCase):

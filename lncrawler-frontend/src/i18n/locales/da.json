@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Voksenindhold",
+    "adultTagsReason": "Romanen indeholder {tags}",
     "loadFailed": "Kunne ikke indlæse kildedetaljer. Prøv igen senere.",
     "backToHome": "Tilbage til forsiden",
     "notFound": "Kilden blev ikke fundet",

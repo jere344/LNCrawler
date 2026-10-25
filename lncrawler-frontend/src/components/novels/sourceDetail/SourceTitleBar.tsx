@@ -44,12 +44,16 @@ const SourceTitleBar = ({
         {source.title}
         {source.is_adult && (
           // Always shown (unlike the cover badge, which only shows while blurred).
-          <Chip
-            label={t('sourceDetail.adultNote')}
-            color="warning"
-            size="small"
-            sx={{ ml: 1.5, verticalAlign: 'middle', fontWeight: 'bold' }}
-          />
+          <Tooltip
+            title={source.adult_tags?.length ? t('sourceDetail.adultTagsReason', { tags: source.adult_tags.join(', ') }) : ''}
+          >
+            <Chip
+              label={t('sourceDetail.adultNote')}
+              color="warning"
+              size="small"
+              sx={{ ml: 1.5, verticalAlign: 'middle', fontWeight: 'bold' }}
+            />
+          </Tooltip>
         )}
       </Typography>
       {isAuthenticated && (

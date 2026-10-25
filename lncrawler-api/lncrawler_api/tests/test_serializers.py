@@ -64,7 +64,7 @@ class SerializerProfileTests(TestCase):
             "first_available_chapter", "reading_history", "overview_url",
             "novelupdates_url", "status", "editors", "translators",
             "alternative_titles", "original_publisher", "english_publisher",
-            "is_adult",
+            "is_adult", "adult_tags",
         ],
         "summary": [
             "id", "title", "source_slug", "novel_slug", "source_name", "edition", "cover_min_url",

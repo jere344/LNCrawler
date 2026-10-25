@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Contenuti per adulti",
+    "adultTagsReason": "Il romanzo include {tags}",
     "loadFailed": "Caricamento dei dettagli della fonte non riuscito. Riprova più tardi.",
     "backToHome": "Torna alla home",
     "notFound": "Fonte non trovata",

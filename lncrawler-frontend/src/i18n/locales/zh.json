@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · 成人内容",
+    "adultTagsReason": "小说包含 {tags}",
     "loadFailed": "加载来源详情失败。请稍后重试。",
     "backToHome": "返回首页",
     "notFound": "未找到来源",

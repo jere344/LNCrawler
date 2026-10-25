@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Inhoud voor volwassenen",
+    "adultTagsReason": "Roman bevat {tags}",
     "loadFailed": "Brondetails laden mislukt. Probeer het later opnieuw.",
     "backToHome": "Terug naar home",
     "notFound": "Bron niet gevonden",

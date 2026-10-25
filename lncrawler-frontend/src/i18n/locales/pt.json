@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Conteúdo adulto",
+    "adultTagsReason": "O romance inclui {tags}",
     "loadFailed": "Falha ao carregar os detalhes da fonte. Tente novamente mais tarde.",
     "backToHome": "Voltar ao início",
     "notFound": "Fonte não encontrada",

@@ -3,8 +3,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.db.models import F, Avg, Q, Case, When, IntegerField, Count, Sum, Value, Max, Min
-from django.db.models.functions import Coalesce, Upper
+from django.db.models import F, Avg, Q, Count, Sum, Value, Max, Min, Case, When, FloatField
+from django.db.models.expressions import RawSQL
+from django.db.models.functions import Coalesce
 from ..models import (
     Novel,
     NovelRating,
@@ -18,6 +19,7 @@ from ..models import (
 )
 from ..languages import parse_languages
 from ..models.reviews_models import Review
+from ..models.sources_models import adult_novel_ids
 from ..utils import get_client_ip, resolve_novel_slug
 from ..utils.author_names import normalize_author
 from ..utils.query_helpers import (
@@ -28,6 +30,7 @@ from ..utils.query_helpers import (
     sources_queryset,
 )
 from ..utils.pagination import paginated_response
+from ..utils.search import matching_novel_ids, normalize_query, title_rank
 from ..serializers import (
     NovelSerializer,
     NovelSourceSerializer,
@@ -190,42 +193,27 @@ def search_novels(request):
 
     # "hide" is applied after the other filters, once the hidden count is known.
     if adult == "only":
-        novels_query = novels_query.filter(sources__is_adult=True).distinct()
+        novels_query = novels_query.filter(pk__in=adult_novel_ids())
 
     # Apply search query if provided
     if query:
-        # Each traversal is its own subquery so Postgres can use the per-column
-        # pg_trgm indexes; a single multi-table OR cannot use them. Authors are
-        # intentionally not searched here (use ?author= or the author
-        # autocomplete instead).
-        # Fuzzy title match (pg_trgm) tolerates near-miss spellings like
-        # "bungo"/"bungou"; the GIN trgm index on UPPER(title) backs the lookup.
-        fuzzy_titles = Novel.objects.annotate(
-            _upper_title=Upper("title")
-        ).filter(_upper_title__trigram_similar=query.upper()).values('id')
+        # Authors are intentionally not searched here (use ?author= or the author
+        # autocomplete instead). The matching ids come from one query, run once.
+        nq = normalize_query(query) or query.upper()  # all-combining-marks query folds to ''
+        title_ids, synopsis_ids = matching_novel_ids(nq, query)
         novels_query = novels_query.filter(
-            Q(id__in=Novel.objects.filter(title__icontains=query).values('id'))
-            | Q(id__in=fuzzy_titles)
-            | Q(id__in=NovelFromSource.objects.filter(synopsis__icontains=query).values('novel_id'))
-            | Q(id__in=NovelFromSource.objects.filter(alternative_titles__name__icontains=query).values('novel_id'))
+            id__in=RawSQL("SELECT unnest(%s::uuid[])", [list(set(title_ids) | set(synopsis_ids))])
         ).annotate(
-            # Relevance: exact title, exact alt-title, title prefix, title
-            # substring, fuzzy title, then anything else (e.g. synopsis match).
-            _relevance=Case(
-                When(title__iexact=query, then=Value(0)),
-                When(
-                    Q(pk__in=NovelFromSource.objects.filter(
-                        alternative_titles__name__iexact=query
-                    ).values('novel_id')),
-                    then=Value(1),
-                ),
-                When(title__istartswith=query, then=Value(2)),
-                When(title__icontains=query, then=Value(3)),
-                When(Q(pk__in=fuzzy_titles), then=Value(4)),
-                default=Value(5),
-                output_field=IntegerField(),
-            )
-        ).distinct()
+            # Lower is better: tier (exact, prefix, substring, typo, synopsis-only) * 10 minus the
+            # title closeness rounded to 0.1, so the chosen sort still breaks near-ties.
+            # Title rank is only computed for title hits (its correlated subqueries are slow);
+            # synopsis-only novels get 40, the same "no title match" value title_rank uses.
+            _rank=Case(
+                When(id__in=RawSQL("SELECT unnest(%s::uuid[])", [title_ids]), then=title_rank(nq)),
+                default=Value(40.0),
+                output_field=FloatField(),
+            ),
+        )
 
     # Filter by tags
     if tags:
@@ -302,25 +290,24 @@ def search_novels(request):
         novels_query = novels_query.order_by("title")
 
     # With a text query, exact/near title matches outrank the chosen sort; the
-    # chosen sort still breaks ties within the same relevance tier.
+    # chosen sort still breaks ties between equally close matches.
     if query:
-        novels_query = novels_query.order_by(
-            "_relevance", *novels_query.query.order_by
-        )
+        order = ["_rank", *novels_query.query.order_by]
+        # pk last, so equal-rank pages stay stable between requests
+        if order[-1] not in ("pk", "id"):
+            order.append("pk")
+        novels_query = novels_query.order_by(*order)
 
-    # Count distinct ids without the display-only relevance annotation (which
-    # re-runs the fuzzy-title subquery a second time); the full SELECT would
-    # evaluate all of it for every match just to page 20 rows.
+    # The _rank annotation is display-only, so the count skips it; the full
+    # SELECT would evaluate it for every match just to page 20 rows.
     count_queryset = novels_query.order_by().values("pk")
 
     # Hidden adult matches: the ones the filters found that "hide" drops. Counted
     # on the same filtered set, so the UI can say how many results were left out.
     hidden_adult = 0
     if adult == "hide":
-        hidden_adult = count_queryset.filter(
-            pk__in=Novel.objects.filter(sources__is_adult=True).values("pk")
-        ).count()
-        novels_query = novels_query.exclude(sources__is_adult=True)
+        hidden_adult = count_queryset.filter(pk__in=adult_novel_ids()).count()
+        novels_query = novels_query.exclude(pk__in=adult_novel_ids())
         count_queryset = novels_query.order_by().values("pk")
 
     # Resolve everything the serializer needs up front, then paginate.
@@ -522,7 +509,7 @@ def home_page(request):
     # NULLs sort first on PostgreSQL by default; never-updated sources would top
     # the strip, so push them to the end.
     recently_updated_qs = sources_queryset().filter(novel__is_dmca=False)
-    # Novel-level: hide the whole novel if any of its sources is adult.
+    # Novel-level: hide the whole novel if more than half of its sources are adult.
     recently_updated_qs = exclude_adult(recently_updated_qs, request.user, 'novel__')
     recently_updated_qs = recently_updated_qs.order_by(
         F('last_chapter_update').desc(nulls_last=True)

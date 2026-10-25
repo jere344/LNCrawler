@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Adult content",
+    "adultTagsReason": "Novel includes {tags}",
     "loadFailed": "Failed to load source details. Please try again later.",
     "backToHome": "Back to Home",
     "notFound": "Source not found",

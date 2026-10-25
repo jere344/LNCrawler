@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · 成人向けコンテンツ",
+    "adultTagsReason": "この小説には {tags} が含まれます",
     "loadFailed": "ソース詳細の読み込みに失敗しました。しばらくしてからもう一度お試しください。",
     "backToHome": "ホームに戻る",
     "notFound": "ソースが見つかりません",

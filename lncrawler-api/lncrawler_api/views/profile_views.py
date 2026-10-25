@@ -10,6 +10,7 @@ from ..models.novels_models import Novel
 from ..models.users_models import ProfilePinnedNovel
 from ..models.reviews_models import Review
 from ..models.comments_models import Comment
+from ..models.sources_models import adult_novel_ids
 from ..privacy import can_view
 from functools import partial
 
@@ -114,8 +115,8 @@ def user_comments(request, username):
     if not adult_allowed(request.user):
         # Comments can target a novel directly or a chapter of one.
         comments = comments.exclude(
-            Q(novel__sources__is_adult=True)
-            | Q(chapter__novel_from_source__novel__sources__is_adult=True)
+            Q(novel_id__in=adult_novel_ids())
+            | Q(chapter__novel_from_source__novel_id__in=adult_novel_ids())
         )
     return _paginated_response(request, comments, partial(CommentSerializer, profile='profile'))
 

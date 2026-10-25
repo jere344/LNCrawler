@@ -6,7 +6,7 @@ User-Agents from the public content URLs to these views internally, so the URL
 seen by the client is unchanged and canonical links stay consistent.
 
 These pages are read-only: they never increment view counters and never expose
-adult/R18 sources (matching the sitemap filters).
+adult/R18 novels (matching the sitemap filters).
 """
 import json
 import os
@@ -18,6 +18,7 @@ from django.shortcuts import get_object_or_404, render
 
 from ..models import Novel, NovelFromSource
 from ..models.source_helpers import resolve_output_path
+from ..models.sources_models import adult_novel_ids
 from ..utils import build_media_url, resolve_novel_slug
 from ..utils.chapter_utils import get_chapter
 from ..utils.query_helpers import preferred_source_key, public_novels
@@ -74,8 +75,8 @@ def _chapter_label(chapter):
 
 
 def _is_adult_novel(novel):
-    # A novel is adult if any of its sources is; matches the sitemap filters.
-    return novel.sources.filter(is_adult=True).exists()
+    # Adult if more than half of its sources are; matches the sitemap filters.
+    return adult_novel_ids().filter(novel_id=novel.pk).exists()
 
 
 def _jsonld(*objects):

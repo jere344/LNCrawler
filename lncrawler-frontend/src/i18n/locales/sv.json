@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Vuxeninnehåll",
+    "adultTagsReason": "Romanen innehåller {tags}",
     "loadFailed": "Det gick inte att ladda källinformationen. Försök igen senare.",
     "backToHome": "Tillbaka till startsidan",
     "notFound": "Källan hittades inte",

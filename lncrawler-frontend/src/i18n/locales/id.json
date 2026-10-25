@@ -441,6 +441,7 @@
   },
   "sourceDetail": {
     "adultNote": "R18 · Konten dewasa",
+    "adultTagsReason": "Novel mengandung {tags}",
     "loadFailed": "Gagal memuat detail sumber. Silakan coba lagi nanti.",
     "backToHome": "Kembali ke Beranda",
     "notFound": "Sumber tidak ditemukan",

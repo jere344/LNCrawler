@@ -40,6 +40,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     synopsis = serializers.SerializerMethodField()
     has_crawler = serializers.SerializerMethodField()
     is_adult = serializers.SerializerMethodField()
+    adult_tags = serializers.SerializerMethodField()
 
     default_profile = 'card'
     field_profiles = {
@@ -60,7 +61,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             'novel_title', 'cover_url', 'latest_available_chapter',
             'first_available_chapter', 'reading_history', 'overview_url',
             'novelupdates_url', 'status', 'editors', 'translators', 'alternative_titles',
-            'original_publisher', 'english_publisher', 'is_adult',
+            'original_publisher', 'english_publisher', 'is_adult', 'adult_tags',
         ],
         # Everything the source page's "other sources" list renders, plus the
         # novel detail's nested source overview. Covers the scalars and the
@@ -92,9 +93,10 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return has_crawler(obj.source_url or '') if self.profile == 'detail' else None
 
     def get_is_adult(self, obj: NovelFromSource):
-        # A novel is adult if any of its sources is; the source payload drives
-        # cover blurring, so report the novel-level flag when the queryset
-        # annotated it (sources_queryset) and fall back to this source's flag.
+        # A novel is adult if more than half of its sources are; the source
+        # payload drives cover blurring, so report the novel-level flag when the
+        # queryset annotated it (sources_queryset) and fall back to this source's
+        # flag.
         if hasattr(obj, 'novel_is_adult'):
             return obj.novel_is_adult
         return obj.is_adult
@@ -119,6 +121,11 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     def get_tags(self, obj: NovelFromSource):
         return [tag.name for tag in obj.tags.all()]
+
+    def get_adult_tags(self, obj: NovelFromSource):
+        # This source's R18 tags, so the source page can say why it is adult.
+        # Filtered in Python to reuse the tags prefetch.
+        return [tag.name for tag in obj.tags.all() if tag.is_adult]
 
     def get_alternative_titles(self, obj: NovelFromSource):
         return [title.name for title in obj.alternative_titles.all()]
