@@ -1,6 +1,7 @@
 """Tests for download/import failure handling."""
 
 import tempfile
+import time
 
 from django.test import TestCase, TransactionTestCase, override_settings
 
@@ -175,3 +176,116 @@ class DownloadExpectedErrorTests(TransactionTestCase):
             self._run_with(RuntimeError("boom"))
 
         self.assertTrue(any(r.levelname == "ERROR" for r in cm.records))
+
+
+class DownloadCancelTests(TransactionTestCase):
+    """A download cancelled while running must not be imported."""
+
+    def test_cancelled_download_is_not_imported(self):
+        from unittest import mock
+
+        from ..services import downloader_service as ds
+
+        job = Job.objects.create(
+            status=Job.STATUS_CREATED, job_type=Job.JOB_TYPE_DOWNLOAD
+        )
+
+        class FakeCrawler:
+            novel_title = "Untitled"
+            novel_url = "http://example.invalid/novel"
+            source_name = "example.invalid"
+            volumes = []
+            chapters = []
+
+        class FakeApp:
+            def __init__(self):
+                self.crawler = FakeCrawler()
+                self.chapters = []
+                self.output_path = ""
+
+            def prepare_search(self):
+                pass
+
+            def get_novel_info(self):
+                pass
+
+            def cancel(self):
+                pass
+
+            def start_download(self):
+                # The user cancels while chapters are being fetched.
+                Job.objects.filter(pk=job.id).update(status=Job.STATUS_FAILED)
+
+        with tempfile.TemporaryDirectory() as tmp, override_settings(
+            LNCRAWL_OUTPUT_PATH=tmp
+        ), mock.patch.object(ds, "_load_app", return_value=FakeApp), mock.patch.object(
+            ds, "_poll_download_progress", return_value=None
+        ), mock.patch.object(
+            ds.DownloaderService, "_inject_existing_chapters", return_value=None
+        ), mock.patch.object(
+            ds.DownloaderService, "_import_novel_to_database"
+        ) as import_mock:
+            ds.DownloaderService._run_download_process(
+                job.id, "http://example.invalid/novel"
+            )
+
+        import_mock.assert_not_called()
+        job.refresh_from_db()
+        self.assertEqual(job.status, Job.STATUS_FAILED)
+
+    def test_monitor_cancels_the_app_when_job_is_cancelled(self):
+        from unittest import mock
+
+        from ..services import downloader_service as ds
+
+        job = Job.objects.create(
+            status=Job.STATUS_CREATED, job_type=Job.JOB_TYPE_DOWNLOAD
+        )
+        cancel_calls = []
+
+        class FakeCrawler:
+            novel_title = "Untitled"
+            novel_url = "http://example.invalid/novel"
+            source_name = "example.invalid"
+            volumes = []
+            chapters = []
+
+        class FakeApp:
+            def __init__(self):
+                self.crawler = FakeCrawler()
+                self.chapters = []
+                self.output_path = ""
+
+            def prepare_search(self):
+                pass
+
+            def get_novel_info(self):
+                pass
+
+            def cancel(self):
+                cancel_calls.append(True)
+
+            def start_download(self):
+                # The user cancels; the app itself does not notice, the monitor must.
+                Job.objects.filter(pk=job.id).update(status=Job.STATUS_FAILED)
+                deadline = time.monotonic() + 10
+                while not cancel_calls and time.monotonic() < deadline:
+                    time.sleep(0.1)
+
+        with tempfile.TemporaryDirectory() as tmp, override_settings(
+            LNCRAWL_OUTPUT_PATH=tmp
+        ), mock.patch.object(ds, "_load_app", return_value=FakeApp), mock.patch.object(
+            ds, "_poll_download_progress", return_value=None
+        ), mock.patch.object(
+            ds.DownloaderService, "_inject_existing_chapters", return_value=None
+        ), mock.patch.object(
+            ds.DownloaderService, "_import_novel_to_database"
+        ) as import_mock:
+            ds.DownloaderService._run_download_process(
+                job.id, "http://example.invalid/novel"
+            )
+
+        self.assertTrue(cancel_calls)
+        import_mock.assert_not_called()
+        job.refresh_from_db()
+        self.assertEqual(job.status, Job.STATUS_FAILED)

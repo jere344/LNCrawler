@@ -37,8 +37,8 @@ class LLMTask:
     """Base for one judged kind. Subclasses set the class attributes and implement the hooks.
 
     ``name`` is the ``Candidate.kind`` the task works on. The hooks are called in this
-    order for each claimed batch: ``prepare``, ``build_messages``, ``parse``, then per
-    candidate ``safeguards`` and ``apply_change`` (through ``decide``).
+    order for each claimed batch: ``prepare``, ``build_messages``, ``parse``, ``verify``,
+    then per candidate ``safeguards`` and ``apply_change`` (through ``decide``).
     """
 
     name = ""
@@ -89,6 +89,11 @@ class LLMTask:
         the reply is unusable.
         """
         raise NotImplementedError
+
+    def verify(self, kept, context, judged, send):
+        """Return ``judged``, optionally checked by a second call. ``send(messages, response_schema)``
+        makes one call and returns the chat result. Raise ``LLMParseError`` when the reply is unusable."""
+        return judged
 
     def has_nothing_left(self, candidate, judgement):
         """True when a "yes" has nothing left to change now: it is then a "no", rejected by the LLM."""
@@ -372,6 +377,15 @@ def _settle_two_phase(task, pk, token, judgement, call, counts, stdout):
     counts["done"] += 1
 
 
+def _rate_limited(task, kept, token, exc):
+    """Give the batch back after a 429. Not the candidates' fault: no attempt is counted and the run stops."""
+    reason = f"no provider available: {exc.reason}"[:2000] if getattr(exc, "reason", "") else ""
+    not_before = timezone.now() + timedelta(seconds=_retry_after_seconds(exc.retry_after))
+    for candidate in kept:
+        _release(task, candidate.pk, token, reason=reason, attempt=False, not_before=not_before)
+    return "rate_limited"
+
+
 def _process(task, batch, session, stdout, counts):
     """Run one claimed batch: one LLM call, then each candidate is settled or backed off.
 
@@ -386,29 +400,34 @@ def _process(task, batch, session, stdout, counts):
     except Exception as exc:  # a bug or a malformed row: release the batch instead of leaving it claimed
         _fail_all(task, batch, token, exc, counts, stdout)
         return "done"
-    try:
-        content, _tokens, _provider, call = llm_service.chat(
+    def send(messages, response_schema):
+        return llm_service.chat(
             messages,
             task.max_tokens,
             task.name,
             session=session,
-            response_schema=task.response_schema,
+            response_schema=response_schema,
             candidate_ids=[candidate.pk for candidate in kept],
             prompt_version=task.prompt_version,
         )
+
+    try:
+        content, _tokens, _provider, call = send(messages, task.response_schema)
     except RateLimited as exc:
-        # Not the candidates' fault: no attempt is counted and the run stops.
-        reason = f"no provider available: {exc.reason}"[:2000] if getattr(exc, "reason", "") else ""
-        not_before = timezone.now() + timedelta(seconds=_retry_after_seconds(exc.retry_after))
-        for candidate in kept:
-            _release(task, candidate.pk, token, reason=reason, attempt=False, not_before=not_before)
-        return "rate_limited"
+        return _rate_limited(task, kept, token, exc)
     except Exception as exc:  # LLMError (non-JSON, truncated, no provider answered), network errors
         _fail_all(task, kept, token, exc, counts, stdout)
         return "done"
     try:
         judged = task.parse(kept, context, content)
     except Exception as exc:  # LLMParseError, or a bug in parse
+        _fail_all(task, kept, token, exc, counts, stdout)
+        return "done"
+    try:
+        judged = task.verify(kept, context, judged, send)
+    except RateLimited as exc:
+        return _rate_limited(task, kept, token, exc)
+    except Exception as exc:  # LLMParseError from the verification reply, or a bug in verify
         _fail_all(task, kept, token, exc, counts, stdout)
         return "done"
     for candidate in kept:
@@ -888,13 +907,15 @@ class TagMergeTask(LLMTask):
 
     name = "tag_merge"
     label = "Tag merge judge"
-    prompt_version = "2"
+    prompt_version = "3"
     # Tags per call (a batch closes once it reaches this, so up to one candidate more).
     # Measured on gemma: ~100 tags per call finds as many duplicates as 50 for ~22% fewer
     # tokens (the prompt is shared); at ~150 it starts missing obvious translations.
     batch_size = 90
     max_tokens = 4096
     confidence_setting = "TAG_MERGE_AUTO_CONFIDENCE"
+    # Proposed sets per verification call.
+    verify_sets = 40
 
     response_schema = {
         "type": "object",
@@ -928,6 +949,26 @@ class TagMergeTask(LLMTask):
             },
         },
         "required": ["groups"],
+        "additionalProperties": False,
+    }
+
+    verify_schema = {
+        "type": "object",
+        "properties": {
+            "sets": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "set": {"type": "string"},
+                        "keep": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["set", "keep"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["sets"],
         "additionalProperties": False,
     }
 
@@ -982,10 +1023,12 @@ class TagMergeTask(LLMTask):
 
         _groups, label_maps = context
         results = tms.parse_judge_response(data, label_maps)
+        if any(proposed["confidence"] is None for raw_sets in results for proposed in raw_sets):
+            raise LLMParseError("a proposed set has no usable confidence")
         # A group the reply does not mention is a missing answer, not a "no set". So is a
         # group whose sets were all unusable (labels the prompt never sent): a "no" would
         # reject the cluster on a malformed answer.
-        answered, proposed_any = set(), set()
+        answered, proposed_any, glosses = set(), set(), {}
         for item in data.get("groups") or []:
             if isinstance(item, dict):
                 try:
@@ -995,13 +1038,20 @@ class TagMergeTask(LLMTask):
                 answered.add(index)
                 if isinstance(item.get("sets"), list) and item["sets"]:
                     proposed_any.add(index)
+                if isinstance(item.get("glosses"), str):
+                    glosses[index] = item["glosses"]
         judged = {}
         for index, candidate in enumerate(kept):
             if index not in answered:
                 continue
-            sets = results[index]
-            if not sets and index in proposed_any:
+            raw_sets = results[index]
+            if not raw_sets and index in proposed_any:
                 continue
+            # Sets below the confidence floor are dropped; a group left with none is a "no".
+            sets = [
+                proposed for proposed in raw_sets
+                if proposed["confidence"] >= settings.TAG_MERGE_MIN_CONFIDENCE
+            ]
             if sets:
                 judged[candidate.pk] = {
                     "answer": "yes",
@@ -1009,13 +1059,81 @@ class TagMergeTask(LLMTask):
                     "confidence": min(proposed["confidence"] for proposed in sets),
                     "reason": "",
                     "sets": sets,
+                    "glosses": glosses.get(index, ""),
+                }
+            else:
+                reason = "no set proposed"
+                if raw_sets:
+                    reason = "all proposed sets below the confidence floor"
+                judged[candidate.pk] = {
+                    "answer": "no",
+                    "confidence": 1.0,
+                    "reason": reason,
+                    "sets": [],
+                    "glosses": glosses.get(index, ""),
+                }
+        return judged
+
+    def verify(self, kept, context, judged, send):
+        """Ask the model once more, per call of at most ``verify_sets`` sets, which members of the
+        proposed sets really name the canonical concept. It can only remove members."""
+        groups, label_maps = context
+        # Each proposed "yes" set with its candidate, its member labels and the labelled members.
+        proposals = []
+        for index, candidate in enumerate(kept):
+            judgement = judged.get(candidate.pk)
+            if judgement is None or judgement["answer"] != "yes":
+                continue
+            label_of = {pk: label for label, pk in label_maps[index].items()}
+            names = {label: name for label, name, _usage in groups[index]}
+            glosses = tms.parse_glosses(judgement["glosses"])
+            for proposed in judgement["sets"]:
+                labels = [label_of[pk] for pk in proposed["members"]]
+                members = [(label, names[label], glosses.get(label, "")) for label in labels]
+                proposals.append((candidate.pk, proposed, labels, members))
+        if not proposals:
+            return judged
+
+        # Sets are numbered across the whole batch, so each reply maps back to one set.
+        set_ids = [f"s{number}" for number in range(1, len(proposals) + 1)]
+        answers = {}
+        for start in range(0, len(proposals), self.verify_sets):
+            chunk_ids = set_ids[start:start + self.verify_sets]
+            sets = [
+                (set_id, proposed["canonical"], members)
+                for set_id, (_pk, proposed, _labels, members)
+                in zip(chunk_ids, proposals[start:start + self.verify_sets])
+            ]
+            content, _tokens, _provider, _call = send(
+                tms.build_verify_messages(sets), self.verify_schema,
+            )
+            answers.update(tms.parse_verify_response(content, chunk_ids))
+
+        survivors = {}
+        for set_id, (pk, proposed, labels, _members) in zip(set_ids, proposals):
+            keep = answers[set_id]
+            members = [tag_pk for label, tag_pk in zip(labels, proposed["members"]) if label in keep]
+            if len(members) >= 2:
+                survivors.setdefault(pk, []).append({**proposed, "members": members})
+
+        for candidate in kept:
+            judgement = judged.get(candidate.pk)
+            if judgement is None or judgement["answer"] != "yes":
+                continue
+            sets = survivors.get(candidate.pk, [])
+            if sets:
+                judged[candidate.pk] = {
+                    **judgement,
+                    "confidence": min(proposed["confidence"] for proposed in sets),
+                    "sets": sets,
                 }
             else:
                 judged[candidate.pk] = {
                     "answer": "no",
                     "confidence": 1.0,
-                    "reason": "no set proposed",
+                    "reason": "verification removed every set",
                     "sets": [],
+                    "glosses": judgement["glosses"],
                 }
         return judged
 

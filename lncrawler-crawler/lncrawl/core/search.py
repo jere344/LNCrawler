@@ -6,29 +6,49 @@ can offer the same novel from multiple sources.
 """
 
 import logging
+import math
 import re
+import time
 from concurrent.futures import (
+    FIRST_COMPLETED,
     ThreadPoolExecutor,
-    TimeoutError as FuturesTimeoutError,
-    as_completed,
+    wait,
 )
 from difflib import SequenceMatcher
 from typing import Callable, Dict, List, Optional
 
+from ..constants import _env_int
 from ..models import SearchResult
 from .sources import get_search_crawlers
 
 logger = logging.getLogger(__name__)
 
-CONCURRENCY = 25
+# Every source starts at once by default (~640 MB RSS for ~190 sources, vs
+# ~330 MB at 25 threads); lower it on memory-constrained workers.
+MAX_CONCURRENCY = _env_int("LNCRAWL_SEARCH_CONCURRENCY", 256)
+if MAX_CONCURRENCY < 1:
+    MAX_CONCURRENCY = 256
 SEARCH_TIMEOUT = 40
+# Once this share of the sources has answered, wait at most STRAGGLER_GRACE
+# more seconds for the rest (never past SEARCH_TIMEOUT).
+QUORUM = 0.95
+STRAGGLER_GRACE = 5
 
 
 def _normalize(text: str) -> str:
     return re.sub(r"\W+", " ", str(text or "")).strip().lower()
 
 
-def _search_one(crawler_type, query: str) -> List[dict]:
+def _source_label(crawler_type) -> str:
+    return getattr(crawler_type, "source_name", "") or crawler_type.__name__
+
+
+def _search_one(
+    crawler_type,
+    query: str,
+    timings: Dict[type, float],
+) -> List[dict]:
+    started = time.monotonic()
     crawler = None
     try:
         crawler = crawler_type()
@@ -48,6 +68,7 @@ def _search_one(crawler_type, query: str) -> List[dict]:
         logger.debug("Search failed on %s: %s", crawler_type.__name__, e)
         return []
     finally:
+        timings[crawler_type] = time.monotonic() - started
         if crawler is not None:
             try:
                 crawler.close()
@@ -55,37 +76,7 @@ def _search_one(crawler_type, query: str) -> List[dict]:
                 pass
 
 
-def run_search(
-    query: str,
-    on_progress: Optional[Callable[[int, int], None]] = None,
-) -> List[dict]:
-    crawlers = get_search_crawlers()
-    total = len(crawlers)
-    raw: List[dict] = []
-
-    executor = ThreadPoolExecutor(
-        max_workers=CONCURRENCY, thread_name_prefix="lncrawl_search"
-    )
-    try:
-        futures = [executor.submit(_search_one, cls, query) for cls in crawlers]
-        # Report progress as each source finishes, so a long search does not
-        # sit at 0% until every future resolves.
-        try:
-            for index, future in enumerate(
-                as_completed(futures, timeout=SEARCH_TIMEOUT), start=1
-            ):
-                try:
-                    raw.extend(future.result())
-                except Exception:
-                    pass
-                if on_progress:
-                    on_progress(index, total)
-        except FuturesTimeoutError:
-            pass
-    finally:
-        # Do not block on sources that ignored the search timeout.
-        executor.shutdown(wait=False, cancel_futures=True)
-
+def rank_results(query: str, raw: List[dict]) -> List[dict]:
     # Group by normalized title, rank against the query.
     groups: Dict[str, dict] = {}
     for item in raw:
@@ -106,3 +97,100 @@ def run_search(
         reverse=True,
     )
     return ranked
+
+
+def run_search(
+    query: str,
+    on_progress: Optional[Callable[[int, int], None]] = None,
+    on_results: Optional[Callable[[List[dict]], None]] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
+) -> List[dict]:
+    started = time.monotonic()
+    deadline = started + SEARCH_TIMEOUT
+    crawlers = get_search_crawlers()
+    total = len(crawlers)
+    quorum_count = math.ceil(QUORUM * total)
+    raw: List[dict] = []
+    timings: Dict[type, float] = {}
+    done = 0
+    with_results = 0
+    grace_end: Optional[float] = None
+    reason = "all done"
+
+    executor = ThreadPoolExecutor(
+        max_workers=max(1, min(total, MAX_CONCURRENCY)),
+        thread_name_prefix="lncrawl_search",
+    )
+    futures = {}
+    pending = set()
+    try:
+        futures = {
+            executor.submit(_search_one, cls, query, timings): cls for cls in crawlers
+        }
+        pending = set(futures)
+        while pending:
+            if should_stop and should_stop():
+                reason = "stopped"
+                break
+            now = time.monotonic()
+            if now >= deadline:
+                reason = "deadline"
+                break
+            if grace_end is not None and now >= grace_end:
+                reason = "grace"
+                break
+
+            # grace_end is always <= deadline, so waiting up to it never overshoots.
+            bound = deadline if grace_end is None else grace_end
+            finished, pending = wait(
+                pending,
+                timeout=min(0.5, bound - now),
+                return_when=FIRST_COMPLETED,
+            )
+            if not finished:
+                continue
+
+            added = False
+            for future in finished:
+                try:
+                    items = future.result()
+                except Exception:
+                    items = []
+                if items:
+                    raw.extend(items)
+                    with_results += 1
+                    added = True
+            done += len(finished)
+            if on_progress:
+                on_progress(done, total)
+            if added and on_results:
+                on_results(rank_results(query, raw))
+            if grace_end is None and done >= quorum_count:
+                grace_end = min(time.monotonic() + STRAGGLER_GRACE, deadline)
+    finally:
+        # Do not block on sources that ignored the search timeout.
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    elapsed = time.monotonic() - started
+    unfinished = sorted(_source_label(futures[f]) for f in pending)
+    finished_timings = sorted(timings.items(), key=lambda kv: kv[1], reverse=True)
+    for cls, seconds in finished_timings:
+        logger.debug("Search source %s took %.2fs", _source_label(cls), seconds)
+    slowest = ", ".join(
+        f"{_source_label(cls)} {seconds:.2f}s" for cls, seconds in finished_timings[:5]
+    )
+    logger.info(
+        "Search %r: %.2fs, %d/%d sources finished, %d with results, stopped: %s, "
+        "unfinished (%d): %s, slowest: %s",
+        query,
+        elapsed,
+        done,
+        total,
+        with_results,
+        reason,
+        len(unfinished),
+        ", ".join(unfinished[:10]) or "none",
+        slowest or "none",
+    )
+
+    return rank_results(query, raw)

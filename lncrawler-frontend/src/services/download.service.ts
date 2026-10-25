@@ -1,15 +1,13 @@
 import api from './api';
+import { DownloadParams, DownloadStartResponse, DownloadStatus } from '@models/downloader_types';
 
 export const downloadService = {
   startDownload: async (
-    jobId: string, 
-    params: { 
-      novel_index: number; 
-      source_index: number;
-    }
+    jobId: string,
+    params: DownloadParams
   ) => {
     const response = await api.post(`/downloader/download/start/${jobId}/`, params);
-    return response.data;
+    return response.data as DownloadStartResponse;
   },
   
   // New method for direct URL downloads
@@ -20,7 +18,7 @@ export const downloadService = {
   
   getDownloadStatus: async (jobId: string) => {
     const response = await api.get(`/downloader/download/status/${jobId}/`);
-    return response.data;
+    return response.data as DownloadStatus;
   },
   
   getDownloadResults: async (jobId: string) => {

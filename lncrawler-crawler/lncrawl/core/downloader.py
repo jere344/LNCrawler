@@ -412,6 +412,8 @@ def fetch_chapter_images(app) -> None:
     try:
         for _ in app.crawler.resolve_as_generator(futures):
             app.progress += 1
+            if app.crawler.cancelled.is_set():
+                return
         failed = [
             filename
             for filename, url in images_to_download

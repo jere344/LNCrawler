@@ -17,6 +17,7 @@ import { formatProgress } from '@utils/progressUnit';
 import DownloadStepper from './DownloadStepper';
 
 const POLLING_INTERVAL = 2000; // 2 seconds
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 const DownloadStatus = () => {
   const { t } = useTranslation();
@@ -27,45 +28,67 @@ const DownloadStatus = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchStatus = async () => {
+  // Chained timeouts: the next request starts only after the previous one settled
+  useEffect(() => {
     if (!jobId) return;
-    
-    try {
-      const statusResponse = await downloadService.getDownloadStatus(jobId);
-      
-      if (statusResponse.status === 'success') {
-        setStatus(statusResponse);
-        
+
+    let active = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let failures = 0;
+
+    const poll = async () => {
+      try {
+        const statusResponse = await downloadService.getDownloadStatus(jobId);
+        if (!active) return;
+        failures = 0;
+
+        if (statusResponse.status !== 'success') {
+          setError(statusResponse.message || t('downloader.fetchStatusFailed'));
+          return;
+        }
+
         if (statusResponse.download_completed) {
           const resultsResponse = await downloadService.getDownloadResults(jobId);
+          if (!active) return;
+          if (resultsResponse.status !== 'success') {
+            setError(resultsResponse.message || t('downloader.fetchStatusFailed'));
+            return;
+          }
           setResults(resultsResponse);
         }
-      } else {
-        setError(statusResponse.message || t('downloader.fetchStatusFailed'));
-      }
-    } catch (err) {
-      console.error('Error fetching download status:', err);
-      setError(t('downloader.statusError'));
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchStatus();
-    
-    // Set up polling for status updates
-    const intervalId = setInterval(() => {
-      if (status?.download_completed) {
-        clearInterval(intervalId);
-        return;
+        setStatus(statusResponse);
+
+        const finished = statusResponse.download_completed || statusResponse.job_status === 'failed';
+        if (!finished) {
+          timeoutId = setTimeout(poll, POLLING_INTERVAL);
+        }
+      } catch (err) {
+        if (!active) return;
+        console.error('Error fetching download status:', err);
+        failures += 1;
+        if (failures >= MAX_CONSECUTIVE_FAILURES) {
+          setError(t('downloader.statusError'));
+          return;
+        }
+        timeoutId = setTimeout(poll, POLLING_INTERVAL);
+      } finally {
+        setLoading(false);
       }
-      fetchStatus();
-    }, POLLING_INTERVAL);
-    
-    return () => clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- polling keyed to jobId/completion, not loader identity
-  }, [jobId, status?.download_completed]);
+    };
+
+    setLoading(true); // Reset loading for a new download
+    setStatus(null);  // Reset status
+    setResults(null); // Reset results
+    setError(null);   // Reset error
+    poll();
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- polling keyed to jobId, not translator identity
+  }, [jobId]);
 
   if (loading && !status) {
     return (

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import tempfile
 from datetime import timedelta
@@ -72,17 +73,28 @@ def tag_candidate(*tags, **extra):
     )
 
 
-def run_judge(reply, task="tag_merge", limit=None, **caps):
+def keep_everything(messages):
+    """A verification reply that keeps every member of every set it is shown."""
+    blocks = re.split(r"(?m)^Set (s\d+):", messages[-1]["content"])[1:]
+    return {"sets": [
+        {"set": set_id, "keep": re.findall(r"(?m)^(t\d+)\. ", body)}
+        for set_id, body in zip(blocks[::2], blocks[1::2])
+    ]}
+
+
+def run_judge(reply, task="tag_merge", limit=None, verify=keep_everything, **caps):
     """Run ``run_llm`` for one task with ``reply`` as the model's answer.
 
     ``reply`` is an exception to raise, a str sent as-is, a dict sent as JSON, or a
-    function of the messages returning one of those. ``limit`` caps the calls of the run.
-    ``caps`` are fields of the chain's provider (see ``llm_chain``).
+    function of the messages returning one of those. ``verify`` answers the verification
+    call the same way, and defaults to keeping every member. ``limit`` caps the batches of
+    the run. ``caps`` are fields of the chain's provider (see ``llm_chain``).
     Returns the ``_post_chat`` mock, so a test can count the calls.
     """
 
     def post(messages, *args, **kwargs):
-        value = reply(messages) if callable(reply) else reply
+        handler = verify if messages[0]["content"] == tms.VERIFY_PROMPT else reply
+        value = handler(messages) if callable(handler) else handler
         if isinstance(value, Exception):
             raise value
         content = value if isinstance(value, str) else json.dumps(value)
@@ -526,8 +538,8 @@ class JudgeTagMergeTests(TestCase):
         self.assertFalse(Tag.objects.filter(pk=self.another.pk).exists())
         self.assertEqual([entry["type"] for entry in candidate.undo], ["tag_merge"])
         self.assertEqual(TagAlias.objects.get(name="Another World").tag, self.isekai)
-        self.assertEqual(chat.call_count, 1)
-        self.assertIn("(2 novels)", chat.call_args[0][0][-1]["content"])
+        self.assertEqual(chat.call_count, 2)
+        self.assertIn("(2 novels)", chat.call_args_list[0][0][0][-1]["content"])
 
     def test_canonical_name_renames_most_used_member(self):
         otherworld = Tag.objects.create(name="Otherworld")
@@ -552,7 +564,7 @@ class JudgeTagMergeTests(TestCase):
     def test_low_confidence_goes_to_review_without_changes(self):
         candidate = tag_candidate(self.isekai, self.another)
         run_judge(answer(
-            {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}
+            {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.7}
         ))
 
         candidate.refresh_from_db()
@@ -560,6 +572,163 @@ class JudgeTagMergeTests(TestCase):
         self.assertIn("low confidence", candidate.reason)
         self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
         self.assertEqual(candidate.undo, [])
+
+    def test_sets_below_the_confidence_floor_are_rejected_without_retry(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        chat = run_judge(answer(
+            {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.4}
+        ))
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REJECTED)
+        self.assertEqual(candidate.verdict["answer"], "no")
+        self.assertEqual(candidate.attempts, 0)
+        self.assertEqual(chat.call_count, 1)
+        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
+
+    def test_set_exactly_at_the_confidence_floor_is_kept(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        with override_settings(TAG_MERGE_MIN_CONFIDENCE=0.5):
+            run_judge(answer(
+                {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.5}
+            ))
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REVIEW)
+        self.assertIn("low confidence", candidate.reason)
+        self.assertEqual(len(candidate.verdict["sets"]), 1)
+
+    def test_set_just_below_the_confidence_floor_is_dropped(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        with override_settings(TAG_MERGE_MIN_CONFIDENCE=0.5):
+            run_judge(answer(
+                {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.49}
+            ))
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REJECTED)
+        self.assertEqual(candidate.verdict["answer"], "no")
+        self.assertEqual(candidate.attempts, 0)
+        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
+
+    def test_set_without_a_confidence_is_retried_not_rejected(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        chat = run_judge(answer({"members": ["t1", "t2"], "canonical": "Isekai"}))
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 1)
+        self.assertEqual(chat.call_count, 1)
+        self.assertIn("no usable confidence", candidate.reason)
+        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
+
+    def test_verdict_keeps_the_glosses_of_the_reply(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        run_judge({"groups": [{
+            "group": 1,
+            "glosses": "t2=reincarnation",
+            "sets": [{"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.95}],
+        }]})
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.verdict["glosses"], "t2=reincarnation")
+
+    def test_verifier_removes_a_member_and_the_rest_of_the_set_applies(self):
+        third = Tag.objects.create(name="Third Tag")
+        candidate = tag_candidate(self.isekai, self.another, third)
+        chat = run_judge(
+            answer({"members": ["t1", "t2", "t3"], "canonical": "Isekai", "confidence": 0.95}),
+            verify={"sets": [{"set": "s1", "keep": ["t1", "t2"]}]},
+        )
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(chat.call_count, 2)
+        self.assertFalse(Tag.objects.filter(pk=self.another.pk).exists())
+        self.assertTrue(Tag.objects.filter(pk=third.pk).exists())
+        self.assertEqual(candidate.verdict["sets"][0]["members"], [self.isekai.pk, self.another.pk])
+
+    def test_verifier_drops_a_set_below_two_members_and_applies_the_rest(self):
+        third, fourth = make_tags("Third Tag", "Fourth Tag")
+        candidate = tag_candidate(self.isekai, self.another, third, fourth)
+        run_judge(
+            answer(
+                {"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.95},
+                {"members": ["t3", "t4"], "canonical": "Third Tag", "confidence": 0.95},
+            ),
+            verify={"sets": [{"set": "s1", "keep": ["t1", "t2"]}, {"set": "s2", "keep": ["t3"]}]},
+        )
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(len(candidate.verdict["sets"]), 1)
+        self.assertTrue(Tag.objects.filter(pk=third.pk).exists())
+        self.assertTrue(Tag.objects.filter(pk=fourth.pk).exists())
+        self.assertFalse(Tag.objects.filter(pk=self.another.pk).exists())
+
+    def test_verifier_removing_every_set_rejects_the_candidate(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        chat = run_judge(
+            answer({"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.95}),
+            verify={"sets": [{"set": "s1", "keep": ["t1"]}]},
+        )
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_REJECTED)
+        self.assertIn("verification removed every set", candidate.reason)
+        self.assertEqual(chat.call_count, 2)
+        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
+
+    def test_unparseable_verification_is_retried_not_settled(self):
+        candidate = tag_candidate(self.isekai, self.another)
+        run_judge(
+            answer({"members": ["t1", "t2"], "canonical": "Isekai", "confidence": 0.95}),
+            verify="no json",
+        )
+
+        candidate.refresh_from_db()
+        self.assertEqual(candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(candidate.attempts, 1)
+        self.assertIn("no JSON object", candidate.reason)
+        self.assertTrue(Tag.objects.filter(pk=self.another.pk).exists())
+
+    def test_verification_maps_sets_across_the_chunk_boundary(self):
+        # 41 proposed sets with verify_sets=40: set s41 is checked by the second call.
+        tags = make_tags(*(f"Concept Tag {number}" for number in range(1, 84)))
+        candidate = tag_candidate(*tags)
+        sets = [
+            {
+                "members": [f"t{2 * number - 1}", f"t{2 * number}"],
+                "canonical": f"Concept {number}",
+                "confidence": 0.95,
+            }
+            for number in range(1, 41)
+        ]
+        sets.append({"members": ["t81", "t82", "t83"], "canonical": "Concept 41", "confidence": 0.95})
+
+        def drop_t83_from_s41(messages):
+            reply = keep_everything(messages)
+            for item in reply["sets"]:
+                if item["set"] == "s41":
+                    item["keep"].remove("t83")
+            return reply
+
+        chat = run_judge(answer(*sets), verify=drop_t83_from_s41)
+
+        candidate.refresh_from_db()
+        self.assertEqual(chat.call_count, 3)
+        self.assertIn("Set s41:", chat.call_args_list[2][0][0][-1]["content"])
+        self.assertEqual(len(candidate.verdict["sets"]), 41)
+        self.assertEqual(candidate.verdict["sets"][0]["members"], [tags[0].pk, tags[1].pk])
+        self.assertEqual(candidate.verdict["sets"][40]["members"], [tags[80].pk, tags[81].pk])
+
+    def test_prompts_carry_the_stricter_rules(self):
+        self.assertEqual(llm_tasks.REGISTRY["tag_merge"].prompt_version, "3")
+        for phrase in (
+            "Police / Detectives", "Danmei (BL genre) / Romance", "Completed", "One set holds one concept",
+        ):
+            self.assertIn(phrase, tms.SYSTEM_PROMPT)
+        self.assertIn("You may only remove members", tms.VERIFY_PROMPT)
 
     def test_widely_used_tags_go_to_review(self):
         candidate = tag_candidate(self.isekai, self.another)
@@ -1020,6 +1189,23 @@ class JudgePromptTests(SimpleTestCase):
         self.assertNotIn("x" * 101, user)
 
 
+class VerifyParseTests(SimpleTestCase):
+    def test_empty_glosses_map_to_nothing(self):
+        self.assertEqual(tms.parse_glosses(""), {})
+
+    def test_gloss_keeps_text_after_its_first_equals_sign(self):
+        self.assertEqual(tms.parse_glosses("t2=a=b; t5=ninja"), {"t2": "a=b", "t5": "ninja"})
+
+    def test_reply_item_without_a_set_id_is_unparseable(self):
+        content = json.dumps({"sets": [{"keep": ["t1"]}]})
+        with self.assertRaises(llm_service.LLMParseError):
+            tms.parse_verify_response(content, ["s1"])
+
+    def test_non_dict_reply_item_is_unparseable(self):
+        with self.assertRaises(llm_service.LLMParseError):
+            tms.parse_verify_response(json.dumps({"sets": ["s1"]}), ["s1"])
+
+
 class TagAdminMergeErrorTests(TestCase):
     def setUp(self):
         self.tag = Tag.objects.create(name="Isekai")
@@ -1222,8 +1408,8 @@ class PlanChangedRetryTests(TestCase):
 
         mocked = run_judge(TWO_SETS, limit=1)
 
-        self.assertEqual(mocked.call_count, 1)
-        self.assertNotIn("Group 2:", mocked.call_args[0][0][-1]["content"])
+        self.assertEqual(mocked.call_count, 2)
+        self.assertNotIn("Group 2:", mocked.call_args_list[0][0][0][-1]["content"])
         self.candidate.refresh_from_db()
         self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
         self.assertEqual(self.candidate.attempts, 1)
@@ -1235,7 +1421,7 @@ class PlanChangedRetryTests(TestCase):
         with mock.patch.object(tms, "lock_pks", return_value=set()):
             for _ in range(max_attempts):
                 Candidate.objects.update(not_before=None)
-                self.assertEqual(run_judge(TWO_SETS).call_count, 1)
+                self.assertEqual(run_judge(TWO_SETS).call_count, 2)
 
         self.candidate.refresh_from_db()
         self.assertEqual(self.candidate.status, Candidate.STATUS_ERROR)
@@ -1480,6 +1666,17 @@ class TagMergeBudgetTests(TestCase):
     def test_rate_limited_call_leaves_the_candidate_untouched(self):
         run_judge(llm_service.RateLimited(retry_after=None))
         self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_PENDING)
+        self.assertEqual(self.candidate.attempts, 0)
+        self.assertIsNotNone(self.candidate.not_before)
+
+    def test_rate_limited_verification_leaves_the_candidate_untouched(self):
+        chat = run_judge(
+            answer({"members": ["t1", "t2"], "canonical": "Tango", "confidence": 0.97}),
+            verify=llm_service.RateLimited(retry_after=None),
+        )
+        self.candidate.refresh_from_db()
+        self.assertEqual(chat.call_count, 2)
         self.assertEqual(self.candidate.status, Candidate.STATUS_PENDING)
         self.assertEqual(self.candidate.attempts, 0)
         self.assertIsNotNone(self.candidate.not_before)

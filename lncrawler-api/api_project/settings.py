@@ -266,6 +266,9 @@ NOVEL_MERGE_AUTO_CONFIDENCE = float(os.environ.get("NOVEL_MERGE_AUTO_CONFIDENCE"
 AUTHOR_MERGE_AUTO_CONFIDENCE = float(os.environ.get("AUTHOR_MERGE_AUTO_CONFIDENCE", "0.95"))
 # Measured on gemma-4-26b: every wrong set came at 0.9 or below, correct ones up to 1.0.
 TAG_MERGE_AUTO_CONFIDENCE = float(os.environ.get("TAG_MERGE_AUTO_CONFIDENCE", "0.95"))
+# Proposed tag sets below this confidence are dropped before review.
+# Keep it at or below TAG_MERGE_AUTO_CONFIDENCE: above it, sets confident enough to apply would be dropped.
+TAG_MERGE_MIN_CONFIDENCE = float(os.environ.get("TAG_MERGE_MIN_CONFIDENCE", "0.5"))
 # R18 tags at/above this confidence are flagged adult (below it: review).
 TAG_R18_AUTO_CONFIDENCE = float(os.environ.get("TAG_R18_AUTO_CONFIDENCE", "0.85"))
 # Safeguards: a tag merge joining two tags used by more than this many sources, and an

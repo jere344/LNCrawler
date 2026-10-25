@@ -92,6 +92,7 @@ def start_download(request, job_id):
         data = json.loads(request.body)
         novel_index = int(data.get("novel_index", 0))
         source_index = int(data.get("source_index", 0))
+        novel_url = data.get("novel_url") or None
 
         # Always use JSON format and download all chapters
         result = DownloaderService.start_download(
@@ -99,6 +100,7 @@ def start_download(request, job_id):
             novel_index=novel_index,
             source_index=source_index,
             user=_current_user(request),
+            novel_url=novel_url,
         )
 
         return JsonResponse(result)

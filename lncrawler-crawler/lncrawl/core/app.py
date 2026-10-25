@@ -6,6 +6,7 @@ bodies/images and write meta.json.
 
 import logging
 import os
+import threading
 from typing import List
 from urllib.parse import urlparse
 
@@ -46,6 +47,10 @@ class App:
         self.output_path = ""
         self.chapters: List[Chapter] = []
         self.good_file_name = ""
+        self.cancelled = threading.Event()
+
+    def cancel(self) -> None:
+        self.cancelled.set()
 
     def destroy(self) -> None:
         if self.crawler is not None:
@@ -68,7 +73,15 @@ class App:
         def on_progress(current: int, total: int) -> None:
             self.progress = current
 
-        self.search_results = run_search(self.user_input, on_progress=on_progress)
+        def on_results(ranked: List[dict]) -> None:
+            self.search_results = ranked
+
+        self.search_results = run_search(
+            self.user_input,
+            on_progress=on_progress,
+            on_results=on_results,
+            should_stop=self.cancelled.is_set,
+        )
 
     # -- novel info ---------------------------------------------------- #
 
@@ -109,8 +122,11 @@ class App:
     def start_download(self) -> None:
         assert self.crawler is not None, "No crawler selected"
 
+        self.crawler.cancelled = self.cancelled
         save_metadata(self)
         fetch_chapter_body(self)
+        if self.cancelled.is_set():
+            return
         fetch_chapter_images(self)
         save_metadata(self, completed=True)
 

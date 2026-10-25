@@ -5,7 +5,7 @@ Goal: one pass per source, no re-discovery. §7 is for the coordinator; agents c
 ## 0. Decide first
 
 - **No MTL** (machine-translated, Vietnamese "convert"/"cv", AI/LLM-polished). Stub: `is_disabled = True`, `has_mtl = True`, `disable_reason = "Machine-translated (MTL) content — extremely low quality, intentionally excluded"`. Tells: "MTL"/"convert"/"AI translated" in footer or synopsis, no translator credits, every chapter bulk-imported. Mixed catalog with a per-novel MTL flag → implement, filter MTL novels out of search/browse, set `has_mtl` on read (readnovel_eu, truyenyy).
-- **Mirror aggregator** (catalog copied from other sites: per-novel `domain`/`source` field, identical text): if the mirrored hosts exist in `sources/` → stub "mirror of X (already covered by x.py)". LLM-rewritten synopses alone ≠ MTL.
+- **Mirror aggregator** (catalog copied from other sites: per-novel `domain`/`source` field, identical text): if the mirrored hosts exist in `sources/` → stub "mirror of X (already covered by x.py)". No such field: look for the mirrored site's markers in chapter bodies (footer, "© X", heading artifacts). LLM-rewritten synopses alone ≠ MTL.
 - **Live but unworkable** (hard bot wall, paywall, encryption) → disabled stub; `disable_reason` says what blocks it and how it was tested (curl_cffi / browser).
 - **Dead / parked / spam / not a novel site** → no file, one report line `domain | none | skipped | reason`.
 - Prefer original / raw / human-translated content. Don't commit; don't touch unrelated files.
@@ -43,6 +43,13 @@ Check page text and final URL, not just status: shutdown banners, for-sale and s
 | 403 / "Just a moment" / turnstile / Anubis | check in a real browser (built-in pane). Data via XHR → call that API (often unwalled). Still stuck → stub "also blocked in a real browser". Never solve interactive challenges |
 | Login / coins / VIP for bodies; free preview window (first N chapters only: tadu, faloo, 17k) | stub — partial novels are worse than none |
 | Body encrypted, signed API + protobuf (neopage), chapter URL built by obfuscated per-page JS (8book), font glyph remapping (kawebook), server-side truncation (bilinovel "內容加載失敗") | stub, don't keep probing |
+| Custom captcha form (e.g. `vb_challenge`), not Turnstile/Anubis | stub "custom captcha gate"; never solve |
+| Click-through interstitial before the site (wuxia.blog) | stub if the gate is a JS button with no plain-GET target; otherwise follow the link |
+| JS "Redirecting..." page posting to a third-party router or parking host (boxnovel) | parked → no file, one report line |
+| Host resolves but connections time out | dead unless another route answers |
+| Local TLS failure (curl error 60, CA gap) | probe with `p.scraper.get(url, verify=False)`; the shipped file keeps default TLS |
+| Page-embedded API token that returns 401 without it | don't reuse it in the source; if that is the only way in, stub and say so in `disable_reason` |
+| Free preview then paywall (lorenovels, ~ch. 65) | binary-search the chapter number, one body request per probe, to find the boundary; stub |
 
 Routes that kept paying off:
 - WordPress REST: categories = novels, posts = chapters. The API can live on another domain (mvlempyr → chap.heliosarchive.online): check the front-end JS.

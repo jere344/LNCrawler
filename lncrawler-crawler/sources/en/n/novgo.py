@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class NovgoCrawler(Crawler):
-    base_url = ["https://novgo.net/"]
+    base_url = ["https://novgo.net/", "https://allnovelfull.com/"]
     language = "en"
 
     def search_novel(self, query):

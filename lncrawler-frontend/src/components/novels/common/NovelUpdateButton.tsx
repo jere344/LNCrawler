@@ -64,9 +64,9 @@ const NovelUpdateButton: React.FC<NovelUpdateButtonProps> = ({ sourceUrl, novelT
         setIsPolling(false);
         setUpdateComplete(true);
         // Optionally, could reset after a delay or keep "Updated" state
-      } else if (statusData.job_status === 'FAILED' || statusData.job_status === 'CANCELLED') {
+      } else if (statusData.status === 'error' || statusData.job_status === 'failed') {
         setIsPolling(false);
-        setError(statusData.status_display || t('updateButton.updateFailed'));
+        setError(statusData.message || statusData.status_display || t('updateButton.updateFailed'));
       }
     } catch (err) {
       const apiErr = err as ApiError;

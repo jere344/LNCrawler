@@ -13,6 +13,7 @@ import logging.handlers
 import os
 import queue
 import threading
+import time
 import traceback
 
 from django.conf import settings
@@ -21,6 +22,7 @@ from .github_issues import create_issue, fingerprint
 from .redaction import redact
 
 _QUEUE_SIZE = 100
+_FLUSH_TIMEOUT = 5.0
 
 
 class ReopeningRotatingFileHandler(logging.handlers.RotatingFileHandler):
@@ -140,3 +142,17 @@ class GitHubIssueHandler(logging.Handler):
                 pass
             finally:
                 self._queue.task_done()
+
+    def flush(self):
+        # logging.shutdown() calls this right before a process exits: wait a
+        # bounded time for queued reports so they are not dropped. Never raises.
+        try:
+            deadline = time.monotonic() + _FLUSH_TIMEOUT
+            with self._queue.all_tasks_done:
+                while self._queue.unfinished_tasks:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    self._queue.all_tasks_done.wait(remaining)
+        except Exception:
+            pass

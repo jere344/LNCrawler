@@ -3,6 +3,7 @@ import threading
 import logging
 from pathlib import Path
 import django
+from django.utils import timezone
 from ..utils import chapter_utils
 from ..utils.crawler_path import CRAWLER_DIR, META_FILE_NAME, ensure_crawler_on_path
 from .downloader_helpers import _format_search_results, _is_expected_crawler_error, choose_crawl_output_path
@@ -51,8 +52,14 @@ def _poll_download_progress(job, app, phase, total_chapters):
         )
 
 
-def _start_progress_monitor(poll):
-    """Call ``poll()`` every two seconds on a daemon thread until stopped.
+def _iter_search_sources(search_results):
+    """Yield every source entry stored across the grouped search results."""
+    for novel in (search_results or {}).get("results") or []:
+        yield from novel.get("sources", [])
+
+
+def _start_progress_monitor(poll, interval=2):
+    """Call ``poll()`` every ``interval`` seconds on a daemon thread until stopped.
 
     Returns ``(stop_monitoring, monitor_thread)``: set the event and join the
     thread once the work it watches is done.
@@ -62,9 +69,13 @@ def _start_progress_monitor(poll):
     def monitor_progress():
         try:
             while not stop_monitoring.is_set():
-                poll()
+                try:
+                    poll()
+                except Exception:
+                    # One failed poll must not end monitoring for the rest of the job.
+                    logger.exception("Progress poll failed")
                 # wait() instead of sleep() so stopping takes effect at once.
-                stop_monitoring.wait(2)
+                stop_monitoring.wait(interval)
         finally:
             # Threads get their own DB connection; close it so a
             # long-lived worker does not accumulate Postgres sessions.
@@ -164,7 +175,7 @@ class DownloaderService:
     @staticmethod
     def _run_search_process(job_id, query):
         """
-        Run novel search in a background thread
+        Run novel search in the crawler job subprocess
         """
         job = None
         app = None
@@ -174,7 +185,12 @@ class DownloaderService:
 
             from ..models import Job
             job = Job.objects.get(id=job_id)
-            job.update_status(Job.STATUS_SEARCHING)
+            # A cancel that landed after the supervisor claimed the job keeps its FAILED status.
+            if not Job.objects.filter(pk=job.id).exclude(status=Job.STATUS_FAILED).update(
+                status=Job.STATUS_SEARCHING,
+                updated_at=timezone.now(),
+            ):
+                return
 
             app = App()
             app.user_input = query
@@ -193,13 +209,41 @@ class DownloaderService:
             total = len(app.crawler_links) or 1
             job.update_progress(0, total)
 
+            # Partial snapshots are written as results arrive, so the UI can
+            # show them before the search ends.
+            written_count = 0
+            # Shared by the monitor's partial writes and the final write, so a
+            # late partial snapshot cannot overwrite the final results.
+            write_lock = threading.Lock()
+            search_ended = False
+
+            def poll_search():
+                nonlocal written_count
+                job.update_progress(app.progress, total)
+                if Job.objects.filter(pk=job.id, status=Job.STATUS_FAILED).exists():
+                    app.cancel()
+                    return
+                snapshot = _format_search_results(app)
+                count = sum(len(novel["sources"]) for novel in snapshot)
+                with write_lock:
+                    if search_ended or count <= written_count:
+                        return
+                    written_count = count
+                    job.update_search_results({
+                        "status": "success",
+                        "results": snapshot,
+                        "partial": True,
+                    })
+
             stop_monitoring, monitor_thread = _start_progress_monitor(
-                lambda: job.update_progress(app.progress, total)
+                poll_search, interval=1
             )
 
             try:
                 app.search_novel()
             finally:
+                with write_lock:
+                    search_ended = True
                 stop_monitoring.set()
                 monitor_thread.join(timeout=5.0)
 
@@ -212,7 +256,11 @@ class DownloaderService:
                 "results": _format_search_results(app),
             })
             job.update_progress(0, 0)
-            job.update_status(Job.STATUS_SEARCH_COMPLETED)
+            # Conditional so a cancel that landed after the check above keeps its FAILED status.
+            Job.objects.filter(pk=job.id, status=Job.STATUS_SEARCHING).update(
+                status=Job.STATUS_SEARCH_COMPLETED,
+                updated_at=timezone.now(),
+            )
 
         except Exception as e:
             logger.exception(f"Error in search process: {str(e)}")
@@ -274,7 +322,12 @@ class DownloaderService:
 
             from ..models import Job
             job = Job.objects.get(id=job_id)
-            job.update_status(Job.STATUS_DOWNLOADING)
+            # A cancel that landed after the supervisor claimed the job keeps its FAILED status.
+            if not Job.objects.filter(pk=job.id).exclude(status=Job.STATUS_FAILED).update(
+                status=Job.STATUS_DOWNLOADING,
+                updated_at=timezone.now(),
+            ):
+                return
 
             app = App()
             app.user_input = novel_url
@@ -294,9 +347,13 @@ class DownloaderService:
             # chapter download phase afterwards.
             phase = {"chapters": False}
             total_chapters = 0
-            stop_monitoring, monitor_thread = _start_progress_monitor(
-                lambda: _poll_download_progress(job, app, phase, total_chapters)
-            )
+
+            def poll_download():
+                _poll_download_progress(job, app, phase, total_chapters)
+                if Job.objects.filter(pk=job.id, status=Job.STATUS_FAILED).exists():
+                    app.cancel()
+
+            stop_monitoring, monitor_thread = _start_progress_monitor(poll_download)
 
             try:
                 # Fetch novel info (title, chapters, volumes). This is slow for
@@ -362,13 +419,13 @@ class DownloaderService:
 
             job.update_download_results(output_path=output_path, output_files=[])
 
-            # Auto-import the novel to the database
-            logger.debug(f"Attempting to import novel from {output_path}")
-            success, message = DownloaderService._import_novel_to_database(output_path, job)
-
             # Respect a cancel request that arrived while downloading.
             if Job.objects.filter(pk=job.id, status=Job.STATUS_FAILED).exists():
                 return
+
+            # Auto-import the novel to the database
+            logger.debug(f"Attempting to import novel from {output_path}")
+            success, message = DownloaderService._import_novel_to_database(output_path, job)
 
             if not success:
                 # An unusable meta.json (e.g. missing title) means nothing reached
@@ -378,7 +435,11 @@ class DownloaderService:
                 job.update_status(Job.STATUS_FAILED, f"Download completed but import failed: {message}")
                 return
 
-            job.update_status(Job.STATUS_DOWNLOAD_COMPLETED)
+            # Conditional so a cancel that landed during the import keeps its FAILED status.
+            Job.objects.filter(pk=job.id, status=Job.STATUS_DOWNLOADING).update(
+                status=Job.STATUS_DOWNLOAD_COMPLETED,
+                updated_at=timezone.now(),
+            )
             job.import_message = message
             job.save(update_fields=['import_message'])
 
@@ -453,6 +514,7 @@ class DownloaderService:
                 'total_items': job.total_items,
                 'progress_percentage': job.get_progress_percentage(),
                 'has_results': job.search_results is not None and len(job.search_results) > 0,
+                'result_count': sum(1 for _ in _iter_search_sources(job.search_results)),
                 'error': job.error_message,
             }
         except Job.DoesNotExist:
@@ -473,6 +535,13 @@ class DownloaderService:
                 return {
                     'status': 'error',
                     'message': job.error_message or 'Search failed',
+                }
+
+            if job.status in (Job.STATUS_CREATED, Job.STATUS_SEARCHING):
+                return {
+                    'status': 'success',
+                    'results': (job.search_results or {}).get('results') or [],
+                    'partial': True,
                 }
 
             if job.status != Job.STATUS_SEARCH_COMPLETED:
@@ -529,7 +598,7 @@ class DownloaderService:
         }
 
     @classmethod
-    def start_download(cls, job_id, novel_index=0, source_index=0, user=None):
+    def start_download(cls, job_id, novel_index=0, source_index=0, user=None, novel_url=None):
         """
         Start downloading a novel
 
@@ -537,6 +606,8 @@ class DownloaderService:
             job_id: The ID of the job with search results
             novel_index: Index of the novel from search results to download
             source_index: Index of the source for the selected novel
+            user: The user starting the download, if authenticated
+            novel_url: URL of the chosen source; must be among the search results
 
         Returns:
             Updated job object
@@ -544,6 +615,26 @@ class DownloaderService:
         from ..models import Job
         try:
             job = Job.objects.get(id=job_id)
+
+            if novel_url and not any(
+                source.get("url") == novel_url
+                for source in _iter_search_sources(job.search_results)
+            ):
+                return {
+                    'status': 'error',
+                    'message': 'Selected novel is not in the search results',
+                }
+
+            # The search subprocess is still writing to this job: download
+            # into a new job and leave the search job alone.
+            if job.status == Job.STATUS_SEARCHING and novel_url:
+                download_job = Job.objects.create(
+                    status=Job.STATUS_CREATED,
+                    job_type=Job.JOB_TYPE_DOWNLOAD,
+                    query=job.query,
+                    user=user or job.user,
+                )
+                return cls.start_direct_download(novel_url, download_job, user=user)
 
             if job.status != Job.STATUS_SEARCH_COMPLETED:
                 return {
@@ -553,14 +644,14 @@ class DownloaderService:
                 }
 
             # if no direct url passed, get the selected novel URL
-            novel_url = ""
-            try:
-                novel_url = job.search_results["results"][novel_index]["sources"][source_index]["url"]
-            except (KeyError, IndexError):
-                return {
-                    'status': 'error',
-                    'message': 'Invalid novel or source index',
-                }
+            if not novel_url:
+                try:
+                    novel_url = job.search_results["results"][novel_index]["sources"][source_index]["url"]
+                except (KeyError, IndexError):
+                    return {
+                        'status': 'error',
+                        'message': 'Invalid novel or source index',
+                    }
 
             if not novel_url:
                 return {

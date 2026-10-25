@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -16,83 +16,101 @@ import {
   Container
 } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { searchService } from '@services/api';
-import { SearchStatus, SearchResults as SearchResultsType } from '@models/downloader_types';
+import { searchService, jobService } from '@services/api';
+import { SearchStatus, SearchResult, SearchResults as SearchResultsType } from '@models/downloader_types';
 import DownloadStepper from './DownloadStepper';
 
-const POLLING_INTERVAL = 2000; // 2 seconds
+const POLLING_INTERVAL = 1000; // 1 second
+const MAX_CONSECUTIVE_FAILURES = 3;
+
+const countSources = (groups: SearchResult[]) =>
+  groups.reduce((total, group) => total + group.sources.length, 0);
 
 const SearchResults = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { jobId } = useParams<{ jobId: string }>();
   const [status, setStatus] = useState<SearchStatus | null>(null);
   const [results, setResults] = useState<SearchResultsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Function to check search status
-  const checkSearchStatus = async () => {
-    if (!jobId) return;
-    
-    try {
-      const statusResponse = await searchService.getSearchStatus(jobId);
-      setStatus(statusResponse);
-      
-      if (statusResponse.search_completed && statusResponse.has_results) {
-        // If search is complete, get the results
-        const resultsResponse = await searchService.getSearchResults(jobId);
-        setResults(resultsResponse);
-      }
-      
-      // Set loading to false after the first successful status check.
-      // Subsequent checks are part of polling, where UI shows progress.
-      if (loading) {
-        setLoading(false);
-      }
-    } catch (err) {
-      console.error('Error fetching search status:', err);
-      setError(t('downloader.fetchSearchFailed'));
-      if (loading) { // Ensure loading is false on error during initial phase
-        setLoading(false);
-      }
-    }
-  };
-
-  // Effect for initial fetch when jobId changes
+  // Chained timeouts: the next request starts only after the previous one settled
   useEffect(() => {
-    if (jobId) {
-      setLoading(true); // Reset loading for a new search
-      setStatus(null);  // Reset status
-      setResults(null); // Reset results
-      setError(null);   // Reset error
-      checkSearchStatus();
-    }
-    // Intentionally not depending on checkSearchStatus to avoid re-runs from its definition changing
-    // eslint-disable-next-line react-hooks/exhaustive-deps 
+    if (!jobId) return;
+
+    let active = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let shownCount = 0;
+    let failures = 0;
+
+    const poll = async () => {
+      try {
+        const statusResponse = await searchService.getSearchStatus(jobId);
+        if (!active) return;
+        failures = 0;
+
+        if (statusResponse.status === 'error') {
+          setError(statusResponse.message || t('downloader.fetchSearchFailed'));
+          setLoading(false);
+          return;
+        }
+
+        if ((statusResponse.result_count ?? 0) !== shownCount) {
+          const resultsResponse = await searchService.getSearchResults(jobId);
+          if (!active) return;
+          if (resultsResponse.status !== 'success') {
+            setError(resultsResponse.message || t('downloader.fetchSearchFailed'));
+            setLoading(false);
+            return;
+          }
+          shownCount = countSources(resultsResponse.results);
+          setResults(resultsResponse);
+        }
+
+        setStatus(statusResponse);
+        setLoading(false);
+
+        const finished = statusResponse.search_completed || statusResponse.status === 'failed' || !!statusResponse.error;
+        if (!finished) {
+          timeoutId = setTimeout(poll, POLLING_INTERVAL);
+        }
+      } catch (err) {
+        if (!active) return;
+        console.error('Error fetching search status:', err);
+        failures += 1;
+        if (failures >= MAX_CONSECUTIVE_FAILURES) {
+          setError(t('downloader.fetchSearchFailed'));
+          setLoading(false);
+          return;
+        }
+        timeoutId = setTimeout(poll, POLLING_INTERVAL);
+      }
+    };
+
+    setLoading(true); // Reset loading for a new search
+    setStatus(null);  // Reset status
+    setResults(null); // Reset results
+    setError(null);   // Reset error
+    poll();
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+    };
+    // Intentionally keyed on jobId only; the loop reads t from its first render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
-  // Effect for polling based on status
-  useEffect(() => {
-    if (!jobId) return; // Don't do anything if jobId is not available
-
-    // Only start polling if status is available and search is not completed.
-    if (status && !status.search_completed) {
-      const intervalId = setInterval(() => {
-        checkSearchStatus();
-      }, POLLING_INTERVAL);
-      
-      // Cleanup function to clear interval when component unmounts
-      // or when dependencies change causing the effect to re-run.
-      return () => clearInterval(intervalId);
+  const handleCancel = async () => {
+    if (!jobId) return;
+    try {
+      await jobService.cancelJob(jobId);
+    } catch {
+      // Leaving the page is enough when the cancel request fails
     }
-    // If status is null, or search is completed, any existing interval
-    // (from a previous state where search_completed was false) will be cleared
-    // by the cleanup of *that* effect run, and no new interval will start.
-
-    // Intentionally not depending on checkSearchStatus
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, status?.search_completed]); // Re-run if jobId or search_completed status changes.
-                                         // status itself is not needed as a dep if only search_completed matters for polling logic.
+    navigate('/download/');
+  };
 
   if (loading) { // Simplified loading condition
     return (
@@ -106,7 +124,7 @@ const SearchResults = () => {
     );
   }
 
-  if (error || (status && status.error)) {
+  if (error || status?.error || status?.status === 'failed') {
     return (
       <Container maxWidth="md">
         <DownloadStepper activeStep="search" />
@@ -115,7 +133,11 @@ const SearchResults = () => {
     );
   }
 
-  if (!status?.search_completed) {
+  const completed = !!status?.search_completed;
+  const groups = results?.status === 'success' ? results.results : [];
+  const hasResults = groups.length > 0;
+
+  if (!completed && !hasResults) {
     // Display search progress
     return (
       <Container maxWidth="md">
@@ -124,18 +146,18 @@ const SearchResults = () => {
           <Typography variant="h5" gutterBottom>
             {t('downloader.searchingForNovels')}
           </Typography>
-          
+
           <Box sx={{ width: '100%', mb: 3 }}>
             <Typography variant="body2" gutterBottom>
               {status?.status_display || t('downloader.initializing')}
             </Typography>
-            
-            <LinearProgress 
-              variant="determinate" 
-              value={status?.progress_percentage || 0} 
+
+            <LinearProgress
+              variant="determinate"
+              value={status?.progress_percentage || 0}
               sx={{ height: 10, borderRadius: 1 }}
             />
-            
+
             {status?.progress !== undefined && status?.total_items !== undefined && (
               <Typography
                 variant="body2"
@@ -147,18 +169,17 @@ const SearchResults = () => {
               </Typography>
             )}
           </Box>
-          
+
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
             {t('downloader.pleaseWait')}
           </Typography>
-          
-          <Button 
-            variant="outlined" 
-            sx={{ mt: 3 }} 
-            component={Link}
-            to="/download/"
+
+          <Button
+            variant="outlined"
+            sx={{ mt: 3 }}
+            onClick={handleCancel}
           >
             {t('downloader.cancelSearch')}
           </Button>
@@ -167,15 +188,15 @@ const SearchResults = () => {
     );
   }
 
-  if (results && results.status === 'success') {
-    return (
-      <Container maxWidth="md">
-        <DownloadStepper activeStep="select" />
-        <Box sx={{ p: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="h6">
-              {t('downloader.searchResults')}
-            </Typography>
+  return (
+    <Container maxWidth="md">
+      <DownloadStepper activeStep={completed ? 'select' : 'search'} />
+      <Box sx={{ p: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="h6">
+            {t('downloader.searchResults')}
+          </Typography>
+          {completed ? (
             <Button
               variant="outlined"
               size="small"
@@ -184,47 +205,64 @@ const SearchResults = () => {
             >
               {t('downloader.newSearch')}
             </Button>
-          </Box>
-
-          {results.results && results.results.length > 0 ? (
-            results.results.map((source, sourceIndex) => (
-              <Card key={`source-${sourceIndex}`} sx={{ mb: 0.5 }}>
-                <CardContent sx={{ py: 0.5, '&:last-child': { pb: 0.5 } }}>
-                  <Typography variant="subtitle2">{source.title}</Typography>
-                  
-                  <List dense disablePadding>
-                    {source.sources.map((novel, novelIndex) => (
-                      <Box key={`novel-${novelIndex}`}>
-                        {novelIndex > 0 && <Divider />}
-                        <ListItemButton 
-                          component={Link} 
-                          to={`/download/${jobId}/${sourceIndex}/${novelIndex}`}
-                        >
-                          <ListItemText 
-                            primary={source.title} 
-                            secondary={novel.url} 
-                          />
-                        </ListItemButton>
-                      </Box>
-                    ))}
-                  </List>
-                </CardContent>
-              </Card>
-            ))
           ) : (
-            <Alert severity="info">{t('downloader.noResults')}</Alert>
+            <Button variant="outlined" size="small" onClick={handleCancel}>
+              {t('downloader.newSearch')}
+            </Button>
           )}
         </Box>
-      </Container>
-    );
-  }
 
-  return (
-    <Container maxWidth="md">
-      <DownloadStepper activeStep="search" />
-      <Alert severity="warning">
-        {t('downloader.unexpectedResponse')}
-      </Alert>
+        {!completed && (
+          <Box sx={{ mb: 2 }}>
+            <LinearProgress
+              variant="determinate"
+              value={status?.progress_percentage || 0}
+              sx={{ height: 6, borderRadius: 1 }}
+              aria-label={t('downloader.searching')}
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
+              <Button variant="outlined" size="small" onClick={handleCancel}>
+                {t('downloader.cancelSearch')}
+              </Button>
+              {status?.progress !== undefined && status?.total_items !== undefined && (
+                <Typography variant="body2">
+                  {t('downloader.itemsProgress', { progress: status.progress, total: status.total_items })}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        )}
+
+        {hasResults ? (
+          groups.map((source, sourceIndex) => (
+            <Card key={source.title} sx={{ mb: 0.5 }}>
+              <CardContent sx={{ py: 0.5, '&:last-child': { pb: 0.5 } }}>
+                <Typography variant="subtitle2">{source.title}</Typography>
+
+                <List dense disablePadding>
+                  {source.sources.map((novel, novelIndex) => (
+                    <Box key={`${novel.url}-${novelIndex}`}>
+                      {novelIndex > 0 && <Divider />}
+                      <ListItemButton
+                        component={Link}
+                        to={`/download/${jobId}/${sourceIndex}/${novelIndex}`}
+                        state={{ novelUrl: novel.url, title: source.title }}
+                      >
+                        <ListItemText
+                          primary={source.title}
+                          secondary={novel.url}
+                        />
+                      </ListItemButton>
+                    </Box>
+                  ))}
+                </List>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <Alert severity="info">{t('downloader.noResults')}</Alert>
+        )}
+      </Box>
     </Container>
   );
 };

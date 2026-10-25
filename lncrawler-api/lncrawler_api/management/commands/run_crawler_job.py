@@ -1,4 +1,5 @@
 import os
+import sys
 
 from django.core.management.base import BaseCommand
 
@@ -38,7 +39,23 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from ...services.downloader_service import DownloaderService
 
+        from ...models import Job
+
         _apply_memory_limit()
         DownloaderService.run_job(
             options["job_id"], options["job_type"], options["payload"]
         )
+
+        if options["job_type"] not in (Job.JOB_TYPE_DOWNLOAD, Job.JOB_TYPE_EPUB):
+            # Sources cut off at the search deadline keep running in executor
+            # threads, which a normal exit joins; skip that so the slot and
+            # memory are freed as soon as the results are saved.
+            import logging
+
+            from django.db import connections
+
+            connections.close_all()
+            logging.shutdown()
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os._exit(0)

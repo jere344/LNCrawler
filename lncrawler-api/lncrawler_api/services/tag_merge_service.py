@@ -15,7 +15,9 @@ Every pure function here takes plain data so it can be unit tested without the
 network. Helpers that touch the database are kept small and explicit.
 """
 
+import json
 import logging
+import re
 import time
 from collections import defaultdict
 from itertools import combinations
@@ -53,6 +55,7 @@ For each group:
 - spelling, typo, abbreviation, romanization, punctuation or word-order variants (Sci-fi = Science Fiction, Post Apocalyptic = Post-apocalyptic, Rom-com = Romantic Comedy);
 - established synonyms readers use for exactly the same concept (Kingdom Building = Nation Building).
 Put every tag of the group that names that exact concept in the same set.
+One set holds one concept. When a group holds duplicates of two distinct concepts, give two sets, never one mixed set: Adventure = Aventura = 冒険 and Adventurers = 冒険者 = Авантюристы are two sets. A tag that has no duplicate in the group stays out of every set.
 
 NEVER merge:
 - a broader and a narrower tag, even across languages (Romance / Slow Romance, Mystery / Detective, Monsters / Monster Girls, 恋爱 (romance) / 纯爱 (pure love));
@@ -60,14 +63,24 @@ NEVER merge:
 - different roles, audiences, genders or degrees (Older Love Interest / Younger Love Interest, Yaoi / Yuri, Shoujo / Josei, Slow Pace / Fast Pace);
 - tags that only share a word (Time Travel / Time Travel Romance, Pirates / Pirate King) or a theme (Ninjas / Samurai, Ghosts / Exorcism);
 - false friends: a tag whose genre meaning differs from its literal look (都市 / City Building);
-- tags that merely tend to appear on the same novels.
+- tags that merely tend to appear on the same novels;
+- tags of different kinds (a person or role, a place, a genre, an activity, a trope or feature, a format or status marker), even when they share a word or appear together: Police / Detectives, Acting / Action, Adventurers (people who adventure) / Adventure (the genre), Supernatural / Science Fiction, Supernatural / Surrealism;
+- different genres, even when one looks like the other: Danmei (BL genre) / Romance;
+- metadata labels: word or chapter counts, "Completed", "Ongoing", ratings, award or contest names, site-specific labels, numbers and dates.
 If you are not sure, do not merge.
 
 For each set give:
 - "canonical": the name English-speaking readers commonly use, in Title Case. Prefer an existing member's spelling when one is already correct English.
 - "confidence": 0..1, how sure you are that ALL members are interchangeable. Use 0.95 or more only when every member clearly names the same concept.
 Reply with one compact JSON object:
-{"groups":[{"group":1,"glosses":"t2=reincarnation","sets":[{"members":["t1","t2"],"canonical":"Reincarnation","confidence":0.97}]}]}"""
+{"groups":[{"group":1,"glosses":"t2=reincarnation","sets":[{"members":["t1","t2"],"canonical":"Reincarnation","confidence":0.97}]},{"group":2,"glosses":"t2=adventure; t3=adventure; t5=adventurers; t6=adventurers","sets":[{"members":["t1","t2","t3"],"canonical":"Adventure","confidence":0.97},{"members":["t4","t5","t6"],"canonical":"Adventurers","confidence":0.96}]}]}"""
+
+VERIFY_PROMPT = """You check sets of tags of a web/light-novel catalogue that another model proposed as duplicates. Each numbered set has a canonical name and its members, with the literal English meaning of each member when it is not English.
+
+For each member, answer one question: is it the exact same concept as the canonical name, as a tag on novel sites, whatever its kind (genre, person or role, place, trope)? Keep a member only when the answer is clearly yes. A broader, narrower, related or different-kind tag is not the same concept, and neither is a tag that only shares a word with the canonical name.
+You may only remove members. Never add one, and never move one to another set.
+Reply with one compact JSON object giving, for each set id, the labels of the members that stay:
+{"sets":[{"set":"s1","keep":["t1","t2"]}]}"""
 
 
 # --------------------------------------------------------------- stage 1: signals
@@ -368,9 +381,10 @@ def parse_judge_response(data, label_maps):
     """Validate the model's answer against the labels that were sent.
 
     ``label_maps[g]`` maps the labels of group ``g`` to tag ids. Returns one list
-    of sets per group, each ``{"members": [tag ids], "canonical", "confidence"}``.
-    Raises ``LLMParseError`` when the answer has no ``groups`` list at all; every
-    other problem only drops the offending label or set.
+    of sets per group, each ``{"members": [tag ids], "canonical", "confidence"}``,
+    the confidence being ``None`` when the model gave none usable. Raises
+    ``LLMParseError`` when the answer has no ``groups`` list at all; every other
+    problem only drops the offending label or set.
     """
     raw_groups = data.get("groups") if isinstance(data, dict) else None
     if not isinstance(raw_groups, list):
@@ -419,9 +433,73 @@ def parse_judge_response(data, label_maps):
             results[index].append({
                 "members": [labels[label] for label in members],
                 "canonical": canonical,
-                "confidence": llm_service.parse_confidence(raw_set.get("confidence")),
+                "confidence": llm_service.parse_confidence(raw_set.get("confidence"), default=None),
             })
     return results
+
+
+def parse_glosses(text):
+    """Map each label to its English gloss, from ``"t2=space travel; t5=ninja"``."""
+    glosses = {}
+    for part in re.split(r"[;|]", text or ""):
+        label, sep, gloss = part.partition("=")
+        label, gloss = label.strip(), " ".join(gloss.split())
+        if sep and label and gloss:
+            glosses[label] = gloss
+    return glosses
+
+
+def build_verify_messages(sets):
+    """Chat messages asking the model to check ``sets``.
+
+    ``sets`` is a list of ``(set_id, canonical, members)``; each member is a
+    ``(label, name, gloss)`` tuple, the gloss empty for an English tag.
+    """
+    lines = []
+    for set_id, canonical, members in sets:
+        lines.append(f"Set {set_id}: {canonical}")
+        for label, name, gloss in members:
+            clean = " ".join(str(name).split())[:100]
+            suffix = f" (English: {gloss})" if gloss else ""
+            lines.append(f"{label}. {clean}{suffix}")
+        lines.append("")
+    return [
+        {"role": "system", "content": VERIFY_PROMPT},
+        {"role": "user", "content": "\n".join(lines).rstrip()},
+    ]
+
+
+def parse_verify_response(content, set_ids):
+    """Labels kept by each set of the verification reply: ``{set id: [labels]}``.
+
+    Raises ``LLMParseError`` when the reply is not a JSON object with a ``sets`` list,
+    or when one of ``set_ids`` gets no usable answer. Malformed items are skipped, so
+    their set counts as unanswered.
+    """
+    start, end = content.find("{"), content.rfind("}")
+    if start == -1 or end <= start:
+        raise llm_service.LLMParseError("no JSON object in verification reply")
+    try:
+        data = json.loads(content[start:end + 1])
+    except ValueError as exc:
+        raise llm_service.LLMParseError(f"invalid JSON in verification reply: {exc}") from exc
+    raw_sets = data.get("sets") if isinstance(data, dict) else None
+    if not isinstance(raw_sets, list):
+        raise llm_service.LLMParseError("verification reply has no 'sets' list")
+
+    wanted = set(set_ids)
+    answers = {}
+    for item in raw_sets:
+        set_id = item.get("set") if isinstance(item, dict) else None
+        if not isinstance(set_id, str) or set_id not in wanted:
+            continue
+        keep = item.get("keep")
+        if isinstance(keep, list):
+            answers[set_id] = [label for label in keep if isinstance(label, str)]
+    for set_id in set_ids:
+        if set_id not in answers:
+            raise llm_service.LLMParseError(f"verification reply has no answer for set {set_id}")
+    return answers
 
 
 def plan_sets(sets):

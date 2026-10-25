@@ -8,6 +8,7 @@ export interface SearchStatus {
   progress?: number;
   total_items?: number;
   progress_percentage?: number;
+  result_count?: number;
 }
 
 export interface SearchSource {
@@ -25,12 +26,20 @@ export interface SearchResult {
 export interface SearchResults {
   status: string;
   results: SearchResult[];
+  partial?: boolean;
 }
 
 // Download-related types
 export interface DownloadParams {
   novel_index: number;
   source_index: number;
+  novel_url?: string;
+}
+
+export interface DownloadStartResponse {
+  status: string;
+  message?: string;
+  job_id?: string;
 }
 
 export interface SelectedNovel {
@@ -42,6 +51,7 @@ export interface SelectedNovel {
 
 export interface DownloadStatus {
   status: string;
+  message?: string;
   job_status: string;
   status_display: string;
   download_completed: boolean;

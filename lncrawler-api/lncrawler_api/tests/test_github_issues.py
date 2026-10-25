@@ -1,8 +1,11 @@
 """Tests for GitHub issue reporting of unexpected errors."""
 
 import json
+import logging
 import os
 import tempfile
+import threading
+import time
 from unittest import mock
 
 from django.test import TestCase, override_settings
@@ -230,4 +233,57 @@ class HandlerForkTests(TestCase):
         handler._drain_thread.is_alive.return_value = False
         handler._ensure_drain()
         self.assertEqual(thread.call_count, 3)
+
+
+def _error_record(message):
+    return logging.LogRecord("test", logging.ERROR, __file__, 1, message, None, None)
+
+
+class HandlerFlushTests(TestCase):
+    """logging.shutdown() calls flush() before the job process exits; queued
+    reports must be sent, but a stuck network call must not hold the exit."""
+
+    def test_returns_promptly_when_queue_is_empty(self):
+        from api_project.logging_handlers import GitHubIssueHandler
+
+        handler = GitHubIssueHandler()
+
+        started = time.monotonic()
+        handler.flush()
+        self.assertLess(time.monotonic() - started, 1)
+
+    def test_waits_for_queued_reports_to_be_sent(self):
+        from api_project.logging_handlers import GitHubIssueHandler
+
+        handler = GitHubIssueHandler()
+        sent = []
+
+        def slow_create(title, body, fp):
+            time.sleep(0.05)
+            sent.append(fp)
+
+        with mock.patch("api_project.logging_handlers.create_issue", side_effect=slow_create):
+            for i in range(3):
+                handler.emit(_error_record(f"boom {i}"))
+            handler.flush()
+
+        self.assertEqual(len(sent), 3)
+
+    def test_gives_up_after_timeout_when_drain_is_stuck(self):
+        from api_project.logging_handlers import GitHubIssueHandler
+
+        handler = GitHubIssueHandler()
+        release = threading.Event()
+
+        with mock.patch("api_project.logging_handlers.create_issue", side_effect=lambda *a: release.wait(30)), mock.patch(
+            "api_project.logging_handlers._FLUSH_TIMEOUT", 0.3
+        ):
+            handler.emit(_error_record("boom"))
+            started = time.monotonic()
+            handler.flush()
+            elapsed = time.monotonic() - started
+            release.set()
+
+        self.assertGreaterEqual(elapsed, 0.3)
+        self.assertLess(elapsed, 2)
 

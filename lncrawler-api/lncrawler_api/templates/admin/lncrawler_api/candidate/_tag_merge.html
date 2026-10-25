@@ -10,6 +10,12 @@
       </tr>
     {% endfor %}
   </table>
+  {% if candidate.verdict.glosses %}
+    <p><span class="help">{% trans 'Glosses' %}:</span> {{ candidate.verdict.glosses }}</p>
+  {% endif %}
+  {% if candidate.reason %}
+    <p><span class="help">{% trans 'Reason' %}:</span> {{ candidate.reason }}</p>
+  {% endif %}
   {% if sets %}
     <h2>{% trans 'Proposed sets' %}</h2>
     {% for set in sets %}

@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import re
+import threading
 from typing import Generator, List, Optional, Union
 
 from bs4 import Tag
@@ -72,6 +73,9 @@ class Crawler(Scraper):
         # instead of re-fetching every archive on update.
         self.existing_chapters: list = []
         self.existing_meta: dict = {}
+
+        # Set by the caller to stop a download early; the default never fires.
+        self.cancelled = threading.Event()
 
         base_url = self.base_url
         origin = base_url[0] if isinstance(base_url, (list, tuple)) else base_url
@@ -177,7 +181,7 @@ class Crawler(Scraper):
             next_index += 1
 
         try:
-            while queue:
+            while queue and not self.cancelled.is_set():
                 chapter, future = queue.popleft()
                 try:
                     result = future.result()
@@ -213,7 +217,7 @@ class Crawler(Scraper):
                 chapter.success = bool(result)
                 yield chapter
 
-                if next_index < len(chapters):
+                if next_index < len(chapters) and not self.cancelled.is_set():
                     submit(next_index)
                     next_index += 1
         finally:

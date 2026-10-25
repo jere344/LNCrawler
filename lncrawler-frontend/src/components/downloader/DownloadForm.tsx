@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -14,6 +14,11 @@ import { downloadService } from '@services/api';
 import { DownloadParams } from '@models/downloader_types';
 import DownloadStepper from './DownloadStepper';
 
+interface DownloadFormLocationState {
+  novelUrl?: string;
+  title?: string;
+}
+
 const DownloadForm = () => {
   const { t } = useTranslation();
   const { jobId, novelIndex = '0', sourceIndex = '0' } = useParams<{
@@ -22,6 +27,8 @@ const DownloadForm = () => {
     sourceIndex: string;
   }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const selected = (location.state ?? {}) as DownloadFormLocationState;
   
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,13 +44,14 @@ const DownloadForm = () => {
     try {
       const downloadParams: DownloadParams = {
         novel_index: parseInt(novelIndex, 10),
-        source_index: parseInt(sourceIndex, 10)
+        source_index: parseInt(sourceIndex, 10),
+        ...(selected.novelUrl && { novel_url: selected.novelUrl })
       };
       
       const response = await downloadService.startDownload(jobId, downloadParams);
       
       if (response.status === 'success') {
-        navigate(`/download/status/${jobId}`);
+        navigate(`/download/status/${response.job_id ?? jobId}`);
       } else {
         setError(response.message || t('downloader.downloadStartFailed'));
       }
@@ -66,6 +74,18 @@ const DownloadForm = () => {
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         
         <Box component="form" onSubmit={handleSubmit}>
+          {selected.novelUrl && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                {selected.title || selected.novelUrl}
+              </Typography>
+              {selected.title && (
+                <Typography variant="body2" sx={{ color: 'text.secondary', wordBreak: 'break-all' }}>
+                  {selected.novelUrl}
+                </Typography>
+              )}
+            </Box>
+          )}
           <Typography variant="body1" sx={{ mb: 3 }}>
             {t('downloader.downloadBody')}
           </Typography>
