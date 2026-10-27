@@ -6,8 +6,12 @@ export const jobService = {
     return response.data;
   },
   
-  listJobs: async (activeOnly = false) => {
-    const response = await api.get('/downloader/jobs/', activeOnly ? { params: { active: 1 } } : undefined);
+  listJobs: async (activeOnly = false, jobType?: string) => {
+    const params = {
+      ...(activeOnly ? { active: 1 } : {}),
+      ...(jobType ? { job_type: jobType } : {}),
+    };
+    const response = await api.get('/downloader/jobs/', { params });
     return response.data;
   },
   

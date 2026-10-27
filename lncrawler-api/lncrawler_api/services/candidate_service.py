@@ -71,7 +71,9 @@ def _apply(candidate, decided_by=Candidate.DECIDED_HUMAN):
         return _apply_two_phase(task, candidate, decided_by)
     try:
         with transaction.atomic():
-            entries = task.apply_change(candidate, candidate.verdict or {})
+            entries = task.apply_change(
+                candidate, candidate.verdict or {}, by_human=decided_by == Candidate.DECIDED_HUMAN,
+            )
     except (MergeError, NeedsReview, PlanChanged) as exc:
         raise CandidateError(str(exc)) from exc
     candidate.undo = [*candidate.undo, *entries]
@@ -97,7 +99,9 @@ def _apply_two_phase(task, candidate, decided_by=Candidate.DECIDED_HUMAN):
         _ensure_unclaimed(locked)
         Candidate.objects.filter(pk=candidate.pk).update(claimed_at=token)
     try:
-        entries = task.apply_change(candidate, candidate.verdict or {})
+        entries = task.apply_change(
+            candidate, candidate.verdict or {}, by_human=decided_by == Candidate.DECIDED_HUMAN,
+        )
     except (MergeError, NeedsReview, PlanChanged) as exc:
         Candidate.objects.filter(pk=candidate.pk, claimed_at=token).update(claimed_at=None)
         raise CandidateError(str(exc)) from exc

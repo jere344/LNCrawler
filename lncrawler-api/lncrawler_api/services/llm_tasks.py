@@ -103,10 +103,12 @@ class LLMTask:
         """Reasons that send a "yes" to review. Empty list: none fired."""
         return []
 
-    def apply_change(self, candidate, judgement):
+    def apply_change(self, candidate, judgement, by_human=False):
         """Make the change of an applied candidate. Returns its undo entries.
 
         Raises ``MergeError`` (or ``NeedsReview``, ``PlanChanged``) to refuse it.
+        ``by_human`` is True when a reviewer applies it: the reviewer is the safeguard,
+        so a task that re-checks its safeguards here skips them.
         """
         raise NotImplementedError
 
@@ -604,7 +606,7 @@ class TagR18Task(LLMTask):
             return [f"tag on {usage} novels"]
         return []
 
-    def apply_change(self, candidate, judgement):
+    def apply_change(self, candidate, judgement, by_human=False):
         tag_id = candidate.target_ids[0]
         if not Tag.objects.filter(pk=tag_id, is_adult=False).update(is_adult=True):
             return []
@@ -697,7 +699,7 @@ class NovelMergeTask(LLMTask):
         )
         return ["pair in a chain (another open pair shares a novel)"] if in_chain else []
 
-    def apply_change(self, candidate, judgement):
+    def apply_change(self, candidate, judgement, by_human=False):
         novel_a, novel_b = _pair_novels(candidate)
         if novel_a is None or novel_b is None:
             raise MergeError("a novel of the pair no longer exists")
@@ -881,7 +883,7 @@ class AuthorMergeTask(LLMTask):
         refusal = _author_merge_refusal(candidate, judgement)
         return [refusal] if refusal else []
 
-    def apply_change(self, candidate, judgement):
+    def apply_change(self, candidate, judgement, by_human=False):
         authors = _pair_authors(candidate)
         if len(authors) != 2:
             raise MergeError("an author of the pair no longer exists")
@@ -1145,6 +1147,6 @@ class TagMergeTask(LLMTask):
         plans, usage = tms.plan_sets(judgement["sets"])
         return tms.review_reasons(plans, usage)
 
-    def apply_change(self, candidate, judgement):
-        return tms.apply_sets(candidate)
+    def apply_change(self, candidate, judgement, by_human=False):
+        return tms.apply_sets(candidate, check_safeguards=not by_human)
 

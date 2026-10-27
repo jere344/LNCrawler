@@ -20,6 +20,9 @@ import CompactAddToListButton from '@components/readinglist/CompactAddToListButt
 import NovelStatsChips from './NovelStatsChips';
 import { useTranslation } from 'react-i18next';
 
+const FLAG_WIDTH = 30
+const MAX_FLAGS_PER_ROW = 10
+
 export interface BaseNovelCardProps {
   novel: Novel;
   isLoading?: boolean;
@@ -125,6 +128,14 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
     zIndex: 10
   };
 
+  const flagRows = novel.languages.length > MAX_FLAGS_PER_ROW
+    ? [
+        novel.languages.slice(0, Math.ceil(novel.languages.length / 2)),
+        novel.languages.slice(Math.ceil(novel.languages.length / 2)),
+      ]
+    : [novel.languages];
+  const maxFlagsInRow = Math.max(1, ...flagRows.map((row) => row.length));
+
   return (
     <Card 
       sx={{ 
@@ -217,44 +228,63 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             sx={{
               position: 'absolute',
               top: 0,
+              left: 0,
               right: 0,
               display: 'flex',
-              gap: 0.5,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
-              border: '1px solid rgb(0, 0, 0)',
-              borderRadius: 1,
-              alignItems: 'center', // Align items vertically
+              justifyContent: 'flex-end',
+              pointerEvents: 'none',
             }}
           >
-            {novel.languages.length > 0 ? (
-              novel.languages.map((lang) => (
-                <Tooltip key={lang} title={languageCodeToName(t, lang)}>
-                  <img 
-                    src={languageFlagUrl(lang)} 
-                    alt={languageCodeToName(t, lang)}
-                    style={{ 
-                      width: '30px',
-                      height: '20px',
-                      objectFit: 'cover',
-                      borderRadius: '2px',
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                width: `min(100%, ${FLAG_WIDTH * maxFlagsInRow}px)`,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+                border: '1px solid rgb(0, 0, 0)',
+                borderRadius: 1,
+                pointerEvents: 'auto',
+              }}
+            >
+              {novel.languages.length > 0 ? (
+                flagRows.map((row, rowIndex) => (
+                  <Box key={rowIndex} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    {row.map((lang, index) => (
+                      <Tooltip key={lang} title={languageCodeToName(t, lang)}>
+                        <img
+                          src={languageFlagUrl(lang)}
+                          alt={languageCodeToName(t, lang)}
+                          style={{
+                            display: 'block',
+                            flexShrink: 0,
+                            width: `${FLAG_WIDTH}px`,
+                            height: '20px',
+                            objectFit: 'cover',
+                            borderRadius: '2px',
+                            marginLeft: index === 0
+                              ? 0
+                              : `calc(-1 * max(0px, (${FLAG_WIDTH}px * ${row.length} - 100%) / ${row.length - 1}))`,
+                          }}
+                        />
+                      </Tooltip>
+                    ))}
+                  </Box>
+                ))
+              ) : (
+                <Tooltip title={t('cards.unknownLanguage')}>
+                  <Typography
+                    sx={{
+                      fontSize: '0.8rem', // Adjusted size for consistency
+                      color: '#fff',
+                      fontWeight: 'bold',
+                      lineHeight: 1, // Ensure '?' is vertically centered if it's taller
                     }}
-                  />
+                  >
+                    ?
+                  </Typography>
                 </Tooltip>
-              ))
-            ) : (
-              <Tooltip title={t('cards.unknownLanguage')}>
-                <Typography
-                  sx={{
-                    fontSize: '0.8rem', // Adjusted size for consistency
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    lineHeight: 1, // Ensure '?' is vertically centered if it's taller
-                  }}
-                >
-                  ?
-                </Typography>
-              </Tooltip>
-            )}
+              )}
+            </Box>
           </Box>
         </Box>
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: 1 }}>

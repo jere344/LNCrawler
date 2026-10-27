@@ -75,7 +75,7 @@ Novel: `novel_title`, `novel_author` (join multiple), `novel_cover` (absolute, n
 Chapters: ids sequential from 1 in reading order (reverse newest-first lists); dedupe URLs; skip VIP/locked (lock icon or a class like 17k `span.ellipsis.vip`) and log the count. Body: no ads, scripts, nav, watermarks (Royal Road hides anti-piracy lines with classes from a `<style>` block).
 
 Listings:
-- `search_novel(query)` → ≤20 `SearchResult(title, url, info)`, all query terms must match; status/chapters/latest in `info`. No search at all → `[]` + docstring.
+- `search_novel(query)` → `SearchResult(title, url, info)` as the site's search returns them, without filtering on query terms (alternative titles would be lost; multi-source ranking sorts them). At most `MAX_RESULTS_PER_SOURCE` (50, `lncrawl/core/search.py`) are kept, so fetch only the first page(s). Status/chapters/latest in `info`. No search at all → `[]` + docstring.
 - `browse_novels(offset, limit)` → popular/ranking; returns ≤ `limit`; fetch only the pages needed. Genre listings have no hook: iterate them inside `browse_novels` (naver_novel).
 
 ## 4b. Politeness (don't get flagged on first indexing)

@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from 'react-router-dom';
 import { novelService } from '@services/api';
+import { defaultSortOrder } from '@services/novel.service';
 import { chatService } from '@services/chat.service';
 import { readingListService } from '@services/readinglist.service';
 import { getInitialContentLanguages, getInitialLanguageFilterEnabled } from '@context/LanguageContext';
@@ -24,6 +25,50 @@ export interface AsyncData<T> {
 const settle = <T>(promise: Promise<T>): Promise<{ ok: true; data: T } | { ok: false }> =>
   promise.then((data) => ({ ok: true, data })).catch(() => ({ ok: false }));
 
+// Back/forward shows a page as it was left instead of refetching it: the last
+// successful result of each loader is kept by URL, and a history navigation
+// (popstate) to that URL reuses it. The promise is marked fulfilled so `use`
+// reads it without suspending: the page renders at full height in the same
+// commit, which is what lets the scroll restore land.
+const HISTORY_CACHE_SIZE = 20;
+const historyCache = new Map<string, unknown>();
+let poppedUrl: string | null = null;
+
+// Registered before createBrowserRouter's own listener (router.tsx imports this
+// module first), so it is set by the time the router calls the loaders.
+window.addEventListener('popstate', () => {
+  const url = new URL(window.location.href);
+  url.hash = '';
+  poppedUrl = url.href;
+  // Only for the loaders of this navigation: one that runs none (a hash-only
+  // change) must not leave it set for a later link to the same URL.
+  setTimeout(() => { poppedUrl = null; });
+});
+
+// The cached results carry the account's bookmarks, ratings and recommendations.
+export const clearHistoryCache = () => historyCache.clear();
+
+const fulfilled = <T>(value: T): Promise<T> =>
+  Object.assign(Promise.resolve(value), { status: 'fulfilled', value });
+
+const reuseOnHistory = <T extends { ok: boolean }>(
+  request: Request,
+  key: string,
+  load: () => Promise<T>,
+): Promise<T> => {
+  const fromHistory = request.url === poppedUrl;
+  poppedUrl = null;
+  if (fromHistory && historyCache.has(key)) return fulfilled(historyCache.get(key) as T);
+  const promise = load();
+  promise.then((result) => {
+    if (!result.ok) return;
+    historyCache.delete(key);
+    historyCache.set(key, result);
+    if (historyCache.size > HISTORY_CACHE_SIZE) historyCache.delete(historyCache.keys().next().value!);
+  });
+  return promise;
+};
+
 export interface HomeData {
   top_novels: Novel[];
   trending_novels: Novel[];
@@ -39,9 +84,13 @@ export type HomeLoaderData = { ok: true; data: HomeData } | { ok: false };
 
 // Still fires at module eval, before the i18n gate (the cold-load prefetch),
 // because createBrowserRouter initializes synchronously.
-export const homeLoader = (): AsyncData<HomeLoaderData> => {
+export const homeLoader = ({ request }: LoaderFunctionArgs): AsyncData<HomeLoaderData> => {
   const languages = getInitialLanguageFilterEnabled() ? getInitialContentLanguages() : [];
-  return { data: settle<HomeData>(novelService.getHomePageData(languages)) };
+  return {
+    data: reuseOnHistory(request, `${request.url}|${languages.join(',')}`, () =>
+      settle<HomeData>(novelService.getHomePageData(languages)),
+    ),
+  };
 };
 
 export type NovelRedirectLoaderData = { ok: true; target: string } | { ok: false };
@@ -108,7 +157,9 @@ export const chapterListLoader = ({ params, request }: LoaderFunctionArgs): Asyn
   const pageSize = Number(url.searchParams.get('page_size')) || 100;
   const q = url.searchParams.get('q') || '';
   return {
-    data: settle<ChapterListData>(novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize, q)),
+    data: reuseOnHistory(request, request.url, () =>
+      settle<ChapterListData>(novelService.getNovelChapters(novelSlug, sourceSlug, page, pageSize, q)),
+    ),
   };
 };
 
@@ -139,7 +190,11 @@ export const galleryLoader = ({ params, request }: LoaderFunctionArgs): AsyncDat
   if (!novelSlug || !sourceSlug) return { data: Promise.resolve<GalleryLoaderData>({ ok: false }) };
   const url = new URL(request.url);
   const page = Number(url.searchParams.get('page')) || 1;
-  return { data: settle<GalleryData>(novelService.getSourceGallery(novelSlug, sourceSlug, page)) };
+  return {
+    data: reuseOnHistory(request, request.url, () =>
+      settle<GalleryData>(novelService.getSourceGallery(novelSlug, sourceSlug, page)),
+    ),
+  };
 };
 
 export interface SearchData {
@@ -165,20 +220,23 @@ export const searchLoader = ({ request }: LoaderFunctionArgs): AsyncData<SearchL
   const selectedLanguages = sp.has('language')
     ? sp.getAll('language').filter(Boolean)
     : (getInitialLanguageFilterEnabled() ? getInitialContentLanguages() : []);
+  const sortBy = (sp.get('sort_by') as NovelSort) || 'popularity';
   return {
-    data: settle<SearchData>(novelService.searchNovels({
-      query: sp.get('query') || undefined,
-      page,
-      page_size: 24,
-      tag: sp.getAll('tag'),
-      exclude_tag: sp.getAll('exclude_tag'),
-      author: sp.getAll('author'),
-      status: sp.get('status') || undefined,
-      languages: selectedLanguages.length > 0 ? selectedLanguages : undefined,
-      min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : undefined,
-      sort_by: (sp.get('sort_by') as NovelSort) || 'title',
-      sort_order: (sp.get('sort_order') as 'asc' | 'desc') || 'asc',
-      adult: (sp.get('adult') as 'hide' | 'show' | 'only') || undefined,
-    })),
+    data: reuseOnHistory(request, `${request.url}|${selectedLanguages.join(',')}`, () =>
+      settle<SearchData>(novelService.searchNovels({
+        query: sp.get('query') || undefined,
+        page,
+        page_size: 24,
+        tag: sp.getAll('tag'),
+        exclude_tag: sp.getAll('exclude_tag'),
+        author: sp.getAll('author'),
+        status: sp.get('status') || undefined,
+        languages: selectedLanguages.length > 0 ? selectedLanguages : undefined,
+        min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : undefined,
+        sort_by: sortBy,
+        sort_order: (sp.get('sort_order') as 'asc' | 'desc') || defaultSortOrder(sortBy),
+        adult: (sp.get('adult') as 'hide' | 'show' | 'only') || undefined,
+      })),
+    ),
   };
 };

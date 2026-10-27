@@ -111,3 +111,15 @@ class RunSearchTests(SimpleTestCase):
         self.assertEqual(first, second)
         self.assertIsNot(first[0]["novels"], second[0]["novels"])
         self.assertIsNot(first[0]["novels"][0], second[0]["novels"][0])
+
+    def test_results_per_source_are_capped(self):
+        class FloodSource(_fast_source("unused", "http://flood")):
+            def search_novel(self, query):
+                return [
+                    {"title": f"Novel {i}", "url": f"http://flood/{i}", "info": None}
+                    for i in range(80)
+                ]
+
+        result = self._run([FloodSource])
+
+        self.assertEqual(len(result), self.search.MAX_RESULTS_PER_SOURCE)

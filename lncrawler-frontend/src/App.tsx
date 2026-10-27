@@ -1,6 +1,6 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { CssBaseline, ThemeProvider as MuiThemeProvider, Container, Box, CircularProgress, createTheme } from "@mui/material";
-import { Suspense, useLayoutEffect, useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import "./App.css";
 import { ThemeProvider, useTheme } from "@theme/ThemeContext";
@@ -10,16 +10,10 @@ import Header from '@components/Header';
 import Footer from '@components/Footer';
 import ErrorBoundary from '@components/common/ErrorBoundary';
 import { NotificationProvider } from '@context/NotificationContext';
+import { useScrollRestoration } from './router/useScrollRestoration';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
-    const location = useLocation();
-
-    useLayoutEffect(() => {
-        // Only scroll to top if there's no hash in the URL
-        if (!window.location.hash) {
-            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-        }
-    }, [location.pathname, location.search]);
+    useScrollRestoration();
 
     return <>{children}</>;
 };

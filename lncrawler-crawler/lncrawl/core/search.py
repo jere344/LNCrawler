@@ -33,6 +33,8 @@ SEARCH_TIMEOUT = 40
 # more seconds for the rest (never past SEARCH_TIMEOUT).
 QUORUM = 0.95
 STRAGGLER_GRACE = 5
+# Results kept from a single source, so one site cannot flood the ranking.
+MAX_RESULTS_PER_SOURCE = 50
 
 
 def _normalize(text: str) -> str:
@@ -63,6 +65,8 @@ def _search_one(
             r = item if isinstance(item, SearchResult) else SearchResult(**item)
             if r.url:
                 out.append({"title": r.title, "url": r.url, "info": r.info})
+                if len(out) >= MAX_RESULTS_PER_SOURCE:
+                    break
         return out
     except Exception as e:
         logger.debug("Search failed on %s: %s", crawler_type.__name__, e)

@@ -32,10 +32,33 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
   const itemsPerSlide = getItemsPerSlide();
 
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [canScrollPrev, setCanScrollPrev] = React.useState(false);
+  const [canScrollNext, setCanScrollNext] = React.useState(false);
 
-  const scrollByPage = (direction: 1 | -1) => {
+  const updateScrollState = React.useCallback(() => {
     const el = scrollRef.current;
-    if (el) el.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' });
+    if (!el) return;
+    setCanScrollPrev(el.scrollLeft > 1);
+    setCanScrollNext(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  React.useEffect(() => {
+    updateScrollState();
+    const el = scrollRef.current;
+    if (!el || !window.ResizeObserver) return;
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loading, similarNovels.length, updateScrollState]);
+
+  const scrollByCards = (direction: 1 | -1) => {
+    const el = scrollRef.current;
+    const first = el?.firstElementChild as HTMLElement | null;
+    if (!el || !first) return;
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+    const cardStep = first.offsetWidth + gap;
+    const cards = Math.max(1, Math.floor(el.clientWidth / cardStep) - 1);
+    el.scrollBy({ left: direction * cards * cardStep, behavior: 'smooth' });
   };
 
   if (loading) {
@@ -78,18 +101,26 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
     zIndex: 3,
     backgroundColor: alpha(theme.palette.primary.main, 0.9),
     color: theme.palette.primary.contrastText,
+    transition: 'opacity 0.2s',
     '&:hover': { backgroundColor: theme.palette.primary.main },
+    '&.Mui-disabled': { opacity: 0, pointerEvents: 'none' },
   } as const;
 
   return (
     <Box sx={{ px: 2, pt: 1, position: 'relative' }}>
       {!isMobile && (
-        <IconButton onClick={() => scrollByPage(-1)} sx={{ ...arrowSx, left: 0 }} aria-label={t('common.previous', 'Previous')}>
+        <IconButton
+          onClick={() => scrollByCards(-1)}
+          disabled={!canScrollPrev}
+          sx={{ ...arrowSx, left: 0 }}
+          aria-label={t('common.previous', 'Previous')}
+        >
           <ChevronLeftIcon />
         </IconButton>
       )}
       <Box
         ref={scrollRef}
+        onScroll={updateScrollState}
         sx={{
           display: 'flex',
           gap: 3,
@@ -119,7 +150,12 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
         ))}
       </Box>
       {!isMobile && (
-        <IconButton onClick={() => scrollByPage(1)} sx={{ ...arrowSx, right: 0 }} aria-label={t('common.next', 'Next')}>
+        <IconButton
+          onClick={() => scrollByCards(1)}
+          disabled={!canScrollNext}
+          sx={{ ...arrowSx, right: 0 }}
+          aria-label={t('common.next', 'Next')}
+        >
           <ChevronRightIcon />
         </IconButton>
       )}

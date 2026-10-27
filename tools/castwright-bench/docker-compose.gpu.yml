@@ -1,0 +1,10 @@
+# GPU override: docker compose -f docker-compose.yml -f docker-compose.gpu.yml ...
+services:
+  castwright:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -180,8 +180,9 @@ def search_novels(request):
         request.GET.getlist("languages") + request.GET.getlist("language")
     )
     min_rating = request.GET.get("min_rating", None)
-    sort_by = request.GET.get("sort_by", "title")
-    sort_order = request.GET.get("sort_order", "asc")
+    sort_by = request.GET.get("sort_by", "popularity")
+    # Most viewed first by default; every other sort keeps ascending.
+    sort_order = request.GET.get("sort_order", "desc" if sort_by == "popularity" else "asc")
     # Adult filter: hide (default), show (mixed in), only (adult only). Defaults
     # to show when the account allows adult content, else hide.
     adult = request.GET.get("adult", "")

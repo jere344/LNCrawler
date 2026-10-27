@@ -131,6 +131,14 @@ class NovelRankingSearchTests(TestCase):
         titles = self._titles(sort_by="popularity", sort_order="desc")
         self.assertEqual(titles, ["Gamma", "Alpha", "Beta"])
 
+    def test_default_search_sorts_most_viewed_first(self):
+        titles = self._titles()
+        self.assertEqual(titles, ["Gamma", "Alpha", "Beta"])
+
+    def test_title_sort_defaults_to_ascending(self):
+        titles = self._titles(sort_by="title")
+        self.assertEqual(titles, ["Alpha", "Beta", "Gamma"])
+
     def test_trending_sort_uses_refreshed_order(self):
         titles = self._titles(sort_by="trending", sort_order="desc")
         self.assertEqual(titles, ["Beta", "Alpha", "Gamma"])

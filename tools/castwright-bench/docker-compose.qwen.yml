@@ -1,0 +1,22 @@
+# Qwen3-TTS variant for the GTX 1080 PC (8 GB VRAM, 32 GB RAM):
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml -f docker-compose.qwen.yml ...
+services:
+  castwright:
+    build:
+      args:
+        QWEN: "1"
+        FASTQWEN: ${FASTQWEN:-1}
+    image: lncrawler-cwbench:qwen
+    environment:
+      # Pascal has no bf16 and runs fp16 at 1/64 speed: load Qwen in fp32.
+      QWEN_DTYPE: float32
+      HF_HOME: /models/hf
+    volumes:
+      # Qwen weights (~5 GB), downloaded on first use, kept across rebuilds.
+      - models:/models
+    # The fp32 load materialises the 1.7B design model in RAM first (~7 GB).
+    mem_limit: ${CW_MEM_LIMIT:-16g}
+    cpus: ${CW_CPUS:-6}
+
+volumes:
+  models:

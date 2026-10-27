@@ -15,6 +15,7 @@ import TuneIcon from '@mui/icons-material/Tune';
 import SortIcon from '@mui/icons-material/Sort';
 import CloseIcon from '@mui/icons-material/Close';
 import { novelService } from '../../services/api';
+import { defaultSortOrder } from '@services/novel.service';
 import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
 import { useDebounce } from '@utils/useDebounce';
 import { languageFlagUrl, availableLanguages, languageCodeToName, getNovelSourceLink } from '@utils/Misc';
@@ -22,6 +23,7 @@ import { useTheme } from '@theme/ThemeContext';
 import { useLanguage } from '@context/LanguageContext';
 import { useAuth } from '@context/AuthContext';
 import SeoMeta from '../common/SeoMeta';
+import { SearchResultsSkeleton } from './SearchSkeleton';
 import type { AsyncData, SearchLoaderData } from '../../router/loaders';
 
 type AdultFilter = 'hide' | 'show' | 'only';
@@ -41,6 +43,27 @@ interface Suggestion {
   alias?: string;
 }
 
+// Suspends only for the first results (the page skeleton). A later search keeps
+// the page and its filters on screen and reports `pending` until its results
+// arrive, so only the result grid swaps to a skeleton.
+const useSearchResults = (promise: Promise<SearchLoaderData>) => {
+  const [first] = useState(promise);
+  const firstData = use(first);
+  const [settled, setSettled] = useState({ promise: first, data: firstData });
+  useEffect(() => {
+    if (promise === settled.promise) return;
+    let live = true;
+    promise.then((data) => { if (live) setSettled({ promise, data }); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promise]);
+  // Results reused on back/forward are already fulfilled (see reuseOnHistory):
+  // show them in this render, so the scroll restore sees the full grid.
+  const ready = promise as Promise<SearchLoaderData> & { status?: string; value?: SearchLoaderData };
+  if (promise !== settled.promise && ready.status === 'fulfilled') return { data: ready.value!, pending: false };
+  return { data: settled.data, pending: promise !== settled.promise };
+};
+
 const SearchPage: React.FC = () => {
   const { t } = useTranslation();
   const { contentLanguages, languageFilterEnabled } = useLanguage();
@@ -51,10 +74,10 @@ const SearchPage: React.FC = () => {
   // adult content (yes/blur) start on 'show', everyone else on 'hide'.
   const defaultAdult: AdultFilter =
     user?.show_r18 === 'yes' || user?.show_r18 === 'blur' ? 'show' : 'hide';
-  
+
   // Results are owned by the route loader (started before the i18n gate).
   const { data: searchDataPromise } = useLoaderData() as AsyncData<SearchLoaderData>;
-  const loaderData = use(searchDataPromise);
+  const { data: loaderData, pending } = useSearchResults(searchDataPromise);
   const novels = loaderData.ok ? loaderData.data.results : [];
   const totalCount = loaderData.ok ? loaderData.data.count : 0;
   const hiddenAdult = loaderData.ok ? loaderData.data.hidden_adult ?? 0 : 0;
@@ -86,8 +109,9 @@ const SearchPage: React.FC = () => {
   const [minRating, setMinRating] = useState<number | null>(
     searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
   );
-  const [sortBy, setSortBy] = useState(searchParams.get('sort_by') || 'title');
-  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || 'asc');
+  const initialSortBy = searchParams.get('sort_by') || 'popularity';
+  const [sortBy, setSortBy] = useState(initialSortBy);
+  const [sortOrder, setSortOrder] = useState(searchParams.get('sort_order') || defaultSortOrder(initialSortBy));
   const [adult, setAdult] = useState<AdultFilter>(
     (searchParams.get('adult') as AdultFilter) || defaultAdult
   );
@@ -195,7 +219,8 @@ const SearchPage: React.FC = () => {
       }
     });
 
-    setSearchParams(params);
+    // Filters and the query keep the reader where they are; only a page change scrolls to the top.
+    setSearchParams(params, { state: { keepScroll: true } });
   };
 
   // Filter state as one string, so a single debounced effect can commit it to the URL.
@@ -212,19 +237,22 @@ const SearchPage: React.FC = () => {
   });
   // The same key, read from the URL. Matches the state initializers above, so the
   // key already in the URL (or the stored defaults on first arrival) counts as applied.
-  const keyFromParams = (sp: URLSearchParams) => makeFilterKey({
-    tag: sp.getAll('tag'),
-    exclude_tag: sp.getAll('exclude_tag'),
-    author: sp.getAll('author'),
-    status: sp.get('status') || '',
-    language: sp.has('language')
-      ? sp.getAll('language').filter(Boolean)
-      : (languageFilterEnabled ? contentLanguages : []),
-    min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : null,
-    sort_by: sp.get('sort_by') || 'title',
-    sort_order: sp.get('sort_order') || 'asc',
-    adult: (sp.get('adult') as AdultFilter) || defaultAdult,
-  });
+  const keyFromParams = (sp: URLSearchParams) => {
+    const sortByParam = sp.get('sort_by') || 'popularity';
+    return makeFilterKey({
+      tag: sp.getAll('tag'),
+      exclude_tag: sp.getAll('exclude_tag'),
+      author: sp.getAll('author'),
+      status: sp.get('status') || '',
+      language: sp.has('language')
+        ? sp.getAll('language').filter(Boolean)
+        : (languageFilterEnabled ? contentLanguages : []),
+      min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : null,
+      sort_by: sortByParam,
+      sort_order: sp.get('sort_order') || defaultSortOrder(sortByParam),
+      adult: (sp.get('adult') as AdultFilter) || defaultAdult,
+    });
+  };
   const debouncedFilterKey = useDebounce(filterKey, 400);
 
   // Back/forward (or any outside URL change): pull the filters back from the URL,
@@ -302,8 +330,8 @@ const SearchPage: React.FC = () => {
     setSelectedStatus('');
     setSelectedLanguages([]);
     setMinRating(null);
-    setSortBy('title');
-    setSortOrder('asc');
+    setSortBy('popularity');
+    setSortOrder('desc');
     setAdult(defaultAdult);
 
     // Reset URL params to default. The empty `language` marker means "all languages".
@@ -716,7 +744,7 @@ const SearchPage: React.FC = () => {
                 <InputLabel>{t('search.sortBy')}</InputLabel>
                 <Select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => { setSortBy(e.target.value); setSortOrder(defaultSortOrder(e.target.value)); }}
                   label={t('search.sortBy')}
                   startAdornment={
                     <InputAdornment position="start">
@@ -772,7 +800,7 @@ const SearchPage: React.FC = () => {
       {/* Active Filters Display */}
       {(selectedTags.length > 0 || excludedTags.length > 0 ||
        selectedAuthors.length > 0 || selectedStatus || selectedLanguages.length > 0 || 
-       minRating || sortBy !== 'title' || sortOrder !== 'asc' || adult !== defaultAdult) && (
+       minRating || sortBy !== 'popularity' || sortOrder !== 'desc' || adult !== defaultAdult) && (
         <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {selectedTags.map(tag => (
             <Chip 
@@ -865,15 +893,15 @@ const SearchPage: React.FC = () => {
             />
           )}
           
-          {(sortBy !== 'title' || sortOrder !== 'asc') && (
-            <Chip 
+          {(sortBy !== 'popularity' || sortOrder !== 'desc') && (
+            <Chip
               label={t('search.sortFilter', { sortBy, sortOrder })}
               onDelete={() => {
-                setSortBy('title');
-                setSortOrder('asc');
-                updateSearchParams({ 
-                  sort_by: 'title',
-                  sort_order: 'asc'
+                setSortBy('popularity');
+                setSortOrder('desc');
+                updateSearchParams({
+                  sort_by: 'popularity',
+                  sort_order: 'desc'
                 });
               }}
             />
@@ -910,41 +938,47 @@ const SearchPage: React.FC = () => {
         </Typography>
       )}
 
-      {/* Novel Grid */}
-      {novels.length > 0 && (
-        <Grid container spacing={3}>
-          {novels.map((novel) => (
-            <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-              <BaseNovelCard 
-                novel={novel} 
-                {...getNovelSourceLink(novel)}
-              />
+      {pending ? (
+        <SearchResultsSkeleton />
+      ) : (
+        <>
+          {/* Novel Grid */}
+          {novels.length > 0 && (
+            <Grid container spacing={3}>
+              {novels.map((novel) => (
+                <Grid key={novel.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+                  <BaseNovelCard
+                    novel={novel}
+                    {...getNovelSourceLink(novel)}
+                  />
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
-      )}
+          )}
 
-      {/* No Results */}
-      {novels.length === 0 && (
-        <Box sx={{ textAlign: 'center', my: 5 }}>
-          <Typography variant="h6">{t('search.noResults')}</Typography>
-          <Typography color="textSecondary">
-            {t('search.noResultsHint')}
-          </Typography>
-        </Box>
-      )}
+          {/* No Results */}
+          {novels.length === 0 && (
+            <Box sx={{ textAlign: 'center', my: 5 }}>
+              <Typography variant="h6">{t('search.noResults')}</Typography>
+              <Typography color="textSecondary">
+                {t('search.noResultsHint')}
+              </Typography>
+            </Box>
+          )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <Stack spacing={2} sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
-          <Pagination 
-            count={totalPages} 
-            page={currentPage}
-            onChange={handlePageChange}
-            color="primary"
-            size="large"
-          />
-        </Stack>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Stack spacing={2} sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={handlePageChange}
+                color="primary"
+                size="large"
+              />
+            </Stack>
+          )}
+        </>
       )}
     </Container>
   );

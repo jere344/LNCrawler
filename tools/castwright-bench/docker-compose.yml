@@ -1,0 +1,31 @@
+# Separate compose project: its own containers, network and volume. It never
+# touches the lncrawler prod services. Always run from this folder.
+name: lncrawler-cwbench
+
+services:
+  castwright:
+    build:
+      context: .
+      args:
+        ACCEL: ${ACCEL:-nvidia}
+    image: lncrawler-cwbench:${ACCEL:-nvidia}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      KOKORO_DEVICE: ${KOKORO_DEVICE:-auto}
+    ports:
+      # Loopback only: Castwright has no auth.
+      - "127.0.0.1:${CW_PORT:-18080}:8080"
+    volumes:
+      - workspace:/workspace
+      - ${NOVELS_DIR:-../../Lightnovels}:/novels:ro
+      - ./out:/out
+      - ./scripts:/bench:ro
+    # Caps so the bench can't starve the prod containers sharing the Docker VM.
+    mem_limit: ${CW_MEM_LIMIT:-3g}
+    cpus: ${CW_CPUS:-2}
+    restart: "no"
+
+volumes:
+  workspace:

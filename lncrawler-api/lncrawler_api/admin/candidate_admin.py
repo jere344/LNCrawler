@@ -174,7 +174,7 @@ class CandidateAdmin(admin.ModelAdmin):
                 done += 1
         self.message_user(request, f"{verb} {done} candidate(s).", messages.SUCCESS)
 
-    @admin.action(description="Apply", permissions=["change"])
+    @admin.action(description="Apply (overrides the safeguards)", permissions=["change"])
     def apply_candidates(self, request, queryset):
         candidates = self._actionable(request, queryset, [Candidate.STATUS_REVIEW])
         self._run_each(request, candidates, candidate_service.apply_candidate, "Applied")

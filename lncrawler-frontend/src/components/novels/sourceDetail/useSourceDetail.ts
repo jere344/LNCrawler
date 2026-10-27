@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigationType } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { novelService } from '../../../services/api';
 import { userService } from '@services/user.service';
@@ -8,11 +8,24 @@ import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail, Novel as
 
 export type NovelRatingState = { avg_rating: number | null, rating_count: number, user_rating: number | null };
 
+type CachedSourceDetail = { source: ISourceDetail; novel: INovelDetail; novelRating: NovelRatingState; isBookmarked: boolean };
+
+// Last source page shown for each "novelSlug/sourceSlug", so back/forward shows it
+// as it was left instead of refetching it (same idea as the loaders' history cache).
+const SOURCE_DETAIL_CACHE_SIZE = 20;
+const lastSourceDetails = new Map<string, CachedSourceDetail>();
+export const clearSourceDetailCache = () => lastSourceDetails.clear();
+
 export function useSourceDetail(novelSlug: string | undefined, sourceSlug: string | undefined) {
   const { t } = useTranslation();
   const { notify } = useNotification();
   const location = useLocation();
+  const navigationType = useNavigationType();
   const linkState = location.state as { novel?: INovel; source?: ISourceDetail | null } | null;
+  const cacheKey = novelSlug && sourceSlug ? `${novelSlug}/${sourceSlug}` : null;
+  const [cached] = useState<CachedSourceDetail | undefined>(() =>
+    navigationType === 'POP' && cacheKey ? lastSourceDetails.get(cacheKey) : undefined
+  );
 
   // Metadata already fetched by the list card that navigated here. Only trust
   // it when it matches the URL, since the card link may point to the source the
@@ -30,26 +43,38 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
     return null;
   }, [linkState, novelSlug, sourceSlug]);
 
-  const [source, setSource] = useState<ISourceDetail | null>(getPrefetchedSource);
-  const [novel, setNovel] = useState<INovelDetail | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [source, setSource] = useState<ISourceDetail | null>(() => cached?.source ?? getPrefetchedSource());
+  const [novel, setNovel] = useState<INovelDetail | null>(cached?.novel ?? null);
+  const [loading, setLoading] = useState<boolean>(!cached);
   const [error, setError] = useState<string | null>(null);
-  const [votingInProgress, setVotingInProgress] = useState<boolean>(false);
-  const [novelRating, setNovelRating] = useState<NovelRatingState>(() => ({
+  const [novelRating, setNovelRating] = useState<NovelRatingState>(() => cached?.novelRating ?? {
     avg_rating: linkState?.novel?.avg_rating ?? null,
     rating_count: linkState?.novel?.rating_count ?? 0,
     user_rating: null
-  }));
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  });
+  const [isBookmarked, setIsBookmarked] = useState(cached?.isBookmarked ?? false);
   const [bookmarking, setBookmarking] = useState(false);
 
   useEffect(() => {
-    if (novel) setIsBookmarked(!!novel.is_bookmarked);
-  }, [novel]);
+    // The cached novel already carries the bookmark state we kept, so skip it on mount.
+    if (novel && novel !== cached?.novel) setIsBookmarked(!!novel.is_bookmarked);
+  }, [novel, cached]);
+
+  // Same reason as the cache above: a bookmark toggle or a rating change is what back shows.
+  useEffect(() => {
+    if (!cacheKey || !source || !novel) return;
+    // Right after a slug change the state still holds the previous page.
+    if (source.novel_slug !== novelSlug || source.source_slug !== sourceSlug || novel.slug !== novelSlug) return;
+    lastSourceDetails.delete(cacheKey);
+    lastSourceDetails.set(cacheKey, { source, novel, novelRating, isBookmarked });
+    if (lastSourceDetails.size > SOURCE_DETAIL_CACHE_SIZE) lastSourceDetails.delete(lastSourceDetails.keys().next().value!);
+  }, [cacheKey, novelSlug, sourceSlug, source, novel, novelRating, isBookmarked]);
 
   useEffect(() => {
     const fetchSourceDetail = async () => {
       if (!novelSlug || !sourceSlug) return;
+      // Came back to a page we kept: nothing to fetch.
+      if (cached && cached.source.novel_slug === novelSlug && cached.source.source_slug === sourceSlug) return;
 
       const prefetched = getPrefetchedSource();
       setSource(prefetched);
@@ -78,27 +103,7 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
     };
 
     fetchSourceDetail();
-  }, [novelSlug, sourceSlug, getPrefetchedSource, t]);
-
-  const handleVote = async (voteType: 'up' | 'down') => {
-    if (!novelSlug || !sourceSlug || votingInProgress || !source) return;
-    
-    setVotingInProgress(true);
-    try {
-      const voteResponse = await novelService.voteSource(novelSlug, sourceSlug, voteType);
-      setSource({
-        ...source,
-        upvotes: voteResponse.upvotes,
-        downvotes: voteResponse.downvotes,
-        vote_score: voteResponse.vote_score,
-        user_vote: voteResponse.user_vote
-      });
-    } catch (err) {
-      console.error('Error voting for source:', err);
-    } finally {
-      setVotingInProgress(false);
-    }
-  };
+  }, [novelSlug, sourceSlug, getPrefetchedSource, cached, t]);
 
   const handleToggleBookmark = async () => {
     if (!novelSlug || bookmarking) return;
@@ -131,5 +136,5 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
     }
   };
 
-  return { source, setSource, novel, loading, error, novelRating, isBookmarked, bookmarking, votingInProgress, handleVote, handleToggleBookmark, handleShare };
+  return { source, setSource, novel, loading, error, novelRating, isBookmarked, bookmarking, handleToggleBookmark, handleShare };
 }

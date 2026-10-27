@@ -72,10 +72,10 @@ class TwoPhaseNovelApplyTests(TransactionTestCase):
         original = llm_tasks.NovelMergeTask.apply_change
         seen = {}
 
-        def probe(task, cand, judgement):
+        def probe(task, cand, judgement, **kwargs):
             seen["atomic"] = connection.in_atomic_block
             seen["claimed"] = Candidate.objects.get(pk=cand.pk).claimed_at is not None
-            return original(task, cand, judgement)
+            return original(task, cand, judgement, **kwargs)
 
         with mock.patch.object(llm_tasks.NovelMergeTask, "apply_change", probe):
             apply_candidate(candidate)

@@ -3,6 +3,9 @@ import { API_BASE_URL } from './config';
 import { SourceDetailResponse } from '@models/novels_types';
 import type { NovelSort } from '../generated/sharedConstants';
 
+// View count reads best most-viewed first; every other sort starts ascending.
+export const defaultSortOrder = (sortBy: string): 'asc' | 'desc' => (sortBy === 'popularity' ? 'desc' : 'asc');
+
 // Novel service functions updated for the new URL structure
 export const novelService = {
   // Get novel details by slug

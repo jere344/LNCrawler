@@ -6,6 +6,7 @@ from . import (
     chapter_admin,
     comment_admin,
     cover_admin,
+    csv_export,
     downloader_admin,
     harvest_admin,
     llm_admin,

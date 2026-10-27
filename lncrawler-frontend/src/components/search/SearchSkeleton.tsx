@@ -3,6 +3,17 @@ import { useTranslation } from 'react-i18next';
 import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
 import type { Novel } from '@models/novels_types';
 
+// The result grid alone, for when the page stays on screen and only its results reload.
+export const SearchResultsSkeleton = () => (
+  <Grid container spacing={3}>
+    {[...Array(12)].map((_, index) => (
+      <Grid key={`search-result-skeleton-${index}`} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+        <BaseNovelCard novel={{} as Novel} isLoading />
+      </Grid>
+    ))}
+  </Grid>
+);
+
 /**
  * Search page skeleton. Mirrors the loaded page by default: the advanced filter
  * panel is hidden until the Filters button opens it, so only the search row,
@@ -29,13 +40,7 @@ const SearchSkeleton = () => {
 
       <Skeleton variant="text" width={160} height={28} sx={{ mb: 2 }} />
 
-      <Grid container spacing={3}>
-        {[...Array(12)].map((_, index) => (
-          <Grid key={`search-result-skeleton-${index}`} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
-            <BaseNovelCard novel={{} as Novel} isLoading />
-          </Grid>
-        ))}
-      </Grid>
+      <SearchResultsSkeleton />
     </Container>
   );
 };

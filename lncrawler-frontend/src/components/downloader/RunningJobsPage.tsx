@@ -28,7 +28,7 @@ const RunningJobsPage = () => {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const response = await jobService.listJobs(true);
+      const response = await jobService.listJobs(true, 'download');
       if (response.status === 'success') {
         setJobs(response.jobs);
         setError(null);

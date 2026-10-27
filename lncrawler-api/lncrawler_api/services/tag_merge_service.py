@@ -615,13 +615,14 @@ def _apply_set(plan, candidate):
     return entries
 
 
-def apply_sets(candidate):
+def apply_sets(candidate, check_safeguards=True):
     """Apply the sets of a tag_merge candidate and return the undo entries of the change.
 
     The caller holds the transaction. The candidate's tags are locked first, then
     planned again under those locks. A plan that changed since the first look writes
     nothing and raises ``PlanChanged``; a safeguard that trips under the lock raises
-    ``NeedsReview``. A ``MergeError`` rolls the caller's transaction back.
+    ``NeedsReview``, unless ``check_safeguards`` is False (a reviewer applies it).
+    A ``MergeError`` rolls the caller's transaction back.
     """
     sets = candidate_sets(candidate)
     plans, usage = plan_sets(sets)
@@ -636,7 +637,7 @@ def apply_sets(candidate):
     if _plan_signature(fresh) != signature:
         raise PlanChanged("the tags changed since the plan was made")
     # Same plan, but a safeguard may trip now that usage is read under the lock.
-    reasons = review_reasons(fresh, fresh_usage)
+    reasons = review_reasons(fresh, fresh_usage) if check_safeguards else []
     if reasons:
         raise NeedsReview(reasons)
 

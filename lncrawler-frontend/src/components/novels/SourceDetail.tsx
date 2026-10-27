@@ -46,7 +46,6 @@ import SourceCover from './sourceDetail/SourceCover';
 import SourceTitleBar from './sourceDetail/SourceTitleBar';
 import SourceHeroDetails from './sourceDetail/SourceHeroDetails';
 import SourceHeroStats from './sourceDetail/SourceHeroStats';
-import SourceVoteActions from './sourceDetail/SourceVoteActions';
 import SourceReadActions from './sourceDetail/SourceReadActions';
 import SourceToolActions from './sourceDetail/SourceToolActions';
 import { useSourceDetail } from './sourceDetail/useSourceDetail';
@@ -59,7 +58,7 @@ const SourceDetail = () => {
   const { startDownload, preparingKey } = useEpubDownload(novelSlug!, sourceSlug!);
   const { isAuthenticated } = useAuth();
   const { isBlurred, revealHandler } = useAdultContent();
-  const { source, setSource, novel, loading, error, novelRating, isBookmarked, bookmarking, votingInProgress, handleVote, handleToggleBookmark, handleShare } = useSourceDetail(novelSlug, sourceSlug);
+  const { source, setSource, novel, loading, error, novelRating, isBookmarked, bookmarking, handleToggleBookmark, handleShare } = useSourceDetail(novelSlug, sourceSlug);
   const coverBlurred = isBlurred(source?.is_adult, source?.novel_id);
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [readingListPage, setReadingListPage] = useState(1);
@@ -240,7 +239,6 @@ const SourceDetail = () => {
                   </Box>
                 )}
 
-                <SourceVoteActions source={source} votingInProgress={votingInProgress} onVote={handleVote} />
                 <SourceReadActions source={source} novelSlug={novelSlug} sourceSlug={sourceSlug} isDmca={isDmca} />
                 <SourceToolActions
                   source={source}

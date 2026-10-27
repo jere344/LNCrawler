@@ -906,13 +906,23 @@ class SafeguardSurvivorTests(TestCase):
         self.assertIn("outside the group", self.candidate.reason)
         self.assertTrue(Tag.objects.filter(pk=self.isekai.pk).exists())
 
-    def test_reviewer_cannot_force_a_merge_into_outside_tag(self):
-        # There is no force: the reviewer's apply runs the safeguards again and refuses.
+    def test_reviewer_applies_a_merge_into_outside_tag(self):
+        # The reviewer is the safeguard: their apply does not run the safeguards again.
         llm_tasks.settle(llm_tasks.REGISTRY["tag_merge"], self.candidate, self.judgement)
         self.candidate.refresh_from_db()
 
-        with self.assertRaisesMessage(CandidateError, "outside the group"):
-            apply_candidate(self.candidate)
+        apply_candidate(self.candidate)
+
+        self.candidate.refresh_from_db()
+        self.assertEqual(self.candidate.status, Candidate.STATUS_APPLIED)
+        self.assertEqual(self.candidate.decided_by, Candidate.DECIDED_HUMAN)
+        self.assertFalse(Tag.objects.filter(pk__in=[self.isekai.pk, self.another.pk]).exists())
+        self.assertTrue(Tag.objects.filter(pk=self.outside.pk).exists())
+
+    def test_llm_apply_still_runs_the_safeguards(self):
+        self.candidate.verdict = self.judgement
+        with self.assertRaises(tms.NeedsReview):
+            llm_tasks.REGISTRY["tag_merge"].apply_change(self.candidate, self.judgement)
         self.assertTrue(Tag.objects.filter(pk=self.isekai.pk).exists())
 
 

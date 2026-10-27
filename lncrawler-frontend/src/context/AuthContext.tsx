@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/api';
 import { User } from '../models/user_types';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../utils/storage';
+import { clearHistoryCache } from '../router/loaders';
+import { clearSourceDetailCache } from '../components/novels/sourceDetail/useSourceDetail';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -22,6 +24,13 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const useAuth = () => useContext(AuthContext);
+
+// Pages kept for back/forward carry the account's bookmarks, ratings and
+// recommendations, so they are dropped whenever the account changes.
+const forgetAccountPages = () => {
+  clearHistoryCache();
+  clearSourceDetailCache();
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -46,6 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for storage events (for when user logs in/out in another tab)
     const handleStorage = (event: StorageEvent) => {
       if (event.key === AUTH_TOKEN_KEY || event.key === AUTH_USER_KEY) {
+        forgetAccountPages();
         checkAuthStatus();
       }
     };
@@ -58,11 +68,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string) => {
     const response = await authService._login({ username, password });
+    forgetAccountPages();
     checkAuthStatus();
     return response;
   };
 
   const logout = async () => {
+    forgetAccountPages();
     setIsAuthenticated(false);
     setUser(null);
     await authService._logout();
