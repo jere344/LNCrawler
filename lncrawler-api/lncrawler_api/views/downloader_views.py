@@ -147,8 +147,8 @@ def cancel_job(request, job_id):
 def list_jobs(request):
     """List jobs. Pass ?active=1 to only get queued/running jobs, ?job_type=download to only get downloads."""
     try:
-        # EPUB builds are polled per book by the frontend, not listed here.
-        jobs = Job.objects.exclude(job_type=Job.JOB_TYPE_EPUB)
+        # EPUB and .m4b builds are polled per book by the frontend, not listed here.
+        jobs = Job.objects.exclude(job_type__in=[Job.JOB_TYPE_EPUB, Job.JOB_TYPE_M4B])
         if request.GET.get("job_type"):
             jobs = jobs.filter(job_type=request.GET["job_type"])
         if request.GET.get("active"):

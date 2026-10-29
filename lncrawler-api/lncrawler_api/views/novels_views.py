@@ -21,21 +21,31 @@ from ..languages import parse_languages
 from ..models.reviews_models import Review
 from ..models.sources_models import adult_novel_ids
 from ..utils import get_client_ip, resolve_novel_slug
-from ..utils.author_names import normalize_author
 from ..utils.query_helpers import (
+    _author_ids,
+    _canonical_tag_names,
     adult_allowed,
     annotate_card_aggregates,
     apply_novel_prefetches,
     exclude_adult,
+    filter_authors,
+    filter_novel_ids,
+    filter_tags,
+    has_audiobook_subquery,
     sources_queryset,
+    text_match_ids,
 )
 from ..utils.pagination import paginated_response
-from ..utils.search import matching_novel_ids, normalize_query, title_rank
+from ..utils.search import title_rank
 from ..serializers import (
     NovelSerializer,
     NovelSourceSerializer,
 )
 from ..serializers.reviews_serializers import ReviewSerializer
+from ..serializers.audiobook_serializers import audiobook_card
+from ..services.audiobook_public import (
+    annotate_public_totals, hides_adult_audiobooks, progress_by_audiobook, visible_audiobooks,
+)
 
 @api_view(["GET"])
 def list_novels(request):
@@ -127,40 +137,6 @@ def rate_novel(request, novel_slug):
     )
 
 
-def _canonical_tag_names(names):
-    """Map requested tag names onto the canonical tag names they now resolve to.
-
-    Old URLs can carry a merged-away or case/plural variant; the alias or key
-    lookup finds the surviving tag. Unknown names are kept as typed.
-    """
-    canonical = []
-    for name in names:
-        tag = Tag.find(name) if name.strip() else None
-        canonical.append(tag.name if tag is not None else name)
-    return canonical
-
-
-def _author_ids(names):
-    """Ids of every author a requested name stands for.
-
-    Matches the exact name, the normalized key, and merged-away aliases. Several
-    authors can share one key before they are merged, so all of them count.
-    Unknown names match nothing.
-    """
-    names = [name for name in names if normalize_author(name)]
-    if not names:
-        return set()
-    keys = {normalize_author(name) for name in names}
-    ids = set(
-        Author.objects.filter(Q(name__in=names) | Q(normalized__in=keys)).values_list("pk", flat=True)
-    )
-    ids.update(
-        AuthorAlias.objects.filter(normalized__in=keys, author__is_blocked=False)
-        .values_list("author_id", flat=True)
-    )
-    return ids
-
-
 @api_view(["GET"])
 def search_novels(request):
     """
@@ -200,11 +176,8 @@ def search_novels(request):
     if query:
         # Authors are intentionally not searched here (use ?author= or the author
         # autocomplete instead). The matching ids come from one query, run once.
-        nq = normalize_query(query) or query.upper()  # all-combining-marks query folds to ''
-        title_ids, synopsis_ids = matching_novel_ids(nq, query)
-        novels_query = novels_query.filter(
-            id__in=RawSQL("SELECT unnest(%s::uuid[])", [list(set(title_ids) | set(synopsis_ids))])
-        ).annotate(
+        nq, title_ids, matching_ids = text_match_ids(query)
+        novels_query = filter_novel_ids(novels_query, matching_ids).annotate(
             # Lower is better: tier (exact, prefix, substring, typo, synopsis-only) * 10 minus the
             # title closeness rounded to 0.1, so the chosen sort still breaks near-ties.
             # Title rank is only computed for title hits (its correlated subqueries are slow);
@@ -216,19 +189,9 @@ def search_novels(request):
             ),
         )
 
-    # Filter by tags
-    if tags:
-        novels_query = novels_query.filter(sources__tags__name__in=tags).distinct()
-
-    # Exclude novels with certain tags
-    if exclude_tags:
-        novels_query = novels_query.exclude(sources__tags__name__in=exclude_tags).distinct()
-
-    # Filter by authors
-    if authors:
-        novels_query = novels_query.filter(
-            sources__authors__in=_author_ids(authors)
-        ).distinct()
+    # Filter by tags, excluded tags and authors
+    novels_query = filter_tags(novels_query, tags, exclude_tags)
+    novels_query = filter_authors(novels_query, authors)
 
     # Filter by status
     if status:
@@ -312,7 +275,10 @@ def search_novels(request):
         count_queryset = novels_query.order_by().values("pk")
 
     # Resolve everything the serializer needs up front, then paginate.
-    novels_query = apply_novel_prefetches(novels_query, request.user)
+    novels_query = apply_novel_prefetches(
+        novels_query.annotate(annotated_has_audiobook=has_audiobook_subquery()),
+        request.user,
+    )
 
     return paginated_response(
         request, novels_query, NovelSerializer,
@@ -431,6 +397,59 @@ def _in_order(queryset, ids):
     return [by_pk[pk] for pk in ids if pk in by_pk]
 
 
+HOME_AUDIOBOOK_LIMIT = 12
+
+
+def _home_audiobooks(user):
+    """The audiobook block of the home page: one featured audiobook, the popular ones (without the featured
+    one) and, for authenticated viewers, the unfinished ones they listened to most recently. The featured and
+    popular ids are cached per adult setting like the rankings; the cards are re-checked and re-fetched per
+    request so takedowns and the viewer's progress stay current."""
+    visible = visible_audiobooks(user)
+    cache_key = f"home:audiobooks:v2:{int(hides_adult_audiobooks(user))}"
+    ids = cache.get(cache_key)
+    if ids is None:
+        ids = {
+            'featured': list(
+                visible.filter(featured=True).order_by('-last_part_at', 'pk').values_list('pk', flat=True)[:1]
+            ),
+            'popular': list(
+                annotate_public_totals(visible)
+                .order_by('-popularity', '-novel__rank_total_views', 'novel__title', 'pk')
+                .values_list('pk', flat=True)[:HOME_AUDIOBOOK_LIMIT + 1]
+            ),
+        }
+        cache.set(cache_key, ids, HOME_RANKING_CACHE_SECONDS)
+
+    featured_ids = ids['featured'][:1]
+    popular_ids = [pk for pk in ids['popular'] if pk not in featured_ids][:HOME_AUDIOBOOK_LIMIT]
+    listening = []
+    if user.is_authenticated:
+        listening = list(
+            annotate_public_totals(visible.filter(progress__user=user, progress__finished=False))
+            .order_by('-progress__updated_at', 'pk')[:HOME_AUDIOBOOK_LIMIT]
+        )
+    fetched = {
+        audiobook.pk: audiobook
+        for audiobook in annotate_public_totals(visible.filter(pk__in=featured_ids + popular_ids))
+    }
+    audiobooks = [fetched[pk] for pk in featured_ids + popular_ids if pk in fetched]
+    progress = progress_by_audiobook(user, audiobooks + listening)
+
+    featured = audiobooks[0] if featured_ids and featured_ids[0] in fetched else None
+    return {
+        'featured': audiobook_card(featured, progress.get(featured.pk)) if featured else None,
+        'popular': [
+            audiobook_card(audiobook, progress.get(audiobook.pk))
+            for audiobook in audiobooks
+            if audiobook is not featured
+        ],
+        'continue_listening': [
+            audiobook_card(audiobook, progress.get(audiobook.pk)) for audiobook in listening
+        ],
+    }
+
+
 @api_view(["GET"])
 def home_page(request):
     """
@@ -540,7 +559,8 @@ def home_page(request):
         # novel drops off immediately instead of lingering for the cache TTL.
         return _in_order(
             apply_novel_prefetches(
-                exclude_adult(Novel.objects.filter(pk__in=ids, is_dmca=False), request.user),
+                exclude_adult(Novel.objects.filter(pk__in=ids, is_dmca=False), request.user)
+                .annotate(annotated_has_audiobook=has_audiobook_subquery()),
                 request.user,
             ),
             ids,
@@ -588,18 +608,6 @@ def home_page(request):
                 request.user, read_ids[:5], viewer=request.user,
                 exclude_ids=read_ids, languages=languages,
             )
-    
-    # "Novels you added" (authenticated users only): novels whose download job
-    # was first started by this user. Deliberately built without the language
-    # *and adult* filters so a user always sees everything they contributed,
-    # even R18 novels; the frontend keeps the cover blurred unless the account
-    # allows adult content. Anonymous visitors get an empty list.
-    novels_you_added = []
-    if request.user.is_authenticated:
-        novels_you_added = apply_novel_prefetches(
-            Novel.objects.filter(is_dmca=False, added_by=request.user),
-            request.user,
-        ).order_by('-created_at')[:12]
 
     # Serialize all the data
     response_data = {
@@ -610,7 +618,7 @@ def home_page(request):
         'recently_updated': NovelSourceSerializer(recently_updated, many=True, context=serializer_context, profile='card').data,
         'recent_reviews': ReviewSerializer(recent_reviews, many=True, context=serializer_context, profile='card').data,
         'recommended_novels': NovelSerializer(recommended_novels, many=True, context=serializer_context).data,
-        'novels_you_added': NovelSerializer(novels_you_added, many=True, context=serializer_context).data,
+        'audiobooks': _home_audiobooks(request.user),
     }
     
     return Response(response_data)

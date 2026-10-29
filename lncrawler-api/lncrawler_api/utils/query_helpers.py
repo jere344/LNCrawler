@@ -1,14 +1,22 @@
-from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Subquery, Sum
+from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Q, Subquery, Sum
+from django.db.models.expressions import RawSQL
 
 from ..models import (
+    Audiobook,
+    AudiobookPart,
+    Author,
+    AuthorAlias,
     Chapter,
     NovelBookmark,
     NovelRating,
     ReadingHistory,
+    Tag,
     WeeklySourceView,
 )
 from ..models.sources_models import NovelFromSource, adult_novel_ids
 from ..models.source_votes_models import SourceVote
+from ..utils.author_names import normalize_author
+from ..utils.search import matching_novel_ids, normalize_query
 
 # Account setting values that let adult (R18) content through; 'blur' still
 # shows it (the frontend blurs the covers), only 'no' hides it.
@@ -164,9 +172,23 @@ def rating_count_subquery():
     )
 
 
+def has_audiobook_subquery():
+    """Whether the novel has a public audiobook: published, not retired, with a listenable part. Correlated, so
+    the novel card reads it from its own row."""
+    # Imported here: services.audiobook_public imports this module.
+    from ..services.audiobook_public import LISTENABLE_PART_Q
+
+    return Exists(
+        Audiobook.objects.filter(novel=OuterRef('pk'), published=True)
+        .exclude(status='retired')
+        .filter(parts__in=AudiobookPart.objects.filter(LISTENABLE_PART_Q))
+    )
+
+
 def annotate_card_aggregates(queryset, languages=None):
     """Annotate the four counters a novel card renders (avg/count rating and
-    total/weekly views) as correlated subqueries.
+    total/weekly views) as correlated subqueries, and ``annotated_has_audiobook``
+    (see ``has_audiobook_subquery``).
 
     A direct ``Avg('ratings')`` + ``Sum('sources')`` in one queryset would join
     both relations and multiply the rows, so each aggregate lives in its own
@@ -184,6 +206,7 @@ def annotate_card_aggregates(queryset, languages=None):
         card_rating_count=rating_count_subquery(),
         card_total_views=sources_total_views_subquery(languages),
         card_weekly_views=weekly_views_subquery(languages),
+        annotated_has_audiobook=has_audiobook_subquery(),
     )
 
 
@@ -363,3 +386,68 @@ def apply_novel_prefetches(
             card_aggregates=card_aggregates, summary=summary,
         )
     )
+
+
+def _canonical_tag_names(names):
+    """Map requested tag names onto the canonical tag names they now resolve to.
+
+    Old URLs can carry a merged-away or case/plural variant; the alias or key
+    lookup finds the surviving tag. Unknown names are kept as typed.
+    """
+    canonical = []
+    for name in names:
+        tag = Tag.find(name) if name.strip() else None
+        canonical.append(tag.name if tag is not None else name)
+    return canonical
+
+
+def _author_ids(names):
+    """Ids of every author a requested name stands for.
+
+    Matches the exact name, the normalized key, and merged-away aliases. Several
+    authors can share one key before they are merged, so all of them count.
+    Unknown names match nothing.
+    """
+    names = [name for name in names if normalize_author(name)]
+    if not names:
+        return set()
+    keys = {normalize_author(name) for name in names}
+    ids = set(
+        Author.objects.filter(Q(name__in=names) | Q(normalized__in=keys)).values_list("pk", flat=True)
+    )
+    ids.update(
+        AuthorAlias.objects.filter(normalized__in=keys, author__is_blocked=False)
+        .values_list("author_id", flat=True)
+    )
+    return ids
+
+
+def text_match_ids(query):
+    """Ids of the novels a text query matches (title, alias or synopsis), with the title-only ids.
+
+    Returns ``(normalized query, title_ids, all_ids)``. Authors are not searched.
+    """
+    nq = normalize_query(query) or query.upper()  # all-combining-marks query folds to ''
+    title_ids, synopsis_ids = matching_novel_ids(nq, query)
+    return nq, title_ids, list(set(title_ids) | set(synopsis_ids))
+
+
+def filter_novel_ids(queryset, ids, path=''):
+    """Keep the rows whose novel is one of ``ids``. ``path`` reaches the novel from the model."""
+    return queryset.filter(**{f'{path}id__in': RawSQL("SELECT unnest(%s::uuid[])", [ids])})
+
+
+def filter_tags(queryset, tags=(), exclude_tags=(), path=''):
+    """Novels with any of ``tags`` and none of ``exclude_tags``. ``path`` reaches the novel from the model."""
+    if tags:
+        queryset = queryset.filter(**{f'{path}sources__tags__name__in': tags}).distinct()
+    if exclude_tags:
+        queryset = queryset.exclude(**{f'{path}sources__tags__name__in': exclude_tags}).distinct()
+    return queryset
+
+
+def filter_authors(queryset, authors, path=''):
+    """Novels written by any of ``authors`` (names, see ``_author_ids``). ``path`` reaches the novel from the model."""
+    if authors:
+        queryset = queryset.filter(**{f'{path}sources__authors__in': _author_ids(authors)}).distinct()
+    return queryset

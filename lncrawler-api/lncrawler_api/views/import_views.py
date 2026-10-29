@@ -27,7 +27,7 @@ from ..services.novelupdates_import_service import (
     match_entries,
     parse_nu_export,
 )
-from ..utils.query_helpers import apply_novel_prefetches
+from ..utils.query_helpers import apply_novel_prefetches, has_audiobook_subquery
 
 
 @api_view(["POST"])
@@ -59,7 +59,9 @@ def parse_novelupdates_import(request):
         novel_ids.update(candidate.id for candidate in entry["candidates"])
 
     novels = apply_novel_prefetches(
-        Novel.objects.filter(id__in=novel_ids), request.user
+        Novel.objects.filter(id__in=novel_ids)
+        .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+        request.user,
     )
     serialized = NovelSerializer(
         novels, many=True, context={"request": request}

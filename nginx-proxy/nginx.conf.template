@@ -43,7 +43,7 @@ server {
 
     # Shared anonymous reads: cached briefly (see proxy_cache_path above).
     # Accept and Origin are in the key because the API varies on them.
-    location ~ ^/novels/((home|search|autocomplete)/)?$ {
+    location ~ ^/(novels/((home|search|autocomplete)/)?|audiobooks/)$ {
         set $api api:8000;
         proxy_pass http://$api;
         include /etc/nginx/snippets/proxy_forward_headers.conf;
@@ -56,6 +56,17 @@ server {
         proxy_cache_lock on;
         proxy_cache_use_stale updating error timeout;
         add_header X-Cache $upstream_cache_status always;
+    }
+
+    # Audiobook workers upload chapter audio here: large bodies, long-running requests
+    location /api/audiobook-worker/ {
+        set $api api:8000;
+        proxy_pass http://$api;
+        include /etc/nginx/snippets/proxy_forward_headers.conf;
+        client_max_body_size 64m;
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     }
 
     # Proxy to API container
@@ -84,6 +95,17 @@ server {
         alias /lightnovels/;
         expires 1d;
         add_header Cache-Control "public, max-age=86400";
+    }
+
+    # Audiobook .m4b downloads: only served through the API's X-Accel-Redirect, which checks
+    # visibility, throttles and counts them. The cache folder is not reachable directly.
+    location ~ ^/lightnovels/.+/audio/cache/ {
+        return 404;
+    }
+
+    location /_m4b/ {
+        internal;
+        alias /lightnovels/;
     }
 }
 
@@ -121,6 +143,7 @@ server {
         # assets, robots.txt and other files still fall through to the SPA host.
         if ($render_seo) {
             rewrite ^(/novels/(?!search/?$)(?!.*/gallery/?$).*|/)$ /_seo$1 last;
+            rewrite ^(/audiobooks(/[-\w]+)?/?)$ /_seo$1 last;
         }
         # Cross-origin isolation: lets the in-browser TTS models run on several
         # CPU cores (SharedArrayBuffer). "credentialless" keeps cross-origin

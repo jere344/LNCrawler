@@ -5,25 +5,36 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, IntegerField, Max, OuterRef, Q, Subquery
+from django.db.models import CharField, Count, F, IntegerField, Max, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Cast
 
 import uuid
 
 from ..languages import parse_languages
+from ..models.chapter_models import Chapter
+from ..models.audiobook_models import ListeningProgress
 from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
 from ..models.sources_models import NovelFromSource, adult_novel_ids
+from ..serializers.audiobook_serializers import audiobook_card
 from ..serializers.novels_serializers import NovelSerializer
 from ..serializers.reading_history_serializers import ReadingHistorySerializer
 from ..serializers.users_serializers import UserSerializer
+from ..services.audiobook_public import annotate_public_totals, visible_audiobooks
+from ..services.reading_history import advance_reading_history
 from ..utils import resolve_novel_slug
+from ..utils.crawler_path import ensure_crawler_on_path
 from ..utils.novel_resolution import get_chapter_or_404, get_source_or_404
-from ..utils.pagination import paginate, paginated_response
+from ..utils.pagination import paginate
 from ..utils.query_helpers import (
     adult_allowed,
     apply_novel_prefetches,
     exclude_adult,
+    has_audiobook_subquery,
 )
+
+ensure_crawler_on_path()
+from lncrawl.utils.words import count_words  # noqa: E402
 
 
 def _folder_count_annotation(allow_adult):
@@ -173,7 +184,9 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     novels_by_id = {
         novel.id: novel
         for novel in apply_novel_prefetches(
-            Novel.objects.filter(id__in=[bookmark.novel_id for bookmark in page_items]), viewer
+            Novel.objects.filter(id__in=[bookmark.novel_id for bookmark in page_items])
+            .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+            viewer,
         )
     }
     novels = []
@@ -409,28 +422,110 @@ def get_novel_recommendations(
     )
     
     recommendations = apply_novel_prefetches(
-        Novel.objects.filter(pk__in=recommended_ids).order_by(preserved_order), viewer
+        Novel.objects.filter(pk__in=recommended_ids)
+        .order_by(preserved_order)
+        .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+        viewer,
     )
     
     return recommendations
+
+HISTORY_KINDS = ('all', 'read', 'listen')
+
+
+def _history_rows(user, kind):
+    """The viewer's reading and listening entries as ``kind``, ``key`` (the row's id), ``ref`` (its novel or
+    audiobook id) and ``at``, newest first. ``all`` is the union of both kinds, one row per entry."""
+    read = (
+        exclude_adult(ReadingHistory.objects.filter(user=user), user, 'novel__')
+        .annotate(
+            kind=Value('read', output_field=CharField()), key=Cast('pk', CharField()),
+            ref=Cast('novel_id', CharField()), at=F('last_read_at'),
+        )
+        .values('kind', 'key', 'ref', 'at')
+    )
+    listen = (
+        ListeningProgress.objects.filter(
+            user=user, audiobook__in=visible_audiobooks(user).prefetch_related(None).values('pk'),
+        )
+        .annotate(
+            kind=Value('listen', output_field=CharField()), key=Cast('pk', CharField()),
+            ref=Cast('audiobook_id', CharField()), at=F('updated_at'),
+        )
+        .values('kind', 'key', 'ref', 'at')
+    )
+    if kind == 'read':
+        return read.order_by('-at', 'kind', 'key')
+    if kind == 'listen':
+        return listen.order_by('-at', 'kind', 'key')
+    return read.union(listen).order_by('-at', 'kind', 'key')
+
+
+def _history_items(request, rows):
+    """The page's entries in their kind's shape, loaded with one query per kind (plus the audiobooks' totals).
+    A read item is the novel card with ``kind`` and ``at``; a listen item is ``{kind, id, at, audiobook}``."""
+    user = request.user
+    read_rows = [row for row in rows if row['kind'] == 'read']
+    listen_rows = [row for row in rows if row['kind'] == 'listen']
+    novels = {
+        str(novel.pk): novel
+        for novel in apply_novel_prefetches(
+            Novel.objects.filter(pk__in=[row['ref'] for row in read_rows])
+            .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+            user,
+        )
+    }
+    progress = {
+        str(item.pk): item
+        for item in ListeningProgress.objects.filter(pk__in=[row['key'] for row in listen_rows])
+        .select_related('chapter')
+    }
+    audiobooks = {
+        str(audiobook.pk): audiobook
+        for audiobook in annotate_public_totals(
+            visible_audiobooks(user).filter(pk__in=[row['ref'] for row in listen_rows]),
+        )
+    }
+    items = []
+    for row in rows:
+        at = row['at'].isoformat()
+        if row['kind'] == 'read':
+            novel = novels.get(row['ref'])
+            if novel is not None:
+                items.append({
+                    **NovelSerializer(novel, context={'request': request}).data, 'kind': 'read', 'at': at,
+                })
+            continue
+        entry = progress.get(row['key'])
+        audiobook = audiobooks.get(row['ref'])
+        if entry is not None and audiobook is not None:
+            items.append({
+                'kind': 'listen',
+                'id': entry.pk,
+                'at': at,
+                'audiobook': audiobook_card(audiobook, entry),
+            })
+    return items
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_reading_history(request):
     """
-    List all novels with reading history for the authenticated user.
+    The authenticated user's history, newest first. ``?kind=`` is all (default), read or listen. A read item is a
+    novel card with ``kind`` and ``at`` (last read). A listen item is ``{kind, id, at, audiobook}``, the listening
+    position of a visible audiobook (``at`` is its last update). ``all`` merges both by date.
     """
-    # Get novels with reading history for the current user
-    novels_with_history = apply_novel_prefetches(
-        exclude_adult(
-            Novel.objects.filter(reading_histories__user=request.user),
-            request.user,
-        ).order_by('-reading_histories__last_read_at'),
-        request.user,
-    )
-    return paginated_response(
-        request, novels_with_history, NovelSerializer, max_size=50
-    )
+    kind = request.GET.get('kind', 'all')
+    if kind not in HISTORY_KINDS:
+        kind = 'all'
+    paginator, page = paginate(request, _history_rows(request.user, kind), 20, 50)
+    return Response({
+        'count': paginator.count,
+        'total_pages': paginator.num_pages,
+        'current_page': page.number,
+        'results': _history_items(request, list(page.object_list)),
+    })
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
@@ -444,6 +539,19 @@ def delete_reading_history(request, history_id):
         return Response({"status": "history entry removed"}, status=status.HTTP_204_NO_CONTENT)
     except ReadingHistory.DoesNotExist:
         return Response({"error": "Reading history entry not found"}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_listening_history(request, progress_id):
+    """
+    Delete a listening entry (the listening position of an audiobook) of the authenticated user.
+    """
+    try:
+        progress = ListeningProgress.objects.get(id=progress_id, user=request.user)
+        progress.delete()
+        return Response({"status": "listening entry removed"}, status=status.HTTP_204_NO_CONTENT)
+    except ListeningProgress.DoesNotExist:
+        return Response({"error": "Listening history entry not found"}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -459,35 +567,22 @@ def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
     chapter = get_chapter_or_404(source, chapter_number)
 
     # Progress only moves forward: re-reading or navigating from an older
-    # chapter must not rewind it, nor count its words again. The row is locked
-    # so concurrent marks cannot both pass the check.
+    # chapter must not rewind it, nor count its words again.
     with transaction.atomic():
-        reading_history, created = ReadingHistory.objects.get_or_create(
-            user=request.user,
-            novel=novel,
-            defaults={'source': source, 'last_read_chapter': chapter},
-        )
-        if not created:
-            reading_history = (
-                ReadingHistory.objects.select_for_update(of=("self",))
-                .select_related("last_read_chapter")
-                .get(pk=reading_history.pk)
-            )
-            current = (
-                reading_history.last_read_chapter.chapter_id
-                if reading_history.last_read_chapter
-                else None
-            )
-            if current is not None and chapter.chapter_id <= current:
-                serializer = ReadingHistorySerializer(reading_history, profile='detail')
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            reading_history.source = source
-            reading_history.last_read_chapter = chapter
-            reading_history.save()
+        reading_history, created, moved = advance_reading_history(request.user, novel, source, chapter)
+        if not moved:
+            serializer = ReadingHistorySerializer(reading_history, profile='detail')
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
+        # The body is only read when no count is stored yet; the count is then kept on the
+        # chapter, so the next read skips the file. An unreadable file is not stored.
+        word_count = chapter.word_count
+        if word_count is None:
+            body = chapter.body
+            if body is not None:
+                word_count = count_words(body)
+                Chapter.objects.filter(pk=chapter.pk).update(word_count=word_count)
         # F() avoids lost updates under concurrency.
-        body = chapter.body
-        word_count = body.count(' ') if body else 0
         if word_count:
             get_user_model().objects.filter(pk=request.user.pk).update(
                 word_read=F('word_read') + word_count

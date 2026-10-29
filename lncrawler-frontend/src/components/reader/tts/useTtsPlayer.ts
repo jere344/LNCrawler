@@ -466,6 +466,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const play = useCallback(() => {
     const s = statusRef.current;
     if (s === 'playing' || s === 'preparing') return;
+    // Only one audio source plays at a time: the global audiobook player pauses on this event.
+    window.dispatchEvent(new Event('lncrawler:tts-play'));
     if (s === 'paused' && engineRef.current === 'neural' && endAudioRef.current && audioRef.current?.src) {
       // Resume mid-sentence.
       pausedRef.current = false;
@@ -779,6 +781,13 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     if (!navigator.mediaSession) return;
     navigator.mediaSession.playbackState = status === 'playing' ? 'playing' : status === 'paused' ? 'paused' : 'none';
   }, [status]);
+
+  // The global audiobook player started: stop reading aloud.
+  useEffect(() => {
+    const onAudioPlay = () => pause();
+    window.addEventListener('lncrawler:audio-play', onAudioPlay);
+    return () => window.removeEventListener('lncrawler:audio-play', onAudioPlay);
+  }, [pause]);
 
   // Leaving the reader.
   useEffect(() => () => {

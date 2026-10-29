@@ -1,5 +1,6 @@
 import api from './api';
 import { LibraryFolder, NovelListResponse, ReadingHistory } from '@models/novels_types';
+import type { HistoryKind } from '@models/audiobook_types';
 
 export type LibrarySort = 'custom' | 'title' | 'date_added' | 'rating';
 
@@ -90,9 +91,15 @@ const userService = {
     return response.data;
   },
 
-  // List reading history
-  listReadingHistory: async (page = 1, pageSize = 24) => {
-    const response = await api.get(`/users/reading-history/?page=${page}&page_size=${pageSize}`);
+  // List reading history: read entries, listening entries, or both merged by date (`kind`)
+  listReadingHistory: async (page = 1, pageSize = 24, kind: HistoryKind = 'all') => {
+    const response = await api.get(`/users/reading-history/?kind=${kind}&page=${page}&page_size=${pageSize}`);
+    return response.data;
+  },
+
+  // Delete a listening history entry (the audiobook progress row)
+  deleteListeningHistory: async (progressId: number) => {
+    const response = await api.delete(`/users/listening-history/${progressId}/delete/`);
     return response.data;
   },
 

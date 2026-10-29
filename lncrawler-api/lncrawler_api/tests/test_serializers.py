@@ -30,20 +30,20 @@ class SerializerProfileTests(TestCase):
             "id", "title", "slug", "avg_rating", "rating_count", "total_views",
             "weekly_views", "prefered_source", "languages", "is_adult",
             "is_bookmarked", "comment_count", "reading_history", "reading_source",
-            "is_dmca", "created_at",
+            "is_dmca", "created_at", "has_audiobook",
         ],
         "detail": [
             "id", "title", "slug", "sources",
             "avg_rating", "rating_count", "user_rating", "total_views",
             "weekly_views", "prefered_source", "is_adult", "is_bookmarked",
             "comment_count", "reading_history", "reading_source", "similar_novels",
-            "reading_lists", "is_dmca",
+            "reading_lists", "is_dmca", "audiobooks",
         ],
         "library": [
             "id", "title", "slug", "avg_rating", "rating_count", "total_views",
             "weekly_views", "prefered_source", "languages", "is_adult",
             "is_bookmarked", "comment_count", "reading_history", "reading_source",
-            "is_dmca", "bookmark_id", "note", "folder", "folder_name", "position",
+            "is_dmca", "has_audiobook", "bookmark_id", "note", "folder", "folder_name", "position",
             "user_rating",
         ],
     }
@@ -115,14 +115,14 @@ class SerializerProfileTests(TestCase):
             ChapterSerializer: {
                 "card": [
                     "id", "chapter_id", "title", "url", "volume", "volume_title",
-                    "has_content",
+                    "has_content", "has_audio",
                 ],
                 "content": [
                     "id", "chapter_id", "title", "novel_title", "novel_id",
                     "novel_slug", "source_id", "source_name", "source_slug", "language", "body",
                     "prev_chapter", "next_chapter", "prev_chapter_id",
                     "next_chapter_id", "images_path",
-                    "source_overview_image_url",
+                    "source_overview_image_url", "audio_url", "audio_duration_s",
                 ],
                 "unavailable": [
                     "chapter_id", "title", "novel_title", "prev_chapter",

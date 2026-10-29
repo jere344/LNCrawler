@@ -51,9 +51,9 @@ MAX_RETRIES = 1
 # supervisors claim concurrently without a lost-race retry loop. User/foreground
 # jobs are preferred over background harvest jobs (query 'harvest:%'); the
 # COALESCE keeps NULL-query rows (manual/test jobs) in the foreground bucket.
-# Download and epub jobs are both long-running builds, so both claim as
-# 'downloading' (epub jobs carry their key in `query`, which the payload CASE
-# below returns through the ELSE branch).
+# Download, epub and m4b jobs are all long-running builds, so they claim as
+# 'downloading' (epub and m4b jobs carry their key in `query`, which the payload
+# CASE below returns through the ELSE branch).
 CLAIM_SQL = f"""
 WITH next AS (
     SELECT id FROM {TABLE}
@@ -63,7 +63,7 @@ WITH next AS (
     LIMIT 1
 )
 UPDATE {TABLE} AS job
-SET status = CASE WHEN job.job_type IN ('download', 'epub') THEN 'downloading' ELSE 'searching' END,
+SET status = CASE WHEN job.job_type IN ('download', 'epub', 'm4b') THEN 'downloading' ELSE 'searching' END,
     updated_at = now()
 FROM next
 WHERE job.id = next.id

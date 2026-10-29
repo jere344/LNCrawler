@@ -4,6 +4,7 @@ from . import views
 from .views import novels_views, comments_views, sources_views, users_views, chat_views, reviews_views, reading_lists_views, profile_views, friends_views, import_views, seo_views
 from .views.csrf import get_csrf_token
 from .views.errors_views import report_error
+from .views import audiobook_worker_views, audiobook_views
 from django.contrib.sitemaps.views import sitemap, index
 from django.views.decorators.cache import cache_page
 from .views.sitemap import (
@@ -12,6 +13,7 @@ from .views.sitemap import (
     SourceSitemap,
     ChapterListSitemap,
     ImageGallerySitemap,
+    AudiobookSitemap,
 )
 
 # Configure the REST Framework router
@@ -24,6 +26,7 @@ sitemaps = {
     'sources': SourceSitemap,
     'chapterlists': ChapterListSitemap,
     'galleries': ImageGallerySitemap,
+    'audiobooks': AudiobookSitemap,
 }
 
 urlpatterns = [
@@ -56,6 +59,13 @@ urlpatterns = [
     path('novels/home/', novels_views.home_page, name='home_page'),  # Add this new endpoint
     path('novels/search/', novels_views.search_novels, name='search_novels'),  # Add this new endpoint
     path('novels/autocomplete/', novels_views.autocomplete_suggestion, name='autocomplete_suggestion'),  # Add this new endpoint
+    path('audiobooks/', audiobook_views.list_audiobooks, name='list_audiobooks'),
+    path('audiobooks/feed.xml', audiobook_views.audiobook_catalog_feed, name='audiobook_catalog_feed'),
+    path('audiobooks/<slug:slug>/', audiobook_views.audiobook_detail_by_slug, name='audiobook_detail'),
+    path('audiobooks/<slug:slug>/feed.xml', audiobook_views.audiobook_feed, name='audiobook_feed'),
+    path('audiobooks/<slug:slug>/progress/',audiobook_views.audiobook_progress, name='audiobook_progress'),
+    path('audiobooks/<slug:slug>/play/', audiobook_views.audiobook_play, name='audiobook_play'),
+    path('audiobooks/<slug:slug>/parts/<int:index>/download/', audiobook_views.audiobook_download, name='audiobook_download'),
     
     # User-specific Novel Bookmarking
     path('users/bookmarks/novels/', users_views.list_bookmarked_novels, name='list_bookmarked_novels'),
@@ -71,6 +81,7 @@ urlpatterns = [
     # User Reading History
     path('users/reading-history/', users_views.list_reading_history, name='list_reading_history'),
     path('users/reading-history/<uuid:history_id>/delete/', users_views.delete_reading_history, name='delete_reading_history'),
+    path('users/listening-history/<int:progress_id>/delete/', users_views.delete_listening_history, name='delete_listening_history'),
     path('users/reading-history/mark-read/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', 
          users_views.mark_chapter_as_read, name='mark_chapter_as_read'),
 
@@ -121,6 +132,8 @@ urlpatterns = [
     # internal nginx rewrite of the public content URLs (see nginx-proxy).
     # Trailing slash is optional so APPEND_SLASH never leaks the internal prefix.
     re_path(r'^seo/$', seo_views.seo_home, name='seo_home'),
+    re_path(r'^seo/audiobooks/?$', seo_views.seo_audiobooks, name='seo_audiobooks'),
+    re_path(r'^seo/audiobooks/(?P<novel_slug>[-\w]+)/?$', seo_views.seo_audiobook, name='seo_audiobook'),
     re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/?$', seo_views.seo_novel, name='seo_novel'),
     re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/?$', seo_views.seo_source, name='seo_source'),
     re_path(r'^seo/novels/(?P<novel_slug>[-\w]+)/(?P<source_slug>[-\w]+)/chapterlist/?$', seo_views.seo_chapterlist, name='seo_chapterlist'),
@@ -160,4 +173,13 @@ urlpatterns = [
     path('friends/requests/<str:username>/send/', friends_views.send_friend_request, name='send_friend_request'),
     path('friends/requests/<uuid:friendship_id>/respond/', friends_views.respond_friend_request, name='respond_friend_request'),
     path('friends/<str:username>/remove/', friends_views.remove_friend, name='remove_friend'),
+
+    # Audiobook workers (token auth, see docs/audiobook-worker-contract.md)
+    path('api/audiobook-worker/claim', audiobook_worker_views.claim, name='audiobook_worker_claim'),
+    path('api/audiobook-worker/parts/<uuid:part_id>/epub', audiobook_worker_views.part_epub, name='audiobook_worker_epub'),
+    path('api/audiobook-worker/parts/<uuid:part_id>/heartbeat', audiobook_worker_views.heartbeat, name='audiobook_worker_heartbeat'),
+    path('api/audiobook-worker/parts/<uuid:part_id>/chapters/<int:chapter_pk>', audiobook_worker_views.chapter_upload, name='audiobook_worker_chapter'),
+    path('api/audiobook-worker/parts/<uuid:part_id>/complete', audiobook_worker_views.complete, name='audiobook_worker_complete'),
+    path('api/audiobook-worker/parts/<uuid:part_id>/fail', audiobook_worker_views.fail, name='audiobook_worker_fail'),
+    path('api/audiobook-worker/ping', audiobook_worker_views.ping, name='audiobook_worker_ping'),
 ]

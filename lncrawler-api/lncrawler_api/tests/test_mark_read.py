@@ -22,9 +22,9 @@ class MarkChapterAsReadTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username="reader", email="reader@example.com", password="pw12345!"
         )
-        # Every chapter body has 4 spaces, so each first read adds 4 words.
+        # Every chapter body has 4 words, so each first read adds 4 words.
         body_patch = patch.object(
-            Chapter, "body", new_callable=PropertyMock, return_value="one two three four five"
+            Chapter, "body", new_callable=PropertyMock, return_value="one two three four"
         )
         body_patch.start()
         self.addCleanup(body_patch.stop)
@@ -91,6 +91,19 @@ class MarkChapterAsReadTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(self._history().last_read_chapter.chapter_id, 1)
         self.assertEqual(self._word_read(), 4)
+
+    def test_first_read_stores_the_word_count_on_the_chapter(self):
+        self._mark(self.source_a, 1)
+        chapter = Chapter.objects.get(novel_from_source=self.source_a, chapter_id=1)
+        self.assertEqual(chapter.word_count, 4)
+
+    def test_stored_word_count_is_used_without_reading_the_body(self):
+        Chapter.objects.filter(novel_from_source=self.source_a, chapter_id=2).update(word_count=100)
+        with patch.object(Chapter, "body", new_callable=PropertyMock, return_value="") as body:
+            response = self._mark(self.source_a, 2)
+        self.assertEqual(response.status_code, 201, response.data)
+        body.assert_not_called()
+        self.assertEqual(self._word_read(), 100)
 
     def test_advancing_updates_chapter_and_counts_words(self):
         self._mark(self.source_a, 1)

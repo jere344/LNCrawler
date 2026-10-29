@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
+import { AudiobookBadge } from '@components/audiobooks/AudiobookBadge';
 
 interface TrendingNovelCardProps {
   novel: Novel;
@@ -168,9 +169,10 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
             }}
           />
           <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
+          {novel.has_audiobook && <AudiobookBadge />}
         </Box>
-        
-        <CardContent sx={{ 
+
+        <CardContent sx={{
           flexGrow: 1, 
           display: 'flex', 
           flexDirection: 'column', 

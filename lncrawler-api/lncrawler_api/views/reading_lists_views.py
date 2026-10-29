@@ -9,7 +9,9 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from ..utils.pagination import paginated_response as _paginated_response
-from ..utils.query_helpers import exclude_adult, novel_prefetch_objects, source_prefetch
+from ..utils.query_helpers import (
+    exclude_adult, has_audiobook_subquery, novel_prefetch_objects, source_prefetch,
+)
 from ..utils.responses import forbidden as _forbidden
 from ..models.users_models import ReadingList, ReadingListItem, ReadingListCollaborator
 from ..models.novels_models import Novel
@@ -45,7 +47,9 @@ def _reading_lists_query_set(user=None, full=True):
     else:
         novel_prefetches = [source_prefetch(user=user, associations=False)]
     items_qs = items_qs.prefetch_related(
-        Prefetch('novel', queryset=Novel.objects.prefetch_related(*novel_prefetches))
+        Prefetch('novel', queryset=Novel.objects.annotate(
+            annotated_has_audiobook=has_audiobook_subquery()
+        ).prefetch_related(*novel_prefetches))
     )
     return ReadingList.objects.select_related('user').prefetch_related(
         'collaborators__user',

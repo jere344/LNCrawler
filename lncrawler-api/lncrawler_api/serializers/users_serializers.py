@@ -10,7 +10,7 @@ from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel,
 from ..models.chapter_models import Chapter
 from ..models.novels_models import Novel, Tag
 from ..privacy import are_friends, can_view
-from ..utils.query_helpers import novel_prefetch_objects
+from ..utils.query_helpers import has_audiobook_subquery, novel_prefetch_objects
 from .mixins import ProfileFieldsMixin
 
 User = get_user_model()
@@ -138,7 +138,9 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             .prefetch_related(
                 Prefetch(
                     'novel',
-                    queryset=Novel.objects.prefetch_related(
+                    queryset=Novel.objects.annotate(
+                        annotated_has_audiobook=has_audiobook_subquery()
+                    ).prefetch_related(
                         *novel_prefetch_objects(self._viewer())
                     ),
                 )
@@ -260,7 +262,9 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
                 .prefetch_related(
                     Prefetch(
                         'novel',
-                        queryset=Novel.objects.prefetch_related(
+                        queryset=Novel.objects.annotate(
+                            annotated_has_audiobook=has_audiobook_subquery()
+                        ).prefetch_related(
                             *novel_prefetch_objects(self._viewer())
                         ),
                     )

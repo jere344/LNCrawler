@@ -31,6 +31,7 @@ import ForumIcon from "@mui/icons-material/Forum"; // Import Forum icon for Chat
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted'; // Import icon for reading lists
 import HomeIcon from '@mui/icons-material/Home';
 import AddIcon from '@mui/icons-material/Add';
+import HeadphonesIcon from '@mui/icons-material/Headphones';
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 import { useTheme } from "@theme/ThemeContext";
 import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
@@ -94,6 +95,7 @@ const Header = () => {
         }
         if (location.pathname.startsWith("/reading-lists")) return "/reading-lists";
         if (location.pathname.startsWith("/chat")) return "/chat";
+        if (location.pathname.startsWith("/audiobooks")) return "/audiobooks";
         if (location.pathname.startsWith("/novels/search")) return "/novels/search";
         if (location.pathname.startsWith("/novels")) return "/";
         if (location.pathname === "/") return "/";
@@ -188,8 +190,9 @@ const Header = () => {
                                 mr: 1,
                             }}
                         />
+                        {/* Title hidden on the narrowest screens so the toolbar fits in 320 px */}
                         { !isTablet && (
-                            <Typography variant="h6" component="div" sx={{ fontWeight: "bold" }}>
+                            <Typography variant="h6" component="div" sx={{ fontWeight: "bold", "@media (max-width:359px)": { display: "none" } }}>
                                 LNCrawler
                             </Typography>
                         )}
@@ -212,6 +215,7 @@ const Header = () => {
                         }}
                     >
                         <Tab label={t('header.home')} value="/" component={RouterLink} to="/" />
+                        <Tab label={t('audiobooks.title')} value="/audiobooks" component={RouterLink} to="/audiobooks" />
                         {isAuthenticated && <Tab label={t('header.library')} value="/library" component={RouterLink} to="/library" />}
                         {isAuthenticated && <Tab label={t('header.history')} value="/history" component={RouterLink} to="/history" />}
                         <Tab label={t('header.lists')} value="/reading-lists" component={RouterLink} to="/reading-lists" />
@@ -235,8 +239,8 @@ const Header = () => {
                         </Button>
                     )}
 
-                    {/* GitHub Link - Hide on tablet */}
-                    {!isTablet && (
+                    {/* GitHub Link - Hide on mobile and tablet (the footer has the link) */}
+                    {!isMobile && !isTablet && (
                         <IconButton
                             component={Link}
                             href="https://github.com/jere344/LNCrawler"
@@ -423,6 +427,12 @@ const Header = () => {
                                     </ListItemIcon>
                                     <ListItemText primary={t('header.chat')} />
                                 </MenuItem>
+                                <MenuItem component={RouterLink} to="/audiobooks" onClick={handleMenuClose}>
+                                    <ListItemIcon>
+                                        <HeadphonesIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary={t('audiobooks.title')} />
+                                </MenuItem>
                                 <MenuItem component={RouterLink} to="/novels/search" onClick={handleMenuClose}>
                                     <ListItemIcon>
                                         <SearchIcon fontSize="small" />
@@ -440,6 +450,12 @@ const Header = () => {
                                 <MenuIcon sx={{ fontSize: "1.25rem" }} />
                             </IconButton>
                             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
+                                <MenuItem component={RouterLink} to="/audiobooks" onClick={handleMenuClose}>
+                                    <ListItemIcon>
+                                        <HeadphonesIcon fontSize="small" />
+                                    </ListItemIcon>
+                                    <ListItemText primary={t('audiobooks.title')} />
+                                </MenuItem>
                                 <MenuItem component={RouterLink} to="/download" onClick={handleMenuClose}>
                                     <ListItemIcon>
                                         <AddIcon fontSize="small" />

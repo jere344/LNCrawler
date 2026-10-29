@@ -92,6 +92,8 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
         wordSpacing: `${settings.wordSpacing}px`,
         letterSpacing: `${settings.letterSpacing}px`,
         textAlign: settings.textAlign,
+        // Crawled text often joins words with &nbsp;, which would otherwise widen the page on phones
+        overflowWrap: 'break-word',
         fontFamily: settings.fontFamily || undefined,
         userSelect: settings.textSelectable ? 'text' : 'none',
         WebkitUserSelect: settings.textSelectable ? 'text' : 'none',

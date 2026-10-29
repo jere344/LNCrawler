@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ..models import (
+    Audiobook,
     Chapter,
     Comment,
     ExternalSource,
@@ -522,6 +523,22 @@ class SplitNovelTests(MergeTestCase):
         self.assertEqual(
             updated.source_path, os.path.join("rezero-webnovel", "webnovel")
         )
+
+    def test_split_moves_the_audiobook_with_its_source(self):
+        audiobook = Audiobook.objects.create(novel=self.novel, source=self.web_source)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            new = split_novel(
+                self.novel,
+                [self.web_source],
+                new_title="Re:Zero [Web Novel]",
+                new_slug="rezero-webnovel",
+                rename_title="Re:Zero [Light Novel]",
+            )
+
+        audiobook.refresh_from_db()
+        self.assertEqual(audiobook.novel, new)
+        self.assertEqual(audiobook.source, self.web_source)
 
     def test_move_sources_into_existing_novel_dedupes(self):
         target = Novel.objects.create(

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
+import { AudiobookBadge } from '@components/audiobooks/AudiobookBadge';
 import { getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 
 interface CompactNovelCardProps {
@@ -210,6 +211,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       </Box>
     </ButtonBase>
     <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
+    {novel.has_audiobook && <AudiobookBadge />}
     </Box>
   );
 };

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.db.models import Subquery
-from ..models import Chapter
+from ..models import AudiobookChapter, AudiobookPart, Chapter
+from ..services.audiobook_public import LISTENABLE_PART_Q, chapter_audio_hidden, chapter_audio_url
 from ..utils import build_media_url
 from .mixins import ProfileFieldsMixin
 
@@ -25,18 +26,21 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     source_slug = serializers.SerializerMethodField()
     images_path = serializers.SerializerMethodField()
     source_overview_image_url = serializers.SerializerMethodField()
+    audio_url = serializers.SerializerMethodField()
+    audio_duration_s = serializers.SerializerMethodField()
     language = serializers.SerializerMethodField()
+    has_audio = serializers.SerializerMethodField()
 
     default_profile = 'card'
     field_profiles = {
         'card': [
-            'id', 'chapter_id', 'title', 'url', 'volume', 'volume_title', 'has_content',
+            'id', 'chapter_id', 'title', 'url', 'volume', 'volume_title', 'has_content', 'has_audio',
         ],
         'content': [
             'id', 'chapter_id', 'title', 'novel_title', 'novel_id', 'novel_slug',
             'source_id', 'source_name', 'source_slug', 'language', 'body', 'prev_chapter', 'next_chapter',
             'prev_chapter_id', 'next_chapter_id',
-            'images_path', 'source_overview_image_url',
+            'images_path', 'source_overview_image_url', 'audio_url', 'audio_duration_s',
         ],
         'unavailable': [
             'chapter_id', 'title', 'novel_title', 'prev_chapter', 'next_chapter',
@@ -127,3 +131,35 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     def get_source_overview_image_url(self, obj: Chapter):
         return build_media_url(obj.novel_from_source.overview_picture_path)
+
+    def _public_audio(self, obj: Chapter):
+        """The AudiobookChapter of the chapter when its audio is public, else None. One query, kept for both
+        audio fields of the same chapter."""
+        cache = self.__dict__.setdefault('_public_audio_cache', {})
+        viewer = getattr(self.context.get('request'), 'user', None)
+        if obj.pk not in cache and chapter_audio_hidden(viewer, obj.novel_from_source):
+            cache[obj.pk] = None
+        if obj.pk not in cache:
+            cache[obj.pk] = (
+                AudiobookChapter.objects.select_related('part')
+                .filter(
+                    chapter=obj,
+                    part__in=AudiobookPart.objects.filter(LISTENABLE_PART_Q),
+                    part__audiobook__published=True,
+                )
+                .exclude(part__audiobook__status='retired')
+                .first()
+            )
+        return cache[obj.pk]
+
+    def get_audio_url(self, obj: Chapter):
+        audio = self._public_audio(obj)
+        return chapter_audio_url(audio) if audio else None
+
+    def get_audio_duration_s(self, obj: Chapter):
+        audio = self._public_audio(obj)
+        return audio.duration_s if audio else None
+
+    def get_has_audio(self, obj: Chapter):
+        # Set by the chapter list view (chapter_has_audio_subquery); a queryset without it reports False.
+        return bool(getattr(obj, 'annotated_has_audio', False))

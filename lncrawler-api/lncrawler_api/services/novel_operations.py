@@ -177,6 +177,7 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
     second source of the same site keeps its own folder (``<site> [..]``).
     """
     from ..models import NovelFromSource
+    from .audiobook_service import follow_source
 
     if move_files and files is None:
         raise ValueError("move_files=True requires a FileJournal")
@@ -191,6 +192,7 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
             target_novel, base_slug, exclude_pk=source.pk
         )
         source.save(update_fields=["novel", "source_slug", "updated_at"])
+        follow_source(source)
         return
 
     old_prefix = os.path.dirname(source.source_path) if source.source_path else None
@@ -226,6 +228,7 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
         target_novel, base_slug, exclude_pk=source.pk
     )
     source.save()
+    follow_source(source)
 
 
 def source_completeness(source):
@@ -333,7 +336,8 @@ def dedupe_source(loser, winner, move_files, files=None, *, dest_novel):
     It must be passed explicitly: the winner's own ``novel`` can still be the
     original novel at this point, and comments would land on the wrong one.
     """
-    from ..models import ReadingHistory, SourceVote, WeeklySourceView, NovelFromSource
+    from ..models import Audiobook, ReadingHistory, SourceVote, WeeklySourceView, NovelFromSource
+    from .audiobook_service import delete_audio_files
 
     if move_files and files is None:
         raise ValueError("move_files=True requires a FileJournal")
@@ -375,6 +379,15 @@ def dedupe_source(loser, winner, move_files, files=None, *, dest_novel):
     if not shared_folder and loser.source_path:
         loser_dir = os.path.join(settings.LNCRAWL_OUTPUT_PATH, loser.source_path)
 
+    # A kept folder stays on disk with its audio, which would be orphaned. The
+    # audiobooks go with the loser through CASCADE, since the chapter ids of two
+    # sources differ, so their audio is deleted here first. A folder shared with
+    # the winner holds the winner's audio too, so it is left alone.
+    folder_shared_with_winner = bool(loser.source_path) and loser.source_path == winner.source_path
+    if loser_dir is None and not folder_shared_with_winner:
+        for audiobook in Audiobook.objects.filter(source=loser):
+            delete_audio_files(audiobook)
+
     # Forget the paths before deleting the row. NovelFromSource.delete() removes
     # the folder synchronously, which must never happen inside the transaction.
     loser.source_path = None
@@ -386,6 +399,7 @@ def dedupe_source(loser, winner, move_files, files=None, *, dest_novel):
             "source_path", "cover_path", "cover_min_path", "overview_picture_path",
         ]
     )
+    # The audiobook of the loser goes with it (CASCADE): its audio was deleted above.
     loser.delete()
     if loser_dir:
         files.trash(loser_dir)

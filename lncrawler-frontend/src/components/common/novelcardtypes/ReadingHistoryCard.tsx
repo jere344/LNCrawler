@@ -95,13 +95,17 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
       {novel.is_dmca && <DmcaBadge bottom={8} />}
 
       {/* Content area */}
-      <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, width: '100%' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0, width: '100%' }}>
         <CardContent sx={{ pb: 1, flexGrow: 1 }}>
-          <Typography 
-            variant="h6" 
+          <Typography
+            variant="h6"
             component={Link}
             to={sourceLink.to ?? ''} state={sourceLink.state}
-            sx={{ 
+            sx={{
+              // Keeps the title clear of the delete button in the top right
+              display: 'block',
+              pr: 5,
+              overflowWrap: 'break-word',
               fontWeight: 'bold',
               cursor: 'pointer',
               '&:hover': { color: 'primary.main' },

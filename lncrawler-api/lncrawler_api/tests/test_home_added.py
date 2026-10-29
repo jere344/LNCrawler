@@ -223,28 +223,7 @@ class HomeAddedSectionsTests(TestCase):
             ids, [str(self.plain.id), str(self.theirs.id), str(self.mine.id)]
         )
 
-    def test_novels_you_added_only_for_owner(self):
-        self.client.force_login(self.user)
-        response = self.client.get(reverse("home_page"))
-        ids = [n["id"] for n in response.data["novels_you_added"]]
-        self.assertEqual(ids, [str(self.mine.id)])
-
-        self.client.force_login(self.other)
-        response = self.client.get(reverse("home_page"))
-        ids = [n["id"] for n in response.data["novels_you_added"]]
-        self.assertEqual(ids, [str(self.theirs.id)])
-
-    def test_novels_you_added_empty_for_anonymous(self):
-        response = self.client.get(reverse("home_page"))
-        self.assertEqual(response.data["novels_you_added"], [])
-
-    def test_novels_you_added_ignores_language_filter(self):
-        self.client.force_login(self.user)
-        response = self.client.get(reverse("home_page"), {"languages": "fr"})
-        ids = [n["id"] for n in response.data["novels_you_added"]]
-        self.assertEqual(ids, [str(self.mine.id)])
-
-    def test_novels_you_added_keeps_adult_but_recently_added_excludes_it(self):
+    def test_recently_added_excludes_dmca_and_adult(self):
         self.mine.is_dmca = True
         self.mine.save(update_fields=["is_dmca"])
         adult = Novel.objects.create(
@@ -265,13 +244,8 @@ class HomeAddedSectionsTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("home_page"))
         added_ids = {n["id"] for n in response.data["recently_added"]}
-        mine_ids = {n["id"] for n in response.data["novels_you_added"]}
-        # DMCA stays hidden everywhere.
         self.assertNotIn(str(self.mine.id), added_ids)
-        self.assertNotIn(str(self.mine.id), mine_ids)
-        # Adult is filtered from "Recently Added" but kept in "Novels You Added".
         self.assertNotIn(str(adult.id), added_ids)
-        self.assertIn(str(adult.id), mine_ids)
 
     def test_home_query_count_is_flat(self):
         from django.db import connection

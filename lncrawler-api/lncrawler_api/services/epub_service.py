@@ -218,8 +218,11 @@ def _write_chapter(zf, chapter, source, image_dir, seen_images):
     zf.writestr(f"OEBPS/text/chapter_{chapter.chapter_id:05}.xhtml", doc)
 
 
-def _write_container_opf(zf, source, chapters, cover_name, image_names):
+def _write_container_opf(zf, source, chapters, cover_name, image_names, series=None):
+    series_title, series_index = series or (None, None)
     title = _escape(source.title or source.novel.title)
+    if series:
+        title = _escape(f"{series_title} \u2014 Part {series_index}")
     author = ", ".join(a.name for a in source.authors.all()) or "Unknown"
     language = source.language or "en"
     uid = f"lncrawler-{source.id}"
@@ -245,6 +248,12 @@ def _write_container_opf(zf, source, chapters, cover_name, image_names):
         )
         spine.append(f'<itemref idref="{item_id}"/>')
 
+    series_meta = ""
+    if series:
+        series_meta = (
+            f'<meta name="calibre:series" content="{_escape(series_title)}"/>'
+            f'<meta name="calibre:series_index" content="{series_index}"/>'
+        )
     modified = timezone.now().strftime("%Y-%m-%dT%H:%M:%SZ")
     opf = (
         '<?xml version="1.0" encoding="utf-8"?>\n'
@@ -255,6 +264,7 @@ def _write_container_opf(zf, source, chapters, cover_name, image_names):
         f"<dc:creator>{_escape(author)}</dc:creator>"
         f"<dc:language>{_escape(language)}</dc:language>"
         f'<meta property="dcterms:modified">{modified}</meta>'
+        f"{series_meta}"
         "</metadata>"
         f"<manifest>{''.join(manifest)}</manifest>"
         f"<spine>{''.join(spine)}</spine>"
@@ -279,7 +289,7 @@ def _write_nav(zf, chapters):
     zf.writestr("OEBPS/nav.xhtml", nav)
 
 
-def _build(source, chapters, volume, dest, progress=None):
+def _build(source, chapters, volume, dest, progress=None, series=None):
     image_dir = os.path.join(source.absolute_source_path, "images")
     cover_path = _absolute_cover(source)
     cover_name = None
@@ -322,7 +332,7 @@ def _build(source, chapters, volume, dest, progress=None):
             if progress:
                 progress(total, total)
 
-            _write_container_opf(zf, source, chapters, cover_name, sorted(seen_images))
+            _write_container_opf(zf, source, chapters, cover_name, sorted(seen_images), series=series)
             _write_nav(zf, chapters)
         os.replace(tmp, dest)
     finally:
@@ -430,8 +440,11 @@ def enqueue_epub_job(source, volume=None, user=None):
             )
     except IntegrityError:
         # A concurrent request created the active job first; the partial
-        # unique constraint rejected ours, so reuse theirs.
-        existing = _active_epub_job(key)
+        # unique constraint rejected ours. If that job has already finished,
+        # reuse the most recent job of this key instead.
+        existing = _active_epub_job(key) or Job.objects.filter(
+            job_type=Job.JOB_TYPE_EPUB, query=key,
+        ).order_by('-created_at').first()
         if existing is None:
             raise
         return existing

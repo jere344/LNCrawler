@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_audiobook_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>
+    The audio files of these {{ rows|length }} audiobook(s) will be deleted, and their done parts marked as stale.
+    The audiobooks are unpublished. This cannot be undone.
+  </p>
+  <ul>
+    {% for audiobook, size_mb in rows %}
+      <li>{{ audiobook }}: {{ size_mb|floatformat:1 }} MB</li>
+    {% endfor %}
+  </ul>
+  <form method="post">{% csrf_token %}
+    {% for audiobook in queryset %}
+      <input type="hidden" name="_selected_action" value="{{ audiobook.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="delete_audio_files">
+    <input type="submit" name="apply" value="Confirm: delete audio files">
+  </form>
+</div>
+{% endblock %}

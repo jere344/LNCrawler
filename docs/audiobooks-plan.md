@@ -1,6 +1,6 @@
 # Server audiobooks: lncrawler implementation plan
 
-Status: Phases 1–5 done (server side), Phase 6 (frontend) next.
+Status: Phases 1–6 done. Phase 6 is not yet checked in a browser. The frontend audiobook page lives at `/audiobooks/<novel slug>/` (not `/novels/:n/:s/audiobook`), to match the SEO pages, sitemap and RSS links.
 
 **Scope.** This plan covers the lncrawler side: prod database, jobs, API, files, admin and frontend. The GPU worker that runs Castwright is owned by another agent. The two sides only share [audiobook-worker-contract.md](audiobook-worker-contract.md), which covers the endpoints, the claim payload and the audio format.
 
@@ -32,8 +32,8 @@ GPU worker (other agent)              prod
 | Compression | On the worker. The contract requires Ogg/Opus mono at 24 kbps VBR, loudness-normalised with silence trimmed. Prod rejects anything else with `ffprobe`. | Smallest transfer and prod disk use, about 10.8 MB per hour. Prod never re-encodes. |
 | Stored format | One `.ogg` per chapter, stored once | Streams in every browser with range requests from nginx. It's also the source for the RSS feed and for `.m4b` downloads. |
 | Download format | `.m4b` per part, in two flavours, both built on demand and cached together (size-capped LRU): **Opus**, remuxed from the chapter files with no re-encode (smallest, the default); **AAC**, transcoded once to AAC-LC 64 kbps mono, for Apple Books and older devices | Disk only holds one copy permanently. The AAC version is the same job with one more ffmpeg flag and the same tags. |
-| Downloads | Open to everyone, no login. Anonymous users are throttled per IP. | Reach. |
-| Engine tracking | Each part stores the `engine` and `engine_version` that made it, and the cast stores one per character. `Audiobook.engine_profile` only decides new parts. | New engines can be added later without losing track of what made each part. Old parts can be regenerated with a new engine on purpose. |
+| Downloads | Open to everyone, no login, not throttled. | Reach. |
+| Engine tracking | Each part stores the `engine` and `engine_version` that made it, and the cast stores one per character. | New engines can be added later without losing track of what made each part. Old parts can be regenerated with a new engine on purpose. |
 | Metadata | Written by prod, never by the worker | Titles and authors can change on prod. Retagging is cheap, and the worker stays simple. |
 | Unit of work | `AudiobookPart`: a run of **whole chapters** of one English `NovelFromSource`, cut by **word count**. Chapters are added in order while the total stays ≤ `AUDIOBOOK_PART_WORDS` (default 75,000 words ≈ 8 h at ~155 words per minute). A chapter is never split; one chapter longer than the target becomes a part on its own. Chapter ranges are frozen when the part is created. | Even workload per job and even download sizes, whatever the chapter lengths. Freezing keeps part numbers stable. It matches Castwright's "book" and its series memory: series = novel, index = part. |
 | Last partial block | A part is only created once the remaining chapters reach the word target, or when the novel is completed and the tail hasn't changed for 14 days | Avoids regenerating a part every time a chapter is added. |
@@ -57,13 +57,12 @@ GPU worker (other agent)              prod
   - `novel` (FK, unique together with `language`), `language`, `source` (FK `NovelFromSource`)
   - `status`: `active` | `paused` | `retired`
   - `published`, `featured` (bool, home hero pick), `worker_id` (affinity)
-  - `engine_profile`: free text (e.g. `kokoro`, `qwen-mixed`), not choices, so new engines need no migration. Applies to parts enqueued from now on.
   - `cover_path`, `total_duration_s`, `total_size_bytes`, `parts_done` (denormalised for listing queries)
   - `cast` (merged JSON of every part's cast), `credits` (engine and version strings)
   - `first_published_at`, `last_part_at` (feeds "new" badges and sorting)
 - **`AudiobookPart`** (also the job)
   - `audiobook`, `index`, `chapter_start`, `chapter_end`, `word_count`, `estimated_duration_s` (words ÷ 155 wpm, shown before the part exists)
-  - `engine_profile` (copied from the audiobook at enqueue), `engine`, `engine_version` (reported by the worker at `complete`)
+  - `engine`, `engine_version` (reported by the worker at `complete`)
   - `status`: `queued` | `claimed` | `done` | `failed` | `stale`
   - job fields: `priority`, `worker_id`, `claimed_at`, `lease_until`, `progress`, `stage`, `attempts`, `error_message`
   - `content_hash`, `cast`, `qa`, `qa_passed`, `approved` (admin override when QA fails)
@@ -72,7 +71,7 @@ GPU worker (other agent)              prod
 - **`AudiobookChapter`**
   - `part`, `chapter` (OneToOne `Chapter`), `file_path`, `duration_s`, `size_bytes`, `sha256`, `offset_s` (start within the part, used for `.m4b` chapter markers)
 - **`AudiobookWorker`**
-  - `worker_id`, `user`, `last_seen_at`, `version`, `engine_profiles`, `available`, `message`
+  - `worker_id`, `user`, `last_seen_at`, `version`, `available`, `message`
   - filled by `ping` and `claim`
 - **`ListeningProgress`**
   - `user`, `audiobook`, `chapter` (FK), `position_s`, `speed`, `finished`, `updated_at`
@@ -87,7 +86,6 @@ Only what an operator tunes per deployment:
 - `AUDIOBOOK_PART_WORDS` (75000)
 - `AUDIOBOOK_QUEUE_WORDS` (600000)
 - `AUDIOBOOK_DISK_BUDGET_GB`, `AUDIOBOOK_M4B_CACHE_GB`
-- `AUDIOBOOK_DEFAULT_ENGINE_PROFILE`
 
 Tuning values are module constants in `services/audiobook_service.py` instead: `WORDS_PER_MINUTE` 155, `MAX_ATTEMPTS` 3, `LEASE_SECONDS` 900, `MAX_BITRATE_KBPS` 40, `TAIL_STABLE_DAYS` 14.
 
@@ -108,7 +106,6 @@ Tuning values are module constants in `services/audiobook_service.py` instead: `
 - **Audiobook list**
   - columns: cover thumbnail, novel, parts done/queued/failed, hours, size, published, featured, worker
   - actions: Publish / Unpublish, Feature, Pause / Resume, Enqueue next part, Delete audio files, Rebuild cover, Retag files
-  - **Change engine profile:** applies to new parts. An option also re-queues every existing part ("recast"), keeping the old files live until each new part completes.
 - **Part list**
   - shows status, progress and stage live
   - actions: Retry, Regenerate (high priority), Approve despite QA
@@ -133,7 +130,7 @@ Logic lives in `services/audiobook_scheduler.py`. Every task does nothing while 
     - ties go to the more popular novel, and the new-book slot loses ties;
     - effect: with N books in progress, a new book starts once every N+1 parts. The collection grows fast at first and slower as more books are in progress, a huge novel gets one part per cycle like any other, and the new-book slot comes round more often again as books catch up;
     - scheduler parts have priority 0 and are claimed in the order they were created, so the round order holds. Admin actions (Generate, Regenerate) use priority 100 and jump the queue;
-  - parts are cut as in Phase 1 (whole chapters up to `AUDIOBOOK_PART_WORDS`) and get the audiobook's current `engine_profile`.
+  - parts are cut as in Phase 1 (whole chapters up to `AUDIOBOOK_PART_WORDS`).
 - **`reap_audiobook_leases`** (every 5 min): sends parts with an expired lease back to the queue. After `MAX_ATTEMPTS` they become `failed`.
 - **`audiobook_housekeeping`** (daily):
   - safety net for moved sources: any audiobook whose source now belongs to another novel follows it (`follow_source`). The move and split services already call it directly;
@@ -147,7 +144,7 @@ Logic lives in `services/audiobook_scheduler.py`. Every task does nothing while 
 
 `views/audiobook_worker_views.py` uses DRF `TokenAuthentication` and an `IsAudiobookWorker` permission (user in the `audiobook_workers` group). It implements every endpoint in the contract:
 
-- **`claim`:** `select_for_update(skip_locked=True)`, ordered by priority. It only offers parts whose `engine_profile` is in the worker's `engine_profiles`. Affinity: the worker's own audiobooks first, then audiobooks with no worker. The first claim pins the audiobook. The response includes `previous_cast`.
+- **`claim`:** `select_for_update(skip_locked=True)`, ordered by priority. Affinity: the worker's own audiobooks first, then audiobooks with no worker. The first claim pins the audiobook. The response includes `previous_cast`.
 - **`heartbeat`, upload, `complete`, `fail`:** every write is a conditional `UPDATE … WHERE id=… AND worker_id=… AND status='claimed'`, never a save of a part loaded earlier. Otherwise a late heartbeat could bring back a part the lease reaper has just requeued. Zero rows updated → `409`.
 - **Part EPUB:** reuses `epub_service._build` with a chapter range and the `calibre:series` / `series_index` metadata. Built on request and not stored.
 - **Upload pipeline:**
@@ -185,7 +182,7 @@ Logic lives in `services/audiobook_scheduler.py`. Every task does nothing while 
 | `©nam` | `"<Title> — Part 3 (Ch. 51–75)"` |
 | `©alb` | Title |
 | `©ART`, `aART` | Authors |
-| `©wrt` | Narrator credit, built from the part's `engine` ("AI voices: Castwright · Kokoro") |
+| `©wrt` | Narrator credit: "Generated voices (LNCrawler)" |
 | `©gen` | Audiobook |
 | `©day` | Year |
 | `desc`, `ldes` | Synopsis |
@@ -205,15 +202,15 @@ Logic lives in `services/audiobook_scheduler.py`. Every task does nothing while 
 - **`GET audiobooks/`** (API host, same style as `novels/`) lists published audiobooks.
   - Sort by `popular` (rank + plays), `new` (`first_published_at`), `updated` (`last_part_at`) or `longest`.
   - Filter by tag/genre (reuse the novel tag filters), with a search query.
-  - Paginated. Each card has cover, title, authors, hours, parts, a "new part" flag and the user's progress when logged in.
+  - Paginated. Each card has cover, title, authors, hours, parts, the language flag (top right of the cover) and the user's progress when logged in.
 - **`GET audiobooks/<novel slug>/?lang=en`** returns the detail:
   - synopsis, credits;
-  - the cast list (character → voice/engine, with narrator and main characters first);
+  - the cast list (character → voice/engine, with narrator and main characters first), returned as `description` per entry too (null when absent), and `has_volumes`;
   - parts with their state and `.m4b` download state;
   - chapters with `audio_url`, `duration_s` and number/title;
   - the user's progress.
 - **`GET audiobooks/<slug>/parts/<index>/download/?format=opus|aac`** returns `202` while building, then the file through nginx `X-Accel-Redirect` (internal `/_m4b/`; the cache folder is not reachable directly). Counts a download when the request starts the file.
-  - Open to everyone. Anonymous users get a per-IP throttle (e.g. 20 downloads per hour), and so do builds: an uncached AAC build costs CPU.
+  - Open to everyone, not throttled. An uncached AAC build costs CPU, so builds are cached and run as jobs.
 - **`GET|PUT|POST audiobooks/<slug>/progress/`** reads and saves listening progress.
   - Throttled. POST is for `fetch(..., {keepalive: true})` on page hide, which can send the Token header (`sendBeacon` can't).
   - When a chapter is ≥ 90 % listened, it also moves `ReadingHistory.last_read_chapter` forward (never back), so "continue reading" follows listening.
@@ -248,17 +245,17 @@ All new strings go through the `i18n-locales` skill, in all 21 locales.
     - progress saved every 15 s, on pause, on chapter end and on `pagehide`;
     - anonymous progress stays in `localStorage` and moves to the account on login.
 - **Home page** (`components/home/HomePage.tsx`):
-  - an **Audiobooks** section near the top, after the intro: the `featured` audiobook as a wide card with a "Listen now" button, then a horizontal row of square covers with hours, a "New part" badge and a play button that starts straight in the mini player;
+  - an **Audiobooks** section near the top, after the intro: the `featured` audiobook as a wide card with a "Listen now" button, then a horizontal row of square covers with hours, the language flag and a play button that starts straight in the mini player;
   - a **Continue listening** row for logged-in users;
   - a one-time intro banner announcing audiobooks (dismissible, reusing `introBanner.ts` styling), linking to `/audiobooks`;
   - matching placeholders in `HomeSkeleton.tsx`.
 - **`/audiobooks` page:** grid of square covers with sort, tag filters and search. The header links to the RSS help.
 - **Audiobook page** `/novels/:novelSlug/:sourceSlug/audiobook`:
-  - cover, title and authors, total hours, credits, a 30 s sample button;
+  - cover (language flag top right), title and authors, total hours, credits;
   - "Listen" / "Resume chapter 57 at 12:40";
-  - the voice cast (character → voice, narrator first);
+  - the characters (name and description, narrator first), only when a description exists;
   - parts with a **Download .m4b** split button (with a "Preparing…" state), chapter range, size, duration (estimated until the part exists) and the engine that narrated it:
-    - default "Standard (smaller)" for Opus, plus "Compatible (Apple Books, older players)" for AAC;
+    - "Opus (.m4b)" (smaller, the default) plus "AAC (.m4b)" (Apple Books, older players), each with its size;
     - the AAC option is preselected on iOS/macOS Safari.
   - the chapter list with play buttons and progress;
   - a "Subscribe in a podcast app" button (copy the RSS link, plus `antennapod://` and `pktc://` deep links);
@@ -286,18 +283,16 @@ In `lncrawler_api/tests/`, on `MergeTestCase`:
 - **`test_audiobook_enqueue.py`:**
   - ranking order, exclusions, caps, the disk budget;
   - part cutting by words: whole chapters only, a single over-long chapter becomes its own part, ranges stay frozen after chapters are added, the completed-novel tail rule;
-  - the part copies the audiobook's engine profile.
 - **Word counts:** counting from HTML, lazy fill when cutting, reset on a real chapter change.
 - **`test_audiobook_worker_api.py`:**
   - auth (anonymous, user, worker), claim order and affinity, concurrent claims (`TransactionTestCase`);
   - heartbeat `409`;
   - upload: hash mismatch; format rejections (stereo, MP3, bitrate over 40 kbps, too short), with fixtures made by ffmpeg; idempotent re-upload;
   - `complete` with a missing chapter, cast merge, QA gate, engine recorded, regenerated-part swap, `ping`;
-  - claim filtered by engine profile.
 - **`test_audiobook_scheduler.py`:** enqueue passes and budgets, lease reaper, staleness, moved sources, LRU cache pruning.
 - **`test_audiobook_media.py`:**
   - `.m4b` job output in both formats: `ffprobe` shows the codec (opus / aac) and the chapters, mutagen shows the tags and cover;
-  - anonymous download throttle;
+  - DMCA books still download and play (only the listings hide them);
   - `.ogg` tags after upload;
   - square cover size;
   - retag on title change.
@@ -325,6 +320,23 @@ In `lncrawler_api/tests/`, on `MergeTestCase`:
 ## Decisions taken
 
 1. AAC download alongside Opus: yes. It's the same `.m4b` job with a different codec flag.
-2. Downloads are open to everyone, with a per-IP throttle for anonymous users.
+2. Downloads are open to everyone, not throttled.
 3. Parts are cut by word count (75,000 words by default), whole chapters only.
-4. The engine is stored per part and per character, and the profile per audiobook is free text, ready for new engines.
+4. The engine is stored per part and per character, as the worker reports it.
+5. Languages a worker takes are announced with its ping (`languages`, default English), and a language counts for 7 days after its last announcement. Several workers: the union of their languages.
+6. A pin on an audiobook is released after 7 days without contact from its worker.
+7. Popularity of a new book is per novel and language: the total views of its sources in that language.
+8. Adult: guests and viewers who allow adult content (`show_r18` yes or blur) see adult audiobooks, flagged `is_adult`. Only logged-in viewers who chose no do not. SEO pages and the sitemap never list them; the per-book feed allows them.
+9. Catalog feed `audiobooks/feed.xml?adult=exclude|include|only` (default exclude): plain RSS 2.0, one item per listenable part, newest first, 50 items. Its URL is `catalog_feed_url` in the list response.
+10. Reading and listening history are one list (`?kind=all|read|listen`), newest first, 20 per page. A listening entry can be deleted by its owner.
+11. Narrator credit is "Generated voices (LNCrawler)" everywhere; downloads carry a " [generated]" suffix.
+12. The language is shown as a flag everywhere a book is: card and home cover (top right), the audiobook page cover, and "Also available in" links to the other languages of the novel (clickable flags, no chips). The list has a language filter, shown when more than one language is visible. Language names come from `languageCodeToName`, flags from `languageFlagUrl`, as in the novel cards.
+13. No 30 s sample: the preview button, its player mode and the notice are removed.
+14. The cast section is titled "Characters" and is shown only when at least one character has a description (from the worker's optional `description`, see the contract). Each entry is the character name (bold) with its description. No caption.
+15. The audiobooks block sits on the home page right after "Best of all time". The intro banner is removed, and so is the "Novels you added" section.
+16. Source pages: the audiobook banner sits below the source's action rows, with a top margin.
+17. The "Disclaimer" paragraphs of wuxiaworld.site synopses are dropped by the crawler, and a data migration strips them from the synopses already stored.
+18. No pills: no "New part" badge and no "Generated" chip on cards or on the page. The generated disclaimer stays as a line on the page.
+19. Formats are shown by codec, both are `.m4b`: "Opus (.m4b)" and "AAC (.m4b)", with the size and a short use note. The download button names the selected one. Apple Podcasts does not play Opus files, so its help points to the AAC download.
+20. Volumes: when a source's chapters span more than one volume, each part lists its volumes in its meta line ("Volume 2: Title", "Volumes 2–3") and the expanded chapter list has a sub-heading at each volume change. Novels without volumes see no change.
+21. No engine profiles: the worker decides the engines; prod only records what each part and character was made with.

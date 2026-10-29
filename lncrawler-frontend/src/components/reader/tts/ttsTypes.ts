@@ -1,7 +1,8 @@
 import type { KokoroDevice, NeuralOptions, SupertonicDevice, TtsThrottle } from './voiceCatalog';
 import type { HighlightMode } from './textSegments';
 
-export type TtsEngineChoice = 'browser' | 'neural';
+/** 'narrated' plays the chapter's audiobook recording when it has one, else 'browser'. */
+export type TtsEngineChoice = 'browser' | 'neural' | 'narrated';
 export type { HighlightMode as TtsHighlightMode, KokoroDevice as TtsKokoroDevice };
 
 /** Text-to-speech preferences, persisted with the other reader settings. */
@@ -68,7 +69,7 @@ export const TTS_NUMERIC_RANGES = {
 } as const;
 
 export const TTS_ENUM_VALUES = {
-  ttsEngine: ['browser', 'neural'],
+  ttsEngine: ['browser', 'neural', 'narrated'],
   ttsHighlight: ['none', 'paragraph', 'sentence'],
   ttsKokoroDevice: ['wasm', 'webgpu'],
   ttsSupertonicDevice: ['auto', 'wasm', 'webgpu'],

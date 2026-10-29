@@ -496,6 +496,10 @@ class DownloaderService:
             from .epub_service import run_epub_job
 
             run_epub_job(job_id, payload)
+        elif job_type == Job.JOB_TYPE_M4B:
+            from .audiobook_m4b import run_m4b_job
+
+            run_m4b_job(job_id, payload)
         else:
             cls._run_search_process(job_id, payload)
 

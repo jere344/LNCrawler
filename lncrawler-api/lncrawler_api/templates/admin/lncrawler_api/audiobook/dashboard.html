@@ -1,0 +1,130 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label='lncrawler_api' %}">Lncrawler api</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_audiobook_changelist' %}">Audiobooks</a>
+  &rsaquo; Dashboard
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Status</h2>
+    <p>
+      Audiobooks generation:
+      {% if enabled %}<strong>ENABLED</strong>{% else %}<strong style="color:#dc3545;">DISABLED</strong> (<code>AUDIOBOOK_ENABLED=False</code>){% endif %}
+    </p>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Workers</h2>
+    <table>
+      <thead>
+        <tr><th>Worker</th><th>State</th><th>Last seen</th><th>Version</th><th>Message</th></tr>
+      </thead>
+      <tbody>
+        {% for worker in workers %}
+          <tr>
+            <td>{{ worker.worker_id }}</td>
+            <td>{% if worker.is_online %}online{% else %}<span style="color:#dc3545; font-weight:bold;">offline since {{ worker.last_seen_at|default:"never" }}</span>{% endif %}</td>
+            <td>{{ worker.last_seen_at|default:"never" }}</td>
+            <td>{{ worker.version|default:"-" }}</td>
+            <td>{{ worker.message|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5">No worker has connected yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Queue</h2>
+    <p>
+      {% for status, label, count in queue %}{{ label }}: <strong>{{ count }}</strong>{% if not forloop.last %} &middot; {% endif %}{% endfor %}
+    </p>
+    <p>
+      Queued words: <strong>{{ queued_words }}</strong>
+      &middot; Est. nights to empty the queue:
+      <strong>{% if est_nights is not None %}{{ est_nights }}{% else %}&mdash;{% endif %}</strong>
+    </p>
+    <p>
+      Queue words (queued and claimed): <strong>{{ budget_queued_words }}</strong> / target <strong>{{ queue_target_words }}</strong>
+      &middot; Started books in rotation: <strong>{{ started_books }}</strong>
+    </p>
+    <table>
+      <thead>
+        <tr><th>Scheduled task</th><th>Status</th><th>Next run</th></tr>
+      </thead>
+      <tbody>
+        {% for task in scheduled_tasks %}
+          <tr>
+            <td>{{ task.name }}</td>
+            <td>{{ task.get_status_display }}</td>
+            <td>{{ task.next_run_at|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3">No audiobook task has been registered yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Last 7 days</h2>
+    <table>
+      <thead>
+        <tr><th>Day</th><th>Parts done</th><th>Hours produced</th><th>Words</th></tr>
+      </thead>
+      <tbody>
+        {% for row in per_day %}
+          <tr>
+            <td>{{ row.day|date:"Y-m-d" }}</td>
+            <td>{{ row.parts }}</td>
+            <td>{{ row.hours|floatformat:1 }}</td>
+            <td>{{ row.words }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4">No part completed in the last 7 days.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Recently failed parts</h2>
+    <ul>
+      {% for part in failed_parts %}
+        <li>
+          <a href="{% url 'admin:lncrawler_api_audiobookpart_change' part.pk %}">{{ part }}</a>:
+          {{ part.error_message|truncatechars:160|default:"no message" }}
+        </li>
+      {% empty %}
+        <li>No failed part.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Disk</h2>
+    <p>
+      Audio files: <strong>{{ disk_used_gb|floatformat:2 }} GB</strong>
+      of {{ disk_budget_gb|floatformat:1 }} GB budget ({{ disk_percent|floatformat:0 }}%)
+    </p>
+    <p>
+      m4b cache: <strong>{{ m4b_cache_gb|floatformat:2 }} GB</strong> / {{ m4b_cap_gb|floatformat:1 }} GB cap
+    </p>
+  </div>
+
+  <div class="module" style="padding:12px; margin-bottom:16px;">
+    <h2>Last 30 days</h2>
+    <p>Plays: <strong>{{ plays_30d }}</strong> &middot; Downloads: <strong>{{ downloads_30d }}</strong></p>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 # Import all admin modules to ensure they are registered
 from . import (
+    audiobook_admin,
     author_merge_admin,
     candidate_admin,
     chat_admin,

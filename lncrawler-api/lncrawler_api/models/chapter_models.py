@@ -33,7 +33,8 @@ class Chapter(models.Model):
     volume_title = models.CharField(max_length=500, blank=True, null=True)
     images = ArrayField(models.CharField(max_length=500), default=list)  # store only image filenames
     has_content = models.BooleanField(default=False)  # New field to track content availability
-    
+    word_count = models.PositiveIntegerField(null=True, blank=True)  # null = not counted yet
+
     class Meta:
         ordering = ['chapter_id']
         # One covering unique index serves both the uniqueness check and the

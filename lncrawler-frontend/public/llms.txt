@@ -11,6 +11,8 @@
   title, author, tag, language, status and rating.
 - [Add a novel](https://lncrawler.monster/download): download a novel from a
   supported source into the library.
+- [Audiobooks](https://lncrawler.monster/audiobooks/): generated multi-voice audiobooks of
+  popular novels, streamable and downloadable as .m4b.
 
 ## Indexing
 
@@ -18,3 +20,5 @@
 - Novel pages: https://lncrawler.monster/novels/{novel-slug}/
 - Source (per-language) pages: https://lncrawler.monster/novels/{novel-slug}/{source-slug}/
 - Chapter lists: https://lncrawler.monster/novels/{novel-slug}/{source-slug}/chapterlist/
+- Audiobook pages: https://lncrawler.monster/audiobooks/{novel-slug}/ (each page links a
+  podcast RSS feed of its chapters)

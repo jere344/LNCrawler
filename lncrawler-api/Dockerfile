@@ -24,6 +24,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 
+# ffmpeg/ffprobe: audiobook upload checks and .m4b builds. Its own layer, so a
+# requirements change does not reinstall it.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install the other Python dependencies (pip's download cache is kept between builds).
 # The constraint fails the build if requirements.txt pins another Playwright
 # version than requirements-playwright.txt (the browser above would not match).

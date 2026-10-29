@@ -12,6 +12,7 @@ import ChatSkeleton from '@components/chat/ChatSkeleton';
 import SearchSkeleton from '@components/search/SearchSkeleton';
 import ChapterListSkeleton from '@components/novels/ChapterListSkeleton';
 import ImageGallerySkeleton from '@components/novels/ImageGallerySkeleton';
+import AudiobooksSkeleton, { AudiobookPageSkeleton } from '@components/audiobooks/AudiobooksSkeleton';
 import {
     homeLoader,
     novelRedirectLoader,
@@ -47,6 +48,8 @@ const ImageGallery = lazy(() => import('@components/novels/ImageGallery'));
 const ChatPage = lazy(() => import('@components/chat/ChatPage'));
 const ReadingListsPage = lazy(() => import('@components/readinglist/ReadingListsPage'));
 const ReadingListDetail = lazy(() => import('@components/readinglist/ReadingListDetail'));
+const AudiobooksPage = lazy(() => import('@components/audiobooks/AudiobooksPage'));
+const AudiobookPage = lazy(() => import('@components/audiobooks/AudiobookPage'));
 const NovelUpdatesImportPage = lazy(() => import('@components/import/NovelUpdatesImportPage'));
 
 // Pathless layout: keeps App's chrome (Header/Footer) while the deepest matched
@@ -77,6 +80,8 @@ export const router = createBrowserRouter([
                     // Library and History routes
                     { path: '/library', element: S(LibraryPage) },
                     { path: '/history', element: S(ReadingHistoryPage) },
+                    { path: '/audiobooks', element: <PageBoundary fallback={<AudiobooksSkeleton />}><AudiobooksPage /></PageBoundary> },
+                    { path: '/audiobooks/:slug', element: <PageBoundary fallback={<AudiobookPageSkeleton />}><AudiobookPage /></PageBoundary> },
 
                     // Loader routes hand back an un-awaited promise (see AsyncData
                     // in router/loaders.ts): navigation commits instantly and the

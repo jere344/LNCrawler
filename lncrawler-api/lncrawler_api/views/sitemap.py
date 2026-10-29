@@ -2,9 +2,11 @@ from django.contrib.sitemaps import Sitemap
 from django.conf import settings
 from urllib.parse import urlparse
 from django.db import models
+from django.db.models import F
 from django.db.models.functions import Coalesce
 
 from ..models import Novel, NovelFromSource
+from ..services.audiobook_public import audiobook_path, visible_audiobooks
 from ..utils.query_helpers import public_novels, public_sources
 
 # Parse SITE_URL once
@@ -144,3 +146,27 @@ class ImageGallerySitemap(BaseSitemap):
 
     def location(self, obj):
         return f'/novels/{obj.novel.slug}/{obj.source_slug}/gallery/'
+
+
+class AudiobookSitemap(BaseSitemap):
+    priority = 0.8
+    changefreq = 'daily'
+
+    def items(self):
+        # The audiobooks section page first, then each audiobook the anonymous viewer may see.
+        return ['/audiobooks/', *visible_audiobooks(adult='exclude').order_by('novel__slug', 'language')]
+
+    def lastmod(self, obj):
+        return None if isinstance(obj, str) else obj.last_part_at
+
+    def get_latest_lastmod(self):
+        return (
+            visible_audiobooks(adult='exclude').order_by(F('last_part_at').desc(nulls_last=True))
+            .values_list('last_part_at', flat=True)
+            .first()
+        )
+
+    def location(self, obj):
+        if isinstance(obj, str):
+            return obj
+        return audiobook_path(obj.novel.slug, obj.language)

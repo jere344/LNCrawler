@@ -634,6 +634,11 @@ class NovelFromSource(models.Model):
                         chapter_data, source_dir, chapter_id, completed=completed
                     )
                 }
+                # The crawler counts the words when it saves the body: that count is kept.
+                # Without one, the existing count is reset below when the text moved.
+                meta_word_count = chapter_data.get('word_count')
+                if isinstance(meta_word_count, int) and not isinstance(meta_word_count, bool):
+                    chapter_dict['word_count'] = meta_word_count
 
                 existing = None
                 url = chapter_dict['url']
@@ -648,6 +653,11 @@ class NovelFromSource(models.Model):
 
                 if existing is not None:
                     used_pks.add(existing.pk)
+                    # The text moved or changed: drop the word count so it is recounted
+                    if (existing.url != chapter_dict['url']
+                            or original_ids.get(existing.pk) != chapter_id
+                            or (not existing.has_content and chapter_dict['has_content'])):
+                        existing.word_count = None
                     existing.chapter_id = chapter_id
                     for key, value in chapter_dict.items():
                         setattr(existing, key, value)
@@ -766,7 +776,7 @@ class NovelFromSource(models.Model):
                 if chapters_to_update:
                     for chapter, final_id in reassigned:
                         chapter.chapter_id = final_id
-                    fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content']
+                    fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content', 'word_count']
                     bulk_update_chunked(chapters_to_update, fields_to_update)
             
             # Update last_chapter_update timestamp

@@ -126,6 +126,7 @@ interface ReaderSettingsProps {
   novelLanguage: string;
   onTtsBeforePreview?: () => void;
   focusTts?: boolean;
+  hasNarration?: boolean;
 }
 
 const ReaderSettings = ({
@@ -139,6 +140,7 @@ const ReaderSettings = ({
   novelLanguage,
   onTtsBeforePreview,
   focusTts = false,
+  hasNarration = false,
 }: ReaderSettingsProps) => {
   const { t } = useTranslation();
   const { notify } = useNotification();
@@ -473,6 +475,7 @@ const ReaderSettings = ({
               updateSetting(key, value as ReaderSettings[K])}
             novelLanguage={novelLanguage}
             onBeforePreview={onTtsBeforePreview}
+            hasNarration={hasNarration}
           />
         </SettingsSection>
 

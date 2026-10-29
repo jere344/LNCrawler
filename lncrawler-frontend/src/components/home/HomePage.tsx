@@ -23,6 +23,7 @@ import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSe
 import NovelRecommendation from '@components/common/NovelRecommendation';
 import { getNovelSourceLink, getSourceLink } from '@utils/Misc';
 import { introBannerSx } from './introBanner';
+import HomeAudiobooksSection from '@components/audiobooks/HomeAudiobooksSection';
 import { useLanguage } from '@context/LanguageContext';
 import { useAuth } from '@context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -42,7 +43,7 @@ const HomePage: React.FC = () => {
   const error = loaderData.ok ? null : t('home.loadFailed');
   // Cold load and navigation are covered by the route's HydrateFallback/Suspense
   // skeleton; this only spins on a language-change revalidation.
-  const loading = navigation.state === 'loading' || revalidator.state === 'revalidating';
+  const loading = navigation.state === 'loading' || revalidator.state === 'loading';
 
   // Rankings tab state
   const [rankingTab, setRankingTab] = useState<number>(1);
@@ -138,26 +139,6 @@ const HomePage: React.FC = () => {
         </Box>
       )}
 
-      {/* Novels You Added Section (connected users who added novels) */}
-      {!loading && (homeData?.novels_you_added?.length ?? 0) > 0 && (
-        <Box sx={{ mb: 6 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" component="h2" sx={{ fontWeight: "bold" }}>
-              {t('home.novelsYouAdded')}
-            </Typography>
-          </Box>
-          <Divider sx={{ mb: 3 }} />
-
-          <Grid container spacing={2}>
-            {homeData!.novels_you_added.slice(0, 12).map((novel) => (
-              <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
-                <NovelItemCard novel={novel} forceAdultBlur showAddedDate {...getNovelSourceLink(novel)} />
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      )}
-
       {/* Weekly Trending Section */}
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -231,6 +212,8 @@ const HomePage: React.FC = () => {
           </Grid>
         )}
       </Box>
+
+      {!loading && <HomeAudiobooksSection audiobooks={homeData?.audiobooks} />}
 
       {/* Ranking Section with Tabs */}
       <Box sx={{ mb: 6 }}>

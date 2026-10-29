@@ -1,0 +1,15 @@
+{% extends "seo/base.html" %}
+{% block content %}
+<h1>Generated audiobooks</h1>
+<p>Generated multi-voice audiobooks of popular light novels, streamable and downloadable as .m4b.</p>
+<ul class="sources">
+{% for item in items %}
+  <li>
+    <a href="{{ item.url }}">{{ item.title }}</a>
+    <div class="meta">{{ item.duration }}</div>
+  </li>
+{% empty %}
+  <li>No audiobooks yet.</li>
+{% endfor %}
+</ul>
+{% endblock %}

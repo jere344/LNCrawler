@@ -25,7 +25,7 @@ export interface ApiError extends Error {
 const defaults = { headers: { common: {} as Record<string, string> } };
 
 // More robust function to get CSRF token from cookies
-const getCsrfToken = (): string | null => getCookie('csrftoken') || null;
+export const getCsrfToken = (): string | null => getCookie('csrftoken') || null;
 
 // Function to explicitly fetch CSRF token when needed
 const fetchCsrfToken = async (): Promise<string | null> => {
@@ -157,6 +157,7 @@ export { readingListService } from './readinglist.service';
 export { profileService } from './profile.service';
 export { friendService } from './friend.service';
 export { importService } from './import.service';
+export { audiobookService } from './audiobook.service';
 
 // Set the auth token on startup
 const token = localStorage.getItem(AUTH_TOKEN_KEY);

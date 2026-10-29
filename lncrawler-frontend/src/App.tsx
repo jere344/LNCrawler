@@ -10,12 +10,22 @@ import Header from '@components/Header';
 import Footer from '@components/Footer';
 import ErrorBoundary from '@components/common/ErrorBoundary';
 import { NotificationProvider } from '@context/NotificationContext';
+import { AudioPlayerProvider, useAudioPlayer } from '@context/AudioPlayerContext';
+import MiniPlayer from '@components/audio/MiniPlayer';
+import FullPlayer from '@components/audio/FullPlayer';
 import { useScrollRestoration } from './router/useScrollRestoration';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     useScrollRestoration();
 
     return <>{children}</>;
+};
+
+// Keeps the page bottom clear of the mini player while it is shown.
+const PlayerSpacer = () => {
+    const { barHeight } = useAudioPlayer();
+
+    return <Box sx={{ height: barHeight > 0 ? `calc(${barHeight}px + env(safe-area-inset-bottom))` : 0 }} />;
 };
 
 // App with theme context
@@ -36,6 +46,7 @@ function AppWithTheme() {
         <MuiThemeProvider theme={localizedTheme}>
             <ErrorBoundary>
                 <NotificationProvider>
+                <AudioPlayerProvider>
                 <Wrapper>
                 <Box
                     sx={{
@@ -65,8 +76,12 @@ function AppWithTheme() {
                         </Suspense>
                     </Container>
                     <Footer />
+                    <PlayerSpacer />
                 </Box>
+                <MiniPlayer />
+                <FullPlayer />
                 </Wrapper>
+                </AudioPlayerProvider>
                 </NotificationProvider>
             </ErrorBoundary>
         </MuiThemeProvider>

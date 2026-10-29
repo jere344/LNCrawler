@@ -7,6 +7,10 @@
 <p><a href="{{ site_url }}/novels/{{ novel.slug }}/{{ primary.source_slug }}/chapterlist/">Chapter list ({{ primary.source_slug }}) &raquo;</a></p>
 {% endif %}
 
+{% for link in audiobook_links %}
+<p><a href="{{ link.url }}">Listen to the audiobook{% if link.language != 'en' %} ({{ link.language }}){% endif %} &raquo;</a></p>
+{% endfor %}
+
 {% if primary %}
 <h2>About {{ novel.title }}</h2>
 <ul class="sources">

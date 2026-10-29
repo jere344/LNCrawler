@@ -201,6 +201,18 @@ LNCRAWL_URL = "lightnovels/"
 # hasn't changed. Also invalidated immediately when the source is updated.
 EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
 
+# Audiobooks: parts are cut by word count (see services/audiobook_service.py).
+# AUDIOBOOK_ENABLED=False stops the scheduled enqueue and worker claims. Published audiobooks stay live and keep their upkeep.
+AUDIOBOOK_ENABLED = os.environ.get("AUDIOBOOK_ENABLED", "False") == "True"
+# Target words per part; a chapter is never split, so a part can run over
+AUDIOBOOK_PART_WORDS = int(os.environ.get("AUDIOBOOK_PART_WORDS", 75000))
+# Words of queued parts the hourly task keeps ready for the worker (about one night of work)
+AUDIOBOOK_QUEUE_WORDS = int(os.environ.get("AUDIOBOOK_QUEUE_WORDS", 600000))
+# Disk budget for the audio files, in GB
+AUDIOBOOK_DISK_BUDGET_GB = float(os.environ.get("AUDIOBOOK_DISK_BUDGET_GB", 50))
+# Size cap of the .m4b download cache, in GB
+AUDIOBOOK_M4B_CACHE_GB = float(os.environ.get("AUDIOBOOK_M4B_CACHE_GB", 5))
+
 # Cross-source novel dedup (find_merge_candidates). certainty is 0..1; the
 # command only queues candidates, the LLM judge (run_llm) or a
 # human merges them.
@@ -317,6 +329,8 @@ REST_FRAMEWORK = {
         'register': os.environ.get('THROTTLE_REGISTER', '10/hour'),
         'password_reset': os.environ.get('THROTTLE_PASSWORD_RESET', '5/hour'),
         'user_exists': os.environ.get('THROTTLE_USER_EXISTS', '30/min'),
+        # Audiobooks, see views/audiobook_views.py
+        'audiobook_progress': '120/min',
     },
 }
 

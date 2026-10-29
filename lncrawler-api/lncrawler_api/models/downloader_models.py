@@ -32,11 +32,13 @@ class Job(models.Model):
     JOB_TYPE_SEARCH = 'search'
     JOB_TYPE_DOWNLOAD = 'download'
     JOB_TYPE_EPUB = 'epub'
-    
+    JOB_TYPE_M4B = 'm4b'
+
     JOB_TYPE_CHOICES = [
         (JOB_TYPE_SEARCH, 'Search'),
         (JOB_TYPE_DOWNLOAD, 'Download'),
         (JOB_TYPE_EPUB, 'EPUB'),
+        (JOB_TYPE_M4B, 'M4B'),
     ]
     
     # Primary fields
@@ -93,14 +95,14 @@ class Job(models.Model):
                 condition=models.Q(status="created"),
             ),
         ]
-        # At most one active EPUB build per source/volume key (stored in `query`).
+        # At most one active EPUB or M4B build per key (stored in `query`).
         constraints = [
             models.UniqueConstraint(
                 fields=["query"],
                 condition=models.Q(
-                    job_type="epub", status__in=["created", "downloading"]
+                    job_type__in=["epub", "m4b"], status__in=["created", "downloading"]
                 ),
-                name="job_unique_active_epub",
+                name="job_unique_active_build",
             ),
         ]
     

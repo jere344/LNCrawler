@@ -32,6 +32,7 @@ import BreadcrumbNav from '../common/BreadcrumbNav';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
+import HeadphonesIcon from '@mui/icons-material/Headphones';
 import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 import type { AsyncData, ChapterListLoaderData } from '../../router/loaders';
@@ -257,6 +258,9 @@ const ChapterList = () => {
                           primary={getChapterLabel(t, chapter.title, chapter.chapter_id)}
                           secondary={!chapter.has_content ? t('chapterList.contentUnavailable') : null}
                         />
+                        {chapter.has_audio && (
+                          <HeadphonesIcon fontSize="small" color="primary" titleAccess={t('audiobooks.chapterHasAudio')} sx={{ ml: 1, flexShrink: 0 }} />
+                        )}
                       </ListItemButton>
                     </ListItem>
                   ))}

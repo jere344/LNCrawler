@@ -12,6 +12,7 @@ import { useAuth } from '@context/AuthContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
 import { DmcaBadge } from '@components/common/DmcaBadge';
+import { AudiobookBadge } from '@components/audiobooks/AudiobookBadge';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
@@ -223,6 +224,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           />
           <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
           {novel.is_dmca && <DmcaBadge bottom={8} />}
+          {novel.has_audiobook && <AudiobookBadge />}
           {/* Language flags */}
           <Box
             sx={{

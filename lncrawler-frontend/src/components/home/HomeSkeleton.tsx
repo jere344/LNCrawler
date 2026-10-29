@@ -71,6 +71,21 @@ const HomeSkeleton = () => {
         </Grid>
       </Section>
 
+      {/* Audiobooks block: featured card and a row of covers, as in HomeAudiobooksSection. */}
+      <Box sx={{ mb: 6 }}>
+        <Skeleton variant="text" width={200} height={40} sx={{ mb: 1 }} />
+        <Divider sx={{ mb: 3 }} />
+        <Skeleton variant="rounded" height={156} sx={{ mb: 4, borderRadius: 2 }} />
+        <Box sx={{ display: 'flex', gap: 2, overflow: 'hidden' }}>
+          {[...Array(6)].map((_, index) => (
+            <Box key={`audiobook-skeleton-${index}`} sx={{ flex: '0 0 140px' }}>
+              <Skeleton variant="rounded" sx={{ aspectRatio: '1 / 1', height: 'auto', borderRadius: 2 }} />
+              <Skeleton width="80%" sx={{ mt: 1 }} />
+            </Box>
+          ))}
+        </Box>
+      </Box>
+
       <Box sx={{ mb: 6 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>

@@ -42,6 +42,7 @@ import NovelTags from './common/NovelTags';
 import DetailRow from './sourceDetail/DetailRow';
 import ReadingListsPanel from './sourceDetail/ReadingListsPanel';
 import SourceDetailSkeleton from './sourceDetail/SourceDetailSkeleton';
+import SourceAudiobookBanner from '@components/audiobooks/SourceAudiobookBanner';
 import SourceCover from './sourceDetail/SourceCover';
 import SourceTitleBar from './sourceDetail/SourceTitleBar';
 import SourceHeroDetails from './sourceDetail/SourceHeroDetails';
@@ -250,6 +251,7 @@ const SourceDetail = () => {
                   preparingKey={preparingKey}
                   startDownload={startDownload}
                 />
+                {source.audiobook && <SourceAudiobookBanner audiobook={source.audiobook} isAdult={source.audiobook.is_adult} />}
               </Grid>
             </Grid>
           </Box>

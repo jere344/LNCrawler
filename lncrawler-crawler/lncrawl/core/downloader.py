@@ -25,6 +25,7 @@ from pathlib import Path
 from PIL import Image
 
 from ..models.chapter import Chapter
+from ..utils.words import count_words
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ def _save_chapter(file_name: Path, chapter: Chapter, output_path: str) -> None:
     if not chapter.body.startswith(title):
         chapter.body = title + chapter.body
 
+    chapter.word_count = count_words(chapter.body)
     _write_chapter_json(output_path, file_name, chapter.to_dict())
 
 
@@ -188,13 +190,16 @@ def _restore_chapter(chapter: Chapter, old_chapter: dict, file_name: Path, outpu
         old_chapter.get(key) != getattr(chapter, key)
         for key in fields if key != "id"
     )
+    if changed:
+        old_h1 = f"<h1>{html.escape(old_chapter.get('title') or '')}</h1>"
+        new_h1 = f"<h1>{html.escape(chapter.title or '')}</h1>"
+        if chapter.body and chapter.body.startswith(old_h1):
+            chapter.body = new_h1 + chapter.body[len(old_h1):]
+    # The count includes the <h1> title, so it is taken after the title is rewritten.
+    if "word_count" not in old_chapter:
+        chapter.word_count = count_words(chapter.body)
     if not changed:
         return
-
-    old_h1 = f"<h1>{html.escape(old_chapter.get('title') or '')}</h1>"
-    new_h1 = f"<h1>{html.escape(chapter.title or '')}</h1>"
-    if chapter.body and chapter.body.startswith(old_h1):
-        chapter.body = new_h1 + chapter.body[len(old_h1):]
     try:
         _write_chapter_json(output_path, file_name, chapter.to_dict())
     except Exception:

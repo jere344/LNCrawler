@@ -19,6 +19,7 @@ export interface Novel {
   similar_novels?: SimilarNovel[];
   is_dmca?: boolean;
   is_adult?: boolean;
+  has_audiobook?: boolean;
   // Library-only fields (present when serialized as a library item)
   bookmark_id?: string;
   note?: string | null;
@@ -45,6 +46,7 @@ export interface NovelListResponse {
 }
 
 export interface NovelFromSource {
+  audiobook?: { slug: string; language: string; duration_s: number; is_adult?: boolean } | null;
   id: string;
   title: string;
   source_url: string;
@@ -112,10 +114,12 @@ export interface NovelDetail {
   reading_lists?: ReadingList[];
   is_dmca?: boolean;
   is_adult?: boolean;
+  audiobooks?: { language: string; duration_s: number }[];
 }
 
 export interface SourceDetailResponse extends NovelFromSource {
   novel: NovelDetail;
+  audiobook?: { language: string; duration_s: number; slug: string; is_adult?: boolean } | null;
 }
 
 export interface SimilarNovel extends Novel {
@@ -140,6 +144,8 @@ export interface ChapterContent {
   images_path?: string;
   source_overview_image_url?: string | null;
   language?: string | null;
+  audio_url?: string | null;
+  audio_duration_s?: number | null;
 }
 
 export interface UnavailableChapterInfo {
@@ -158,6 +164,7 @@ export interface Chapter {
   volume: number;
   volume_title: string | null;
   has_content: boolean;
+  has_audio?: boolean;
 }
 
 export interface ReadingHistory {

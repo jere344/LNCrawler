@@ -16,13 +16,25 @@ from django.db.models import Count, Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
-from ..models import Novel, NovelFromSource
+from ..models import AudiobookChapter, AudiobookPart, Novel, NovelFromSource
 from ..models.source_helpers import resolve_output_path
 from ..models.sources_models import adult_novel_ids
+from ..services import audiobook_media
+from ..services.audiobook_public import (
+    LISTENABLE_PART_Q,
+    annotate_public_totals,
+    audiobook_path,
+    chapter_audio_url,
+    cover_urls,
+    get_visible_audiobook_or_404,
+    narrator_credit,
+    visible_audiobooks,
+)
 from ..utils import build_media_url, resolve_novel_slug
 from ..utils.chapter_utils import get_chapter
 from ..utils.query_helpers import preferred_source_key, public_novels
 from ..utils.seo import _clean_text, _sanitize_body
+from .audiobook_views import SORTS
 
 SITE_URL = settings.SITE_URL.rstrip("/")
 SITE_NAME = "LNCrawler"
@@ -77,6 +89,22 @@ def _chapter_label(chapter):
 def _is_adult_novel(novel):
     # Adult if more than half of its sources are; matches the sitemap filters.
     return adult_novel_ids().filter(novel_id=novel.pk).exists()
+
+
+def _duration_label(seconds):
+    """A length as people read it: '12 h 30 min'."""
+    hours, minutes = divmod(round(seconds / 60), 60)
+    return f"{hours} h {minutes} min" if hours else f"{minutes} min"
+
+
+def _iso_duration(seconds):
+    """A length as ISO 8601, e.g. PT12H30M."""
+    hours, rest = divmod(round(seconds), 3600)
+    minutes, secs = divmod(rest, 60)
+    text = "".join(
+        f"{value}{unit}" for value, unit in ((hours, "H"), (minutes, "M"), (secs, "S")) if value
+    )
+    return f"PT{text or '0S'}"
 
 
 def _jsonld(*objects):
@@ -232,6 +260,11 @@ def seo_novel(request, novel_slug):
         ],
     }
 
+    audiobook_links = [
+        {"url": f"{SITE_URL}{audiobook_path(novel.slug, a.language)}", "language": a.language}
+        for a in visible_audiobooks(adult='exclude').filter(novel=novel).order_by("language")
+    ]
+
     return _render(
         request,
         "seo/novel.html",
@@ -250,6 +283,7 @@ def seo_novel(request, novel_slug):
             "languages": sorted({s.language for s in sources if s.language}),
             "chapter_total": sum(getattr(s, "chapter_total", 0) or 0 for s in sources),
             "tags": tags,
+            "audiobook_links": audiobook_links,
             "lang": primary.language or "en",
             "site_url": SITE_URL,
         },
@@ -527,4 +561,148 @@ def seo_chapter(request, novel_slug, source_slug, chapter_number):
             "site_url": SITE_URL,
         },
         lastmod=source.last_chapter_update or source.updated_at,
+    )
+
+
+SEO_AUDIOBOOK_LIST_SIZE = 100
+
+
+def seo_audiobooks(request):
+    audiobooks = (
+        annotate_public_totals(visible_audiobooks(adult='exclude'))
+        .order_by(*SORTS["popular"])[:SEO_AUDIOBOOK_LIST_SIZE]
+    )
+    items = [
+        {
+            "title": audiobook.novel.title,
+            "url": f"{SITE_URL}{audiobook_path(audiobook.novel.slug, audiobook.language)}",
+            "duration": _duration_label(audiobook.public_duration_s),
+        }
+        for audiobook in audiobooks
+    ]
+    return _render(
+        request,
+        "seo/audiobooks.html",
+        {
+            "title": f"Generated audiobooks - Listen to Light Novels | {SITE_NAME}",
+            "description": (
+                "Generated multi-voice audiobooks of popular light novels on LNCrawler, "
+                "streamable and downloadable as .m4b."
+            ),
+            "keywords": "audiobooks, light novels, listen online",
+            "canonical": f"{SITE_URL}/audiobooks/",
+            "og_image": DEFAULT_OG_IMAGE,
+            "og_type": "website",
+            "jsonld": _jsonld(),
+            "items": items,
+            "lang": "en",
+            "site_url": SITE_URL,
+        },
+    )
+
+
+def seo_audiobook(request, novel_slug):
+    novel = resolve_novel_slug(novel_slug)
+    if novel.is_dmca:
+        return _gone(request, 451, "This work is unavailable due to a DMCA request.")
+    audiobook = get_visible_audiobook_or_404(
+        None, novel_slug, request.GET.get("lang", "en"), adult='exclude'
+    )
+
+    parts = list(
+        AudiobookPart.objects.filter(LISTENABLE_PART_Q, audiobook=audiobook).order_by("index")
+    )
+    first_chapter = (
+        AudiobookChapter.objects.filter(part__in=parts)
+        .select_related("part")
+        .order_by("part__index", "chapter__chapter_id")
+        .first()
+    )
+    audio_url = chapter_audio_url(first_chapter) if first_chapter else None
+    cover_jpg = cover_urls(audiobook)[1]
+
+    synopsis = _clean_text(audiobook.source.synopsis, 320)
+    author_names = sorted(author.name for author in audiobook.source.authors.all())
+    narrator = narrator_credit(audiobook)
+    disclaimer = audiobook_media.audiobook_metadata(audiobook)['disclaimer']
+    canonical = f"{SITE_URL}{audiobook_path(novel.slug, audiobook.language)}"
+    description = f"Generated audiobook: {novel.title}, narrated with generated voices. {synopsis}".strip()
+
+    book = {
+        "@context": "https://schema.org",
+        "@type": "Audiobook",
+        "name": novel.title,
+        "url": canonical,
+        "readBy": {"@type": "Person", "name": narrator},
+        "duration": _iso_duration(audiobook.public_duration_s),
+        "inLanguage": audiobook.language,
+        "bookFormat": "https://schema.org/AudiobookFormat",
+        "publisher": {"@id": f"{SITE_URL}/#organization"},
+    }
+    if author_names:
+        book["author"] = [{"@type": "Person", "name": n} for n in author_names]
+    if synopsis:
+        book["description"] = synopsis
+    if cover_jpg:
+        book["image"] = cover_jpg
+    if audiobook.first_published_at:
+        book["datePublished"] = audiobook.first_published_at.date().isoformat()
+
+    crumbs = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{SITE_URL}/"},
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Audiobooks",
+                "item": f"{SITE_URL}/audiobooks/",
+            },
+            {
+                "@type": "ListItem",
+                "position": 3,
+                "name": novel.title,
+                "item": canonical,
+            },
+        ],
+    }
+
+    return _render(
+        request,
+        "seo/audiobook.html",
+        {
+            "title": f"{novel.title} \u2013 Generated audiobook",
+            "description": description,
+            "keywords": ", ".join([novel.title, *author_names][:15]),
+            "canonical": canonical,
+            "og_image": cover_jpg or DEFAULT_OG_IMAGE,
+            "og_type": "book",
+            "jsonld": _jsonld(book, crumbs),
+            "novel": novel,
+            "authors": author_names,
+            "narrator": narrator,
+            "disclaimer": disclaimer,
+            "duration": _duration_label(audiobook.public_duration_s),
+            "synopsis": synopsis,
+            "parts": [
+                {
+                    "index": part.index,
+                    "chapter_start": part.chapter_start,
+                    "chapter_end": part.chapter_end,
+                    "duration": _duration_label(part.duration_s),
+                }
+                for part in parts
+            ],
+            "audio_url": audio_url,
+            "cover_jpg": cover_jpg,
+            "novel_url": f"{SITE_URL}/novels/{novel.slug}/",
+            "feed_url": (
+                f"{settings.SITE_API_URL}/audiobooks/{novel.slug}/feed.xml"
+                f"?lang={audiobook.language}"
+            ),
+            "lang": audiobook.language,
+            "site_url": SITE_URL,
+        },
+        lastmod=audiobook.last_part_at,
     )

@@ -389,6 +389,43 @@ def refresh_novel_rankings_task():
         logger.error(f"Error refreshing novel rankings: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
+# Top up the audiobook part queue to AUDIOBOOK_QUEUE_WORDS (about one night of work),
+# so the worker always finds a part when it starts. Does nothing while AUDIOBOOK_ENABLED is off.
+@scheduler.register_task(interval=HOUR, name="enqueue_audiobooks")  # hourly
+def enqueue_audiobooks_task():
+    from .services.audiobook_scheduler import enqueue_audiobooks
+
+    try:
+        summary = enqueue_audiobooks()
+        logger.info("Audiobook enqueue completed: %s", summary)
+    except Exception as e:
+        logger.error(f"Error enqueuing audiobooks: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Give back the audiobook parts whose worker stopped renewing its lease.
+@scheduler.register_task(interval=300, name="reap_audiobook_leases")  # 5 minutes
+def reap_audiobook_leases_task():
+    from .services.audiobook_scheduler import reap_expired_leases
+
+    try:
+        summary = reap_expired_leases()
+        logger.info("Audiobook lease reap completed: %s", summary)
+    except Exception as e:
+        logger.error(f"Error reaping audiobook leases: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
+# Daily audiobook housekeeping: audiobooks follow their moved sources, flag stale parts.
+@scheduler.register_task(interval=DAY, name="audiobook_housekeeping")  # daily
+def audiobook_housekeeping_task():
+    from .services.audiobook_scheduler import audiobook_housekeeping
+
+    try:
+        summary = audiobook_housekeeping()
+        logger.info("Audiobook housekeeping completed: %s", summary)
+    except Exception as e:
+        logger.error(f"Error in audiobook housekeeping: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
 def start_scheduler():
     """Start the scheduler if it's not already running."""
     if not scheduler.running:

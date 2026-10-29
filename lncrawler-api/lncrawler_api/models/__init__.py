@@ -13,3 +13,4 @@ from .harvest_models import *
 from .cover_models import *
 from .llm_models import *
 from .candidate_models import *
+from .audiobook_models import *

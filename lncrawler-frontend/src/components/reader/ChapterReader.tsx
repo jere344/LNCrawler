@@ -12,6 +12,7 @@ import {
   Tabs,
   Tab,
   IconButton,
+  Button,
 } from '@mui/material';
 import { userService } from '../../services/api';
 import BookIcon from '@mui/icons-material/Book';
@@ -30,6 +31,7 @@ import { READER_COOKIE_PREFIX, READER_COOKIE_DAYS } from '@utils/storage';
 import { getChapterLabel } from '@utils/Misc';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import { useAuth } from '@context/AuthContext';
+import { useAudioPlayer } from '@context/AudioPlayerContext';
 import { useNotification } from '@context/NotificationContext';
 
 import ReaderToolbar from './controls/ReaderToolbar';
@@ -629,6 +631,24 @@ const ChapterReader = () => {
   });
   ttsOpenRef.current = tts.open;
 
+  // The audiobook mini bar hides while the TTS bar is open, so the two never stack at the bottom.
+  const { setSuppressed, barHeight, playAudiobook } = useAudioPlayer();
+  useEffect(() => {
+    setSuppressed(tts.open);
+    return () => setSuppressed(false);
+  }, [tts.open, setSuppressed]);
+
+  /** Narrate the chapter with its audiobook recording, through the global player. */
+  const startNarration = (c: IChapterContent) =>
+    playAudiobook(c.novel_slug, c.language ?? 'en', { chapterId: Number(c.id) });
+
+  // The listen button narrates when the pref is 'narrated' and the chapter has a recording.
+  // If the player fails it has already shown a toast, so client TTS takes over.
+  const handleListen = async () => {
+    if (chapter?.audio_url && readerSettings.ttsEngine === 'narrated' && await startNarration(chapter)) return;
+    tts.start();
+  };
+
   if (loading) {
     return (
       <Container>
@@ -690,7 +710,7 @@ const ChapterReader = () => {
       onPrevious={handlePrevChapter}
       onNext={handleNextChapter}
       onSettings={() => setControlsVisible(true)}
-      onListen={() => { setControlsVisible(false); tts.start(); }}
+      onListen={() => { setControlsVisible(false); handleListen(); }}
       onCloseControls={() => setControlsVisible(false)}
     />
   );
@@ -779,7 +799,7 @@ const ChapterReader = () => {
             
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <IconButton
-                onClick={tts.start}
+                onClick={handleListen}
                 aria-label={t('reader.listen')}
                 sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }, scale: '1.2' }}
               >
@@ -801,6 +821,25 @@ const ChapterReader = () => {
             </Box>
           </Box>
           
+          {/* Narration hint: the chapter has a recording but the listen button uses client TTS */}
+          {chapter.audio_url && readerSettings.ttsEngine !== 'narrated' && (
+            <Box sx={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 1, mb: 2,
+              px: 1.5, py: 0.5, borderRadius: 1, bgcolor: 'action.hover',
+            }}>
+              {/* Wraps onto its own line on phones rather than squeezing next to the button */}
+              <Typography variant="body2" color="text.secondary" sx={{ flex: '1 1 12em' }}>{t('audioPlayer.narratedHint')}</Typography>
+              <Button
+                size="small"
+                startIcon={<HeadphonesIcon />}
+                onClick={() => { void startNarration(chapter); }}
+                sx={{ flexShrink: 0 }}
+              >
+                {t('audioPlayer.listenToNarration')}
+              </Button>
+            </Box>
+          )}
+
           {/* Chapter content Tab */}
           <Box role="tabpanel" hidden={activeTab !== 0} sx={{ mb: 4 }}>
             <ReaderViewport
@@ -851,6 +890,8 @@ const ChapterReader = () => {
         </Paper>
       </Container>
       {tts.open && <Box sx={{ height: { xs: TTS_BAR_HEIGHT.mobile, sm: TTS_BAR_HEIGHT.desktop + 16 } }} />}
+      {/* Keeps the end of the chapter clear of the audiobook mini bar */}
+      <Box sx={{ height: barHeight }} />
       </>
 
       {/* Settings Drawer */}
@@ -862,6 +903,7 @@ const ChapterReader = () => {
         novelLanguage={novelLanguage}
         onTtsBeforePreview={tts.pause}
         focusTts={settingsFocusTts}
+        hasNarration={!!chapter.audio_url}
         chapterInfo={{
           title: getChapterLabel(t, chapter.title, chapter.chapter_id),
           novelTitle: chapter.novel_title,

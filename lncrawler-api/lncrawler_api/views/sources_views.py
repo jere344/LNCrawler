@@ -9,6 +9,9 @@ from ..models import Novel, SourceVote, WeeklySourceView
 from ..models.source_helpers import resolve_output_path
 from ..serializers import NovelSerializer, NovelSourceSerializer, ChapterSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
+from ..services.audiobook_public import (
+    annotate_public_totals, chapter_audio_hidden, chapter_has_audio_subquery, visible_audiobooks,
+)
 from django.db.models import Q, Sum, Func, IntegerField
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
@@ -53,6 +56,19 @@ def source_detail(request, novel_slug, source_slug):
             "novel_slug": novel.slug,
             "novel_title": novel.title,
         }
+    )
+    # The visible audiobook of the novel in this source's language, for the banner of the source page.
+    audiobook = annotate_public_totals(
+        visible_audiobooks(request.user, source.language).filter(novel=novel).prefetch_related(None)
+    ).first()
+    data["audiobook"] = (
+        {
+            "language": audiobook.language,
+            "duration_s": audiobook.public_duration_s,
+            "slug": novel.slug,
+            "is_adult": audiobook.is_adult,
+        }
+        if audiobook else None
     )
 
     # Embed the novel detail so the source page renders the novel sections
@@ -119,7 +135,9 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     novel = resolve_novel_slug(novel_slug)
     source = get_source_or_404(novel, source_slug)
 
-    chapters = source.chapters.all().order_by("chapter_id")
+    chapters = source.chapters.order_by("chapter_id")
+    if not chapter_audio_hidden(request.user, source):
+        chapters = chapters.annotate(annotated_has_audio=chapter_has_audio_subquery())
 
     search = request.GET.get("search", "").strip()
     if search:

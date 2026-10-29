@@ -4,7 +4,7 @@ from ..models import (
     WeeklySourceView,
     NovelBookmark
 )
-from django.db.models import Avg, Sum
+from django.db.models import Avg, Prefetch, Sum
 from ..models.sources_models import is_majority_adult
 from .mixins import ProfileFieldsMixin
 from .sources_serializers import NovelSourceSerializer
@@ -189,6 +189,8 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     folder = serializers.SerializerMethodField()
     folder_name = serializers.SerializerMethodField()
     position = serializers.SerializerMethodField()
+    audiobooks = serializers.SerializerMethodField()
+    has_audiobook = serializers.SerializerMethodField()
 
     default_profile = 'card'
     field_profiles = {
@@ -196,24 +198,24 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source', 'is_dmca', 'created_at',
+            'reading_history', 'reading_source', 'is_dmca', 'created_at', 'has_audiobook',
         ],
         'detail': [
             'id', 'title', 'slug', 'sources',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
             'prefered_source', 'is_adult', 'is_bookmarked', 'comment_count', 'reading_history',
-            'reading_source', 'similar_novels', 'reading_lists', 'is_dmca',
+            'reading_source', 'similar_novels', 'reading_lists', 'is_dmca', 'audiobooks',
         ],
         'library': [
             'id', 'title', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
             'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source', 'is_dmca',
+            'reading_history', 'reading_source', 'is_dmca', 'has_audiobook',
             'bookmark_id', 'note', 'folder', 'folder_name', 'position', 'user_rating',
         ],
         # Cover thumbnail for reading-list cards (first_item): only what the
         # card renders, so a list page doesn't serialize a full card per list.
-        'preview': ['id', 'title', 'prefered_source', 'is_adult'],
+        'preview': ['id', 'title', 'prefered_source', 'is_adult', 'has_audiobook'],
     }
 
     class Meta:
@@ -232,6 +234,21 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         # Novel-level flag: adult if more than half of its sources are. Reads the
         # prefetched sources, so no extra query.
         return is_majority_adult(obj.sources.all())
+
+    def get_audiobooks(self, obj):
+        """The public audiobooks of the novel: language and total duration, for the detail page."""
+        from ..services.audiobook_public import annotate_public_totals, visible_audiobooks
+
+        user = getattr(self.context.get('request'), 'user', None)
+        audiobooks = annotate_public_totals(visible_audiobooks(user).filter(novel=obj)).order_by('language')
+        return [
+            {'language': audiobook.language, 'duration_s': audiobook.public_duration_s}
+            for audiobook in audiobooks
+        ]
+
+    def get_has_audiobook(self, obj):
+        # Set by annotate_card_aggregates; a queryset without it reports False.
+        return bool(getattr(obj, 'annotated_has_audiobook', False))
 
     def get_sources(self, obj):
         return NovelSourceSerializer(
@@ -264,7 +281,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         from django.core.cache import cache
         from ..utils.query_helpers import (
             adult_allowed, apply_novel_prefetches, exclude_adult,
-            novel_prefetch_objects,
+            has_audiobook_subquery, novel_prefetch_objects,
         )
 
         # Get the top 12 similar novels (list() so len() is accurate; a sliced
@@ -272,13 +289,18 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         # Pass the requesting user so bookmark/history lookups are prefetched
         # instead of firing a query per similar novel.
         user = getattr(self.context.get('request'), 'user', None)
-        similar_qs = obj.similar_to.select_related('to_novel').filter(
+        similar_qs = obj.similar_to.filter(
             to_novel__is_dmca=False, similarity__gt=0,
         )
         similar_qs = exclude_adult(similar_qs, user, 'to_novel__')
         similar_novels = list(
             similar_qs
-            .prefetch_related(*novel_prefetch_objects(user, prefix='to_novel__'))
+            .prefetch_related(Prefetch(
+                'to_novel',
+                queryset=Novel.objects.annotate(
+                    annotated_has_audiobook=has_audiobook_subquery()
+                ).prefetch_related(*novel_prefetch_objects(user)),
+            ))
             .order_by('-similarity')[:12]
         )
 
@@ -308,7 +330,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             fetched = {
                 novel.pk: novel
                 for novel in apply_novel_prefetches(
-                    exclude_adult(Novel.objects.filter(pk__in=picked_ids), user), user,
+                    exclude_adult(Novel.objects.filter(pk__in=picked_ids), user)
+                    .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+                    user,
                 )
             }
             most_viewed = [fetched[pk] for pk in picked_ids if pk in fetched]

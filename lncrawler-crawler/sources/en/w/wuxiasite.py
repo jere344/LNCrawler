@@ -80,6 +80,9 @@ class WuxiaSiteCrawler(MadaraTemplate):
     def parse_summary(self, soup: BeautifulSoup):
         tag = soup.select_one(".summary__content")
         if isinstance(tag, Tag):
+            for p in tag.find_all("p"):
+                if p.get_text(strip=True).lower().startswith("disclaimer"):
+                    p.decompose()
             return self.cleaner.extract_contents(tag)
         return ""
 

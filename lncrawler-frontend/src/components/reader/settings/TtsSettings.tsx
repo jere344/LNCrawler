@@ -27,6 +27,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import HeadphonesIcon from '@mui/icons-material/Headphones';
 import { useTranslation } from 'react-i18next';
 import { availableLanguages } from '@utils/Misc';
 import { neuralOptions, neuralOptionsKey, type TtsPrefs } from '../tts/ttsTypes';
@@ -62,6 +63,8 @@ interface TtsSettingsProps {
   novelLanguage: string;
   /** Called before a voice preview plays, so the player can pause. */
   onBeforePreview?: () => void;
+  /** The current chapter has a narrated audiobook recording. */
+  hasNarration?: boolean;
 }
 
 const formatMb = (bytes: number) => `${Math.round(bytes / 1e6)} MB`;
@@ -70,10 +73,13 @@ const hasWebGpu = () => typeof navigator !== 'undefined' && 'gpu' in navigator;
 /**
  * Text-to-speech section of the reader settings drawer.
  */
-const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguage, onBeforePreview }) => {
+const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguage, onBeforePreview, hasNarration = false }) => {
   const { t } = useTranslation();
   const lang = prefs.ttsLanguage || novelLanguage;
   const neuralSupported = isNeuralSupported();
+  // Narrated without a recording for this chapter: client TTS reads it with the browser engine.
+  const selectedEngine = prefs.ttsEngine === 'narrated' && !hasNarration ? 'browser' : prefs.ttsEngine;
+  const clientEngine = prefs.ttsEngine === 'neural' ? 'neural' : 'browser';
 
   // ---- Device voices ------------------------------------------------------
   const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -312,7 +318,7 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
         exclusive
         fullWidth
         size="small"
-        value={prefs.ttsEngine}
+        value={selectedEngine}
         onChange={(_, v) => v && onChange('ttsEngine', v)}
         sx={{ mb: 0.5 }}
       >
@@ -322,9 +328,16 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
         <ToggleButton value="neural" disabled={!neuralSupported} sx={{ gap: 0.5 }}>
           <AutoAwesomeIcon fontSize="small" /> {t('ttsSettings.engineNeural')}
         </ToggleButton>
+        {hasNarration && (
+          <ToggleButton value="narrated" sx={{ gap: 0.5 }}>
+            <HeadphonesIcon fontSize="small" /> {t('ttsSettings.engineNarrated')}
+          </ToggleButton>
+        )}
       </ToggleButtonGroup>
       <FormHelperText sx={{ mb: 2 }}>
-        {prefs.ttsEngine === 'browser' ? t('ttsSettings.engineBrowserHint') : t('ttsSettings.engineNeuralHint')}
+        {selectedEngine === 'narrated'
+          ? t('ttsSettings.engineNarratedHint')
+          : selectedEngine === 'browser' ? t('ttsSettings.engineBrowserHint') : t('ttsSettings.engineNeuralHint')}
       </FormHelperText>
 
       {/* Language */}
@@ -350,7 +363,7 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
         {t('ttsSettings.voiceFor', { language: t(`languages.${lang}`, { defaultValue: lang }) })}
       </Typography>
 
-      {prefs.ttsEngine === 'browser' && (
+      {clientEngine === 'browser' && (
         !isBrowserSpeechSupported() ? (
           <Alert severity="warning" sx={{ mb: 2 }}>{t('ttsSettings.browserUnsupported')}</Alert>
         ) : (
@@ -399,7 +412,7 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
         )
       )}
 
-      {prefs.ttsEngine === 'neural' && (
+      {clientEngine === 'neural' && (
         <Box sx={{ mb: 2 }}>
           {neuralVoices.length === 0 ? (
             <Alert severity="info">
@@ -520,13 +533,13 @@ const TtsSettings: React.FC<TtsSettingsProps> = ({ prefs, onChange, novelLanguag
       {sliderRow(t('ttsSettings.speed'), prefs.ttsRate, `${prefs.ttsRate.toFixed(2)}×`, 0.5, 3, 0.05, v => onChange('ttsRate', v))}
       {sliderRow(
         t('ttsSettings.pitch'), prefs.ttsPitch, prefs.ttsPitch.toFixed(2), 0.5, 2, 0.05,
-        v => onChange('ttsPitch', v), prefs.ttsEngine === 'neural',
+        v => onChange('ttsPitch', v), clientEngine === 'neural',
       )}
       {sliderRow(
         t('ttsSettings.volume'), prefs.ttsVolume, `${Math.round(prefs.ttsVolume * 100)}%`, 0, 1, 0.05,
-        v => onChange('ttsVolume', v), prefs.ttsEngine === 'browser',
+        v => onChange('ttsVolume', v), clientEngine === 'browser',
       )}
-      {prefs.ttsEngine === 'browser' && (
+      {clientEngine === 'browser' && (
         <FormHelperText sx={{ mt: -1, mb: 1 }}>{t('ttsSettings.volumeBrowserHint')}</FormHelperText>
       )}
       {sliderRow(

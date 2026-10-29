@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { authService } from '@services/api';
 import { availableLanguages } from '@utils/Misc';
-import { readLocalStorage, writeLocalStorage } from '@utils/storage';
+import { AUTH_TOKEN_KEY, readLocalStorage, writeLocalStorage } from '@utils/storage';
 import i18n, { isRtl } from '../i18n';
 
 // Keys mirror the backend field names so a profile payload can be spread in.
@@ -156,8 +156,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
 
         syncFromServer();
-        window.addEventListener('storage', syncFromServer);
-        return () => window.removeEventListener('storage', syncFromServer);
+        // Only a login in another tab matters here. This listener runs before AuthContext's, so the API
+        // header must be synced first: a request without it gets a 401, which logs every tab out.
+        const handleStorage = (event: StorageEvent) => {
+            if (event.key !== AUTH_TOKEN_KEY) return;
+            authService.syncAuthHeader();
+            void syncFromServer();
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
     const pushToServer = useCallback((payload: ServerPreference) => {
