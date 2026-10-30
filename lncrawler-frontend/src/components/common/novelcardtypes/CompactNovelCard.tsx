@@ -12,7 +12,7 @@ import NovelActionsMenu from '@components/common/NovelActionsMenu';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
 import { AudiobookBadge } from '@components/audiobooks/AudiobookBadge';
-import { getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
+import { compactNumberFormatter, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 
 interface CompactNovelCardProps {
   novel: Novel;
@@ -70,7 +70,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
     );
   }
 
-  const formatter = Intl.NumberFormat(i18n.language, { notation: 'compact' });
+  const formatter = compactNumberFormatter(i18n.language);
 
   // Fixed dimensions for 2:3 ratio
   const coverHeightFixed = 90; 

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 babelnovel_api = 'https://api.babelnovel.com'
 login_url = babelnovel_api + '/v1/user-account/web-login'
-search_url = babelnovel_api + '/v1/books?page=0&pageSize=8&fields=id,name,canonicalName,lastChapter&ignoreStatus=false&query=%s'
+search_url = babelnovel_api + '/v1/books?page=0&pageSize=8&fields=id,name,canonicalName,lastChapter,cover&ignoreStatus=false&query=%s'
 novel_page_url = babelnovel_api + '/v1/books/%s'
 chapter_list_url = babelnovel_api + '/v1/books/%s/chapters?bookId=%s&page=%d&pageSize=100&fields=id,name,canonicalName,isBought,isFree,isLimitFree'
 chapter_json_url = babelnovel_api + '/v1/books/%s/chapters/%s/content'
@@ -62,6 +62,7 @@ class BabelNovelCrawler(Crawler):
                 'title': item['name'],
                 'url': novel_page_url % item['canonicalName'],
                 'info': info,
+                'cover': self.absolute_url(item.get('cover')),
             })
 
         return results

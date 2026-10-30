@@ -39,6 +39,7 @@ class SainoKanTLSCrawler(Crawler):
                     title=title.get_text(strip=True),
                     url=url,
                     info=author.get_text(strip=True) if author else None,
+                    cover=self.image_url(a.select_one("img")),
                 )
             )
         return results

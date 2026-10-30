@@ -68,6 +68,7 @@ class NovelArchiveCrawler(Crawler):
             title=(item.get("title") or "").strip(),
             url=f"{self.home_url}novel?id={quote(str(item.get('id', '')))}",
             info=info or None,
+            cover=self.absolute_url(item.get("cover_url") or item.get("image_url")),
         )
 
     # -- Crawler API --------------------------------------------------- #

@@ -230,6 +230,7 @@ class PratilipiCrawler(Crawler):
                     title=title,
                     url=self._absolute(url),
                     info=author or None,
+                    cover=self._absolute(content.get("coverImageUrl")) or None,
                 )
             )
         return results

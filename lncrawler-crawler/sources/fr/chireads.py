@@ -27,6 +27,7 @@ class Chireads(Crawler):
                 {
                     "title": content.get("title"),
                     "url": self.absolute_url(content.get("href")),
+                    "cover": self.image_url(novel.find("img")),
                 }
             )
 

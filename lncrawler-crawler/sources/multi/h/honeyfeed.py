@@ -26,6 +26,9 @@ class HoneyfeedCrawler(Crawler):
                 SearchResult(
                     title=(title or a).get_text(" ", strip=True),
                     url=self.absolute_url(a["href"]),
+                    cover=self.image_url(
+                        item.select_one(".wrap-image-unit-novel:not(.cover-default) img")
+                    ),
                 )
             )
         return results
@@ -47,6 +50,9 @@ class HoneyfeedCrawler(Crawler):
                     SearchResult(
                         title=(title or a).get_text(" ", strip=True),
                         url=self.absolute_url(a["href"]),
+                        cover=self.image_url(
+                            item.select_one(".wrap-image-unit-novel:not(.cover-default) img")
+                        ),
                     )
                 )
             page += 1

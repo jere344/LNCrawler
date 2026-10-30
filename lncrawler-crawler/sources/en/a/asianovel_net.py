@@ -44,7 +44,8 @@ class AsiaNovelNetCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
         return SearchResult(
             title=link.text.strip(),
             url=self.absolute_url(link["href"]),
-            info=info
+            info=info,
+            cover=self.image_url(tag.select_one("img")),
         )
 
     def browse_novels(self, offset=0, limit=50):

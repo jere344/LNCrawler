@@ -35,6 +35,7 @@ class RenovelsCrawler(Crawler):
                     or item.get("main_name")
                     or item.get("en_name"),
                     "url": f"{self.base_url[0].rstrip('/')}/novel/{slug}",
+                    "cover": self.absolute_url((item.get("img") or {}).get("high")),
                 }
             )
         return results

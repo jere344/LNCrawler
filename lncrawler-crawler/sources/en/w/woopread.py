@@ -74,6 +74,7 @@ class WoopReadCrawler(Crawler):
             title=(item.get("title") or "").strip(),
             url=f"{self.home_url}series/{quote(slug)}",
             info=info or None,
+            cover=self.absolute_url(item.get("cover")),
         )
 
     def _labeled(self, soup: BeautifulSoup, label: str) -> List[str]:

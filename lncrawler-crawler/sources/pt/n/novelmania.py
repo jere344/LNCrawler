@@ -78,6 +78,9 @@ class NovelManiaCrawler(Crawler):
         return SearchResult(
             title=(item.get("title") or "").strip(),
             url=f"{self.home_url}novels/{item['slug']}",
+            cover=self.absolute_url(
+                self._first(item.get("cover") or {}, "original", "large", "small", "thumb")
+            ),
             info=" | ".join(
                 str(x)
                 for x in (item.get("author"), item.get("status"), item.get("kind"))

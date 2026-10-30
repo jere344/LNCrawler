@@ -5,6 +5,7 @@ Chapter ranges are frozen when the part is created.
 """
 import hashlib
 import logging
+import re
 import shutil
 from datetime import timedelta
 from functools import partial
@@ -28,12 +29,17 @@ logger = logging.getLogger("lncrawler_api.audiobooks")
 
 WORKER_LANGUAGE_DAYS = 7  # days since a worker's last ping or claim after which its languages are no longer announced
 WORDS_PER_MINUTE = 155  # narration speed used to estimate a part's duration
+CHARACTER_LANGUAGES = ('zh', 'ja')  # languages counted by character instead of by word
+CHARACTERS_PER_MINUTE = 250  # narration speed in characters, for the languages counted by character
 MAX_ATTEMPTS = 3  # lease expiries before a part is failed
 LEASE_SECONDS = 900  # how long a worker may hold a claimed part without renewing it
 MAX_BITRATE_KBPS = 40  # encoded audio bitrate ceiling
 TAIL_STABLE_DAYS = 14  # days without chapter updates before the last, short part of a finished source is cut
 
 CUT_BATCH = 200
+
+# Mirrors the volume cover tag of lncrawl's downloader: it is not part of the chapter text.
+_VOLUME_COVER_RE = re.compile(r'<img\b[^>]*\bclass="volume-cover"[^>]*>')
 
 
 def _chapter_body(chapter):
@@ -203,7 +209,7 @@ def content_hash(chapters):
         body = _chapter_body(ch)
         if body is None:
             return None
-        digest.update(f"{ch.chapter_id}\n{body}\n".encode('utf-8'))
+        digest.update(f"{ch.chapter_id}\n{_VOLUME_COVER_RE.sub('', body)}\n".encode('utf-8'))
     return digest.hexdigest()
 
 
@@ -211,6 +217,13 @@ def part_chapters(part):
     """The Chapter rows of a part, in chapter_ids order. A chapter deleted since the cut is left out."""
     found = Chapter.objects.filter(pk__in=part.chapter_ids).select_related('novel_from_source').in_bulk()
     return [found[pk] for pk in part.chapter_ids if pk in found]
+
+
+def narration_rate(language):
+    """Narration speed of a language: characters per minute for the languages counted by character, else words."""
+    if language in CHARACTER_LANGUAGES:
+        return CHARACTERS_PER_MINUTE
+    return WORDS_PER_MINUTE
 
 
 def enqueue_next_part(audiobook, priority=0, allow_tail=False, exclusive=False, counter=None):
@@ -247,7 +260,7 @@ def enqueue_next_part(audiobook, priority=0, allow_tail=False, exclusive=False, 
             chapter_start=chapters[0].chapter_id,
             chapter_end=chapters[-1].chapter_id,
             word_count=cut['word_count'],
-            estimated_duration_s=cut['word_count'] / WORDS_PER_MINUTE * 60,
+            estimated_duration_s=cut['word_count'] / narration_rate(audiobook.language) * 60,
             priority=priority,
             content_hash=digest,
             chapter_ids=[ch.pk for ch in chapters],

@@ -29,6 +29,7 @@ class NovelHiCrawler(Crawler):
                 title=item["bookName"],
                 url=self.absolute_url(f"/book/{item['id']}.html"),
                 info="Latest: %s" % item.get("lastIndexName", ""),
+                cover=self.absolute_url(item.get("picUrl")),
             )
             for item in (data.get("data") or {}).get("list", [])
         ]

@@ -2,12 +2,14 @@
 
 import threading
 import time
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import TestCase, TransactionTestCase
 
 from ..models import Job
 from ..services import DownloaderService
+from ..services.downloader_helpers import _format_search_results
 
 PARTIAL_RESULTS = {
     "status": "success",
@@ -61,6 +63,25 @@ class SearchSnapshotTests(TestCase):
         self.assertEqual(
             DownloaderService.get_search_status(self.job.id)["result_count"], 0
         )
+
+
+class FormatSearchResultsTests(TestCase):
+    def test_cover_is_kept_only_when_present(self):
+        app = SimpleNamespace(search_results=[
+            {
+                "title": "Solo Leveling",
+                "novels": [
+                    {"url": "http://a.invalid/solo", "cover": "http://a.invalid/cover.jpg"},
+                    {"url": "http://b.invalid/solo", "cover": None},
+                ],
+            },
+        ])
+
+        results = _format_search_results(app)
+
+        sources = results[0]["sources"]
+        self.assertEqual(sources[0]["cover"], "http://a.invalid/cover.jpg")
+        self.assertNotIn("cover", sources[1])
 
 
 class StartDownloadFromSearchTests(TestCase):

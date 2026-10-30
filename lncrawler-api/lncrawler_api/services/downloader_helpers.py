@@ -79,6 +79,8 @@ def _format_search_results(app):
             entry = {"index": source_index, "url": source.get("url", "")}
             if source.get("info"):
                 entry["info"] = source["info"]
+            if source.get("cover"):
+                entry["cover"] = source["cover"]
             sources.append(entry)
         results.append({
             "index": novel_index,

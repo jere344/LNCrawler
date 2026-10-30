@@ -73,6 +73,7 @@ class HjwzwCrawler(Crawler):
                     )
                 soup = self.make_soup(resp)
                 books = self._book_links(soup)
+                covers = self._covers(soup)
                 if not books:
                     # An empty first page or a page without the listing container is a block, not the end
                     if page == 1 or not soup.select_one("#BookMark"):
@@ -87,7 +88,11 @@ class HjwzwCrawler(Crawler):
                     seen.add(book_id)
                     new_items += 1
                     novels.append(
-                        {"title": title, "url": self.absolute_url(f"/Book/{book_id}")}
+                        {
+                            "title": title,
+                            "url": self.absolute_url(f"/Book/{book_id}"),
+                            "cover": covers.get(book_id),
+                        }
                     )
                 if new_items == 0:
                     break
@@ -117,7 +122,9 @@ class HjwzwCrawler(Crawler):
         for rec in self._fetch_all_novels():
             title = _normalize(rec.get("title", ""))
             if all(term in title for term in terms):
-                results.append(SearchResult(title=rec["title"], url=rec["url"]))
+                results.append(
+                    SearchResult(title=rec["title"], url=rec["url"], cover=rec.get("cover"))
+                )
                 if len(results) >= 20:
                     break
         return results
@@ -130,6 +137,7 @@ class HjwzwCrawler(Crawler):
             while len(ordered) < offset + limit and page <= MAX_PAGES_PER_GENRE:
                 url = self.absolute_url(f"/Channel/{quote(genre)}/{page}")
                 soup = self.get_soup(url)
+                covers = self._covers(soup)
                 new_items = 0
                 for item in self._book_links(soup):
                     book_id, title = item
@@ -138,6 +146,7 @@ class HjwzwCrawler(Crawler):
                     result = SearchResult(
                         title=title,
                         url=self.absolute_url(f"/Book/{book_id}"),
+                        cover=covers.get(book_id),
                     )
                     results[book_id] = result
                     ordered.append(result)
@@ -166,6 +175,16 @@ class HjwzwCrawler(Crawler):
                 if title_attr:
                     found[book_id] = title_attr
         return list(found.items())
+
+    def _covers(self, soup) -> Dict[str, str]:
+        """Cover of each book whose listing card shows one; most cards are text only."""
+        covers: Dict[str, str] = {}
+        for a in soup.select('a[href^="/Book/"]'):
+            m = BOOK_HREF_RE.match(a.get("href", ""))
+            cover = self.image_url(a.select_one("img"))
+            if m and cover:
+                covers.setdefault(m.group(1), cover)
+        return covers
 
     def read_novel_info(self) -> None:
         self.novel_edition = "Raw"

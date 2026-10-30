@@ -25,7 +25,9 @@ class AsianHobbyistCrawler(Crawler):
             if not title or url in seen:
                 continue
             seen.add(url)
-            results.append({"title": title, "url": url})
+            card = a.find_parent(class_="vote-novel") or a.find_parent("li")
+            cover = self.image_url(card.select_one("img") if card else None)
+            results.append({"title": title, "url": url, "cover": cover})
         return results[:20]
 
     def browse_novels(self, offset=0, limit=50):

@@ -340,3 +340,4 @@ In `lncrawler_api/tests/`, on `MergeTestCase`:
 19. Formats are shown by codec, both are `.m4b`: "Opus (.m4b)" and "AAC (.m4b)", with the size and a short use note. The download button names the selected one. Apple Podcasts does not play Opus files, so its help points to the AAC download.
 20. Volumes: when a source's chapters span more than one volume, each part lists its volumes in its meta line ("Volume 2: Title", "Volumes 2–3") and the expanded chapter list has a sub-heading at each volume change. Novels without volumes see no change.
 21. No engine profiles: the worker decides the engines; prod only records what each part and character was made with.
+22. Chinese and Japanese are counted by character (each Han or kana character is one word), so parts are cut on the real amount of text; their duration is estimated at 250 characters per minute.

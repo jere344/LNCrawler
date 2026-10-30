@@ -40,7 +40,15 @@ class RanobeMeCrawler(Crawler):
             if url in seen:
                 continue
             seen.add(url)
-            results.append(SearchResult(title=title, url=url))
+            card = anchor.find_parent(class_="FicTable")
+            cover = card.select_one(".FicTable_Cover img") if card else None
+            results.append(
+                SearchResult(
+                    title=title,
+                    url=url,
+                    cover=self.image_url(cover, page_url=page_url),
+                )
+            )
         return results
 
     def _info_rows(self, soup) -> Dict[str, Tag]:

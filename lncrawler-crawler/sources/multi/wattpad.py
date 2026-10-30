@@ -25,12 +25,16 @@ class WattpadCrawler(Crawler):
         for _ in range(3):
             try:
                 data = self.get_json(
-                    f"{self.home_url}api/v3/stories?fields=stories(id,title,url)"
+                    f"{self.home_url}api/v3/stories?fields=stories(id,title,url,cover)"
                     f"&query={quote_plus(query)}&limit=10",
                     headers={"Accept": "*/*"},
                 )
                 return [
-                    {"title": s["title"], "url": s["url"]}
+                    {
+                        "title": s["title"],
+                        "url": s["url"],
+                        "cover": self.absolute_url(s.get("cover")),
+                    }
                     for s in data["stories"]
                 ]
             except Exception:
@@ -39,7 +43,7 @@ class WattpadCrawler(Crawler):
 
     def browse_novels(self, offset=0, limit=50):
         results = []
-        url = f"{self.home_url}api/v3/stories?fields=stories(id,title,url)&limit=50&filter=hot"
+        url = f"{self.home_url}api/v3/stories?fields=stories(id,title,url,cover)&limit=50&filter=hot"
         page = 0
         while url and len(results) < offset + limit and page < 40:
             data = self.get_json(url, headers={"Accept": "*/*"})
@@ -48,7 +52,11 @@ class WattpadCrawler(Crawler):
                 break
             for story in stories:
                 results.append(
-                    SearchResult(title=story["title"], url=story["url"])
+                    SearchResult(
+                        title=story["title"],
+                        url=story["url"],
+                        cover=self.absolute_url(story.get("cover")),
+                    )
                 )
             url = data.get("nextUrl")
             page += 1

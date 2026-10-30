@@ -160,6 +160,7 @@ def save_metadata(app, completed: bool = False) -> None:
             genres=getattr(crawler, "genres", None) or [],
             tags=getattr(crawler, "tags", None) or [],
             source=getattr(crawler, "source", None),
+            source_version=getattr(crawler, "version", 1),
         ),
         session=Session(
             completed=completed,

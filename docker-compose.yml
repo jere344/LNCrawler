@@ -100,6 +100,8 @@ services:
     environment:
       <<: *api-env
       CRAWLER_CONCURRENCY: ${CRAWLER_CONCURRENCY:-5}
+      # Caps glibc malloc arenas so the per-job download threads don't each grow their own heap.
+      MALLOC_ARENA_MAX: "2"
     env_file: .env
     depends_on:
       db:

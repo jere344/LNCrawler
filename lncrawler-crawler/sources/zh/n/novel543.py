@@ -158,6 +158,7 @@ class Novel543Crawler(Crawler):
                         title=e["title"],
                         url=e["url"],
                         info=" | ".join(x for x in (e["status"], e["author"]) if x),
+                        cover=e.get("cover") or None,
                     )
                 )
                 if len(results) >= 20:

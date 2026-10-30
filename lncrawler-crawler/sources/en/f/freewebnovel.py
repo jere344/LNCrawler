@@ -65,6 +65,7 @@ class FreeWebNovelCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
         return SearchResult(
             title=tag.text.strip(),
             url=self.absolute_url(tag["href"]),
+            cover=self.image_url(tag.find_parent(class_="con").select_one(".pic img")),
         )
 
     def browse_novels(self, offset=0, limit=50):

@@ -239,6 +239,7 @@ class QimaoCrawler(Crawler):
                     title=title,
                     url=f"{self.home_url}shuku/{book_id}/",
                     info=info or None,
+                    cover=self.absolute_url(item.get("image_link")),
                 )
             )
         return results[:10]

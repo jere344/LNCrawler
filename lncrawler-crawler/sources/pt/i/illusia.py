@@ -49,6 +49,9 @@ class IllusiaCrawler(Crawler):
             SearchResult(
                 title=a.get_text(" ", strip=True),
                 url=self.absolute_url(a["href"]),
+                cover=self.image_url(
+                    (a.find_parent(class_="illusia-card") or a).select_one(".illusia-card__cover img")
+                ),
             )
             for a in soup.select("a.illusia-card__title-link[href*='/story/']")
         ]

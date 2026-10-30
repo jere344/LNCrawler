@@ -111,6 +111,7 @@ class NovelBuddyCrawler(Crawler):
             title=(item.get("name") or "").strip(),
             url=self.absolute_url(item["url"], self.home_url),
             info=" | ".join(info_parts) or None,
+            cover=self.absolute_url(item.get("cover")),
         )
 
     # ------------------------------------------------------------------ #
@@ -140,6 +141,7 @@ class NovelBuddyCrawler(Crawler):
             SearchResult(
                 title=item["name"].strip(),
                 url=self.absolute_url(item["url"]),
+                cover=self.absolute_url(item.get("cover")),
             )
             for item in (page.get("ssrItems") or [])
         ]

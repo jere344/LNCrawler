@@ -29,6 +29,9 @@ class Crawler(Scraper):
     # meta.json and loaded by the DB importer.
     is_adult = False
     language = ""
+    # Bump when a fix changes what the source extracts: the next update of each
+    # novel then redownloads its chapters instead of only the new ones.
+    version = 1
 
     # Set True on sources that must authenticate before crawling. When set,
     # prepare_crawler() logs in automatically using get_credentials().

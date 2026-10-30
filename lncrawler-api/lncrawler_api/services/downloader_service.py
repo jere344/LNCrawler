@@ -1,3 +1,4 @@
+import gc
 import os
 import threading
 import logging
@@ -150,10 +151,12 @@ class DownloaderService:
             novel_source = _most_complete(novel_url) or _most_complete(novel_url.rstrip("/"))
             if novel_source is None:
                 return None
-            app.crawler.existing_chapters = [
-                {"id": ch.chapter_id, "url": ch.url, "title": ch.title}
-                for ch in novel_source.chapters.order_by("chapter_id")
-            ]
+            # A bumped source version must rebuild the TOC: reusing the old list would skip reopening EPUB archives.
+            if novel_source.source_version == getattr(app.crawler, "version", 1):
+                app.crawler.existing_chapters = [
+                    {"id": ch.chapter_id, "url": ch.url, "title": ch.title}
+                    for ch in novel_source.chapters.order_by("chapter_id")
+                ]
             app.crawler.existing_meta = {
                 "title": novel_source.title,
                 "authors": ", ".join(a.name for a in novel_source.authors.all()),
@@ -410,8 +413,12 @@ class DownloaderService:
                 logger.debug(f"Selected {total_chapters} chapters")
 
                 # Download all chapters (JSON format only)
+                # Everything allocated so far lives for the whole job; freezing it
+                # keeps the periodic collections in fetch_chapter_body cheap.
+                gc.freeze()
                 app.start_download()
             finally:
+                gc.unfreeze()
                 stop_monitoring.set()
                 monitor_thread.join(timeout=5.0)
 
@@ -453,7 +460,17 @@ class DownloaderService:
                 logger.warning("Download process stopped: %s", e)
                 message = str(e) or "Novel unavailable from this source"
             else:
-                logger.exception(f"Error in download process: {str(e)}")
+                # The details go in extra so the message, and the fingerprint
+                # derived from it, stay stable. The source name is unknown when
+                # the failure came before a crawler was found.
+                try:
+                    source_name = app.crawler.source_name
+                except Exception:
+                    source_name = ""
+                logger.exception(
+                    f"Error in download process: {str(e)}",
+                    extra={"github_details": f"url={novel_url}\nsource={source_name}"},
+                )
                 message = f"Download process error: {str(e)}"
             try:
                 DownloaderService._setup_django()

@@ -1,10 +1,12 @@
 """Audiobooks phase 1: word counts, cutting parts, the part queue, and the admin."""
 
+import importlib
 import json
 import os
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, override_settings
@@ -95,6 +97,32 @@ class CountWordsTests(SimpleTestCase):
 
     def test_empty_body(self):
         self.assertEqual(svc.count_words(""), 0)
+
+    def test_chinese_is_counted_by_character(self):
+        self.assertEqual(svc.count_words("<p>他说：你好。</p>"), 4)
+
+    def test_japanese_is_counted_by_character(self):
+        self.assertEqual(svc.count_words("<p>これはペンです</p>"), 7)
+
+    def test_han_inside_english_is_counted_by_character(self):
+        self.assertEqual(svc.count_words("<p>Hello 世界 world</p>"), 4)
+
+
+class RecountCjkMigrationTests(AudiobookBase):
+    def test_resets_zh_and_ja_counts_and_leaves_the_others(self):
+        migration = importlib.import_module('lncrawler_api.migrations.0105_recount_cjk_word_counts')
+        chinese = self.make_source("zh", language="zh")
+        japanese = self.make_source("ja", language="ja")
+        english = self.make_source("en", language="en")
+        for source in (chinese, japanese, english):
+            self.add_chapters(source, [5])
+            Chapter.objects.filter(novel_from_source=source).update(word_count=5)
+
+        migration.forwards(django_apps, None)
+
+        self.assertIsNone(Chapter.objects.get(novel_from_source=chinese).word_count)
+        self.assertIsNone(Chapter.objects.get(novel_from_source=japanese).word_count)
+        self.assertEqual(Chapter.objects.get(novel_from_source=english).word_count, 5)
 
 
 class EnsureWordCountsTests(AudiobookBase):
@@ -391,6 +419,16 @@ class EnqueueNextPartTests(AudiobookBase):
         self.assertEqual(second.index, 2)
         self.assertEqual(first.priority, 7)
         self.assertEqual(second.priority, 0)
+
+    def test_chinese_part_duration_is_estimated_in_characters(self):
+        source = self.make_source("zh", language="zh")
+        self.add_chapters(source, [400, 400, 300])
+        audiobook = Audiobook.objects.create(novel=self.novel, source=source, language="zh")
+
+        part = svc.enqueue_next_part(audiobook)
+
+        self.assertEqual(part.word_count, 800)
+        self.assertAlmostEqual(part.estimated_duration_s, part.word_count / 250 * 60)
 
     def test_estimated_duration_and_content_hash(self):
         part = svc.enqueue_next_part(self.audiobook)

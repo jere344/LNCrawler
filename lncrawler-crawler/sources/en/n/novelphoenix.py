@@ -37,7 +37,8 @@ class NovelPhoenixCrawler(Crawler):
             if not title or url in seen:
                 continue
             seen.add(url)
-            results.append({"title": title, "url": url})
+            cover = self.image_url(a.select_one(".novel-cover img"))
+            results.append({"title": title, "url": url, "cover": cover})
         return results[:20]
 
     def browse_novels(self, offset: int = 0, limit: int = 50):

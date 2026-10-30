@@ -50,7 +50,9 @@ class TheBukuzCrawler(Crawler):
             if not title:
                 continue
             seen.add(url)
-            results.append(SearchResult(title=title, url=url))
+            card = a.find_parent(["li", "article"])
+            img = card.find("img") if card else None
+            results.append(SearchResult(title=title, url=url, cover=self.image_url(img)))
         return results
 
     # -- search / browse ---------------------------------------------- #

@@ -9,9 +9,11 @@ class SearchResult(Model):
         title: str,
         url: str,
         info: Optional[str] = None,
+        cover: Optional[str] = None,
         **kwargs,
     ) -> None:
         self.title = title
         self.url = url
         self.info = info
+        self.cover = cover
         self.update(kwargs)

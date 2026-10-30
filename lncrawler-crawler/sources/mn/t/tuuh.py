@@ -26,7 +26,7 @@ class TuuhCrawler(Crawler):
     has_mtl = False
 
     def _story_links(self, soup):
-        """Ordered, de-duplicated (url, title) pairs for /p/<id> story links."""
+        """Ordered, de-duplicated (url, title, cover) triples for /p/<id> story links."""
         results = []
         seen = set()
         for a in soup.select('a[href*="/p/"]'):
@@ -39,15 +39,18 @@ class TuuhCrawler(Crawler):
                 continue
             seen.add(url)
             title = a.get_text(" ", strip=True) or a.get("title", "").strip()
-            results.append((url, title))
+            cover = self.image_url(a.select_one("img"))
+            results.append((url, title, cover))
         return results
 
     def search_novel(self, query):
         """Site search at /search?q=. Returns the stories the site lists for the query."""
         soup = self.get_soup(f"{SITE}/search?q={quote(query)}")
         results = []
-        for url, title in self._story_links(soup):
-            results.append(SearchResult(title=title or url, url=url, info="Өгүүллэг"))
+        for url, title, cover in self._story_links(soup):
+            results.append(
+                SearchResult(title=title or url, url=url, info="Өгүүллэг", cover=cover)
+            )
         return results
 
     def browse_novels(self, offset=0, limit=50):
@@ -56,8 +59,10 @@ class TuuhCrawler(Crawler):
             return []
         soup = self.get_soup(SITE)
         results = []
-        for url, title in self._story_links(soup):
-            results.append(SearchResult(title=title or url, url=url, info="Өгүүллэг"))
+        for url, title, cover in self._story_links(soup):
+            results.append(
+                SearchResult(title=title or url, url=url, info="Өгүүллэг", cover=cover)
+            )
         return results[:limit]
 
     def read_novel_info(self):

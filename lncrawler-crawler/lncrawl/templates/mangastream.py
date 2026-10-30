@@ -32,6 +32,7 @@ class MangaStreamTemplate(SearchableBrowserTemplate, OptionalVolumeBrowserTempla
             title=title.text.strip() if title else a.text.strip(),
             url=self.absolute_url(a["href"]),
             info=info.text.strip() if isinstance(info, Tag) else "",
+            cover=self.image_url(tag.select_one("img")),
         )
 
     def parse_title(self, soup: BeautifulSoup) -> str:

@@ -61,11 +61,14 @@ class RoyalRoadCrawler(Crawler):
             status = self._find_status(item)
             if status:
                 info_parts.append(status.value)
+            img = item.select_one("img[data-type='cover']")
+            has_cover = img is not None and "nocover" not in str(img.get("src"))
             results.append(
                 SearchResult(
                     title=a.get_text(strip=True),
                     url=self.absolute_url(a["href"]),
                     info=" | ".join(info_parts) or None,
+                    cover=self.image_url(img) if has_cover else None,
                 )
             )
         return results

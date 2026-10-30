@@ -98,10 +98,12 @@ class ReadNovelEuCrawler(Crawler):
         status = _STATUSES.get(item.get("status") or "", NovelStatus.unknown)
         chapters = item.get("chapterCount") or 0
         info = f"{status.value}, {chapters} chapters"
+        cover = _COVER.format(key=item["coverKey"]) if item.get("coverKey") else None
         return SearchResult(
             title=(item.get("title") or "").strip(),
             url=self._novel_url(item["slug"]),
             info=info,
+            cover=cover,
         )
 
     def _listing_results(self, items: List[dict]) -> List[SearchResult]:

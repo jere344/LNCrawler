@@ -49,6 +49,7 @@ class FenrirScans(Crawler):
                     {
                         "title": title,
                         "url": self.absolute_url(url),
+                        "cover": self.absolute_url(item.get("thumbnail")),
                     }
                 )
         return novels

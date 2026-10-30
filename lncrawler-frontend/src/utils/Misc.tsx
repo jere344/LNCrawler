@@ -80,6 +80,18 @@ export function formatCount(count: number): string {
 export const formatNumber = (value: number, locale?: string): string =>
     value.toLocaleString(locale);
 
+// Compact count formatter (e.g. 1.2K). An unsupported locale falls back to English.
+export function compactNumberFormatter(locale?: string): Intl.NumberFormat {
+    try {
+        return Intl.NumberFormat(locale, { notation: 'compact' });
+    } catch (e) {
+        if (e instanceof RangeError) {
+            return Intl.NumberFormat('en', { notation: 'compact' });
+        }
+        throw e;
+    }
+}
+
 // Cover of a novel's source, or the placeholder cover when it has none.
 export const novelCoverUrl = (source: { cover_min_url?: string | null } | null | undefined): string =>
     source?.cover_min_url || defaultCover;

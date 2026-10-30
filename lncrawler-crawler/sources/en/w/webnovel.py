@@ -47,10 +47,15 @@ class WebnovelCrawler(BasicBrowserTemplate):
         }
         data = self.get_json(f"{self.home_url}go/pcm/search/result?{urlencode(params)}")
         for book in data["data"]["bookInfo"]["bookItems"]:
+            cover = (
+                f"{self.origin.scheme}://book-pic.webnovel.com/bookcover/{book['bookId']}"
+                + f"?coverUpdateTime={book.get('coverUpdateTime', '')}&imageMogr2/thumbnail/600x"
+            )
             yield SearchResult(
                 title=book["bookName"],
                 url=f"{self.home_url}book/{book['bookId']}",
                 info="%(categoryName)s | Score: %(totalScore)s" % book,
+                cover=cover,
             )
 
     def search_novel_in_browser(self, query: str):

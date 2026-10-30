@@ -70,6 +70,7 @@ class GoldenNovelCrawler(Crawler):
                     title=a.get_text(" ", strip=True),
                     url=self.absolute_url(a["href"]),
                     info=" | ".join(info_parts) or None,
+                    cover=self.image_url(card.select_one("img.np-cover-img")),
                 )
             )
         return results

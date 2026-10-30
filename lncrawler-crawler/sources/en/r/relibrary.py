@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 from html import unescape
-from typing import Generator, List
+from typing import Generator, List, Optional
 from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup, Tag
@@ -35,6 +35,13 @@ class ReLibraryCrawler(ChapterOnlyBrowserTemplate):
             }
         )
 
+    def _search_cover(self, item: dict) -> Optional[str]:
+        page = BeautifulSoup(item.get("content", {}).get("rendered") or "", "html.parser")
+        tag = page.select_one("table img.rounded")
+        if tag is None or "no-image" in str(tag.get("src")):
+            return None
+        return self.image_url(tag)
+
     def search_novel(self, query: str) -> List[SearchResult]:
         params = {"search": query, "parent": 30, "per_page": 50}
         data = self.get_json(
@@ -44,6 +51,7 @@ class ReLibraryCrawler(ChapterOnlyBrowserTemplate):
             SearchResult(
                 title=unescape(item["title"]["rendered"]),
                 url=item["link"],
+                cover=self._search_cover(item),
             )
             for item in data
             if isinstance(item, dict) and item.get("link")

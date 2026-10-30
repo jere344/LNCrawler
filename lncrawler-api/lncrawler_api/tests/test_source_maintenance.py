@@ -1022,6 +1022,41 @@ class CommentPortingTests(Phase3Base):
         self.assertTrue(os.path.isdir(self.abs_dead))
         self.assertFalse(os.path.exists(os.path.join(self.tmp, ".prune_trash")))
 
+    def test_parent_and_reply_on_same_chapter_are_both_moved(self):
+        first_dead = self.dead.chapters.order_by("chapter_id").first()
+        first_keeper = self.keeper.chapters.order_by("chapter_id").first()
+        parent = Comment.objects.create(chapter=first_dead, author_name="anon", message="parent")
+        # Comments load newest-first: make the reply the newest so it is handled first.
+        Comment.objects.filter(pk=parent.pk).update(created_at=timezone.now() - timedelta(minutes=1))
+        reply = Comment.objects.create(
+            chapter=first_dead, parent=parent, author_name="anon", message="reply"
+        )
+
+        cmd = self._phase3_command()
+        cmd._port_user_data(self.dead, self.keeper)
+
+        parent.refresh_from_db()
+        reply.refresh_from_db()
+        self.assertEqual(parent.chapter, first_keeper)
+        self.assertEqual(reply.chapter, first_keeper)
+        self.assertEqual(reply.parent, parent)
+
+    def test_unmapped_parent_and_reply_are_both_dropped_with_force(self):
+        last_dead = self.dead.chapters.order_by("chapter_id").last()
+        parent = Comment.objects.create(chapter=last_dead, author_name="anon", message="parent")
+        reply = Comment.objects.create(
+            chapter=last_dead, parent=parent, author_name="anon", message="reply"
+        )
+
+        cmd = self._phase3_command()
+        cmd.force = True
+        # Shift 1 leaves the last dead chapter unmapped: the setUp comment,
+        # the parent and the reply are all dropped.
+        dropped = cmd._port_user_data(self.dead, self.keeper, shift=1)
+
+        self.assertEqual(dropped, 3)
+        self.assertFalse(Comment.objects.filter(pk__in=[parent.pk, reply.pk]).exists())
+
 
 class VoteAndFallbackTests(Phase3Base):
     def _keeper_pair(self, dead_bodies, keeper_bodies, slug):

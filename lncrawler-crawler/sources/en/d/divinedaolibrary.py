@@ -23,7 +23,9 @@ class DivineDaoLibraryCrawler(Crawler):
             if href in seen:
                 continue
             seen.add(href)
-            results.append({"title": a.get_text(strip=True), "url": href})
+            card = a.find_parent("li", class_="card")
+            cover = self.image_url(card.select_one("img") if card else None)
+            results.append({"title": a.get_text(strip=True), "url": href, "cover": cover})
         return results
 
     def browse_novels(self, offset=0, limit=50):

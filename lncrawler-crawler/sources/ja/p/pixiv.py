@@ -22,6 +22,7 @@ from typing import List, Optional, Tuple
 from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,7 @@ class PixivCrawler(Crawler):
                     title=(item.get("title") or "").strip(),
                     url=f"{SITE}/novel/show.php?id={novel_id}",
                     info=item.get("userName") or None,
+                    cover=self.absolute_url(item.get("url")) or None,
                 )
             )
         return results
@@ -165,7 +167,7 @@ class PixivCrawler(Crawler):
                 raise ValueError(f"Unsupported Pixiv URL: {self.novel_url}")
             body = self._api(f"novel/{novel_id}")
             if not body:
-                raise ValueError(f"Could not load Pixiv novel {novel_id}")
+                raise LNException(f"Could not load Pixiv novel {novel_id}")
             nav = body.get("seriesNavData") or {}
             if nav.get("seriesId"):
                 series_id = str(nav["seriesId"])
@@ -212,7 +214,7 @@ class PixivCrawler(Crawler):
     def _read_series(self, series_id: str) -> None:
         info = self._api(f"novel/series/{series_id}")
         if not info:
-            raise ValueError(f"Could not load Pixiv series {series_id}")
+            raise LNException(f"Could not load Pixiv series {series_id}")
         self.novel_title = (info.get("title") or "").strip()
         self.novel_author = info.get("userName") or ""
         urls = (info.get("cover") or {}).get("urls") or {}

@@ -45,6 +45,11 @@ def _source_label(crawler_type) -> str:
     return getattr(crawler_type, "source_name", "") or crawler_type.__name__
 
 
+def _clean_cover(cover) -> Optional[str]:
+    cover = str(cover or "").strip()
+    return cover if cover.startswith(("http://", "https://")) else None
+
+
 def _search_one(
     crawler_type,
     query: str,
@@ -64,7 +69,14 @@ def _search_one(
         for item in results:
             r = item if isinstance(item, SearchResult) else SearchResult(**item)
             if r.url:
-                out.append({"title": r.title, "url": r.url, "info": r.info})
+                out.append(
+                    {
+                        "title": r.title,
+                        "url": r.url,
+                        "info": r.info,
+                        "cover": _clean_cover(r.cover),
+                    }
+                )
                 if len(out) >= MAX_RESULTS_PER_SOURCE:
                     break
         return out
@@ -89,7 +101,12 @@ def rank_results(query: str, raw: List[dict]) -> List[dict]:
             continue
         group = groups.setdefault(key, {"title": item["title"], "novels": []})
         group["novels"].append(
-            {"url": item["url"], "info": item.get("info"), "title": item["title"]}
+            {
+                "url": item["url"],
+                "info": item.get("info"),
+                "title": item["title"],
+                "cover": item.get("cover"),
+            }
         )
 
     ranked = sorted(

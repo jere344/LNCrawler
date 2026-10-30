@@ -50,6 +50,7 @@ class RewayatClubCrawler(Crawler):
             title=(item.get("arabic") or item.get("english") or slug).strip(),
             url=f"https://rewayat.club/novel/{slug}",
             info=item.get("english") or None,
+            cover=item.get("poster_url") or None,
         )
 
     # -- search / browse ----------------------------------------------- #

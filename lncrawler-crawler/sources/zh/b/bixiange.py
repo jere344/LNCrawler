@@ -33,7 +33,15 @@ class BiXianGeCrawler(Crawler):
             if not re.match(r"^/[a-z0-9]+/\d+$", href):
                 continue
             seen.add(href)
-            results.append({"title": title, "url": self.absolute_url(href)})
+            li = a.find_parent("li")
+            cover = li.select_one(".cover img") if li else None
+            results.append(
+                {
+                    "title": title,
+                    "url": self.absolute_url(href),
+                    "cover": self.image_url(cover),
+                }
+            )
         return results
 
     def browse_novels(self, offset=0, limit=50):

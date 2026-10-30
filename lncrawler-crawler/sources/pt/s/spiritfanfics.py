@@ -29,6 +29,7 @@ class SpiritFanficsCrawler(Crawler):
                 {
                     "title": a.text.strip(),
                     "url": self.absolute_url(a["href"]),
+                    "cover": self.image_url(article.select_one("figure img")),
                     "info": author.text.strip() if author else "",
                 }
             )
@@ -53,6 +54,7 @@ class SpiritFanficsCrawler(Crawler):
                     SearchResult(
                         title=a.get_text(" ", strip=True),
                         url=self.absolute_url(a["href"]),
+                        cover=self.image_url(item.select_one("figure img")),
                     )
                 )
             page += 1

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
@@ -7,10 +8,18 @@ from lncrawl.models import Chapter, SearchResult
 
 logger = logging.getLogger(__name__)
 
+_COVER_RE = re.compile(r"url\(['\"]?([^'\")]+)")
+
 
 class PenanaCrawler(Crawler):
     base_url = "https://www.penana.com/"
     language = "multi"
+
+    def _cover(self, a):
+        card = a.find_parent(class_="storydata")
+        box = card.select_one(".newBookCover") if card else None
+        match = _COVER_RE.search((box or {}).get("style") or "")
+        return self.absolute_url(match.group(1)) if match else None
 
     def search_novel(self, query: str):
         soup = self.get_soup(f"{self.home_url}search?q={quote_plus(query)}")
@@ -23,6 +32,7 @@ class PenanaCrawler(Crawler):
                 SearchResult(
                     title=a.get_text(" ", strip=True),
                     url=self.absolute_url(href),
+                    cover=self._cover(a),
                 )
             )
         return results
@@ -43,6 +53,7 @@ class PenanaCrawler(Crawler):
                     SearchResult(
                         title=a.get_text(" ", strip=True),
                         url=self.absolute_url(href),
+                        cover=self._cover(a),
                     )
                 )
             page += 1

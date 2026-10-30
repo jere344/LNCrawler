@@ -23,7 +23,11 @@ class IsotlsCrawler(Crawler):
                 continue
             title = a.text.strip()
             if title and query in title.lower():
-                results.append({"title": title, "url": self.absolute_url(href)})
+                results.append({
+                    "title": title,
+                    "url": self.absolute_url(href),
+                    "cover": self.image_url(a.select_one("img")),
+                })
         return results[:10]
 
     def browse_novels(self, offset=0, limit=50):

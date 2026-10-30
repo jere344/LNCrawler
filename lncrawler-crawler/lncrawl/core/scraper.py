@@ -308,6 +308,16 @@ class Scraper(TaskManager, SoupMaker):
             page_url = str(self.last_soup_url or self.home_url)
         return urljoin(page_url, url).rstrip("/")
 
+    def image_url(self, tag, page_url: Optional[str] = None) -> Optional[str]:
+        """Absolute URL of an <img>, lazy-load attributes first. None when absent."""
+        if tag is None:
+            return None
+        for attr in ("data-lazy-src", "data-src", "data-original", "_src", "src"):
+            value = str(tag.get(attr) or "").strip()
+            if value and not value.startswith("data:"):
+                return self.absolute_url(value, page_url)
+        return None
+
     # ------------------------------------------------------------------ #
     # Request helpers
     # ------------------------------------------------------------------ #

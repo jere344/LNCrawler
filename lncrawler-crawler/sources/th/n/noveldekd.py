@@ -56,7 +56,8 @@ class NovelDekDCrawler(Crawler):
             ).strip()
             url = self.absolute_url(link["href"])
             if title and url:
-                results.append(SearchResult(title=title, url=url))
+                cover = self.image_url(card.select_one(".header__cover img"))
+                results.append(SearchResult(title=title, url=url, cover=cover))
         return results
 
     # -- search / browse ----------------------------------------------- #

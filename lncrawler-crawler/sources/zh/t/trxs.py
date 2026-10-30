@@ -61,6 +61,7 @@ class TrxsCrawler(Crawler):
                     title=title,
                     url=self.absolute_url(href),
                     info=f"作者: {author}" if author else None,
+                    cover=self.image_url(a.select_one("img")),
                 )
             )
         return results

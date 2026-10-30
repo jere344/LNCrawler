@@ -52,11 +52,15 @@ class NovelpiaCrawler(Crawler):
             novel_no = item.get("novel_no")
             if not novel_no:
                 continue
+            cover = item.get("cover_url") or ""
+            if "readycover" in cover:
+                cover = ""
             results.append(
                 {
                     "title": (item.get("novel_name") or "").strip(),
                     "url": f"https://novelpia.com/novel/{novel_no}",
                     "info": item.get("writer_nick") or "",
+                    "cover": self.absolute_url(cover) or None,
                 }
             )
         return results

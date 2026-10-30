@@ -71,6 +71,7 @@ class JoyLadaCrawler(BasicBrowserTemplate):
             yield SearchResult(
                 title=unescape(title),
                 url=self.absolute_url(link["href"]),
+                cover=self.image_url(card.select_one("img")),
             )
 
     # -- novel info ---------------------------------------------------- #

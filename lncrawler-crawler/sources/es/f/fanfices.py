@@ -28,6 +28,9 @@ class FanficEsCrawler(Crawler):
                     title=a.get_text(" ", strip=True),
                     url=self.absolute_url(a["href"]),
                     info=author.get_text(" ", strip=True) if author else None,
+                    cover=self.image_url(
+                        article.select_one(".fanfic-hat-cover-picture img")
+                    ),
                 )
             )
         return results

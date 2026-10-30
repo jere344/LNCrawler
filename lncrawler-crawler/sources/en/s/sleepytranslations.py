@@ -103,7 +103,12 @@ class SleepyTranslationsCrawler(MadaraTemplate):
                 img = a.find("img")
                 title = (img.get("alt") if isinstance(img, Tag) else "") or ""
             if title:
-                yield SearchResult(title=title, url=self.absolute_url(href))
+                card = a.find_parent(class_="c-tabs-item__content")
+                yield SearchResult(
+                    title=title,
+                    url=self.absolute_url(href),
+                    cover=self.image_url(card.select_one(".tab-thumb img")) if card else None,
+                )
 
     # -- novel metadata ------------------------------------------------ #
 

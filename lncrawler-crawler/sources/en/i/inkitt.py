@@ -29,6 +29,7 @@ class InkittCrawler(Crawler):
             title=story["title"],
             url=self.absolute_url(f"/stories/{story['id']}"),
             info=f"Chapters: {story['chapters_count']}, Status: {story['story_status']}",
+            cover=self.absolute_url((story.get("cover") or {}).get("url")),
         )
 
     def browse_novels(self, offset=0, limit=50):

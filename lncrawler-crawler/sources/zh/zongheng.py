@@ -33,6 +33,11 @@ class ZonghengCrawler(Crawler):
                     title=name.strip(),
                     url=f"{self.home_url}detail/{book_id}",
                     info=item.get("authorName") or "",
+                    cover=self.absolute_url(
+                        f"https://static.zongheng.com/upload{item['coverUrl']}"
+                    )
+                    if item.get("coverUrl")
+                    else None,
                 )
             )
         return results

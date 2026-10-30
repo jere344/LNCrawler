@@ -87,6 +87,7 @@ class VtruyenCrawler(Crawler):
             title=(item.get("title") or "").strip(),
             url=self._novel_url(item.get("id")),
             info=info,
+            cover=self.absolute_url(item.get("cover")),
         )
 
     @staticmethod

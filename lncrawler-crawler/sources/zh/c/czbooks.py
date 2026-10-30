@@ -38,16 +38,21 @@ class CzbooksCrawler(Crawler):
                 continue
             item = a.find_parent(class_="novel-item")
             info_parts = []
+            cover = None
             if isinstance(item, Tag):
                 for sel in (".novel-item-state", ".novel-item-newest-chapter"):
                     part = item.select_one(sel)
                     if isinstance(part, Tag):
                         info_parts.append(part.get_text(" ", strip=True))
+                img = item.select_one(".novel-item-thumbnail img")
+                if isinstance(img, Tag) and _DEFAULT_COVER not in str(img.get("src", "")):
+                    cover = self.image_url(img)
             results.append(
                 SearchResult(
                     title=a.get_text(" ", strip=True),
                     url=url,
                     info=" | ".join(p for p in info_parts if p) or None,
+                    cover=cover,
                 )
             )
         return results

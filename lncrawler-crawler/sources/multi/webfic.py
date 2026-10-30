@@ -38,6 +38,7 @@ class Webfic(Crawler):
                     SearchResult(
                         title=book["bookName"],
                         url=f"https://www.webfic.com/book_info/{book['bookId']}/all/x",
+                        cover=self.absolute_url(book.get("cover")),
                     )
                 )
             page += 1
@@ -171,7 +172,8 @@ class Webfic(Crawler):
                     SearchResult(
                         title=novel_title,
                         url=f"https://www.webfic.com/book_info/{novel_id}/all/{novel_uri_name}",
-                        info=" | ".join([f"{key}: {value}" for key, value in novel_info.items()])
+                        info=" | ".join([f"{key}: {value}" for key, value in novel_info.items()]),
+                        cover=self.absolute_url(novel.get("cover")),
                     )
                 )
             pass

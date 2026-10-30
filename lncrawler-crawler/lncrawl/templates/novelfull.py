@@ -24,9 +24,11 @@ class NovelFullTemplate(SearchableSoupTemplate, ChapterOnlySoupTemplate):
 
     def parse_search_item(self, tag: Tag) -> SearchResult:
         title = tag.get("title", tag.get_text())
+        row = tag.find_parent(class_="row")
         return SearchResult(
             title=title.strip(),
             url=self.absolute_url(tag["href"]),
+            cover=self.image_url(row.select_one("img") if row else None),
         )
 
     def parse_title(self, soup: BeautifulSoup) -> str:

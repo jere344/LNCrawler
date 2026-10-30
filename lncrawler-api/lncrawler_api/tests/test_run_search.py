@@ -123,3 +123,99 @@ class RunSearchTests(SimpleTestCase):
         result = self._run([FloodSource])
 
         self.assertEqual(len(result), self.search.MAX_RESULTS_PER_SOURCE)
+
+    def test_cover_reaches_novels_from_dict_and_search_result(self):
+        from lncrawl.models import SearchResult
+
+        class DictCover(_fast_source("unused", "http://dict")):
+            def search_novel(self, query):
+                return [
+                    {
+                        "title": "Solo Leveling",
+                        "url": "http://dict/1",
+                        "info": None,
+                        "cover": "https://dict/1.jpg",
+                    }
+                ]
+
+        class ModelCover(_fast_source("unused", "http://model")):
+            def search_novel(self, query):
+                return [
+                    SearchResult(
+                        "Solo Leveling", "http://model/1", cover="https://model/1.jpg"
+                    )
+                ]
+
+        result = self._run([DictCover, ModelCover])
+
+        covers = {novel["url"]: novel["cover"] for novel in result[0]["novels"]}
+        self.assertEqual(
+            covers,
+            {
+                "http://dict/1": "https://dict/1.jpg",
+                "http://model/1": "https://model/1.jpg",
+            },
+        )
+
+    def test_non_http_or_missing_cover_is_none(self):
+        from lncrawl.models import SearchResult
+
+        class BadCover(_fast_source("unused", "http://bad")):
+            def search_novel(self, query):
+                return [
+                    SearchResult(
+                        "Solo Leveling",
+                        "http://bad/1",
+                        cover="data:image/gif;base64,R0lGOD",
+                    ),
+                    SearchResult("Solo Leveling", "http://bad/2", cover="/img/a.jpg"),
+                ]
+
+        result = self._run([BadCover, _fast_source("Solo Leveling", "http://none/1")])
+
+        covers = {novel["url"]: novel["cover"] for novel in result[0]["novels"]}
+        self.assertEqual(
+            covers,
+            {"http://bad/1": None, "http://bad/2": None, "http://none/1": None},
+        )
+
+
+class ImageUrlTests(SimpleTestCase):
+    def setUp(self):
+        from lncrawler_api.services.downloader_service import _load_app
+
+        _load_app()
+        from lncrawl.core.scraper import Scraper
+
+        self.scraper = Scraper("https://example.com/")
+        self.addCleanup(self.scraper.close)
+
+    def _img(self, attrs):
+        from bs4 import BeautifulSoup
+
+        return BeautifulSoup(f"<img {attrs}>", "html.parser").img
+
+    def test_lazy_attributes_first_and_data_uris_skipped(self):
+        page = "https://example.com/list/"
+
+        self.assertEqual(
+            self.scraper.image_url(self._img('src="/a.jpg" data-src="/b.jpg"'), page),
+            "https://example.com/b.jpg",
+        )
+        self.assertEqual(
+            self.scraper.image_url(
+                self._img('data-lazy-src="/c.jpg" data-original="/d.jpg"'), page
+            ),
+            "https://example.com/c.jpg",
+        )
+        self.assertEqual(
+            self.scraper.image_url(
+                self._img('src="data:image/gif;base64,R0lGOD" data-original="/d.jpg"'),
+                page,
+            ),
+            "https://example.com/d.jpg",
+        )
+        self.assertIsNone(
+            self.scraper.image_url(self._img('src="data:image/gif;base64,R0lGOD"'), page)
+        )
+        self.assertIsNone(self.scraper.image_url(None, page))

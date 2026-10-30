@@ -28,6 +28,11 @@ class SkyNovelsCrawler(Crawler):
                 url=self.absolute_url(f"/novelas/{item['id']}/{item['nvl_name']}"),
                 info="Author: %s | Chapters: %s"
                 % (item.get("nvl_writer") or "", item.get("nvl_chapters") or ""),
+                cover=(
+                    f"{API_URL}/get-image/{item['image']}/novels/true"
+                    if item.get("image")
+                    else None
+                ),
             )
             for item in data.get("novels", [])
         ]

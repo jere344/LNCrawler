@@ -29,6 +29,7 @@ class TapasCrawler(Crawler):
                 SearchResult(
                     title=a.get_text(" ", strip=True),
                     url=self.absolute_url(a["href"]),
+                    cover=self.image_url(item.select_one("img")),
                 )
             )
         return results

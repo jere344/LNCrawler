@@ -65,6 +65,7 @@ class MvlempyrIoCrawler(Crawler):
             title=unescape(rec.get("name") or "").strip(),
             url=self._novel_url(rec["slug"]),
             info=f"{rec.get('total-chapters') or 0} chapters",
+            cover=_COVER.format(code=rec["novel-code"]) if rec.get("novel-code") else None,
         )
 
     def _fetch_all_novels(self, build: bool = False) -> List[dict]:

@@ -58,9 +58,11 @@ class ScribbleHubCrawler(SearchableBrowserTemplate):
             yield a
 
     def parse_search_item(self, tag: Tag) -> SearchResult:
+        card = tag.find_parent(class_="search_main_box")
         return SearchResult(
             title=tag.text.strip(),
             url=self.absolute_url(tag["href"]),
+            cover=self.image_url(card.select_one(".search_img img")) if card else None,
         )
 
     def browse_novels(self, offset=0, limit=50):

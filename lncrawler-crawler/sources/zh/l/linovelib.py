@@ -17,7 +17,7 @@ import re
 import time
 from datetime import timedelta
 from html import unescape
-from typing import List
+from typing import List, Optional
 
 from lncrawl.core.catalog_cache import cached_catalog
 from lncrawl.core.crawler import Crawler
@@ -76,7 +76,9 @@ class LinovelibCrawler(Crawler):
                     continue
                 seen.add(url)
                 new_items += 1
-                novels.append({"title": title, "url": url, "rank": len(novels) + 1})
+                novels.append(
+                    {"title": title, "url": url, "rank": len(novels) + 1, "cover": self._cover(a)}
+                )
             if new_items == 0:
                 break
         else:
@@ -105,10 +107,20 @@ class LinovelibCrawler(Crawler):
         for rec in self._fetch_all_novels():
             title = _normalize(rec.get("title", ""))
             if all(term in title for term in terms):
-                results.append(SearchResult(title=rec["title"], url=rec["url"]))
+                results.append(
+                    SearchResult(title=rec["title"], url=rec["url"], cover=rec.get("cover"))
+                )
                 if len(results) >= 20:
                     break
         return results
+
+    def _cover(self, link) -> Optional[str]:
+        """Real cover of the rank row holding ``link``; ``src`` is a placeholder svg."""
+        row = link.find_parent(class_="rank_d_list")
+        img = row.select_one(".rank_d_book_img img") if row else None
+        if img is None or not img.get("data-original"):
+            return None
+        return self.absolute_url(img["data-original"])
 
     def browse_novels(self, offset=0, limit=50):
         results = []
@@ -130,6 +142,7 @@ class LinovelibCrawler(Crawler):
                     SearchResult(
                         title=a.get_text(" ", strip=True),
                         url=url,
+                        cover=self._cover(a),
                     )
                 )
             if new_items == 0:
@@ -183,7 +196,10 @@ class LinovelibCrawler(Crawler):
                 else f"Volume {len(self.volumes) + 1}"
             )
             vol_id = len(self.volumes) + 1
-            self.volumes.append(Volume(id=vol_id, title=vol_title))
+            cover = vol_block.select_one("img")
+            self.volumes.append(
+                Volume(id=vol_id, title=vol_title, cover_url=self.image_url(cover))
+            )
 
             for a in vol_block.select("ul.chapter-list li a[href]"):
                 href = a["href"]

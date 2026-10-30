@@ -71,6 +71,7 @@ class ChikariCrawler(Crawler):
             title=(item.get("title") or "").strip(),
             url=f"{API_ORIGIN}/novels/{item.get('slug', '')}",
             info=info or None,
+            cover=self.absolute_url(item.get("cover_url")),
         )
 
     # -- Crawler API --------------------------------------------------- #

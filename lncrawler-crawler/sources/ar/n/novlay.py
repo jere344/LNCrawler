@@ -231,7 +231,9 @@ class NovlayCrawler(Crawler):
             if not alt or alt in seen:
                 continue
             seen.add(alt)
-            results.append(SearchResult(title=title, url=alt))
+            img = BeautifulSoup(content, "html.parser").select_one('img[itemprop="image"]')
+            cover = self.image_url(img)
+            results.append(SearchResult(title=title, url=alt, cover=cover))
             if len(results) >= 10:
                 break
         return results

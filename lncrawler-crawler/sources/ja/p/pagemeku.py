@@ -54,10 +54,12 @@ class PageMekuCrawler(Crawler):
             tail = status.get_text(" ", strip=True).split("|")[-1].strip()
             if tail:
                 info.append(tail)
+        cover = self.image_url(card.select_one("img.book-cover-img-compact"))
         return SearchResult(
             title=link.get_text(" ", strip=True),
             url=self.absolute_url(link.get("href"), page_url=page_url),
             info=" | ".join(dict.fromkeys(info)) or None,
+            cover=cover if cover and "default_book_cover" not in cover else None,
         )
 
     def _collect(self, soup, page_url: str, seen: set) -> int:

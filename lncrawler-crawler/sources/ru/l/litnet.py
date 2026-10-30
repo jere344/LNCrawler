@@ -56,6 +56,7 @@ class LitnetCrawler(Crawler):
         return SearchResult(
             title=(item.get("title") or "").strip(),
             url=f"{self.home_url}ru/book/{item.get('link') or item.get('alias')}",
+            cover=self.absolute_url(item.get("image")),
             info=info or None,
         )
 

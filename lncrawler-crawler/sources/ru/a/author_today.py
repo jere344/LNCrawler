@@ -28,6 +28,7 @@ class AuthorTodayCrawler(Crawler):
                 SearchResult(
                     title=a.get_text(" ", strip=True),
                     url=self.absolute_url(a["href"]),
+                    cover=self.image_url(card.select_one(".book-cover img")),
                     info=author.get_text(" ", strip=True) if author else "",
                 )
             )

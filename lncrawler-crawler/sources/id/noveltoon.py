@@ -40,6 +40,7 @@ class NovelsRockCrawler(Crawler):
                     url=self.absolute_url(a["href"]),
                     title=title.text.strip() if title else a.get_text(strip=True),
                     info=info.text.strip() if info else "",
+                    cover=self.image_url(item.select_one(".comics-image img")),
                 )
             )
 

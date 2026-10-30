@@ -23,8 +23,15 @@ class FujossyCrawler(Crawler):
             title = a.get_text(" ", strip=True)
             if not title:
                 continue
+            card = a.find_parent(class_="book__related-tile")
+            image = card.select_one("img") if card else None
+            cover = image.get("data-echo") if image else None
             results.append(
-                {"title": title, "url": self.absolute_url(href)}
+                {
+                    "title": title,
+                    "url": self.absolute_url(href),
+                    "cover": self.absolute_url(cover) or None,
+                }
             )
         return results
 

@@ -34,6 +34,7 @@ class WuxiaworldCrawler(Crawler):
                     title=a.get_text(strip=True),
                     url=self.absolute_url(a["href"]),
                     info=info.get_text(strip=True) if info else "",
+                    cover=self.image_url(cell.select_one(".cover img")),
                 )
             )
         return results

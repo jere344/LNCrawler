@@ -65,10 +65,14 @@ class SolispiaCrawler(Crawler):
             text = span.get_text(" ", strip=True)
             if text:
                 info.append(text)
+        cover = card.select_one("img.novel-cover-image")
+        if isinstance(cover, Tag) and cover.get("alt") == "No cover image":
+            cover = None
         return SearchResult(
             title=link.get_text(" ", strip=True),
             url=self.absolute_url(link.get("href"), page_url=page_url),
             info=" | ".join(dict.fromkeys(info)) or None,
+            cover=self.image_url(cover),
         )
 
     def _collect(self, soup, page_url: str) -> List[SearchResult]:

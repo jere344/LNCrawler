@@ -73,6 +73,7 @@ class GoodDreamerCrawler(Crawler):
             title=(item.get("novel_title") or "").strip(),
             url=self._novel_url(item),
             info=info,
+            cover=self.absolute_url(item.get("novel_cover")) or None,
         )
 
     # -- search / browse ----------------------------------------------- #

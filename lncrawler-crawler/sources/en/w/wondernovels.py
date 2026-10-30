@@ -32,6 +32,7 @@ class WonderNovels(MadaraTemplate):
                     "info": " | ".join(
                         x.text.strip() for x in (latest, votes) if x
                     ),
+                    "cover": self.image_url(tab.select_one(".tab-thumb img")),
                 }
             )
 

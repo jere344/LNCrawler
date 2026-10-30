@@ -57,7 +57,8 @@ class RanobeMirCrawler(Crawler):
             if not url or not title or url in seen:
                 continue
             seen.add(url)
-            results.append(SearchResult(title=title, url=url))
+            cover = self.image_url(anchor.select_one("img"), page_url=page_url)
+            results.append(SearchResult(title=title, url=url, cover=cover))
         return results
 
     # -- search / browse ---------------------------------------------- #

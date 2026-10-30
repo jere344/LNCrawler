@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type SyntheticEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Box,
@@ -18,6 +18,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { searchService, jobService } from '@services/api';
 import { SearchStatus, SearchResult, SearchResults as SearchResultsType } from '@models/downloader_types';
+import defaultCover from '@assets/default-cover.jpg';
 import DownloadStepper from './DownloadStepper';
 
 const POLLING_INTERVAL = 1000; // 1 second
@@ -248,6 +249,20 @@ const SearchResults = () => {
                         to={`/download/${jobId}/${sourceIndex}/${novelIndex}`}
                         state={{ novelUrl: novel.url, title: source.title }}
                       >
+                        <Box
+                          component="img"
+                          src={novel.cover || defaultCover}
+                          alt=""
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e: SyntheticEvent<HTMLImageElement>) => {
+                            e.currentTarget.onerror = null;
+                            if (e.currentTarget.getAttribute('src') !== defaultCover) {
+                              e.currentTarget.src = defaultCover;
+                            }
+                          }}
+                          sx={{ width: 40, height: 60, objectFit: 'cover', borderRadius: 0.5, flexShrink: 0, mr: 1.5 }}
+                        />
                         <ListItemText
                           primary={source.title}
                           secondary={novel.url}

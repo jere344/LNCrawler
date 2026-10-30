@@ -24,6 +24,7 @@ class NovelCool(Crawler):
                 SearchResult(
                     title=a.get("title", a.text).strip(),
                     url=self.absolute_url(a["href"]),
+                    cover=self.image_url(item.select_one("img[itemprop='image']")),
                 )
             )
         return results

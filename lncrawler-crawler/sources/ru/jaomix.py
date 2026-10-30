@@ -24,7 +24,11 @@ class JaomixCrawler(Crawler):
     def search_novel(self, query):
         soup = self.get_soup(f"{self.base_url[0]}?searchrn={quote_plus(query)}")
         return [
-            {"title": a["title"], "url": self.absolute_url(a["href"])}
+            {
+                "title": a["title"],
+                "url": self.absolute_url(a["href"]),
+                "cover": self.image_url(a.select_one("img")),
+            }
             for a in soup.select(".img-home a[title][href]")
         ][:10]
 

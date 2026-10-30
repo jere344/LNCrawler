@@ -38,6 +38,9 @@ class UnrivalledStoriesCrawler(Crawler):
             SearchResult(
                 title=a.get_text(" ", strip=True),
                 url=self.absolute_url(a["href"]),
+                cover=self.image_url(
+                    (a.find_parent(class_="card") or a).select_one(".card__image img")
+                ),
             )
             for a in soup.select(".card__title a[href*='/story/']")
         ]

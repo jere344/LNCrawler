@@ -45,10 +45,12 @@ class WeTruyenCrawler(Crawler):
             a = row.select_one("h3 a")
             if not isinstance(a, Tag) or not a.get("href"):
                 continue
+            cover = row.select_one("[data-desk-image]")
             results.append(
                 SearchResult(
                     title=_clean(a.get_text()),
                     url=self.absolute_url(a["href"]),
+                    cover=self.absolute_url(cover and cover["data-desk-image"]),
                 )
             )
         return results

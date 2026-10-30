@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from abc import abstractmethod
 from typing import Generator, List, Optional
@@ -194,7 +195,18 @@ class BasicBrowserTemplate(Crawler):
                     if isinstance(e, RetryErrorGroup):
                         logger.warning("Failed to get chapter body: %s", e)
                     else:
-                        logger.error("Failed to get chapter body: %s", e)
+                        # One report per source and exception type, not per chapter.
+                        logger.error(
+                            "Failed to get chapter body from %s (%s): %s",
+                            self.source_name,
+                            chapter.url,
+                            e,
+                            extra={
+                                "github_fingerprint": hashlib.sha1(
+                                    f"{self.source_name}:chapter-body:{type(e).__name__}".encode()
+                                ).hexdigest()[:12]
+                            },
+                        )
                     if isinstance(e, KeyboardInterrupt):
                         break
                 finally:

@@ -78,6 +78,7 @@ class NovelciCrawler(Crawler):
             title=(item.get("ad") or "").strip(),
             url=f"{self.home_url}novel/{item.get('slug')}",
             info=info or None,
+            cover=self.absolute_url(item.get("resim_url")),
         )
 
     def _novel_id(self) -> int:
@@ -108,7 +109,7 @@ class NovelciCrawler(Crawler):
         rows = self._rest(
             "romanlar",
             {
-                "select": "ad,slug,durum,tip",
+                "select": "ad,slug,durum,tip,resim_url",
                 "ad": f"ilike.*{query}*",
                 "gizli": "eq.false",
                 "limit": "10",
@@ -120,7 +121,7 @@ class NovelciCrawler(Crawler):
         rows = self._rest(
             "romanlar",
             {
-                "select": "ad,slug,durum,tip",
+                "select": "ad,slug,durum,tip,resim_url",
                 "gizli": "eq.false",
                 "order": "goruntulenme_toplam.desc",
                 "limit": str(limit),

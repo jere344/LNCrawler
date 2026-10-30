@@ -45,7 +45,11 @@ class LightNovelToCrawler(Crawler):
             img = a.select_one("img[alt]")
             title = img["alt"].strip() if img else match.group(1).replace("-", " ").title()
             results.append(
-                SearchResult(title=title, url=self._novel_url(match.group(1)))
+                SearchResult(
+                    title=title,
+                    url=self._novel_url(match.group(1)),
+                    cover=self.image_url(img),
+                )
             )
         return results
 

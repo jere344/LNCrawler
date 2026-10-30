@@ -61,7 +61,7 @@ Routes that kept paying off:
 ## 3. Known traps
 
 - Search param / listing URL from specs are often wrong (`tukhoa` → `search`; `/top/` → `/topfull/allvisit/N.html`). Site search may post to a third-party host or Google CSE → no usable search (§4b).
-- Covers: `data-src` / `data-original` / `_src` before `src`.
+- Covers: `data-src` / `data-original` / `_src` before `src`; `self.image_url(img)` handles these.
 - Scope chapter-list selectors to the main container (sidebars reuse them). Chapter bodies may sit between nav markers (piaotia: `div.toplink`…`div.bottomlink`). API `link` may point to an announcement page.
 - `absolute_url()` drops a trailing `/`; re-add before `urljoin` with relative pager links (kanunu8).
 - Pagination: `?page=N`, `/trang-N/`, `page~N`; endpoints that repeat the last page → stop when a page adds no new URLs.
@@ -72,10 +72,14 @@ Routes that kept paying off:
 
 Novel: `novel_title`, `novel_author` (join multiple), `novel_cover` (absolute, not a placeholder), `novel_synopsis` (no site boilerplate), `novel_tags` (genres + tags), `alternative_titles`, `self.status = NovelStatus.ongoing|completed|hiatus|unknown` (`from lncrawl.models import NovelStatus`; not on the base class, read via getattr — parse it, don't hard-code), `language`, `is_rtl` for ar/fa/he/ur, `has_mtl` / `is_adult` / `login_required` when true, translators via `self.translators`. Volumes: every `chapter.volume` exists, no empty volumes; single-chapter story = one Volume + one Chapter at `novel_url`.
 
+Volume covers: when the site shows one image per volume, set `Volume(id=..., title=..., cover_url=...)` (absolute URL, from a page or API response `read_novel_info` already fetches; `self.image_url(img)` for HTML). The downloader inserts it right after the title of the volume's first chapter, on novels with at least two volumes. Leave it out when the site has none: never reuse `novel_cover` or a placeholder, and no extra request per volume unless the volume has its own page already being fetched. EPUB templates: `self.book_cover_url(book)`.
+
 Chapters: ids sequential from 1 in reading order (reverse newest-first lists); dedupe URLs; skip VIP/locked (lock icon or a class like 17k `span.ellipsis.vip`) and log the count. Body: no ads, scripts, nav, watermarks (Royal Road hides anti-piracy lines with classes from a `<style>` block).
 
+Version: bump `version` (class attribute, default 1, so `version = 2`, then 3, ...) only when a fix changes the chapter bodies already downloaded, e.g. truncated text or ads left in the body. Use it sparingly: the next update of every novel on the source refetches all its chapters, which is slow and hits the site hard. Metadata is refreshed on every update, and new chapters and changed chapter URLs are picked up without a bump, so don't bump for fixes to novel metadata, titles, volumes, the table of contents, search or browse. Leave it out of new sources.
+
 Listings:
-- `search_novel(query)` → `SearchResult(title, url, info)` as the site's search returns them, without filtering on query terms (alternative titles would be lost; multi-source ranking sorts them). At most `MAX_RESULTS_PER_SOURCE` (50, `lncrawl/core/search.py`) are kept, so fetch only the first page(s). Status/chapters/latest in `info`. No search at all → `[]` + docstring.
+- `search_novel(query)` → `SearchResult(title, url, info, cover)` as the site's search returns them, without filtering on query terms (alternative titles would be lost; multi-source ranking sorts them). At most `MAX_RESULTS_PER_SOURCE` (50, `lncrawl/core/search.py`) are kept, so fetch only the first page(s). Status/chapters/latest in `info`. `cover` comes only from what the search response already contains (`self.image_url(img)` for HTML, `self.absolute_url(...)` for JSON), never an extra request per result; omit it rather than returning a site placeholder. No search at all → `[]` + docstring.
 - `browse_novels(offset, limit)` → popular/ranking; returns ≤ `limit`; fetch only the pages needed. Genre listings have no hook: iterate them inside `browse_novels` (naver_novel).
 
 ## 4b. Politeness (don't get flagged on first indexing)

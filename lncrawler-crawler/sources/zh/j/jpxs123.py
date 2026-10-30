@@ -48,8 +48,10 @@ class JpXs123Crawler(Crawler):
             container = h3.parent
             labels = container.select("label.size, label.date") if container else []
             info = " | ".join(l.get_text(strip=True) for l in labels) or None
+            card = h3.find_parent(class_="bk")
+            cover = self.image_url(card.select_one(".pic img") if card else None)
             results.append(
-                SearchResult(title=a.get_text(strip=True), url=url, info=info)
+                SearchResult(title=a.get_text(strip=True), url=url, info=info, cover=cover)
             )
         return results
 

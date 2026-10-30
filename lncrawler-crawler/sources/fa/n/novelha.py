@@ -67,6 +67,7 @@ class NovelhaCrawler(Crawler):
             title=(item.get("title") or "").strip(),
             url=f"{self.home_url}novels/{item.get('slug', '')}",
             info=info or None,
+            cover=self.absolute_url(item.get("cover_image")),
         )
 
     @staticmethod

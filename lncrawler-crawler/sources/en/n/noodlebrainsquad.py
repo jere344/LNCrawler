@@ -61,6 +61,9 @@ class NoodleBrainSquadCrawler(Crawler):
                 SearchResult(
                     title=item.get("title") or item.get_text(" ", strip=True),
                     url=self.absolute_url(item["href"]),
+                    cover=self.image_url(
+                        item.find_parent("article").select_one(".mdthumb img")
+                    ),
                 )
             )
         return results

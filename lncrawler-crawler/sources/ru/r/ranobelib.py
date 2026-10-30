@@ -166,6 +166,7 @@ class RanobeLibCrawler(Crawler):
             title=title,
             url=self._novel_page_url(item),
             info=" · ".join(parts) or None,
+            cover=(item.get("cover") or {}).get("default"),
         )
 
     @staticmethod

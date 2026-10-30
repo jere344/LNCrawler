@@ -28,7 +28,9 @@ class SfacgCrawler(Crawler):
             if not title or url in seen:
                 continue
             seen.add(url)
-            results.append(SearchResult(title=title, url=url))
+            card = a.find_parent("ul")
+            cover = self.image_url(card.select_one("img") if card else None)
+            results.append(SearchResult(title=title, url=url, cover=cover))
         return results
 
     def browse_novels(self, offset=0, limit=50):

@@ -177,6 +177,14 @@ class DownloadExpectedErrorTests(TransactionTestCase):
 
         self.assertTrue(any(r.levelname == "ERROR" for r in cm.records))
 
+    def test_unexpected_error_carries_url_in_github_details(self):
+        with self.assertLogs("lncrawler_api", level="ERROR") as cm:
+            self._run_with(RuntimeError("boom"))
+
+        record = [r for r in cm.records if r.levelname == "ERROR"][-1]
+        self.assertIn("url=http://example.invalid/novel", record.github_details)
+        self.assertNotIn("example.invalid", record.getMessage())
+
 
 class DownloadCancelTests(TransactionTestCase):
     """A download cancelled while running must not be imported."""

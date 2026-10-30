@@ -26,7 +26,15 @@ class TruyenHoanCrawler(Crawler):
             if not title or href in seen:
                 continue
             seen.add(href)
-            results.append({"title": title, "url": href})
+            row = a.find_parent(class_="row")
+            cover = row.select_one("[data-desk-image]") if row else None
+            results.append(
+                {
+                    "title": title,
+                    "url": href,
+                    "cover": self.absolute_url(cover and cover["data-desk-image"]),
+                }
+            )
         return results
 
     def browse_novels(self, offset=0, limit=50):

@@ -36,6 +36,9 @@ class NovelMTLTemplate(SearchableBrowserTemplate, ChapterOnlyBrowserTemplate):
             title=title,
             url=self.absolute_url(tag["href"]),
             info=" | ".join([x.text.strip() for x in tag.select(".novel-stats")]),
+            cover=self.image_url(
+                tag.select_one(".novel-cover img") or tag.select_one("img")
+            ),
         )
 
     def parse_title(self, soup: BeautifulSoup) -> str:

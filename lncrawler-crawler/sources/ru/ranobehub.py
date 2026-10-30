@@ -33,7 +33,12 @@ class RanobeHubCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
         assert isinstance(a, Tag)
         title_tag = tag.select_one("h3")
         title = title_tag.get_text(strip=True) if title_tag else a.get_text(" ", strip=True)
-        return SearchResult(title=title, url=self.absolute_url(a["href"]))
+        cover = tag.select_one(".book-cover-image")
+        return SearchResult(
+            title=title,
+            url=self.absolute_url(a["href"]),
+            cover=self.image_url(cover),
+        )
 
     def browse_novels(self, offset: int = 0, limit: int = 50):
         results = []

@@ -28,7 +28,9 @@ class NovgoCrawler(Crawler):
             if not title or url in seen:
                 continue
             seen.add(url)
-            results.append({"title": title, "url": url})
+            card = a.find_parent(class_="li")
+            cover = self.image_url(card.select_one(".pic img")) if card else None
+            results.append({"title": title, "url": url, "cover": cover})
         return results[:20]
 
     def browse_novels(self, offset: int = 0, limit: int = 50):

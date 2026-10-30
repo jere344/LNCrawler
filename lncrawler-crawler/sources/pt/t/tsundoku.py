@@ -55,6 +55,7 @@ class TsundokuCrawler(Crawler):
         return SearchResult(
             title=title,
             url=self.absolute_url(a["href"]),
+            cover=self.image_url(a.select_one("img:not([src*='unknown'])")),
             info=latest.get_text(" ", strip=True) if latest else None,
         )
 

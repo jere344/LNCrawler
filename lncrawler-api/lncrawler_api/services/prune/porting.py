@@ -93,15 +93,19 @@ class PortingMixin:
             history.last_read_chapter = map_chapter(history.last_read_chapter)
             history.save(update_fields=["source", "last_read_chapter"])
 
-        dropped = 0
+        # Comments load newest-first, so a reply can be reached before its parent.
+        # save() would reject it (the parent is still on the loser chapter), so
+        # the mapped comments are moved with bulk_update, which skips save().
+        # A parent and its replies always map together, so the link stays valid.
+        dropped = len(unmapped)
+        Comment.objects.filter(pk__in=[comment.pk for comment in unmapped]).delete()
+        unmapped_ids = {comment.pk for comment in unmapped}
+        moved = []
         for comment in comments:
-            target = map_chapter(comment.chapter)
-            if target is None:
-                comment.delete()
-                dropped += 1
-            else:
-                comment.chapter = target
-                comment.save(update_fields=["chapter"])
+            if comment.pk not in unmapped_ids:
+                comment.chapter = map_chapter(comment.chapter)
+                moved.append(comment)
+        Comment.objects.bulk_update(moved, ["chapter"], batch_size=500)
 
         keeper.refresh_from_db()
         recount_source_votes(keeper)

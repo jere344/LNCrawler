@@ -76,6 +76,7 @@ class NovaTlsCrawler(Crawler):
             title=(item.get("title") or "").strip(),
             url=f"{self.home_url}series/{item.get('slug', '')}",
             info=info or None,
+            cover=self.absolute_url(item.get("cover_image_url")),
         )
 
     # -- Crawler API --------------------------------------------------- #

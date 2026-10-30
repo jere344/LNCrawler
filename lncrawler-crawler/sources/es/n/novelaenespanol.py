@@ -129,6 +129,7 @@ class NovelaEnEspanolCrawler(Crawler):
                         )
                         if part
                     ),
+                    cover=self.absolute_url(item.get("cat_img")),
                 )
             )
             if len(results) >= 10:

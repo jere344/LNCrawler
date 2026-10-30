@@ -26,7 +26,11 @@ class NoveLightCrawler(Crawler):
         )
 
         return [
-            SearchResult(title=a.text.strip(), url=self.absolute_url(a["href"]))
+            SearchResult(
+                title=a.text.strip(),
+                url=self.absolute_url(a["href"]),
+                cover=self.image_url(a.select_one(".poster img")),
+            )
             for a in soup.select(".manga-grid-list a.item")
             if isinstance(a, Tag)
         ]

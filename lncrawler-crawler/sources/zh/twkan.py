@@ -38,6 +38,7 @@ class TwkanCrawler(Crawler):
                 SearchResult(
                     title=link.get_text(strip=True),
                     url=self.absolute_url(link["href"]),
+                    cover=self.image_url(item.select_one("img[data-src]")),
                 )
             )
         if results:

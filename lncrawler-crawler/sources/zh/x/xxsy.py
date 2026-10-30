@@ -26,7 +26,10 @@ class XxsyCrawler(Crawler):
             if not title or href in seen:
                 continue
             seen.add(href)
-            results.append({"title": title, "url": self.absolute_url(href)})
+            cover = self.image_url(a.select_one("img"))
+            results.append(
+                {"title": title, "url": self.absolute_url(href), "cover": cover}
+            )
         return results
 
     def browse_novels(self, offset=0, limit=50):

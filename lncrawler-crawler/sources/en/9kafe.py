@@ -58,11 +58,13 @@ class NineKafeCrawler(EpubCrawler):
             seen.add(url)
             text = link.get_text(" ", strip=True)
             title, _, author = text.partition(" by ")
+            card = link.find_parent(class_="card-item")
             results.append(
                 SearchResult(
                     title=(title or text).strip(),
                     url=url,
                     info=author.strip() or None,
+                    cover=self.image_url(card.select_one("img") if card else None),
                 )
             )
             if len(results) >= 20:
@@ -181,6 +183,7 @@ class NineKafeCrawler(EpubCrawler):
             self._volume_urls_by_key[book_key] = url
 
             chapters = self._reused_chapters(book_key, index, existing)
+            cover_url = None
             if not chapters:
                 book = self._ensure_book(book_key)
                 if book is None:
@@ -188,11 +191,14 @@ class NineKafeCrawler(EpubCrawler):
                     self.progress = index
                     continue
                 self.apply_book_metadata(book)
+                cover_url = self.book_cover_url(book)
                 chapters, next_id = self.build_book_chapters(
                     book, volume_id=index, start_id=next_id
                 )
             self.chapters.extend(chapters)
-            self.volumes.append(Volume(id=index, title=self._volume_title(label, index)))
+            self.volumes.append(
+                Volume(id=index, title=self._volume_title(label, index), cover_url=cover_url)
+            )
             self.progress = index
 
         if not self.novel_title:

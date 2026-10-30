@@ -25,7 +25,11 @@ class KnoxT(MangaStreamTemplate):
         # title from the link attribute or the headline.
         a = tag.select_one("h2 a[href]") or tag.select_one("a.tip[href]")
         title = (a.get("title") or a.get_text()).strip()
-        return SearchResult(title=title, url=self.absolute_url(a["href"]))
+        return SearchResult(
+            title=title,
+            url=self.absolute_url(a["href"]),
+            cover=self.image_url(tag.select_one("img")),
+        )
 
     def get_novel_soup(self):
         # Keep the novel page soup so read_novel_info can read the status from it.

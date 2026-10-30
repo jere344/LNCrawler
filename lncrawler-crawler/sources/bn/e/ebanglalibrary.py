@@ -38,8 +38,7 @@ class EBanglaLibraryCrawler(Crawler):
         tag = soup.select_one(f'meta[property="{name}"]')
         return (tag.get("content") or "").strip() if tag else ""
 
-    @staticmethod
-    def _book_results(soup: BeautifulSoup, limit: int = 10) -> List[SearchResult]:
+    def _book_results(self, soup: BeautifulSoup, limit: int = 10) -> List[SearchResult]:
         results: List[SearchResult] = []
         seen = set()
         for a in soup.select('a[href*="/books/"]'):
@@ -48,7 +47,9 @@ class EBanglaLibraryCrawler(Crawler):
             if not title or url in seen or url.rstrip("/").endswith("/books"):
                 continue
             seen.add(url)
-            results.append(SearchResult(title=title, url=url))
+            card = a.find_parent("article")
+            cover = self.image_url(card.select_one("img") if card else None)
+            results.append(SearchResult(title=title, url=url, cover=cover))
             if len(results) >= limit:
                 break
         return results

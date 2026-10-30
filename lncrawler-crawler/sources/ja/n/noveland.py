@@ -131,6 +131,7 @@ class NovelLandCrawler(Crawler):
             title=(item.get("title") or "").strip(),
             url=f"{self.home_url}novels/{item.get('entityId')}",
             info=" | ".join(info) or None,
+            cover=self._cover_url(item.get("coverImagePath")),
         )
 
     def search_novel(self, query: str) -> List[SearchResult]:

@@ -384,6 +384,7 @@ class CyrisiaCrawler(EpubCrawler):
             book_key = "v" + hashlib.md5(url.encode("utf-8")).hexdigest()[:10]
             self._volume_urls_by_key[book_key] = url
 
+            cover_url = None
             chapters = self._reused_chapters(book_key, index, existing)
             if chapters:
                 self.chapters.extend(chapters)
@@ -394,11 +395,14 @@ class CyrisiaCrawler(EpubCrawler):
                     self.progress = index
                     continue
                 self.apply_book_metadata(book)
+                cover_url = self.book_cover_url(book)
                 chapters, next_id = self.build_book_chapters(
                     book, volume_id=index, start_id=next_id
                 )
                 self.chapters.extend(chapters)
-            self.volumes.append(Volume(id=index, title=self._volume_title(name, index)))
+            self.volumes.append(
+                Volume(id=index, title=self._volume_title(name, index), cover_url=cover_url)
+            )
             self.progress = index
 
         if not self.novel_title:

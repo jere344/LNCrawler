@@ -726,7 +726,11 @@ class EpubCrawler(Crawler):
         if not self.language:
             self.language = meta.get("language", "")
         if not self.novel_cover and book.cover_path:
-            self.novel_cover = f"{EPUB_SCHEME}{book.key}/{book.cover_path}"
+            self.novel_cover = self.book_cover_url(book)
+
+    def book_cover_url(self, book: _Epub) -> Optional[str]:
+        """URL of a book's cover image, usable as novel_cover or Volume.cover_url."""
+        return f"{EPUB_SCHEME}{book.key}/{book.cover_path}" if book.cover_path else None
 
     # -- Crawler API --------------------------------------------------- #
 

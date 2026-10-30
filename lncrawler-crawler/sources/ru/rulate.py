@@ -32,7 +32,11 @@ class RulateCrawler(Crawler):
     def search_novel(self, query):
         soup = self.get_soup(f"{self.base_url[0]}/search?t={quote_plus(query)}")
         return [
-            {"title": a.text.strip(), "url": self.absolute_url(a["href"])}
+            {
+                "title": a.text.strip(),
+                "url": self.absolute_url(a["href"]),
+                "cover": self.image_url((a.find_parent("li") or a).select_one(".th img")),
+            }
             for a in soup.select(".search-results p.book-tooltip a[href^='/book/']")
             if a.text.strip()
         ][:10]

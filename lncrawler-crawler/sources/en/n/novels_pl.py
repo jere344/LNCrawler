@@ -48,9 +48,13 @@ def _ensure_site(soup: BeautifulSoup) -> None:
 def _novel_links(soup: BeautifulSoup, base: str) -> List[SearchResult]:
     results: List[SearchResult] = []
     seen = set()
-    for a in soup.find_all("a", href=True):
-        if not _NOVEL_HREF.search(a["href"]):
-            continue
+    novel_anchors = [a for a in soup.find_all("a", href=True) if _NOVEL_HREF.search(a["href"])]
+    covers = {}
+    for a in novel_anchors:
+        img = a.select_one("img")
+        if isinstance(img, Tag) and img.get("src"):
+            covers.setdefault(urljoin(base, a["href"]).split("?")[0], urljoin(base, img["src"]))
+    for a in novel_anchors:
         title = a.get_text(" ", strip=True)
         if not title:
             continue  # image links carry no text
@@ -58,7 +62,7 @@ def _novel_links(soup: BeautifulSoup, base: str) -> List[SearchResult]:
         if url in seen:
             continue
         seen.add(url)
-        results.append(SearchResult(title=title, url=url))
+        results.append(SearchResult(title=title, url=url, cover=covers.get(url)))
     return results
 
 

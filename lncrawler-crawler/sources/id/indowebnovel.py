@@ -30,6 +30,7 @@ class IndowebnovelCrawler(Crawler):
                 SearchResult(
                     title=title.strip(),
                     url=self.absolute_url(a["href"]),
+                    cover=self.image_url(item.select_one("div.flexbox2-thumb img")),
                 )
             )
         return results

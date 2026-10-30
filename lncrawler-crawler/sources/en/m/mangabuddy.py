@@ -33,6 +33,7 @@ class MangaBuddyCrawler(Crawler):
                 {
                     "title": book["name"].strip(),
                     "url": self.absolute_url(book["url"]),
+                    "cover": self.absolute_url(book.get("cover")),
                 }
             )
 

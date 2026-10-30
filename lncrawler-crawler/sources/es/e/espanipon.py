@@ -223,7 +223,15 @@ class EspaniponCrawler(Crawler):
             if needle not in title.lower() and needle not in href.lower():
                 continue
             seen.add(url)
-            results.append(SearchResult(title=title, url=url))
+            row = a.find_parent("tr")
+            cover = row.select_one("img") if row else None
+            results.append(
+                SearchResult(
+                    title=title,
+                    url=url,
+                    cover=self.image_url(cover),
+                )
+            )
             if len(results) >= 10:
                 break
         return results

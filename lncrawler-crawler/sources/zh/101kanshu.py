@@ -29,8 +29,7 @@ class Kanshu101Crawler(Crawler):
     language = "zh"
     has_mtl = False
 
-    @staticmethod
-    def _parse_list(soup, seen):
+    def _parse_list(self, soup, seen):
         """Parse a list page (search / hot ranking) into new SearchResults."""
         results = []
         for li in soup.select("#article_list_content > li"):
@@ -47,8 +46,14 @@ class Kanshu101Crawler(Crawler):
             latest = li.select_one(".zxzj a")
             if latest:
                 info.append("最近章節: " + latest.get_text(strip=True))
+            cover = a.select_one("img[data-src]")
             results.append(
-                SearchResult(title=title, url=url, info=" | ".join(info))
+                SearchResult(
+                    title=title,
+                    url=url,
+                    info=" | ".join(info),
+                    cover=self.image_url(cover),
+                )
             )
         return results
 

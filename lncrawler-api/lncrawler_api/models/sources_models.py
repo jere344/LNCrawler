@@ -204,6 +204,8 @@ class NovelFromSource(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_chapter_update = models.DateTimeField(null=True, blank=True)
+    # Crawler source version of the last import (see Crawler.version).
+    source_version = models.PositiveIntegerField(default=1)
 
     # All-time view count for this source. A rebuildable projection of
     # WeeklySourceView rows (incremented alongside the daily bucket on read),
@@ -523,6 +525,7 @@ class NovelFromSource(models.Model):
         novel_from_source.novelupdates_url = truncate(novel_data.get('novelupdates_url', ''))
         novel_from_source.meta_file_path = meta_json_path
         novel_from_source.last_chapter_update = timezone.now()
+        novel_from_source.source_version = novel_data.get('source_version') or 1
         novel_from_source.save()
         
         # Handle authors (list of strings)

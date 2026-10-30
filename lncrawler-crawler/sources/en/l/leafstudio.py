@@ -25,6 +25,7 @@ class LeafStudioCrawler(Crawler):
                 SearchResult(
                     title=item.select_one("p.novel-item-title").text.strip(),
                     url=item["href"],
+                    cover=self.image_url(item.select_one("img")),
                 )
             )
         return results

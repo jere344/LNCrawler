@@ -52,7 +52,11 @@ class LnoriCrawler(Crawler):
             title = (a.get("aria-label") or a.get_text(strip=True) or "").strip()
             if not title or query not in title.lower():
                 continue
-            results.append({"title": title, "url": self.absolute_url(a["href"])})
+            results.append({
+                "title": title,
+                "url": self.absolute_url(a["href"]),
+                "cover": self.image_url(a.find_parent("article").select_one("img")),
+            })
         return results[:20]
 
     def browse_novels(self, offset=0, limit=50):
@@ -108,7 +112,13 @@ class LnoriCrawler(Crawler):
                 before = len(self.chapters)
                 self._add_chapters(book_url, self._ld_json(book_soup), book_soup, volume=i)
                 if len(self.chapters) > before:
-                    self.volumes.append(Volume(id=i, title=(book.get("name") or "").strip()))
+                    self.volumes.append(
+                        Volume(
+                            id=i,
+                            title=(book.get("name") or "").strip(),
+                            cover_url=self._ld_json(book_soup).get("image") or None,
+                        )
+                    )
         else:
             self._book_cache[self.novel_url] = soup
             self._add_chapters(self.novel_url, data, soup)

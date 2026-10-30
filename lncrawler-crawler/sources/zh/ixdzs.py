@@ -40,6 +40,7 @@ class IxdzsCrawler(Crawler):
                 {
                     "title": title,
                     "url": url,
+                    "cover": self.image_url(data.select_one("img")),
                 }
             )
         return results

@@ -9,6 +9,8 @@ Writes:
 
 import contextlib
 import fcntl
+import gc
+import hashlib
 import html
 import itertools
 import json
@@ -19,7 +21,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from collections import deque
+from collections import Counter, deque
 from pathlib import Path
 
 from PIL import Image
@@ -40,6 +42,11 @@ MAX_DECODE_PIXELS = 64_000_000
 # Oversized images are decoded one at a time: a 64M-pixel bitmap needs ~0.5 GB,
 # and several in parallel could exhaust the crawler container.
 _LARGE_DECODE_GATE = threading.Semaphore(1)
+
+# Tag of the volume cover inserted at the start of a volume's first chapter.
+# audiobook_service._VOLUME_COVER_RE on the API side must match it.
+VOLUME_COVER_RE = re.compile(r'<img\b[^>]*\bclass="volume-cover"[^>]*>')
+LEADING_H1_RE = re.compile(r"<h1>.*?</h1>", re.DOTALL)
 
 # Must match chapter_utils.SOURCE_LOCK_FILE on the API side: both lock the same
 # file so a chapter write never races the API's compress/extract.
@@ -206,6 +213,66 @@ def _restore_chapter(chapter: Chapter, old_chapter: dict, file_name: Path, outpu
         logger.debug("Failed to rewrite chapter %s", chapter.id)
 
 
+def _apply_volume_cover(app, chapter, current, target, url) -> None:
+    """Rewrite a saved chapter so it carries the wanted volume cover (or none)."""
+    file_name = _chapter_file(chapter, app.output_path)
+    with file_name.open("r", encoding="utf-8") as fp:
+        data = json.load(fp)
+    body = VOLUME_COVER_RE.sub("", data.get("body") or "")
+    images = dict(data.get("images") or {})
+    if current and current != target and current not in body:
+        images.pop(current, None)
+    # A cover the chapter already shows inline (same url) is not repeated.
+    if target and target not in images:
+        # Matched as a tag: a body rewritten by BeautifulSoup escapes the title differently.
+        title = LEADING_H1_RE.match(body)
+        end = title.end() if title else 0
+        img = f'<img class="volume-cover" src="images/{target}" alt="{target}"/>'
+        body = body[:end] + img + body[end:]
+        images[target] = url
+    data.update(body=body, images=images, volume_cover=target)
+    _write_chapter_json(app.output_path, file_name, data)
+    chapter.images = images
+    chapter.volume_cover = target
+
+
+def _insert_volume_covers(app) -> None:
+    """Put each volume's cover at the start of its first chapter.
+
+    Runs on every crawl, so chapters restored from disk get covers too, without
+    re-downloading them. A novel with one volume needs none: its cover is the
+    novel cover. A url shared by several volumes is a site placeholder.
+    """
+    volumes = [vol for vol in app.crawler.volumes if vol.chapter_count]
+    if len(volumes) < 2:
+        volumes = []
+    covers = {
+        vol.start_chapter: vol.get("cover_url")
+        for vol in volumes
+        if vol.get("cover_url") and isinstance(vol.get("cover_url"), str)
+    }
+    usage = Counter(covers.values())
+    wanted = {start: url for start, url in covers.items() if usage[url] == 1}
+    starts = {vol.start_chapter for vol in volumes}
+    for chapter in app.chapters:
+        if not chapter.success:
+            continue
+        current = chapter.get("volume_cover")
+        url = wanted.get(chapter.id)
+        if url:
+            target = hashlib.md5(url.encode()).hexdigest() + ".jpg"
+        else:
+            # Not every crawl knows the covers (a reused EPUB volume is not
+            # reopened), so only a chapter that stopped being first loses its own.
+            target = current if chapter.id in starts else None
+        if target == current:
+            continue
+        try:
+            _apply_volume_cover(app, chapter, current, target, url)
+        except Exception:
+            logger.debug("Failed to set the volume cover of chapter %s", chapter.id)
+
+
 def fetch_chapter_body(app) -> None:
     from .app import App
     from .crawler import Crawler
@@ -213,6 +280,8 @@ def fetch_chapter_body(app) -> None:
     assert isinstance(app, App)
     assert isinstance(app.crawler, Crawler)
 
+    version = app.crawler.version
+    stale_chapters = set()
     file_names = {}
     for chapter in app.chapters:
         file_name = _chapter_file(chapter, app.output_path)
@@ -221,10 +290,14 @@ def fetch_chapter_body(app) -> None:
             with open(file_name, "r", encoding="utf-8") as file:
                 old_chapter = json.load(file)
             if old_chapter.get("success") and _same_chapter(old_chapter, chapter):
-                _restore_chapter(chapter, old_chapter, file_name, app.output_path)
-                logger.info(f"Restored chapter {chapter.id} from {file_name}")
-                # Already on disk: keep the buffer off-heap for the image phase.
-                chapter.body = None
+                # Files without the key predate versioning: they count as version 1.
+                if old_chapter.get("source_version", 1) != version:
+                    stale_chapters.add(chapter.id)
+                else:
+                    _restore_chapter(chapter, old_chapter, file_name, app.output_path)
+                    logger.info(f"Restored chapter {chapter.id} from {file_name}")
+                    # Already on disk: keep the buffer off-heap for the image phase.
+                    chapter.body = None
         except FileNotFoundError:
             pass
         except json.JSONDecodeError:
@@ -236,12 +309,34 @@ def fetch_chapter_body(app) -> None:
     app.progress_total = len(app.chapters)
     app.progress_unit = "chapters"
     app.progress = len(app.chapters) - len(pending_chapters)
-    for chapter in app.crawler.download_chapters(pending_chapters):
+    collect_every = max(app.crawler.workers, 1)
+    for done, chapter in enumerate(app.crawler.download_chapters(pending_chapters), 1):
         app.progress += 1
-        _save_chapter(file_names.get(chapter.id), chapter, app.output_path)
+        file_name = file_names.get(chapter.id)
+        if chapter.id in stale_chapters and not chapter.success:
+            # The refetch failed: keep the previous text on disk, still on the old
+            # version, so the next update retries this chapter.
+            try:
+                with file_name.open("r", encoding="utf-8") as fp:
+                    old_chapter = json.load(fp)
+                _restore_chapter(chapter, old_chapter, file_name, app.output_path)
+                logger.warning(f"Keeping previous text of chapter {chapter.id}: refetch failed")
+            except (OSError, ValueError) as e:
+                # Compression may have moved the file meanwhile. One chapter must not fail the job.
+                logger.warning(f"Unable to reload chapter {chapter.id}: {e}")
+        else:
+            if chapter.success:
+                chapter.source_version = version
+            _save_chapter(file_name, chapter, app.output_path)
         # Written to disk; drop the body so a 3000-chapter novel does not
         # accumulate hundreds of MB in the long-lived worker process.
         chapter.body = None
+        # Parsed soups are reference cycles that only the cyclic GC frees, so
+        # without this dead pages pile up between automatic collections.
+        if done % collect_every == 0:
+            gc.collect()
+    if not app.cancelled.is_set():
+        _insert_volume_covers(app)
 
 
 def _fit_to_budget(img: Image.Image) -> Image.Image:
@@ -352,6 +447,10 @@ def _discard_failed_images(app, chapter, failed) -> None:
 
     for filename in current_failed:
         images.pop(filename, None)
+    # Dropping the marker lets the next crawl insert the cover again.
+    if data.get("volume_cover") in current_failed:
+        data.pop("volume_cover")
+        chapter.volume_cover = None
 
     body = data.get("body") or ""
     if body:

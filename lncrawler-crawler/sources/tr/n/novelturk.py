@@ -12,7 +12,7 @@ import base64
 import json
 import logging
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 from bs4 import Tag
@@ -52,8 +52,10 @@ class NovelTurkCrawler(Crawler):
 
     # -- helpers ------------------------------------------------------- #
 
-    def _search_result(self, title: str, url: str, info: str = "") -> SearchResult:
-        return SearchResult(title=title, url=url, info=info or None)
+    def _search_result(
+        self, title: str, url: str, info: str = "", cover: Optional[str] = None
+    ) -> SearchResult:
+        return SearchResult(title=title, url=url, info=info or None, cover=cover)
 
     @staticmethod
     def _json_object(text: str, name: str) -> dict:
@@ -73,7 +75,10 @@ class NovelTurkCrawler(Crawler):
         for card in soup.select("a.novel-card[href*='/novel/']"):
             title = card.select_one(".novel-card-title")
             if isinstance(title, Tag) and title.get_text(strip=True):
-                results.append(self._search_result(title.get_text(strip=True), card["href"]))
+                cover = self.image_url(card.select_one(".novel-card-cover img"))
+                results.append(
+                    self._search_result(title.get_text(strip=True), card["href"], cover=cover)
+                )
             if len(results) == 10:
                 break
         return results

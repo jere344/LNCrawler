@@ -38,6 +38,7 @@ class MadaraTemplate(SearchableSoupTemplate, ChapterOnlyBrowserTemplate):
             title=a.text.strip(),
             url=self.absolute_url(a["href"]),
             info="%s | Rating: %s" % (latest, votes),
+            cover=self.image_url(tag.select_one(".tab-thumb img")),
         )
 
     def parse_title(self, soup: BeautifulSoup) -> str:

@@ -27,6 +27,7 @@ class WuxiaSiteCrawler(MadaraTemplate):
                 'title': a.text.strip(),
                 'url': self.absolute_url(a['href']),
                 'info': '%s | Rating: %s' % (latest, votes),
+                'cover': self.image_url(tab.select_one('.tab-thumb img')),
             })
         # end for
 

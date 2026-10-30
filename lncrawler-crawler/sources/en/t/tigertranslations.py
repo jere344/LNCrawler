@@ -106,7 +106,8 @@ class TigerTranslations(Crawler):
             results.append(
                 SearchResult(
                     title=a.text,
-                    url=url
+                    url=url,
+                    cover=self.image_url(content.select_one("img")),
                 )
             )
 

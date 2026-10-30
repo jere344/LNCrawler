@@ -5,7 +5,7 @@ A large community translation archive of Japanese light novels into Chinese,
 plus original Chinese web novels. Cloudflare-fronted, but the list, tag,
 detail and reader pages are plain server-rendered HTML and reach no challenge;
 only a subset of R18 titles is password/login-gated (those detail pages expose
-no ``#chapterList`` and are skipped).
+no ``#chapterList`` and fail the job as unavailable).
 
 A novel URL looks like ``https://www.esjzone.cc/detail/<id>.html``. Chapters are
 served from ``/forum/<book-id>/<chapter-id>.html``; the tag cloud doubles as the
@@ -19,6 +19,7 @@ from urllib.parse import quote, urlparse, urlunparse
 from bs4 import BeautifulSoup, Tag
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
@@ -98,11 +99,13 @@ class EsjZoneCrawler(Crawler):
             if not isinstance(link, Tag) or not link.get("href"):
                 continue
             author = card.select_one(".card-author a")
+            cover = card.select_one(".card-img-tiles .lazyload")
             results.append(
                 SearchResult(
                     title=link.get_text(" ", strip=True),
                     url=self.absolute_url(link["href"]),
                     info=author.get_text(" ", strip=True) if author else None,
+                    cover=self.image_url(cover),
                 )
             )
         return results
@@ -185,7 +188,7 @@ class EsjZoneCrawler(Crawler):
 
         chapter_list = soup.select_one("#chapterList")
         if not isinstance(chapter_list, Tag):
-            raise ValueError("No readable chapter list (login/R18 gated?)")
+            raise LNException("No readable chapter list (login/R18 gated?)")
 
         volume = None
         for item in chapter_list.find_all(["p", "a"]):

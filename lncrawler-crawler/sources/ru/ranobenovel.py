@@ -44,6 +44,7 @@ class RanobeNovel(Crawler):
                     "title": novel["cat_title"],
                     "url": novel_url,
                     "info": f"Chapters: {novel['chapters']} | Author: {novel.get('author', 'Unknown')}",
+                    "cover": self.absolute_url(novel.get("cat_img")),
                 }
             )
 

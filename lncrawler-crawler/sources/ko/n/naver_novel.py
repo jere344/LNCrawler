@@ -126,11 +126,15 @@ class NaverNovelCrawler(Crawler):
                 title = item.select_one("span.title")
                 author = item.select_one("span.author")
                 author_text = author.get_text(" ", strip=True) if author else ""
+                cover = self.image_url(item.select_one("img"))
+                if cover and ("novel-phinf" not in cover or "_320_" in cover):
+                    cover = None
                 results.append(
                     SearchResult(
                         title=(title or link).get_text(" ", strip=True),
                         url=url,
                         info=f"{label} · {author_text}" if author_text else label,
+                        cover=cover,
                     )
                 )
         return results

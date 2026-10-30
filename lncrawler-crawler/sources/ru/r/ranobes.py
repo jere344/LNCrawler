@@ -25,7 +25,11 @@ class RanobesComCrawler(Crawler):
             if not re.match(r"^https?://ranobes\.com/ranobe/\d+", href) or href in seen:
                 continue
             seen.add(href)
-            results.append({"title": a.get_text(strip=True), "url": href})
+            card = a.find_parent("article") or a.find_parent(class_="story_line") or a
+            figure = card.select_one(".cover")
+            match = re.search(r"url\((.*?)\)", str(figure.get("style") or "")) if figure else None
+            cover = self.absolute_url(match.group(1).strip("'\"")) if match else None
+            results.append({"title": a.get_text(strip=True), "url": href, "cover": cover})
         return results
 
     def browse_novels(self, offset=0, limit=50):

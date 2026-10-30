@@ -60,6 +60,7 @@ class RaeiNovelsCrawler(Crawler):
             title=(item.get("novelTitle") or "").strip(),
             url=f"{self.home_url}novel/{quote(str(item.get('novelTitleId', '')))}",
             info=info or None,
+            cover=self.absolute_url(item.get("coverUrl")),
         )
 
     # -- Crawler API --------------------------------------------------- #

@@ -59,6 +59,7 @@ class XbanxiaCrawler(Crawler):
                     info=f"作者：{author.get_text(strip=True)}"
                     if isinstance(author, Tag) and author.get_text(strip=True)
                     else None,
+                    cover=self.image_url(li.select_one("img[data-original]")),
                 )
             )
         return results

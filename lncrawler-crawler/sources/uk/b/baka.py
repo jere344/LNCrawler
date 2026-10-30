@@ -72,8 +72,13 @@ class BakaCrawler(Crawler):
             if not title or key in seen:
                 continue
             seen.add(key)
+            card = a.find_parent(class_="group") or a
             results.append(
-                SearchResult(title=title, url=self.absolute_url(href))
+                SearchResult(
+                    title=title,
+                    url=self.absolute_url(href),
+                    cover=self.image_url(card.select_one("img")),
+                )
             )
         return results
 

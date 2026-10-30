@@ -15,6 +15,7 @@ export interface SearchSource {
   url: string;
   info: string;
   index: number;
+  cover?: string;
 }
 
 export interface SearchResult {

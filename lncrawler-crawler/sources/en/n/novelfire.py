@@ -28,6 +28,7 @@ class NovelFireCrawler(Crawler):
             SearchResult(
                 title=a.get("title") or a.get_text(strip=True),
                 url=self.absolute_url(a["href"]),
+                cover=self.image_url(a.select_one(".novel-cover img")),
             )
             for a in soup.select("ul.novel-list li.novel-item > a[href]")
         ]

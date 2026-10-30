@@ -35,6 +35,9 @@ class BooknetCrawler(Crawler):
                     "title": title.get_text(" ", strip=True) if title else "",
                     "url": self.absolute_url(a["href"]),
                     "info": author.get_text(" ", strip=True) if author else "",
+                    "cover": self.image_url(
+                        item.select_one(".bn_book-row__vert-item-image img")
+                    ),
                 }
             )
         return results
