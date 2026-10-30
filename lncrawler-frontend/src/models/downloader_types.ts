@@ -16,6 +16,7 @@ export interface SearchSource {
   info: string;
   index: number;
   cover?: string;
+  added?: boolean;
 }
 
 export interface SearchResult {

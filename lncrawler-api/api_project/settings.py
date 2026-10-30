@@ -76,7 +76,7 @@ else:
     SECURE_PROXY_SSL_HEADER = None
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
-    CSRF_COOKIE_DOMAIN = None
+    CSRF_COOKIE_DOMAIN = SITE_DOMAIN
 
 
 # Application definition

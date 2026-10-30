@@ -17,6 +17,7 @@ import DownloadStepper from './DownloadStepper';
 interface DownloadFormLocationState {
   novelUrl?: string;
   title?: string;
+  added?: boolean;
 }
 
 const DownloadForm = () => {
@@ -87,7 +88,7 @@ const DownloadForm = () => {
             </Box>
           )}
           <Typography variant="body1" sx={{ mb: 3 }}>
-            {t('downloader.downloadBody')}
+            {t(selected.added ? 'downloader.downloadBodyUpdate' : 'downloader.downloadBody')}
           </Typography>
           
           <Box sx={{ display: 'flex', gap: 2 }}>
@@ -107,10 +108,10 @@ const DownloadForm = () => {
               {loading ? (
                 <>
                   <CircularProgress size={24} sx={{ mr: 1 }} />
-                  {t('downloader.startingDownload')}
+                  {t(selected.added ? 'downloader.startingUpdate' : 'downloader.startingDownload')}
                 </>
               ) : (
-                t('downloader.startDownload')
+                t(selected.added ? 'downloader.startUpdate' : 'downloader.startDownload')
               )}
             </Button>
           </Box>

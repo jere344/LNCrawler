@@ -7,9 +7,10 @@ from unittest.mock import patch
 
 from django.test import TestCase, TransactionTestCase
 
-from ..models import Job
+from ..models import ExternalSource, Job, NovelFromSource
 from ..services import DownloaderService
 from ..services.downloader_helpers import _format_search_results
+from .helpers import make_novel
 
 PARTIAL_RESULTS = {
     "status": "success",
@@ -41,7 +42,11 @@ class SearchSnapshotTests(TestCase):
 
         self.assertEqual(data["status"], "success")
         self.assertTrue(data["partial"])
-        self.assertEqual(data["results"], PARTIAL_RESULTS["results"])
+        expected = [
+            {**group, "sources": [{**source, "added": False} for source in group["sources"]]}
+            for group in PARTIAL_RESULTS["results"]
+        ]
+        self.assertEqual(data["results"], expected)
 
     def test_no_snapshot_yet_returns_empty_list(self):
         self.job.search_results = None
@@ -63,6 +68,109 @@ class SearchSnapshotTests(TestCase):
         self.assertEqual(
             DownloaderService.get_search_status(self.job.id)["result_count"], 0
         )
+
+
+FLAG_RESULTS = {
+    "status": "success",
+    "results": [
+        {
+            "index": 0,
+            "title": "Solo Leveling",
+            "sources": [
+                {"index": 0, "url": "http://a.invalid/solo"},
+                {"index": 1, "url": "http://b.invalid/solo/"},
+                {"index": 2, "url": "http://c.invalid/solo"},
+            ],
+        },
+    ],
+    "partial": True,
+}
+
+
+class FlagExistingSourcesTests(TestCase):
+    def setUp(self):
+        novel = make_novel("Solo Leveling", "solo-leveling")
+        external = ExternalSource.objects.create(source_name="flag-site")
+        for slug, url in (("a", "http://a.invalid/solo"), ("b", "http://b.invalid/solo")):
+            NovelFromSource.objects.create(
+                novel=novel,
+                external_source=external,
+                title="Solo Leveling",
+                source_url=url,
+                source_slug=slug,
+                language="en",
+            )
+        self.job = Job.objects.create(
+            status=Job.STATUS_SEARCHING,
+            job_type=Job.JOB_TYPE_SEARCH,
+            query="solo leveling",
+            search_results=FLAG_RESULTS,
+        )
+
+    def sources_of(self, data):
+        return data["results"][0]["sources"]
+
+    def test_known_url_is_flagged_as_added(self):
+        data = DownloaderService.get_search_results(self.job.id)
+
+        self.assertIs(self.sources_of(data)[0]["added"], True)
+
+    def test_trailing_slash_variant_is_flagged_as_added(self):
+        data = DownloaderService.get_search_results(self.job.id)
+
+        self.assertIs(self.sources_of(data)[1]["added"], True)
+
+    def test_unknown_url_is_not_flagged(self):
+        data = DownloaderService.get_search_results(self.job.id)
+
+        self.assertIs(self.sources_of(data)[2]["added"], False)
+
+    def test_completed_search_is_flagged_too(self):
+        self.job.status = Job.STATUS_SEARCH_COMPLETED
+        self.job.save(update_fields=["status"])
+
+        data = DownloaderService.get_search_results(self.job.id)
+
+        flags = [source["added"] for source in self.sources_of(data)]
+        self.assertEqual(flags, [True, True, False])
+
+    def test_stored_snapshot_is_not_mutated(self):
+        DownloaderService.get_search_results(self.job.id)
+
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.search_results, FLAG_RESULTS)
+        self.assertNotIn("added", self.job.search_results["results"][0]["sources"][0])
+
+    def test_flag_lookup_is_one_query_whatever_the_source_count(self):
+        # One query fetches the job and one covers every source url.
+        with self.assertNumQueries(2):
+            DownloaderService.get_search_results(self.job.id)
+
+        bulk = Job.objects.create(
+            status=Job.STATUS_SEARCHING,
+            job_type=Job.JOB_TYPE_SEARCH,
+            query="bulk",
+            search_results={
+                "status": "success",
+                "results": [{
+                    "index": 0,
+                    "title": "Bulk",
+                    "sources": [
+                        {"index": i, "url": f"http://bulk{i}.invalid/novel"} for i in range(50)
+                    ],
+                }],
+                "partial": True,
+            },
+        )
+        with self.assertNumQueries(2):
+            DownloaderService.get_search_results(bulk.id)
+
+    def test_no_urls_skips_the_flag_lookup(self):
+        self.job.search_results = None
+        self.job.save(update_fields=["search_results"])
+
+        with self.assertNumQueries(1):
+            DownloaderService.get_search_results(self.job.id)
 
 
 class FormatSearchResultsTests(TestCase):

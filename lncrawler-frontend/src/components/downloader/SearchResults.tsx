@@ -6,15 +6,18 @@ import {
   CircularProgress,
   Alert,
   Card,
-  CardContent,
+  CardActionArea,
+  Chip,
   Button,
-  List,
   Divider,
-  ListItemButton,
-  ListItemText,
+  Grid,
   LinearProgress,
-  Container
+  Paper,
+  Stack,
+  Container,
+  Tooltip
 } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useTranslation } from 'react-i18next';
 import { searchService, jobService } from '@services/api';
 import { SearchStatus, SearchResult, SearchResults as SearchResultsType } from '@models/downloader_types';
@@ -26,6 +29,14 @@ const MAX_CONSECUTIVE_FAILURES = 3;
 
 const countSources = (groups: SearchResult[]) =>
   groups.reduce((total, group) => total + group.sources.length, 0);
+
+const getHostname = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+};
 
 const SearchResults = () => {
   const { t } = useTranslation();
@@ -192,12 +203,21 @@ const SearchResults = () => {
   return (
     <Container maxWidth="md">
       <DownloadStepper activeStep={completed ? 'select' : 'search'} />
-      <Box sx={{ p: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="h6">
-            {t('downloader.searchResults')}
-          </Typography>
-          {completed ? (
+      <Box>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          justifyContent="space-between"
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          sx={{ mb: 2 }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+              {t('downloader.searchResults')}
+            </Typography>
+            <Chip size="small" label={countSources(groups)} />
+          </Box>
+          {completed && (
             <Button
               variant="outlined"
               size="small"
@@ -206,48 +226,50 @@ const SearchResults = () => {
             >
               {t('downloader.newSearch')}
             </Button>
-          ) : (
-            <Button variant="outlined" size="small" onClick={handleCancel}>
-              {t('downloader.newSearch')}
-            </Button>
           )}
-        </Box>
+        </Stack>
 
         {!completed && (
-          <Box sx={{ mb: 2 }}>
+          <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
             <LinearProgress
               variant="determinate"
               value={status?.progress_percentage || 0}
-              sx={{ height: 6, borderRadius: 1 }}
+              sx={{ height: 8, borderRadius: 1 }}
               aria-label={t('downloader.searching')}
             />
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.5 }}>
               <Button variant="outlined" size="small" onClick={handleCancel}>
                 {t('downloader.cancelSearch')}
               </Button>
               {status?.progress !== undefined && status?.total_items !== undefined && (
-                <Typography variant="body2">
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   {t('downloader.itemsProgress', { progress: status.progress, total: status.total_items })}
                 </Typography>
               )}
-            </Box>
-          </Box>
+            </Stack>
+          </Paper>
         )}
 
         {hasResults ? (
           groups.map((source, sourceIndex) => (
-            <Card key={source.title} sx={{ mb: 0.5 }}>
-              <CardContent sx={{ py: 0.5, '&:last-child': { pb: 0.5 } }}>
-                <Typography variant="subtitle2">{source.title}</Typography>
+            <Box key={source.title} sx={{ mb: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <Typography variant="h6" component="h2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                  {source.title}
+                </Typography>
+                <Chip size="small" variant="outlined" sx={{ flexShrink: 0 }} label={source.sources.length} />
+              </Box>
+              <Divider sx={{ mb: 2 }} />
 
-                <List dense disablePadding>
-                  {source.sources.map((novel, novelIndex) => (
-                    <Box key={`${novel.url}-${novelIndex}`}>
-                      {novelIndex > 0 && <Divider />}
-                      <ListItemButton
+              <Grid container spacing={2}>
+                {source.sources.map((novel, novelIndex) => (
+                  <Grid key={`${novel.url}-${novelIndex}`} size={{ xs: 12, sm: 6, md: 4 }}>
+                    <Card sx={{ height: '100%' }}>
+                      <CardActionArea
                         component={Link}
                         to={`/download/${jobId}/${sourceIndex}/${novelIndex}`}
-                        state={{ novelUrl: novel.url, title: source.title }}
+                        state={{ novelUrl: novel.url, title: source.title, added: novel.added }}
+                        sx={{ display: 'flex', alignItems: 'stretch', justifyContent: 'flex-start', height: '100%' }}
                       >
                         <Box
                           component="img"
@@ -261,18 +283,44 @@ const SearchResults = () => {
                               e.currentTarget.src = defaultCover;
                             }
                           }}
-                          sx={{ width: 40, height: 60, objectFit: 'cover', borderRadius: 0.5, flexShrink: 0, mr: 1.5 }}
+                          sx={{ width: 64, height: 96, objectFit: 'cover', flexShrink: 0 }}
                         />
-                        <ListItemText
-                          primary={source.title}
-                          secondary={novel.url}
-                        />
-                      </ListItemButton>
-                    </Box>
-                  ))}
-                </List>
-              </CardContent>
-            </Card>
+                        <Box sx={{ p: 1.5, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                            <Typography variant="subtitle2" component="p" noWrap sx={{ minWidth: 0 }}>
+                              {getHostname(novel.url)}
+                            </Typography>
+                            {novel.added && (
+                              <Tooltip title={t('downloader.alreadyAdded')}>
+                                <CheckCircleIcon
+                                  fontSize="small"
+                                  color="success"
+                                  aria-label={t('downloader.alreadyAdded')}
+                                  sx={{ flexShrink: 0 }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Box>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'text.secondary',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              wordBreak: 'break-all'
+                            }}
+                          >
+                            {novel.url}
+                          </Typography>
+                        </Box>
+                      </CardActionArea>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </Box>
           ))
         ) : (
           <Alert severity="info">{t('downloader.noResults')}</Alert>

@@ -1,3 +1,4 @@
+import copy
 import gc
 import os
 import threading
@@ -57,6 +58,31 @@ def _iter_search_sources(search_results):
     """Yield every source entry stored across the grouped search results."""
     for novel in (search_results or {}).get("results") or []:
         yield from novel.get("sources", [])
+
+
+def _flag_existing_sources(results):
+    """Set ``added`` on every source whose url is already a stored NovelFromSource.
+
+    ``results`` is the grouped list from the search payload and is changed in
+    place, so pass a copy. One query covers all sources; the url is also tried
+    with and without its trailing slash.
+    """
+    from ..models import NovelFromSource
+
+    sources = [source for novel in results for source in novel.get("sources", [])]
+    urls = {source.get("url") for source in sources if source.get("url")}
+    existing = set()
+    if urls:
+        bare = {url.rstrip('/') for url in urls}
+        candidates = urls | bare | {url + '/' for url in bare}
+        existing = set(
+            NovelFromSource.objects.filter(source_url__in=candidates)
+            .values_list('source_url', flat=True)
+        )
+    for source in sources:
+        url = source.get("url") or ""
+        bare = url.rstrip('/')
+        source["added"] = bool(bare) and (url in existing or bare in existing or bare + '/' in existing)
 
 
 def _start_progress_monitor(poll, interval=2):
@@ -559,9 +585,12 @@ class DownloaderService:
                 }
 
             if job.status in (Job.STATUS_CREATED, Job.STATUS_SEARCHING):
+                # Flag on a copy: the stored snapshot must stay as the crawler wrote it.
+                results = copy.deepcopy((job.search_results or {}).get('results') or [])
+                _flag_existing_sources(results)
                 return {
                     'status': 'success',
-                    'results': (job.search_results or {}).get('results') or [],
+                    'results': results,
                     'partial': True,
                 }
 
@@ -573,7 +602,10 @@ class DownloaderService:
                 }
 
             # Return the search results
-            return job.search_results
+            data = copy.deepcopy(job.search_results)
+            if data:
+                _flag_existing_sources(data.get('results') or [])
+            return data
 
         except Job.DoesNotExist:
             return {
