@@ -32,6 +32,8 @@ _SID_RE = re.compile(r"sid=(\d+)")
 class EfpfanficCrawler(Crawler):
     base_url = ["https://www.efpfanfic.net/", "http://www.efpfanfic.net/"]
     language = "it"
+    is_disabled = True
+    disable_reason = "Fanfiction-only site, out of scope for original light novels"
 
     def initialize(self) -> None:
         # Catalog pages are spaced out: bursts get the IP flagged.

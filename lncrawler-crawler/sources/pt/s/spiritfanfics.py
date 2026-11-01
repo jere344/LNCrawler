@@ -14,6 +14,8 @@ class SpiritFanficsCrawler(Crawler):
         "https://spiritfanfiction.com/",
     ]
     language = "pt"
+    is_disabled = True
+    disable_reason = "Fanfiction-only site, out of scope for original light novels"
 
     def search_novel(self, query):
         soup = self.get_soup(

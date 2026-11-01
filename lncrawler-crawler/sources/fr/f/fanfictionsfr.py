@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 class FanfictionsFrCrawler(Crawler):
     base_url = ["https://www.fanfictions.fr/"]
     language = "fr"
+    is_disabled = True
+    disable_reason = "Fanfiction-only site, out of scope for original light novels"
 
     def search_novel(self, query):
         data = self.submit_form_json(

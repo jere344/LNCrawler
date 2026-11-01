@@ -42,7 +42,7 @@ class RoyalRoadCrawler(Crawler):
     base_url = "https://www.royalroad.com/"
 
     def initialize(self) -> None:
-        self.init_executor(1)
+        self.init_executor(ratelimit=1)
 
     # -- listings ------------------------------------------------------- #
 
@@ -138,6 +138,14 @@ class RoyalRoadCrawler(Crawler):
         status = self._find_status(soup)
         if status:
             self.status = status
+
+        # Authors declare AI-assisted fictions in a content warning list.
+        warning = soup.find("strong", string=re.compile(r"^\s*Warning\s*$"))
+        if isinstance(warning, Tag):
+            warnings = [li.get_text(strip=True) for li in warning.parent.select("ul li")]
+            if any("ai-assisted" in w.lower() for w in warnings):
+                self.has_mtl = True
+                logger.info("'%s' declares AI-assisted content; has_mtl set", self.novel_title)
 
         self.volumes = [Volume(id=1, title="Volume 1")]
         rows = soup.select("#chapters tr.chapter-row")

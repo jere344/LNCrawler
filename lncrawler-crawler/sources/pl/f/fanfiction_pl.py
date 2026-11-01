@@ -13,6 +13,8 @@ ENCODING = "iso-8859-2"
 class FanfictionPlCrawler(Crawler):
     base_url = ["https://www.fanfiction.pl/", "http://www.fanfiction.pl/"]
     language = "pl"
+    is_disabled = True
+    disable_reason = "Fanfiction-only site, out of scope for original light novels"
 
     def search_novel(self, query):
         soup = self.post_soup(

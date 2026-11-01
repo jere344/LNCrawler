@@ -14,6 +14,8 @@ SLUG = re.compile(r"'/\s*\+\s*this\.value\s*\+\s*'/([^']+)'")
 class FanFiktionCrawler(Crawler):
     base_url = ["https://www.fanfiktion.de/"]
     language = "de"
+    is_disabled = True
+    disable_reason = "Fanfiction-only site, out of scope for original light novels"
 
     def browse_novels(self, offset=0, limit=50):
         soup = self.get_soup("https://www.fanfiktion.de/latest")
