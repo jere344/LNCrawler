@@ -115,7 +115,7 @@ export const router = createBrowserRouter([
                     // The reader keeps a plain Suspense: it stays mounted across chapter
                     // changes (it preloads the next chapter) instead of remounting. It restores
                     // its own reading position (useScrollPersistence), hence `ownScroll`.
-                    { path: '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber', handle: { ownScroll: true }, element: <Suspense fallback={<RouteSpinner />}><ChapterReader /></Suspense> },
+                    { path: '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber', handle: { ownScroll: true, readerRoute: true }, element: <Suspense fallback={<RouteSpinner />}><ChapterReader /></Suspense> },
                     { path: '/novels/:novelSlug/:sourceSlug/gallery', element: <PageBoundary fallback={<ImageGallerySkeleton />}><ImageGallery /></PageBoundary>, loader: galleryLoader, HydrateFallback: ImageGallerySkeleton, errorElement: <RouteError /> },
 
                     // Home page: the loader returns an un-awaited promise so navigation

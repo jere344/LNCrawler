@@ -4,10 +4,10 @@
 export const AUTH_TOKEN_KEY = 'authToken';
 export const AUTH_USER_KEY = 'user';
 
-// Prefix shared by every reader setting cookie (one cookie per setting).
+// Reader settings, stored as one versioned JSON value.
+export const READER_SETTINGS_KEY = 'lncrawler_reader_settings';
+// Prefix of the old one-cookie-per-setting format. Only read to migrate, never written.
 export const READER_COOKIE_PREFIX = 'lncrawler_reader_';
-// Lifetime of the reader setting cookies, in days.
-export const READER_COOKIE_DAYS = 365;
 
 // Reads and parses a JSON value. Falls back when the key is missing or the
 // stored text is not valid JSON.
@@ -21,10 +21,13 @@ export const readLocalStorage = <T,>(key: string, fallback: T): T => {
 };
 
 // Stores a value as JSON. Storage can be full or disabled, so failures are ignored.
-export const writeLocalStorage = (key: string, value: unknown): void => {
+// Returns false when the value was not written.
+export const writeLocalStorage = (key: string, value: unknown): boolean => {
     try {
         localStorage.setItem(key, JSON.stringify(value));
+        return true;
     } catch {
         // ignore quota / disabled storage
+        return false;
     }
 };

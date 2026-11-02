@@ -11,11 +11,13 @@
     "build": "vite build --mode production",
     "lint": "node scripts/constants.mjs check && node scripts/i18n.mjs check && eslint .",
     "preview": "vite preview",
+    "test": "vitest run",
     "constants:sync": "node scripts/constants.mjs sync",
     "constants:check": "node scripts/constants.mjs check",
     "i18n:pending": "node scripts/i18n.mjs pending",
     "i18n:apply": "node scripts/i18n.mjs apply",
     "i18n:normalize": "node scripts/i18n.mjs normalize",
+    "i18n:prune": "node scripts/i18n.mjs prune",
     "i18n:check": "node scripts/i18n.mjs check"
   },
   "dependencies": {
@@ -47,8 +49,10 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.13.0",
+    "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
-    "vite": "^8.3.2"
+    "vite": "^8.3.2",
+    "vitest": "^4.1.12"
   }
 }

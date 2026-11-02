@@ -34,11 +34,12 @@ import AddIcon from '@mui/icons-material/Add';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 import { useTheme } from "@theme/ThemeContext";
-import { useNavigate, useLocation, Link as RouterLink } from "react-router-dom";
+import { useNavigate, useLocation, useMatches, Link as RouterLink } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../context/AuthContext";
 import LanguageSwitcher from "./common/LanguageSwitcher";
+import { useReaderSetting } from "./reader/hooks/useReaderSettings";
 
 // Import logos
 import logoLight from "@assets/logo-transparent.png";
@@ -83,6 +84,9 @@ const Header = () => {
     const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
     const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
     const scrollDirection = useScrollDirection();
+    const matches = useMatches();
+    const onReaderRoute = matches.some((match) => (match.handle as { readerRoute?: boolean } | undefined)?.readerRoute);
+    const readerHeaderBehavior = useReaderSetting("readerHeaderBehavior");
 
     // Determine the current path for active tab highlighting
     const getCurrentPath = () => {
@@ -150,15 +154,18 @@ const Header = () => {
         return user.username.charAt(0).toUpperCase();
     };
 
-    // On mobile/tablet the bar is fixed and hidden with a transform, so it never
-    // changes the document flow. A spacer of the same height keeps content in place.
-    const hideOnScroll = isMobile || isTablet;
+    // The reader scrolls the site header away with the page: always on desktop, and on touch
+    // only with the 'pageTop' setting. Elsewhere, on mobile/tablet the bar is fixed and hidden
+    // with a transform, so it never changes the document flow. A spacer of the same height keeps content in place.
+    const touchLayout = isMobile || isTablet;
+    const staticHeader = onReaderRoute && (!touchLayout || readerHeaderBehavior === "pageTop");
+    const hideOnScroll = touchLayout && !staticHeader;
     const toolbarHeight = isTablet ? 56 : 64;
 
     return (
         <>
         <AppBar
-            position={hideOnScroll ? "fixed" : "sticky"}
+            position={staticHeader ? "static" : hideOnScroll ? "fixed" : "sticky"}
             color="default"
             elevation={1}
             sx={{

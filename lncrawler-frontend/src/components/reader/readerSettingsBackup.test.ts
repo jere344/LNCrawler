@@ -1,0 +1,27 @@
+import { describe, it, expect } from 'vitest';
+import { parseReaderSettingsFile } from './readerSettingsBackup';
+import { defaultSettings } from './readerDefaults';
+
+describe('parseReaderSettingsFile', () => {
+  it('maps an old 1.0 file with centerTapToOpenSettings:false to controlsTrigger off', () => {
+    const text = JSON.stringify({ version: '1.0', centerTapToOpenSettings: false, fontSize: 20 });
+
+    const settings = parseReaderSettingsFile(text);
+    expect(settings.controlsTrigger).toBe('off');
+    expect(settings.fontSize).toBe(20);
+  });
+
+  it('falls back to the defaults for bad values', () => {
+    const text = JSON.stringify({ fontSize: 99, controlsTrigger: 'tripleTap', textAlign: 'diagonal' });
+
+    expect(parseReaderSettingsFile(text)).toEqual(defaultSettings);
+  });
+
+  it('throws when the JSON is an array', () => {
+    expect(() => parseReaderSettingsFile('[1, 2]')).toThrow();
+  });
+
+  it('throws when the JSON is invalid', () => {
+    expect(() => parseReaderSettingsFile('{not json')).toThrow();
+  });
+});

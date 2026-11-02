@@ -16,5 +16,7 @@ its keys; never read or hand-edit them.
 4. `npm run i18n:apply /tmp/i18n-batch.json` — writes every locale at the correct path.
 5. `npm run i18n:check` — validates structure, placeholders and ICU.
 
+If you removed keys from `en.json`, run `npm run i18n:prune` to drop them from every locale.
+
 `npm run lint` runs `i18n:check` first. `npm run i18n:normalize` reorders all
 locales to `en.json` order (only needed if files drifted).
