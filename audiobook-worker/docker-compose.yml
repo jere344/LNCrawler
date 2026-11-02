@@ -1,0 +1,100 @@
+# Audiobook worker. Runs next to Castwright (tools/castwright) on the same compose network. See README.md.
+#
+#   cp .env.example .env     # then fill in LNCRAWLER_URL, WORKER_TOKEN and WORKER_ID
+#   docker compose up -d --build
+#
+# The Castwright stack must be up first, so that its network and workspace volume exist.
+name: lncrawler-audiobook-worker
+
+services:
+  worker:
+    build: .
+    image: lncrawler-audiobook-worker:dev
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    # A local lncrawler on the host is reachable as host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      # Local dev stack: nginx routes the API by host name (SITE_API_URL=http://api.localhost:8088).
+      - "api.localhost:host-gateway"
+    environment:
+      CASTWRIGHT_URL: ${CASTWRIGHT_URL:-http://castwright:8080}
+      CASTWRIGHT_REF: ${CASTWRIGHT_REF:-3a52b28}
+      HZ_REF: ${HZ_REF:-74feb58}
+      WORKSPACE_DIR: /workspace
+      DATA_DIR: /data
+      LLM_URL: ${LLM_URL:-http://llama:8080/v1}
+    volumes:
+      # Same path as inside Castwright, so the paths it reports work here too.
+      - workspace:/workspace
+      - worker-data:/data
+      # The worker writes /control/restart when llama-server stalls; the llama entrypoint restarts the server.
+      - llm-control:/control
+    networks:
+      - cwbench
+
+  # Local LLM for the worker's analysis (llama-server, Qwen 3.5 9B). Built from ./llama, GPU, models read-only.
+  # --sleep-idle-seconds must match LLM_IDLE_S (the worker waits that long before design takes the card).
+  llama:
+    build: ./llama
+    image: lncrawler-llama:sm61
+    restart: unless-stopped
+    command:
+      - "-m"
+      - "/models/${LLM_GGUF:-Qwen3.5-9B-MTP-Q4_K_M.gguf}"
+      - "--alias"
+      - "local"
+      - "-ngl"
+      - "99"
+      - "-c"
+      - "32768"
+      - "-np"
+      - "1"
+      - "-fa"
+      - "auto"
+      - "--jinja"
+      - "--spec-type"
+      - "draft-mtp"
+      - "--reasoning-budget"
+      - "0"
+      - "--sleep-idle-seconds"
+      - "${LLM_IDLE_S:-30}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8080"
+    volumes:
+      - llm-models:/models:ro
+      - llm-control:/control
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - cwbench
+
+volumes:
+  workspace:
+    external: true
+    name: lncrawler-cwbench_workspace
+  worker-data:
+  llm-models:
+    external: true
+    name: llm-models
+  llm-control:
+
+networks:
+  cwbench:
+    external: true
+    name: lncrawler-cwbench_default

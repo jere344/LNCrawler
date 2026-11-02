@@ -158,7 +158,7 @@ Logic lives in `services/audiobook_scheduler.py`. Every task does nothing while 
   - on a regenerated part, swaps the files atomically and drops that part's `.m4b` cache
   - updates the denormalised totals
   - publishes automatically if the audiobook is published and QA passed (or the admin approved)
-- **nginx:** `location /api/audiobook-worker/` with `client_max_body_size 64m` and a longer `proxy_read_timeout`. Today there's no limit set, so the 1 MB default applies; the raise stays on this location only.
+- **nginx:** `location /api/audiobook-worker/` with `client_max_body_size 64m` and a longer `proxy_read_timeout`. The raise stays on this location only.
 - **`manage.py audiobook_fake_worker`:** a dev-only command.
   - It claims parts and generates contract-valid Opus files with ffmpeg: a tone, plus `anullsrc` padding sized from the text length.
   - It uploads them and completes the part.

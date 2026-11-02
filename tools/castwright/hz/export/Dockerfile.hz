@@ -1,0 +1,41 @@
+# Lab image: HaujetZhao/Qwen3-TTS-GGUF (llama.cpp talker/predictor + ONNX codec) on Pascal.
+FROM nvidia/cuda:12.6.3-devel-ubuntu24.04 AS build
+# The same HZ_REF pin as the runtime Dockerfile (tools/castwright/Dockerfile), so the export matches what runs.
+ARG HZ_REF=74feb581bc8cefb835fc608107e857036d7580a1
+RUN apt-get update && apt-get install -y --no-install-recommends git cmake build-essential ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+RUN git clone https://github.com/ggml-org/llama.cpp && git -C llama.cpp checkout b10621
+# No driver in the build container: link the tools against the CUDA stub libcuda.
+RUN ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 \
+ && cmake -S llama.cpp -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=61 -DGGML_NATIVE=OFF \
+      -DBUILD_SHARED_LIBS=ON -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF \
+      -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_TOOLS=ON -DCMAKE_BUILD_TYPE=Release \
+      "-DCMAKE_EXE_LINKER_FLAGS=-L/usr/local/cuda/lib64/stubs -Wl,-rpath-link,/usr/local/cuda/lib64/stubs" \
+ && cmake --build build -j 10 --target llama llama-quantize \
+ && mkdir /out && cp -a build/bin/*.so* build/bin/llama-quantize /out/ \
+ && ls -la /out
+RUN git clone https://github.com/HaujetZhao/Qwen3-TTS-GGUF /hz && git -C /hz checkout "$HZ_REF"
+
+FROM lncrawler-cwbench:qwen
+COPY --from=build /hz /hz
+COPY --from=build /out /hz/qwen3_tts_gguf/inference/bin
+RUN ln -s llama-quantize /hz/qwen3_tts_gguf/inference/bin/llama-quantize.exe
+# Inference venv: only what the inference package imports, on the image's Python 3.12.
+RUN python -m venv /opt/hz && /opt/hz/bin/pip install --no-cache-dir \
+      gguf numpy scipy soundfile tokenizers "onnxruntime-gpu==1.26.0" nvidia-ml-py
+# Export venv: CPU torch is enough to export once.
+RUN python -m venv /opt/hzx && /opt/hzx/bin/pip install --no-cache-dir torch==2.11.0 torchaudio==2.11.0 \
+      --index-url https://download.pytorch.org/whl/cpu \
+ && /opt/hzx/bin/pip install --no-cache-dir "transformers==4.57.6" "accelerate==1.12.0" onnx onnxscript \
+      sentencepiece einops gguf numpy scipy soundfile tokenizers safetensors onnxruntime librosa
+ENV LD_LIBRARY_PATH=/hz/qwen3_tts_gguf/inference/bin:${LD_LIBRARY_PATH}
+WORKDIR /hz
+# The devel image linked ggml-cuda against NCCL; 12-Export needs the sox module; 33-Convert
+# expects a ref/llama.cpp checkout, so point it at the bundled converter like 23-Convert does.
+RUN /opt/hz/bin/pip install --no-cache-dir nvidia-nccl-cu12 \
+ && /opt/hzx/bin/pip install --no-cache-dir sox \
+ && sed -i 's|os.path.join(PROJECT_ROOT, "ref", "llama.cpp")|os.path.join(PROJECT_ROOT, "qwen3_tts_gguf", "export")|' \
+      /hz/33-Convert-Predictor-GGUF.py \
+ && grep -q '"qwen3_tts_gguf", "export"' /hz/33-Convert-Predictor-GGUF.py
+ENV LD_LIBRARY_PATH=/opt/hz/lib/python3.12/site-packages/nvidia/nccl/lib:${LD_LIBRARY_PATH}
