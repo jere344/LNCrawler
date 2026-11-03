@@ -23,7 +23,7 @@ from ..models import (
     Novel,
     NovelFromSource,
 )
-from ..services import audiobook_service as svc
+from ..services import audiobook_media, audiobook_service as svc
 from ..services.novel_operations import file_journal, move_source_to_novel
 from .helpers import MergeTestCase
 
@@ -282,6 +282,25 @@ class AudiobookUniquenessTests(AudiobookBase):
 
         self.assertFalse(created)
         self.assertEqual(found.pk, audiobook.pk)
+
+
+class DisplayTitleTests(AudiobookBase):
+    def test_the_title_is_the_source_title_not_the_novel_title(self):
+        self.novel.title = "سيد الغوامض"
+        self.novel.save(update_fields=['title'])
+        source = self.make_source()
+        source.title = "Lord Of The Mysteries"
+        source.save(update_fields=['title'])
+        audiobook = self.make_audiobook(source)
+        self.assertEqual(audiobook.display_title, "Lord Of The Mysteries")
+        self.assertEqual(str(audiobook), "Lord Of The Mysteries")
+        self.assertEqual(audiobook_media.audiobook_metadata(audiobook)['title'], "Lord Of The Mysteries")
+
+    def test_a_source_without_title_falls_back_on_the_novel(self):
+        source = self.make_source()
+        source.title = ""
+        source.save(update_fields=['title'])
+        self.assertEqual(self.make_audiobook(source).display_title, self.novel.title)
 
 
 class ContentHashTests(AudiobookBase):

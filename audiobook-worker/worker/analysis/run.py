@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from collections import Counter
 from collections.abc import Callable
@@ -45,6 +46,10 @@ NARRATOR_NAME = "Narrator"
 CHARACTER_ROLE = "Character"
 EVIDENCE_PER_CHARACTER = 3
 VOICE_STYLE_LIMIT = 300
+GENDER_WORD = re.compile(
+    r"\b(male|female|man|woman|boy|girl|masculine|feminine|guy|lady|androgynous|gender-?neutral|genderless|unisex)\b",
+    re.IGNORECASE,
+)  # a stored voice style that already says the gender, or asks for none
 DEFAULT_NARRATOR_STYLE = "A clear, warm, measured adult narrator voice with steady pacing."
 PALETTE = (
     "#e6194b",
@@ -251,19 +256,25 @@ def _add_lines(series: Series, character_id: str, lines: int) -> None:
 
 
 def _numbered_sentences(chapters: list[tuple[int, str]], done: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """The sentences of the chapters in order, numbered from 1. A sentence that ends its paragraph gets a newline, which
+    Castwright reads as a longer pause. Checkpoints written before paragraph ends were kept have no fourth item: no pause."""
     sentences: list[dict[str, Any]] = []
     for chapter_id, _ in chapters:
-        for character_id, confidence, text in done[str(chapter_id)]["sentences"]:
+        first = len(sentences)
+        for character_id, confidence, text, *rest in done[str(chapter_id)]["sentences"]:
+            para_end = bool(rest and rest[0])
             if text:
                 sentences.append(
                     {
                         "id": len(sentences) + 1,
                         "chapterId": chapter_id,
                         "characterId": character_id,
-                        "text": text,
+                        "text": text + "\n" if para_end else text,
                         "confidence": confidence,
                     }
                 )
+            elif para_end and len(sentences) > first and not sentences[-1]["text"].endswith("\n"):
+                sentences[-1]["text"] += "\n"  # the paragraph ended on a blank piece: the mark goes on the sentence before
     return sentences
 
 
@@ -282,7 +293,7 @@ def _cast_rows(
     _ensure_narrator(series)
     texts: dict[str, list[str]] = {}
     for sentence in sentences:
-        texts.setdefault(sentence["characterId"], []).append(sentence["text"])
+        texts.setdefault(sentence["characterId"], []).append(sentence["text"].strip())
     speakers = sorted((cid for cid in texts if cid != NARRATOR), key=lambda cid: -len(texts[cid]))
     rows = [_cast_row(series.records[NARRATOR], NARRATOR, evidence.get(NARRATOR, []), texts.get(NARRATOR, []))]
     for index, character_id in enumerate(speakers):
@@ -337,13 +348,22 @@ def _cast_row(record: Record, color: str, quotes: list[str], texts: list[str]) -
 
 def _voice_style(record: Record, gender: str | None) -> str:
     """The stored voice style. Without one, a narrator gets the default narrator style and a character one built from
-    its fields."""
+    its fields. A character's stored style that names no gender gets the gender and age in front of it, so the voice
+    designer does not pick the wrong one."""
     if record.voice_style:
+        if record.id != NARRATOR and gender in ("male", "female") and not GENDER_WORD.search(record.voice_style):
+            styled = f"{_article(record.age_range or 'adult')} {gender} voice. {record.voice_style}"
+            return clip(" ".join(styled.split()), VOICE_STYLE_LIMIT)
         return record.voice_style
     if record.id == NARRATOR:
         return DEFAULT_NARRATOR_STYLE
-    built = f"A {record.age_range or 'adult'} {gender or ''} voice. {record.description or ''}"
+    built = f"{_article(record.age_range or 'adult')} {gender or ''} voice. {record.description or ''}"
     return clip(" ".join(built.split()), VOICE_STYLE_LIMIT)
+
+
+def _article(word: str) -> str:
+    """The word with "A" or "An" in front."""
+    return f"{'An' if word[:1].lower() in 'aeiou' else 'A'} {word}"
 
 
 def _evidence(quotes: list[str], texts: list[str]) -> list[str]:

@@ -271,14 +271,14 @@ def test_an_empty_series_says_none_yet(tmp_path):
     assert "None yet." in llm.user(0)
 
 
-def test_token_limits_cast_detection_4096_and_attribution_2048(tmp_path):
+def test_token_limits_cast_detection_and_attribution_are_4096(tmp_path):
     pieces, runs = runs_of(EN_CHAPTER)
     cast_llm = FakeLlm(cast(char("anna", "Anna")))
     detect_cast(pieces, runs, "en", make_series(tmp_path), cast_llm, window=100, cap=80)
     attribution_llm = FakeLlm(lines((1, "anna")))
     attribute_chunk(pieces, "en", ROSTER, attribution_llm)
     assert cast_llm.calls[0]["max_tokens"] == 4096
-    assert attribution_llm.calls[0]["max_tokens"] == 2048
+    assert attribution_llm.calls[0]["max_tokens"] == 4096
 
 
 # -- attribution -------------------------------------------------------------
@@ -338,6 +338,27 @@ def test_a_weak_chunk_is_retried_once_as_two_halves():
     assert not any(r.weak for r in results)
 
 
+def test_a_truncated_reply_splits_the_chunk_at_its_paragraphs():
+    llm = FakeLlm(
+        LlmError("sentence_attribution reply hit max_tokens=4096", retryable=False, truncated=True),  # both paragraphs
+        lines((1, "anna")),  # the first paragraph
+        lines((1, "tom")),  # the second paragraph
+    )
+    results = attribute_chapter(chunk_pieces(numbered_pieces(EN_CHAPTER, "en"), 10_000), "en", ROSTER, llm)
+    assert [r.labels for r in results] == [{1: "anna"}, {1: "tom"}]
+    assert [text_of(r.pieces).strip() for r in results] == ['"Where are you going?" asked Anna.', '"Home," said Tom.']
+    assert len(llm.calls) == 3
+
+
+def test_a_single_paragraph_that_keeps_truncating_stays_narration():
+    pieces = numbered_pieces('"Where are you going?" asked Anna.', "en")
+    llm = FakeLlm(LlmError("sentence_attribution reply hit max_tokens=4096", retryable=False, truncated=True))
+    results = attribute_chapter([pieces], "en", ROSTER, llm)
+    assert len(results) == 1
+    assert results[0].labels == {} and results[0].weak is False
+    assert len(llm.calls) == 1
+
+
 # -- analyse_part ------------------------------------------------------------
 
 
@@ -388,7 +409,7 @@ def test_analyse_part_builds_sentences_cast_rows_and_series(tmp_path):
         (5, 2, NARRATOR, 0.95),
     ]
     assert result.sentences[0]["text"] == '"Where are you going?"'
-    assert result.sentences[1]["text"] == "asked Anna."
+    assert result.sentences[1]["text"] == "asked Anna.\n"  # the last sentence of its paragraph
 
     rows = {row["id"]: row for row in result.cast_rows}
     assert [row["id"] for row in result.cast_rows] == [NARRATOR, "anna", "tom"]
@@ -398,8 +419,8 @@ def test_analyse_part_builds_sentences_cast_rows_and_series(tmp_path):
     assert rows["anna"]["color"] != rows["tom"]["color"]
     assert rows["anna"]["ageRange"] == "adult" and rows["anna"]["role"] == "Reporter"
     assert rows["anna"]["evidence"] == [{"quote": '"Where are you going?"'}]
-    assert rows["anna"]["voiceStyle"] == "A adult female voice. A sharp reporter."
-    assert rows["tom"]["voiceStyle"] == "A adult male voice."
+    assert rows["anna"]["voiceStyle"] == "An adult female voice. A sharp reporter."
+    assert rows["tom"]["voiceStyle"] == "An adult male voice."
     assert rows["tom"]["voiceId"] == "v1" and rows["tom"]["voiceUuid"] == "u1"
     assert rows["tom"]["ttsEngine"] == "qwen" and rows["tom"]["overrideTtsVoices"] == {"qwen": {"name": "Tom"}}
     assert "unrelated" not in rows["tom"]
@@ -416,6 +437,13 @@ def test_analyse_part_builds_sentences_cast_rows_and_series(tmp_path):
     assert result.stats["prompt_tokens"] == 20 and result.stats["completion_tokens"] == 10
     assert result.stats["weak_chunks"] == 0
     assert progress == [(1, 2), (2, 2)]
+
+
+def test_only_the_last_sentence_of_each_paragraph_ends_with_a_newline(tmp_path):
+    result = analyse_part([(1, EN_CHAPTER)], "en", make_series(tmp_path), _part_llm())
+    assert [s["text"] for s in result.sentences] == [
+        '"Where are you going?"', "asked Anna.\n", '"Home,"', "said Tom.\n",
+    ]
 
 
 def test_each_chapter_is_segmented_once(tmp_path, monkeypatch):
@@ -682,8 +710,8 @@ def test_a_labelled_run_gives_every_sentence_inside_it_the_run_label():
 def test_unlabelled_quotes_are_narrator_at_low_confidence_and_narration_at_high():
     pieces, runs = runs_of('"Go," said Tom. "Now."')
     out = sentences_from_labels(pieces, runs, {1: "tom"})
-    assert out[0] == ("tom", CONFIDENCE_LABELLED, '"Go,"')
-    assert out[-1] == (NARRATOR, CONFIDENCE_UNLABELLED_QUOTE, '"Now."')
+    assert out[0] == ("tom", CONFIDENCE_LABELLED, '"Go,"', False)
+    assert out[-1] == (NARRATOR, CONFIDENCE_UNLABELLED_QUOTE, '"Now."', True)
     narration = [row for row in out if row[2] == "said Tom."]
     assert narration and narration[0][:2] == (NARRATOR, CONFIDENCE_NARRATION)
 
@@ -694,3 +722,32 @@ def test_evidence_numbers_outside_the_chapter_are_dropped_and_long_quotes_are_cl
     quotes = evidence_quotes([1, 99, 1, 1, True, "1"], pieces, runs)
     assert len(quotes) == 1
     assert len(quotes[0]) <= 200 and quotes[0].startswith('"lantern') and quotes[0] in long_line
+
+
+def test_a_stored_voice_style_without_a_gender_gets_the_gender_and_age_in_front(tmp_path):
+    series = make_series(tmp_path)
+    add(series, "jake", "Jake", chapter=1, gender="male")
+    series.records["jake"].voice_style = "mid-range pitch, calm and measured pace,\nsoft timbre."
+    record = series.records["jake"]
+    assert run_module._voice_style(record, "male") == (
+        "An adult male voice. mid-range pitch, calm and measured pace, soft timbre."
+    )
+
+
+def test_a_stored_voice_style_that_names_a_gender_is_unchanged(tmp_path):
+    series = make_series(tmp_path)
+    add(series, "jake", "Jake", chapter=1, gender="male")
+    series.records["jake"].voice_style = "Adult male, mid-range pitch."
+    assert run_module._voice_style(series.records["jake"], "male") == "Adult male, mid-range pitch."
+    series.records["jake"].voice_style = "Soft, androgynous, mid-range pitch."
+    assert run_module._voice_style(series.records["jake"], "male") == "Soft, androgynous, mid-range pitch."
+
+
+def test_a_neutral_gender_and_the_narrator_keep_their_stored_voice_style(tmp_path):
+    series = make_series(tmp_path)
+    add(series, "jake", "Jake", chapter=1, gender="male")
+    series.records["jake"].voice_style = "calm, measured pace."
+    assert run_module._voice_style(series.records["jake"], "neutral") == "calm, measured pace."
+    run_module._ensure_narrator(series)
+    series.records[NARRATOR].voice_style = "warm, steady pace."
+    assert run_module._voice_style(series.records[NARRATOR], "male") == "warm, steady pace."

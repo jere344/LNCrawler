@@ -358,6 +358,14 @@ def test_empty_series_is_seeded_from_the_previous_part_book(tmp_path, monkeypatc
     assert series.chapters_seen == 1  # one chapter in the previous part, one part before this one
 
 
+def test_a_book_title_names_its_language_except_english(tmp_path):
+    pipe = _worker_pipe(tmp_path, WorkerCw(books={}))
+    assert pipe._title() == "S - Part 1"
+    pipe.claim = dataclasses.replace(pipe.claim, series={**pipe.claim.series, "language": "fr"})
+    assert pipe._title() == "S - Part 1 (fr)"
+    assert pipe._title(2) == "S - Part 2 (fr)"
+
+
 def test_empty_series_stays_empty_without_a_previous_book(tmp_path, monkeypatch):
     cw = WorkerCw(books={"bk_1": _book()})
     calls = []

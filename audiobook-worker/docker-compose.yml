@@ -84,6 +84,32 @@ services:
     networks:
       - cwbench
 
+  # Pauses Castwright and llama while the GPU is at LIMIT_C or above, resumes them at RESUME_C. See thermal/guard.py.
+  thermal:
+    image: python:3.12-slim-trixie
+    restart: unless-stopped
+    command: ["python", "-u", "/guard/guard.py"]
+    environment:
+      LIMIT_C: ${THERMAL_LIMIT_C:-80}
+      RESUME_C: ${THERMAL_RESUME_C:-68}
+      MIN_PAUSE_S: ${THERMAL_MIN_PAUSE_S:-120}
+      TARGETS: lncrawler-cwbench-castwright-1,lncrawler-audiobook-worker-llama-1
+      # LibreHardwareMonitor's web server (Options > Remote Web Server), e.g. http://host.docker.internal:8085/data.json
+      CPU_TEMP_URL: ${THERMAL_CPU_TEMP_URL:-}
+      NVIDIA_DRIVER_CAPABILITIES: utility
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./thermal:/guard:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility]
+
 volumes:
   workspace:
     external: true

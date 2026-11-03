@@ -4,7 +4,7 @@
 {% if audio_url %}<meta property="og:audio" content="{{ audio_url }}"><meta property="og:audio:type" content="audio/ogg">{% endif %}
 {% endblock %}
 {% block content %}
-<h1>{{ novel.title }}</h1>
+<h1>{{ display_title }}</h1>
 <p class="meta">Generated audiobook{% if lang != 'en' %} ({{ lang }}){% endif %} &middot; {{ duration }}</p>
 <p class="disclaimer">{{ disclaimer }}</p>
 {% if synopsis %}<p>{{ synopsis }}</p>{% endif %}
@@ -25,6 +25,6 @@
 {% endfor %}
 </ul>
 
-<p><a href="{{ novel_url }}">Read {{ novel.title }} online &raquo;</a></p>
+<p><a href="{{ novel_url }}">Read {{ display_title }} online &raquo;</a></p>
 <p><a href="{{ feed_url }}">Podcast RSS feed &raquo;</a></p>
 {% endblock %}

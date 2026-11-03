@@ -104,7 +104,7 @@ Settings (env, or `.env` for compose):
 | `QWEN_HZ_N_CTX` | `768` | Context per sequence in a batch |
 | `QWEN_HZ_MAX_STEPS` | `400` | Max talker frames per line |
 | `QWEN_HZ_RETRY_N_CTX` | `2048` | Context for re-rendering a line that was cut short |
-| `QWEN_HZ_RETRY_MAX_STEPS` | `1200` | Frame limit for that re-render; still cut short raises |
+| `QWEN_HZ_RETRY_MAX_STEPS` | `1200` | Upper frame limit for that re-render; see "Exact lines that never end" |
 | `QWEN_HZ_DECODER_CHUNK` | `48` | Frames per decoder call; hz's own default is `12`, ~15 s slower per chapter, same quality by ear and WER |
 | `SIDECAR_VRAM_FREE_FLOOR_MB` | `50` | Each dip under the floor kills the sidecar. Long hz batches peak with under 100 MB free next to a desktop |
 | `KOKORO_DEVICE` | `cpu` with the Qwen file | hz and the Kokoro arena do not fit on 8 GB together. The Kokoro-only stack stays on `auto` |
@@ -122,6 +122,7 @@ Patches in `hz/patch_sidecar.py` (numbered there, applied at build):
 - **18, design admission:** with sequential design (on by default with hz, patch 13), Qwen is unloaded before the design route's capacity check. The check used to run first. After the first design of a cast, the Base from its clone prompt stayed resident, so every later design failed with `noCapacity`.
 - **19, Kokoro arena:** the ONNX Runtime CUDA arena is capped at `KOKORO_ORT_GPU_MEM_MB`, and cuDNN uses a heuristic conv search with no max workspace. Unbounded, the arena grew with the variable batch shapes until the card was full, the desktop's free VRAM hit 0 MB and the sidecar recycled (code 43). The exhaustive search asked for workspaces that overran a 1536 MB cap on long lines.
 - **`SEG_CAPACITY_ADMISSION=0`:** with one card, the sidecar's capacity admission has nothing to choose between and only refuses. It cannot see hz's memory, and its learned VoiceDesign peak (~7.4 GB) never fits beside the Windows desktop. The hard VRAM ceilings and the sequential design patches guard the card instead.
+- **Exact lines that never end (`hz/hz_backend.py`, not a patch):** some lines rarely or never reach end of speech, at any temperature: `Failure to complete challenges may result in death.` ended about 1 render in 3, and `Suppressing his` not at all. The runaway is babble, not silence, and it failed the whole chapter while looking like a VRAM recycle storm. A cut-short line now gets a step limit of about 3x its length and 120 s of tries with other endings, then splits in two (twice) with a third of the budget per piece, and finally keeps the start of the runaway, logged at error as `kept the first`. It no longer fails the chapter, and the worst case stays near 6 minutes, under Castwright's 600 s call timeout.
 
 ## Settings
 
@@ -134,6 +135,19 @@ Base settings (`.env`):
 | `CW_PORT` | `18080` | Host port, bound to `127.0.0.1` |
 | `CW_MEM_LIMIT` | `3g` (`16g` with qwen) | Container RAM cap |
 | `CW_CPUS` | `2` (`6` with qwen) | Container CPU cap |
+
+Pauses between lines: upstream Castwright joins the sentence clips with no gap, so a chapter plays as one breathless
+run. `patch_server.mjs` (applied at image build, fails the build if its anchors drift) adds silence after each clip
+except the last. The worker ends the last sentence of each paragraph with `"\n"`, which Castwright trims before TTS.
+The analysis cache's inline-emotion pass also trims it, so that pass is patched to keep it.
+
+| Variable | Default | Silence after a clip that |
+|---|---|---|
+| `CW_PAUSE_PARAGRAPH_S` | `0.6` | ends a paragraph |
+| `CW_PAUSE_SENTENCE_S` | `0.3` | ends with `.` `!` `?` `…` (closing quotes ignored) |
+| `CW_PAUSE_CLAUSE_S` | `0.12` | ends any other way (`"Hi,"` before `he said.`) |
+
+Set them in the container's `environment:` to override. Segment times exclude the gap.
 
 ## Why these choices
 

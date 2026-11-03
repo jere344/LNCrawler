@@ -119,6 +119,9 @@ RUN if [ "$HZ" = "1" ]; then \
 # Castwright's Qwen install probe (qwen-install-detect.ts) looks for qwen_tts under server/tts-sidecar/.venv and
 # ignores SIDECAR_VENV_DIR, so without this link it reports "not-installed" and renders every Qwen voice in Kokoro.
 RUN ln -sfn /opt/venv /app/server/tts-sidecar/.venv
+# Castwright joins sentence clips with no gap; patch_server.mjs adds paragraph, sentence and clause pauses.
+COPY patch_server.mjs /opt/patch_server.mjs
+RUN node /opt/patch_server.mjs && rm /opt/patch_server.mjs
 # Settings come from the environment below; an empty .env silences the boot warning.
 RUN touch /app/server/.env
 

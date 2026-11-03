@@ -53,7 +53,7 @@ SAMPLES = [
     ("en", "\"He said 'no' to me,\" she told him.", [("\"He said 'no' to me,\"", True), ("she told him.", False)]),
     ("en", "“He said “no” to me,” she told him.", [("“He said “no” to me,”", True), ("she told him.", False)]),
     ("en", "It’s late, I don’t care. He said ‘no’ to me.",
-     [("It’s late, I don’t care.", False), ("He said", False), ("‘no’", True), ("to me.", False)]),
+     [("It’s late, I don’t care.", False), ("He said ‘no’ to me.", False)]),
     ("en", '"Wait... Stop!" She ran.', [('"Wait...', True), ('Stop!"', True), ("She ran.", False)]),
     ("en", '"I thought... maybe not... go on." he said.',
      [('"I thought... maybe not... go on."', True), ("he said.", False)]),
@@ -147,6 +147,40 @@ def test_dash_turns_under_an_open_french_quote_stay_quoted_until_the_closing_mar
     line_spans = [{p.span for p in pieces if p.para == k} for k in range(3)]
     assert [len(spans) for spans in line_spans] == [1, 1, 1]
     assert len(set.union(*line_spans)) == 3
+
+
+SCARE_QUOTES = [
+    # Short quotes inside a sentence are narration.
+    ("He wasn’t really ‘his type’. He left.", [("He wasn’t really ‘his type’.", False), ("He left.", False)]),
+    ("It was ‘not panning out’, so he left.", [("It was ‘not panning out’, so he left.", False)]),
+    ("He gave her “good morning” and left.", [("He gave her “good morning” and left.", False)]),
+    ("He was ‘one two three four five’ today.", [("He was ‘one two three four five’ today.", False)]),
+    # Speech after a comma or colon, a quote that is a whole paragraph or opens a sentence, and long quotes stay quoted.
+    ('He said, “Hi.” Then left.', [("He said,", False), ("“Hi.”", True), ("Then left.", False)]),
+    ("“Morning, Jake, had a good weekend?”", [("“Morning, Jake, had a good weekend?”", True)]),
+    ("‘Fine’ was all he said.", [("‘Fine’", True), ("was all he said.", False)]),
+    ("He was ‘one two three four five six’ today.",
+     [("He was", False), ("‘one two three four five six’", True), ("today.", False)]),
+]
+
+
+SPEECH_MID_SENTENCE = [
+    ("en", 'He shouted "Run" and then the door slammed.'),
+    ("de", "Er sagte „Ja“ und ging."),
+    ("ja", "彼は「はい」と答えた。"),
+    ("ja", "彼女は「今日は雨だと思う」と言った。"),
+    ("zh", "他說“好”然后走了。"),
+]
+
+
+@pytest.mark.parametrize("lang, text", SPEECH_MID_SENTENCE)
+def test_speech_inside_a_sentence_stays_quoted(lang, text):
+    assert any(quoted for _, quoted in shown(assert_lossless(text, lang)))
+
+
+@pytest.mark.parametrize("text, expected", SCARE_QUOTES)
+def test_scare_quotes_join_the_narration_and_speech_stays_quoted(text, expected):
+    assert shown(assert_lossless(text, "en")) == expected
 
 
 def test_an_unknown_language_is_refused():

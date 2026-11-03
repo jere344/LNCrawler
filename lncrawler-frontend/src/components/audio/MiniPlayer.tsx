@@ -10,7 +10,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
 import { useAudioPlayer, useAudioPlayerTime } from '@context/AudioPlayerContext';
 import { useAdultContent } from '@context/AdultContentContext';
-import { audiobookRevealKey } from '@utils/audiobook';
+import { audiobookPath, audiobookRevealKey } from '@utils/audiobook';
 import { formatClock } from '@utils/duration';
 
 // Fixed bar at the bottom of the screen, under the app bar. Hidden when nothing is loaded or a reader bar takes its place.
@@ -73,7 +73,7 @@ const MiniPlayer: React.FC = () => {
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography
           component={RouterLink}
-          to={`/audiobooks/${book.slug}`}
+          to={audiobookPath(book.slug, book.language)}
           variant="body2"
           noWrap
           sx={{ display: 'block', fontWeight: 600, color: 'text.primary', textDecoration: 'none' }}

@@ -132,7 +132,7 @@ const AudiobookPage = () => {
         description={detail.synopsis.slice(0, 160)}
         image={cover ?? undefined}
         type="book"
-        canonical={`${window.location.origin}/audiobooks/${encodeURIComponent(detail.slug)}/`}
+        canonical={`${window.location.origin}${audiobookPath(detail.slug, detail.language)}`}
       />
       <BreadcrumbNav
         items={[

@@ -40,7 +40,7 @@ def audiobook_card(audiobook, progress=None):
     return {
         'slug': audiobook.novel.slug,
         'language': audiobook.language,
-        'title': audiobook.novel.title,
+        'title': audiobook.display_title,
         'authors': sorted(author.name for author in audiobook.source.authors.all()),
         'cover_url': cover_url,
         'cover_jpg_url': cover_jpg_url,

@@ -32,11 +32,13 @@ RESTART_PING_TIMEOUT = (5, 10)
 
 class LlmError(Exception):
     """The call failed for good: a client error, or every attempt failed. `retryable` tells the caller whether the same
-    call may succeed on a later run: a client error (other than 429) or a reply cut off at max_tokens will not."""
+    call may succeed on a later run: a client error (other than 429) or a reply cut off at max_tokens will not.
+    `truncated` marks that cut-off reply, so the caller can send a smaller request instead."""
 
-    def __init__(self, message: str, *, retryable: bool = True) -> None:
+    def __init__(self, message: str, *, retryable: bool = True, truncated: bool = False) -> None:
         super().__init__(message)
         self.retryable = retryable
+        self.truncated = truncated
 
 
 @dataclass
@@ -127,7 +129,7 @@ class LlmClient:
                 last = f"bad response: {type(exc).__name__}: {exc}"
                 continue
             if choice.get("finish_reason") == "length":
-                raise LlmError(f"{kind} reply hit max_tokens={max_tokens}", retryable=False)
+                raise LlmError(f"{kind} reply hit max_tokens={max_tokens}", retryable=False, truncated=True)
             if not isinstance(content, str) or not content.strip():
                 last = "reply has no content"
                 continue

@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { useAudioPlayer, useAudioPlayerTime, type SleepOption } from '@context/AudioPlayerContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
-import { audiobookRevealKey, audioChapterLabel } from '@utils/audiobook';
+import { audiobookPath, audiobookRevealKey, audioChapterLabel } from '@utils/audiobook';
 import { formatClock } from '@utils/duration';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
@@ -182,7 +182,7 @@ const FullPlayer: React.FC = () => {
         >
           {sleepLabel}
         </Button>
-        <Button component={RouterLink} to={`/audiobooks/${book.slug}`} size="small" onClick={() => player.expand(false)}>
+        <Button component={RouterLink} to={audiobookPath(book.slug, book.language)} size="small" onClick={() => player.expand(false)}>
           {t('audioPlayer.openAudiobook')}
         </Button>
         <Button

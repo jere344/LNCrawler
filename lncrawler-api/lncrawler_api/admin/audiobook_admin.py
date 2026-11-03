@@ -81,7 +81,7 @@ def _dashboard_context(request):
         ).order_by('name'),
         'est_nights': est_nights,
         'per_day': per_day,
-        'failed_parts': AudiobookPart.objects.filter(status='failed').select_related('audiobook__novel').order_by(
+        'failed_parts': AudiobookPart.objects.filter(status='failed').select_related('audiobook__novel', 'audiobook__source').order_by(
             F('claimed_at').desc(nulls_last=True), '-created_at'
         )[:10],
         'disk_used_gb': used / GB,
@@ -134,7 +134,7 @@ class AudiobookAdmin(admin.ModelAdmin):
         'last_part_at',
     )
     list_filter = ('status', 'published', 'featured')
-    search_fields = ('novel__title',)
+    search_fields = ('novel__title', 'source__title')
     raw_id_fields = ('novel', 'source')
     readonly_fields = (
         'cover_thumb',
@@ -378,8 +378,8 @@ class AudiobookPartAdmin(admin.ModelAdmin):
         'completed_at',
     )
     list_filter = ('status', 'engine', 'qa_passed')
-    search_fields = ('audiobook__novel__title', 'engine_version')
-    list_select_related = ('audiobook__novel',)
+    search_fields = ('audiobook__novel__title', 'audiobook__source__title', 'engine_version')
+    list_select_related = ('audiobook__novel', 'audiobook__source')
     readonly_fields = (
         'audiobook',
         'index',
@@ -529,8 +529,8 @@ class AudiobookWorkerAdmin(admin.ModelAdmin):
 class ListeningProgressAdmin(admin.ModelAdmin):
     list_display = ('user', 'audiobook', 'chapter', 'position_s', 'speed', 'finished', 'updated_at')
     list_filter = ('finished',)
-    list_select_related = ('user', 'audiobook__novel', 'chapter__novel_from_source')
-    search_fields = ('user__username', 'audiobook__novel__title')
+    list_select_related = ('user', 'audiobook__novel', 'audiobook__source', 'chapter__novel_from_source')
+    search_fields = ('user__username', 'audiobook__novel__title', 'audiobook__source__title')
     readonly_fields = list_display
 
     def has_add_permission(self, request):
@@ -541,8 +541,8 @@ class ListeningProgressAdmin(admin.ModelAdmin):
 class AudiobookDailyStatAdmin(admin.ModelAdmin):
     list_display = ('audiobook', 'date', 'plays', 'downloads', 'listen_seconds')
     list_filter = ('date',)
-    list_select_related = ('audiobook__novel',)
-    search_fields = ('audiobook__novel__title',)
+    list_select_related = ('audiobook__novel', 'audiobook__source')
+    search_fields = ('audiobook__novel__title', 'audiobook__source__title')
     readonly_fields = list_display
 
     def has_add_permission(self, request):

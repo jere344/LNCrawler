@@ -9,11 +9,13 @@ were cut short. Voice anchors are encoded once and saved as JSON content under
 a `.hzvoice` name, so the sidecar's voice listing (which scans *.json) ignores them.
 """
 import gc
+import itertools
 import logging
 import os
 import sys
 import tempfile
 import threading
+import time
 import types
 from typing import Callable, Optional
 
@@ -21,6 +23,16 @@ import numpy as np
 
 SAMPLE_RATE = 24000
 log = logging.getLogger("sidecar.hz")
+# Healthy speech is about 1 frame per character, so a runaway is capped near 3x.
+RUNAWAY_FRAMES_PER_CHAR = 3
+# Floor for short lines.
+RUNAWAY_MIN_FRAMES = 100
+# Seconds of tries on a whole line. Each split gets a third per piece, so the worst case stays
+# near 6 minutes: under the worker's 600 s stream timeout and Castwright's 600 s call timeout.
+RUNAWAY_BUDGET_S = 120
+RUNAWAY_SPLITS = 2
+# Length of speech kept from a runaway when nothing else ended.
+RUNAWAY_KEEP_S_PER_CHAR = 0.08
 
 # Language names hz accepts (keys of schema/constants.py LANGUAGE_MAP). Anything
 # else goes as "auto": hz's map_language() returns None for it, which means no
@@ -52,6 +64,24 @@ def _import_hz():
             BatchRunner=BatchRunner, map_language=map_language,
         )
     return _hz_api
+
+
+def _respellings(text: str) -> list:
+    """Same words, different end punctuation. Some exact texts never reach end of
+    speech, and a different ending does."""
+    stem = text.rstrip().rstrip(".!?…,;:")
+    return [v for v in (stem + "!", stem + "…") if v != text]
+
+
+def _split_line(text: str) -> list:
+    """Two pieces split at the space nearest the middle, or [] if there is no space.
+    Pieces are different texts for the model, so they end where the whole line would not."""
+    spaces = [i for i, c in enumerate(text) if c == " "]
+    if not spaces:
+        return []
+    mid = len(text) / 2
+    i = min(spaces, key=lambda k: abs(k - mid))
+    return [text[:i], text[i + 1:]]
 
 
 class HzBackend:
@@ -166,7 +196,7 @@ class HzBackend:
                         "re-rendering alone with max_steps=%d n_ctx=%d",
                         i, len(r.codes), prompt_len, self.retry_max_steps, self.retry_n_ctx,
                     )
-                    r = self._render_retry(text, voice, lang, prompt_len, i)
+                    r = self._render_retry(text, voice, lang, i)
                 audio = r.audio
                 if audio is None or len(audio) == 0:
                     raise RuntimeError(f"hz produced no audio for batch item {i}")
@@ -184,19 +214,59 @@ class HzBackend:
         frames = len(r.codes)
         return frames >= max_steps or prompt_len + frames >= n_ctx - 1
 
-    def _render_retry(self, text, voice, lang, prompt_len: int, index: int):
+    def _render_ladder(self, text, voice, lang, index: int, budget_s: float):
+        """(result, last). Result is the first try of `text` or its respellings not cut short,
+        or None once budget_s is spent, with `last` the final cut-short try. Always makes one try."""
+        api = _import_hz()
+        candidates = itertools.cycle([text] + _respellings(text))
+        deadline = time.monotonic() + budget_s
+        tries = 0
+        while True:
+            t = next(candidates)
+            tries += 1
+            steps = min(self.retry_max_steps, RUNAWAY_MIN_FRAMES + RUNAWAY_FRAMES_PER_CHAR * len(t))
+            cfg = api.TTSConfig(max_steps=steps, streaming=False)
+            res = self._retry_runner.clone_batch([(t, voice, _hz_language(lang), False, cfg)])[0]
+            frames = 0 if res is None else len(res.codes)
+            if res is not None and not self._is_truncated(
+                    res, self._prompt_len(self._retry_runner, t, voice, lang),
+                    steps, self.retry_n_ctx):
+                if tries > 1:
+                    log.warning("hz batch item %d rendered in %d tries with %r (%r cut short)",
+                                index, tries, t, text)
+                else:
+                    log.info("hz batch item %d rendered in 1 try: %r", index, t)
+                return res, res
+            if tries == 1:
+                log.warning("hz batch item %d cut short on retry (%d frames): %r; trying respellings",
+                            index, frames, text)
+            if time.monotonic() >= deadline:
+                return None, res
+
+    def _render_audio(self, text, voice, lang, index: int, budget_s: float, splits: int):
+        """Audio for `text`, always: tries, then splits in two, then the start of a runaway."""
+        res, last = self._render_ladder(text, voice, lang, index, budget_s)
+        if res is not None:
+            return np.asarray(res.audio, dtype=np.float32)
+        pieces = _split_line(text) if splits else []
+        if pieces:
+            log.warning("hz batch item %d split in two, cut short: %r", index, text)
+            silence = np.zeros(int(0.08 * SAMPLE_RATE), dtype=np.float32)
+            a, b = [self._render_audio(p, voice, lang, index, budget_s / 3, splits - 1) for p in pieces]
+            return np.concatenate([a, silence, b])
+        keep = int(len(text) * RUNAWAY_KEEP_S_PER_CHAR * SAMPLE_RATE)
+        log.error("hz batch item %d kept the first %d samples of a runaway: %r", index, keep, text)
+        audio = None if last is None else last.audio
+        if audio is None or len(audio) == 0:
+            return np.zeros(keep, dtype=np.float32)
+        return np.asarray(audio, dtype=np.float32)[:keep]
+
+    def _render_retry(self, text, voice, lang, index: int):
         api = _import_hz()
         if self._retry_runner is None:
             self._retry_runner = api.BatchRunner(self._engine, n_ctx_per_seq=self.retry_n_ctx)
-        cfg = api.TTSConfig(max_steps=self.retry_max_steps, streaming=False)
-        res = self._retry_runner.clone_batch([(text, voice, _hz_language(lang), False, cfg)])[0]
-        if res is None or self._is_truncated(res, prompt_len, self.retry_max_steps, self.retry_n_ctx):
-            frames = 0 if res is None else len(res.codes)
-            raise RuntimeError(
-                f"hz batch item {index} still truncated after retry "
-                f"({frames} frames, max_steps={self.retry_max_steps}, n_ctx={self.retry_n_ctx})"
-            )
-        return res
+        audio = self._render_audio(text, voice, lang, index, RUNAWAY_BUDGET_S, RUNAWAY_SPLITS)
+        return types.SimpleNamespace(audio=audio, codes=[])
 
     def decode_codes_to_wav(self, codes, wav_path: str) -> None:
         """Decode a (T, 16) codec array with hz's own ONNX decoder

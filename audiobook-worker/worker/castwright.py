@@ -17,7 +17,7 @@ log = logging.getLogger("worker.castwright")
 
 CONNECT_TIMEOUT = 10
 READ_TIMEOUT = 60
-SSE_READ_TIMEOUT = 120  # Castwright sends keep-alives, so a longer silence means the stream is gone.
+SSE_READ_TIMEOUT = 600  # Castwright is silent while a batch renders, and a line that never stops takes minutes.
 
 # Errors that will not fix themselves on retry.
 NON_RETRYABLE_CODES = frozenset({"language_unset", "unsupported_language"})

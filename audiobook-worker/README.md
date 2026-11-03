@@ -16,7 +16,7 @@ On the prod server, once:
 1. Set `AUDIOBOOK_ENABLED=True`.
 2. Create one token per machine, so each can be revoked alone: `manage.py create_audiobook_worker <username>`.
 
-Then on each GPU machine, clone this repository and follow sections 1 to 5, with `LNCRAWLER_URL` set to the prod URL.
+Then on each GPU machine, clone this repository and follow sections 1 to 5, with `LNCRAWLER_URL` set to the prod API host (`SITE_API_URL`, over HTTPS), not the site host.
 
 Things to know when running several machines:
 
@@ -127,6 +127,15 @@ at runtime: it does not claim a part until Castwright and the LLM both answer (s
   (`restart: unless-stopped`). The worker waits 16 s for the old server to stop, then up to 180 s for `GET /health` to answer, and sends the same call
   again.
   A second timeout fails the part as retryable. Without a restart flag (`LLM_RESTART_FLAG=`) a timeout fails at once.
+- **A looping attribution reply.** A `sentence_attribution` reply that hits its token budget (4096) means the model
+  looped. The chunk is split at its middle paragraph and each half is sent again; a single paragraph that still loops
+  is left as narration, with a warning. The part goes on.
+- **A hot GPU.** The `thermal` service (`thermal/guard.py`) reads the GPU temperature every 10 s. At
+  `THERMAL_LIMIT_C` (80) it `docker pause`s Castwright and llama, and resumes them once the card is at
+  `THERMAL_RESUME_C` (68) and at least `THERMAL_MIN_PAUSE_S` (120 s) have passed. The worker is not paused, so its
+  heartbeats keep the lease. Windows gives containers no CPU sensor: run LibreHardwareMonitor with its web server on and
+  set `THERMAL_CPU_TEMP_URL=http://host.docker.internal:8085/data.json` to guard the CPU too. `docker logs
+  lncrawler-audiobook-worker-thermal-1` shows every pause and a status line every 10 minutes.
 - **Series file damaged.** A series file that is not valid JSON is moved aside as `*.corrupt-<time>`, and the series
   starts empty for that audiobook.
 
@@ -173,8 +182,13 @@ Non-English books: Castwright puts every character on Qwen. The worker designs c
 still has no voice, its lines go to another character's voice (a warning in the part state). The part fails (not
 retryable) only when there is no voice to lend.
 
+Defaults: `QWEN_MAIN_MIN_LINES=8`, `QWEN_MAX_DESIGNED=14`. Kokoro voices only 1–2% of the lines of a part, and a design
+costs about 67 s, so only the smallest roles stay on Kokoro.
+
 Cast entries for qwen voices carry the stored voice persona (`voiceStyle`) as `description`, trimmed to 300 characters.
-Kokoro entries carry none.
+Kokoro entries carry none. A male or female character whose persona names no gender gets "A {age} {gender} voice." in
+front, because the designer otherwise drifts (a soft-spoken male lead came out sounding female). A persona that says
+androgynous, gender-neutral, genderless or unisex is kept as written, and so are neutral characters and the narrator.
 
 ## Accuracy
 

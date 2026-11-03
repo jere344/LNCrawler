@@ -98,7 +98,7 @@ class _Scan:
             span = bisect_right(self.span_starts, letters[0]) if quoted else 0
             para = max(0, bisect_right(self.paragraphs, start) - 1)
             out.append(Piece(start, end, text[start:end], quoted, para, span))
-        return _absorb_punctuation(out)
+        return _merge_scare_quotes(_absorb_punctuation(out), text)
 
     # -- the pass --------------------------------------------------------------
 
@@ -338,3 +338,57 @@ def _absorb_punctuation(pieces: list[Piece]) -> list[Piece]:
         out[1] = Piece(first.start, second.end, first.text + second.text, second.quoted, first.para, second.span)
         del out[0]
     return out
+
+
+def _merge_scare_quotes(pieces: list[Piece], text: str) -> list[Piece]:
+    """A short quote inside a sentence ("He was ‘his type’.") is a scare quote, not speech: it joins the narration before
+    it, and the narration after it joins too when the sentence goes on."""
+    out: list[Piece] = []
+    merged = False  # the last piece of `out` is a scare quote that joined narration and may take the narration after it
+    for piece in pieces:
+        if out and merged and not piece.quoted and piece.para == out[-1].para:
+            out[-1] = _narration(out[-1], piece, text)
+            merged = False
+        elif out and _is_scare_quote(out[-1], piece):
+            out[-1] = _narration(out[-1], piece, text)
+            merged = not _closes_sentence(out[-1].text)
+        else:
+            out.append(piece)
+            merged = False
+    return out
+
+
+def _is_scare_quote(prev: Piece, piece: Piece) -> bool:
+    """A quote that sits mid-sentence: the narration before it is unquoted and ends in a letter or digit, and the quote
+    is one quotation of at most five words that starts lower case, with no sentence or clause punctuation. Speech
+    usually starts upper case, and scripts without case (Japanese, Chinese) never match."""
+    if not piece.quoted or prev.quoted or prev.para != piece.para or not prev.text.rstrip()[-1:].isalnum():
+        return False
+    inner = _single_quotation(piece.text.strip())
+    if inner is None or len(inner.split()) > 5 or not inner.strip()[:1].islower():
+        return False
+    return not any(c in SENTENCE_END + CJK_END + ",;:" for c in inner)
+
+
+def _single_quotation(s: str) -> str | None:
+    """The words of a piece that is exactly one quotation: the text between its opening mark and its closing mark, with
+    any TRAIL punctuation after the closing mark dropped. None for dash speech, nested marks or anything else."""
+    if not s or s[0] not in QUOTE_CLOSERS:
+        return None
+    body = s[1:]
+    close = max((k for k, c in enumerate(body) if c in QUOTE_CLOSERS[s[0]]), default=None)
+    if close is None or not all(c in TRAIL for c in body[close + 1:]):
+        return None
+    inner = body[:close]
+    return None if any(c in QUOTE_CLOSERS for c in inner) else inner
+
+
+def _closes_sentence(s: str) -> bool:
+    """The text ends a sentence: a sentence end, possibly followed by closing marks."""
+    body = s.rstrip().rstrip("".join(CLOSE_AFTER))
+    return bool(body) and body[-1] in SENTENCE_END + CJK_END
+
+
+def _narration(prev: Piece, piece: Piece, text: str) -> Piece:
+    """One unquoted piece from `prev` through `piece`."""
+    return Piece(prev.start, piece.end, text[prev.start:piece.end], False, prev.para, 0)

@@ -7,6 +7,7 @@ an open quote carries on from. A chunk that labels too few of its quote runs is 
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +18,8 @@ from worker.series import NARRATOR
 if TYPE_CHECKING:  # the import would be circular at runtime: worker.llm imports this package's protocol module
     from worker.llm import LlmClient
 
+log = logging.getLogger(__name__)
+
 WEAK_MIN_RUNS = 5  # a chunk with fewer quote runs is never judged weak
 CONTEXT_PARAGRAPHS = 2  # paragraphs of the previous chunk shown as context
 CONFIDENCE_LABELLED = 0.9  # a sentence inside a quote run the model labelled
@@ -24,6 +27,7 @@ CONFIDENCE_UNLABELLED_QUOTE = 0.5  # a sentence inside a quote run the model lef
 CONFIDENCE_NARRATION = 0.95  # narration
 MIN_LABELLED_SHARE = 0.3  # with two or more runs, fewer labelled runs than this is a failed answer
 RESPONSE_NAME = "sentence_attribution"
+MAX_TOKENS = 4096  # a normal reply is under ~750 tokens: a reply that reaches this has looped
 
 SYSTEM_PROMPT = """You label who speaks in a novel excerpt. The excerpt is split into numbered quote runs and narration. A numbered line `[n] text` is one run of spoken text: everything from an opening quotation mark (or dash) to its closing mark, which can be several sentences or paragraphs. Unnumbered lines are narration, shown for context only. A blank line marks a paragraph break.
 
@@ -113,11 +117,12 @@ def parse_labels(obj: Any, runs: list[range], ids: list[str]) -> dict[int, str]:
 
 def sentences_from_labels(
     pieces: list[Piece], runs: list[range], labels: dict[int, str]
-) -> list[tuple[str, float, str]]:
-    """Per piece: (speaker id, confidence, stripped text). Every piece inside a labelled run takes the run's label;
-    unlabelled quoted pieces are narrator at lower confidence."""
+) -> list[tuple[str, float, str, bool]]:
+    """Per piece: (speaker id, confidence, stripped text, ends its paragraph). Every piece inside a labelled run takes the
+    run's label; unlabelled quoted pieces are narrator at lower confidence. A piece ends its paragraph when the next piece
+    has another paragraph, or when it is the last piece."""
     run_of = {i: n for n, run in enumerate(runs, 1) for i in run}
-    out: list[tuple[str, float, str]] = []
+    out: list[tuple[str, float, str, bool]] = []
     for i, piece in enumerate(pieces):
         n = run_of.get(i)
         if n in labels:
@@ -126,7 +131,8 @@ def sentences_from_labels(
             speaker, confidence = NARRATOR, CONFIDENCE_UNLABELLED_QUOTE
         else:
             speaker, confidence = NARRATOR, CONFIDENCE_NARRATION
-        out.append((speaker, confidence, piece.text.strip()))
+        para_end = i + 1 == len(pieces) or pieces[i + 1].para != piece.para
+        out.append((speaker, confidence, piece.text.strip(), para_end))
     return out
 
 
@@ -179,7 +185,7 @@ def attribute_chunk(
         messages,
         reply_schema(ids, len(runs)),
         name=RESPONSE_NAME,
-        max_tokens=2048,
+        max_tokens=MAX_TOKENS,
         kind="sentence_attribution",
         tag=tag,
         validate=lambda obj: parse_labels(obj, runs, ids),
@@ -202,16 +208,41 @@ def attribute_chapter(
     results: list[ChunkResult] = []
     previous: ChunkResult | None = None
     for chunk in groups:
-        result = _attribute_after(chunk, previous, lang, roster, llm, tag)
-        parts = [result]
-        if result.weak and len(_paragraphs(chunk)) > 1:
+        parts = _attribute_or_split(chunk, previous, lang, roster, llm, tag)
+        if len(parts) == 1 and parts[0].weak and len(_paragraphs(chunk)) > 1:
             first, second = _halves(chunk)
-            first_result = _attribute_after(first, previous, lang, roster, llm, tag)
-            second_result = _attribute_after(second, first_result, lang, roster, llm, tag)
-            parts = [first_result, second_result]
+            first_results = _attribute_or_split(first, previous, lang, roster, llm, tag)
+            second_results = _attribute_or_split(second, first_results[-1], lang, roster, llm, tag)
+            parts = first_results + second_results
         results.extend(parts)
         previous = parts[-1]
     return results
+
+
+def _attribute_or_split(
+    chunk: list[Piece],
+    previous: ChunkResult | None,
+    lang: str,
+    roster: list[dict],
+    llm: LlmClient,
+    tag: str,
+) -> list[ChunkResult]:
+    """The results of one chunk. A reply cut off at max_tokens splits the chunk at its middle paragraph boundary, and the
+    halves are attributed in order. A single paragraph that is still cut off keeps its quotes as narration."""
+    from worker.llm import LlmError  # not at the top: worker.llm imports this package's protocol module
+
+    try:
+        return [_attribute_after(chunk, previous, lang, roster, llm, tag)]
+    except LlmError as exc:
+        if not exc.truncated:
+            raise
+    if len(_paragraphs(chunk)) < 2:
+        log.warning("attribution reply for one paragraph hit max_tokens=%d; its quotes stay narration", MAX_TOKENS)
+        return [ChunkResult(pieces=chunk, runs=quote_runs(chunk), labels={}, weak=False)]
+    first, second = _halves(chunk)
+    first_results = _attribute_or_split(first, previous, lang, roster, llm, tag)
+    second_results = _attribute_or_split(second, first_results[-1], lang, roster, llm, tag)
+    return first_results + second_results
 
 
 def _attribute_after(

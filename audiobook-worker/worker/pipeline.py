@@ -171,8 +171,12 @@ class PartPipeline:
             raise PartFailed("Castwright book is gone", retryable=True)
         return book
 
-    def _title(self) -> str:
-        return f"{self.claim.series.get('title', '')} - Part {self.claim.part.get('index')}"
+    def _title(self, index: Any = None) -> str:
+        """The Castwright book title. Two languages of a novel can share a source title, so all but English name theirs."""
+        index = self.claim.part.get("index") if index is None else index
+        language = self.claim.series.get("language") or "en"
+        suffix = "" if language == "en" else f" ({language})"
+        return f"{self.claim.series.get('title', '')} - Part {index}{suffix}"
 
     def _profile(self) -> str:
         """The engine profile this part was started with (stored in state at first run)."""
@@ -410,7 +414,7 @@ class PartPipeline:
 
     def _seed_series(self, series: Series, index: int) -> None:
         """A series with no memory yet is seeded from the previous part's Castwright book, when the library has it."""
-        title = f"{self.claim.series.get('title', '')} - Part {index - 1}"
+        title = self._title(index - 1)
         previous = self.cw.find_library_book(title=title)
         if previous is None:
             self._log("no library book %r for the previous part, series memory starts empty", title)
