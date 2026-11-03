@@ -229,7 +229,7 @@ def build_m4b(part, fmt, progress=None):
 
 def download_filename(part):
     """Name of the file offered to the user, the same for both formats."""
-    name = f"{part.audiobook.novel.title} - Part {part.index:02} (Ch. {part.chapter_start}-{part.chapter_end})"
+    name = f"{part.audiobook.display_title} - Part {part.index:02} (Ch. {part.chapter_start}-{part.chapter_end})"
     name = re.sub(r'[^\w \-()._]', '', name)
     name = re.sub(r' +', ' ', name).strip()
     label = ' [generated]'  # added after the cleanup, which would drop the brackets

@@ -1,5 +1,6 @@
 # Separate compose project: its own containers, network and volume. It never
 # touches the lncrawler prod services. Always run from this folder.
+# The name keeps the old "cwbench" prefix so the existing network and volumes stay valid.
 name: lncrawler-cwbench
 
 services:
@@ -19,13 +20,18 @@ services:
       - "127.0.0.1:${CW_PORT:-18080}:8080"
     volumes:
       - workspace:/workspace
-      - ${NOVELS_DIR:-../../Lightnovels}:/novels:ro
-      - ./out:/out
-      - ./scripts:/bench:ro
-    # Caps so the bench can't starve the prod containers sharing the Docker VM.
+    # Caps so Castwright can't starve the prod containers sharing the Docker VM.
     mem_limit: ${CW_MEM_LIMIT:-3g}
     cpus: ${CW_CPUS:-2}
-    restart: "no"
+    restart: unless-stopped
+    # The image has curl (see Dockerfile). The worker (audiobook-worker/) is in another project: it does not wait on this
+    # check, it just does not claim parts until Castwright answers.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/info"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
 volumes:
   workspace:

@@ -43,8 +43,13 @@ class Audiobook(models.Model):
             models.UniqueConstraint(fields=['novel', 'language'], name='audiobook_novel_language_uniq'),
         ]
 
+    @property
+    def display_title(self):
+        """The title of the source it is made from: the novel's title may be in another language."""
+        return self.source.title or self.novel.title
+
     def __str__(self):
-        return self.novel.title
+        return self.display_title
 
     def refresh_totals(self):
         """Recompute the denormalised totals from the done and stale parts"""

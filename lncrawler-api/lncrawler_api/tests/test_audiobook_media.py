@@ -222,8 +222,8 @@ class TagTests(ListenableBase):
         first = audiobook_media.compute_tags_hash(self.audiobook)
         self.assertEqual(first, audiobook_media.compute_tags_hash(self.audiobook))
 
-        self.novel.title = "Other title"
-        self.novel.save()
+        self.source.title = "Other title"
+        self.source.save()
         second = audiobook_media.compute_tags_hash(self.audiobook)
         self.assertNotEqual(first, second)
 
@@ -236,8 +236,8 @@ class TagTests(ListenableBase):
         self.assertNotEqual(third, audiobook_media.compute_tags_hash(self.audiobook))
 
     def test_retag_rewrites_the_tags_sizes_and_hash(self):
-        self.novel.title = "Renamed"
-        self.novel.save()
+        self.source.title = "Renamed"
+        self.source.save()
 
         self.assertEqual(audiobook_media.retag_audiobook(self.audiobook), 3)
 
@@ -268,8 +268,8 @@ class TagTests(ListenableBase):
         self.assertEqual(audiobook_media.compute_tags_hash(self.audiobook), before)
 
     def test_retag_leaves_no_temp_files(self):
-        self.novel.title = "Renamed"
-        self.novel.save()
+        self.source.title = "Renamed"
+        self.source.save()
 
         audiobook_media.retag_audiobook(self.audiobook)
 
@@ -278,8 +278,8 @@ class TagTests(ListenableBase):
         self.assertEqual(sorted(os.listdir(folder)), sorted(names))
 
     def test_a_failed_tagging_leaves_the_original_intact(self):
-        self.novel.title = "Renamed"
-        self.novel.save()
+        self.source.title = "Renamed"
+        self.source.save()
         folder = os.path.join(svc.audio_dir(self.source), 'part-001', 'g1')
         originals = {}
         for row in AudiobookChapter.objects.filter(part=self.part):
@@ -421,8 +421,8 @@ class DownloadNameTests(ListenableBase):
         self.assertEqual(audiobook_m4b.download_filename(self.part), "Foo - Part 01 (Ch. 1-3) [generated].m4b")
 
     def test_unsafe_characters_are_dropped(self):
-        self.novel.title = 'Bad/Name?: The "Long" Title'
-        self.novel.save()
+        self.source.title = 'Bad/Name?: The "Long" Title'
+        self.source.save()
 
         self.assertEqual(
             audiobook_m4b.download_filename(self.part),
@@ -430,8 +430,8 @@ class DownloadNameTests(ListenableBase):
         )
 
     def test_length_is_capped(self):
-        self.novel.title = 'x' * 200
-        self.novel.save()
+        self.source.title = 'x' * 200
+        self.source.save()
 
         name = audiobook_m4b.download_filename(self.part)
 

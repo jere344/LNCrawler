@@ -574,7 +574,7 @@ def seo_audiobooks(request):
     )
     items = [
         {
-            "title": audiobook.novel.title,
+            "title": audiobook.display_title,
             "url": f"{SITE_URL}{audiobook_path(audiobook.novel.slug, audiobook.language)}",
             "duration": _duration_label(audiobook.public_duration_s),
         }
@@ -626,12 +626,12 @@ def seo_audiobook(request, novel_slug):
     narrator = narrator_credit(audiobook)
     disclaimer = audiobook_media.audiobook_metadata(audiobook)['disclaimer']
     canonical = f"{SITE_URL}{audiobook_path(novel.slug, audiobook.language)}"
-    description = f"Generated audiobook: {novel.title}, narrated with generated voices. {synopsis}".strip()
+    description = f"Generated audiobook: {audiobook.display_title}, narrated with generated voices. {synopsis}".strip()
 
     book = {
         "@context": "https://schema.org",
         "@type": "Audiobook",
-        "name": novel.title,
+        "name": audiobook.display_title,
         "url": canonical,
         "readBy": {"@type": "Person", "name": narrator},
         "duration": _iso_duration(audiobook.public_duration_s),
@@ -662,7 +662,7 @@ def seo_audiobook(request, novel_slug):
             {
                 "@type": "ListItem",
                 "position": 3,
-                "name": novel.title,
+                "name": audiobook.display_title,
                 "item": canonical,
             },
         ],
@@ -674,7 +674,7 @@ def seo_audiobook(request, novel_slug):
         {
             "title": f"{novel.title} \u2013 Generated audiobook",
             "description": description,
-            "keywords": ", ".join([novel.title, *author_names][:15]),
+            "keywords": ", ".join([audiobook.display_title, *author_names][:15]),
             "canonical": canonical,
             "og_image": cover_jpg or DEFAULT_OG_IMAGE,
             "og_type": "book",
@@ -696,6 +696,7 @@ def seo_audiobook(request, novel_slug):
             ],
             "audio_url": audio_url,
             "cover_jpg": cover_jpg,
+            "display_title": audiobook.display_title,
             "novel_url": f"{SITE_URL}/novels/{novel.slug}/",
             "feed_url": (
                 f"{settings.SITE_API_URL}/audiobooks/{novel.slug}/feed.xml"

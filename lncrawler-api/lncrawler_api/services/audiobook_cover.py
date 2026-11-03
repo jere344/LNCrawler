@@ -197,7 +197,7 @@ def _compose(audiobook):
     source_file = source_cover_file(audiobook.source)
     source_image = _open_source(source_file) if source_file else None
     if source_image is None:
-        canvas = _title_square(audiobook.novel.title)
+        canvas = _title_square(audiobook.display_title)
     else:
         canvas = _background(source_image).convert('RGBA')
         canvas = _foreground(canvas, source_image)

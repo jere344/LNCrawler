@@ -70,7 +70,7 @@ def podcast_feed_xml(audiobook):
     synopsis = " ".join(strip_html(audiobook.source.synopsis).split())
     page_url = f"{settings.SITE_URL}{audiobook_path(novel.slug, audiobook.language)}"
     feed = PodcastFeed(
-        title=f"{novel.title} (Generated audiobook)",
+        title=f"{audiobook.display_title} (Generated audiobook)",
         link=page_url,
         description=f"{disclaimer} {synopsis}".strip(),
         language=audiobook.language,

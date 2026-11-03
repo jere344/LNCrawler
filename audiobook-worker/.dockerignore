@@ -1,0 +1,7 @@
+.env
+bench/data/
+bench/results/
+fake_prod_out/
+.pytest_cache/
+**/__pycache__/
+**/*.pyc

@@ -106,7 +106,7 @@ def audiobook_metadata(audiobook):
     latest = audiobook.parts.filter(status='done').order_by('-completed_at', '-index').first()
     listenable = audiobook.parts.filter(status__in=['done', 'stale']).filter(Q(qa_passed=True) | Q(approved=True))
     return {
-        'title': audiobook.novel.title,
+        'title': audiobook.display_title,
         'authors': [author.name for author in source.authors.order_by('name')],
         'year': source.novel.created_at.year,
         'synopsis': source.synopsis or '',
