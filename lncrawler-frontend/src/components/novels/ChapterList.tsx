@@ -33,7 +33,7 @@ import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
-import { getChapterLabel } from '@utils/Misc';
+import { getChapterLabel, getVolumeHeading } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 import type { AsyncData, ChapterListLoaderData } from '../../router/loaders';
 
@@ -226,8 +226,8 @@ const ChapterList = () => {
           volumes.map(volume => {
             if (!volumeChapters[volume] || volumeChapters[volume].length === 0) return null;
             
-            const volumeTitle = volumeChapters[volume][0].volume_title || t('chapterList.volume', { volume });
-            const showHeader = volume !== 0 || !!volumeChapters[volume][0].volume_title;
+            const volumeTitle = getVolumeHeading(t, volume, volumeChapters[volume][0].volume_title);
+            const showHeader = volumeTitle !== '';
             
             return (
               <Box key={volume} sx={{ mb: 4 }}>

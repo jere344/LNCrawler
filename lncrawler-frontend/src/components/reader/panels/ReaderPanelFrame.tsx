@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Box, IconButton, Paper, Typography, type SxProps, type Theme } from '@mui/material';
+import { useEffect, useRef, type CSSProperties, type ReactNode, type Ref } from 'react';
+import { Box, IconButton, Paper, Typography, useForkRef, type SxProps, type Theme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import type { ReaderLayoutMode } from '../hooks/useReaderLayout';
@@ -31,6 +31,9 @@ interface ReaderPanelFrameProps {
   headerExtra?: ReactNode;
   // No padding on the body, which then scrolls nothing itself: the content lays out and scrolls its own parts
   flush?: boolean;
+  // The transition that opens the panel reaches the frame through these
+  ref?: Ref<HTMLDivElement>;
+  style?: CSSProperties;
   children: ReactNode;
 }
 
@@ -43,11 +46,14 @@ const ReaderPanelFrame = ({
   showBack = true,
   headerExtra,
   flush = false,
+  ref,
+  style,
   children,
 }: ReaderPanelFrameProps) => {
   const { t } = useTranslation();
   const backRef = useRef<HTMLButtonElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const mergedRef = useForkRef(frameRef, ref);
   // Focus lands on the back button, or on the frame itself when there is none (desktop)
   useReturnFocus(showBack ? backRef : frameRef);
 
@@ -63,7 +69,8 @@ const ReaderPanelFrame = ({
 
   return (
     <Paper
-      ref={frameRef}
+      ref={mergedRef}
+      style={style}
       tabIndex={-1}
       role="dialog"
       data-reader-panel

@@ -31,6 +31,10 @@ import { useReaderTapInput } from './hooks/useReaderTapInput';
 import { useReaderGestures } from './hooks/useReaderGestures';
 import { useHideScrollbar } from './hooks/useHideScrollbar';
 import { useRevealOnTopHover } from './hooks/useRevealOnTopHover';
+import { chapterListCache } from './panels/chapterList';
+
+// The chapter list page is fetched this long after a chapter opens, once the text has settled
+const CHAPTER_LIST_PREFETCH_MS = 1500;
 
 const ChapterReader = () => {
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{
@@ -214,6 +218,16 @@ const ChapterReader = () => {
     onOpenSettings: () => openSettings(),
     onListen: handleListen,
   });
+
+  // Once the reader settles, loads the list page around this chapter: the list then opens from the cache with no skeleton
+  const chapterId = chapter?.chapter_id;
+  useEffect(() => {
+    if (!novelSlug || !sourceSlug || chapterId === undefined) return;
+    const timer = window.setTimeout(() => {
+      chapterListCache.load({ novelSlug, sourceSlug, around: chapterId }).catch(() => {});
+    }, CHAPTER_LIST_PREFETCH_MS);
+    return () => window.clearTimeout(timer);
+  }, [novelSlug, sourceSlug, chapterId]);
 
   // Loading, unavailable and error states replace the reader; every hook above runs first
   if (loading || unavailableChapter || error || !chapter) {

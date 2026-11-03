@@ -88,4 +88,48 @@ describe('chapterListCache', () => {
     await cache.load({ ...request, sourceSlug: 'other', page: 1 });
     expect(fetchPage).toHaveBeenCalledTimes(2);
   });
+
+  it('peek returns nothing before a load and the stored page after it, without sending a request', async () => {
+    const { cache, fetchPage, request } = setup();
+    expect(cache.peek({ ...request, page: 2 })).toBeUndefined();
+    await cache.load({ ...request, page: 2 });
+    expect(cache.peek({ ...request, page: 2 })?.current_page).toBe(2);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('around another chapter of a loaded page makes no request', async () => {
+    // Ten chapters a page: chapter n is on page ceil(n / 10)
+    const pageOfTen = (page: number): NovelChaptersResponse => ({
+      ...response(page),
+      chapters: Array.from({ length: 10 }, (_, offset) => ({
+        id: `${page}-${offset}`,
+        chapter_id: (page - 1) * 10 + offset + 1,
+        title: '',
+        url: '',
+        volume: 0,
+        volume_title: null,
+        has_content: true,
+      })),
+    });
+    const fetchPage = vi.fn(async (request: ChapterPageRequest) =>
+      pageOfTen(request.around !== undefined ? Math.ceil(request.around / 10) : request.page ?? 1));
+    const cache = createChapterListCache(fetchPage, () => 0);
+    const request = { novelSlug: 'rising', sourceSlug: 'site' };
+    await cache.load({ ...request, around: 25 }); // page 3
+    const next = await cache.load({ ...request, around: 28 });
+    expect(next.current_page).toBe(3);
+    expect(cache.peek({ ...request, around: 21 })?.current_page).toBe(3);
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('a page the server answers with another number is not stored, and the listing is dropped', async () => {
+    const { cache, fetchPage, request } = setup();
+    await cache.load({ ...request, page: 4 });
+    fetchPage.mockImplementationOnce(async () => response(4)); // page 5 is past the end
+    const clamped = await cache.load({ ...request, page: 5 });
+    expect(clamped.current_page).toBe(4);
+    expect(cache.peek({ ...request, page: 4 })).toBeUndefined();
+    await cache.load({ ...request, page: 4 });
+    expect(fetchPage).toHaveBeenCalledTimes(3);
+  });
 });

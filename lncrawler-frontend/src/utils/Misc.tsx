@@ -162,6 +162,15 @@ export const getChapterLabel = (t: TFunction, title?: string | null, chapterId?:
     return chapterId != null ? t('units.chapter', { number: chapterId }) : "";
 }
 
+// A volume's heading: its title, else its number; none for an untitled volume 0
+export const getVolumeHeading = (t: TFunction, volume: number, volumeTitle?: string | null): string => {
+    const trimmed = volumeTitle?.trim();
+    if (trimmed) {
+        return trimmed;
+    }
+    return volume !== 0 ? t('chapterList.volume', { volume }) : '';
+}
+
 
 const languageCodeToFlag = (language?: string | null): string => {
     const languageMap: Record<LanguageCode, string> = {

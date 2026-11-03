@@ -1,33 +1,25 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { Box, IconButton, Link, ListItemButton, Skeleton, TextField, Typography, useTheme } from '@mui/material';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from 'react';
+import { Box, IconButton, LinearProgress, Link, Skeleton, TextField, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import CloseIcon from '@mui/icons-material/Close';
-import type { NovelChaptersResponse } from '@models/novels_types';
-import { getChapterLabel } from '@utils/Misc';
-import { novelService } from '@services/novel.service';
+import { getVolumeHeading } from '@utils/Misc';
+import { useDebounce } from '@utils/useDebounce';
 import type { ReaderLayoutMode } from '../hooks/useReaderLayout';
 import ReaderPanelFrame from './ReaderPanelFrame';
-import { createChapterListCache } from './chapterListCache';
+import { pageRange } from './chapterList';
+import { ChapterRow, ChapterRowSkeleton, ROW_HEIGHT } from './ChapterRow';
+import { useChapterPages } from './useChapterPages';
+import { useRovingRows } from './useRovingRows';
+import { useVirtualRows } from './useVirtualRows';
 
-// Rows are 48px; the list loads the neighbouring page when the scroll gets this close to an end
-const ROW_HEIGHT = 48;
-const EDGE_PX = 200;
 const SEARCH_DEBOUNCE_MS = 250;
-const SKELETON_ROWS = 8;
-
-// Shared by every reader visit: a chapter list reopened within its TTL makes no request
-const chapterListCache = createChapterListCache((request) =>
-  novelService.getNovelChapters(request.novelSlug, request.sourceSlug, request.page, undefined, request.search, request.around),
-);
-
-// The page-by-page list the pages loaded so far make up; `query` is the search they answer ('' for the whole list)
-interface ListView {
-  query: string;
-  pages: Map<number, NovelChaptersResponse>;
-}
-
-// What the list is doing: the first page, one page added above or below, or nothing
-type Busy = 'initial' | 'up' | 'down' | null;
+// Pages load once the scroll has settled this long, so a fling or a scrollbar drag loads only where it stops
+const PAGE_LOAD_DELAY_MS = 120;
+// Skeleton rows that fill the list while the first page is on its way
+const SKELETON_FILL = 20;
+const VOLUME_BAR_HEIGHT = 28;
+// The list is dimmed while a search it does not show yet is on its way, or has failed
+const STALE_OPACITY = 0.5;
 
 export interface ChapterListPanelProps {
   novelSlug: string;
@@ -39,9 +31,12 @@ export interface ChapterListPanelProps {
   onClose: () => void;
   onOpenChapter: (chapterId: number) => void;
   onOpenNovel: () => void;
+  // Set by the slide transition that opens the panel
+  ref?: Ref<HTMLDivElement>;
+  style?: CSSProperties;
 }
 
-// The chapter list over the reader: a search field, the chapters page by page, and volume headings
+// The chapter list over the reader: a search field, a volume bar, and the chapters as fixed-height rows
 const ChapterListPanel = ({
   novelSlug,
   sourceSlug,
@@ -51,293 +46,210 @@ const ChapterListPanel = ({
   onClose,
   onOpenChapter,
   onOpenNovel,
+  ref,
+  style,
 }: ChapterListPanelProps) => {
   const { t } = useTranslation();
-  const theme = useTheme();
-
   const [text, setText] = useState('');
-  const [query, setQuery] = useState('');
-  const [view, setView] = useState<ListView | null>(null);
-  const [count, setCount] = useState<number | null>(null);
-  const [busy, setBusy] = useState<Busy>('initial');
-  const [failed, setFailed] = useState(false);
-
-  const listRef = useRef<HTMLDivElement>(null);
-  // Bumped by every first-page load: a response from an older load is dropped
-  const session = useRef(0);
-  const busyRef = useRef(false);
-  // Height of the list before a page was added above it, so the rows in view stay put
-  const anchorHeight = useRef<number | null>(null);
-  const scrollToCurrent = useRef(false);
-  const retryRef = useRef<() => void>(() => {});
-
   // Typing waits for a pause before searching
-  useEffect(() => {
-    const timer = window.setTimeout(() => setQuery(text.trim()), SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timer);
-  }, [text]);
+  const query = useDebounce(text.trim(), SEARCH_DEBOUNCE_MS);
+  const { view, failed, retry, chapterAt, loadPages, currentIndex } = useChapterPages({
+    novelSlug,
+    sourceSlug,
+    currentChapterId,
+    query,
+  });
+  // The count of the whole list, kept while a search is shown
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  // The query the list was last positioned for: a view for another query is positioned again
+  const positioned = useRef<string | null>(null);
 
-  // The first page: the chapter's own page, or page 1 of a search
-  const runFirst = useCallback(async (search: string) => {
-    const token = ++session.current;
-    busyRef.current = true;
-    anchorHeight.current = null;
-    setBusy('initial');
-    setFailed(false);
-    try {
-      const data = await chapterListCache.load(search
-        ? { novelSlug, sourceSlug, page: 1, search }
-        : { novelSlug, sourceSlug, around: currentChapterId });
-      if (token !== session.current) return;
-      if (!search) setCount(data.count);
-      scrollToCurrent.current = !search;
-      setView({ query: search, pages: new Map([[data.current_page, data]]) });
-    } catch {
-      if (token !== session.current) return;
-      retryRef.current = () => { void runFirst(search); };
-      setFailed(true);
-    } finally {
-      if (token === session.current) {
-        busyRef.current = false;
-        setBusy(null);
-      }
-    }
-  }, [novelSlug, sourceSlug, currentChapterId]);
+  const rowCount = view?.count ?? 0;
+  const { top, start, end, sync } = useVirtualRows(listRef, rowCount, ROW_HEIGHT);
+  const { active, onFocus, onKeyDown } = useRovingRows(listRef, rowCount, sync, currentIndex ?? top);
+  // The row in the tab order: the active one, or the nearest one rendered
+  const tabStop = Math.min(Math.max(active, start), end - 1);
+  // Volume bar and dividers only for the whole list, and only when its source has volumes
+  const volumes = view?.query === '' && view.hasVolumes;
 
-  useEffect(() => {
-    void runFirst(query);
-  }, [query, runFirst]);
+  if (view?.query === '' && view.count !== totalCount) setTotalCount(view.count);
 
-  // The page above or below the loaded ones, when the scroll reaches that end
-  const loadNeighbour = async (current: ListView, direction: 'up' | 'down') => {
-    if (busyRef.current) return;
-    const numbers = [...current.pages.keys()];
-    const first = Math.min(...numbers);
-    const last = Math.max(...numbers);
-    const pageNumber = direction === 'up' ? first - 1 : last + 1;
-    const totalPages = current.pages.get(last)?.total_pages ?? 0;
-    if (pageNumber < 1 || pageNumber > totalPages) return;
+  // The volume of the row at the top; a placeholder until its page arrives
+  const topChapter = chapterAt(top);
 
-    const token = session.current;
-    busyRef.current = true;
-    setBusy(direction);
-    setFailed(false);
-    if (direction === 'up') anchorHeight.current = listRef.current?.scrollHeight ?? null;
-    retryRef.current = () => { void loadNeighbour(current, direction); };
-    try {
-      const data = await chapterListCache.load({ novelSlug, sourceSlug, page: pageNumber, search: current.query });
-      if (token !== session.current) return;
-      setView((previous) => {
-        if (!previous || previous.query !== current.query) return previous;
-        const pages = new Map(previous.pages);
-        pages.set(pageNumber, data);
-        return { ...previous, pages };
-      });
-    } catch {
-      if (token !== session.current) return;
-      anchorHeight.current = null;
-      setFailed(true);
-    } finally {
-      if (token === session.current) {
-        busyRef.current = false;
-        setBusy(null);
-      }
-    }
-  };
-
-  // Keeps the scroll where it was when a page is added above, and brings the current chapter into view at open
+  // A view for a query shown for the first time: the list opens at the current chapter, or at the top of a search
   useLayoutEffect(() => {
     const list = listRef.current;
-    if (!list || !view) return;
-    if (anchorHeight.current !== null) {
-      list.scrollTop += list.scrollHeight - anchorHeight.current;
-      anchorHeight.current = null;
-    } else if (scrollToCurrent.current) {
-      scrollToCurrent.current = false;
-      const current = list.querySelector<HTMLElement>('[aria-current="true"]');
-      if (current) list.scrollTop = current.offsetTop - list.clientHeight / 3;
-    }
-  }, [view]);
+    if (!list || !view || positioned.current === view.query) return;
+    positioned.current = view.query;
+    list.scrollTop = currentIndex === null || view.query !== ''
+      ? 0
+      : Math.max(0, currentIndex * ROW_HEIGHT - list.clientHeight / 3);
+    sync();
+  }, [view, currentIndex, sync]);
 
-  const shown = view && view.query === query ? view : null;
+  const hasView = view !== null;
+  // The pages under the rows in view, and one screen above and below them
+  const visibleRows = end - start;
+  const [firstPage, lastPage] = pageRange(start - visibleRows, end + visibleRows, rowCount);
 
-  const handleScroll = () => {
-    const list = listRef.current;
-    if (!list || !shown) return;
-    const numbers = [...shown.pages.keys()];
-    if (list.scrollTop < EDGE_PX && Math.min(...numbers) > 1) {
-      void loadNeighbour(shown, 'up');
-      return;
-    }
-    const totalPages = shown.pages.get(Math.max(...numbers))?.total_pages ?? 0;
-    if (list.scrollHeight - list.scrollTop - list.clientHeight < EDGE_PX && Math.max(...numbers) < totalPages) {
-      void loadNeighbour(shown, 'down');
-    }
+  // Loads the pages in view once the scroll settles; after a failure, the retry starts it again
+  useEffect(() => {
+    if (!hasView || failed) return;
+    const timer = window.setTimeout(() => loadPages(firstPage, lastPage), PAGE_LOAD_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [firstPage, lastPage, hasView, failed, loadPages]);
+
+  // A row with its chapter, or a skeleton of the same height until its page arrives
+  const renderRow = (index: number) => {
+    const chapter = chapterAt(index);
+    if (!chapter) return <ChapterRowSkeleton key={index} index={index} />;
+    const previous = index > 0 ? chapterAt(index - 1) : undefined;
+    const isCurrent = chapter.chapter_id === currentChapterId;
+    return (
+      <ChapterRow
+        key={index}
+        chapter={chapter}
+        index={index}
+        tabIndex={index === tabStop ? 0 : -1}
+        isCurrent={isCurrent}
+        volumeStart={volumes && previous !== undefined && previous.volume !== chapter.volume}
+        onClick={() => (isCurrent ? onClose() : onOpenChapter(chapter.chapter_id))}
+      />
+    );
   };
 
-  // Rows and volume headings, in page order. Search results have no headings.
-  const rows: ReactNode[] = [];
-  let previousVolume: number | undefined;
-  if (shown) {
-    const numbers = [...shown.pages.keys()].sort((a, b) => a - b);
-    for (const number of numbers) {
-      const page = shown.pages.get(number);
-      if (!page) continue;
-      for (const chapter of page.chapters) {
-        const title = chapter.volume_title?.trim();
-        // Same headings as the chapter list page: the volume's title, else its number, none for an untitled volume 0
-        if (page.has_volumes && !shown.query && chapter.volume !== previousVolume && (title || chapter.volume !== 0)) {
-          rows.push(
-            <Typography
-              key={`volume-${chapter.id}`}
-              component="div"
-              sx={{
-                position: 'sticky',
-                top: 0,
-                zIndex: 1,
-                bgcolor: 'background.paper',
-                px: 2,
-                py: 0.75,
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'text.secondary',
-              }}
-            >
-              {title || t('chapterList.volume', { volume: chapter.volume })}
-            </Typography>,
-          );
-        }
-        previousVolume = chapter.volume;
-
-        const isCurrent = chapter.chapter_id === currentChapterId;
-        rows.push(
-          <ListItemButton
-            key={chapter.id}
-            aria-current={isCurrent ? 'true' : undefined}
-            disabled={!chapter.has_content}
-            onClick={() => (isCurrent ? onClose() : onOpenChapter(chapter.chapter_id))}
-            sx={{
-              height: ROW_HEIGHT,
-              px: 2,
-              gap: 1.5,
-              contentVisibility: 'auto',
-              containIntrinsicSize: `${ROW_HEIGHT}px`,
-              bgcolor: isCurrent ? 'action.selected' : undefined,
-              // Every row has the bar, so the text does not move when the current row changes
-              borderInlineStart: `3px solid ${isCurrent ? theme.palette.primary.main : 'transparent'}`,
-              color: chapter.has_content ? 'text.primary' : 'text.disabled',
-              fontWeight: isCurrent ? 600 : undefined,
-            }}
-          >
-            <Typography component="span" sx={{ width: 34, flexShrink: 0, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-              {chapter.chapter_id}
-            </Typography>
-            <Typography component="span" noWrap sx={{ flex: 1, minWidth: 0, color: 'inherit', fontWeight: 'inherit' }}>
-              {getChapterLabel(t, chapter.title, chapter.chapter_id)}
-            </Typography>
-          </ListItemButton>,
-        );
-      }
-    }
-  }
-
-  const countText = count !== null ? t('units.chapters', { count }) : '';
+  // The rows still show the last query's answer while a new one loads, or after it has failed
+  const stale = view !== null && view.query !== query;
   // A search that finds nothing
-  const isEmpty = shown !== null && shown.query !== '' && rows.length === 0;
+  const isEmpty = view !== null && view.query === query && query !== '' && rowCount === 0;
+
+  const errorMessage = (
+    <Box sx={{ px: 2, py: 2, textAlign: 'center' }}>
+      <Typography color="error" sx={{ mb: 1 }}>
+        {t('chapterList.loadFailed')}
+      </Typography>
+      <Link component="button" onClick={retry}>
+        {t('readerChapters.retry')}
+      </Link>
+    </Box>
+  );
 
   return (
-    <>
-      {/* Phones: the list overlays the text, and a tap on the rest of the screen closes it */}
-      {mode === 'phone' && (
-        <Box
-          aria-hidden
-          onClick={onClose}
-          sx={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: theme.zIndex.appBar + 2,
-            bgcolor: 'rgba(0, 0, 0, 0.4)',
-          }}
+    <ReaderPanelFrame
+      ref={ref}
+      style={style}
+      title={t('reader.chapters')}
+      mode={mode}
+      side="start"
+      showBack={false}
+      onBack={onClose}
+      flush
+      headerExtra={
+        <IconButton onClick={onClose} aria-label={t('readerChapters.close')}>
+          <CloseIcon />
+        </IconButton>
+      }
+    >
+      <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
+        <Typography variant="subtitle1" noWrap sx={{ fontWeight: 600 }}>
+          {novelTitle}
+        </Typography>
+        <Typography variant="caption" component="div" color="text.secondary">
+          {/* A placeholder keeps the link in place until the count is known */}
+          {totalCount === null
+            ? <Skeleton variant="text" width={80} sx={{ display: 'inline-block', fontSize: 'inherit' }} />
+            : t('units.chapters', { count: totalCount })}
+          {' · '}
+          <Link component="button" variant="caption" onClick={onOpenNovel}>
+            {t('readerChapters.novelPage')}
+          </Link>
+        </Typography>
+      </Box>
+
+      <Box sx={{ px: 1.5, pb: 1 }}>
+        <TextField
+          size="small"
+          fullWidth
+          type="search"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          placeholder={t('readerChapters.searchPlaceholder')}
+          slotProps={{ htmlInput: { 'aria-label': t('readerChapters.searchLabel') } }}
         />
+      </Box>
+
+      {volumes && (
+        <Typography
+          noWrap
+          sx={{
+            height: VOLUME_BAR_HEIGHT,
+            lineHeight: `${VOLUME_BAR_HEIGHT}px`,
+            px: 2,
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'text.secondary',
+          }}
+        >
+          {topChapter ? getVolumeHeading(t, topChapter.volume, topChapter.volume_title) : <Skeleton variant="text" width={120} sx={{ display: 'inline-block', fontSize: 'inherit' }} />}
+        </Typography>
       )}
 
-      <ReaderPanelFrame
-        title={t('reader.chapters')}
-        mode={mode}
-        side="start"
-        showBack={false}
-        onBack={onClose}
-        flush
-        headerExtra={
-          <IconButton onClick={onClose} aria-label={t('readerChapters.close')}>
-            <CloseIcon />
-          </IconButton>
-        }
-      >
-        <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
-          <Typography variant="subtitle1" noWrap sx={{ fontWeight: 600 }}>
-            {novelTitle}
-          </Typography>
-          <Typography variant="caption" component="div" color="text.secondary">
-            {countText && `${countText} · `}
-            <Link component="button" variant="caption" onClick={onOpenNovel}>
-              {t('readerChapters.novelPage')}
-            </Link>
-          </Typography>
-        </Box>
-
-        <Box sx={{ px: 1.5, pb: 1 }}>
-          <TextField
-            size="small"
-            fullWidth
-            type="search"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder={t('readerChapters.searchPlaceholder')}
-            slotProps={{ htmlInput: { 'aria-label': t('readerChapters.searchLabel') } }}
-          />
-        </Box>
+      <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {stale && !failed && (
+          <LinearProgress aria-hidden sx={{ position: 'absolute', top: 0, insetInline: 0, height: 2, zIndex: 1 }} />
+        )}
 
         <Box
           ref={listRef}
-          onScroll={handleScroll}
-          // Native scroll anchoring would fight the compensation made when a page is added above
-          sx={{ position: 'relative', flex: 1, minHeight: 0, overflowY: 'auto', overflowAnchor: 'none', borderTop: 1, borderColor: 'divider' }}
+          aria-busy={stale && !failed}
+          onFocus={onFocus}
+          onKeyDown={onKeyDown}
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: view ? 'auto' : 'hidden',
+            // Native scroll anchoring would move the rows in view when a row above is swapped for text
+            overflowAnchor: 'none',
+            scrollbarWidth: 'thin',
+            borderTop: 1,
+            borderColor: 'divider',
+            opacity: stale ? STALE_OPACITY : 1,
+            transition: 'opacity 150ms',
+            // Room for the longest chapter number, so the titles line up
+            '--chapter-number-width': `${Math.max(3, String(totalCount ?? 0).length) + 1}ch`,
+          }}
         >
-          {busy === 'up' && <ListSkeleton rows={2} />}
-          {!shown && busy === 'initial' && <ListSkeleton rows={SKELETON_ROWS} />}
-          {rows}
-          {busy === 'down' && <ListSkeleton rows={2} />}
+          {view === null && (failed
+            ? errorMessage
+            : Array.from({ length: SKELETON_FILL }, (_, index) => <ChapterRowSkeleton key={index} index={index} />))}
 
-          {isEmpty && (
-            <Typography sx={{ px: 2, py: 3, textAlign: 'center', color: 'text.secondary' }}>
-              {t('readerChapters.noMatch')}
-            </Typography>
-          )}
+          {view !== null && (
+            <>
+              <Box sx={{ position: 'relative', height: rowCount * ROW_HEIGHT }}>
+                <Box sx={{ position: 'absolute', insetInline: 0, top: 0, transform: `translateY(${start * ROW_HEIGHT}px)` }}>
+                  {Array.from({ length: end - start }, (_, offset) => renderRow(start + offset))}
+                </Box>
+              </Box>
 
-          {failed && (
-            <Box sx={{ px: 2, py: 2, textAlign: 'center' }}>
-              <Typography color="error" sx={{ mb: 1 }}>
-                {t('chapterList.loadFailed')}
-              </Typography>
-              <Link component="button" onClick={() => retryRef.current()}>
-                {t('readerChapters.retry')}
-              </Link>
-            </Box>
+              {isEmpty && (
+                <Typography sx={{ px: 2, py: 3, textAlign: 'center', color: 'text.secondary' }}>
+                  {t('readerChapters.noMatch')}
+                </Typography>
+              )}
+            </>
           )}
         </Box>
-      </ReaderPanelFrame>
-    </>
+
+        {view !== null && failed && (
+          <Box sx={{ position: 'absolute', insetInline: 0, bottom: 0, bgcolor: 'background.paper', borderTop: 1, borderColor: 'divider' }}>
+            {errorMessage}
+          </Box>
+        )}
+      </Box>
+    </ReaderPanelFrame>
   );
 };
-
-// Placeholder rows while a page loads, the height of the real rows
-const ListSkeleton = ({ rows }: { rows: number }) => (
-  <>
-    {Array.from({ length: rows }, (_, index) => (
-      <Skeleton key={index} variant="rectangular" height={ROW_HEIGHT} sx={{ mx: 2, my: 0.5 }} />
-    ))}
-  </>
-);
 
 export default ChapterListPanel;
