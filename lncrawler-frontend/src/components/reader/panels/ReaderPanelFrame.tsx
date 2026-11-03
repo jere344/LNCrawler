@@ -5,10 +5,15 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import type { ReaderLayoutMode } from '../hooks/useReaderLayout';
 import { useReturnFocus } from '../hooks/useReturnFocus';
 import DirectionalIcon from '../DirectionalIcon';
-import { panelWidth } from './panelLayout';
+import { CHAPTER_LIST_WIDTH, panelWidth } from './panelLayout';
 
-// Where the panel sits: full screen on phones, a side panel with the text still visible on wider layouts
-const placement = (mode: ReaderLayoutMode): SxProps<Theme> => {
+// Where the panel sits. End side: full screen on phones, a side panel with the text still visible on wider layouts.
+// Start side (the chapter list): an overlay on the left of phones, a side panel beside the text elsewhere.
+const placement = (mode: ReaderLayoutMode, side: 'start' | 'end'): SxProps<Theme> => {
+  if (side === 'start') {
+    if (mode === 'phone') return { top: 0, bottom: 0, insetInlineStart: 0, width: 'min(88%, 340px)', maxWidth: '100%' };
+    return { top: 0, bottom: 0, insetInlineStart: 0, width: CHAPTER_LIST_WIDTH, maxWidth: '100%' };
+  }
   const width = panelWidth(mode);
   if (width === null) return { inset: 0 };
   return { top: 0, bottom: 0, insetInlineEnd: 0, width, maxWidth: '100%' };
@@ -17,16 +22,29 @@ const placement = (mode: ReaderLayoutMode): SxProps<Theme> => {
 interface ReaderPanelFrameProps {
   title: string;
   mode: ReaderLayoutMode;
+  // The edge the panel sits on
+  side?: 'start' | 'end';
   onBack: () => void;
   // Whether the header shows the back button (false on desktop, where the panel has a close button instead)
   showBack?: boolean;
   // Extra controls at the end of the header
   headerExtra?: ReactNode;
+  // No padding on the body, which then scrolls nothing itself: the content lays out and scrolls its own parts
+  flush?: boolean;
   children: ReactNode;
 }
 
 // Generic panel shell: a header with a back button, and a scrollable body. Not modal.
-const ReaderPanelFrame = ({ title, mode, onBack, showBack = true, headerExtra, children }: ReaderPanelFrameProps) => {
+const ReaderPanelFrame = ({
+  title,
+  mode,
+  side = 'end',
+  onBack,
+  showBack = true,
+  headerExtra,
+  flush = false,
+  children,
+}: ReaderPanelFrameProps) => {
   const { t } = useTranslation();
   const backRef = useRef<HTMLButtonElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -59,7 +77,7 @@ const ReaderPanelFrame = ({ title, mode, onBack, showBack = true, headerExtra, c
         flexDirection: 'column',
         boxSizing: 'border-box',
         outline: 'none',
-        ...placement(mode),
+        ...placement(mode, side),
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 1, borderBottom: 1, borderColor: 'divider' }}>
@@ -74,7 +92,12 @@ const ReaderPanelFrame = ({ title, mode, onBack, showBack = true, headerExtra, c
         {headerExtra}
       </Box>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: 2 }}>{children}</Box>
+      <Box sx={flush
+        ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+        : { flex: 1, minHeight: 0, overflowY: 'auto', p: 2 }}
+      >
+        {children}
+      </Box>
     </Paper>
   );
 };

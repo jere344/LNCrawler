@@ -81,4 +81,22 @@ describe('sanitizeSettings', () => {
   it('ignores unknown keys', () => {
     expect(sanitizeSettings({ exportDate: '2026-01-01', version: '1.0', fontSize: 20 })).toEqual({ fontSize: 20 });
   });
+
+  it('keeps the audiobook preference as a boolean', () => {
+    expect(sanitizeSettings({ ttsPreferAudiobook: true })).toEqual({ ttsPreferAudiobook: true });
+    expect(sanitizeSettings({ ttsPreferAudiobook: 'yes' })).toEqual({});
+  });
+
+  it('turns the old narrated engine into the audiobook preference', () => {
+    expect(sanitizeSettings({ ttsEngine: 'narrated' })).toEqual({
+      ttsEngine: defaultSettings.ttsEngine,
+      ttsPreferAudiobook: true,
+    });
+  });
+
+  it('keeps the browser and HD engines', () => {
+    expect(sanitizeSettings({ ttsEngine: 'neural' })).toEqual({ ttsEngine: 'neural' });
+    expect(sanitizeSettings({ ttsEngine: 'browser' })).toEqual({ ttsEngine: 'browser' });
+    expect(sanitizeSettings({ ttsEngine: 'other' })).toEqual({});
+  });
 });

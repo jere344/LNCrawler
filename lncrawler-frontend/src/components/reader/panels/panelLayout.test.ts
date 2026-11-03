@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { panelWidth, reservedEnd, reservedMargin } from './panelLayout';
+import { CHAPTER_LIST_WIDTH, panelWidth, reservedEnd, reservedMargin, reservedStart } from './panelLayout';
 
 describe('panelWidth', () => {
   it('covers the whole screen on phones', () => {
@@ -34,6 +34,22 @@ describe('reservedEnd', () => {
     expect(reservedEnd('settings', 'phone')).toBe(0);
     expect(reservedEnd('customize', 'phone')).toBe(0);
     expect(reservedEnd('none', 'desktop')).toBe(0);
+  });
+});
+
+describe('reservedStart', () => {
+  it('reserves the chapter list width at the start edge off phones', () => {
+    expect(CHAPTER_LIST_WIDTH).toBe(360);
+    expect(reservedStart('chapters', 'tablet')).toBe(360);
+    expect(reservedStart('chapters', 'phoneLandscape')).toBe(360);
+    expect(reservedStart('chapters', 'desktop')).toBe(360);
+  });
+
+  it('reserves nothing on phones, where the list overlays the text, or with another panel open', () => {
+    expect(reservedStart('chapters', 'phone')).toBe(0);
+    expect(reservedStart('display', 'desktop')).toBe(0);
+    expect(reservedStart('settings', 'desktop')).toBe(0);
+    expect(reservedStart('none', 'desktop')).toBe(0);
   });
 });
 

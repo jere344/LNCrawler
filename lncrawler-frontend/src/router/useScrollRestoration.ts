@@ -77,7 +77,8 @@ export const useScrollRestoration = () => {
 
     if (navigationType === 'POP') {
       if (ownsScroll) {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        // Same page (a reader layer closed by Back): the text never moved, so it keeps its place
+        if (pathChanged) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         return;
       }
       const saved = scrollPositions.get(location.key);

@@ -70,10 +70,10 @@ export function useReaderAudio({
   const startNarration = (c: IChapterContent) =>
     playAudiobook(c.novel_slug, c.language ?? 'en', { chapterId: Number(c.id) });
 
-  // The listen button narrates when the pref is 'narrated' and the chapter has a recording.
+  // The listen button narrates when the audiobook is preferred and the chapter has a recording.
   // If the player fails it has already shown a toast, so client TTS takes over.
   const handleListen = async () => {
-    if (chapter?.audio_url && settings.ttsEngine === 'narrated' && await startNarration(chapter)) return;
+    if (chapter?.audio_url && settings.ttsPreferAudiobook && await startNarration(chapter)) return;
     tts.start();
   };
 

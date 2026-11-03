@@ -6,7 +6,7 @@ import { defaultSettings } from './readerDefaults';
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
 export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter';
-export type KeyAction = 'none' | 'scrollUp' | 'scrollDown' | 'prevChapter' | 'nextChapter' | 'toggleControls' | 'displaySheet';
+export type KeyAction = 'none' | 'scrollUp' | 'scrollDown' | 'prevChapter' | 'nextChapter' | 'toggleControls' | 'displaySheet' | 'fullscreen';
 export type ControlsTrigger = 'singleTap' | 'doubleTap' | 'longPress' | 'off';
 export type DimGestureSide = 'off' | 'left' | 'right';
 export type ReaderHeaderBehavior = 'reappear' | 'pageTop';
@@ -39,6 +39,7 @@ export interface ReaderSettings extends TtsPrefs {
   keySpace: KeyAction;
   keyC: KeyAction;
   keyD: KeyAction;
+  keyF: KeyAction;
   swipeLeftGesture: SwipeGesture;
   swipeRightGesture: SwipeGesture;
   hideScrollbar: boolean;
@@ -69,7 +70,7 @@ const NUMERIC_RANGES: Partial<Record<keyof ReaderSettings, [number, number]>> = 
   nightModeStrength: [10, 90],
 };
 
-const KEY_ACTIONS: readonly KeyAction[] = ['none', 'scrollUp', 'scrollDown', 'prevChapter', 'nextChapter', 'toggleControls', 'displaySheet'];
+const KEY_ACTIONS: readonly KeyAction[] = ['none', 'scrollUp', 'scrollDown', 'prevChapter', 'nextChapter', 'toggleControls', 'displaySheet', 'fullscreen'];
 
 const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   ...(TTS_ENUM_VALUES as Partial<Record<keyof ReaderSettings, readonly string[]>>),
@@ -88,6 +89,7 @@ const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   keySpace: KEY_ACTIONS,
   keyC: KEY_ACTIONS,
   keyD: KEY_ACTIONS,
+  keyF: KEY_ACTIONS,
   controlsTrigger: ['singleTap', 'doubleTap', 'longPress', 'off'],
   dimGestureSide: ['off', 'left', 'right'],
   readerHeaderBehavior: ['reappear', 'pageTop'],
@@ -175,10 +177,16 @@ const withLegacyControlsTrigger = (raw: Record<string, unknown>): Record<string,
   return { ...raw, controlsTrigger: legacy ? 'singleTap' : 'off' };
 };
 
+// 'narrated' used to be an engine. It is now the audiobook preference, and the engine goes back to its default.
+const withLegacyNarrated = (raw: Record<string, unknown>): Record<string, unknown> => {
+  if (raw.ttsEngine !== 'narrated') return raw;
+  return { ...raw, ttsEngine: defaultSettings.ttsEngine, ttsPreferAudiobook: true };
+};
+
 // The one validator: stored values, cookie migration and file import all go through it.
 export const sanitizeSettings = (raw: unknown): Partial<ReaderSettings> => {
   if (!isRecord(raw)) return {};
-  const input = withLegacyControlsTrigger(raw);
+  const input = withLegacyNarrated(withLegacyControlsTrigger(raw));
   const result: Record<string, unknown> = {};
   (Object.keys(defaultSettings) as (keyof ReaderSettings)[]).forEach((key) => {
     if (!(key in input)) return;

@@ -18,13 +18,21 @@ const FOCUSABLE = 'button, input, select, [role="combobox"], [role="radio"], [ro
 
 interface AllSettingsPanelProps {
   mode: ReaderLayoutMode;
-  // Page to open first; without one, the panel opens on the home (text on desktop)
-  initialPage?: SettingsPageId;
+  // The pages pushed over the home, bottom first; the last one is on screen (the desktop nav's page is the last)
+  pages: SettingsPageId[];
+  // The search field has a query, which is a layer of its own
+  searching: boolean;
   novelLanguage: string;
   hasNarration: boolean;
+  // The chapter being read, for the listening status
+  chapterNumber?: number;
   onBeforePreview?: () => void;
-  // Back past the first page: closes the panel, or returns to the display sheet
+  // One level up: the back arrow, Escape, and clearing the search
   onBack: () => void;
+  onPushPage: (page: SettingsPageId) => void;
+  // Shows a page in place of the current entry (desktop nav, search result); null is the home
+  onSetDeskPage: (page: SettingsPageId | null) => void;
+  onStartSearch: () => void;
   // Desktop close button
   onClose: () => void;
 }
@@ -32,41 +40,53 @@ interface AllSettingsPanelProps {
 // Every setting, in one panel. Phones and tablets push pages over the home; desktop shows a nav beside the page.
 const AllSettingsPanel = ({
   mode,
-  initialPage,
+  pages,
+  searching,
   novelLanguage,
   hasNarration,
+  chapterNumber,
   onBeforePreview,
   onBack,
+  onPushPage,
+  onSetDeskPage,
+  onStartSearch,
   onClose,
 }: AllSettingsPanelProps) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { isAuthenticated } = useAuth();
   const isDesktop = mode === 'desktop';
-  // Phones and tablets: the page pushed over the home, or null for the home itself
-  const [pushedPage, setPushedPage] = useState<SettingsPageId | null>(initialPage ?? null);
-  // Desktop: the page open in the nav's right column
-  const [deskPage, setDeskPage] = useState<SettingsPageId>(initialPage ?? 'text');
+  // The page on screen: the last one pushed. Phones and tablets show the home without one; desktop starts on text.
+  const lastPage: SettingsPageId | undefined = pages[pages.length - 1];
+  const page = lastPage ?? (isDesktop ? 'text' : null);
+  // The desktop nav highlights the page at the root of the stack, so a subpage keeps its parent highlighted
+  const navPage = pages[0] ?? 'text';
+  // Desktop shows a subpage over its parent: Back returns to the parent, and there is no close button
+  const nested = isDesktop && pages.length > 1;
   const [query, setQuery] = useState('');
-  // The setting a search result asked for; the nonce makes each choice a new jump, even to the same row
-  const [jump, setJump] = useState<{ id: string; zone?: SettingsIndexEntry['zone']; nonce: number } | null>(null);
-  const searching = query.trim() !== '';
-
-  const page = isDesktop ? deskPage : pushedPage;
+  // The setting a search result asked for, and the page it is on; the nonce makes each choice a new jump, even to the same row
+  const [jump, setJump] = useState<{ id: string; zone?: SettingsIndexEntry['zone']; page: SettingsPageId | null; nonce: number } | null>(null);
+  const hasQuery = query.trim() !== '';
   const title = page ? t(SETTINGS_PAGES[page].titleKey) : t('readerSettingsPages.title');
 
-  // A page opened directly has no home behind it, so back leaves the panel
-  const goBack = () => {
-    if (!isDesktop && pushedPage !== null && !initialPage) setPushedPage(null);
-    else onBack();
+  // The first query pushes the search layer; clearing the field pops it (Back does too)
+  const changeQuery = (next: string) => {
+    const nextHasQuery = next.trim() !== '';
+    setQuery(next);
+    if (nextHasQuery && !searching) onStartSearch();
+    else if (!nextHasQuery && searching) onBack();
   };
+  // Back past the search layer clears the field
+  useEffect(() => {
+    if (!searching) setQuery('');
+  }, [searching]);
 
   // Opens the page the setting lives on. Backup is at the foot of the phone home, so it goes there.
   const chooseResult = ({ id, page: resultPage, zone }: SettingsIndexEntry) => {
     setQuery('');
-    if (isDesktop) setDeskPage(resultPage);
-    else setPushedPage(resultPage === 'backup' ? null : resultPage);
-    setJump({ id, zone, nonce: (jump?.nonce ?? 0) + 1 });
+    const shown = !isDesktop && resultPage === 'backup' ? null : resultPage;
+    onSetDeskPage(shown);
+    setJump({ id, zone, page: shown, nonce: (jump?.nonce ?? 0) + 1 });
   };
 
   const PageComponent = page ? SETTINGS_PAGES[page].Component : null;
@@ -77,11 +97,12 @@ const AllSettingsPanel = ({
     bodyRef.current?.parentElement?.scrollTo({ top: 0 });
   }, [page]);
 
-  // A search result: bring its row into view, flash it and focus its first control, once per jump
+  // A search result: bring its row into view, flash it and focus its first control, once per jump.
+  // On desktop the page is shown after the search entry is dropped, so the jump waits for that page.
   const handledNonce = useRef(0);
   const reducedMotion = usePrefersReducedMotion();
   useEffect(() => {
-    if (!jump || jump.nonce === handledNonce.current) return;
+    if (!jump || jump.nonce === handledNonce.current || jump.page !== page) return;
     handledNonce.current = jump.nonce;
     // The zone only applies when the page opens, so later visits start on the default zone
     setJump((current) => current && { ...current, zone: undefined });
@@ -95,37 +116,39 @@ const AllSettingsPanel = ({
       );
     }
     row.querySelector<HTMLElement>(FOCUSABLE)?.focus({ preventScroll: true });
-  }, [jump, theme, reducedMotion]);
+  }, [jump, page, theme, reducedMotion]);
 
   return (
-    <SettingsContext.Provider value={{ mode, novelLanguage, hasNarration, onBeforePreview, isAuthenticated }}>
+    <SettingsContext.Provider
+      value={{ mode, novelLanguage, hasNarration, chapterNumber, onOpenPage: onPushPage, onBeforePreview, isAuthenticated }}
+    >
       <ReaderPanelFrame
         title={title}
         mode={mode}
-        onBack={goBack}
-        showBack={!isDesktop}
-        headerExtra={isDesktop ? (
+        onBack={onBack}
+        showBack={!isDesktop || nested}
+        headerExtra={isDesktop && !nested ? (
           <IconButton onClick={onClose} aria-label={t('readerDisplay.close')}>
             <CloseIcon />
           </IconButton>
         ) : undefined}
       >
         <Box ref={bodyRef} sx={{ minHeight: '100%' }}>
-          {(isDesktop || pushedPage === null) && (
-            <SettingsSearch query={query} onQueryChange={setQuery} onChoose={chooseResult} onClose={onClose} />
+          {(isDesktop || page === null) && (
+            <SettingsSearch query={query} onQueryChange={changeQuery} onChoose={chooseResult} onClose={onBack} />
           )}
-          {searching ? null : isDesktop ? (
+          {hasQuery ? null : isDesktop ? (
             <Box sx={{ display: 'flex', gap: 3, minHeight: '100%' }}>
               <Stack component="nav" aria-label={t('readerSettingsPages.title')} spacing={0.5} sx={{ width: 200, flexShrink: 0 }}>
                 {SETTINGS_PAGE_ORDER.map((id) => {
                   const { Icon, titleKey } = SETTINGS_PAGES[id];
-                  const current = id === deskPage;
+                  const current = id === navPage;
                   return (
                     <Button
                       key={id}
                       startIcon={<Icon />}
                       aria-current={current ? 'page' : undefined}
-                      onClick={() => setDeskPage(id)}
+                      onClick={() => onSetDeskPage(id)}
                       sx={{ justifyContent: 'flex-start', textAlign: 'start', fontWeight: current ? 700 : 400 }}
                     >
                       {t(titleKey)}
@@ -140,7 +163,7 @@ const AllSettingsPanel = ({
           ) : PageComponent ? (
             <PageComponent key={jump?.nonce ?? 0} initialZone={jump?.zone} />
           ) : (
-            <SettingsHome onOpen={setPushedPage} />
+            <SettingsHome onOpen={onPushPage} />
           )}
         </Box>
       </ReaderPanelFrame>

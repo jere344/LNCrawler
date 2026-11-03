@@ -6,6 +6,7 @@ export interface ReaderShortcuts {
   prev?: string;
   next?: string;
   display?: string;
+  fullscreen?: string;
 }
 
 // The mark-as-read button: whether it shows, its state, and what it does
@@ -16,6 +17,13 @@ export interface MarkReadProps {
   onMarkAsRead: () => void;
 }
 
+// The fullscreen button: hidden when unsupported, and shows the state it would leave
+export interface FullscreenProps {
+  supported: boolean;
+  active: boolean;
+  onToggle: () => void;
+}
+
 // Props shared by the top bar, bottom bar and desktop toolbar. The reader builds them once.
 export interface ReaderBarProps {
   controlsVisible: boolean;
@@ -24,10 +32,16 @@ export interface ReaderBarProps {
   hasPrev: boolean;
   hasNext: boolean;
   displayOpen: boolean;
+  // Width in px kept clear at the start edge (the chapter list, off phones)
+  reservedStart: number;
   // Width in px kept clear at the end edge (the display panel, on phone landscape)
   reservedEnd: number;
   shortcuts: ReaderShortcuts;
   markRead: MarkReadProps;
+  fullscreen: FullscreenProps;
+  // The fullscreen button's label, and its tooltip with the shortcut when one is bound
+  fullscreenLabel: string;
+  fullscreenTitle: string;
   onHome: () => void;
   onChapterList: () => void;
   onPrevious: () => void;

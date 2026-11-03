@@ -1,14 +1,16 @@
 import type { KokoroDevice, NeuralOptions, SupertonicDevice, TtsThrottle } from './voiceCatalog';
 import type { HighlightMode } from './textSegments';
 
-/** 'narrated' plays the chapter's audiobook recording when it has one, else 'browser'. */
-export type TtsEngineChoice = 'browser' | 'neural' | 'narrated';
+/** Device voices (browser) or downloadable HD voices (neural). */
+export type TtsEngineChoice = 'browser' | 'neural';
 export type { HighlightMode as TtsHighlightMode, KokoroDevice as TtsKokoroDevice };
 
 /** Text-to-speech preferences, persisted with the other reader settings. */
 export interface TtsPrefs {
   /** Device voices (Web Speech) or downloadable HD voices. */
   ttsEngine: TtsEngineChoice;
+  /** Read a chapter's audiobook recording when it has one, instead of a voice. */
+  ttsPreferAudiobook: boolean;
   /** Chosen device voice per language: { lang: voiceURI }. */
   ttsBrowserVoices: Record<string, string>;
   /** Chosen HD voice per language: { lang: 'piper:…' | 'kokoro:…' }. */
@@ -40,6 +42,7 @@ export interface TtsPrefs {
 
 export const defaultTtsPrefs: TtsPrefs = {
   ttsEngine: 'browser',
+  ttsPreferAudiobook: false,
   ttsBrowserVoices: {},
   ttsNeuralVoices: {},
   ttsLanguage: '',
@@ -69,7 +72,7 @@ export const TTS_NUMERIC_RANGES = {
 } as const;
 
 export const TTS_ENUM_VALUES = {
-  ttsEngine: ['browser', 'neural', 'narrated'],
+  ttsEngine: ['browser', 'neural'],
   ttsHighlight: ['none', 'paragraph', 'sentence'],
   ttsKokoroDevice: ['wasm', 'webgpu'],
   ttsSupertonicDevice: ['auto', 'wasm', 'webgpu'],

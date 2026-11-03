@@ -167,6 +167,20 @@ export interface Chapter {
   has_audio?: boolean;
 }
 
+// One page of a source's chapter list, as the chapters endpoint returns it
+export interface NovelChaptersResponse {
+  chapters: Chapter[];
+  count: number;
+  total_pages: number;
+  current_page: number;
+  novel_title: string;
+  source_name: string;
+  is_dmca: boolean;
+  source_overview_image_url?: string | null;
+  // Whether the source has several volumes or titled ones: the list shows volume headings
+  has_volumes: boolean;
+}
+
 export interface ReadingHistory {
   id: string;
   last_read_chapter : Chapter | null;

@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 export interface BreadcrumbItem {
   label: string;
   link?: string;
+  // Runs on click before the link navigates; the link keeps its href, so middle-click still opens it
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   icon?: React.ReactNode;
 }
 
@@ -59,6 +61,7 @@ const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items }) => {
               key={item.label}
               component={RouterLink}
               to={item.link}
+              onClick={item.onClick}
               color="inherit"
               underline="hover"
               sx={{ display: 'flex', alignItems: 'center' }}

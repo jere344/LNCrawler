@@ -13,6 +13,7 @@ const ACTION_LABEL_KEYS: { value: KeyAction; labelKey: string }[] = [
   { value: 'nextChapter', labelKey: 'keyboardSettings.nextChapter' },
   { value: 'toggleControls', labelKey: 'readerSettingsPages.keyActions.toggleControls' },
   { value: 'displaySheet', labelKey: 'readerSettingsPages.keyActions.displaySheet' },
+  { value: 'fullscreen', labelKey: 'readerSettingsPages.keyActions.fullscreen' },
 ];
 
 // The master switch, then one action per key. Off greys the keys out.

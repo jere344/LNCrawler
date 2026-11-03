@@ -4,7 +4,7 @@ import type { EdgeTapBehavior, KeyAction, ReaderSettings } from '../readerSettin
 // Settings that hold the action of one key
 type KeyBindingSetting =
   | 'keyArrowLeft' | 'keyArrowRight' | 'keyArrowUp' | 'keyArrowDown'
-  | 'keyPageUp' | 'keyPageDown' | 'keySpace' | 'keyC' | 'keyD';
+  | 'keyPageUp' | 'keyPageDown' | 'keySpace' | 'keyC' | 'keyD' | 'keyF';
 
 // Every bindable key, in display order: the KeyboardEvent.key value, its setting, and its label
 export const READER_KEYS: { key: string; setting: KeyBindingSetting; labelKey: string }[] = [
@@ -17,6 +17,7 @@ export const READER_KEYS: { key: string; setting: KeyBindingSetting; labelKey: s
   { key: ' ', setting: 'keySpace', labelKey: 'keyboardSettings.space' },
   { key: 'c', setting: 'keyC', labelKey: 'readerSettingsPages.keyC' },
   { key: 'd', setting: 'keyD', labelKey: 'readerSettingsPages.keyD' },
+  { key: 'f', setting: 'keyF', labelKey: 'readerSettingsPages.keyF' },
 ];
 
 // Scroll by 80% of viewport height (1 = down, -1 = up)
@@ -44,10 +45,11 @@ interface ReaderActionOptions {
   goPrev: () => void;
   setControlsVisible: Dispatch<SetStateAction<boolean>>;
   toggleDisplay: () => void;
+  toggleFullscreen: () => void;
 }
 
 // What taps and keys can do, written once for both
-export function useReaderActions({ goNext, goPrev, setControlsVisible, toggleDisplay }: ReaderActionOptions) {
+export function useReaderActions({ goNext, goPrev, setControlsVisible, toggleDisplay, toggleFullscreen }: ReaderActionOptions) {
   // Scrolling and changing chapter, shared by edge taps and keys
   const runScrollOrChapter = (action: KeyAction) => {
     switch (action) {
@@ -83,6 +85,10 @@ export function useReaderActions({ goNext, goPrev, setControlsVisible, toggleDis
       case 'displaySheet':
         setControlsVisible(true);
         toggleDisplay();
+        break;
+      case 'fullscreen':
+        // A no-op when fullscreen is not supported
+        toggleFullscreen();
         break;
       default:
         runScrollOrChapter(action);

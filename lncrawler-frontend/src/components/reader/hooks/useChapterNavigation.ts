@@ -8,6 +8,8 @@ interface ChapterNavigationOptions {
   saveScrollIfReady: (force?: boolean) => void;
   markBeforeLeaving: () => Promise<void>;
   setActiveTab: (tab: number) => void;
+  // Closes the open layers first, so no stale layer sits in the history behind the chapter
+  closeThen: (run: () => void) => void;
 }
 
 // Moving between chapters, the source page and the chapter list
@@ -18,6 +20,7 @@ export function useChapterNavigation({
   saveScrollIfReady,
   markBeforeLeaving,
   setActiveTab,
+  closeThen,
 }: ChapterNavigationOptions) {
   const navigate = useNavigate();
 
@@ -47,25 +50,39 @@ export function useChapterNavigation({
 
   const goNext = () => {
     if (chapter?.next_chapter) {
-      handleChapterNavigation('next');
+      closeThen(() => handleChapterNavigation('next'));
     }
   };
 
   const goPrev = () => {
     if (chapter?.prev_chapter) {
-      handleChapterNavigation('prev');
+      closeThen(() => handleChapterNavigation('prev'));
     }
   };
 
   const goToSource = () => {
-    saveScrollIfReady(true);
-    navigate(`/novels/${novelSlug}/${sourceSlug}`);
+    closeThen(() => {
+      saveScrollIfReady(true);
+      navigate(`/novels/${novelSlug}/${sourceSlug}`);
+    });
   };
 
   const goToChapterList = () => {
-    saveScrollIfReady(true);
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
+    closeThen(() => {
+      saveScrollIfReady(true);
+      navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
+    });
   };
 
-  return { goNext, goPrev, goToSource, goToChapterList };
+  // A chapter picked from the chapter list: saved and marked like moving on, then opened
+  const goToChapter = (chapterNumber: number) => {
+    closeThen(async () => {
+      saveScrollIfReady(true);
+      await markBeforeLeaving();
+      setActiveTab(0);
+      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}`);
+    });
+  };
+
+  return { goNext, goPrev, goToSource, goToChapterList, goToChapter };
 }

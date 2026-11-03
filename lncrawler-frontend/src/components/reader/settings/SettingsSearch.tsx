@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ClearIcon from '@mui/icons-material/Clear';
 import DirectionalIcon from '../DirectionalIcon';
+import { useReaderSettings } from '../hooks/useReaderSettings';
 import { SETTINGS_PAGES } from './settingsPages';
 import { SETTINGS_INDEX, type SettingsIndexEntry } from './settingsIndex';
 import { searchSettings, splitAtMatch } from './settingsSearch';
@@ -18,10 +19,12 @@ interface SettingsSearchProps {
 // Search field for every setting, with the matching settings listed under it
 const SettingsSearch = ({ query, onQueryChange, onChoose, onClose }: SettingsSearchProps) => {
   const { t } = useTranslation();
+  const { ttsEngine } = useReaderSettings();
   const hasQuery = query.trim() !== '';
 
+  // Only the rows the current voice engine shows: pitch for the device voice, volume for HD
   const hits = hasQuery
-    ? searchSettings(query, SETTINGS_INDEX.map((entry) => ({
+    ? searchSettings(query, SETTINGS_INDEX.filter((entry) => !entry.engine || entry.engine === ttsEngine).map((entry) => ({
       entry,
       label: t(entry.labelKey),
       keywords: t(entry.keywordsKey),

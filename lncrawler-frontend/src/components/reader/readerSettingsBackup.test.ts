@@ -17,6 +17,15 @@ describe('parseReaderSettingsFile', () => {
     expect(parseReaderSettingsFile(text)).toEqual(defaultSettings);
   });
 
+  it('reads a backup with the old narrated engine as the audiobook preference', () => {
+    const text = JSON.stringify({ version: '2.0', ttsEngine: 'narrated', fontSize: 20 });
+
+    const settings = parseReaderSettingsFile(text);
+    expect(settings.ttsPreferAudiobook).toBe(true);
+    expect(settings.ttsEngine).toBe('browser');
+    expect(settings.fontSize).toBe(20);
+  });
+
   it('throws when the JSON is an array', () => {
     expect(() => parseReaderSettingsFile('[1, 2]')).toThrow();
   });

@@ -3,18 +3,25 @@ import type { ReaderPanel } from '../hooks/useReaderPanels';
 import type { SettingsPageId } from '../settings/settingsPages';
 import DisplaySheet from '../display/DisplaySheet';
 import AllSettingsPanel from '../settings/AllSettingsPanel';
+import ChapterListPanel, { type ChapterListPanelProps } from './ChapterListPanel';
 
 interface ReaderPanelsProps {
   panel: ReaderPanel;
   mode: ReaderLayoutMode;
   bottomOffset: number;
-  settingsPage?: SettingsPageId;
+  pages: SettingsPageId[];
+  searching: boolean;
   novelLanguage: string;
   hasNarration: boolean;
+  chapterNumber: number;
+  chapterList: Omit<ChapterListPanelProps, 'mode' | 'onClose'>;
   onTtsBeforePreview?: () => void;
   onClosePanel: () => void;
+  onBack: () => void;
+  onPushPage: (page: SettingsPageId) => void;
+  onSetDeskPage: (page: SettingsPageId | null) => void;
+  onStartSearch: () => void;
   onOpenCustomize: () => void;
-  onCloseCustomize: () => void;
   onOpenAllSettings: () => void;
 }
 
@@ -23,16 +30,26 @@ const ReaderPanels = ({
   panel,
   mode,
   bottomOffset,
-  settingsPage,
+  pages,
+  searching,
   novelLanguage,
   hasNarration,
+  chapterNumber,
+  chapterList,
   onTtsBeforePreview,
   onClosePanel,
+  onBack,
+  onPushPage,
+  onSetDeskPage,
+  onStartSearch,
   onOpenCustomize,
-  onCloseCustomize,
   onOpenAllSettings,
 }: ReaderPanelsProps) => (
   <>
+    {panel === 'chapters' && (
+      <ChapterListPanel {...chapterList} mode={mode} onClose={onClosePanel} />
+    )}
+
     {panel === 'display' && (
       <DisplaySheet
         mode={mode}
@@ -43,29 +60,20 @@ const ReaderPanels = ({
       />
     )}
 
-    {/* Keyed on the page, so a new page (from the TTS tune button) opens while the panel is already up */}
-    {panel === 'settings' && (
-      <AllSettingsPanel
-        key={settingsPage ?? 'home'}
-        mode={mode}
-        initialPage={settingsPage}
-        novelLanguage={novelLanguage}
-        hasNarration={hasNarration}
-        onBeforePreview={onTtsBeforePreview}
-        onBack={onClosePanel}
-        onClose={onClosePanel}
-      />
-    )}
-
-    {/* Customize opens the customizer page of the settings panel; back returns to the display sheet */}
-    {panel === 'customize' && (
+    {/* Customize is the customizer page of the settings panel; its back returns to the display sheet */}
+    {(panel === 'settings' || panel === 'customize') && (
       <AllSettingsPanel
         mode={mode}
-        initialPage="custom"
+        pages={pages}
+        searching={searching}
         novelLanguage={novelLanguage}
         hasNarration={hasNarration}
+        chapterNumber={chapterNumber}
         onBeforePreview={onTtsBeforePreview}
-        onBack={onCloseCustomize}
+        onBack={onBack}
+        onPushPage={onPushPage}
+        onSetDeskPage={onSetDeskPage}
+        onStartSearch={onStartSearch}
         onClose={onClosePanel}
       />
     )}

@@ -1,7 +1,7 @@
 import type { ChapterContent } from '@models/novels_types';
 import { useTranslation } from 'react-i18next';
 import { getChapterLabel } from '@utils/Misc';
-import type { MarkReadProps, ReaderBarProps, ReaderShortcuts } from '../controls/readerBarTypes';
+import type { FullscreenProps, MarkReadProps, ReaderBarProps, ReaderShortcuts } from '../controls/readerBarTypes';
 import type { ReaderPanel } from './useReaderPanels';
 
 interface UseReaderBarPropsOptions {
@@ -10,17 +10,19 @@ interface UseReaderBarPropsOptions {
   controlsVisible: boolean;
   isDesktop: boolean;
   panel: ReaderPanel;
+  reservedStart: number;
   reservedEnd: number;
   shortcuts: ReaderShortcuts;
   setControlsVisible: (visible: boolean) => void;
   setActiveTab: (tab: number) => void;
   markRead: MarkReadProps;
+  fullscreen: FullscreenProps;
   navigation: {
     goPrev: () => void;
     goNext: () => void;
     goToSource: () => void;
-    goToChapterList: () => void;
   };
+  onToggleChapters: () => void;
   onToggleDisplay: () => void;
   onOpenSettings: () => void;
   onListen: () => void;
@@ -32,18 +34,23 @@ export function useReaderBarProps({
   controlsVisible,
   isDesktop,
   panel,
+  reservedStart,
   reservedEnd,
   shortcuts,
   setControlsVisible,
   setActiveTab,
   markRead,
+  fullscreen,
   navigation,
+  onToggleChapters,
   onToggleDisplay,
   onOpenSettings,
   onListen,
 }: UseReaderBarPropsOptions) {
   const { t } = useTranslation();
   const chapterLabel = chapter ? getChapterLabel(t, chapter.title, chapter.chapter_id) : '';
+  const fullscreenLabel = t(fullscreen.active ? 'readerControls.exitFullscreen' : 'readerControls.enterFullscreen');
+  const fullscreenTitle = shortcuts.fullscreen ? `${fullscreenLabel} (${shortcuts.fullscreen})` : fullscreenLabel;
 
   // Touch layouts hide the bars after an action; the desktop toolbar stays
   const hideOnTouch = () => {
@@ -64,11 +71,15 @@ export function useReaderBarProps({
     hasPrev: !!chapter?.prev_chapter,
     hasNext: !!chapter?.next_chapter,
     displayOpen: panel === 'display',
+    reservedStart,
     reservedEnd,
     shortcuts,
     markRead,
+    fullscreen,
+    fullscreenLabel,
+    fullscreenTitle,
     onHome: navigation.goToSource,
-    onChapterList: navigation.goToChapterList,
+    onChapterList: onToggleChapters,
     onPrevious: navigation.goPrev,
     onNext: navigation.goNext,
     onDisplay: onToggleDisplay,

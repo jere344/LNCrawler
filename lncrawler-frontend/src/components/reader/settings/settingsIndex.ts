@@ -10,6 +10,8 @@ export interface SettingsIndexEntry {
   page: SettingsPageId;
   // Screen zone to show on the gestures page
   zone?: ScreenZone;
+  // The voice engine the row is shown for; left out, the row is shown for both
+  engine?: 'browser' | 'neural';
   // The settings this entry covers, checked against defaultSettings by the coverage test
   settingKeys: (keyof ReaderSettings)[];
 }
@@ -22,7 +24,7 @@ const entry = (
   zone?: ScreenZone,
 ): SettingsIndexEntry => ({ id, labelKey, keywordsKey: `readerSettingsSearch.${id}`, page, zone, settingKeys });
 
-// Every setting the search can jump to. Listening rows have no row of their own: they open the page only.
+// Every setting the search can jump to, with the page its row is on
 export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('fontFamily', 'fontSettings.font', 'text', ['fontFamily']),
   entry('fontSize', 'readerDisplay.modules.size.label', 'text', ['fontSize']),
@@ -59,6 +61,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('keySpace', 'keyboardSettings.space', 'keys', ['keySpace']),
   entry('keyC', 'readerSettingsPages.keyC', 'keys', ['keyC']),
   entry('keyD', 'readerSettingsPages.keyD', 'keys', ['keyD']),
+  entry('keyF', 'readerSettingsPages.keyF', 'keys', ['keyF']),
 
   entry('controlsTrigger', 'readerSettingsPages.showControlsWith', 'touch', ['controlsTrigger'], 'middle'),
   entry('swipeLeftGesture', 'gestureSettings.swipeLeft', 'touch', ['swipeLeftGesture']),
@@ -72,21 +75,23 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('savePosition', 'behaviorSettings.rememberPosition', 'reading', ['savePosition']),
   entry('hideScrollbar', 'layoutSettings.hideScrollbar', 'reading', ['hideScrollbar']),
 
-  entry('ttsEngine', 'ttsSettings.engine', 'listen', ['ttsEngine', 'ttsBrowserVoices', 'ttsNeuralVoices']),
-  entry('ttsLanguage', 'ttsSettings.language', 'listen', ['ttsLanguage']),
-  entry('ttsQuality', 'ttsSettings.quality', 'listen', ['ttsKokoroDevice', 'ttsSupertonicDevice', 'ttsSupertonicSteps']),
-  entry('ttsThrottle', 'ttsSettings.throttle', 'listen', ['ttsThrottle']),
-  entry('ttsAutoScroll', 'ttsSettings.autoScroll', 'listen', ['ttsAutoScroll']),
-  entry('ttsAutoNextChapter', 'ttsSettings.autoNextChapter', 'listen', ['ttsAutoNextChapter']),
-  entry('ttsReadTitle', 'ttsSettings.readTitle', 'listen', ['ttsReadTitle']),
-  entry('ttsSkipNotes', 'ttsSettings.skipNotes', 'listen', ['ttsSkipNotes']),
-  entry('ttsTapToSeek', 'ttsSettings.tapToSeek', 'listen', ['ttsTapToSeek']),
+  entry('ttsPreferAudiobook', 'ttsSettings.whatReads', 'listen', ['ttsPreferAudiobook']),
   entry('ttsRate', 'ttsSettings.speed', 'listen', ['ttsRate']),
-  entry('ttsPitch', 'ttsSettings.pitch', 'listen', ['ttsPitch']),
-  entry('ttsVolume', 'ttsSettings.volume', 'listen', ['ttsVolume']),
-  entry('ttsParagraphPause', 'ttsSettings.paragraphPause', 'listen', ['ttsParagraphPause']),
-  entry('ttsHighlight', 'ttsSettings.highlight', 'listen', ['ttsHighlight']),
+  entry('ttsAutoNextChapter', 'ttsSettings.autoNextChapter', 'listen', ['ttsAutoNextChapter']),
   entry('ttsKeepScreenOn', 'ttsSettings.keepScreenOn', 'listen', ['ttsKeepScreenOn']),
+
+  entry('ttsEngine', 'ttsSettings.quality', 'voice', ['ttsEngine', 'ttsBrowserVoices', 'ttsNeuralVoices']),
+  entry('ttsLanguage', 'ttsSettings.language', 'voice', ['ttsLanguage']),
+  { ...entry('ttsPitch', 'ttsSettings.pitch', 'voice', ['ttsPitch']), engine: 'browser' },
+  { ...entry('ttsVolume', 'ttsSettings.volume', 'voice', ['ttsVolume']), engine: 'neural' },
+  entry('ttsParagraphPause', 'ttsSettings.paragraphPause', 'voice', ['ttsParagraphPause']),
+  entry('ttsHighlight', 'ttsSettings.highlight', 'voice', ['ttsHighlight']),
+  entry('ttsAutoScroll', 'ttsSettings.autoScroll', 'voice', ['ttsAutoScroll']),
+  entry('ttsTapToSeek', 'ttsSettings.tapToSeek', 'voice', ['ttsTapToSeek']),
+  entry('ttsReadTitle', 'ttsSettings.readTitle', 'voice', ['ttsReadTitle']),
+  entry('ttsSkipNotes', 'ttsSettings.skipNotes', 'voice', ['ttsSkipNotes']),
+  entry('ttsQuality', 'ttsSettings.processingQuality', 'voice', ['ttsKokoroDevice', 'ttsSupertonicDevice', 'ttsSupertonicSteps']),
+  entry('ttsThrottle', 'ttsSettings.throttle', 'voice', ['ttsThrottle']),
 
   entry('importSettings', 'readerSettings.import', 'backup', []),
   entry('exportSettings', 'readerSettings.export', 'backup', []),

@@ -1,10 +1,12 @@
-import { AppBar, Box, IconButton, Slide, Toolbar, Typography } from '@mui/material';
+import { AppBar, Box, ButtonBase, IconButton, Slide, Toolbar, Tooltip, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ListIcon from '@mui/icons-material/List';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import DoneIcon from '@mui/icons-material/Done';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import type { ReaderBarProps } from './readerBarTypes';
 import DirectionalIcon from '../DirectionalIcon';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
@@ -14,8 +16,12 @@ const ReaderTopBar = ({
   controlsVisible,
   chapterTitle,
   novelTitle,
+  reservedStart,
   reservedEnd,
   markRead: { showMarkRead, markReadSuccess, markingAsRead, onMarkAsRead },
+  fullscreen,
+  fullscreenLabel,
+  fullscreenTitle,
   onHome,
   onChapterList,
 }: ReaderBarProps) => {
@@ -32,7 +38,7 @@ const ReaderTopBar = ({
         data-reader-surface
         sx={{
           top: 0,
-          insetInlineStart: 0,
+          insetInlineStart: reservedStart,
           insetInlineEnd: reservedEnd,
           width: 'auto',
           zIndex: theme.zIndex.appBar + 1,
@@ -48,14 +54,24 @@ const ReaderTopBar = ({
             <DirectionalIcon><ArrowBackIcon /></DirectionalIcon>
           </IconButton>
 
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="subtitle1" noWrap sx={{ fontWeight: 'medium', lineHeight: 1.3 }}>
-              {chapterTitle}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap component="div">
-              {novelTitle}
-            </Typography>
-          </Box>
+          <IconButton color="inherit" onClick={onChapterList} aria-label={t('readerControls.chapterNavigation')}>
+            <ListIcon />
+          </IconButton>
+
+          <ButtonBase
+            onClick={onChapterList}
+            aria-label={t('readerChapters.open')}
+            sx={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', textAlign: 'start', borderRadius: 1, py: 0.5 }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="subtitle1" noWrap sx={{ fontWeight: 'medium', lineHeight: 1.3 }}>
+                {chapterTitle}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" noWrap component="div">
+                {novelTitle}
+              </Typography>
+            </Box>
+          </ButtonBase>
 
           {showMarkRead && (
             <IconButton
@@ -67,9 +83,18 @@ const ReaderTopBar = ({
               {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
             </IconButton>
           )}
-          <IconButton color="inherit" onClick={onChapterList} aria-label={t('readerControls.chapterNavigation')}>
-            <ListIcon />
-          </IconButton>
+          {fullscreen.supported && (
+            <Tooltip title={fullscreenTitle}>
+              <IconButton
+                color="inherit"
+                onClick={fullscreen.onToggle}
+                aria-label={fullscreenLabel}
+                aria-pressed={fullscreen.active}
+              >
+                {fullscreen.active ? <FullscreenExitIcon /> : <FullscreenIcon />}
+              </IconButton>
+            </Tooltip>
+          )}
         </Toolbar>
       </AppBar>
     </Slide>

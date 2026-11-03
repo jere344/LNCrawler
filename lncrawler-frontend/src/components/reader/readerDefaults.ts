@@ -27,6 +27,7 @@ export const defaultSettings: ReaderSettings = {
     keySpace: 'scrollDown',
     keyC: 'toggleControls',
     keyD: 'displaySheet',
+    keyF: 'fullscreen',
     swipeLeftGesture: 'nextChapter',
     swipeRightGesture: 'prevChapter',
     hideScrollbar: false,

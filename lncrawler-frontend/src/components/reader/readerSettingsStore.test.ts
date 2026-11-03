@@ -149,6 +149,28 @@ describe('storage event from another tab', () => {
   });
 });
 
+describe('settings saved before a key existed', () => {
+  it('gives the F key its default fullscreen action', () => {
+    localStorage.setItem(READER_SETTINGS_KEY, JSON.stringify({ version: 1, settings: { keyD: 'none' } }));
+
+    expect(store.getReaderSettings().keyF).toBe('fullscreen');
+    expect(store.getReaderSettings().keyD).toBe('none');
+  });
+});
+
+describe('narrated engine saved before the audiobook preference', () => {
+  it('reads it as the audiobook preference with the default engine', () => {
+    localStorage.setItem(READER_SETTINGS_KEY, JSON.stringify({ version: 1, settings: { ttsEngine: 'narrated' } }));
+
+    expect(store.getReaderSettings().ttsPreferAudiobook).toBe(true);
+    expect(store.getReaderSettings().ttsEngine).toBe('browser');
+  });
+
+  it('defaults the audiobook preference to off', () => {
+    expect(store.getReaderSettings().ttsPreferAudiobook).toBe(false);
+  });
+});
+
 describe('reset', () => {
   it('returns every setting to its default', () => {
     store.updateReaderSetting('fontSize', 30);

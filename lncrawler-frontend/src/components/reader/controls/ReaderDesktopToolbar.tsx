@@ -1,4 +1,4 @@
-import { AppBar, Box, Divider, IconButton, type IconButtonProps, Toolbar, Tooltip, Typography } from '@mui/material';
+import { AppBar, Box, ButtonBase, Divider, IconButton, type IconButtonProps, Toolbar, Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ListIcon from '@mui/icons-material/List';
@@ -7,6 +7,8 @@ import DoneIcon from '@mui/icons-material/Done';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
 import CommentIcon from '@mui/icons-material/Comment';
 import SettingsIcon from '@mui/icons-material/Settings';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import DirectionalIcon from '../DirectionalIcon';
 import { ChapterStepButton } from './ChapterStepButtons';
 import ChapterProgress from './ChapterProgress';
@@ -37,9 +39,13 @@ const ReaderDesktopToolbar = ({
   hasPrev,
   hasNext,
   displayOpen,
+  reservedStart,
   reservedEnd,
   shortcuts,
   markRead: { showMarkRead, markReadSuccess, markingAsRead, onMarkAsRead },
+  fullscreen,
+  fullscreenLabel,
+  fullscreenTitle,
   onHome,
   onChapterList,
   onPrevious,
@@ -65,6 +71,7 @@ const ReaderDesktopToolbar = ({
         width: 'auto',
         bgcolor: 'background.paper',
         color: 'text.primary',
+        marginInlineStart: reservedMargin(reservedStart),
         marginInlineEnd: reservedMargin(reservedEnd),
         transform: controlsVisible ? 'none' : 'translateY(-100%)',
         marginBottom: controlsVisible ? 0 : `-${TOOLBAR_HEIGHT}px`,
@@ -77,17 +84,27 @@ const ReaderDesktopToolbar = ({
         <ToolbarAction label={t('readerControls.backToNovel')} onClick={onHome}>
           <DirectionalIcon><ArrowBackIcon /></DirectionalIcon>
         </ToolbarAction>
+        <ToolbarAction label={t('readerControls.chapterNavigation')} onClick={onChapterList}>
+          <ListIcon />
+        </ToolbarAction>
 
-        <Box sx={{ minWidth: 0, flexShrink: 1 }}>
-          <Typography variant="h6" noWrap sx={{ fontSize: '1.1rem' }}>
-            {chapterTitle}
-          </Typography>
-          <Typography variant="caption" component="p" color="text.secondary" noWrap>
-            {novelTitle}
-          </Typography>
-        </Box>
+        <ButtonBase
+          onClick={onChapterList}
+          aria-label={t('readerChapters.open')}
+          sx={{ minWidth: 0, flexShrink: 1, justifyContent: 'flex-start', textAlign: 'start', borderRadius: 1, py: 0.5 }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h6" noWrap sx={{ fontSize: '1.1rem' }}>
+              {chapterTitle}
+            </Typography>
+            <Typography variant="caption" component="p" color="text.secondary" noWrap>
+              {novelTitle}
+            </Typography>
+          </Box>
+        </ButtonBase>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
+        {/* Never narrower than its two buttons, so the title shrinks first */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 'min-content' }}>
           <ChapterStepButton direction="prev" enabled={hasPrev} onClick={onPrevious} shortcut={shortcuts.prev} />
           <ChapterProgress />
           <ChapterStepButton direction="next" enabled={hasNext} onClick={onNext} shortcut={shortcuts.next} />
@@ -128,9 +145,16 @@ const ReaderDesktopToolbar = ({
             </span>
           </Tooltip>
         )}
-        <ToolbarAction label={t('readerControls.chapterNavigation')} onClick={onChapterList}>
-          <ListIcon />
-        </ToolbarAction>
+        {fullscreen.supported && (
+          <ToolbarAction
+            label={fullscreenLabel}
+            title={fullscreenTitle}
+            onClick={fullscreen.onToggle}
+            aria-pressed={fullscreen.active}
+          >
+            {fullscreen.active ? <FullscreenExitIcon /> : <FullscreenIcon />}
+          </ToolbarAction>
+        )}
       </Toolbar>
     </AppBar>
   );

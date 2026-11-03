@@ -24,6 +24,7 @@ const ReaderBottomBar = ({
   hasPrev,
   hasNext,
   displayOpen,
+  reservedStart,
   reservedEnd,
   shortcuts,
   onPrevious,
@@ -64,7 +65,7 @@ const ReaderBottomBar = ({
         sx={{
           top: 'auto',
           bottom: bottomOffset,
-          insetInlineStart: 0,
+          insetInlineStart: reservedStart,
           insetInlineEnd: reservedEnd,
           width: 'auto',
           zIndex: theme.zIndex.appBar + 1,

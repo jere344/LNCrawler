@@ -67,7 +67,7 @@ export const SettingSwitch = ({ settingKey, title, sub, settingId }: SettingSwit
 interface SettingSelectProps {
   settingKey: TextSettingKey;
   title: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
   sub?: string;
   settingId?: string;
   disabled?: boolean;
@@ -84,13 +84,14 @@ export const SettingSelect = ({ settingKey, title, options, sub, settingId, disa
         <Select
           size="small"
           value={value}
+          displayEmpty
           disabled={disabled}
           onChange={(event) => updateReaderSetting(settingKey, event.target.value as ReaderSettings[TextSettingKey])}
           SelectDisplayProps={{ 'aria-label': title }}
           sx={{ minWidth: 160 }}
         >
           {options.map((option) => (
-            <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+            <MenuItem key={option.value} value={option.value} disabled={option.disabled}>{option.label}</MenuItem>
           ))}
         </Select>
       }

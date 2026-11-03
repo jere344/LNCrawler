@@ -1,6 +1,6 @@
 import api from './api';
 import { API_BASE_URL } from './config';
-import { SourceDetailResponse } from '@models/novels_types';
+import { NovelChaptersResponse, SourceDetailResponse } from '@models/novels_types';
 import type { NovelSort } from '../generated/sharedConstants';
 
 // View count reads best most-viewed first; every other sort starts ascending.
@@ -20,11 +20,19 @@ export const novelService = {
     return response.data;
   },
   
-  // Get chapters by novel and source slugs with pagination
-  getNovelChapters: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 100, search = '') => {
-    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`, {
-      params: { page, page_size: pageSize, search }
-    });
+  // Get chapters by novel and source slugs with pagination. With `around`, the page holding that chapter number is returned instead of `page`.
+  getNovelChapters: async (
+    novelSlug: string,
+    sourceSlug: string,
+    page = 1,
+    pageSize = 100,
+    search = '',
+    around?: number,
+  ): Promise<NovelChaptersResponse> => {
+    const params = around === undefined
+      ? { page, page_size: pageSize, search }
+      : { page_size: pageSize, search, around };
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`, { params });
     return response.data;
   },
   

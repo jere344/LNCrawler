@@ -8,7 +8,7 @@ import ReaderTopBar from './controls/ReaderTopBar';
 import ReaderBottomBar from './controls/ReaderBottomBar';
 import ReaderControlsTheme from './theme/ReaderControlsTheme';
 import ReaderPanels from './panels/ReaderPanels';
-import { reservedEnd as panelReservedEnd } from './panels/panelLayout';
+import { reservedEnd as panelReservedEnd, reservedStart as panelReservedStart } from './panels/panelLayout';
 import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
 import ChapterArticle from './content/ChapterArticle';
 import DimGestureStrip from './viewport/DimGestureStrip';
@@ -20,6 +20,7 @@ import { useReaderSettings } from './hooks/useReaderSettings';
 import { useReaderLayout } from './hooks/useReaderLayout';
 import { useReaderPanels } from './hooks/useReaderPanels';
 import { useReaderBarProps } from './hooks/useReaderBarProps';
+import { useFullscreen } from './hooks/useFullscreen';
 import { useChapterLoader } from './hooks/useChapterLoader';
 import { useReaderScrollSaving } from './hooks/useReaderScrollSaving';
 import { useChapterReadTracking } from './hooks/useChapterReadTracking';
@@ -44,13 +45,20 @@ const ChapterReader = () => {
   const readerSettings = useReaderSettings();
   const {
     panel,
-    settingsPage,
+    pages,
+    searching,
     toggleDisplay,
+    toggleChapters,
     openSettings,
     openCustomize,
-    closeCustomize,
     closePanel,
-  } = useReaderPanels();
+    popPage,
+    pushPage,
+    setDeskPage,
+    startSearch,
+    closeThen,
+  } = useReaderPanels({ isDesktop });
+  const reservedStart = panelReservedStart(panel, mode);
   const reservedEnd = panelReservedEnd(panel, mode);
   // The desktop toolbar starts shown; the touch bars start hidden
   const [controlsVisible, setControlsVisible] = useState(isDesktop);
@@ -117,13 +125,14 @@ const ChapterReader = () => {
     onMarkAsRead: handleMarkAsRead,
   };
 
-  const { goNext, goPrev, goToSource, goToChapterList } = useChapterNavigation({
+  const { goNext, goPrev, goToSource, goToChapterList, goToChapter } = useChapterNavigation({
     novelSlug,
     sourceSlug,
     chapter,
     saveScrollIfReady,
     markBeforeLeaving,
     setActiveTab,
+    closeThen,
   });
 
   const { tts, novelLanguage, barHeight, handleListen, startNarration } = useReaderAudio({
@@ -136,12 +145,15 @@ const ChapterReader = () => {
     onNextChapter: goNext,
   });
 
+  const fullscreen = useFullscreen();
+
   // Taps and keys share one set of actions
   const { runEdge, runKeyAction } = useReaderActions({
     goNext,
     goPrev,
     setControlsVisible,
     toggleDisplay,
+    toggleFullscreen: fullscreen.toggle,
   });
 
   // A tap on the text seeks the TTS when it is playing and the text is not selected
@@ -175,6 +187,7 @@ const ChapterReader = () => {
     prev: keyLabelFor(keyBindings, 'prevChapter'),
     next: keyLabelFor(keyBindings, 'nextChapter'),
     display: keyLabelFor(keyBindings, 'displaySheet'),
+    fullscreen: keyLabelFor(keyBindings, 'fullscreen'),
   };
 
   useHideScrollbar(readerSettings.hideScrollbar);
@@ -188,12 +201,15 @@ const ChapterReader = () => {
     controlsVisible,
     isDesktop,
     panel,
+    reservedStart,
     reservedEnd,
     shortcuts,
     setControlsVisible,
     setActiveTab,
     markRead,
-    navigation: { goPrev, goNext, goToSource, goToChapterList },
+    fullscreen: { supported: fullscreen.supported, active: fullscreen.active, onToggle: fullscreen.toggle },
+    navigation: { goPrev, goNext, goToSource },
+    onToggleChapters: toggleChapters,
     onToggleDisplay: toggleDisplay,
     onOpenSettings: () => openSettings(),
     onListen: handleListen,
@@ -245,13 +261,26 @@ const ChapterReader = () => {
           panel={panel}
           mode={mode}
           bottomOffset={bottomOffset}
-          settingsPage={settingsPage}
+          pages={pages}
+          searching={searching}
           novelLanguage={novelLanguage}
           hasNarration={!!chapter.audio_url}
+          chapterNumber={chapter.chapter_id}
+          chapterList={{
+            novelSlug: novelSlug ?? '',
+            sourceSlug: sourceSlug ?? '',
+            novelTitle: chapter.novel_title,
+            currentChapterId: chapter.chapter_id,
+            onOpenChapter: goToChapter,
+            onOpenNovel: goToSource,
+          }}
           onTtsBeforePreview={tts.pause}
           onClosePanel={closePanel}
+          onBack={popPage}
+          onPushPage={pushPage}
+          onSetDeskPage={setDeskPage}
+          onStartSearch={startSearch}
           onOpenCustomize={openCustomize}
-          onCloseCustomize={closeCustomize}
           onOpenAllSettings={() => openSettings()}
         />
       </ReaderControlsTheme>
@@ -268,6 +297,7 @@ const ChapterReader = () => {
         swipeHandlers={swipeHandlers}
         onListen={handleListen}
         onOpenSettings={() => openSettings()}
+        onOpenChapterList={goToChapterList}
         onNarrate={() => { void startNarration(chapter); }}
         markRead={markRead}
         onPrevious={goPrev}
@@ -275,16 +305,17 @@ const ChapterReader = () => {
         onGoToComments={switchToComments}
         ttsOpen={tts.open}
         barHeight={barHeight}
+        reservedStart={reservedStart}
         reservedEnd={reservedEnd}
       />
 
       <ReaderKeyboardNavigation
         enabled={readerSettings.keyboardNavigation}
-        paused={(panel === 'settings' || panel === 'customize') && mode === 'phone'}
+        paused={(panel === 'settings' || panel === 'customize' || panel === 'chapters') && mode === 'phone'}
         bindings={keyBindings}
         onAction={runKeyAction}
-        // Escape closes an open panel only, so it never hides the desktop toolbar
-        onEscape={() => { if (panel !== 'none') closePanel(); }}
+        // Escape goes back one layer, like Back, and only while a panel is open, so it never hides the desktop toolbar
+        onEscape={() => { if (panel !== 'none') popPage(); }}
       />
 
       {dimSide !== 'off' && dimStripShown && (
@@ -303,6 +334,7 @@ const ChapterReader = () => {
         onRateChange={rate => updateReaderSetting('ttsRate', rate)}
         onOpenSettings={() => openSettings({ page: 'listen' })}
         chapterTitle={chapterLabel}
+        reservedStart={reservedStart}
       />
     </>
   );

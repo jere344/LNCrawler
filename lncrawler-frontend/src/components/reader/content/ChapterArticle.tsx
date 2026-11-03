@@ -1,4 +1,4 @@
-import { useMemo, type RefObject, type SyntheticEvent } from 'react';
+import { useMemo, type MouseEvent, type RefObject, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -47,6 +47,7 @@ interface ChapterArticleProps {
   swipeHandlers: SwipeableHandlers;
   onListen: () => void;
   onOpenSettings: () => void;
+  onOpenChapterList: () => void;
   onNarrate: () => void;
   markRead: MarkReadProps;
   onPrevious: () => void;
@@ -55,6 +56,8 @@ interface ChapterArticleProps {
   ttsOpen: boolean;
   // Height of the audiobook mini bar, kept clear of the end of the chapter
   barHeight: number;
+  // Width in px kept clear at the start edge, so the text is not covered by the chapter list
+  reservedStart: number;
   // Width in px kept clear at the end edge, so the text is not covered by the display panel
   reservedEnd: number;
 }
@@ -72,6 +75,7 @@ const ChapterArticle = ({
   swipeHandlers,
   onListen,
   onOpenSettings,
+  onOpenChapterList,
   onNarrate,
   markRead: { showMarkRead, markReadSuccess, markingAsRead, onMarkAsRead },
   onPrevious,
@@ -79,6 +83,7 @@ const ChapterArticle = ({
   onGoToComments,
   ttsOpen,
   barHeight,
+  reservedStart,
   reservedEnd,
 }: ChapterArticleProps) => {
   const { t } = useTranslation();
@@ -102,9 +107,17 @@ const ChapterArticle = ({
     return null;
   }, [novelSlug, sourceSlug, chapterNumber]);
 
+  // The reader leaves through its own navigation, so its panels do not stay in the history. A modified click keeps the link's own behaviour.
+  const handleChapterListClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onOpenChapterList();
+  };
+
   return (
     <>
       <Box sx={{
+        marginInlineStart: reservedMargin(reservedStart),
         marginInlineEnd: reservedMargin(reservedEnd),
         transition: 'margin 0.25s ease-out',
         '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
@@ -131,6 +144,7 @@ const ChapterArticle = ({
                 {
                   label: t('reader.chapters'),
                   link: `/novels/${novelSlug}/${sourceSlug}/chapterlist`,
+                  onClick: handleChapterListClick,
                   icon: <ListAltIcon fontSize="inherit" />
                 },
                 {
@@ -204,7 +218,7 @@ const ChapterArticle = ({
             </Box>
   
             {/* Narration hint: the chapter has a recording but the listen button uses client TTS */}
-            {chapter.audio_url && settings.ttsEngine !== 'narrated' && (
+            {chapter.audio_url && !settings.ttsPreferAudiobook && (
               <Box sx={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 1, mb: 2,
                 px: 1.5, py: 0.5, borderRadius: 1, bgcolor: 'action.hover',
