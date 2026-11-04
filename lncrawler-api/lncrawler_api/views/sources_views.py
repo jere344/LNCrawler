@@ -12,7 +12,7 @@ from ..serializers.sources_serializers import GalleryImageSerializer
 from ..services.audiobook_public import (
     annotate_public_totals, chapter_audio_hidden, chapter_has_audio_subquery, visible_audiobooks,
 )
-from django.db.models import Q, Sum, Func, IntegerField
+from django.db.models import Count, Q, Sum, Func, IntegerField
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
 from ..utils.query_helpers import apply_novel_prefetches, sources_queryset
@@ -30,6 +30,22 @@ class ArrayLength(Func):
     function = 'CARDINALITY'
     arity = 1
     output_field = IntegerField()
+
+
+def _parse_int(raw):
+    """The int of a query parameter, or None when it is missing or not a number."""
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _has_volumes(source):
+    """Whether the chapters span more than one volume or name one: the volume headings of the chapter list."""
+    volumes = source.chapters.order_by().values('volume').distinct()
+    return len(volumes[:2]) > 1 or source.chapters.exclude(
+        Q(volume_title__isnull=True) | Q(volume_title='')
+    ).exists()
 
 
 @api_view(["GET"])
@@ -150,6 +166,17 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     page_size = parse_page_size(request, 100, 500)  # Higher default for chapters
 
     paginator = Paginator(chapters, page_size)
+    around = _parse_int(request.GET.get("around"))
+    # Chapter numbers are positive and fit a bigint: anything else is ignored, like input that is not a number
+    if around is not None and not 1 <= around <= 2**63 - 1:
+        around = None
+    if "page" not in request.GET and around is not None and not search:
+        # One query counts the chapters and those up to `around`; the page is the one holding the last of them.
+        counts = source.chapters.aggregate(
+            total=Count("pk"), upto=Count("pk", filter=Q(chapter_id__lte=around)),
+        )
+        paginator.count = counts["total"]
+        page_number = max(1, -(-counts["upto"] // page_size))
     page_obj = paginator.get_page(page_number)
 
     serializer = ChapterSerializer(page_obj, many=True)
@@ -166,6 +193,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
             "count": paginator.count,
             "total_pages": paginator.num_pages,
             "current_page": page_obj.number,
+            "has_volumes": _has_volumes(source),
             "chapters": serializer.data,
             "source_overview_image_url": (
                 build_media_url(source.overview_picture_path)

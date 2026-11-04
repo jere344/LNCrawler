@@ -32,11 +32,15 @@ _STATUSES = {
 }
 
 _CHAPTER_RE = re.compile(r"/novel/[^/]+/tom-(\d+)-glava-(\d+)")
+# Link text is "Том N Глава M <title>"; volume and number are already known.
+_CHAPTER_LABEL_RE = re.compile(r"^Том \d+ Глава \d+(?:\.\d+)?\s*")
 
 
 class RanobeMirCrawler(Crawler):
     base_url = "https://ranobemir.com/"
     language = "ru"
+    # v2: hard-wrapped lines were glued together by the old cleaner; breaking, refetch.
+    version = 2
     has_mtl = False
 
     # -- helpers ------------------------------------------------------- #
@@ -105,10 +109,13 @@ class RanobeMirCrawler(Crawler):
         if isinstance(cover, Tag) and cover.get("content"):
             self.novel_cover = cover["content"]
 
-        # Alternative titles.
+        # Alternative titles. Long lists are cut with an "ещё" toggle: drop the
+        # controls and keep the full text.
         for h2 in soup.select("h2"):
-            text = h2.get_text(" ", strip=True)
-            if text.startswith("Другие названия"):
+            if h2.get_text(" ", strip=True).startswith("Другие названия"):
+                for control in h2.select('button, span[x-show="!expanded"]'):
+                    control.decompose()
+                text = h2.get_text(" ", strip=True)
                 _, _, rest = text.partition(":")
                 self.alternative_titles = [
                     x.strip() for x in rest.split("/") if x.strip()
@@ -132,7 +139,7 @@ class RanobeMirCrawler(Crawler):
                 if a.get_text(strip=True)
             ]
 
-        # Status and publication year.
+        # Status.
         status = NovelStatus.ongoing
         status_tag = soup.select_one('a[href^="/novel?status"]')
         if isinstance(status_tag, Tag):
@@ -141,11 +148,6 @@ class RanobeMirCrawler(Crawler):
                 if key in text:
                     status = value
                     break
-        year_tag = soup.select_one('a[href^="/novel?year"]')
-        if isinstance(year_tag, Tag):
-            year = year_tag.get_text(" ", strip=True)
-            if year:
-                tags.append(f"Год публикации：{year}")
         self.status = status
         self.tags = list(dict.fromkeys(tags))
         self.novel_tags = list(dict.fromkeys(self.genres + self.tags))
@@ -195,7 +197,7 @@ class RanobeMirCrawler(Crawler):
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
-                    title=title,
+                    title=_CHAPTER_LABEL_RE.sub("", title, count=1),
                     url=url,
                     volume=volume_id,
                 )

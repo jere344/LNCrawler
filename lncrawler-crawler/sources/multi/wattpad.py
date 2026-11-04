@@ -5,7 +5,7 @@ from time import sleep, time
 from urllib.parse import quote_plus, urlparse
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +99,11 @@ class WattpadCrawler(Crawler):
         logger.info("Novel synopsis length: %s", len(self.novel_synopsis))
 
         self.novel_tags = list(story_info.get("tags") or [])
+        completed = story_info.get("completed")
+        if completed is None:
+            self.status = NovelStatus.unknown
+        else:
+            self.status = NovelStatus.completed if completed else NovelStatus.ongoing
         logger.info("Novel tags: %s", self.novel_tags)
 
         self.novel_cover = self.absolute_url(story_info["cover"])

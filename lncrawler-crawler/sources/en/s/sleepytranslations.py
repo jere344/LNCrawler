@@ -18,6 +18,7 @@ from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.models import Chapter, NovelStatus, SearchResult
 from lncrawl.templates.madara import MadaraTemplate
 
@@ -41,6 +42,8 @@ _SERIES_LINK = re.compile(r"/series/[^/]+/?$")
 class SleepyTranslationsCrawler(MadaraTemplate):
     base_url = "https://sleepytranslations.com/"
     language = "en"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def change_user_agent(self) -> None:
         # curl_cffi's chrome impersonation already sends a matching User-Agent
@@ -188,7 +191,11 @@ class SleepyTranslationsCrawler(MadaraTemplate):
         yield from self._genre_list(soup)
 
     def parse_summary(self, soup: BeautifulSoup) -> str:
-        tag = soup.select_one(".description-summary")
+        # ".summary__content" leaves out the "Show more" toggle that sits
+        # beside it in ".description-summary".
+        tag = soup.select_one(".description-summary .summary__content")
+        if not isinstance(tag, Tag):
+            tag = soup.select_one(".description-summary")
         if isinstance(tag, Tag):
             return self.cleaner.extract_contents(tag)
         return ""
@@ -216,8 +223,16 @@ class SleepyTranslationsCrawler(MadaraTemplate):
 
     def select_chapter_body(self, soup: BeautifulSoup) -> Tag:
         body = soup.select_one(".entry-content .reading-content")
-        if isinstance(body, Tag):
-            return body
-        body = soup.select_one(".entry-content")
+        if not isinstance(body, Tag):
+            body = soup.select_one(".entry-content")
         assert isinstance(body, Tag)
+        # Patreon call added by the site to some chapters, not part of the text.
+        for p in body.select("p"):
+            if p.get_text(" ", strip=True).startswith(
+                "Want to read more chapters and support us?"
+            ):
+                p.decompose()
         return body
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.drop_matching(body, r"^Want to read more chapters and support us\?")

@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
+import html
 import logging
 import re
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = "https://noveltoon.mobi/en/search?word=%s&source=&lock="
 
 
 class NovelsRockCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Chapter bodies are no longer served to anonymous readers and chapters are truncated from episode 6"
     base_url = "https://noveltoon.mobi/"
 
     def initialize(self) -> None:
@@ -92,19 +95,52 @@ class NovelsRockCrawler(Crawler):
         logger.info("Novel cover: %s", self.novel_cover)
 
         try:
-            self.novel_author = soup.select_one(
-                ".detail-top .detail-author"
-            ).text.strip()
+            self.novel_author = re.sub(
+                r"^Author Name:\s*",
+                "",
+                soup.select_one(".detail-top .detail-author").text.strip(),
+            )
         except Exception as e:
             logger.debug("Failed to get novel author. %s", e)
         logger.info("Novel author: %s", self.novel_author)
 
+        # Synopsis: one <p> with <br> breaks; the last line is the publisher's
+        # boilerplate shared by every novel.
+        desc = soup.select_one(".detail-top-left .detail-desc-info")
+        if desc:
+            lines = [line.strip() for line in desc.get_text("\n").split("\n")]
+            self.novel_synopsis = "".join(
+                f"<p>{html.escape(line, quote=False)}</p>"
+                for line in lines
+                if line and not re.search(r"got authorization from", line)
+            )
+
+        # Tags list also carries the status ("Completed") as its last item.
+        tags = []
+        for span in soup.select(".detail-tags .detail-tag-item span"):
+            text = span.get_text(strip=True)
+            if text.lower() in ("ongoing", "completed"):
+                self.status = (
+                    NovelStatus.completed
+                    if text.lower() == "completed"
+                    else NovelStatus.ongoing
+                )
+            elif text and text not in tags:
+                tags.append(text)
+        self.novel_tags = tags
+
+        # The page lists every episode twice (ascending and reverse lists).
+        seen_urls = set()
         for a in soup.select("a.episodes-info-a-item"):
+            url = self.absolute_url(a["href"])
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
             chap_id = len(self.chapters) + 1
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "url": self.absolute_url(a["href"]),
+                    "url": url,
                     "title": a.select_one(".episode-item-title").text.strip(),
                 }
             )

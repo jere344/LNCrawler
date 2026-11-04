@@ -29,7 +29,6 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     vote_score = serializers.IntegerField(read_only=True)
     upvotes = serializers.IntegerField(read_only=True)
     downvotes = serializers.IntegerField(read_only=True)
-    has_replies = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
     type = serializers.SerializerMethodField()
     edited = serializers.BooleanField(read_only=True)
@@ -47,7 +46,7 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     default_profile = 'novel'
     _base_fields = [
         'id', 'author_name', 'message', 'contains_spoiler', 'created_at',
-        'upvotes', 'downvotes', 'vote_score', 'user', 'replies', 'has_replies',
+        'upvotes', 'downvotes', 'vote_score', 'user', 'replies',
         'user_vote',
     ]
     field_profiles = {
@@ -79,14 +78,6 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             CommentSerializer(reply, context=self.context, profile=self.profile).data
             for reply in replies
         ]
-
-    def get_has_replies(self, obj):
-        children = self.context.get('comment_children')
-        if children is not None:
-            return bool(children.get(obj.id))
-        if 'replies' in getattr(obj, '_prefetched_objects_cache', {}):
-            return len(obj.replies.all()) > 0
-        return obj.replies.exists()
 
     def get_user_vote(self, obj):
         # Batch path: the thread views precompute {comment_id: vote_type} for

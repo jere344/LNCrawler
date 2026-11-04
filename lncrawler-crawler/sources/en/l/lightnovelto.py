@@ -31,6 +31,11 @@ class LightNovelToCrawler(Crawler):
     base_url = ["https://lightnovel.to/"]
     language = "en"
 
+    def initialize(self):
+        self.init_executor(ratelimit=1)
+        # Empty ad-slot placeholder inside the chapter body.
+        self.cleaner.bad_css.update({"div#frame"})
+
     def _novel_url(self, slug: str) -> str:
         return self.absolute_url(f"/novel/{slug}")
 
@@ -129,6 +134,12 @@ class LightNovelToCrawler(Crawler):
 
         self.novel_synopsis = (book.get("description") or "").strip()
 
+        # "Type | Web Novel" next to the status: the edition label.
+        type_label = soup.find("span", string=lambda t: t and t.strip() == "Type")
+        type_value = type_label.find_next_sibling() if type_label else None
+        if isinstance(type_value, Tag):
+            self.novel_edition = type_value.get_text(strip=True)
+
         genres = [g for g in (book.get("genre") or []) if isinstance(g, str)]
         self.novel_tags = list(dict.fromkeys(genres))
 
@@ -178,4 +189,8 @@ class LightNovelToCrawler(Crawler):
             logger.warning("Chapter body (div.ln-prose) not found: %s", chapter.url)
             return ""
         self.cleaner.clean_contents(contents)
+        # Empty paragraphs leave blank lines at the top of the chapter.
+        for p in contents.select("p"):
+            if not p.get_text(strip=True) and not p.find("img"):
+                p.decompose()
         return str(contents)

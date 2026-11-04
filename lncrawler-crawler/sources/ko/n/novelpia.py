@@ -15,11 +15,18 @@ EPISODE_URL = "https://novelpia.com/proc/episode_list"
 VIEWER_URL = "https://novelpia.com/proc/viewer_data/%s"
 
 EP_TITLE_NOISE = re.compile(r"^(?:무료|유료|대여|소장)\s*")
+# Style values are matched on the normalised style (spaces removed, lowercase),
+# so "opacity:0.5" and "line-height:0px" do not count as hidden.
+_HIDDEN_OPACITY_RE = re.compile(r"(?:^|;)opacity:0(?:\.0+)?(?:;|$)")
+_HIDDEN_HEIGHT_RE = re.compile(r"(?:^|;)height:0(?:px)?(?:;|$)")
 
 
 class NovelpiaCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most episodes require a paid membership; only about the first 10 are free"
     base_url = "https://novelpia.com/"
     has_mtl = False
+    version = 2
 
     def search_novel(self, query):
         data = {
@@ -101,9 +108,16 @@ class NovelpiaCrawler(Crawler):
         if author:
             self.novel_author = author.get_text(strip=True)
 
-        synopsis = soup.select_one('meta[property="og:description"]')
+        synopsis = soup.select_one("div.synopsis")
         if synopsis:
-            self.novel_synopsis = synopsis.get("content", "").strip()
+            self.novel_synopsis = synopsis.get_text("\n", strip=True)
+        else:
+            # The meta description carries a "플러스작품 - " (Plus work) label.
+            meta = soup.select_one('meta[property="og:description"]')
+            if meta:
+                self.novel_synopsis = re.sub(
+                    r"^플러스작품\s*-\s*", "", meta.get("content", "")
+                ).strip()
 
         tag = soup.select_one(".writer-tag")
         if tag:
@@ -125,6 +139,9 @@ class NovelpiaCrawler(Crawler):
                 b = row.select_one("b")
                 if not ep_no or not b:
                     continue
+                # Drop the "PLUS" badge so it does not end up in the title.
+                for badge in b.select("span.b_plus"):
+                    badge.decompose()
                 chapter_id = len(self.chapters) + 1
                 self.chapters.append(
                     {
@@ -147,9 +164,13 @@ class NovelpiaCrawler(Crawler):
         match = re.search(r"/viewer/(\d+)", chapter["url"])
         assert match, "No episode id in url"
         try:
+            # Without the viewer Referer the endpoint answers with an empty body.
             data = self.get_json(
                 VIEWER_URL % match.group(1),
-                headers={"X-Requested-With": "XMLHttpRequest"},
+                headers={
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": chapter["url"],
+                },
             )
         except json.JSONDecodeError:
             logger.warning("Failed to parse viewer data for %s", chapter["url"])
@@ -160,9 +181,21 @@ class NovelpiaCrawler(Crawler):
             if "cover-wrapper" in text:
                 continue
             parts.append(text)
-        html = "\n".join(parts)
+        # Bare text pieces end with "\n" and are not paragraph breaks for the
+        # cleaner, so each one is joined with an explicit <br>.
+        html = "<br>".join(parts)
         soup = self.make_soup(html)
         body = soup.find("body")
         if not isinstance(body, Tag):
             return html
+        # Hidden anti-copy blocks (zero-size, transparent or display:none) carry
+        # encoded text that must not end up in the chapter.
+        for node in body.select("[style]"):
+            style = node.get("style", "").replace(" ", "").lower()
+            if (
+                "display:none" in style
+                or _HIDDEN_OPACITY_RE.search(style)
+                or (_HIDDEN_HEIGHT_RE.search(style) and "overflow:hidden" in style)
+            ):
+                node.decompose()
         return self.cleaner.extract_contents(body)

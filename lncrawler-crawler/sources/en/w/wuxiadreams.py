@@ -3,9 +3,16 @@ import logging
 import re
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+    "dropped": NovelStatus.hiatus,
+}
 
 
 class WuxiaDreamsCrawler(Crawler):
@@ -91,6 +98,14 @@ class WuxiaDreamsCrawler(Crawler):
         if author:
             self.novel_author = author.get_text(strip=True)
         logger.info("Novel author: %s", self.novel_author)
+
+        # <span>Status</span><span>completed</span>
+        label = soup.find("span", string=re.compile(r"^\s*Status\s*$"))
+        value = label.find_next_sibling("span") if label else None
+        if value:
+            self.status = _STATUSES.get(
+                value.get_text(strip=True).lower(), NovelStatus.unknown
+            )
 
         synopsis = soup.select_one(".prose")
         if synopsis:

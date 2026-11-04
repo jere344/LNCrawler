@@ -81,7 +81,7 @@ class FanFanXiaoShuoCrawler(Crawler):
         if categories:
             self.novel_tags = categories
 
-        for a in soup.select("a[href]"):
+        for a in soup.select(".catalog a[href]"):
             href = a["href"]
             if not re.search(r"/\d+-\d+-\d+\.html$", href):
                 continue

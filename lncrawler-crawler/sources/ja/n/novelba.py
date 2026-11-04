@@ -32,6 +32,8 @@ _STATUSES = {
 
 
 class NovelbaCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
+    is_disabled = True
+    disable_reason = "Service ended on 2026-10-30; every page returns the shutdown notice"
     base_url = "https://novelba.com/"
     language = "ja"
 

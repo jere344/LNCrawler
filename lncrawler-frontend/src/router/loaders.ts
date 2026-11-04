@@ -5,7 +5,7 @@ import { chatService } from '@services/chat.service';
 import { readingListService } from '@services/readinglist.service';
 import { getInitialContentLanguages, getInitialLanguageFilterEnabled } from '@context/LanguageContext';
 import { getNovelSourcePath } from '@utils/Misc';
-import type { Novel, NovelFromSource, Chapter } from '@models/novels_types';
+import type { Novel, NovelFromSource, NovelChaptersResponse } from '@models/novels_types';
 import type { Review } from '@services/review.service';
 import type { ChatPageResponse } from '@models/chat_types';
 import type { HomeAudiobooks } from '@models/audiobook_types';
@@ -137,16 +137,7 @@ export const readingListDetailLoader = ({ params }: LoaderFunctionArgs): AsyncDa
   return { data: settle(readingListService.getReadingListDetail(listId)) };
 };
 
-export interface ChapterListData {
-  chapters: Chapter[];
-  count: number;
-  total_pages: number;
-  current_page: number;
-  novel_title: string;
-  source_name: string;
-  is_dmca: boolean;
-  source_overview_image_url?: string | null;
-}
+export type ChapterListData = NovelChaptersResponse;
 
 export type ChapterListLoaderData = { ok: true; data: ChapterListData } | { ok: false };
 

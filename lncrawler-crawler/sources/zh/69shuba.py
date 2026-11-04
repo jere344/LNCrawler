@@ -3,7 +3,7 @@ import logging
 import re
 from bs4 import Tag
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,18 @@ class sixnineshu(Crawler):
             self.novel_author = possible_author.text.strip()
         logger.info("Novel Author: %s", self.novel_author)
 
+        # og:novel:status is "连载" (ongoing) or "全本" (completed)
+        state_meta = soup.select_one("meta[property='og:novel:status']")
+        state = (
+            str(state_meta["content"])
+            if isinstance(state_meta, Tag) and state_meta.get("content")
+            else ""
+        )
+        if "完" in state or "全本" in state:
+            self.status = NovelStatus.completed
+        elif "连载" in state:
+            self.status = NovelStatus.ongoing
+
         # tags are in a script tag and js add them to the page
         match = re.search(r"tags:\s*'([^']+)'", str(soup))
         if match:
@@ -95,6 +107,13 @@ class sixnineshu(Crawler):
 
         possible_synopsis = soup.select_one("div.navtxt")
         if isinstance(possible_synopsis, Tag):
+            # "小说关键词" is SEO keyword boilerplate, "本书又名" (also known as) is the alternative titles
+            for p in possible_synopsis.select("p"):
+                if p.get_text(strip=True).startswith("小说关键词"):
+                    p.decompose()
+            for text in possible_synopsis.find_all(string=re.compile("本书又名")):
+                self.alternative_titles = re.findall(r"《([^》]+)》", str(text))
+                text.extract()
             self.novel_synopsis = self.cleaner.extract_contents(possible_synopsis)
         logger.info("Novel Synopsis: %s", self.novel_synopsis)
 

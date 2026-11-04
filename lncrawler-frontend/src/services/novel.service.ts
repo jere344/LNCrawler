@@ -1,6 +1,6 @@
 import api from './api';
 import { API_BASE_URL } from './config';
-import { SourceDetailResponse } from '@models/novels_types';
+import { NovelChaptersResponse, SourceDetailResponse } from '@models/novels_types';
 import type { NovelSort } from '../generated/sharedConstants';
 
 // View count reads best most-viewed first; every other sort starts ascending.
@@ -20,11 +20,19 @@ export const novelService = {
     return response.data;
   },
   
-  // Get chapters by novel and source slugs with pagination
-  getNovelChapters: async (novelSlug: string, sourceSlug: string, page = 1, pageSize = 100, search = '') => {
-    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`, {
-      params: { page, page_size: pageSize, search }
-    });
+  // Get chapters by novel and source slugs with pagination. With `around`, the page holding that chapter number is returned instead of `page`.
+  getNovelChapters: async (
+    novelSlug: string,
+    sourceSlug: string,
+    page = 1,
+    pageSize = 100,
+    search = '',
+    around?: number,
+  ): Promise<NovelChaptersResponse> => {
+    const params = around === undefined
+      ? { page, page_size: pageSize, search }
+      : { page_size: pageSize, search, around };
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapters/`, { params });
     return response.data;
   },
   
@@ -45,53 +53,6 @@ export const novelService = {
   // Rate a novel (1-5 stars)
   rateNovel: async (novelSlug: string, rating: number) => {
     const response = await api.post(`/novels/${novelSlug}/rate/`, { rating });
-    return response.data;
-  },
-
-  // Get comments for a novel
-  getNovelComments: async (novelSlug: string) => {
-    const response = await api.get(`/novels/${novelSlug}/comments/`);
-    return response.data;
-  },
-  
-  // Add a comment to a novel
-  addNovelComment: async (novelSlug: string, commentData: { 
-    author_name: string; 
-    message: string; 
-    contains_spoiler: boolean;
-    parent_id?: string; // Optional parent ID for replies
-  }) => {
-    const response = await api.post(
-      `/novels/${novelSlug}/comments/add/`,
-      commentData
-    );
-    return response.data;
-  },
-  
-  // Get comments for a chapter
-  getChapterComments: async (novelSlug: string, sourceSlug: string, chapterNumber: number) => {
-    const response = await api.get(
-      `/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/comments/`
-    );
-    return response.data;
-  },
-  
-  // Add a comment to a chapter
-  addChapterComment: async (
-    novelSlug: string,
-    sourceSlug: string,
-    chapterNumber: number,
-    commentData: { 
-      author_name: string; 
-      message: string; 
-      contains_spoiler: boolean;
-      parent_id?: string; // Optional parent ID for replies
-    }
-  ) => {
-    const response = await api.post(
-      `/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/comments/add/`,
-      commentData
-    );
     return response.data;
   },
 

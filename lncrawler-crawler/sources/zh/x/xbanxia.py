@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 # Category listings /list/<N>_<page>.html, N = 1..12 (see the site menu).
 CATEGORY_IDS = list(range(1, 13))
 MAX_PAGES_PER_CATEGORY = 20
+# Stray "&" inside CJK words; the stored HTML has it as "&amp;".
+_STRAY_AMP = re.compile(r"(?<=[一-鿿])&(?:amp;)?(?=[一-鿿])")
 
 
 class XbanxiaCrawler(Crawler):
@@ -33,6 +35,8 @@ class XbanxiaCrawler(Crawler):
     ]
 
     language = "zh"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     @staticmethod
     def _novel_id(url: str) -> str:
@@ -171,4 +175,8 @@ class XbanxiaCrawler(Crawler):
         for span in container.select("span"):
             if "半夏小說" in span.get_text():
                 span.decompose()
-        return self.cleaner.extract_contents(container)
+        # Some chapters have a stray "&" inside words ("沖&動", "壓&制").
+        return _STRAY_AMP.sub("", self.cleaner.extract_contents(container))
+
+    def _migrate_v2(self, body, chapter):
+        return _STRAY_AMP.sub("", body)

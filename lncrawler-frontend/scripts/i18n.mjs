@@ -8,6 +8,7 @@
 //   node scripts/i18n.mjs pending              print the untranslated delta
 //   node scripts/i18n.mjs apply <file.json>    write {key:{locale:value}} everywhere
 //   node scripts/i18n.mjs normalize            reorder every locale to en.json order
+//   node scripts/i18n.mjs prune                drop keys missing from en.json (after removing them there)
 //   node scripts/i18n.mjs check [--strict]     validate structure/placeholders/ICU
 //   node scripts/i18n.mjs --self-test          run built-in assertions
 //
@@ -213,6 +214,27 @@ function cmdNormalize() {
     process.stdout.write(`i18n: normalized ${changed} locale(s) to ${SOURCE}.json order\n`);
 }
 
+// Inverse of normalize: drop keys that are no longer in en.json. Empty parent
+// objects go away too, since rebuild only creates objects for kept leaves.
+function cmdPrune() {
+    const { enFlat, order, locales } = load();
+    const pruned = {};
+    for (const [code, flat] of Object.entries(locales)) {
+        const extras = Object.keys(flat).filter((key) => !(key in enFlat));
+        if (extras.length === 0) continue;
+        const kept = Object.fromEntries(Object.entries(flat).filter(([key]) => key in enFlat));
+        writeLocale(code, rebuild(kept, order));
+        pruned[code] = extras.length;
+    }
+    const total = Object.values(pruned).reduce((sum, n) => sum + n, 0);
+    if (total === 0) {
+        process.stdout.write(`i18n: nothing to prune, every locale matches ${SOURCE}.json\n`);
+        return;
+    }
+    for (const [code, count] of Object.entries(pruned)) process.stdout.write(`i18n: ${code}: removed ${count} key(s)\n`);
+    process.stdout.write(`i18n: pruned ${total} key(s) across ${Object.keys(pruned).length} locale(s)\n`);
+}
+
 function cmdCheck(args) {
     const strict = args.includes('--strict');
     const { enFlat, locales } = load();
@@ -285,6 +307,7 @@ const HELP = `Locale maintenance — see scripts/i18n.mjs header.
   apply <file> [--force]  write { "key": { "fr": "...", ... } }; fills blanks only
                           unless --force; --dry-run validates without writing
   normalize               reorder every locale to en.json's key order
+  prune                   remove keys missing from en.json from every locale
   check [--strict]        validate structure/placeholders/ICU (--strict fails on gaps)
   --self-test             run built-in assertions
 `;
@@ -298,6 +321,8 @@ function main() {
             return cmdApply(args);
         case 'normalize':
             return cmdNormalize();
+        case 'prune':
+            return cmdPrune();
         case 'check':
             if (cmdCheck(args)) process.exitCode = 1;
             return;

@@ -3,10 +3,14 @@ import logging
 import re
 from urllib.parse import quote
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+# Expand/shrink links of [EXPAND] blocks in stored bodies (the cleaner keeps them as text).
+_EXPAND_LABEL_RE = re.compile(r"\s*Click to (?:expand|shrink)\.\.\.")
 
 
 class XenForoMixin:
@@ -60,8 +64,9 @@ class XenForoMixin:
         if title:
             self.novel_title = title.get_text(" ", strip=True)
 
+        # Threads without an image get the forum logo as og:image.
         cover = soup.select_one('meta[property="og:image"]')
-        if cover:
+        if cover and "logo_icon" not in (cover.get("content") or ""):
             self.novel_cover = cover.get("content")
 
         self.novel_tags = [
@@ -69,17 +74,55 @@ class XenForoMixin:
             for a in soup.select(".tagList a")
             if a.get_text(" ", strip=True)
         ]
+        self.status = self._status(soup)
 
         first = soup.select_one("article.message")
         if first:
             self.novel_author = first.get("data-author", "")
-            body = first.select_one(".message-content .bbWrapper")
-            if body:
-                self.novel_synopsis = self.cleaner.extract_contents(body)[:4000]
+        self.novel_synopsis = self._synopsis(soup, first)
 
         self._parse_threadmarks(base)
         if not self.chapters:
             self._parse_reader(base)
+
+    def _synopsis(self, soup, first):
+        # The first post is the blurb, cut at the first rule. A first post with
+        # no rule is the first chapter itself: the threadmark index header then
+        # carries the blurb.
+        blurb = None
+        body = first.select_one(".message-content .bbWrapper") if first else None
+        rule = body.find("hr", recursive=False) if body is not None else None
+        # A rule with nothing before it is not a separator: keep blurb None so
+        # the threadmark header fallback runs.
+        if rule is not None and "".join(
+            sib.get_text() if hasattr(sib, "get_text") else str(sib)
+            for sib in rule.previous_siblings
+        ).strip():
+            for node in list(rule.next_siblings):
+                node.extract()
+            rule.extract()
+            blurb = body
+        if blurb is None:
+            blurb = soup.select_one(".threadmarkListingHeader-extraInfoChild .bbWrapper")
+        if blurb is None:
+            return ""
+        html = self.cleaner.extract_contents(blurb)[:4000]
+        return re.sub(r"^(<p>)\s*Synopsis:\s*", r"\1", html, flags=re.I)
+
+    @staticmethod
+    def _status(soup):
+        for dt in soup.select("dl.pairs dt"):
+            if dt.get_text(strip=True).lower() != "status":
+                continue
+            dd = dt.find_next_sibling("dd")
+            value = dd.get_text(strip=True).lower() if dd else ""
+            if value == "ongoing":
+                return NovelStatus.ongoing
+            if value in ("complete", "completed"):
+                return NovelStatus.completed
+            if value == "hiatus":
+                return NovelStatus.hiatus
+        return NovelStatus.unknown
 
     def _parse_threadmarks(self, base):
         page = 1
@@ -148,6 +191,13 @@ class XenForoMixin:
         if node is None:
             node = soup.select_one("#post-%s" % post_id)
         contents = node.select_one(".message-content .bbWrapper") if node else None
+        if contents is not None:
+            # [EXPAND] blocks keep their text; drop the "Click to expand/shrink" links.
+            for link in contents.select(".bbCodeBlock-expandLink, .bbCodeBlock-shrinkLink"):
+                link.decompose()
+        if contents is None:
+            # Deleted or hidden post: a failed chapter, not the text "None".
+            return ""
         self.cleaner.clean_contents(contents)
         return str(contents)
 
@@ -155,6 +205,11 @@ class XenForoMixin:
 class SufficientVelocityCrawler(XenForoMixin, Crawler):
     base_url = "https://forums.sufficientvelocity.com/"
     language = "en"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self):
         self.set_header("Accept-Language", "en-US,en;q=0.9")
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.sub_text(body, _EXPAND_LABEL_RE, "")

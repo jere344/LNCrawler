@@ -5,11 +5,16 @@ from typing import List
 from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 API_URL = "https://api.skynovels.net/api"
+
+_STATUS_MAP = {
+    "active": NovelStatus.ongoing,
+    "finished": NovelStatus.completed,
+}
 
 
 class SkyNovelsCrawler(Crawler):
@@ -19,6 +24,7 @@ class SkyNovelsCrawler(Crawler):
     ]
 
     language = "es"
+    version = 2
 
     def search_novel(self, query: str) -> List[SearchResult]:
         data = self.get_json(f"{API_URL}/novels?q={quote(query)}&page=1&limit=10")
@@ -83,6 +89,20 @@ class SkyNovelsCrawler(Crawler):
         ]
         logger.info("Novel genres: %s", self.genres)
 
+        # The meta description is cut at "…"; the page holds the full blurb.
+        synopsis = soup.select_one(".nvl-synopsis-body")
+        if synopsis:
+            for md in synopsis.select("markdown"):
+                md.unwrap()
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
+
+        self.status = _STATUS_MAP.get(
+            (novel.get("nvl_status") or "").strip().lower(), NovelStatus.unknown
+        )
+        self.translators = [
+            t.strip() for t in (novel.get("nvl_translator") or "").split(",") if t.strip()
+        ]
+
         self.novel_author = novel.get("nvl_writer") or ""
         logger.info("Novel author: %s", self.novel_author)
 
@@ -92,12 +112,16 @@ class SkyNovelsCrawler(Crawler):
             )
         logger.info("Novel cover: %s", self.novel_cover)
 
+        # Titles start with the novel's acronym ("SS - Capítulo 1"); a few have "?" for "í".
+        acronym = (novel.get("nvl_acronym") or "").strip()
         for item in novel.get("chapters") or []:
+            title = item.get("chp_index_title") or f"Chapter {item['chp_number']}"
+            if acronym and title.startswith(f"{acronym} - "):
+                title = title[len(acronym) + 3 :]
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
-                    title=item.get("chp_index_title")
-                    or f"Chapter {item['chp_number']}",
+                    title=title.replace("Cap?tulo", "Capítulo"),
                     url=f"{API_URL}/chapters/{item['id']}",
                 )
             )
@@ -105,5 +129,12 @@ class SkyNovelsCrawler(Crawler):
     def download_chapter_body(self, chapter: Chapter) -> str:
         data = self.get_json(chapter.url)
         content = (data.get("chapter") or {}).get("chp_content") or ""
-        soup = self.make_soup(content)
-        return self.cleaner.extract_contents(soup)
+        if "<" not in content:
+            # Paragraphs are bare newlines, which the cleaner would join into one line.
+            content = "".join(
+                f"<p>{line}</p>" for line in re.split(r"\r?\n", content) if line.strip()
+            )
+        # Pass the <div>, not the whole document: extracting the document wraps
+        # every paragraph in stray <html><body> tags.
+        body = self.make_soup(f"<div>{content}</div>").select_one("div")
+        return self.cleaner.extract_contents(body)

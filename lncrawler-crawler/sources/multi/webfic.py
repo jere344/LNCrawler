@@ -4,7 +4,7 @@ import json
 import re
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,16 @@ class Webfic(Crawler):
             # the only one that has so far had an error, ever.
             pass
         self.novel_synopsis = metadata['props']['pageProps']['bookInfo']['introduction']
-        self.novel_author = metadata['props']['pageProps']['bookInfo']['author']
+        # "author" is empty on most books; the pen name is in "pseudonym"
+        self.novel_author = (
+            metadata['props']['pageProps']['bookInfo']['author']
+            or metadata['props']['pageProps']['bookInfo'].get('pseudonym')
+            or ''
+        )
+        self.status = {
+            "COMPLETE": NovelStatus.completed,
+            "ONGOING": NovelStatus.ongoing,
+        }.get(metadata['props']['pageProps']['bookInfo'].get('writeStatus'), NovelStatus.unknown)
         # available_langs = metadata['props']['pageProps']['languages']
         # true_chapter_count = metadata['props']['pageProps']['bookInfo']['chapterCount']
 

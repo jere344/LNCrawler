@@ -109,7 +109,7 @@ class SerializerProfileTests(TestCase):
         base_comment = [
             "id", "author_name", "message", "contains_spoiler", "created_at",
             "upvotes", "downvotes", "vote_score", "user", "replies",
-            "has_replies", "user_vote",
+            "user_vote",
         ]
         cases = {
             ChapterSerializer: {
@@ -123,6 +123,7 @@ class SerializerProfileTests(TestCase):
                     "prev_chapter", "next_chapter", "prev_chapter_id",
                     "next_chapter_id", "images_path",
                     "source_overview_image_url", "audio_url", "audio_duration_s",
+                    "comment_count", "top_comment",
                 ],
                 "unavailable": [
                     "chapter_id", "title", "novel_title", "prev_chapter",

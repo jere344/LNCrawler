@@ -1,71 +1,39 @@
 import { useSwipeable } from 'react-swipeable';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
-import { ReaderSettings as IReaderSettings } from '../ReaderSettings';
+import type { SwipeGesture } from '../readerSettingsSchema';
+
+interface ReaderGesturesOptions {
+  chapter: IChapterContent | null;
+  // Swipes are ignored while a settings page covers the text
+  disabled: boolean;
+  swipeLeftGesture: SwipeGesture;
+  swipeRightGesture: SwipeGesture;
+  onNextChapter: () => void;
+  onPrevChapter: () => void;
+}
 
 export function useReaderGestures({
   chapter,
-  isMobile,
-  controlsVisible,
-  readerSettings,
+  disabled,
+  swipeLeftGesture,
+  swipeRightGesture,
   onNextChapter,
   onPrevChapter,
-}: {
-  chapter: IChapterContent | null;
-  isMobile: boolean;
-  controlsVisible: boolean;
-  readerSettings: IReaderSettings;
-  onNextChapter: () => void;
-  onPrevChapter: () => void;
-}) {
-  // Handle swipe gestures
-  const handleSwipeLeft = () => {
-    const gesture = readerSettings.swipeLeftGesture;
-    switch (gesture) {
-      case 'nextChapter':
-        if (chapter?.next_chapter) {
-          onNextChapter();
-        }
-        break;
-      case 'prevChapter':
-        onPrevChapter();
-        break;
-      case 'none':
-      default:
-        // Do nothing
-        break;
-    }
+}: ReaderGesturesOptions) {
+  // One mapping for both directions: the gesture setting names the action
+  const runGesture = (gesture: SwipeGesture) => {
+    if (gesture === 'nextChapter') onNextChapter();
+    else if (gesture === 'prevChapter') onPrevChapter();
   };
 
-  const handleSwipeRight = () => {
-    const gesture = readerSettings.swipeRightGesture;
-    switch (gesture) {
-      case 'prevChapter':
-        onPrevChapter();
-        break;
-      case 'nextChapter':
-        onNextChapter();
-        break;
-      case 'none':
-      default:
-        // Do nothing
-        break;
-    }
-  };
-
-  // Handle swipe gestures - simplified for non-page mode
-  const handleGesture = (direction: 'left' | 'right') => {
-    if (!isMobile || !chapter || controlsVisible) return;
-    if (direction === 'left') {
-      handleSwipeLeft();
-    } else {
-      handleSwipeRight();
-    }
-  };
-  
-  // Configure swipe handlers
+  // trackMouse stays off, so only touch swipes count
   const swipeHandlers = useSwipeable({
-    onSwipedLeft: () => handleGesture('left'),
-    onSwipedRight: () => handleGesture('right'),
+    onSwipedLeft: () => {
+      if (chapter && !disabled) runGesture(swipeLeftGesture);
+    },
+    onSwipedRight: () => {
+      if (chapter && !disabled) runGesture(swipeRightGesture);
+    },
     trackMouse: false,
     preventScrollOnSwipe: false,
     // Only detect wider/more intentional swipes to prevent accidental activation

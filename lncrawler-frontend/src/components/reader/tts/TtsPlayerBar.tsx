@@ -35,6 +35,8 @@ interface TtsPlayerBarProps {
   onRateChange: (rate: number) => void;
   onOpenSettings: () => void;
   chapterTitle: string;
+  // Width in px kept clear at the start edge by the chapter list, so the bar sits beside it
+  reservedStart: number;
 }
 
 const SLEEP_MINUTES = [10, 15, 30, 45, 60, 90];
@@ -47,6 +49,7 @@ const TtsPlayerBar: React.FC<TtsPlayerBarProps> = ({
   onRateChange,
   onOpenSettings,
   chapterTitle,
+  reservedStart,
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -231,10 +234,12 @@ const TtsPlayerBar: React.FC<TtsPlayerBarProps> = ({
               pb: 'env(safe-area-inset-bottom)',
             }
           : {
-              left: '50%',
+              // Centred in the space right of the chapter list, using logical insets so it mirrors in RTL
+              insetInlineStart: reservedStart,
+              insetInlineEnd: 0,
+              marginInline: 'auto',
               bottom: 16,
-              transform: 'translateX(-50%)',
-              width: 'min(640px, calc(100% - 32px))',
+              width: `min(640px, calc(100% - ${reservedStart + 32}px))`,
               borderRadius: 3,
             }),
       }}

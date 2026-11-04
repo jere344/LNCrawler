@@ -16,7 +16,7 @@ from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,8 @@ NOVEL_ID_RE = re.compile(r"novelid=(\d+)")
 
 
 class JjwxcCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most chapters are VIP-only; about 85 percent locked on sampled novels"
     base_url = "https://www.jjwxc.net"
     language = "zh"
     has_mtl = False
@@ -112,6 +114,11 @@ class JjwxcCrawler(Crawler):
             tags.append(genre.get_text(" ", strip=True))
         for li in soup.select("ul.rightul li"):
             label, sep, rest = li.get_text(" ", strip=True).partition("：")
+            if sep and label.strip() == "文章进度":
+                if "完结" in rest:
+                    self.status = NovelStatus.completed
+                elif "连载" in rest:
+                    self.status = NovelStatus.ongoing
             if not sep or label.strip() not in TAG_LABELS:
                 continue
             # Values are either links/spans or the plain text after the label.
@@ -120,6 +127,19 @@ class JjwxcCrawler(Crawler):
             for value in values:
                 if value and value not in tags:
                     tags.append(value)
+        # Content tags (bookbase links) and theme (立意) sit in a block of their own.
+        content_label = soup.find("span", string=re.compile("内容标签"))
+        block = content_label.find_parent("div") if content_label else None
+        if block is not None:
+            for a in block.select('a[href*="bookbase.php?bq="]'):
+                value = a.get_text(" ", strip=True)
+                if value and value not in tags:
+                    tags.append(value)
+        theme = soup.find("span", string=re.compile("立意："))
+        if theme:
+            value = theme.get_text(strip=True).partition("：")[2].strip()
+            if value and value not in tags:
+                tags.append(value)
         self.novel_tags = tags
 
         seen = set()

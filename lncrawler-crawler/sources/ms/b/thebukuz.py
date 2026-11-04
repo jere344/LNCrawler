@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 _CHAPTER_RE = re.compile(r"-bab-(\d+)/?$")
 _VOLUME_RE = re.compile(r"Jil\.?\s*(\d+)", re.IGNORECASE)
+# "Jil. 1 Bab 4 <title> October 11, 2026" -> "<title>"
+_LABEL_PREFIX_RE = re.compile(r"^(?:Jil\.?\s*\d+\s+)?(?:Bab\s+\d+\s*)?", re.IGNORECASE)
+_DATE_SUFFIX_RE = re.compile(
+    r"\s+(?:January|February|March|April|May|June|July|August|September|October"
+    r"|November|December)\s+\d{1,2},\s+\d{4}$"
+)
 
 _STATUS = {
     "aktif": NovelStatus.ongoing,
@@ -140,6 +146,8 @@ class TheBukuzCrawler(Crawler):
         entries.sort(key=lambda item: item[0])
         for number, url, anchor in entries:
             label = anchor.get_text(" ", strip=True)
+            title = _DATE_SUFFIX_RE.sub("", label)
+            title = _LABEL_PREFIX_RE.sub("", title).strip()
             vol_match = _VOLUME_RE.search(label)
             vol_id = int(vol_match.group(1)) if vol_match else 1
             if vol_id not in volumes:
@@ -148,7 +156,7 @@ class TheBukuzCrawler(Crawler):
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
-                    title=label or f"Bab {number}",
+                    title=title,
                     url=url,
                     volume=volume.id,
                     volume_title=volume.title,

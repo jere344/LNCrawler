@@ -175,6 +175,7 @@ class VtruyenCrawler(Crawler):
 
     def _read_chapter_list(self, work_id: int, edition_id: int) -> None:
         self.volumes.append(Volume(id=1, title="Volume 1"))
+        locked = 0
         page = 1
         while True:
             data = self._api(
@@ -190,6 +191,7 @@ class VtruyenCrawler(Crawler):
                 # Only free/readable chapters: drop premium chapters that have
                 # not been unlocked.
                 if item.get("is_premium") and not item.get("is_unlocked"):
+                    locked += 1
                     continue
                 number = int(item.get("chapter_number") or len(self.chapters) + 1)
                 self.chapters.append(
@@ -209,7 +211,12 @@ class VtruyenCrawler(Crawler):
                 break
             page += 1
 
-        logger.info("Found %d chapters for %s", len(self.chapters), self.novel_title)
+        logger.info(
+            "Found %d chapters for %s (%d locked skipped)",
+            len(self.chapters),
+            self.novel_title,
+            locked,
+        )
 
     # -- chapter body -------------------------------------------------- #
 
@@ -238,4 +245,4 @@ class VtruyenCrawler(Crawler):
         html = data.get("content_html") or ""
         if not html:
             return ""
-        return self.cleaner.extract_contents(self.make_soup(html))
+        return self.cleaner.extract_contents(self.make_soup(html).body)

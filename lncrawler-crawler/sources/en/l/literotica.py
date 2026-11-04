@@ -114,11 +114,20 @@ class LiteroticaCrawler(Crawler):
 
             self.chapters.append(dict(id=1, title=self.novel_title, url=self.novel_url))
 
-        self.novel_tags = [
+        # The category in the breadcrumb ("First Time", "Taboo/Incest") is the
+        # story's genre; it is not among the tag links.
+        categories = [
+            a.get_text(" ", strip=True)
+            for li in soup.select('li[itemtype*="ListItem"]')
+            for a in li.select('a[href^="/c/"]')
+            if a.get_text(" ", strip=True)
+        ]
+        tags = [
             a.get_text(" ", strip=True)
             for a in soup.select('[class*="_tag_link_"]')
             if a.get_text(" ", strip=True)
         ]
+        self.novel_tags = list(dict.fromkeys(categories + tags))
 
     def download_chapter_body(self, chapter: Chapter) -> str:
         url = chapter["url"].split("?")[0]

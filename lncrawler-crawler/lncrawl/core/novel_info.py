@@ -9,22 +9,102 @@ from .crawler import Crawler
 from .exeptions import LNException
 
 
+# Volume/part numbers such as II or XIV; L/C/D/M are left out so words like MIX or DID are not kept upper.
+ROMAN_NUMERAL_RE = re.compile(r"[IVX]+")
+# Initials such as "J.K." stay upper case.
+INITIALS_RE = re.compile(r"(?:[^\W\d_]\.)+[^\W\d_]?")
+TITLE_QUOTES = "'\"‘’“”"
+# An apostrophe inside a word ("don't") or opening a contraction ("'tis") keeps the next letter lower.
+TITLE_APOSTROPHES = "'’"
+# Single-case titles get a capital after these too, e.g. "RE:ZERO" -> "Re:Zero".
+TITLE_SEGMENT_RE = re.compile(r"(?<=[ :\-/(])")
+TITLE_EDGE_PUNCT = "()[]{}.,:;!?-–—" + TITLE_QUOTES
+
+# Site boilerplate that meta descriptions use in place of a real synopsis. The
+# read-online and free-online phrases only count at the start: real blurbs use them too.
+SYNOPSIS_BOILERPLATE_RE = re.compile(
+    r"^\s*read\b.{0,80}\b(online|for free)|^\s*(free online|latest chapters?)"
+    r"|novel online|light novel online|在线阅读|免费阅读|最新章节|全文阅读|無料で読める",
+    re.IGNORECASE,
+)
+# Longer texts are real blurbs that may mention these phrases in passing.
+BOILERPLATE_MAX_LENGTH = 300
+MIN_SYNOPSIS_LENGTH = 40
+# Mostly-CJK text carries more meaning per character, so a shorter blurb still counts.
+MIN_CJK_SYNOPSIS_LENGTH = 15
+CJK_CHAR_RE = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]")
+
+
+def __title_segment(segment: str) -> str:
+    core = segment.strip(TITLE_EDGE_PUNCT)
+    if ROMAN_NUMERAL_RE.fullmatch(core):
+        return segment
+    if INITIALS_RE.fullmatch(segment.strip("()[]{},:;!?-–—" + TITLE_QUOTES)):
+        return segment.upper()
+    lower = segment.lower()
+    for index, ch in enumerate(lower):
+        # An ordinal or a number-led word ("2nd", "4th") takes no capital.
+        if ch.isdigit():
+            break
+        if ch.isalpha():
+            # Letter after an apostrophe inside a word, or after a leading "'" ("'tis").
+            if index and lower[index - 1] in TITLE_APOSTROPHES and (index == 1 or lower[index - 2].isalpha()):
+                break
+            return lower[:index] + ch.upper() + lower[index + 1 :]
+    return lower
+
+
+def __title_word(word: str) -> str:
+    return "".join(__title_segment(seg) for seg in TITLE_SEGMENT_RE.split(word) if seg)
+
+
 def __format_title(text) -> str:
-    return re.sub(r"\s+", " ", str(text or "")).strip().title()
+    text = re.sub(r"\s+", " ", str(text or "")).strip()
+    has_upper = any(ch.isupper() for ch in text)
+    has_lower = any(ch.islower() for ch in text)
+    # Mixed case is deliberate (e.g. "CosmicChaos", "Don't"): keep it as written.
+    # Only single-case text, or text with no cased letters at all, is re-cased.
+    if has_upper == has_lower:
+        return text
+    return " ".join(__title_word(word) for word in text.split(" "))
+
+
+def __normalise_text(text: str) -> str:
+    return re.sub(r"\W", "", text.lower())
+
+
+def __min_synopsis_length(text: str) -> int:
+    letters = [ch for ch in text if ch.isalpha()]
+    cjk = sum(1 for ch in letters if CJK_CHAR_RE.match(ch))
+    return MIN_CJK_SYNOPSIS_LENGTH if cjk * 2 > len(letters) else MIN_SYNOPSIS_LENGTH
+
+
+def __is_junk_synopsis(text: str, title: str) -> bool:
+    """True when a meta description is the title, site boilerplate or too short."""
+    if len(text) < __min_synopsis_length(text):
+        return True
+    norm = __normalise_text(text)
+    if not norm or norm in title or (title and title in norm and len(title) >= 0.8 * len(norm)):
+        return True
+    return len(text) < BOILERPLATE_MAX_LENGTH and bool(SYNOPSIS_BOILERPLATE_RE.search(text))
 
 
 def __synopsis_fallback(crawler: Crawler) -> str:
     soup = getattr(crawler, "last_soup", None)
     if soup is None:
         return ""
+    title = __normalise_text(str(crawler.novel_title or ""))
     for selector in (
         'meta[property="og:description"]',
         'meta[name="description"]',
         'meta[property="twitter:description"]',
     ):
         tag = soup.select_one(selector)
-        if tag and tag.get("content"):
-            return tag["content"].strip()
+        if not (tag and tag.get("content")):
+            continue
+        text = tag["content"].strip()
+        if not __is_junk_synopsis(text, title):
+            return text
     return ""
 
 

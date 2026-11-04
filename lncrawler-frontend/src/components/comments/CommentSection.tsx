@@ -1,95 +1,87 @@
-import { Box, Typography, Divider, CircularProgress } from '@mui/material';
-import CommentForm from './CommentForm';
-import CommentList from './CommentList';
-import { novelService } from '../../services/api';
-import { useTranslation } from 'react-i18next';
-import { Comment, CommentFormData } from '@models/comments_types';
-import { useAsync } from '@utils/useAsync';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Divider, Typography, useMediaQuery, useTheme } from '@mui/material';
+import type { Comment, CommentFormData, CommentOrdering } from '@models/comments_types';
+import CommentThreads, { type CommentThreadsHandle } from './CommentThreads';
+import CommentComposer from './CommentComposer';
+import { useComments } from './useComments';
+import { useReplyTarget } from './useReplyTarget';
+import type { CommentTarget } from './commentsCache';
 
 interface CommentSectionProps {
-  novelSlug?: string;
-  chapterData?: {
-    novelSlug: string;
-    sourceSlug: string;
-    chapterNumber: number;
-  };
+  novelSlug: string;
   title: string;
 }
 
-const CommentSection = ({ novelSlug, chapterData, title }: CommentSectionProps) => {
-  const { t } = useTranslation();
-  const isChapterComments = !!chapterData;
+// The comments of a novel, under its page: the page scrolls, and a thread opens in place
+const CommentSection = ({ novelSlug, title }: CommentSectionProps) => {
+  const theme = useTheme();
+  // Replies nest deeper on wider screens before a thread opens of its own
+  const wide = useMediaQuery(theme.breakpoints.up('sm'), { noSsr: true });
+  const target = useMemo<CommentTarget>(() => ({ kind: 'novel', novelSlug }), [novelSlug]);
+  const [ordering, setOrdering] = useState<CommentOrdering>('top');
+  const comments = useComments(target, ordering);
+  // The thread levels open, the last one on screen: kept here, as the page has no history of them
+  const [threads, setThreads] = useState<string[]>([]);
+  const [composing, setComposing] = useState(false);
+  const { replyTo, setReplyTo } = useReplyTarget(composing);
+  const threadsRef = useRef<CommentThreadsHandle>(null);
 
-  const { data, loading, error, setData: setComments } = useAsync<Comment[]>(async () => {
-    if (isChapterComments && chapterData) {
-      return novelService.getChapterComments(
-        chapterData.novelSlug,
-        chapterData.sourceSlug,
-        chapterData.chapterNumber
-      );
-    }
-    if (novelSlug) {
-      return novelService.getNovelComments(novelSlug);
-    }
-    throw new Error('Either novelSlug or chapterData must be provided');
-  }, [novelSlug, chapterData, isChapterComments]);
-  const comments = data ?? [];
-  
-  const handleAddComment = async (commentData: CommentFormData) => {
-    try {
-      if (isChapterComments && chapterData) {
-        await novelService.addChapterComment(
-          chapterData.novelSlug,
-          chapterData.sourceSlug,
-          chapterData.chapterNumber,
-          commentData
-        );
-        // Refetch all comments to ensure consistency
-        const updatedComments = await novelService.getChapterComments(
-          chapterData.novelSlug,
-          chapterData.sourceSlug,
-          chapterData.chapterNumber
-        );
-        setComments(updatedComments);
-      } else if (novelSlug) {
-        await novelService.addNovelComment(novelSlug, commentData);
-        // Refetch all comments to ensure consistency
-        const updatedComments = await novelService.getNovelComments(novelSlug);
-        setComments(updatedComments);
-      } else {
-        throw new Error('Either novelSlug or chapterData must be provided');
-      }
-    } catch (err) {
-      console.error('Failed to add comment:', err);
-      throw err; // Re-throw the error so the CommentForm can handle it
-    }
+  // Another novel starts with nothing open
+  useEffect(() => {
+    setThreads([]);
+    setComposing(false);
+  }, [novelSlug]);
+
+  // Reply opens the composer, with the comment named above the field
+  const handleReply = (comment: Comment) => {
+    setReplyTo(comment);
+    setComposing(true);
   };
+
+  // Posts the comment. A reply the thread view would not show opens its parent as a thread of its own.
+  const handleSubmit = async (data: CommentFormData) => {
+    const created = await comments.post(data);
+    const thenThread = threadsRef.current?.reveal(created, data.parent_id ?? null) ?? null;
+    setComposing(false);
+    if (thenThread) setThreads((previous) => [...previous, thenThread]);
+  };
+
+  const pushThread = (id: string) => setThreads((previous) => [...previous, id]);
+  const popThread = () => setThreads((previous) => previous.slice(0, -1));
 
   return (
     <Box sx={{ mt: 4, mb: 6 }}>
       <Typography variant="h5" gutterBottom>
         {title}
       </Typography>
-      
+
       <Divider sx={{ mb: 3 }} />
-      
-      <CommentForm onSubmit={handleAddComment} />
-      
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : error ? (
-        <Typography color="error" sx={{ my: 2 }}>
-          {t('comments.loadFailed')}
-        </Typography>
-      ) : (
-        <CommentList 
-          comments={comments}
-          onAddReply={handleAddComment}
-          currentSource={chapterData?.sourceSlug}
+
+      <Box sx={{ mb: 2 }}>
+        <CommentComposer
+          target={target}
+          open={composing}
+          replyTo={replyTo}
+          onOpen={() => setComposing(true)}
+          onCancelReply={() => setReplyTo(null)}
+          onClose={() => setComposing(false)}
+          onSubmit={handleSubmit}
         />
-      )}
+      </Box>
+
+      <CommentThreads
+        ref={threadsRef}
+        target={target}
+        comments={comments}
+        ordering={ordering}
+        onOrderingChange={setOrdering}
+        threads={threads}
+        onPushThread={pushThread}
+        onPopThread={popThread}
+        maxDepth={wide ? 5 : 3}
+        showChapterLabel
+        onReply={handleReply}
+      />
     </Box>
   );
 };

@@ -94,7 +94,10 @@ class LnoriCrawler(Crawler):
         logger.info("Novel title: %s", self.novel_title)
         self.novel_author = self._author_name(data.get("author"))
         self.novel_synopsis = data.get("description") or ""
-        self.novel_cover = data.get("image") or None
+        # JSON-LD "image" is a 1200x630 social card with the title and tags
+        # printed over it; the page shows the plain book cover.
+        cover = soup.select_one("figure.cover-wrap img")
+        self.novel_cover = self.image_url(cover) if cover else None
 
         genres = data.get("genre")
         if genres:

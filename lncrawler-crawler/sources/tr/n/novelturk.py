@@ -42,6 +42,8 @@ def _unique(values: List[str]) -> List[str]:
 
 
 class NovelTurkCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Chapter bodies require a Cloudflare Turnstile token on every request"
     base_url = [
         "https://novelturk.com/",
         "https://www.novelturk.com/",
@@ -131,11 +133,12 @@ class NovelTurkCrawler(Crawler):
                 t.strip() for t in alt.get_text(strip=True).split(",") if t.strip()
             ]
 
-        self.genres = [
-            a.get_text(strip=True)
-            for a in soup.select(".novel-genre-tags a.genre-tag")
-            if a.get_text(strip=True)
-        ]
+        self.genres = []
+        for a in soup.select(".novel-genre-tags a.genre-tag"):
+            text = a.get_text(strip=True)
+            # "+16" in the genre row is the age rating, not a genre
+            if text and not re.fullmatch(r"\+\d+", text):
+                self.genres.append(text)
 
         status = soup.select_one("a.nt-badge[data-status]")
         if isinstance(status, Tag):
@@ -143,17 +146,17 @@ class NovelTurkCrawler(Crawler):
                 (status.get("data-status") or "").strip().lower(), NovelStatus.unknown
             )
 
-        extra = []
-        for attr in ("data-type", "data-country"):
-            badge = soup.select_one(f"a.nt-badge[{attr}]")
-            if isinstance(badge, Tag) and badge.get_text(strip=True):
-                extra.append(badge.get_text(strip=True))
+        # Type badge ("Web Novel") is the edition; the country badge is neither a tag
+        kind = soup.select_one("a.nt-badge[data-type]")
+        if isinstance(kind, Tag):
+            label = kind.get_text(strip=True)
+            if label.lower() in ("web novel", "light novel"):
+                self.novel_edition = label
         tags = [
             a.get_text(strip=True).lstrip("#")
             for a in soup.select("#novel-etiket a")
             if a.get_text(strip=True)
         ]
-        self.tags = extra
         self.novel_tags = self.genres + tags
 
         self._read_reader_config(soup)

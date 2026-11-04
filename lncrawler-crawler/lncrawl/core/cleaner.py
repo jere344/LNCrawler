@@ -2,7 +2,16 @@ import re
 import unicodedata
 from typing import Dict, List, Optional, Set, Union
 
-from bs4 import Comment, Tag
+from bs4 import BeautifulSoup, Comment, Tag
+
+# Control characters that separate words in the source, so they become a space.
+_WHITESPACE_CONTROL = "\t\n\r\x0b\x0c"
+# A run of whitespace, collapsed to one space when it holds a line break. Matching whole
+# runs (no leading-space prefix) keeps long space runs linear instead of quadratic.
+_LINE_BREAK_RUN = re.compile(r"[ \t\n\r\x0b\x0c]+")
+# Chinese/Japanese characters and punctuation: a line break between two of them is
+# a hard wrap inside a word run, so it is dropped instead of becoming a space.
+_CJK_CHAR = re.compile(r"[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef]")
 
 
 class TextCleaner:
@@ -37,6 +46,8 @@ class TextCleaner:
             "article", "aside", "div", "h1", "h2", "h3", "h4", "h5", "h6",
             "main", "p", "section",
         }
+        # Wrappers of a whole document: their children are content, not a tag to keep.
+        self.container_tags: Set[str] = {"body", "html"}
         self.unchanged_tags: Set[str] = {"canvas", "img", "pre"}
         self.plain_text_tags: Set[str] = {"a", "abbr", "acronym", "label", "span", "time"}
         self.substitutions: Dict[str, str] = {
@@ -63,11 +74,35 @@ class TextCleaner:
 
     @staticmethod
     def _strip_nonprintable(text: str) -> str:
-        return "".join(
-            ch for ch in text if unicodedata.category(ch) not in ("Cf", "Cc")
+        kept = "".join(
+            ch for ch in text
+            if ch in _WHITESPACE_CONTROL or unicodedata.category(ch) not in ("Cf", "Cc")
         )
+        def join(m: "re.Match") -> str:
+            if not any(ch in _WHITESPACE_CONTROL for ch in m.group(0)):
+                return m.group(0)
+            before = kept[m.start() - 1] if m.start() else ""
+            after = kept[m.end()] if m.end() < len(kept) else ""
+            if _CJK_CHAR.match(before) and _CJK_CHAR.match(after):
+                return ""
+            return " "
+
+        return _LINE_BREAK_RUN.sub(join, kept)
+
+    def _content_root(self, tag):
+        """Unwrap a parsed document or <html> to its <body>.
+
+        Otherwise every paragraph comes out wrapped in <html><body> tags. The
+        <head> is left in the caller's tree; extract_paragraphs skips it.
+        """
+        if isinstance(tag, BeautifulSoup) or (isinstance(tag, Tag) and tag.name == "html"):
+            body = tag.find("body")
+            if body is not None:
+                return body
+        return tag
 
     def extract_contents(self, tag) -> str:
+        tag = self._content_root(tag)
         self.clean_contents(tag)
         body = self.extract_paragraphs(tag)
         paragraphs = " ".join(body).split(self.line_separator)
@@ -185,6 +220,7 @@ class TextCleaner:
     def extract_paragraphs(self, tag) -> list:
         if not isinstance(tag, Tag):
             return []
+        tag = self._content_root(tag)
 
         body = []
         for elem in tag.contents:
@@ -196,11 +232,13 @@ class TextCleaner:
             if elem.name in self.unchanged_tags:
                 body.append(str(elem))
                 continue
+            if elem.name == "head":
+                continue
             if elem.name in ("hr", "br"):
                 body.append(self.line_separator)
                 continue
 
-            is_block = elem.name in self.p_block_tags
+            is_block = elem.name in self.p_block_tags or elem.name in self.container_tags
             is_plain = elem.name in self.plain_text_tags
             content = " ".join(self.extract_paragraphs(elem))
 

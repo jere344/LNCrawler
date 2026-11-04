@@ -2,6 +2,36 @@ import uuid
 from django.db import models
 from django.conf import settings
 
+
+class CommentQuerySet(models.QuerySet):
+    """Comment lookups shared by the thread views and the chapter summary."""
+
+    def for_novel(self, novel):
+        """Comments on the novel itself and on any of its chapters, whatever the source."""
+        return self.filter(
+            models.Q(novel=novel) | models.Q(chapter__novel_from_source__novel=novel)
+        )
+
+    def for_chapter_number(self, novel_id, chapter_number):
+        """Comments on this chapter number of the novel, across all of its sources."""
+        return self.filter(
+            chapter__novel_from_source__novel_id=novel_id,
+            chapter__chapter_id=chapter_number,
+        )
+
+    def roots(self):
+        """Top-level comments only (no parent)."""
+        return self.filter(parent=None)
+
+    def ranked(self, ordering):
+        """``'top'`` ranks by vote score (newest first on ties); anything else is newest first."""
+        if ordering == 'top':
+            return self.annotate(
+                score=models.F('upvotes') - models.F('downvotes')
+            ).order_by('-score', '-created_at', '-id')
+        return self.order_by('-created_at', '-id')
+
+
 class Comment(models.Model):
     """
     Represents a comment on a novel or chapter
@@ -29,7 +59,9 @@ class Comment(models.Model):
     
     upvotes = models.IntegerField(default=0)
     downvotes = models.IntegerField(default=0)
-    
+
+    objects = CommentQuerySet.as_manager()
+
     class Meta:
         ordering = ['-created_at']
     

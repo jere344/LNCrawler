@@ -4,15 +4,42 @@ import re
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import SearchResult
+from lncrawl.core import body_migrations
+from lncrawl.models import NovelStatus, SearchResult
 from lncrawl.templates.madara import MadaraTemplate
 
 logger = logging.getLogger(__name__)
 search_url = "https://wondernovels.com/?s=%s&post_type=wp-manga"
 
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "complete": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+    "dropped": NovelStatus.hiatus,
+    "canceled": NovelStatus.hiatus,
+    "cancelled": NovelStatus.hiatus,
+}
+
+# Inline watermark "#please...wondernovels.com", plain or Cloudflare-obfuscated
+WATERMARK_RE = re.compile(
+    r"#\s*(?:please[\w.-]*?wondernovels?\.com|<a [^>]*email-protection[^>]*>.*?</a>)",
+    re.I,
+)
+
+
+def _is_junk(p: Tag) -> bool:
+    """Empty paragraph, or the aggregator block linking to the Patreon."""
+    text = p.get_text(" ", strip=True)
+    if not text and not p.find("img"):
+        return True
+    return bool(re.match(r"[\s>]*more chapters:", text, re.I) and "patreon" in text.lower())
+
 
 class WonderNovels(MadaraTemplate):
     base_url = "https://wondernovels.com/"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def search_novel(self, query):
         query = query.lower().replace(" ", "+")
@@ -71,7 +98,7 @@ class WonderNovels(MadaraTemplate):
             for a in soup.select('.author-content a[href*="translator"]')
         ]
         if names:
-            yield " ".join(names)
+            yield ", ".join(names)
             return
         author = soup.select_one('.post-content_item h5:-soup-contains("Author")')
         if author:
@@ -102,13 +129,16 @@ class WonderNovels(MadaraTemplate):
             content = node.select_one(".summary-content")
             if not heading or not content:
                 continue
-            if "alternative" in heading.get_text(strip=True).lower():
+            label = heading.get_text(strip=True).lower()
+            if "alternative" in label:
                 self.alternative_titles = [
                     part.strip()
                     for part in re.split(r"\n|,", content.get_text(" ", strip=True))
                     if part.strip()
                 ]
-                break
+            elif label == "status":
+                status = content.get_text(strip=True).lower()
+                self.status = _STATUSES.get(status, NovelStatus.unknown)
 
     def parse_summary(self, soup: BeautifulSoup):
         tag = soup.select_one(".summary__content")
@@ -118,5 +148,9 @@ class WonderNovels(MadaraTemplate):
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
-        contents = soup.select(".reading-content p")
-        return "".join([str(p) for p in contents])
+        paragraphs = [str(p) for p in soup.select(".reading-content p") if not _is_junk(p)]
+        return WATERMARK_RE.sub("", "".join(paragraphs))
+
+    def _migrate_v2(self, body, chapter):
+        body = body_migrations.drop_blocks(body, lambda _, p: _is_junk(p))
+        return WATERMARK_RE.sub("", body)

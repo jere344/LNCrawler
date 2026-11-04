@@ -10,6 +10,7 @@ needs auth) is required. Section/genre/status come from the post labels and
 ``.detail-item`` rows. Cloudflare-proxied, no challenge for curl_cffi.
 """
 
+import html
 import logging
 import re
 from typing import List, Tuple
@@ -26,6 +27,8 @@ logger = logging.getLogger(__name__)
 # ``jqy07iCIDoUrhonGILi4d5kHpkm2``); genre/status labels are Arabic words.
 LABEL_ID_RE = re.compile(r"^[A-Za-z0-9]{20,}$")
 GENERIC_LABELS = {"روايات عربية", "روايات أجنبية", "روايات إنجليزية", "روايات اجنبية"}
+# Post label on chapters that must be bought with coins (their body is empty).
+PAID_LABEL = "مدفوعة"
 
 STATUS_MAP = {
     "مكتملة": NovelStatus.completed,
@@ -43,6 +46,7 @@ class NovlayCrawler(Crawler):
         "https://novlay.com/",
     ]
     language = "ar"
+    version = 2
 
     # -- helpers ------------------------------------------------------- #
 
@@ -111,10 +115,16 @@ class NovlayCrawler(Crawler):
 
         chapters: List[Tuple[str, str, str]] = []
         novel_url = self.novel_url.rstrip("/")
+        paid = 0
         for entry in entries:
             content = (entry.get("content") or {}).get("$t") or ""
             # Skip the novel landing post itself (metadata, no chapter body).
             if "novel-text" not in content:
+                continue
+            if any(
+                cat.get("term") == PAID_LABEL for cat in entry.get("category") or []
+            ):
+                paid += 1
                 continue
             alt = next(
                 (l["href"] for l in entry.get("link") or [] if l.get("rel") == "alternate"),
@@ -126,6 +136,8 @@ class NovlayCrawler(Crawler):
             published = (entry.get("published") or {}).get("$t") or ""
             chapters.append((published, title, alt))
 
+        if paid:
+            logger.info("Skipped %d paid chapters", paid)
         chapters.sort(key=lambda x: x[0])
         return [(title, url) for _, title, url in chapters]
 
@@ -207,7 +219,14 @@ class NovlayCrawler(Crawler):
         )
         if not isinstance(node, Tag):
             return ""
-        return self.cleaner.extract_contents(node)
+        # The body is plain text inside <pre>: its newlines are the paragraph
+        # breaks, which the cleaner would otherwise merge into one <p>.
+        lines = [
+            html.escape(line.strip())
+            for line in node.get_text().splitlines()
+            if line.strip()
+        ]
+        return "".join(f"<p>{line}</p>" for line in lines)
 
     def search_novel(self, query: str) -> List[SearchResult]:
         url = (

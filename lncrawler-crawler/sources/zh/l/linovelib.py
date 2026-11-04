@@ -18,11 +18,12 @@ import time
 from datetime import timedelta
 from html import unescape
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from lncrawl.core.catalog_cache import cached_catalog
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, SearchResult, Volume
+from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,11 @@ except ImportError:  # pragma: no cover - depends on environment
 def _normalize(text: str) -> str:
     text = unescape(text or "").strip().lower()
     return _to_simplified(text) if _to_simplified else text
+
+
+def _image_path(url: Optional[str]) -> str:
+    """Image path without the cache-busting query string."""
+    return urlparse(url).path if url else ""
 
 
 class LinovelibCrawler(Crawler):
@@ -173,18 +179,36 @@ class LinovelibCrawler(Crawler):
             if src:
                 self.novel_cover = self.absolute_url(src)
 
-        paragraphs = [
-            p.get_text(" ", strip=True)
-            for p in soup.select(".book-dec.Jbook-dec p")
-        ]
-        self.novel_synopsis = "\n".join(p for p in paragraphs if p)
+        paragraphs = []
+        for p in soup.select(".book-dec.Jbook-dec p"):
+            text = p.get_text(" ", strip=True)
+            if text.startswith("别名："):
+                alias = text[len("别名："):].strip()
+                if alias:
+                    self.alternative_titles.append(alias)
+            elif text:
+                paragraphs.append(text)
+        self.novel_synopsis = "\n".join(paragraphs)
 
-        # Status (完结/连载) is in a.state; the other labels are wenku/genre tags.
-        self.novel_tags = [
-            a.get_text(" ", strip=True)
-            for a in soup.select(".book-label a")
-            if "state" not in (a.get("class") or []) and a.get_text(strip=True)
-        ]
+        label_box = soup.select_one(".book-label")
+        if label_box:
+            # a.state holds the status; a.label links are the publisher (/wenku/<x>/1.html)
+            # and type/adaptation labels; the genre tags are the plain links in span.
+            state = label_box.select_one("a.state")
+            state_text = state.get_text(strip=True) if state else ""
+            if "完结" in state_text:
+                self.status = NovelStatus.completed
+            elif "连载" in state_text:
+                self.status = NovelStatus.ongoing
+            publisher = label_box.select_one('a.label[href$="/1.html"]')
+            if publisher:
+                self.original_publisher = publisher.get_text(strip=True)
+            self.novel_tags = [
+                a.get_text(" ", strip=True)
+                for a in label_box.select("span a")
+                if not set(a.get("class") or []) & {"state", "label"}
+                and a.get_text(strip=True)
+            ]
 
         catalog = self.get_soup(self.absolute_url(f"/novel/{aid}/catalog"))
         seen = set()
@@ -196,9 +220,12 @@ class LinovelibCrawler(Crawler):
                 else f"Volume {len(self.volumes) + 1}"
             )
             vol_id = len(self.volumes) + 1
-            cover = vol_block.select_one("img")
+            cover_url = self.image_url(vol_block.select_one("img"))
+            # Special volumes show the series cover: that is not a volume cover.
+            if cover_url and _image_path(cover_url) == _image_path(self.novel_cover):
+                cover_url = None
             self.volumes.append(
-                Volume(id=vol_id, title=vol_title, cover_url=self.image_url(cover))
+                Volume(id=vol_id, title=vol_title, cover_url=cover_url)
             )
 
             for a in vol_block.select("ul.chapter-list li a[href]"):

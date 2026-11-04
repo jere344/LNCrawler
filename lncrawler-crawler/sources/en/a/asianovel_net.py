@@ -5,11 +5,17 @@ from urllib.parse import urlencode
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 from lncrawl.templates.soup.chapter_only import ChapterOnlySoupTemplate
 from lncrawl.templates.soup.searchable import SearchableSoupTemplate
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
 
 
 class AsiaNovelNetCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
@@ -70,6 +76,19 @@ class AsiaNovelNetCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
             if page > 200:
                 break
         return results[offset : offset + limit]
+
+    def get_novel_soup(self):
+        # Keep the novel page soup so read_novel_info can read the status from it.
+        self._novel_soup = super().get_novel_soup()
+        return self._novel_soup
+
+    def read_novel_info(self) -> None:
+        super().read_novel_info()
+        tag = self._novel_soup.select_one(".story__status")
+        if isinstance(tag, Tag):
+            self.status = _STATUSES.get(
+                tag.get_text(strip=True).lower(), NovelStatus.unknown
+            )
 
     def parse_title(self, soup: BeautifulSoup) -> str:
         tag = soup.select_one("div.story__identity h1.story__identity-title")

@@ -1,4 +1,4 @@
-import type { ReaderSettings } from './ReaderSettings';
+import type { ReaderSettings } from './readerSettingsSchema';
 import { defaultTtsPrefs } from './tts/ttsTypes';
 
 export const defaultSettings: ReaderSettings = {
@@ -25,12 +25,20 @@ export const defaultSettings: ReaderSettings = {
     keyPageUp: 'scrollUp',
     keyPageDown: 'scrollDown',
     keySpace: 'scrollDown',
+    keyC: 'toggleControls',
+    keyD: 'displaySheet',
+    keyF: 'fullscreen',
+    keyM: 'comments',
     swipeLeftGesture: 'nextChapter',
     swipeRightGesture: 'prevChapter',
     hideScrollbar: false,
     paragraphIndent: false,
     paragraphSpacing: 1,
-    centerTapToOpenSettings: true,
+    controlsTrigger: 'singleTap',
+    dimGestureSide: 'off',
+    dimGestureWidth: 15,
+    readerHeaderBehavior: 'reappear',
+    displaySheetModules: ['size', 'line', 'theme', 'font', 'dim', 'warm'],
     nightMode: false,
     nightModeStrength: 50,
     nightModeScheduleEnabled: false,

@@ -12,13 +12,40 @@ import logging
 import re
 from urllib.parse import quote
 
+from bs4 import Tag
+
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 MAX_PAGES = 200
+# Pasted "<book> <author> <N>字" or "《book》" first line.
+PASTED_HEADER_RE = re.compile(r"《[^》]+》|.+?\s{2,}.+?\s{2,}\d[\d,]*字")
+# Reward / comment buttons (whole line) and the site's mirror / ad lines (anywhere in the line).
+REWARD_RE = re.compile(r"打赏\s*评论")
+MIRROR_RE = re.compile(r"备用网址|无需翻墙|有爱爱每日更新|服务器在海外")
+# 狗急跳墙 is also a common idiom: it marks the site's VPN line only in a short line with a URL or domain.
+MIRROR_IDIOM_RE = re.compile(r"狗急跳墙")
+URL_RE = re.compile(r"https?://|www\.|[\w-]+\.(?:com|net|org|cc)\b", re.IGNORECASE)
+
+
+def _is_mirror(text):
+    if MIRROR_RE.search(text):
+        return True
+    return len(text) <= 60 and bool(MIRROR_IDIOM_RE.search(text) and URL_RE.search(text))
+
+
+def _drop_junk_paragraphs(root):
+    first = root.find("p")
+    if isinstance(first, Tag) and PASTED_HEADER_RE.fullmatch(first.get_text(strip=True)):
+        first.decompose()
+    for p in root.select("p"):
+        text = p.get_text(strip=True)
+        if REWARD_RE.fullmatch(text) or _is_mirror(text):
+            p.decompose()
 
 
 class AliceSWCrawler(Crawler):
@@ -28,6 +55,8 @@ class AliceSWCrawler(Crawler):
     ]
     language = "zh"
     is_adult = True
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def search_novel(self, query):
         results = []
@@ -121,6 +150,16 @@ class AliceSWCrawler(Crawler):
         if author:
             self.novel_author = author.get_text(strip=True)
 
+        # "状 态：连载中" (ongoing) or "完结" style value in the info block
+        for p in soup.select(".novel_info p"):
+            parts = re.split(r"[：:]", p.get_text(strip=True), maxsplit=1)
+            if len(parts) == 2 and parts[0].replace(" ", "") == "状态":
+                value = parts[1]
+                if "连载" in value or "未" in value:
+                    self.status = NovelStatus.ongoing
+                elif "完" in value:
+                    self.status = NovelStatus.completed
+
         img = soup.select_one(".box_intro .pic img")
         if img:
             cover = img.get("data-src") or img.get("src") or ""
@@ -165,5 +204,11 @@ class AliceSWCrawler(Crawler):
             return ""
         for tag in contents.select("#user_ad, script, style"):
             tag.decompose()
+        _drop_junk_paragraphs(contents)
         self.cleaner.clean_contents(contents)
         return str(contents)
+
+    def _migrate_v2(self, body, chapter):
+        soup = body_migrations.parse(body)
+        _drop_junk_paragraphs(soup)
+        return str(soup)

@@ -80,6 +80,16 @@ def _body_to_html(content: str) -> str:
     return "\n".join(paragraphs)
 
 
+def _strip_series_prefix(title: str, series: str) -> str:
+    # Episode titles often repeat the series name ("<series> 第一話 ..."). Only
+    # cut it when a space or a non-ASCII character follows, so "<series>ness" stays.
+    if series and title.startswith(series):
+        rest = title[len(series) :]
+        if rest[:1].isspace() or not rest[:1].isascii():
+            return rest.strip()
+    return title
+
+
 def _pixiv_tags(tags_obj) -> List[str]:
     items = tags_obj.get("tags") if isinstance(tags_obj, dict) else tags_obj
     out: List[str] = []
@@ -156,6 +166,10 @@ class PixivCrawler(Crawler):
             page += 1
         return results[offset : offset + limit]
 
+    def download_image(self, url: str, **kwargs):
+        # i.pximg.net answers 403 unless the request names pixiv.
+        return super().download_image(url, headers={"Referer": SITE + "/"}, **kwargs)
+
     def read_novel_info(self) -> None:
         series_id = None
         match = _SERIES_RE.search(self.novel_url)
@@ -226,6 +240,7 @@ class PixivCrawler(Crawler):
         )
 
         for index, (_, episode_id, title) in enumerate(self._series_episodes(series_id), 1):
+            title = _strip_series_prefix(title, self.novel_title)
             self.chapters.append(
                 Chapter(
                     id=index,

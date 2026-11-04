@@ -21,7 +21,7 @@ from urllib.parse import quote
 from lncrawl.core.catalog_cache import cached_catalog
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -208,11 +208,18 @@ class HjwzwCrawler(Crawler):
 
         self.novel_synopsis = self._synopsis(soup) or meta("og:description")
 
+        status = meta("og:novel:status")
+        if "連載" in status:
+            self.status = NovelStatus.ongoing
+        elif "完結" in status or "完本" in status:
+            self.status = NovelStatus.completed
+
         tags = []
         category = meta("og:novel:category")
         if category:
             tags.append(category)
-        for a in soup.select('a[title^="標簽:"]'):
+        # The book's own tags; other books' tag links (recommendation lists) share the "標簽:" prefix.
+        for a in soup.select('a[title^="小說分類標簽:"]'):
             text = a.get_text(" ", strip=True)
             if text and text not in tags:
                 tags.append(text)

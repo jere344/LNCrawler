@@ -1,11 +1,12 @@
 # Adding a source — fast path
 
-Goal: one pass per source, no re-discovery. §7 is for the coordinator; agents can skip it.
+Goal: one pass per source, no re-discovery. §6b is the quality-control pass for new and existing sources. §7 is for the coordinator; agents can skip it.
 
 ## 0. Decide first
 
 - **No MTL** (machine-translated, Vietnamese "convert"/"cv", AI/LLM-polished). Stub: `is_disabled = True`, `has_mtl = True`, `disable_reason = "Machine-translated (MTL) content — extremely low quality, intentionally excluded"`. Tells: "MTL"/"convert"/"AI translated" in footer or synopsis, no translator credits, every chapter bulk-imported. Mixed catalog with a per-novel MTL flag → implement, filter MTL novels out of search/browse, set `has_mtl` on read (readnovel_eu, truyenyy).
 - **Mirror aggregator** (catalog copied from other sites: per-novel `domain`/`source` field, identical text): if the mirrored hosts exist in `sources/` → stub "mirror of X (already covered by x.py)". No such field: look for the mirrored site's markers in chapter bodies (footer, "© X", heading artifacts). LLM-rewritten synopses alone ≠ MTL.
+- **Mostly paywalled**: more than half of the chapters locked (VIP, coins, membership, free preview window) → disabled stub with the locked share in `disable_reason`. Mixed sites with a free section: offer only that section (naver_novel serves Challenge League, refuses Webnovel).
 - **Live but unworkable** (hard bot wall, paywall, encryption) → disabled stub; `disable_reason` says what blocks it and how it was tested (curl_cffi / browser).
 - **Dead / parked / spam / not a novel site** → no file, one report line `domain | none | skipped | reason`.
 - Prefer original / raw / human-translated content. Don't commit; don't touch unrelated files.
@@ -78,6 +79,8 @@ Chapters: ids sequential from 1 in reading order (reverse newest-first lists); d
 
 Version: bump `version` (class attribute, default 1, so `version = 2`, then 3, ...) only when a fix changes the chapter bodies already downloaded, e.g. truncated text or ads left in the body. Use it sparingly: the next update of every novel on the source refetches all its chapters, which is slow and hits the site hard. Metadata is refreshed on every update, and new chapters and changed chapter URLs are picked up without a bump, so don't bump for fixes to novel metadata, titles, volumes, the table of contents, search or browse. Leave it out of new sources.
 
+Make the bump non-breaking when the stored bodies can be fixed without the site (§6c): then nothing is refetched.
+
 Listings:
 - `search_novel(query)` → `SearchResult(title, url, info, cover)` as the site's search returns them, without filtering on query terms (alternative titles would be lost; multi-source ranking sorts them). At most `MAX_RESULTS_PER_SOURCE` (50, `lncrawl/core/search.py`) are kept, so fetch only the first page(s). Status/chapters/latest in `info`. `cover` comes only from what the search response already contains (`self.image_url(img)` for HTML, `self.absolute_url(...)` for JSON), never an extra request per result; omit it rather than returning a site placeholder. No search at all → `[]` + docstring.
 - `browse_novels(offset, limit)` → popular/ranking; returns ≤ `limit`; fetch only the pages needed. Genre listings have no hook: iterate them inside `browse_novels` (naver_novel).
@@ -134,8 +137,63 @@ Helpers: `get_soup(url, headers=, encoding=)`, `get_json`, `post_soup`, `absolut
 2. Real class, **fresh instance per novel** (chapters accumulate otherwise), `initialize()` first: `search_novel`, `browse_novels(0, 20)` and `(20, 10)`, `read_novel_info` on a completed and an ongoing novel, `download_chapter_body` on first and last chapter (print counts + first 150 chars).
 3. Report what was verified live vs only parsed.
 
+## 6b. Quality control
+
+Run on every new source and when re-auditing existing ones. The dump does the fetching; you judge it against the live page.
+
+```bash
+python -I tools/qc_source.py sources/<lang>/<x>/<stem>.py --out <scratch>/qc [--novel URL --novel URL]
+```
+
+Without `--novel` it takes two novels from `browse_novels`; pass them yourself when browse is missing, and make sure one of them has volumes when the site has volumes. It writes `<out>/<Class>/report.md` (metadata, chapter list, volumes, 5 random chapters of novel 0 and 2 of novel 1, automatic flags), `data.json` and `cover_<n>.jpg`. Flags are leads, not verdicts, and a clean report proves nothing about fields the source never extracts: always open the novel page next to the report.
+
+Metadata (novel page next to the report):
+- **Cover**: open `cover_<n>.jpg`. It is the book's cover, not a site logo, "no image" picture, default avatar or 1×1 pixel. No cover beats a placeholder: return `None` when the site serves its default image (match its file name). Same image for both novels = placeholder.
+- **Title**: no site suffix ("– Read Online"), no status or chapter count.
+- **Authors**: people only. Not a date, word/chapter count, status, translator, "Unknown"/"N/A", or the label itself ("Author:"). Several authors joined with `, `; original-script name alongside the romanized one is fine.
+- **Tags/genres**: genres and tags only. Not the status, a date, word/view/chapter counts, the author, the language, rating, "Novel"/"Web Novel" type labels, or the site's whole genre menu (same list on both novels = sidebar scraped).
+- **Other fields shown on the page are extracted, each into its own attribute**: `status` (parsed, not hard-coded), `alternative_titles`, `novel_edition` (Web Novel / Light Novel / Raw / Official translation), `translators`, `editors`, `original_publisher`, `english_publisher`, `is_adult` for an R18 catalog. A value pasted into the synopsis or tags instead is a bug.
+- **Synopsis**: the blurb only. No "Read more/Show less", labels and values of other fields (Author:, Genre:, Status:, Alternative names:), chapter links, site boilerplate shared by every novel (same prefix/suffix on both novels), ratings, or the whole page text. Paragraph breaks kept. Empty is acceptable only when the site has none.
+
+Chapter list:
+- Count matches the site, ids 1..N in reading order (not newest first), no duplicate URLs, locked/VIP chapters skipped.
+- **Titles**: the chapter's title only. No appended date, "x days ago", view/word count, "NEW"/"HOT"/lock badges, novel name prefix, or whitespace runs. Empty title → leave it empty (the pipeline writes `#<id>`), don't invent one.
+- **Volumes**, when the site groups chapters (headings, tabs, "Volume N" sections, separate volume pages):
+  - extracted as `Volume`s, not flattened into one list; a flat list whose titles say "Vol. 3 Chapter 2" while the site has volume headings is a bug;
+  - titles are the site's volume names, not "Volume 1" when the site has a real one, and without chapter counts or dates;
+  - boundaries: the first and last chapter of each volume in the report match the site, no chapter in two volumes, no empty volume, volumes in reading order;
+  - covers: the volume's own image when the site shows one per volume; never the novel cover or a placeholder repeated on every volume (§4).
+
+Chapter bodies (the 5 + 2 random samples):
+- Paragraphs are `<p>` blocks (or kept `<br>` breaks), not one merged wall of text, not one `<p>` per sentence fragment broken mid-line, no runs of empty `<p>`.
+- None of: scripts, styles, iframes, forms, ad slots, share/vote buttons, nav ("Previous/Next chapter", "Table of contents", 上一章/下一章), comment sections, author-note widgets.
+- **No watermarks**: "read at/on <site>", site name or URL lines, "find the original at", "if you are reading this on another site", 本章未完/请记住/最新章节, Patreon/Ko-fi/Discord begging blocks added by the aggregator (a translator's own short note at the end is content), anti-piracy lines hidden with CSS classes or `display:none` (Royal Road). Lines repeated across chapters of different novels (cross-novel flag) are almost always a watermark.
+- Text decodes cleanly (no mojibake, no `�`), no obfuscation substitutions (glyphs swapped for placeholders like `N` or private-use characters), images have absolute URLs, the chapter is complete (compare the last line with the site; "loading"/"continue reading" endings mean pagination or an AJAX part is missed).
+
+Fix in the source file, rerun the dump, and bump `version` only when the body fix changes chapters already downloaded (§4).
+
+## 6c. Non-breaking versions (body migrations)
+
+A bump refetches every stored chapter of the source. When the new body only drops or rewrites content that the stored body still contains, fix the stored chapters instead:
+
+```python
+from lncrawl.core import body_migrations
+
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.drop_matching(body, _WATERMARK_RE)
+```
+
+- On update, a chapter stored at version `v` goes through every step from `v + 1` to `version`. If each step has a method, the body is fixed on disk and not refetched. A version missing from `body_migrations` is breaking: its chapters are refetched. A method returns `None` to refetch one chapter (a marker it needs is missing).
+- The method gets the body as the old `download_chapter_body` returned it (the downloader keeps the `<h1>` and volume cover aside, and drops a repeated title line afterwards) and the stored chapter dict. The cleaner has already stripped classes and most attributes: match text and tag names, never CSS classes. Helpers in `lncrawl/core/body_migrations.py`: `drop_matching`, `drop_blocks`, `sub_text`. Reuse the regexes the download path uses.
+- **Non-breaking**: watermark or nav lines, begging blocks, site credits, stray characters, a leading title line, unwrapping a wrapper. **Breaking**: a new container or selector, missing or truncated text (pagination, second request), lost line breaks, removals that can only be found by class or hidden style, decoding fixes.
+- Verify on live chapters: `python -I tools/check_migration.py <source.py> [--novel URL] [--chapters 6] [--old-ref HEAD]`. It downloads the same chapters with the old code (the source and core at `--old-ref`) and the current code, migrates the old body and compares. Every chapter must be `same` or `refetch`; "(old body already identical)" means the sample didn't hit the removed content, so try another `--seed` or novel.
+
 ## 7. Coordinator notes
 
 - Triage agents give one line per candidate (engine, data route, blocked via scraper?, MTL?, catalog size, verdict); then one agent per accepted source probes and implements in one context.
 - Give each agent the brief (venv, hosts list, scratch-file prefix, no-MTL and politeness rules) up front; mid-run policy changes cost a round trip each.
 - End with one reviewer over the whole diff, then one fix pass.
+- Keep each Haiku agent under 100k tokens of context (above that it costs ~5×): at most 2–3 sources per QC or implementation agent, ~6 files per reviewer working from the diff only. A QC pass over 8 sources per agent ran at 200–350k.

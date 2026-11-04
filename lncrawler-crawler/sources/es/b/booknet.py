@@ -3,11 +3,18 @@ import logging
 from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 GET_PAGE_URL = "https://booknet.com/reader/get-page"
+
+_STATUS_MAP = {
+    "en proceso": NovelStatus.ongoing,
+    "texto completo": NovelStatus.completed,
+    "finalizado": NovelStatus.completed,
+    "en pausa": NovelStatus.hiatus,
+}
 
 
 class BooknetCrawler(Crawler):
@@ -86,10 +93,19 @@ class BooknetCrawler(Crawler):
             self.novel_cover = self.absolute_url(possible_cover["src"])
         logger.info("Novel cover: %s", self.novel_cover)
 
-        author = soup.select_one(".bn_book__header-author-item-name")
+        # The name link is followed by a "· autor" role label inside the same node.
+        author = soup.select_one(".bn_book__header-author-item-name a") or soup.select_one(
+            ".bn_book__header-author-item-name"
+        )
         if author:
             self.novel_author = author.get_text(" ", strip=True)
         logger.info("Novel author: %s", self.novel_author)
+
+        status = soup.select_one(".bn_book__header-status-value")
+        if status:
+            self.status = _STATUS_MAP.get(
+                status.get_text(" ", strip=True).lower(), NovelStatus.unknown
+            )
 
         possible_synopsis = soup.select_one(".bn_book__about-content")
         if possible_synopsis:
@@ -156,5 +172,7 @@ class BooknetCrawler(Crawler):
         for page in range(2, int(data.get("totalPages") or 1) + 1):
             content += self._get_page(chapter_id, page).get("data") or ""
 
-        body = self.make_soup(f"<div>{content}</div>")
+        # Pass the <div>, not the whole document: extracting the document wraps
+        # every paragraph in stray <html><body> tags.
+        body = self.make_soup(f"<div>{content}</div>").select_one("div")
         return self.cleaner.extract_contents(body)

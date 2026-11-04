@@ -30,6 +30,12 @@ POST_URL_RE = re.compile(r"/20\d{2}/\d{2}/")
 CHAPTER_TEXT_RE = re.compile(
     r"(?i)\b(cap[ií]tulo|volumen|pr[oó]logo|ep[ií]logo|interludio|extra|parte)\b"
 )
+# Volume download links (ebook files) sit next to the chapter links; they are not chapters.
+DOWNLOAD_HOST_RE = re.compile(
+    r"https?://(?:[\w-]+\.)?(?:adf\.ly|mega\.nz|drive\.google\.com|mediafire\.com)/",
+    re.I,
+)
+SYNOPSIS_LABEL_RE = re.compile(r"^\s*Sinopsis\s*:", re.I)
 
 STATUS_MAP = {
     "en publicacion": NovelStatus.ongoing,
@@ -44,6 +50,7 @@ STATUS_MAP = {
     "en pausa": NovelStatus.hiatus,
     "hiatus": NovelStatus.hiatus,
     "pausado": NovelStatus.hiatus,
+    "finalziada": NovelStatus.completed,  # the site's own spelling
 }
 
 
@@ -53,6 +60,8 @@ class EspaniponCrawler(Crawler):
         "https://novelasligeras.com/",
     ]
     language = "es"
+    # v2: hard-wrapped lines were glued together by the old cleaner; breaking, refetch.
+    version = 2
 
     # -- helpers ------------------------------------------------------- #
 
@@ -67,13 +76,27 @@ class EspaniponCrawler(Crawler):
             "div.post-body"
         )
 
-    def _chapter_anchors(self, body: Tag) -> List[Tuple[str, str]]:
+    @staticmethod
+    def _synopsis_label(body: Tag):
+        return body.find(string=SYNOPSIS_LABEL_RE)
+
+    def _chapter_anchors(self, body: Tag, label=None) -> List[Tuple[str, str]]:
         anchors: List[Tuple[str, str]] = []
         seen = set()
         novel_url = self.novel_url.rstrip("/")
-        for a in body.select("a[href]"):
+        links = body.select("a[href]")
+        if label is not None:
+            # Chapter links follow the "Sinopsis:" label; the header has the translator link.
+            after = {id(a) for a in label.find_all_next("a", href=True)}
+            links = [a for a in links if id(a) in after]
+        for a in links:
             href = self.absolute_url(a["href"])
-            if not href or href.rstrip("/") == novel_url or href in seen:
+            if (
+                not href
+                or href.rstrip("/") == novel_url
+                or href in seen
+                or DOWNLOAD_HOST_RE.match(href)
+            ):
                 continue
             text = a.get_text(" ", strip=True)
             if POST_URL_RE.search(href) or CHAPTER_TEXT_RE.search(text):
@@ -108,12 +131,18 @@ class EspaniponCrawler(Crawler):
                 chapters.append((entry_title, alt))
         return chapters
 
-    def _synopsis(self, body: Tag, chapter_urls) -> str:
+    def _synopsis(self, body: Tag, chapter_urls, label=None) -> str:
         parts = []
-        for node in body.find_all(string=True):
+        nodes = body.find_all(string=True)
+        if label is not None:
+            # Start after the "Sinopsis:" label, not at the header fields above it.
+            after = {id(n) for n in label.find_all_next(string=True)}
+            nodes = [n for n in nodes if id(n) in after]
+        for node in nodes:
             parent = node.parent
             if isinstance(parent, Tag) and parent.name == "a" and parent.get("href"):
-                if self.absolute_url(parent["href"]) in chapter_urls:
+                href = self.absolute_url(parent["href"])
+                if href in chapter_urls or DOWNLOAD_HOST_RE.match(href):
                     break
             text = node.strip()
             if text:
@@ -139,12 +168,13 @@ class EspaniponCrawler(Crawler):
 
         self.novel_cover = self._meta(soup, "og:image") or None
 
-        anchors = self._chapter_anchors(body)
+        label = self._synopsis_label(body)
+        anchors = self._chapter_anchors(body, label)
         if not anchors:
             anchors = self._feed_chapters(self.novel_title)
         chapter_urls = {url for _, url in anchors}
 
-        self.novel_synopsis = self._synopsis(body, chapter_urls) or self._meta(
+        self.novel_synopsis = self._synopsis(body, chapter_urls, label) or self._meta(
             soup, "og:description"
         )
         logger.info("Novel synopsis: %s", self.novel_synopsis[:80])
@@ -154,13 +184,20 @@ class EspaniponCrawler(Crawler):
         if match:
             self.novel_author = match.group(1).strip()
         match = re.search(
-            r"(?im)^\s*(?:Traducido por|Traductor(?:a)?)\s*:?\s*(.+)$", raw
+            r"(?im)^\s*(?:Traducido por|Traductor(?:a)?|Traducci[oó]n)\s*:?\s*(.+)$", raw
         )
         if match:
             self.translators = [match.group(1).strip()]
+        match = re.search(r"(?im)^\s*G[ée]nero\s*:\s*(.+)$", raw)
+        if match:
+            genres = [g.strip(" .") for g in match.group(1).split(",")]
+            self.genres = [g for g in genres if g]
+            self.novel_tags = list(self.genres)
         match = re.search(r"(?im)^\s*Estado\s*:\s*(.+)$", raw)
         if match:
-            self.status = STATUS_MAP.get(match.group(1).strip().lower())
+            self.status = STATUS_MAP.get(
+                match.group(1).strip().lower(), NovelStatus.unknown
+            )
         logger.info("Novel author: %s", self.novel_author)
 
         for index, (title, url) in enumerate(anchors, start=1):

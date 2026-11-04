@@ -4,9 +4,14 @@ import logging
 from urllib.parse import quote, urlparse
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    'ongoing': NovelStatus.ongoing,
+    'completed': NovelStatus.completed,
+}
 
 babelnovel_api = 'https://api.babelnovel.com'
 login_url = babelnovel_api + '/v1/user-account/web-login'
@@ -18,6 +23,8 @@ chapter_page_url = 'https://babelnovel.com/books/%s/chapters/%s'
 
 
 class BabelNovelCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most chapters are locked behind bricks; about 1 percent readable anonymously"
     base_url = ['https://babelnovel.com/',
                 'https://api.babelnovel.com']
 
@@ -106,6 +113,10 @@ class BabelNovelCrawler(Crawler):
         self.novel_title = data['data']['name']
         logger.info('Novel title: %s', self.novel_title)
 
+        self.status = _STATUSES.get(
+            (data['data'].get('enSerial') or '').lower(), NovelStatus.unknown
+        )
+
         self.novel_cover = data['data']['cover']
         logger.info('Novel cover: %s', self.novel_cover)
 
@@ -142,8 +153,10 @@ class BabelNovelCrawler(Crawler):
         logger.debug('Visiting %s', list_url)
         data = self.get_json(list_url)
         chapters = list()
+        locked = 0
         for item in data['data']:
             if not (item['isFree'] or item['isLimitFree'] or item['isBought']):
+                locked += 1
                 continue
 
             chapters.append({
@@ -152,6 +165,8 @@ class BabelNovelCrawler(Crawler):
                 'json_url': chapter_json_url % (self.novel_hash, item['id']),
             })
 
+        if locked:
+            logger.info('Skipped %d locked chapters', locked)
         return chapters
 
     def download_chapter_body(self, chapter):

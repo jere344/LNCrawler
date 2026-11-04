@@ -2,12 +2,22 @@
 import logging
 from urllib.parse import quote_plus
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = (
     "https://lightnovelheaven.com/?s=%s&post_type=wp-manga&author=&artist=&release="
 )
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "on hold": NovelStatus.hiatus,
+    "hiatus": NovelStatus.hiatus,
+    "dropped": NovelStatus.hiatus,
+    "canceled": NovelStatus.hiatus,
+    "cancelled": NovelStatus.hiatus,
+}
 
 
 class LightNovelHeaven(Crawler):
@@ -78,6 +88,24 @@ class LightNovelHeaven(Crawler):
 
         self.novel_tags = [tag.text.strip() for tag in soup.select(".genres-content a")]
         logger.info("Novel tags: %s", self.novel_tags)
+        self.is_adult = any(tag.lower() == "adult" for tag in self.novel_tags)
+
+        details = {}
+        for item in soup.select(".post-content_item"):
+            heading = item.select_one(".summary-heading")
+            content = item.select_one(".summary-content")
+            if heading and content:
+                details[heading.get_text(" ", strip=True).lower()] = content.get_text(" ", strip=True)
+
+        alternative = details.get("alternative", "")
+        if alternative and alternative.lower() != "n/a":
+            self.alternative_titles = [alternative]
+        novel_type = details.get("type", "")
+        if novel_type:
+            self.novel_edition = novel_type.split("(")[0].strip()
+        status = details.get("status", "")
+        if status:
+            self.status = _STATUSES.get(status.lower(), NovelStatus.unknown)
 
         synopsis = soup.select_one(".summary__content")
         if synopsis:

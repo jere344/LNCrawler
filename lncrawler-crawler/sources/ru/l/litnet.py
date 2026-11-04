@@ -83,7 +83,8 @@ class LitnetCrawler(Crawler):
 
         annotation = data.get("annotation") or ""
         if annotation:
-            self.novel_synopsis = self.cleaner.extract_contents(self.make_soup(annotation))
+            soup = self.make_soup(annotation)
+            self.novel_synopsis = self.cleaner.extract_contents(soup.body or soup)
 
         author = data.get("author") or {}
         authors = [author.get("name")] if author.get("name") else []
@@ -155,4 +156,9 @@ class LitnetCrawler(Crawler):
         if not match:
             return ""
         data = self._api(f"/v2/chapters/{match.group(1)}/content") or {}
-        return data.get("content") or ""
+        html = data.get("content") or ""
+        soup = self.make_soup(html)
+        if soup.body is None:
+            return html
+        # The API wraps the text in <html><body>; keep only the inner markup.
+        return "".join(str(child) for child in soup.body.contents)

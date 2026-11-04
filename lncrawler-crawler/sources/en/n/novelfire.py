@@ -8,9 +8,19 @@ from urllib.parse import quote_plus
 from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "complete": NovelStatus.completed,
+    "finished": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+    "dropped": NovelStatus.hiatus,
+    "cancelled": NovelStatus.hiatus,
+}
 
 
 class NovelFireCrawler(Crawler):
@@ -72,6 +82,8 @@ class NovelFireCrawler(Crawler):
 
         summary = soup.select_one(".summary .content")
         if isinstance(summary, Tag):
+            for btn in summary.select(".expand"):
+                btn.decompose()
             self.novel_synopsis = self.cleaner.extract_contents(summary)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
@@ -81,6 +93,15 @@ class NovelFireCrawler(Crawler):
             if a.get_text(strip=True)
         ]
         logger.info("Novel genres: %s", self.genres)
+        self.is_adult = any(g.lower() == "adult" for g in self.genres)
+
+        status = ""
+        for label in soup.find_all("small"):
+            if label.get_text(strip=True).lower() == "status":
+                value = label.find_previous_sibling("strong")
+                status = value.get_text(strip=True) if value else ""
+                break
+        self.status = _STATUSES.get(status.lower(), NovelStatus.unknown)
 
         chapters_url = self.novel_url.rstrip("/") + "/chapters"
         soup = self.get_soup(chapters_url)

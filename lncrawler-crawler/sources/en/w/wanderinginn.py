@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from html import unescape
 from typing import List
 from urllib.parse import quote
 
@@ -8,12 +9,19 @@ from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
+# Site-wide post tags that describe the format, not the story.
+_NOT_TAGS = {"writing", "web novel", "web serial"}
+
 
 class WanderingInnCrawler(Crawler):
     base_url = "https://wanderinginn.com/"
     language = "en"
 
     _writing_category = None
+
+    def _title(self, rendered: str) -> str:
+        # WP returns titles HTML-escaped ("&#8212;").
+        return self.cleaner.clean_text(unescape(rendered))
 
     def _ensure_category(self):
         if self._writing_category is None:
@@ -36,7 +44,7 @@ class WanderingInnCrawler(Crawler):
         )
         return [
             SearchResult(
-                title=self.cleaner.clean_text(p["title"]["rendered"]),
+                title=self._title(p["title"]["rendered"]),
                 url=p["link"],
                 info="The Wandering Inn",
             )
@@ -51,8 +59,9 @@ class WanderingInnCrawler(Crawler):
         self.novel_author = "pirateaba"
 
         soup = self.get_soup(self.home_url)
+        # The home page image is a "buy the paperback books" banner, not the cover.
         cover = soup.select_one('meta[property="og:image"]')
-        if cover:
+        if cover and "printWebBanner" not in (cover.get("content") or ""):
             self.novel_cover = cover.get("content")
         desc = soup.select_one('meta[property="og:description"]')
         if desc:
@@ -65,7 +74,9 @@ class WanderingInnCrawler(Crawler):
                 "&_fields=name,count" % self.home_url
             )
             self.novel_tags = [
-                tag["name"] for tag in tags if tag.get("count", 0) >= 10
+                tag["name"]
+                for tag in tags
+                if tag.get("count", 0) >= 10 and tag["name"].lower() not in _NOT_TAGS
             ]
         except Exception as e:
             logger.debug("wanderinginn tags fetch failed: %s", e)
@@ -84,7 +95,7 @@ class WanderingInnCrawler(Crawler):
                     {
                         "id": len(self.chapters) + 1,
                         "wp_id": post["id"],
-                        "title": self.cleaner.clean_text(post["title"]["rendered"]),
+                        "title": self._title(post["title"]["rendered"]),
                         "url": post["link"],
                     }
                 )
@@ -104,5 +115,9 @@ class WanderingInnCrawler(Crawler):
         for a in body.select("a"):
             if a.get_text(strip=True) in ("Next Chapter", "Previous Chapter", "Index"):
                 a.decompose()
+        # Spacer paragraphs (a lone space or &nbsp;) only add blank lines.
+        for p in body.select("p"):
+            if not p.get_text(strip=True) and not p.find("img"):
+                p.decompose()
         self.cleaner.clean_contents(body)
         return str(body)

@@ -36,6 +36,15 @@ _STATUS_MAP = {
     "pausado": NovelStatus.hiatus,
 }
 
+# Site cross-promotion that the new code removes from chapter bodies.
+_PROMO_TEXT = "Sabia que o autor também escreve"
+
+_EDITIONS = {
+    "light novel": "Light Novel",
+    "web novel": "Web Novel",
+    "raw": "Raw",
+}
+
 
 class NovelManiaCrawler(Crawler):
     base_url = [
@@ -43,6 +52,8 @@ class NovelManiaCrawler(Crawler):
         "https://www.novelmania.com.br/",
     ]
     language = "pt"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     # -- helpers ------------------------------------------------------- #
 
@@ -129,9 +140,8 @@ class NovelManiaCrawler(Crawler):
 
         synopsis = data.get("synopsis") or ""
         if synopsis:
-            self.novel_synopsis = self.cleaner.extract_contents(
-                self.make_soup(synopsis)
-            )
+            soup = self.make_soup(synopsis)
+            self.novel_synopsis = self.cleaner.extract_contents(soup.body or soup)
 
         categories = [
             c.get("name", "").strip()
@@ -140,8 +150,8 @@ class NovelManiaCrawler(Crawler):
         ]
         self.genres = categories
         self.novel_tags = list(categories)
-        extra = [data.get("kind"), data.get("nationality")]
-        self.tags = [x.strip() for x in extra if x and x.strip()]
+        kind = (data.get("kind") or "").strip()
+        self.novel_edition = _EDITIONS.get(kind.lower(), "")
 
         self.alternative_titles = [
             t.strip() for t in (data.get("alternativeTitles") or []) if t and t.strip()
@@ -216,4 +226,17 @@ class NovelManiaCrawler(Crawler):
         )
         if not isinstance(body, Tag):
             return ""
+        # Site cross-promotion at the end of chapters: "Sabia que o autor também
+        # escreve outros gêneros?" followed by a link to another novel.
+        for promo in body.find_all("p"):
+            if _PROMO_TEXT not in promo.get_text():
+                continue
+            link_p = promo.find_next_sibling("p")
+            if link_p is not None and link_p.find("a", href=lambda h: h and "/novels/" in h):
+                link_p.decompose()
+            promo.decompose()
         return self.cleaner.extract_contents(body)
+
+    def _migrate_v2(self, body, chapter):
+        # The link paragraph after the promo looks like story text once stored: refetch.
+        return None if _PROMO_TEXT in body else body

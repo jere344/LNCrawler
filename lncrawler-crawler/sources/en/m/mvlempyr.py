@@ -181,6 +181,8 @@ class MvlempyrIoCrawler(Crawler):
             if value and value not in tags:
                 tags.append(value)
         self.novel_tags = tags
+        # "Adult" genre and "R-18" tag are the site's own adult markers.
+        self.is_adult = any(t.lower() in ("adult", "r-18") for t in tags)
 
         synopsis_html = rec.get("synopsis") or rec.get("synopsis-text") or ""
         if synopsis_html:

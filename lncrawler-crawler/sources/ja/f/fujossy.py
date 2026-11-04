@@ -1,17 +1,26 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 
-from bs4 import Tag
+from bs4 import Comment, NavigableString, Tag
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
+# Template covers the site offers in place of an uploaded image: generic
+# backgrounds stored under the book's own path, so matched by file name.
+_DEFAULT_COVER_RE = re.compile(
+    r"/(bluesky|skyblue|purple|red|pink|stars|couple_love)\.png$", re.IGNORECASE
+)
+
 
 class FujossyCrawler(Crawler):
     base_url = "https://fujossy.jp/"
     has_mtl = False
+    is_adult = True
+    version = 2
 
     def search_novel(self, query):
         soup = self.get_soup("https://fujossy.jp/books/search", params={"q": query})
@@ -26,11 +35,14 @@ class FujossyCrawler(Crawler):
             card = a.find_parent(class_="book__related-tile")
             image = card.select_one("img") if card else None
             cover = image.get("data-echo") if image else None
+            cover = self.absolute_url(cover) or None
+            if cover and _DEFAULT_COVER_RE.search(cover):
+                cover = None
             results.append(
                 {
                     "title": title,
                     "url": self.absolute_url(href),
-                    "cover": self.absolute_url(cover) or None,
+                    "cover": cover,
                 }
             )
         return results
@@ -75,16 +87,14 @@ class FujossyCrawler(Crawler):
             self.novel_title = title.get("content", "").split(" | ")[0].strip()
 
         cover = soup.select_one('meta[property="og:image"]')
-        if cover:
+        if cover and not _DEFAULT_COVER_RE.search(cover.get("content", "")):
             self.novel_cover = cover.get("content")
 
         synopsis = soup.select_one('meta[property="og:description"]')
         if synopsis:
-            self.novel_synopsis = synopsis.get("content", "").strip()
-
-        self.tags = self._parse_description_tags(
-            synopsis.get("content", "") if synopsis else ""
-        )
+            blurb, tags = self._split_description(synopsis.get("content", ""))
+            self.novel_synopsis = blurb
+            self.tags = tags
 
         author = soup.select_one(".book-side-author__name")
         if author:
@@ -113,16 +123,28 @@ class FujossyCrawler(Crawler):
         soup = self.get_soup(chapter["url"])
         body = soup.select_one(".story__body")
         if isinstance(body, Tag):
+            # Lines are separated by bare newlines, not <br>: make them breaks.
+            for text in body.find_all(string=True):
+                if "\n" not in text or not isinstance(text, NavigableString):
+                    continue
+                if isinstance(text, Comment) or text.find_parent(["script", "style"]):
+                    continue
+                parts = []
+                for index, piece in enumerate(text.split("\n")):
+                    if index:
+                        parts.append(soup.new_tag("br"))
+                    parts.append(NavigableString(piece))
+                text.replace_with(*parts)
             return self.cleaner.extract_contents(body)
         return ""
 
-    def _parse_description_tags(self, description):
-        # fujossy appends the work's tags to the description after an ellipsis:
-        # "<synopsis>... タグ1・タグ2  無料BL小説です"
-        if not description or "..." not in description:
-            return []
-        tail = description.rsplit("...", 1)[-1]
-        tail = tail.split("無料")[0].strip(" \u3000")
-        if not tail:
-            return []
-        return [t for t in tail.split("・") if t.strip()]
+    def _split_description(self, description):
+        # og:description is "<synopsis> <tag>・<tag>  無料BL小説です".
+        description = (description or "").strip()
+        match = re.search(
+            r"(?:^|\s)([^\s・]+(?:・[^\s・]+)*)\s*無料BL小説です", description
+        )
+        if not match:
+            return description, []
+        tags = [t.strip() for t in match.group(1).split("・") if t.strip()]
+        return description[: match.start()].strip(), tags

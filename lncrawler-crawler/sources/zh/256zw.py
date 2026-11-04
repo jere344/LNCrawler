@@ -12,7 +12,7 @@ from typing import List, Optional
 from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,10 @@ class Zw256Crawler(Crawler):
             if "ztread" in classes or "txtread" in classes:
                 continue
             text = p.get_text(strip=True)
-            if not text or text == "小说简介：":
+            # The blurb follows "<title>作者：<author>简介：" in the same paragraph.
+            if "简介：" in text:
+                text = text.split("简介：", 1)[1].strip()
+            if not text:
                 continue
             synopsis_parts.append(text)
         if synopsis_parts:
@@ -134,6 +137,7 @@ class Zw256Crawler(Crawler):
         # The site exposes no cover image on the book page.
         self.novel_cover = None
 
+        self.volumes.append(Volume(id=1, title="Volume 1"))
         seen = set()
         for a in soup.select("ul#nr1 a[href*='/read/']"):
             url = self.absolute_url(a["href"])
@@ -143,6 +147,7 @@ class Zw256Crawler(Crawler):
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
+                    volume=1,
                     title=f"第{len(self.chapters) + 1}页",
                     url=url,
                 )

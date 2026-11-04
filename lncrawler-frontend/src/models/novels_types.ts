@@ -1,4 +1,5 @@
 import { ReadingList } from './readinglist_types';
+import type { CommentPreview } from './comments_types';
 
 export interface Novel {
   id: string;
@@ -146,6 +147,9 @@ export interface ChapterContent {
   language?: string | null;
   audio_url?: string | null;
   audio_duration_s?: number | null;
+  // Comments of the chapter, replies included, shared by every source with this chapter number
+  comment_count?: number;
+  top_comment?: CommentPreview | null;
 }
 
 export interface UnavailableChapterInfo {
@@ -165,6 +169,20 @@ export interface Chapter {
   volume_title: string | null;
   has_content: boolean;
   has_audio?: boolean;
+}
+
+// One page of a source's chapter list, as the chapters endpoint returns it
+export interface NovelChaptersResponse {
+  chapters: Chapter[];
+  count: number;
+  total_pages: number;
+  current_page: number;
+  novel_title: string;
+  source_name: string;
+  is_dmca: boolean;
+  source_overview_image_url?: string | null;
+  // Whether the source has several volumes or titled ones: the list shows volume headings
+  has_volumes: boolean;
 }
 
 export interface ReadingHistory {

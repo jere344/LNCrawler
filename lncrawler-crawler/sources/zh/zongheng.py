@@ -7,12 +7,14 @@ from urllib.parse import quote
 from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 
 class ZonghengCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most chapters are VIP-only; over 90 percent locked on sampled novels"
     base_url = "https://www.zongheng.com/"
     language = "zh"
 
@@ -72,7 +74,20 @@ class ZonghengCrawler(Crawler):
         logger.info("Novel title: %s", self.novel_title)
         self.novel_author = meta("og:novel:author") or ""
         self.novel_cover = self.absolute_url(meta("og:image") or "")
-        self.novel_synopsis = meta("og:description") or ""
+
+        # og:description is "<site boilerplate>观看小说：<blurb>"; keep the blurb only.
+        description = meta("og:description") or ""
+        match = re.search(r"观看小说[：:](.*)", description)
+        self.novel_synopsis = (
+            match.group(1).strip().strip('"').strip() if match else description
+        )
+
+        serial = soup.select_one(".serialStatus")
+        status_text = serial.get_text(strip=True) if isinstance(serial, Tag) else ""
+        if "连载" in status_text or "未" in status_text:
+            self.status = NovelStatus.ongoing
+        elif "完" in status_text:
+            self.status = NovelStatus.completed
 
         tags = [
             span.get_text(strip=True)
@@ -87,17 +102,26 @@ class ZonghengCrawler(Crawler):
         book_id = match.group(1)
 
         cat_soup = self.get_soup(f"https://book.zongheng.com/showchapter/{book_id}.html")
-        for a in cat_soup.select("ul.chapter-list li a[href]"):
+        # VIP rows (class "vip") only return a preview body: skip them.
+        vip_skipped = 0
+        for li in cat_soup.select("ul.chapter-list li"):
+            a = li.select_one("a[href]")
+            if not isinstance(a, Tag):
+                continue
             href = str(a["href"])
             if "chapter/" not in href:
+                continue
+            if "vip" in (li.get("class") or []):
+                vip_skipped += 1
                 continue
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
-                    title=(a.get("title") or a.get_text(strip=True) or f"Chapter {len(self.chapters) + 1}").strip(),
+                    title=a.get_text(strip=True),
                     url=self.absolute_url(href),
                 )
             )
+        logger.info("Skipped %d VIP-locked chapter(s)", vip_skipped)
 
     def download_chapter_body(self, chapter: Chapter) -> str:
         soup = self.get_soup(chapter.url)

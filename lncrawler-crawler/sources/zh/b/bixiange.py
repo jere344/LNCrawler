@@ -93,14 +93,25 @@ class BiXianGeCrawler(Crawler):
         if categories:
             self.novel_tags = categories
 
+        # chapters are /<section>/<novel id>/<n>.html or /<section>/<novel id>/index/<n>.html;
+        # the "在线阅读" button also points to chapter 1. Novel URLs come as /<section>/<id>.html
+        # or /<section>/<id> (search and browse).
+        book = re.search(r"/([a-z0-9]+)/(\d+)(?:\.html)?$", self.novel_url)
+        seen = set()
         for a in soup.select("a[href]"):
             href = a["href"]
-            if not re.search(r"/index/\d+\.html$", href):
+            title = a.get_text(strip=True)
+            if not book or not title or title == "在线阅读" or href in seen:
                 continue
+            if not re.match(
+                rf"^/{book.group(1)}/{book.group(2)}/(?:index/)?\d+\.html$", href
+            ):
+                continue
+            seen.add(href)
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,
-                    "title": a.get_text(strip=True),
+                    "title": title,
                     "url": self.absolute_url(href),
                 }
             )
@@ -108,5 +119,9 @@ class BiXianGeCrawler(Crawler):
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"], encoding="gb18030")
         contents = soup.select_one("#mycontent") or soup.select_one(".content")
+        # the site puts empty <p></p> spacers between paragraphs
+        for p in contents.select("p"):
+            if not p.get_text(strip=True):
+                p.decompose()
         self.cleaner.clean_contents(contents)
         return str(contents)

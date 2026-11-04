@@ -68,9 +68,13 @@ class IsotlsCrawler(Crawler):
 
         for a in soup.select('main section:nth-child(3) nav ul li a'):
             chap_id = len(self.chapters) + 1
+            title = a.text.strip()
+            prefix = f"{self.novel_title} - "
+            if title.startswith(prefix):
+                title = title[len(prefix):]
             self.chapters.append({
                 'id': chap_id,
-                'title': a.text.strip(),
+                'title': title,
                 'url': self.absolute_url(a['href']),
             })
 

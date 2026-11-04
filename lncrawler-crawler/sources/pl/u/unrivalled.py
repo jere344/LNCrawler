@@ -113,15 +113,6 @@ class UnrivalledStoriesCrawler(Crawler):
                 status_tag.get_text(" ", strip=True).strip().lower(), NovelStatus.unknown
             )
 
-        # No dedicated model field for rating/word count; keep them as tags so
-        # they survive the import (avoid commas/slashes, split by the formatter).
-        rating = soup.select_one(".story__rating")
-        if rating and rating.get_text(strip=True):
-            self.tags.append(f"Rating: {rating.get_text(' ', strip=True)}")
-        words = soup.select_one(".story__words")
-        if words and words.get_text(strip=True):
-            self.tags.append(f"Words: {words.get_text(' ', strip=True).replace(',', '.')}")
-
         summary = soup.select_one(".story__summary")
         if isinstance(summary, Tag):
             self.novel_synopsis = self.cleaner.extract_contents(summary)

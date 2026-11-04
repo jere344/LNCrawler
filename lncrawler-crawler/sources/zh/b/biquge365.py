@@ -28,12 +28,17 @@ _BANNER_MARK = "一秒记住"
 _PLACEHOLDER_COVER = "zanwu"
 _AD_MARK = "content_tip"
 _AD_BLOCK = re.compile(r"<div[^>]*content_tip.*?</div>", re.S)
+# long chapters are one page split in parts: "(第1/2页)" headings and a "本章未完" note
+_PAGE_NOTE = re.compile(r"（本章未完[^）<]*）")
+_PAGE_HEADING = re.compile(r"<p>[^<]*\(第\d+/\d+页\)</p>")
 
 
 class Biquge365Crawler(Crawler):
     base_url = "https://www.biquge365.net/"
     language = "zh"
     has_mtl = False
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         # Search and chapter-list requests are spaced out: bursts can return
@@ -42,7 +47,7 @@ class Biquge365Crawler(Crawler):
 
     def _url(self, path: str) -> str:
         # absolute_url() strips the trailing slash, which these pages 404 without.
-        return self.base_url.rstrip("/") + path
+        return self.home_url.rstrip("/") + path
 
     def _novel_results(self, soup) -> List[SearchResult]:
         results = []
@@ -59,7 +64,8 @@ class Biquge365Crawler(Crawler):
             results.append(
                 SearchResult(
                     title=a.get_text(" ", strip=True),
-                    url=self.absolute_url(str(a["href"])),
+                    # keep the trailing slash: /book/<id> without it is a 404
+                    url=self._url(str(a["href"])),
                     info=" | ".join(p for p in info_parts if p) or None,
                 )
             )
@@ -137,6 +143,11 @@ class Biquge365Crawler(Crawler):
         if isinstance(synopsis, Tag):
             text = synopsis.get_text("\n", strip=True)
             text = re.sub(r"^简介[:：]\s*", "", text)
+            # the site appends a "--<novel title>" sign-off to every blurb
+            if self.novel_title:
+                text = re.sub(
+                    r"\s*--\s*" + re.escape(self.novel_title) + r"\s*$", "", text
+                )
             self.novel_synopsis = text.strip()
 
         book_id = re.search(r"/(?:book|newbook)/(\d+)", self.novel_url)
@@ -186,4 +197,10 @@ class Biquge365Crawler(Crawler):
             if _AD_MARK in node:
                 cleaned = _AD_BLOCK.sub("", str(node))
                 node.replace_with(cleaned)
-        return self.cleaner.extract_contents(body)
+        html = self.cleaner.extract_contents(body)
+        html = _PAGE_NOTE.sub("", html)
+        return _PAGE_HEADING.sub("", html)
+
+    def _migrate_v2(self, body, chapter):
+        body = _PAGE_NOTE.sub("", body)
+        return _PAGE_HEADING.sub("", body)

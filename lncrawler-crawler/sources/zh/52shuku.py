@@ -13,6 +13,7 @@ import re
 from html import escape
 from urllib.parse import quote
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
@@ -34,6 +35,8 @@ class Shuku52Crawler(Crawler):
     ]
     language = "zh"
     has_mtl = False
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def search_novel(self, query):
         """Site search, paginated with &p=N; stops when a page adds nothing new."""
@@ -94,7 +97,7 @@ class Shuku52Crawler(Crawler):
         text = text.replace("　", " ")
         syn_text = self._synopsis_text(text)
 
-        author_match = re.search(r"作者[：:]\s*([^\s【：:]+)", syn_text or text)
+        author_match = re.search(r"作者[：:]\s*([^\s【：:]+)", text)
         if tail_plain:
             self.novel_author = tail_plain
         elif author_match:
@@ -109,6 +112,12 @@ class Shuku52Crawler(Crawler):
 
         if syn_text:
             self.novel_synopsis = syn_text
+
+        # Topic links in the "所属专题" line are the genres/tags of the novel.
+        tags = []
+        if container:
+            tags = [a.get_text(strip=True) for a in container.select("a[href*='/tuijian/']")]
+        self.novel_tags = list(dict.fromkeys(t for t in tags if t))
 
         og = soup.select_one("meta[property='og:image']")
         if og and og.get("content"):
@@ -146,16 +155,19 @@ class Shuku52Crawler(Crawler):
 
     @staticmethod
     def _synopsis_text(text):
-        """Intro block before the first chapter heading or promo footer."""
+        """Blurb block: after the "书名》作者：X【完结】 文案：" header, before the topic line,
+        the tips, the reading buttons, the reader-page list or the promo footer."""
         cut = len(text)
         m = CHAPTER_MARK.search(text)
         if m:
             cut = min(cut, m.start())
-        j = text.find("本站内容来源")
-        if j != -1:
-            cut = min(cut, j)
+        for marker in ("本站内容来源", "所属专题", "Tips：", "开始阅读"):
+            j = text.find(marker)
+            if j != -1:
+                cut = min(cut, j)
         head = text[:cut]
         head = re.sub(r"^\s*小说简介[：:]\s*", "", head)
+        head = re.sub(r"^\s*《[^》]*》[^\n]*?文案[：:]\s*", "", head)
         lines = [l.strip() for l in head.split("\n") if l.strip()]
         return "\n".join(lines)
 
@@ -169,6 +181,11 @@ class Shuku52Crawler(Crawler):
             "script, style, ins, iframe, noscript, .adsbygoogle, div.txtad, [class*='advert']"
         ):
             tag.decompose()
+        # Site footer paragraph after the text: "传送门： 排行榜单 | <genres> | <author>".
+        for p in body.find_all("p"):
+            text = p.get_text(strip=True)
+            if text.startswith("传送门") and ("排行榜单" in text or "|" in text):
+                p.decompose()
 
         parts = []
         for s in body.stripped_strings:
@@ -177,3 +194,23 @@ class Shuku52Crawler(Crawler):
                 continue
             parts.append(s)
         return "".join(f"<p>{escape(p)}</p>" for p in parts)
+
+    def _migrate_v2(self, body, chapter):
+        # The footer is split into one <p> per link in the stored body and runs to the end.
+        soup = body_migrations.parse(body)
+        blocks = soup.find_all(recursive=False)
+        start = next(
+            (i for i, b in enumerate(blocks) if b.name == "p" and b.get_text(strip=True).startswith("传送门")),
+            None,
+        )
+        if start is None:
+            return body
+        rest = blocks[start:]
+        # Same marker test as download_chapter_body, on the block or the lines after it.
+        if not any("排行榜单" in t or "|" in t for t in (b.get_text(strip=True) for b in rest)):
+            return body
+        if len(rest) > 40 or any(len(b.get_text(strip=True)) > 80 for b in rest):
+            return None
+        for b in rest:
+            b.decompose()
+        return str(soup)

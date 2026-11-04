@@ -1,933 +1,385 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import {
-  Container,
-  Typography,
-  Paper,
-  Box,
-  CircularProgress,
-  useMediaQuery,
-  useTheme,
-  Tabs,
-  Tab,
-  IconButton,
-  Button,
-} from '@mui/material';
-import { userService } from '../../services/api';
-import BookIcon from '@mui/icons-material/Book';
-import LanguageIcon from '@mui/icons-material/Language';
-import ListAltIcon from '@mui/icons-material/ListAlt';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
-import CommentIcon from '@mui/icons-material/Comment';
-import SettingsIcon from '@mui/icons-material/Settings';
-import HeadphonesIcon from '@mui/icons-material/Headphones';
-import { alpha } from '@mui/material/styles';
-import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
-import ReaderSettings, { ReaderSettings as IReaderSettings, EdgeTapBehavior, KeyAction } from './ReaderSettings';
-import { defaultSettings } from './readerDefaults';
-import { setCookie } from '@utils/cookies';
-import { READER_COOKIE_PREFIX, READER_COOKIE_DAYS } from '@utils/storage';
-import { getChapterLabel } from '@utils/Misc';
-import BreadcrumbNav from '../common/BreadcrumbNav';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
+import { useMediaQuery } from '@mui/material';
 import { useAuth } from '@context/AuthContext';
-import { useAudioPlayer } from '@context/AudioPlayerContext';
-import { useNotification } from '@context/NotificationContext';
-
-import ReaderToolbar from './controls/ReaderToolbar';
-import ReaderViewport from './viewport/ReaderViewport';
-import ReaderContent from './content/ReaderContent';
-import ReaderControls from './controls/ReaderControls';
-import CommentSection from '../comments/CommentSection';
-
+import { updateReaderSetting } from './readerSettingsStore';
+import ReaderDesktopToolbar from './controls/ReaderDesktopToolbar';
+import ReaderTopBar from './controls/ReaderTopBar';
+import ReaderBottomBar from './controls/ReaderBottomBar';
+import ReaderControlsTheme from './theme/ReaderControlsTheme';
+import ReaderPanels from './panels/ReaderPanels';
+import { reservedEnd as panelReservedEnd, reservedStart as panelReservedStart } from './panels/panelLayout';
 import ReaderKeyboardNavigation from './controls/ReaderKeyboardNavigation';
+import ChapterArticle from './content/ChapterArticle';
+import DimGestureStrip from './viewport/DimGestureStrip';
+import ChapterStatusView from './content/ChapterStatusView';
 import TtsPlayerBar from './tts/TtsPlayerBar';
-import { useTtsPlayer } from './tts/useTtsPlayer';
-import { TTS_BAR_HEIGHT, type TtsPrefs } from './tts/ttsTypes';
-import UnavailableChapter from './UnavailableChapter';
+import { TTS_BAR_HEIGHT } from './tts/ttsTypes';
 import ChapterSEO from '@components/reader/ChapterSEO';
-import { useChapterCache } from './hooks/useChapterCache';
-import { useScrollPersistence, SCROLL_SAVE_THROTTLE } from './hooks/useScrollPersistence';
+import { useReaderSettings } from './hooks/useReaderSettings';
+import { useReaderLayout } from './hooks/useReaderLayout';
+import { useReaderPanels } from './hooks/useReaderPanels';
+import { useReaderBarProps } from './hooks/useReaderBarProps';
+import { useFullscreen } from './hooks/useFullscreen';
+import { useChapterLoader } from './hooks/useChapterLoader';
+import { useReaderScrollSaving } from './hooks/useReaderScrollSaving';
+import { useChapterReadTracking } from './hooks/useChapterReadTracking';
+import { useChapterNavigation } from './hooks/useChapterNavigation';
+import { useReaderAudio } from './hooks/useReaderAudio';
+import { buildKeyBindings, keyLabelFor, useReaderActions } from './hooks/useReaderActions';
+import { useReaderTapInput } from './hooks/useReaderTapInput';
 import { useReaderGestures } from './hooks/useReaderGestures';
-import { useLoadReaderSettingsFromCookies } from './hooks/useLoadReaderSettingsFromCookies';
+import { useHideScrollbar } from './hooks/useHideScrollbar';
+import { useRevealOnTopHover } from './hooks/useRevealOnTopHover';
+import { chapterListCache } from './panels/chapterList';
 
-const EDGE_TAP_WIDTH_PERCENTAGE = 15; // % of screen width for edge tap detection
+// The chapter list page is fetched this long after a chapter opens, once the text has settled
+const CHAPTER_LIST_PREFETCH_MS = 1500;
 
 const ChapterReader = () => {
-  const { novelSlug, sourceSlug, chapterNumber } = useParams<{ 
-    novelSlug: string; 
-    sourceSlug: string; 
-    chapterNumber: string 
+  const { novelSlug, sourceSlug, chapterNumber } = useParams<{
+    novelSlug: string;
+    sourceSlug: string;
+    chapterNumber: string
   }>();
-  const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
-  const [chapter, setChapter] = useState<IChapterContent | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [unavailableChapter, setUnavailableChapter] = useState<UnavailableChapterInfo | null>(null);
-  const [markingAsRead, setMarkingAsRead] = useState(false);
-  const [markReadSuccess, setMarkReadSuccess] = useState(false);
-  
-  // Get authentication state to check if the user is logged in
+  const { mode, isDesktop, isNarrow } = useReaderLayout();
+  // Touch laptops have a desktop layout but still get the dim strip
+  const coarsePointer = useMediaQuery('(any-pointer: coarse)');
   const { isAuthenticated } = useAuth();
-  const { notify } = useNotification();
-  
-  // Reader settings state
-  const [readerSettings, setReaderSettings] = useState<IReaderSettings>(defaultSettings);
-  const [controlsVisible, setControlsVisible] = useState(false);
-  const [settingsFocusTts, setSettingsFocusTts] = useState(false);
+  const readerSettings = useReaderSettings();
+  const {
+    panel,
+    pages,
+    searching,
+    threads,
+    composing,
+    toggleDisplay,
+    toggleChapters,
+    toggleComments,
+    openComments,
+    pushThread,
+    startComposing,
+    stopComposing,
+    openSettings,
+    openCustomize,
+    closePanel,
+    popPage,
+    pushPage,
+    setDeskPage,
+    startSearch,
+    closeThen,
+  } = useReaderPanels({ isDesktop });
+  const reservedStart = panelReservedStart(panel, mode);
+  const reservedEnd = panelReservedEnd(panel, mode);
+  // The desktop toolbar starts shown; the touch bars start hidden
+  const [controlsVisible, setControlsVisible] = useState(isDesktop);
 
-  // Close the settings drawer resets which section it opens on
+  // Each time the layout switches, the bars go back to their starting state for it
   useEffect(() => {
-    if (!controlsVisible) setSettingsFocusTts(false);
-  }, [controlsVisible]);
-  
-  // Add state for active tab
-  const [activeTab, setActiveTab] = useState(0);
-  
-  // Chapter content cache and preload
-  const { fetchChapterContent, preloadNextChapter } = useChapterCache(novelSlug, sourceSlug);
-  const contentRef = useRef<HTMLDivElement>(null);
+    setControlsVisible(isDesktop);
+  }, [isDesktop]);
+
   // Sentinel placed after the chapter text, watched to detect the reader reaching its end
   const endOfChapterRef = useRef<HTMLDivElement>(null);
-
-  // Key of the chapter already marked as read automatically (null if none)
-  const autoMarkedKeyRef = useRef<string | null>(null);
-
-  // Whether the TTS bar covers the bottom of the viewport (set once tts exists)
-  const ttsOpenRef = useRef(false);
-
-  // Tags each chapter fetch so a slow older request can't overwrite a newer one
-  const loadRequestIdRef = useRef(0);
-
   // Key of the chapter whose text is currently on screen (null while loading)
   const loadedChapterKeyRef = useRef<string | null>(null);
+  // Whether the TTS bar covers the bottom of the viewport (set once tts exists)
+  const ttsOpenRef = useRef(false);
 
   // Current chapter key for scroll position tracking
   const currentChapterKey = `${novelSlug}|${sourceSlug}|${chapterNumber}`;
 
-  // Automatic marking runs for signed-in users when the setting says so
-  const isAutoMarkEnabled = isAuthenticated &&
-    (readerSettings.markReadBehavior === 'automatic' ||
-     readerSettings.markReadBehavior === 'buttonAutomatic');
-
-  // Memoize chapterData for CommentSection to prevent re-renders on scroll
-  const chapterDataForComments = useMemo(() => {
-    if (novelSlug && sourceSlug && chapterNumber) {
-      return {
-        novelSlug,
-        sourceSlug,
-        chapterNumber: parseInt(chapterNumber),
-      };
-    }
-    return null;
-  }, [novelSlug, sourceSlug, chapterNumber]);
-
-  // Load saved settings from cookies
-  useLoadReaderSettingsFromCookies(setReaderSettings);
-
-  // Scroll position save/restore for the current chapter
-  const { saveScrollPosition, restoreScrollPosition, scrollRestoreTimeoutRef } = useScrollPersistence({
-    currentChapterKey,
-    savePosition: readerSettings.savePosition,
+  const { chapter, loading, error, unavailableChapter, bumpCommentCount } = useChapterLoader({
+    novelSlug,
+    sourceSlug,
+    chapterNumber,
+    onLoadStart: () => {
+      loadedChapterKeyRef.current = null;
+    },
   });
 
-  // Only save while the current chapter's text is on screen: during a load the
-  // DOM is the spinner or the previous chapter, which would overwrite the
-  // saved position before it is restored.
-  const saveScrollIfReady = (force = false) => {
-    if (loadedChapterKeyRef.current !== currentChapterKey) return;
-    saveScrollPosition(force);
-  };
-
-  useEffect(() => {
-    const loadCurrentChapter = async () => {
-      if (!novelSlug || !sourceSlug || !chapterNumber) return;
-      
-      const requestId = ++loadRequestIdRef.current;
-      setError(null);
-      setUnavailableChapter(null);
-      setLoading(true);
-      loadedChapterKeyRef.current = null;
-      try {
-        const chapterData = await fetchChapterContent(
-          novelSlug,
-          sourceSlug,
-          parseInt(chapterNumber)
-        );
-        // Ignore a stale response if the user navigated to another chapter.
-        if (requestId !== loadRequestIdRef.current) return;
-        setChapter(chapterData);
-
-        // Preload next chapter if it exists
-        if (chapterData.next_chapter) {
-          preloadNextChapter(chapterData.next_chapter);
-        }
-      } catch (err) {
-        if (requestId !== loadRequestIdRef.current) return;
-        console.error('Error fetching chapter content:', err);
-        const response = (err as {
-          response?: { status?: number; data?: UnavailableChapterInfo };
-        })?.response;
-        const unavailable = response?.status === 404 ? response.data : undefined;
-        if (response?.status === 451) {
-          setError(t('reader.dmcaUnavailable'));
-        } else if (unavailable && typeof unavailable.chapter_id === 'number') {
-          // The chapter exists but has no content: show the unavailable page
-          // instead of a generic error, with working next/prev navigation.
-          setChapter(null);
-          setUnavailableChapter(unavailable);
-        } else {
-          setError(t('reader.loadFailed'));
-        }
-      } finally {
-        if (requestId === loadRequestIdRef.current) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadCurrentChapter();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t/loader intentionally omitted; route params are the inputs
-  }, [novelSlug, sourceSlug, chapterNumber]);
-
-  // A previous chapter's "mark as read" success must not bleed into the next.
-  useEffect(() => {
-    setMarkReadSuccess(false);
-  }, [novelSlug, sourceSlug, chapterNumber]);
-
-  // Key of the chapter currently shown, so a late response can tell it is stale
-  const latestChapterKeyRef = useRef(currentChapterKey);
-
-  // Mark the chapter as read once the reader reaches its end, so the last
-  // chapter (which has no "next" to navigate to) is recorded too
-  useEffect(() => {
-    latestChapterKeyRef.current = currentChapterKey;
-    if (!isAutoMarkEnabled || loading || !chapter || activeTab !== 0 ||
-        !novelSlug || !sourceSlug || !chapterNumber ||
-        autoMarkedKeyRef.current === currentChapterKey) return;
-    const endElement = endOfChapterRef.current;
-    if (!endElement) return;
-
-    const key = currentChapterKey;
-    let pending = false;
-    const stop = () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', checkEndReached);
-    };
-    // Checked on both visibility changes and scrolls: the end can already be on
-    // screen while the scroll guard below still holds, and the observer would
-    // not fire again until it leaves and re-enters the viewport
-    const checkEndReached = () => {
-      // Right after a route change the previous chapter is still on screen
-      if (pending || loadedChapterKeyRef.current !== key) return;
-      const bottomOverlay = ttsOpenRef.current
-        ? (isMobile ? TTS_BAR_HEIGHT.mobile : TTS_BAR_HEIGHT.desktop)
-        : 0;
-      if (endElement.getBoundingClientRect().top > window.innerHeight - bottomOverlay) return;
-      // A short chapter can look finished while its content is still laying out,
-      // so wait for a scroll before marking when the page can scroll
-      const doc = document.documentElement;
-      if (doc.scrollHeight > doc.clientHeight && window.scrollY <= 0) return;
-
-      // Stay subscribed until the request succeeds, so a failure retries on the
-      // next scroll
-      pending = true;
-      userService.markChapterAsRead(novelSlug, sourceSlug, parseInt(chapterNumber))
-        .then(() => {
-          autoMarkedKeyRef.current = key;
-          stop();
-          if (latestChapterKeyRef.current === key) setMarkReadSuccess(true);
-        })
-        .catch((error) => {
-          console.error('Error automatically marking chapter as read:', error);
-        })
-        .finally(() => {
-          pending = false;
-        });
-    };
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) checkEndReached();
-    });
-    observer.observe(endElement);
-    window.addEventListener('scroll', checkEndReached, { passive: true });
-    return stop;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- novelSlug, sourceSlug and chapterNumber are encoded in currentChapterKey
-  }, [isAutoMarkEnabled, loading, chapter, activeTab, currentChapterKey]);
-
-  // Restore scroll position when chapter content is loaded
-  useEffect(() => {
-    if (!loading && chapter) {
-      // The chapter's text is now committed, so saves for this key are safe
-      loadedChapterKeyRef.current = currentChapterKey;
-      restoreScrollPosition();
-    }
-    return () => {
-      if (scrollRestoreTimeoutRef.current !== null) {
-        clearTimeout(scrollRestoreTimeoutRef.current);
-        scrollRestoreTimeoutRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only on the listed scroll inputs
-  }, [loading, chapter]);
-
-  // Save scroll position when navigating or every minute
-  useEffect(() => {
-    // Save position periodically while reading
-    const saveInterval = setInterval(() => {
-      if (chapter && !loading && readerSettings.savePosition) {
-        saveScrollIfReady();
-      }
-    }, 60000); // Save every minute
-
-    // Save on page visibility change (tab switching, etc.)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        saveScrollIfReady();
-      }
-    };
-
-    // Use passive scroll listener with throttling
-    let scrollTimeout: number | null = null;
-    const handleScroll = () => {
-      if (scrollTimeout === null) {
-        scrollTimeout = window.setTimeout(() => {
-          scrollTimeout = null;
-          saveScrollIfReady();
-        }, SCROLL_SAVE_THROTTLE);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-
-    // Cleanup
-    return () => {
-      clearInterval(saveInterval);
-      if (scrollTimeout) {
-        clearTimeout(scrollTimeout);
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('scroll', handleScroll);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-subscribe only when the listed save inputs change
-  }, [chapter, loading, readerSettings.savePosition, currentChapterKey]);
-
-  const handleBackToChapters = () => {
-    saveScrollIfReady(true);
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
-  };
-
-  const handleBackToSource = () => {
-    saveScrollIfReady(true);
-    navigate(`/novels/${novelSlug}/${sourceSlug}`);
-  };
-  
-  // Add this function to handle automatic marking as read when navigating
-  const handleChapterNavigation = async (direction: 'prev' | 'next') => {
-    // Save current scroll position
-    saveScrollIfReady(true);
-    
-    // Get the chapter number to navigate to
-    const targetChapter = direction === 'next' 
-      ? chapter?.next_chapter 
-      : chapter?.prev_chapter;
-
-    // The immediate neighbour exists but isn't the next *available* chapter:
-    // there's a gap. Route through the unavailable chapter's page so the skip
-    // is deliberate rather than silent.
-    const neighbor = direction === 'next' ? chapter?.next_chapter_id : chapter?.prev_chapter_id;
-    const gapChapter = neighbor != null && neighbor !== targetChapter ? neighbor : null;
-    
-    if (!targetChapter && gapChapter == null) return;
-    
-    // For automatic marking settings, mark the current chapter as read when navigating away
-    if (isAutoMarkEnabled &&
-        chapterNumber &&
-        novelSlug &&
-        sourceSlug &&
-        autoMarkedKeyRef.current !== currentChapterKey) {
-      try {
-        await userService.markChapterAsRead(
-          novelSlug,
-          sourceSlug,
-          parseInt(chapterNumber)
-        );
-      } catch (error) {
-        console.error('Error automatically marking chapter as read:', error);
-      }
-    }
-    
-    // Navigate to the target (or to the unavailable chapter that sits in between)
-    setActiveTab(0);
-    navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${gapChapter ?? targetChapter}`);
-  };
-
-  const nonDefiniteHandleNextChapter = () => {
-    // Original chapter navigation
-    if (chapter?.next_chapter) {
-      handleChapterNavigation('next');
-    }
-  }
-
-  const nonDefiniteHandlePrevChapter = () => {
-    // Original chapter navigation
-    if (chapter?.prev_chapter) {
-      handleChapterNavigation('prev');
-    }
-  }
-
-  // Update the navigation handlers to use the new function
-  const handleNextChapter = () => {
-    if (chapter?.next_chapter) {
-      handleChapterNavigation('next');
-    }
-  };
-
-  const handlePrevChapter = () => {
-    if (chapter?.prev_chapter) {
-      handleChapterNavigation('prev');
-    }
-  };
-
-  // Handler for settings navigation
-  const handleSettingsNavigate = (type: 'prev' | 'home' | 'next') => {
-    if (type === 'prev' && chapter?.prev_chapter) {
-      handlePrevChapter();
-    } else if (type === 'home') {
-      handleBackToSource();
-    } else if (type === 'next' && chapter?.next_chapter) {
-      handleNextChapter();
-    }
-    setControlsVisible(false);
-  };
-
-  // Scroll by 80% of viewport height (1 = down, -1 = up)
-  const scrollPage = (direction: 1 | -1) => {
-    window.scrollBy({
-      top: direction * window.innerHeight * 0.8,
-      behavior: 'smooth'
-    });
-  };
-
-  // Function to execute the appropriate behavior based on edge settings
-  const handleEdgeBehavior = (edge: 'left' | 'right', behavior: EdgeTapBehavior) => {
-    switch (behavior) {
-      case 'none':
-        // Do nothing
-        break;
-      case 'scrollUp':
-        scrollPage(-1);
-        break;
-      case 'scrollDown':
-        scrollPage(1);
-        break;
-      case 'chapter':
-        // Navigate to previous or next chapter
-        if (edge === 'left') {
-          nonDefiniteHandlePrevChapter();
-        } else if (edge === 'right') {
-          nonDefiniteHandleNextChapter();
-        }
-        break;
-    }
-  };
-
-  // Unified handler for content tap on mobile
-  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const ttsSeek = () =>
-      tts.open && readerSettings.ttsTapToSeek && (window.getSelection()?.isCollapsed ?? true) &&
-      tts.seekToNode(e.target as Node);
-    if (!isMobile) { ttsSeek(); return; }
-
-    // If controls are open, close them unless the click was inside the controls
-    if (controlsVisible) {
-      const target = e.target as HTMLElement;
-      const isSettingsClick = target.closest('.MuiDrawer-paper');
-      const isAppBarClick = target.closest('.MuiAppBar-root');
-      if (!isSettingsClick && !isAppBarClick) {
-        setControlsVisible(false);
-      }
-      return;
-    }
-
-    // Handle edge taps
-    const containerWidth = e.currentTarget.clientWidth;
-    const tapX = e.clientX - e.currentTarget.getBoundingClientRect().left;
-    const edgeWidth = containerWidth * (EDGE_TAP_WIDTH_PERCENTAGE / 100);
-
-    // Left edge tap
-    if (tapX <= edgeWidth) {
-      handleEdgeBehavior('left', readerSettings.leftEdgeTapBehavior);
-      return;
-    }
-    // Right edge tap
-    if (tapX >= containerWidth - edgeWidth) {
-      handleEdgeBehavior('right', readerSettings.rightEdgeTapBehavior);
-      return;
-    }
-
-    if (ttsSeek()) return;
-
-    // Center tap - only toggle controls if setting is enabled
-    if (readerSettings.centerTapToOpenSettings) {
-      setControlsVisible(!controlsVisible);
-    }
-  };
-
-  // Function to mark the current chapter as read
-  const handleMarkAsRead = async () => {
-    if (!novelSlug || !sourceSlug || !chapterNumber || !isAuthenticated) return;
-    
-    try {
-      setMarkingAsRead(true);
-      await userService.markChapterAsRead(
-        novelSlug,
-        sourceSlug,
-        parseInt(chapterNumber)
-      );
-      setMarkReadSuccess(true);
-      notify({ message: t('reader.markedRead'), severity: 'success', duration: 3000 });
-    } catch (error) {
-      console.error('Error marking chapter as read:', error);
-    } finally {
-      setMarkingAsRead(false);
-    }
-  };
-
-  // Function to switch to comments tab
-  const handleSwitchToComments = () => {
-    setActiveTab(1);
-    // Scroll back to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Function to handle tab changes
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
-  };
-  
-  // Add effect to apply scrollbar hiding based on settings
-  useEffect(() => {
-    if (readerSettings.hideScrollbar) {
-      // Add a style to hide scrollbar
-      const styleElement = document.createElement('style');
-      styleElement.id = 'hide-scrollbar-style';
-      styleElement.textContent = `
-        html { scrollbar-width: none; }
-        body { -ms-overflow-style: none; }
-        body::-webkit-scrollbar, body::-webkit-scrollbar-button { display: none; }
-      `;
-      document.head.appendChild(styleElement);
-    } else {
-      // Remove the style if it exists
-      const existingStyle = document.getElementById('hide-scrollbar-style');
-      if (existingStyle) {
-        existingStyle.remove();
-      }
-    }
-
-    return () => {
-      // Cleanup: remove the style when component unmounts
-      const existingStyle = document.getElementById('hide-scrollbar-style');
-      if (existingStyle) {
-        existingStyle.remove();
-      }
-    };
-  }, [readerSettings.hideScrollbar]);
-
-  // Memoize the chapter and settings for ReaderContent to prevent re-renders on scroll
-  const memoizedChapterContent = useMemo(() => ({
+  const { saveScrollIfReady } = useReaderScrollSaving({
+    currentChapterKey,
     chapter,
-    settings: readerSettings
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- tracks primitive fields so the memo stays stable across scroll
-  }), [
-    chapter?.body,
-    chapter?.images_path,
-    readerSettings.fontSize,
-    readerSettings.lineSpacing,
-    readerSettings.wordSpacing,
-    readerSettings.letterSpacing,
-    readerSettings.textAlign,
-    readerSettings.fontFamily,
-    readerSettings.textSelectable,
-    readerSettings.hideScrollbar,
-    readerSettings.paragraphIndent,
-    readerSettings.paragraphSpacing,
-  ]);
+    loading,
+    savePosition: readerSettings.savePosition,
+    loadedChapterKeyRef,
+  });
 
-  const handleSettingChange = (newSettings: IReaderSettings) => {
-    setReaderSettings(newSettings);
+  const {
+    markingAsRead,
+    markReadSuccess,
+    showMarkReadButton,
+    handleMarkAsRead,
+    markBeforeLeaving,
+  } = useChapterReadTracking({
+    novelSlug,
+    sourceSlug,
+    chapterNumber,
+    currentChapterKey,
+    chapter,
+    loading,
+    isAuthenticated,
+    isNarrow,
+    markReadBehavior: readerSettings.markReadBehavior,
+    endOfChapterRef,
+    loadedChapterKeyRef,
+    ttsOpenRef,
+  });
+
+  const markRead = {
+    showMarkRead: showMarkReadButton,
+    markReadSuccess,
+    markingAsRead,
+    onMarkAsRead: handleMarkAsRead,
   };
 
-  // Persist one setting in state and cookie
-  const updateSetting = <K extends keyof IReaderSettings>(key: K, value: IReaderSettings[K]) => {
-    setReaderSettings(prev => ({ ...prev, [key]: value }));
-    setCookie(READER_COOKIE_PREFIX + key, JSON.stringify(value), READER_COOKIE_DAYS);
-  };
+  const { goNext, goPrev, goToSource, goToChapterList, goToChapter } = useChapterNavigation({
+    novelSlug,
+    sourceSlug,
+    chapter,
+    saveScrollIfReady,
+    markBeforeLeaving,
+    closeThen,
+  });
 
-  // Handle swipe gestures
+  const { tts, novelLanguage, barHeight, handleListen, startNarration } = useReaderAudio({
+    settings: readerSettings,
+    chapter,
+    loading,
+    currentChapterKey,
+    isNarrow,
+    ttsOpenRef,
+    onNextChapter: goNext,
+  });
+
+  const fullscreen = useFullscreen();
+
+  // Taps and keys share one set of actions
+  const { runEdge, runKeyAction } = useReaderActions({
+    goNext,
+    goPrev,
+    setControlsVisible,
+    toggleDisplay,
+    toggleComments,
+    toggleFullscreen: fullscreen.toggle,
+  });
+
+  // A tap on the text seeks the TTS when it is playing and the text is not selected
+  const seekTap = (target: Node) =>
+    tts.open && readerSettings.ttsTapToSeek && (window.getSelection()?.isCollapsed ?? true) &&
+    tts.seekToNode(target);
+
+  const { tapProps, tapAt } = useReaderTapInput({
+    settings: readerSettings,
+    controlsVisible,
+    panelOpen: panel !== 'none',
+    setControlsVisible,
+    closePanel,
+    onEdge: runEdge,
+    seekTap,
+  });
+
+  // Swipes work on every touch device; they pause while a panel covers the text, except the sheet
   const { swipeHandlers } = useReaderGestures({
     chapter,
-    isMobile,
+    disabled: panel !== 'none' && panel !== 'display',
+    swipeLeftGesture: readerSettings.swipeLeftGesture,
+    swipeRightGesture: readerSettings.swipeRightGesture,
+    onNextChapter: goNext,
+    onPrevChapter: goPrev,
+  });
+
+  const keyBindings = useMemo(() => buildKeyBindings(readerSettings), [readerSettings]);
+  // Shortcut labels shown on the buttons, from the Keyboard settings
+  const shortcuts = {
+    prev: keyLabelFor(keyBindings, 'prevChapter'),
+    next: keyLabelFor(keyBindings, 'nextChapter'),
+    display: keyLabelFor(keyBindings, 'displaySheet'),
+    comments: keyLabelFor(keyBindings, 'comments'),
+    fullscreen: keyLabelFor(keyBindings, 'fullscreen'),
+  };
+
+  useHideScrollbar(readerSettings.hideScrollbar);
+
+  // Desktop: moving the pointer to the top edge brings the hidden toolbar back
+  const revealControls = useCallback(() => setControlsVisible(true), []);
+  useRevealOnTopHover(isDesktop && !controlsVisible, revealControls);
+
+  // The chapter's comments, the ones posted in this session included
+  const commentKey = {
+    novelSlug: novelSlug ?? '',
+    sourceSlug: sourceSlug ?? '',
+    // The route always has a number once the chapter is shown (the loader waits for it)
+    chapterNumber: parseInt(chapterNumber ?? ''),
+  };
+  const commentCount = chapter?.comment_count ?? 0;
+
+  const { barProps, chapterLabel } = useReaderBarProps({
+    chapter,
     controlsVisible,
-    readerSettings,
-    onNextChapter: nonDefiniteHandleNextChapter,
-    onPrevChapter: nonDefiniteHandlePrevChapter,
+    isDesktop,
+    panel,
+    reservedStart,
+    reservedEnd,
+    shortcuts,
+    setControlsVisible,
+    markRead,
+    fullscreen: { supported: fullscreen.supported, active: fullscreen.active, onToggle: fullscreen.toggle },
+    navigation: { goPrev, goNext, goToSource },
+    onToggleChapters: toggleChapters,
+    onToggleDisplay: toggleDisplay,
+    toggleComments,
+    commentsOpen: panel === 'comments',
+    commentCount,
+    onOpenSettings: () => openSettings(),
+    onListen: handleListen,
   });
 
-  // Keyboard bindings: KeyboardEvent.key value -> action, from the Keyboard settings
-  const keyBindings = useMemo<Record<string, KeyAction>>(() => ({
-    ArrowLeft: readerSettings.keyArrowLeft,
-    ArrowRight: readerSettings.keyArrowRight,
-    ArrowUp: readerSettings.keyArrowUp,
-    ArrowDown: readerSettings.keyArrowDown,
-    PageUp: readerSettings.keyPageUp,
-    PageDown: readerSettings.keyPageDown,
-    ' ': readerSettings.keySpace,
-  }), [readerSettings]);
-
-  const handleKeyAction = (action: KeyAction) => {
-    switch (action) {
-      case 'scrollUp':
-        scrollPage(-1);
-        break;
-      case 'scrollDown':
-        scrollPage(1);
-        break;
-      case 'prevChapter':
-        nonDefiniteHandlePrevChapter();
-        break;
-      case 'nextChapter':
-        nonDefiniteHandleNextChapter();
-        break;
-    }
-  };
-
-  // Sources store ISO codes, but tolerate regional forms like 'zh-CN'.
-  const novelLanguage = (chapter?.language || i18n.language || 'en').slice(0, 2).toLowerCase();
-  const ttsLanguage = readerSettings.ttsLanguage || novelLanguage;
-  const ttsHighlightColors = useMemo(() => ({
-    block: alpha(theme.palette.primary.main, 0.12),
-    sentence: alpha(theme.palette.primary.main, 0.3),
-  }), [theme.palette.primary.main]);
-  const tts = useTtsPlayer({
-    prefs: readerSettings,
-    lang: ttsLanguage,
-    chapterKey: !loading && chapter ? currentChapterKey : null,
-    chapterTitle: chapter ? getChapterLabel(t, chapter.title, chapter.chapter_id) : '',
-    novelTitle: chapter?.novel_title ?? '',
-    artwork: chapter?.source_overview_image_url,
-    hasNextChapter: !!chapter?.next_chapter,
-    onNextChapter: handleNextChapter,
-    onPrefChange: <K extends keyof TtsPrefs>(key: K, value: TtsPrefs[K]) =>
-      updateSetting(key, value as IReaderSettings[K]),
-    highlightColors: ttsHighlightColors,
-    topOffset: isMobile ? 0 : 64,
-    bottomOffset: isMobile ? TTS_BAR_HEIGHT.mobile : TTS_BAR_HEIGHT.desktop,
-  });
-  ttsOpenRef.current = tts.open;
-
-  // The audiobook mini bar hides while the TTS bar is open, so the two never stack at the bottom.
-  const { setSuppressed, barHeight, playAudiobook } = useAudioPlayer();
+  // Once the reader settles, loads the list page around this chapter: the list then opens from the cache with no skeleton
+  const chapterId = chapter?.chapter_id;
   useEffect(() => {
-    setSuppressed(tts.open);
-    return () => setSuppressed(false);
-  }, [tts.open, setSuppressed]);
+    if (!novelSlug || !sourceSlug || chapterId === undefined) return;
+    const timer = window.setTimeout(() => {
+      chapterListCache.load({ novelSlug, sourceSlug, around: chapterId }).catch(() => {});
+    }, CHAPTER_LIST_PREFETCH_MS);
+    return () => window.clearTimeout(timer);
+  }, [novelSlug, sourceSlug, chapterId]);
 
-  /** Narrate the chapter with its audiobook recording, through the global player. */
-  const startNarration = (c: IChapterContent) =>
-    playAudiobook(c.novel_slug, c.language ?? 'en', { chapterId: Number(c.id) });
-
-  // The listen button narrates when the pref is 'narrated' and the chapter has a recording.
-  // If the player fails it has already shown a toast, so client TTS takes over.
-  const handleListen = async () => {
-    if (chapter?.audio_url && readerSettings.ttsEngine === 'narrated' && await startNarration(chapter)) return;
-    tts.start();
-  };
-
-  if (loading) {
+  // Loading, unavailable and error states replace the reader; every hook above runs first
+  if (loading || unavailableChapter || error || !chapter) {
     return (
-      <Container>
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}>
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
-
-  if (unavailableChapter) {
-    return (
-      <UnavailableChapter
-        info={unavailableChapter}
-        onNextAvailable={
-          unavailableChapter.next_chapter != null
-            ? () => navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${unavailableChapter.next_chapter}`)
-            : undefined
-        }
-        onPrevious={
-          unavailableChapter.prev_chapter != null
-            ? () => navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${unavailableChapter.prev_chapter}`)
-            : undefined
-        }
-        onChapterList={() => navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`)}
+      <ChapterStatusView
+        loading={loading}
+        error={error}
+        unavailableChapter={unavailableChapter}
+        novelSlug={novelSlug}
+        sourceSlug={sourceSlug}
       />
     );
   }
 
-  if (error || !chapter) {
-    return (
-      <Container>
-        <Box sx={{ p: 3, textAlign: 'center', mt: 3 }}>
-          <Typography color="error">{error || t('reader.notFound')}</Typography>
-        </Box>
-      </Container>
-    );
-  }
 
-  // Update the rendering of reader controls based on mark read behavior
-  const shouldShowMarkReadButton = isAuthenticated && 
-    (readerSettings.markReadBehavior === 'button' || 
-     readerSettings.markReadBehavior === 'buttonAutomatic');
+  // The TTS bar sits at the bottom, so the touch bottom bar rises above it
+  const bottomOffset = tts.open ? (isNarrow ? TTS_BAR_HEIGHT.mobile : TTS_BAR_HEIGHT.desktop) : 0;
 
-  const toolbarElement = (
-    <ReaderToolbar 
-      isMobile={isMobile}
-      controlsVisible={controlsVisible}
-      title={getChapterLabel(t, chapter.title, chapter.chapter_id)}
-      prevChapter={chapter.prev_chapter}
-      nextChapter={chapter.next_chapter}
-      isAuthenticated={isAuthenticated}
-      markReadSuccess={markReadSuccess}
-      markingAsRead={markingAsRead}
-      showMarkReadButton={shouldShowMarkReadButton}
-      onMarkAsRead={handleMarkAsRead}
-      onChapterList={handleBackToChapters}
-      onHome={handleBackToSource}
-      onPrevious={handlePrevChapter}
-      onNext={handleNextChapter}
-      onSettings={() => setControlsVisible(true)}
-      onListen={() => { setControlsVisible(false); handleListen(); }}
-      onCloseControls={() => setControlsVisible(false)}
-    />
-  );
+  // The dim strip: only with the bars and panels hidden, and on touch (or when the layout is not desktop)
+  const dimSide = readerSettings.dimGestureSide;
+  const dimStripShown = panel === 'none' && !controlsVisible && (!isDesktop || coarsePointer);
 
   return (
     <>
-      <ChapterSEO chapter={chapter}></ChapterSEO>
+      <ChapterSEO chapter={chapter} />
 
-      <>
-      {toolbarElement}
-      <Container 
-        maxWidth="md" 
-        sx={{
-          padding: { xs: 0, md: 4 },
-        }}
-        {...swipeHandlers}
-      >
-        {/* Breadcrumbs on every viewport; the gutter keeps them off the screen edge on mobile */}
-        <Box sx={{ px: { xs: 2, md: 0 } }}>
-          <BreadcrumbNav
-            items={[
-              {
-                label: chapter.novel_title,
-                icon: <BookIcon fontSize="inherit" />
-              },
-              {
-                label: chapter.source_name,
-                link: `/novels/${novelSlug}/${sourceSlug}`,
-                icon: <LanguageIcon fontSize="inherit" />
-              },
-              {
-                label: t('reader.chapters'),
-                link: `/novels/${novelSlug}/${sourceSlug}/chapterlist`,
-                icon: <ListAltIcon fontSize="inherit" />
-              },
-              {
-                label: getChapterLabel(t, chapter.title, chapter.chapter_id),
-                icon: <MenuBookIcon fontSize="inherit" />
-              }
-            ]}
-          />
-        </Box>
-        
-        <Paper 
-          elevation={3} 
-          sx={{ 
-            p: { xs: 2, md: 4 }, 
-            mt: 2, 
-            mb: 8,
-            backgroundColor: readerSettings.backgroundColor || undefined,
-            color: readerSettings.fontColor || undefined,
-            mx: `${readerSettings.margin}%`
+      <ReaderControlsTheme backgroundColor={readerSettings.backgroundColor}>
+        {/* One toolbar on desktop, the top and bottom bars on touch layouts */}
+        {isDesktop ? (
+          <ReaderDesktopToolbar {...barProps} />
+        ) : (
+          <>
+            <ReaderTopBar {...barProps} />
+            <ReaderBottomBar
+              {...barProps}
+              bottomOffset={bottomOffset}
+              ttsOpen={tts.open}
+              isNarrow={isNarrow}
+              isPhoneLandscape={mode === 'phoneLandscape'}
+            />
+          </>
+        )}
+
+        <ReaderPanels
+          panel={panel}
+          mode={mode}
+          bottomOffset={bottomOffset}
+          pages={pages}
+          searching={searching}
+          novelLanguage={novelLanguage}
+          hasNarration={!!chapter.audio_url}
+          chapterNumber={chapter.chapter_id}
+          chapterList={{
+            novelSlug: novelSlug ?? '',
+            sourceSlug: sourceSlug ?? '',
+            novelTitle: chapter.novel_title,
+            currentChapterId: chapter.chapter_id,
+            onOpenChapter: goToChapter,
+            onOpenNovel: goToSource,
           }}
-        >
-          {/* Chapter title and content */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h5" gutterBottom align="center" sx={{ color: readerSettings.fontColor || undefined }}>
-              {getChapterLabel(t, chapter.title, chapter.chapter_id)}
-            </Typography>
-            <Typography variant="subtitle1" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-              {chapter.novel_title}
-            </Typography>
-          </Box>
-          
-          {/* Tab controls */}
-          <Box sx={{ 
-            borderBottom: 1, 
-            borderColor: 'divider', 
-            mb: 2,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}>
-            <Tabs value={activeTab} onChange={handleTabChange} aria-label={t('reader.chapters')}>
-              <Tab label={t('reader.chapterTab')} id="tab-0" />
-              <Tab 
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    {t('reader.commentsTab')}
-                    <CommentIcon sx={{ ml: 1 }} />
-                  </Box>
-                } 
-                id="tab-1" 
-              />
-            </Tabs>
-            
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <IconButton
-                onClick={handleListen}
-                aria-label={t('reader.listen')}
-                sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }, scale: '1.2' }}
-              >
-                <HeadphonesIcon />
-              </IconButton>
-              <IconButton 
-                onClick={() => setControlsVisible(true)}
-                aria-label={t('reader.openSettings')}
-                sx={{ 
-                  color: 'text.secondary',
-                  '&:hover': {
-                    color: 'primary.main'
-                  },
-                  scale: '1.2'
-                }}
-              >
-                <SettingsIcon />
-              </IconButton>
-            </Box>
-          </Box>
-          
-          {/* Narration hint: the chapter has a recording but the listen button uses client TTS */}
-          {chapter.audio_url && readerSettings.ttsEngine !== 'narrated' && (
-            <Box sx={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 1, mb: 2,
-              px: 1.5, py: 0.5, borderRadius: 1, bgcolor: 'action.hover',
-            }}>
-              {/* Wraps onto its own line on phones rather than squeezing next to the button */}
-              <Typography variant="body2" color="text.secondary" sx={{ flex: '1 1 12em' }}>{t('audioPlayer.narratedHint')}</Typography>
-              <Button
-                size="small"
-                startIcon={<HeadphonesIcon />}
-                onClick={() => { void startNarration(chapter); }}
-                sx={{ flexShrink: 0 }}
-              >
-                {t('audioPlayer.listenToNarration')}
-              </Button>
-            </Box>
-          )}
+          onTtsBeforePreview={tts.pause}
+          onClosePanel={closePanel}
+          comments={{
+            novelSlug: commentKey.novelSlug,
+            sourceSlug: commentKey.sourceSlug,
+            chapterNumber: commentKey.chapterNumber,
+            chapterLabel,
+            totalCount: commentCount,
+            threads,
+            composing,
+            onBack: popPage,
+            onPushThread: pushThread,
+            onStartComposing: startComposing,
+            onStopComposing: stopComposing,
+            // The count goes to the cached chapter it was posted to, which may no longer be on screen
+            onPosted: bumpCommentCount,
+          }}
+          onBack={popPage}
+          onPushPage={pushPage}
+          onSetDeskPage={setDeskPage}
+          onStartSearch={startSearch}
+          onOpenCustomize={openCustomize}
+          onOpenAllSettings={() => openSettings()}
+        />
+      </ReaderControlsTheme>
 
-          {/* Chapter content Tab */}
-          <Box role="tabpanel" hidden={activeTab !== 0} sx={{ mb: 4 }}>
-            <ReaderViewport
-              ref={contentRef}
-              isMobile={isMobile}
-              controlsVisible={controlsVisible}
-              edgeTapWidthPercentage={EDGE_TAP_WIDTH_PERCENTAGE}
-              dimLevel={readerSettings.dimLevel}
-              nightMode={readerSettings.nightMode}
-              nightModeStrength={readerSettings.nightModeStrength}
-              nightModeScheduleEnabled={readerSettings.nightModeScheduleEnabled}
-              nightModeStartTime={readerSettings.nightModeStartTime}
-              nightModeEndTime={readerSettings.nightModeEndTime}
-              onContentClick={handleContentClick}
-            >
-              {memoizedChapterContent.chapter && (
-                <ReaderContent
-                  chapter={memoizedChapterContent.chapter}
-                  settings={memoizedChapterContent.settings}
-                />
-              )}
-            </ReaderViewport>
-            <Box ref={endOfChapterRef} aria-hidden="true" sx={{ height: 1 }} />
-          </Box>
-
-          {/* Comments Tab */}
-          <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
-            {chapterDataForComments && activeTab === 1 && (
-              <CommentSection 
-                chapterData={chapterDataForComments}
-                title={t('reader.chapterComments')}
-              />
-            )}
-          </Box>
-            
-          {/* Reader Controls */}
-          <ReaderControls
-            prevChapter={chapter.prev_chapter}
-            nextChapter={chapter.next_chapter}
-            isAuthenticated={isAuthenticated && shouldShowMarkReadButton}
-            markReadSuccess={markReadSuccess}
-            markingAsRead={markingAsRead}
-            onMarkAsRead={handleMarkAsRead}
-            onPrevious={handlePrevChapter}
-            onNext={handleNextChapter}
-            onGoToComments={handleSwitchToComments}
-          />
-        </Paper>
-      </Container>
-      {tts.open && <Box sx={{ height: { xs: TTS_BAR_HEIGHT.mobile, sm: TTS_BAR_HEIGHT.desktop + 16 } }} />}
-      {/* Keeps the end of the chapter clear of the audiobook mini bar */}
-      <Box sx={{ height: barHeight }} />
-      </>
-
-      {/* Settings Drawer */}
-      <ReaderSettings
-        open={controlsVisible}
-        onClose={() => setControlsVisible(false)}
-        settings={readerSettings}
-        onSettingChange={handleSettingChange}
-        novelLanguage={novelLanguage}
-        onTtsBeforePreview={tts.pause}
-        focusTts={settingsFocusTts}
-        hasNarration={!!chapter.audio_url}
-        chapterInfo={{
-          title: getChapterLabel(t, chapter.title, chapter.chapter_id),
-          novelTitle: chapter.novel_title,
-          prevChapter: chapter.prev_chapter,
-          nextChapter: chapter.next_chapter
-        }}
-        onNavigate={handleSettingsNavigate}
-        isAuthenticated={isAuthenticated}
+      <ChapterArticle
+        chapter={chapter}
+        novelSlug={novelSlug}
+        sourceSlug={sourceSlug}
+        endOfChapterRef={endOfChapterRef}
+        tapProps={tapProps}
+        swipeHandlers={swipeHandlers}
+        onListen={handleListen}
+        onOpenSettings={() => openSettings()}
+        onOpenChapterList={goToChapterList}
+        onNarrate={() => { void startNarration(chapter); }}
+        markRead={markRead}
+        onPrevious={goPrev}
+        onNext={goNext}
+        commentCount={commentCount}
+        topComment={chapter.top_comment ?? null}
+        onOpenComments={openComments}
+        ttsOpen={tts.open}
+        barHeight={barHeight}
+        reservedStart={reservedStart}
+        reservedEnd={reservedEnd}
       />
 
-      {/* Add keyboard navigation handler */}
-      <ReaderKeyboardNavigation 
+      <ReaderKeyboardNavigation
         enabled={readerSettings.keyboardNavigation}
-        controlsVisible={controlsVisible}
+        paused={(panel === 'settings' || panel === 'customize' || panel === 'chapters' || panel === 'comments') && mode === 'phone'}
         bindings={keyBindings}
-        onAction={handleKeyAction}
+        onAction={runKeyAction}
+        // Escape goes back one layer, like Back, and only while a panel is open, so it never hides the desktop toolbar
+        onEscape={() => { if (panel !== 'none') popPage(); }}
       />
+
+      {dimSide !== 'off' && dimStripShown && (
+        <DimGestureStrip
+          side={dimSide}
+          savedWidth={readerSettings.dimGestureWidth}
+          dimLevel={readerSettings.dimLevel}
+          tapProps={tapProps}
+          onTap={tapAt}
+        />
+      )}
 
       <TtsPlayerBar
         tts={tts}
         rate={readerSettings.ttsRate}
-        onRateChange={rate => updateSetting('ttsRate', rate)}
-        onOpenSettings={() => { setSettingsFocusTts(true); setControlsVisible(true); }}
-        chapterTitle={getChapterLabel(t, chapter.title, chapter.chapter_id)}
+        onRateChange={rate => updateReaderSetting('ttsRate', rate)}
+        onOpenSettings={() => openSettings({ page: 'listen' })}
+        chapterTitle={chapterLabel}
+        reservedStart={reservedStart}
       />
     </>
   );

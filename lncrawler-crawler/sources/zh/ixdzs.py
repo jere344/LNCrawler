@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
+from html import escape
+
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, SearchResult
 
@@ -90,7 +93,11 @@ class IxdzsCrawler(Crawler):
 
         possible_synopsis = soup.select_one("p#intro")
         if possible_synopsis:
-            self.novel_synopsis = possible_synopsis.get_text()
+            # Paragraphs are separated by full-width indents, not by markup.
+            paragraphs = re.split(r"\s*\u3000\u3000\s*", possible_synopsis.get_text())
+            self.novel_synopsis = "".join(
+                f"<p>{escape(p.strip(), quote=False)}</p>" for p in paragraphs if p.strip()
+            )
 
         tags = [a.get_text(strip=True) for a in soup.select("div.tags a")]
         nsort = metadata.select_one("a.nsort")

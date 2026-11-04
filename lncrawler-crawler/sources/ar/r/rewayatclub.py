@@ -35,6 +35,7 @@ class RewayatClubCrawler(Crawler):
     language = "ar"
     has_manga = False
     has_mtl = False
+    version = 2
 
     # -- helpers ------------------------------------------------------- #
 
@@ -89,7 +90,7 @@ class RewayatClubCrawler(Crawler):
 
         poster = data.get("poster_url")
         if poster:
-            self.novel_cover = f"https://api.rewayat.club{poster}"
+            self.novel_cover = self.absolute_url(poster)
 
         english = (data.get("english") or "").strip()
         if english and english.lower() != self.novel_title.lower():
@@ -147,8 +148,9 @@ class RewayatClubCrawler(Crawler):
         data = self.get_json(
             f"{API}/chapters/{slug}/{number}/", headers=HEADERS
         )
+        # The body is split into several HTML parts, in reading order.
         content = data.get("content") or []
-        if not content:
-            return ""
-        first = content[0]
-        return "".join(first) if isinstance(first, list) else str(first)
+        return "".join(
+            "".join(part) if isinstance(part, list) else str(part)
+            for part in content
+        )

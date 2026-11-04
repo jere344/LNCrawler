@@ -162,14 +162,18 @@ class UukanshuCrawler(Crawler):
         authors = [
             a.get_text(" ", strip=True)
             for a in soup.select(".booktag a[href*='authorarticle']")
-            if a.get_text(strip=True)
+            if a.get_text(strip=True) and a.get_text(strip=True) != "佚名"
         ]
         self.novel_author = ", ".join(dict.fromkeys(authors))
 
         intro = soup.select_one(".bookintro")
         if isinstance(intro, Tag):
             cover = intro.select_one("img.thumbnail")
-            if isinstance(cover, Tag) and cover.get("src"):
+            if (
+                isinstance(cover, Tag)
+                and cover.get("src")
+                and "nocover" not in cover["src"]
+            ):
                 self.novel_cover = self.absolute_url(cover["src"])
             for img in intro.select("img"):
                 img.decompose()
@@ -186,7 +190,7 @@ class UukanshuCrawler(Crawler):
         status_text = " ".join(
             s.get_text(strip=True) for s in soup.select(".booktag span.red")
         )
-        if "完本" in status_text or "完結" in status_text:
+        if "全本" in status_text or "完本" in status_text or "完結" in status_text:
             self.status = NovelStatus.completed
         elif "連載" in status_text:
             self.status = NovelStatus.ongoing

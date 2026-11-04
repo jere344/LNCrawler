@@ -8,15 +8,20 @@ archive use the child theme's ``.illusia-card`` markup.
 """
 
 import logging
+import re
 from typing import List
 from urllib.parse import quote
 
 from bs4 import BeautifulSoup, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
+
+# Trailing back-to-text arrow of a footnote (v1 bodies kept it as text).
+_BACKLINK_RE = re.compile(r"\s*↩\s*$")
 
 _STATUS_MAP = {
     "ativa": NovelStatus.ongoing,
@@ -39,6 +44,8 @@ _STATUS_MAP = {
 
 class IllusiaCrawler(Crawler):
     base_url = "https://illusia.com.br/"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         # Cloudflare/LiteSpeed answers bursts with 429; space requests out.
@@ -147,15 +154,6 @@ class IllusiaCrawler(Crawler):
                 status_tag.get_text(" ", strip=True).strip().lower(), NovelStatus.unknown
             )
 
-        # Rating and word count have no dedicated model field; keep them as
-        # tags (avoid commas/slashes, which the formatter splits on).
-        score = soup.select_one(".illusia-single-story__score-ribbon-value")
-        if score and score.get_text(strip=True):
-            self.tags.append(f"Rating: {score.get_text(strip=True)}")
-        words = soup.select_one(".story__words")
-        if words and words.get_text(strip=True):
-            self.tags.append(f"Words: {words.get_text(' ', strip=True).replace(',', '.')}")
-
         synopsis = soup.select_one(".illusia-single-story__description")
         if isinstance(synopsis, Tag):
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
@@ -192,4 +190,10 @@ class IllusiaCrawler(Crawler):
         body = soup.select_one(".chapter__content")
         if not isinstance(body, Tag):
             return ""
+        # Footnote endnotes keep their "back to text" arrow (↩) as a link glyph.
+        for backlink in body.select(".illusia-fn-backlinks"):
+            backlink.decompose()
         return self.cleaner.extract_contents(body)
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.sub_text(body, _BACKLINK_RE, "")

@@ -2,7 +2,7 @@
 import logging
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 search_url = "https://wbnovel.com/?s=%s&post_type=wp-manga&author=&artist=&release="
@@ -79,8 +79,40 @@ class WBNovelCrawler(Crawler):
         if len(author) == 2:
             self.novel_author = author[0].text + " (" + author[1].text + ")"
         else:
-            self.novel_author = author[0].text
+            self.novel_author = ", ".join(a.text.strip() for a in author)
         logger.info("Novel author: %s", self.novel_author)
+
+        # Summary rows: "Alternative", "Genre(s)", "Tag(s)", "Type", "Status".
+        info = {}
+        for item in soup.select(".post-content_item"):
+            heading = item.select_one(".summary-heading")
+            value = item.select_one(".summary-content")
+            if heading and value:
+                key = heading.get_text(strip=True).lower()
+                info[key] = value.get_text(" ", strip=True)
+
+        alt = info.get("alternative", "")
+        if alt.lower() not in ("", "updating"):
+            self.alternative_titles = [
+                x.strip() for x in alt.split(",") if x.strip()
+            ]
+
+        status = info.get("status", "").lower()
+        if status == "ongoing":
+            self.status = NovelStatus.ongoing
+        elif status == "completed":
+            self.status = NovelStatus.completed
+
+        if "web novel" in info.get("type", "").lower():
+            self.novel_edition = "Web Novel"
+
+        tags = []
+        for key in ("genre(s)", "tag(s)"):
+            for tag in info.get(key, "").split(","):
+                tag = tag.strip()
+                if tag and tag.lower() != "ongoing" and tag not in tags:
+                    tags.append(tag)
+        self.novel_tags = tags
 
         synopsis_tag = soup.select_one(".summary__content") or soup.select_one(
             "div.summary__content"

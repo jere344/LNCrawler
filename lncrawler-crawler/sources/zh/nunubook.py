@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class NunuBookCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most chapters are VIP-only; about 80 percent locked on sampled novels"
     base_url = "https://www.nunubook.com/"
     language = "zh"
 

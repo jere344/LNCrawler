@@ -4,7 +4,7 @@
 The SPA talks to a clean REST/JSON API, so this source never parses HTML:
 
 * ``GET /api/novels/search?q=<q>``               search (returns a list)
-* ``GET /api/novels?sort=&limit=&offset=``       browse / all novels
+* ``GET /api/series?type=novel&sort=&limit=&offset=``  browse / all novels
 * ``GET /api/novels/<slug>``                     metadata + a ``chapters_head`` teaser
 * ``GET /api/novels/<slug>/chapters?limit=&offset=&order=asc``  paginated TOC
 * ``GET /api/novels/<slug>/chapters/<n>/read``   one chapter (``body`` is plain text)
@@ -85,9 +85,14 @@ class ChikariCrawler(Crawler):
 
     def browse_novels(self, offset: int = 0, limit: int = 50) -> List[SearchResult]:
         params = urlencode(
-            {"limit": min(max(limit, 1), 100), "offset": offset, "sort": "popular"}
+            {
+                "type": "novel",
+                "sort": "popular",
+                "limit": min(max(limit, 1), 100),
+                "offset": offset,
+            }
         )
-        data = self.get_json(f"{self._api}/novels?{params}") or {}
+        data = self.get_json(f"{self._api}/series?{params}") or {}
         items = data.get("items") if isinstance(data, dict) else []
         return [self._search_result(item) for item in (items or [])][:limit]
 

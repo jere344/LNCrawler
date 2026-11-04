@@ -1,8 +1,9 @@
 import React from 'react';
 import DOMPurify from 'dompurify';
 import { Typography } from '@mui/material';
-import { ReaderSettings } from '../ReaderSettings';
+import { ReaderSettings } from '../readerSettingsSchema';
 import { ChapterContent } from '@models/novels_types';
+import { PARAGRAPH_INDENT, readerTextStyles } from './readerTextStyles';
 
 interface ReaderContentProps {
   chapter: ChapterContent;
@@ -43,7 +44,7 @@ const bodyStyles = `
     display: none;
   }
   #reader-content.paragraph-indent p {
-    text-indent: 2em;
+    text-indent: ${PARAGRAPH_INDENT};
   }
   #reader-content.paragraph-indent p:first-child,
   #reader-content.paragraph-indent p:first-of-type {
@@ -85,24 +86,8 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
   }, [chapter.body, chapter.images_path]);
 
   return (
-    <Typography 
-      sx={{ 
-        fontSize: `${settings.fontSize}px`, 
-        lineHeight: settings.lineSpacing,
-        wordSpacing: `${settings.wordSpacing}px`,
-        letterSpacing: `${settings.letterSpacing}px`,
-        textAlign: settings.textAlign,
-        // Crawled text often joins words with &nbsp;, which would otherwise widen the page on phones
-        overflowWrap: 'break-word',
-        fontFamily: settings.fontFamily || undefined,
-        userSelect: settings.textSelectable ? 'text' : 'none',
-        WebkitUserSelect: settings.textSelectable ? 'text' : 'none',
-        MozUserSelect: settings.textSelectable ? 'text' : 'none',
-        msUserSelect: settings.textSelectable ? 'text' : 'none',
-        '& p': {
-          marginBottom: `${settings.paragraphSpacing}em`,
-        },
-      }}
+    <Typography
+      sx={readerTextStyles(settings)}
       id="reader-content"
       className={settings.paragraphIndent ? 'paragraph-indent' : ''}
       dangerouslySetInnerHTML= {{ __html: bodyStyles + safeBody }}

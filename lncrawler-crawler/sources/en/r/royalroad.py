@@ -35,6 +35,7 @@ _STATUSES = {
 _HIDDEN_RULE = re.compile(r"([^{}]+)\{[^{}]*display\s*:\s*none[^{}]*\}")
 _CLASS_SELECTOR = re.compile(r"\.([A-Za-z0-9_-]+)")
 _CHAPTERS_RE = re.compile(r"([\d,]+)\s+Chapters", re.IGNORECASE)
+_SEPARATOR_RE = re.compile(r"^\*{3,}$")
 _ITEMS_PER_PAGE = 20
 
 
@@ -128,6 +129,13 @@ class RoyalRoadCrawler(Crawler):
 
         synopsis = soup.select_one(".fiction-info .description .hidden-content")
         if isinstance(synopsis, Tag):
+            # The author's note (store links, Patreon) follows a "*****" rule.
+            for sep in synopsis.find_all("p", recursive=False):
+                if _SEPARATOR_RE.match(sep.get_text(strip=True)):
+                    for node in list(sep.next_siblings):
+                        node.extract()
+                    sep.extract()
+                    break
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
         self.novel_tags = [

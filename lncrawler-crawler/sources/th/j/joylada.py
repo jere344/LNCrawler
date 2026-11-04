@@ -23,6 +23,8 @@ from lncrawl.templates.browser.basic import BasicBrowserTemplate
 
 logger = logging.getLogger(__name__)
 
+COVER_RE = re.compile(r"https://i\.joylada\.net/[^\s\"'()]*/cover-[^\s\"'()]*")
+
 
 class JoyLadaCrawler(BasicBrowserTemplate):
     base_url = [
@@ -85,30 +87,45 @@ class JoyLadaCrawler(BasicBrowserTemplate):
         if isinstance(tag, Tag) and tag.get("content"):
             self.novel_title = unescape(tag["content"]).strip()
 
+        # og:image is a branded "share" card (joylada.com logo + author line)
+        # when the story has no cover of its own; the real cover is then the
+        # header's CSS background, a "cover-<id>.jpg" URL on the same host.
         tag = soup.select_one('meta[property="og:image"]')
-        if isinstance(tag, Tag) and tag.get("content"):
-            self.novel_cover = self.absolute_url(tag["content"])
+        cover_url = tag.get("content") if isinstance(tag, Tag) else ""
+        if not cover_url or "/share-" in cover_url:
+            match = COVER_RE.search(str(soup))
+            cover_url = match.group(0) if match else ""
+        if cover_url:
+            self.novel_cover = self.absolute_url(cover_url)
 
         tag = soup.select_one('meta[property="og:description"]')
         if isinstance(tag, Tag) and tag.get("content"):
             self.novel_synopsis = unescape(tag["content"]).strip()
 
+        author_name = ""
         author = soup.select_one('.storytitle a[href*="/profile/"] span:not(.talkborder)')
         if isinstance(author, Tag) and author.get_text(strip=True):
-            self.novel_author = author.get_text(strip=True)
+            author_name = author.get_text(strip=True)
+            self.novel_author = author_name
 
+        # The article:tag keywords also carry the author's name: not a tag.
         tags = []
         for meta in soup.select('meta[property="article:tag"]'):
             for name in (meta.get("content") or "").split(","):
                 name = unescape(name).strip()
-                if name and name not in tags:
+                if name and name != author_name and name not in tags:
                     tags.append(name)
         self.novel_tags = tags
 
-        for index, item in enumerate(self._chapter_list(story_id), 1):
+        locked = 0
+        for item in self._chapter_list(story_id):
             chapter_id = item.get("id")
             if not chapter_id:
                 continue
+            if item.get("isLocked"):
+                locked += 1
+                continue
+            index = len(self.chapters) + 1
             self.chapters.append(
                 Chapter(
                     id=index,
@@ -116,7 +133,7 @@ class JoyLadaCrawler(BasicBrowserTemplate):
                     url=self.absolute_url(f"/chapter/{chapter_id}"),
                 )
             )
-        logger.info("Found %d chapters", len(self.chapters))
+        logger.info("Found %d chapters (%d locked skipped)", len(self.chapters), locked)
 
     def read_novel_info_in_browser(self) -> None:
         # Story pages are server-rendered, so re-run the soup parser; if that

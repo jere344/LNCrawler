@@ -3,10 +3,18 @@ import logging
 import re
 from urllib.parse import quote_plus
 
+from bs4 import Tag
+
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUS_MAP = {
+    "в процессе": NovelStatus.ongoing,
+    "завершено": NovelStatus.completed,
+    "заморожено": NovelStatus.hiatus,
+}
 
 
 class AuthorTodayCrawler(Crawler):
@@ -78,10 +86,29 @@ class AuthorTodayCrawler(Crawler):
         if synopsis:
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
-        tags = [span.get_text(strip=True) for span in soup.select(".nav-two-col a span")]
-        tags += [a.get_text(strip=True) for a in soup.select(".tags a")]
-        if tags:
-            self.novel_tags = [t for t in tags if t]
+        # Genres of this work only: ".nav-two-col" is the site-wide genre menu.
+        # The "Роман" link (/work/genre/all/...) is the work type, not a genre.
+        genres = [
+            a.get_text(strip=True)
+            for a in soup.select(".book-genres a[href^='/work/genre/']")
+            if a.get_text(strip=True) and "/all/" not in a["href"]
+        ]
+        if genres:
+            self.genres = genres
+        tags = [a.get_text(strip=True) for a in soup.select(".tags a")]
+        combined = [t for t in dict.fromkeys(genres + tags) if t]
+        if combined:
+            self.novel_tags = combined
+
+        meta = soup.select_one(".book-meta-panel")
+        if isinstance(meta, Tag):
+            status_label = meta.select_one(".label-primary")
+            if status_label:
+                self.status = _STATUS_MAP.get(
+                    status_label.get_text(strip=True).lower(), NovelStatus.unknown
+                )
+            if meta.select_one(".label-adult-only"):
+                self.is_adult = True
 
         for a in soup.select("ul.table-of-content li a[href]"):
             self.chapters.append(
@@ -123,4 +150,5 @@ class AuthorTodayCrawler(Crawler):
         text = "".join(
             chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(text)
         )
-        return self.cleaner.extract_contents(self.make_soup(text))
+        soup = self.make_soup(text)
+        return self.cleaner.extract_contents(soup.body or soup)

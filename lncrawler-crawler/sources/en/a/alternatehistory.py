@@ -75,13 +75,20 @@ class XenForoMixinAH:
         first = soup.select_one("article.message")
         if first:
             self.novel_author = first.get("data-author", "")
-            body = first.select_one(".message-content .bbWrapper")
-            if body:
-                self.novel_synopsis = self.cleaner.extract_contents(body)[:4000]
 
         self._parse_threadmarks(base)
         if not self.chapters:
             self._parse_reader(base)
+
+        # The opening post is the story itself when it is chapter 1; only a
+        # separate opening post can serve as the synopsis.
+        op_id = (first.get("data-content") or "")[len("post-"):] if first else ""
+        opens_story = bool(op_id) and any(
+            c["url"].rstrip("/").endswith("/posts/%s" % op_id) for c in self.chapters
+        )
+        body = first.select_one(".message-content .bbWrapper") if first else None
+        if body and not opens_story:
+            self.novel_synopsis = self.cleaner.extract_contents(body)[:4000]
 
     def _parse_threadmarks(self, base):
         page = 1

@@ -28,6 +28,7 @@ class AozoraCrawler(Crawler):
 
     base_url = "https://www.aozora.gr.jp/"
     language = "ja"
+    version = 2
 
     def search_novel(self, query):
         query = (query or "").strip().lower()
@@ -198,5 +199,9 @@ class AozoraCrawler(Crawler):
             tag.decompose()
         for tag in body.select("ruby, rb"):
             tag.unwrap()
+        # The cleaner separates adjacent text pieces with a space; unwrapped ruby
+        # leaves many of them. Japanese has no word spaces, so merge them first.
+        for node in [body, *body.find_all(True)]:
+            node.smooth()
 
         return self.cleaner.extract_contents(body)

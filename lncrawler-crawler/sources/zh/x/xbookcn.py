@@ -176,13 +176,21 @@ class XbookcnCrawler(Crawler):
                 soup = self.get_soup(synopsis_url)
                 body = soup.select_one("div.post-body")
                 if isinstance(body, Tag):
-                    self.novel_synopsis = self.cleaner.extract_contents(body)
+                    synopsis = self.cleaner.extract_contents(body)
+                    # The first line of the synopsis post is "作者：<name>".
+                    m = re.match(r"<p>作者[：:]\s*([^<]+?)\s*</p>", synopsis)
+                    if m:
+                        self.novel_author = m.group(1)
+                        synopsis = synopsis[m.end():]
+                    self.novel_synopsis = synopsis
             except Exception as e:
                 logger.warning("Synopsis failed: %s", e)
 
         chapter_posts.sort(key=lambda p: self._sort_key(p[1], p[0]))
         for i, (_, title, url) in enumerate(chapter_posts, start=1):
-            self.chapters.append(Chapter(id=i, title=title, url=url))
+            # Post titles are "<novel name> 第N章 <title>"; keep the chapter part.
+            chapter_title = title[len(name) + 1 :].strip()
+            self.chapters.append(Chapter(id=i, title=chapter_title, url=url))
         logger.info("Found %d chapters", len(self.chapters))
 
     def download_chapter_body(self, chapter: Chapter) -> str:

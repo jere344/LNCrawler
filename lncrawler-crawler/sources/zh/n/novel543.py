@@ -45,11 +45,14 @@ _MAX_PARTS = 12
 _NOVEL_ID = re.compile(r"/(\d{10})/?$")
 _PART_MARK = re.compile(r"\((\d+)/(\d+)\)\s*$")
 _CHAPTER_NUM = re.compile(r"_(\d+)\.html$")
+_VIP_BANNER = re.compile(r"現推出VIP會員免廣告功能")
 
 
 class Novel543Crawler(Crawler):
     base_url = "https://www.novel543.com/"
     language = "zh"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     # -- helpers ------------------------------------------------------- #
 
@@ -305,4 +308,26 @@ class Novel543Crawler(Crawler):
         for p in container.find_all("p"):
             if p.get_text(strip=True).startswith("溫馨提示"):
                 p.decompose()
+        # VIP upsell banner ("應廣大讀者的要求, 現推出VIP會員免廣告功能"), a
+        # rotating block outside any 溫馨提示 paragraph: a div holding the link.
+        for banner in container.select("a[href*='govip']"):
+            # Remove the wrapping block with the sentence and link, when it is short.
+            parent = banner.parent
+            if (
+                parent is not None
+                and parent is not container
+                and _VIP_BANNER.search(parent.get_text(strip=True))
+                and len(parent.get_text(strip=True)) <= 300
+            ):
+                parent.decompose()
+            else:
+                banner.decompose()
         return self.cleaner.extract_contents(container)
+
+    def _migrate_v2(self, body, chapter):
+        return re.sub(
+            r"<p>(.*?)</p>",
+            lambda m: "" if _VIP_BANNER.search(m.group(1)) and len(m.group(1)) <= 300 else m.group(0),
+            body,
+            flags=re.S,
+        )

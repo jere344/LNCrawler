@@ -152,7 +152,8 @@ class NovelciCrawler(Crawler):
 
         genres = [g.strip() for g in (novel.get("turler") or []) if g and g.strip()]
         self.genres = genres
-        self.tags = [t for t in (novel.get("tur"), novel.get("tip")) if t]
+        # "tip" is the source type (cevirme / orijinal), not a tag
+        self.tags = [t for t in (novel.get("tur"),) if t]
         self.novel_tags = genres
 
         self._read_credits(novel)

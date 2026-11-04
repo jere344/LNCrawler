@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 from typing import List, Optional
 from urllib.parse import quote_plus
 
@@ -29,6 +30,9 @@ _STATUS_MAP = {
     "on hold": NovelStatus.hiatus,
     "on-hold": NovelStatus.hiatus,
 }
+
+# "Tags:#a#b" block the author pastes at the end of the summary.
+_HASH_TAGS_RE = re.compile(r"Tags:\s*((?:#[^#<\s]+)+)")
 
 # Ads, tracking and script-like nodes that can appear inside chapter HTML.
 _JUNK_SELECTOR = ", ".join(
@@ -246,6 +250,11 @@ class NovelBuddyCrawler(Crawler):
         logger.info("Novel status: %s", self.status)
 
         summary = manga.get("summary") or ""
+        hash_tags = _HASH_TAGS_RE.search(summary)
+        if hash_tags:
+            found = re.findall(r"#([^#<\s]+)", hash_tags.group(1))
+            self.tags = list(dict.fromkeys(self.tags + found))
+            summary = summary[: hash_tags.start()] + summary[hash_tags.end() :]
         self.novel_synopsis = self.__clean_html(summary)
 
         title_id = manga.get("id") or ""

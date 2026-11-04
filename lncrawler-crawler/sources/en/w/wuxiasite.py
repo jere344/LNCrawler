@@ -1,18 +1,39 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from lncrawl.models import SearchResult
+from lncrawl.core import body_migrations
+from lncrawl.models import NovelStatus, SearchResult
 from lncrawl.templates.madara import MadaraTemplate
 
 logger = logging.getLogger(__name__)
 search_url = "https://wuxiaworld.site/?s=%s&post_type=wp-manga"
 
+# Site name the aggregator puts on its own line in chapter bodies
+_SITE_LINE = r"^\s*(?:wuxiaworld\.site(?:\.co)?\s*)+$"
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "complete": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+    "dropped": NovelStatus.hiatus,
+    "canceled": NovelStatus.hiatus,
+    "cancelled": NovelStatus.hiatus,
+}
+
 
 class WuxiaSiteCrawler(MadaraTemplate):
     base_url = "https://wuxiaworld.site/"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
+
+    def initialize(self) -> None:
+        super().initialize()
+        self.cleaner.bad_text_regex.add(_SITE_LINE)
 
     def search_novel(self, query):
         query = query.lower().replace(' ', '+')
@@ -78,11 +99,30 @@ class WuxiaSiteCrawler(MadaraTemplate):
         for a in soup.select(".genres-content a"):
             yield a.text.strip()
 
+        for node in soup.select(".post-content_item"):
+            heading = node.select_one(".summary-heading h5")
+            content = node.select_one(".summary-content")
+            if not heading or not content:
+                continue
+            label = heading.get_text(strip=True).lower()
+            value = content.get_text(" ", strip=True)
+            if label == "alternative":
+                self.alternative_titles = [
+                    part.strip() for part in value.split(",") if part.strip()
+                ]
+            elif label == "status":
+                self.status = _STATUSES.get(value.lower(), NovelStatus.unknown)
+            elif label == "type":
+                for edition in ("Web Novel", "Light Novel"):
+                    if edition.lower() in value.lower():
+                        self.novel_edition = edition
+
     def parse_summary(self, soup: BeautifulSoup):
         tag = soup.select_one(".summary__content")
         if isinstance(tag, Tag):
             for p in tag.find_all("p"):
-                if p.get_text(strip=True).lower().startswith("disclaimer"):
+                text = p.get_text(strip=True).lower()
+                if text.startswith("disclaimer") or "wuxiaworld.site" in text:
                     p.decompose()
             return self.cleaner.extract_contents(tag)
         return ""
@@ -94,3 +134,9 @@ class WuxiaSiteCrawler(MadaraTemplate):
         if not isinstance(content, Tag):
             content = soup.select_one(".reading-content")
         return content
+
+    def _migrate_v2(self, body, chapter):
+        site_line = re.compile(_SITE_LINE)
+        return body_migrations.drop_blocks(
+            body, lambda _, p: bool(site_line.search(p.decode_contents().strip()))
+        )

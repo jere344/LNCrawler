@@ -1,13 +1,38 @@
 # -*- coding: utf-8 -*-
 import json
 import logging
+import re
 from typing import List
 from urllib.parse import quote
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult, Volume
+from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "complete": NovelStatus.completed,
+    "finished": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+    "dropped": NovelStatus.hiatus,
+    "cancelled": NovelStatus.hiatus,
+}
+
+# Site type labels that appear in the genre list, not genres.
+_TYPE_LABELS = {"webnovel", "web novel", "novel"}
+
+# "*** Tags: [a] [b] ***" block the author pastes into the description.
+_TAG_BLOCK_RE = re.compile(r"\s*\*{3}\s*Tags:\s*((?:\[[^\]]*\]\s*)+)\*{3}\s*")
+
+# Line the site inserts into some chapter bodies, not part of the text.
+_WATERMARK_RE = re.compile(r"read exclusive content at\b", re.I)
+
+
+def _strip_watermark(body: str) -> str:
+    return body_migrations.drop_matching(body, _WATERMARK_RE, max_length=200)
 
 
 class NovelBinCrawler(Crawler):
@@ -16,6 +41,8 @@ class NovelBinCrawler(Crawler):
         "https://novel-bin.net",
         "https://novelbin.cc",
     ]
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     @staticmethod
     def __book_json(soup):
@@ -84,15 +111,32 @@ class NovelBinCrawler(Crawler):
         self.novel_cover = meta("og:image")
         logger.info("Novel cover: %s", self.novel_cover)
 
-        self.novel_synopsis = book.get("description", "")
+        description = book.get("description") or ""
+        block = _TAG_BLOCK_RE.search(description)
+        if block:
+            self.tags = re.findall(r"\[([^\]]+)\]", block.group(1))
+            description = " ".join(
+                [description[: block.start()], description[block.end() :]]
+            )
+        self.novel_synopsis = description.strip()
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
-        self.genres = book.get("genre") or [
+        genres = book.get("genre") or [
             a.get_text(strip=True)
             for a in soup.select(".almanac-facet-link")
             if a.get_text(strip=True)
         ]
+        self.genres = [g for g in genres if g.lower() not in _TYPE_LABELS]
         logger.info("Novel genres: %s", self.genres)
+        self.is_adult = any(g.lower() == "adult" for g in self.genres)
+
+        status = ""
+        for dt in soup.select("dl.almanac-detail-facts dt"):
+            if dt.get_text(strip=True).lower() == "status":
+                dd = dt.find_next_sibling("dd")
+                status = dd.get_text(strip=True) if dd else ""
+                break
+        self.status = _STATUSES.get(status.lower(), NovelStatus.unknown)
 
         slug = self.novel_url.rstrip("/").rsplit("/", 1)[-1]
         data = self.get_json(
@@ -115,4 +159,10 @@ class NovelBinCrawler(Crawler):
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter.url)
-        return self.cleaner.extract_contents(soup.select_one("#chr-content"))
+        body = soup.select_one("#chr-content")
+        if not body:
+            return ""
+        return _strip_watermark(self.cleaner.extract_contents(body))
+
+    def _migrate_v2(self, body, chapter):
+        return _strip_watermark(body)

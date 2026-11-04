@@ -46,6 +46,7 @@ SITE = "https://haodoo.net"
 BOOK_ID_RE = re.compile(r"M=book&P=([0-9A-Za-z]+)")
 READ_ONLINE_RE = re.compile(r"ReadOnline\('([^']+)',\s*'book'\)")
 SET_TITLE_RE = re.compile(r"SetTitle\(\"([^\"]+)\"\)")
+AUTHOR_BOOK_TITLE_RE = re.compile(r"([^\W_]{1,10})《([^《》]+)》")
 MAX_ID_RE = re.compile(r"maxChapterID\s*=\s*(\d+)")
 CHAPTER_HEAD_RE = re.compile(r"第[〇○零一二三四五六七八九十百千萬\d]+回")
 CHAPTER_HEAD_START_RE = re.compile(r"^\s*" + CHAPTER_HEAD_RE.pattern)
@@ -223,11 +224,15 @@ class HaodooCrawler(Crawler):
         m = SET_TITLE_RE.search(str(soup))
         assert m, "No title found"
         raw = m.group(1).strip()
+        author, title = "", raw
         if "【" in raw:
             author, _, rest = raw.partition("【")
             title = rest.rstrip("】").strip()
         else:
-            author, title = "", raw
+            # Only the exact "<author>《<title>》" shape is split.
+            m = AUTHOR_BOOK_TITLE_RE.fullmatch(raw)
+            if m:
+                author, title = m.group(1), m.group(2).strip()
         self.novel_title = title or raw
         author = author.strip() or self._author_fallback(soup)
         if author:

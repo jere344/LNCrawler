@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 _MAX_BROWSE_PAGES = 200
 _MAX_SEARCH_PAGES = 10
+_MAX_SEARCH_RESULTS = 50  # the core keeps 50 per source
 _DEFAULT_COVER = "default_no_thumbnail"
 
 
@@ -71,7 +72,7 @@ class CzbooksCrawler(Crawler):
                 seen.add(item.url)
                 results.append(item)
                 added += 1
-            if not added:
+            if not added or len(results) >= _MAX_SEARCH_RESULTS:
                 break
         return results
 

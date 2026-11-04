@@ -224,17 +224,34 @@ class BakaCrawler(Crawler):
             # No volume accordions: single flat chapter list.
             sections = [((), "", "Volume 1")]
 
-        for index, (_numbers, key, title) in enumerate(sections, start=1):
+        # "v-*" accordions are the volumes; "r-*" accordions are a second view
+        # of the same chapters grouped by number range. Each chapter is kept once,
+        # in the first accordion that lists it (volumes first).
+        sections.sort(key=lambda item: not item[1].startswith("v-"))
+        covered = set()
+        groups = []
+        for _numbers, key, title in sections:
             if not key:
                 chapters = self._inline_chapters(soup)
             else:
                 chapters = self._section_chapters(slug, key)
-            if not chapters:
-                continue
+            kept = []
+            for url, chapter_title in chapters:
+                match = re.search(r"rozdil-(\d+)", url)
+                number = int(match.group(1)) if match else None
+                if number is not None:
+                    if number in covered:
+                        continue
+                    covered.add(number)
+                kept.append((url, chapter_title, number or 0))
+            if kept:
+                groups.append((kept[0][2], title, kept))
 
+        groups.sort(key=lambda group: group[0])
+        for index, (_first, title, chapters) in enumerate(groups, start=1):
             volume = Volume(id=index, title=title or f"Volume {index}")
             self.volumes.append(volume)
-            for url, chapter_title in chapters:
+            for url, chapter_title, _number in chapters:
                 self.chapters.append(
                     Chapter(
                         id=len(self.chapters) + 1,

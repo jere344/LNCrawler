@@ -128,9 +128,11 @@ class EBanglaLibraryCrawler(Crawler):
             if not url or url in seen:
                 continue
             seen.add(url)
-            chapter_title = _TITLE_SPLIT_RE.split(
-                a.get_text(" ", strip=True), maxsplit=1
-            )[0].strip()
+            parts = _TITLE_SPLIT_RE.split(a.get_text(" ", strip=True), maxsplit=1)
+            chapter_title = parts[0].strip()
+            # "<book> – ১" is an instalment of the book: keep only its number.
+            if len(parts) == 2 and chapter_title == self.novel_title:
+                chapter_title = parts[1].strip()
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,

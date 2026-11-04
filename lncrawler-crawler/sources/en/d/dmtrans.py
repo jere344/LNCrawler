@@ -64,15 +64,18 @@ class DMTranslations(Crawler):
             self.novel_cover = self.absolute_url(possible_image["src"])
         logger.info("Novel cover: %s", self.novel_cover)
 
-        self.novel_author = "Translated by DM Translations"
+        # The novel page names no author; the site only credits its own translation group.
         logger.info("Novel author: %s", self.novel_author)
 
         content = soup.find("div", {"class": "entry-content"})
         synopsis = []
         if content:
-            marker = content.find("strong", string=lambda t: t and "Synopsis" in t)
-            node = marker.parent if marker else None
-            if node:
+            # The "Synopsis:" label is bold on some novels and plain text on others.
+            marker = content.find(
+                string=lambda t: t and t.strip().rstrip(":").strip() == "Synopsis"
+            )
+            node = (marker.find_parent("p") or marker.parent) if marker else None
+            if node is not None:
                 for sib in node.find_next_siblings():
                     if sib.name != "p":
                         continue
@@ -85,13 +88,18 @@ class DMTranslations(Crawler):
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
         chapters = content.findAll("a") if content else []
+        seen_urls = set()
 
         for a in chapters:
+            url = self.absolute_url(a["href"])
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
             chap_id = len(self.chapters) + 1
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "url": self.absolute_url(a["href"]),
+                    "url": url,
                     "title": a.text.strip() or ("Chapter %d" % chap_id),
                 }
             )

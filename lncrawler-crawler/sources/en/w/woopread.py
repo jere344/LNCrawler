@@ -214,12 +214,15 @@ class WoopReadCrawler(Crawler):
             if a.get_text(strip=True)
         ]
         self.genres = genres
-        self.tags = tags + types
-        self.novel_tags = genres + tags + types
+        self.tags = tags
+        self.novel_tags = genres + tags
 
         description = soup.select_one("#novel-description-content")
         if isinstance(description, Tag):
-            self.novel_synopsis = description.get_text(" ", strip=True)
+            paragraphs = [p.get_text(" ", strip=True) for p in description.select("p")]
+            self.novel_synopsis = "\n".join(x for x in paragraphs if x) or (
+                description.get_text(" ", strip=True)
+            )
 
         chapters = self._rsc_chapters(soup)
         if not chapters:

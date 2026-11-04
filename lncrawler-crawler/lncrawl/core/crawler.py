@@ -3,7 +3,7 @@ import logging
 import os
 import re
 import threading
-from typing import Generator, List, Optional, Union
+from typing import Dict, Generator, List, Optional, Union
 
 from bs4 import Tag
 
@@ -32,6 +32,11 @@ class Crawler(Scraper):
     # Bump when a fix changes what the source extracts: the next update of each
     # novel then redownloads its chapters instead of only the new ones.
     version = 1
+    # Non-breaking versions: version -> name of a method that upgrades a stored
+    # body from the previous version, so the chapter is fixed on disk instead of
+    # refetched. The method takes (body, chapter) and returns the new body, or
+    # None to refetch that chapter. A version missing here is breaking.
+    body_migrations: Dict[int, str] = {}
 
     # Set True on sources that must authenticate before crawling. When set,
     # prepare_crawler() logs in automatically using get_credentials().
@@ -134,6 +139,23 @@ class Crawler(Scraper):
     def download_chapter_body(self, chapter: Chapter) -> str:
         """Download body of a single chapter and return clean html."""
         raise NotImplementedError()
+
+    def migrate_body(self, body: str, chapter: dict, from_version: int) -> Optional[str]:
+        """Upgrade a body stored at ``from_version`` to ``version`` without refetching.
+
+        Applies each step of ``body_migrations`` in order. Returns None when a
+        step is breaking or gives up on this chapter: the chapter is refetched.
+        """
+        if from_version >= self.version:
+            return None
+        for target in range(from_version + 1, self.version + 1):
+            name = self.body_migrations.get(target)
+            if not name:
+                return None
+            body = getattr(self, name)(body, chapter)
+            if body is None:
+                return None
+        return body
 
     # -- utility ------------------------------------------------------- #
 

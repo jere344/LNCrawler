@@ -5,12 +5,14 @@ from urllib.parse import quote_plus, urlparse
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 
 class TapasCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most episodes are locked behind Wait-Until-Free or coins; only about 2 percent are free"
     base_url = "https://tapas.io/"
     language = "en"
 
@@ -86,7 +88,18 @@ class TapasCrawler(Crawler):
         if desc:
             self.novel_synopsis = self.cleaner.extract_contents(desc)[:4000]
 
+        genres = soup.select("ul.detail-row__body--genre a")
+        self.novel_tags = [a.get_text(" ", strip=True) for a in genres if a.get_text(strip=True)]
+
+        schedule = soup.select_one(".schedule")
+        schedule_text = schedule.get_text(" ", strip=True).lower() if schedule else ""
+        if "completed" in schedule_text:
+            self.status = NovelStatus.completed
+        elif "updates" in schedule_text:
+            self.status = NovelStatus.ongoing
+
         page = 1
+        locked = 0
         while True:
             data = self.get_json(
                 "%sseries/%s/episodes?page=%d&size=20&sort=OLDEST"
@@ -94,6 +107,10 @@ class TapasCrawler(Crawler):
             )
             body = data.get("data") or {}
             for ep in body.get("episodes") or []:
+                # Paid and wait-to-unlock episodes have no body without a purchase.
+                if not (ep.get("free") or ep.get("unlocked")):
+                    locked += 1
+                    continue
                 self.chapters.append(
                     {
                         "id": len(self.chapters) + 1,
@@ -106,6 +123,9 @@ class TapasCrawler(Crawler):
                 break
             page += 1
 
+        if locked:
+            logger.info("Skipped %d locked episodes", locked)
+
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
         contents = soup.select_one(".ep-epub-content") or soup.select_one(
@@ -115,5 +135,9 @@ class TapasCrawler(Crawler):
             return ""
         for img in contents.select("img[src^='data:']"):
             img.decompose()
+        # Spacer paragraphs (a lone space or &nbsp;) only add blank lines.
+        for p in contents.select("p"):
+            if not p.get_text(strip=True) and not p.find("img"):
+                p.decompose()
         self.cleaner.clean_contents(contents)
         return str(contents)

@@ -11,7 +11,7 @@ import logging
 import re
 from typing import Dict, List
 
-from bs4 import Tag
+from bs4 import NavigableString, Tag
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, NovelStatus, SearchResult
@@ -19,6 +19,7 @@ from lncrawl.models import Chapter, NovelStatus, SearchResult
 logger = logging.getLogger(__name__)
 
 _NOVEL_PATH_RE = re.compile(r"^/ranobe\d+$")
+_AGE_RE = re.compile(r"^\d+\+$")
 
 
 class RanobeMeCrawler(Crawler):
@@ -61,6 +62,51 @@ class RanobeMeCrawler(Crawler):
             key = label.get_text(" ", strip=True).rstrip(":").strip()
             rows[key] = content
         return rows
+
+    @staticmethod
+    def _is_tag_link(node) -> bool:
+        return (
+            isinstance(node, Tag)
+            and node.name == "a"
+            and (node.get("href") or "").startswith("/catalog/tag/")
+        )
+
+    @classmethod
+    def _is_cloud_node(cls, node) -> bool:
+        """True when the node holds only tag links, "#" labels and whitespace."""
+        if isinstance(node, NavigableString):
+            return node.strip() in ("", "#")
+        if node.name == "br" or cls._is_tag_link(node):
+            return True
+        return (
+            node.name in ("span", "p", "div")
+            and bool(node.contents)
+            and all(cls._is_cloud_node(child) for child in node.contents)
+        )
+
+    @classmethod
+    def _drop_tag_block(cls, synopsis: Tag) -> List[str]:
+        """Cut the trailing "#" tag cloud from the summary and return its tag names.
+
+        Only the run of tag-only nodes at the very end of the blurb counts as the
+        cloud. Tag links inside the text are left untouched.
+        """
+        children = list(synopsis.contents)
+        start = len(children)
+        for i in range(len(children) - 1, -1, -1):
+            if not cls._is_cloud_node(children[i]):
+                break
+            start = i
+        run = [node for node in children[start:] if isinstance(node, Tag)]
+        names = []
+        for node in run:
+            links = [node] if cls._is_tag_link(node) else node.select("a[href^='/catalog/tag/']")
+            names += [a.get_text(" ", strip=True) for a in links if a.get_text(strip=True)]
+        if not names:
+            return []
+        for node in children[start:]:
+            node.extract()
+        return names
 
     # -- search / browse ---------------------------------------------- #
 
@@ -122,11 +168,13 @@ class RanobeMeCrawler(Crawler):
             self.novel_author = ", ".join(a for a in authors if a)
 
         genres_row = rows.get("Жанры")
+        tags: List[str] = []
         if isinstance(genres_row, Tag):
-            self.novel_tags = [
+            # The age rating ("16+") sits in the genre row; it is not a genre.
+            tags = [
                 a.get_text(" ", strip=True)
                 for a in genres_row.select("a")
-                if a.get_text(strip=True)
+                if a.get_text(strip=True) and not _AGE_RE.match(a.get_text(strip=True))
             ]
 
         cover = soup.select_one(".FicCover img")
@@ -137,7 +185,11 @@ class RanobeMeCrawler(Crawler):
 
         synopsis = soup.select_one("div.summary_text_fic3 div[id^=summary_]")
         if isinstance(synopsis, Tag):
+            tags += self._drop_tag_block(synopsis)
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
+
+        if tags:
+            self.novel_tags = list(dict.fromkeys(tags))
 
         # No status field is published; the site lists ongoing novels only.
         self.status = NovelStatus.ongoing

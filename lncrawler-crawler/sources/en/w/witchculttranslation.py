@@ -29,8 +29,11 @@ class WitchCultTranslationsCrawler(Crawler):
             url = a.get("href", "")
             if not re.match(r"^https?://[^/]+/\d{4}/\d{2}/\d{2}/", url):
                 continue
-            title = a.get_text(" ", strip=True)
+            title = " ".join(a.get_text(" ", strip=True).split())
             if not title or url in seen:
+                continue
+            if title.lower() == "here":
+                # Side-content link, not a chapter
                 continue
             seen.add(url)
             self.chapters.append(
