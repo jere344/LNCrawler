@@ -6,7 +6,7 @@ import { defaultSettings } from './readerDefaults';
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
 export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter';
-export type KeyAction = 'none' | 'scrollUp' | 'scrollDown' | 'prevChapter' | 'nextChapter' | 'toggleControls' | 'displaySheet' | 'fullscreen';
+export type KeyAction = 'none' | 'scrollUp' | 'scrollDown' | 'prevChapter' | 'nextChapter' | 'toggleControls' | 'displaySheet' | 'fullscreen' | 'comments';
 export type ControlsTrigger = 'singleTap' | 'doubleTap' | 'longPress' | 'off';
 export type DimGestureSide = 'off' | 'left' | 'right';
 export type ReaderHeaderBehavior = 'reappear' | 'pageTop';
@@ -40,6 +40,7 @@ export interface ReaderSettings extends TtsPrefs {
   keyC: KeyAction;
   keyD: KeyAction;
   keyF: KeyAction;
+  keyM: KeyAction;
   swipeLeftGesture: SwipeGesture;
   swipeRightGesture: SwipeGesture;
   hideScrollbar: boolean;
@@ -70,7 +71,7 @@ const NUMERIC_RANGES: Partial<Record<keyof ReaderSettings, [number, number]>> = 
   nightModeStrength: [10, 90],
 };
 
-const KEY_ACTIONS: readonly KeyAction[] = ['none', 'scrollUp', 'scrollDown', 'prevChapter', 'nextChapter', 'toggleControls', 'displaySheet', 'fullscreen'];
+const KEY_ACTIONS: readonly KeyAction[] = ['none', 'scrollUp', 'scrollDown', 'prevChapter', 'nextChapter', 'toggleControls', 'displaySheet', 'fullscreen', 'comments'];
 
 const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   ...(TTS_ENUM_VALUES as Partial<Record<keyof ReaderSettings, readonly string[]>>),
@@ -90,6 +91,7 @@ const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   keyC: KEY_ACTIONS,
   keyD: KEY_ACTIONS,
   keyF: KEY_ACTIONS,
+  keyM: KEY_ACTIONS,
   controlsTrigger: ['singleTap', 'doubleTap', 'longPress', 'off'],
   dimGestureSide: ['off', 'left', 'right'],
   readerHeaderBehavior: ['reappear', 'pageTop'],

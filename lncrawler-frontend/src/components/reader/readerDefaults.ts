@@ -28,6 +28,7 @@ export const defaultSettings: ReaderSettings = {
     keyC: 'toggleControls',
     keyD: 'displaySheet',
     keyF: 'fullscreen',
+    keyM: 'comments',
     swipeLeftGesture: 'nextChapter',
     swipeRightGesture: 'prevChapter',
     hideScrollbar: false,

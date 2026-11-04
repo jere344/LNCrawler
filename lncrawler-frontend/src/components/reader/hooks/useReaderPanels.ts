@@ -1,10 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { SettingsPageId } from '../settings/settingsPages';
 import {
   CLOSED_LAYERS,
+  addComposing,
   addPage,
   addSearch,
+  addThread,
   openLayer,
   readLayers,
   replaceBelowSearch,
@@ -26,7 +28,12 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
   const navigate = useNavigate();
   const location = useLocation();
   const layers = readLayers(location.state);
-  const { panel, pages, searching, depth } = layers;
+  const { panel, pages, searching, threads, composing, depth } = layers;
+  // The layers as of the last render: a request made after an await reads them as they are now, not as they were
+  const latest = useRef(layers);
+  useLayoutEffect(() => {
+    latest.current = layers;
+  });
 
   // Stores the layers on a new entry (push) or on the current one (replace)
   const write = (next: ReaderLayers, replace = false) => {
@@ -82,7 +89,7 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
   }, [location, depth, navigate]);
 
   // Opens `target`, or closes it when it is already open. Another panel closes first, so only one is ever in the history.
-  const togglePanel = (target: 'display' | 'chapters') => {
+  const togglePanel = (target: 'display' | 'chapters' | 'comments') => {
     if (panel === target) closePanel();
     else if (panel === 'none') push(openLayer(layers, target));
     else {
@@ -92,6 +99,50 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
   };
   const toggleDisplay = () => togglePanel('display');
   const toggleChapters = () => togglePanel('chapters');
+  const toggleComments = () => togglePanel('comments');
+
+  // Opens the comments panel, with the composer above it when `compose`. On an open panel only the composer is added.
+  const openComments = ({ compose = false }: { compose?: boolean } = {}) => {
+    if (panel === 'comments') {
+      if (compose && !composing) push(addComposing(layers));
+      return;
+    }
+    if (panel !== 'none') {
+      // Another panel closes first; the pending push holds one layer, so the composer is left out
+      pendingPush.current = openLayer(CLOSED_LAYERS, 'comments');
+      closePanel();
+      return;
+    }
+    const comments = openLayer(layers, 'comments');
+    // The composer is the entry above the panel, pushed once the panel's entry is shown
+    if (compose) pendingPush.current = addComposing(comments);
+    push(comments);
+  };
+
+  // Opens a comment on its own. From the composer, the composer's entry is dropped first, so Back never returns to it.
+  const pushThread = (id: string) => {
+    const current = latest.current;
+    if (current.composing) {
+      pendingPush.current = addThread({ ...current, composing: false, depth: current.depth - 1 }, id);
+      navigate(-1);
+    } else {
+      push(addThread(current, id));
+    }
+  };
+
+  // The composer opens over the current layers, one entry more
+  const startComposing = () => {
+    const current = latest.current;
+    if (!current.composing) push(addComposing(current));
+  };
+
+  // Closes the composer with Back. With `thenThread`, that comment opens on its own in its place.
+  const stopComposing = ({ thenThread }: { thenThread?: string } = {}) => {
+    const current = latest.current;
+    if (!current.composing) return;
+    if (thenThread) pendingPush.current = addThread({ ...current, composing: false, depth: current.depth - 1 }, thenThread);
+    navigate(-1);
+  };
 
   // The TTS tune button opens a page: on stack layouts it sits above the home, on desktop it is the nav's page
   const openSettings = ({ page }: { page?: SettingsPageId } = {}) => {
@@ -131,8 +182,15 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
     panel,
     pages,
     searching,
+    threads,
+    composing,
     toggleDisplay,
     toggleChapters,
+    toggleComments,
+    openComments,
+    pushThread,
+    startComposing,
+    stopComposing,
     openSettings,
     openCustomize,
     closePanel,

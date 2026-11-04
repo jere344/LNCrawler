@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { novelService } from '../../../services/api';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 
@@ -6,6 +6,10 @@ import { ChapterContent as IChapterContent } from '@models/novels_types';
 interface ChapterCache {
   [key: string]: IChapterContent;
 }
+
+// Whether a payload is chapter `chapterNumber` of the novel: every source of it shares the chapter's comments
+export const isChapterOfNovel = (chapter: IChapterContent, novelSlug: string, chapterNumber: number): boolean =>
+  chapter.novel_slug === novelSlug && chapter.chapter_id === chapterNumber;
 
 export function useChapterCache(novelSlug: string | undefined, sourceSlug: string | undefined) {
   // Create a ref to store our chapter cache that persists through renders
@@ -44,5 +48,13 @@ export function useChapterCache(novelSlug: string | undefined, sourceSlug: strin
     }
   };
 
-  return { fetchChapterContent, preloadNextChapter };
+  // Counts one more comment on every cached payload of this chapter number, in every source
+  const bumpCommentCount = useCallback((novel: string, chapterNum: number) => {
+    for (const [cacheKey, cached] of Object.entries(chapterCacheRef.current)) {
+      if (!isChapterOfNovel(cached, novel, chapterNum)) continue;
+      chapterCacheRef.current[cacheKey] = { ...cached, comment_count: (cached.comment_count ?? 0) + 1 };
+    }
+  }, []);
+
+  return { fetchChapterContent, preloadNextChapter, bumpCommentCount };
 }

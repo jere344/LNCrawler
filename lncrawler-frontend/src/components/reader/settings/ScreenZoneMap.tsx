@@ -1,5 +1,6 @@
 import { Box, ButtonBase, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
+import { TOUCH_TARGET } from '../touchTarget';
 
 export type ScreenZone = 'left' | 'middle' | 'right';
 
@@ -41,7 +42,7 @@ const ScreenZoneMap = ({ zone, onZoneChange, items, dimEdge }: ScreenZoneMapProp
               flexDirection: 'column',
               gap: 0.5,
               p: 1,
-              minWidth: 44,
+              minWidth: TOUCH_TARGET.minWidth,
               textAlign: 'center',
               bgcolor: selected ? 'action.selected' : 'transparent',
               outline: selected ? '2px solid' : 'none',

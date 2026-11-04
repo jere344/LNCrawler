@@ -6,6 +6,7 @@ import type { SettingsPageId } from '../settings/settingsPages';
 import DisplaySheet from '../display/DisplaySheet';
 import AllSettingsPanel from '../settings/AllSettingsPanel';
 import ChapterListPanel, { type ChapterListPanelProps } from './ChapterListPanel';
+import CommentsPanel, { type CommentsPanelProps } from '../comments/CommentsPanel';
 
 interface ReaderPanelsProps {
   panel: ReaderPanel;
@@ -17,6 +18,7 @@ interface ReaderPanelsProps {
   hasNarration: boolean;
   chapterNumber: number;
   chapterList: Omit<ChapterListPanelProps, 'mode' | 'onClose'>;
+  comments: Omit<CommentsPanelProps, 'mode' | 'onClose'>;
   onTtsBeforePreview?: () => void;
   onClosePanel: () => void;
   onBack: () => void;
@@ -38,6 +40,7 @@ const ReaderPanels = ({
   hasNarration,
   chapterNumber,
   chapterList,
+  comments,
   onTtsBeforePreview,
   onClosePanel,
   onBack,
@@ -54,9 +57,9 @@ const ReaderPanels = ({
 
   return (
     <>
-      {/* Phones: the list overlays the text, and a tap on the rest of the screen closes it */}
+      {/* Phones: the list and the comments overlay the text, and a tap on the rest of the screen closes them */}
       {mode === 'phone' && (
-        <Fade in={chaptersOpen} timeout={timeout} unmountOnExit>
+        <Fade in={chaptersOpen || panel === 'comments'} timeout={timeout} unmountOnExit>
           <Box
             aria-hidden
             onClick={onClosePanel}
@@ -80,6 +83,10 @@ const ReaderPanels = ({
       >
         <ChapterListPanel {...chapterList} mode={mode} onClose={onClosePanel} />
       </Slide>
+
+      {panel === 'comments' && (
+        <CommentsPanel {...comments} mode={mode} bottomOffset={bottomOffset} onClose={onClosePanel} />
+      )}
 
       {panel === 'display' && (
         <DisplaySheet

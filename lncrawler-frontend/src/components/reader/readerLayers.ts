@@ -1,7 +1,7 @@
 import type { SettingsPageId } from './settings/settingsPages';
 
 // The panels that open over the reader. One at a time; 'none' is the reader alone.
-export type ReaderPanel = 'none' | 'display' | 'customize' | 'settings' | 'chapters';
+export type ReaderPanel = 'none' | 'display' | 'customize' | 'settings' | 'chapters' | 'comments';
 
 // The layers open over the reader. They live in the state of the history entry, one entry per layer,
 // so Back climbs them one at a time.
@@ -11,6 +11,10 @@ export interface ReaderLayers {
   pages: SettingsPageId[];
   // The search field has a query, which is a layer of its own above the pages
   searching: boolean;
+  // Comment ids opened as thread views, bottom first; the last one is on screen
+  threads: string[];
+  // The comment composer is open, a layer of its own above the threads
+  composing: boolean;
   // History entries pushed above the reader's own entry for these layers
   depth: number;
 }
@@ -18,9 +22,9 @@ export interface ReaderLayers {
 // Key of the layers in location.state
 const STATE_KEY = 'readerLayers';
 
-export const CLOSED_LAYERS: ReaderLayers = { panel: 'none', pages: [], searching: false, depth: 0 };
+export const CLOSED_LAYERS: ReaderLayers = { panel: 'none', pages: [], searching: false, threads: [], composing: false, depth: 0 };
 
-const PANELS: ReaderPanel[] = ['display', 'customize', 'settings', 'chapters'];
+const PANELS: ReaderPanel[] = ['display', 'customize', 'settings', 'chapters', 'comments'];
 
 // Every settings page: a saved state with any other id is malformed
 const PAGE_IDS: Record<SettingsPageId, true> = {
@@ -47,19 +51,36 @@ const isPanel = (value: unknown): value is ReaderPanel =>
 const isPageId = (value: unknown): value is SettingsPageId =>
   typeof value === 'string' && Object.prototype.hasOwnProperty.call(PAGE_IDS, value);
 
+// A comment id is a non-empty string
+const isThreadId = (value: unknown): value is string => typeof value === 'string' && value !== '';
+
+const NO_THREADS: string[] = [];
+// The thread ids read last: the same ids come back as the same array, so effects keyed on `threads` do not run on every render
+let lastThreads: string[] = NO_THREADS;
+
+const stableThreads = (threads: string[]): string[] => {
+  if (threads.length === lastThreads.length && threads.every((id, index) => id === lastThreads[index])) return lastThreads;
+  lastThreads = threads;
+  return threads;
+};
+
 // Reads the layers from a history entry's state. Missing or malformed state reads as closed.
 export function readLayers(state: unknown): ReaderLayers {
   const saved = isRecord(state) ? state[STATE_KEY] : undefined;
   if (!isRecord(saved)) return CLOSED_LAYERS;
 
-  const { panel, pages, searching, depth } = saved;
+  const { panel, pages, searching, threads, composing, depth } = saved;
   // An open panel was pushed above the reader's entry, so its depth is at least 1
   if (!isPanel(panel) || typeof depth !== 'number' || !Number.isInteger(depth) || depth < 1) return CLOSED_LAYERS;
+  // The thread views and the composer only exist in the comments panel
+  const inComments = panel === 'comments';
 
   return {
     panel,
     pages: Array.isArray(pages) ? pages.filter(isPageId) : [],
     searching: searching === true,
+    threads: inComments && Array.isArray(threads) ? stableThreads(threads.filter(isThreadId)) : NO_THREADS,
+    composing: inComments && composing === true,
     depth,
   };
 }
@@ -75,7 +96,7 @@ export function openLayer(
   panel: Exclude<ReaderPanel, 'none'>,
   pages: SettingsPageId[] = [],
 ): ReaderLayers {
-  return { panel, pages, searching: false, depth: base.depth + 1 };
+  return { panel, pages, searching: false, threads: [], composing: false, depth: base.depth + 1 };
 }
 
 // A settings page pushed over the current one: one entry more
@@ -86,6 +107,16 @@ export function addPage(layers: ReaderLayers, page: SettingsPageId): ReaderLayer
 // The first query of the search field: one entry more
 export function addSearch(layers: ReaderLayers): ReaderLayers {
   return { ...layers, searching: true, depth: layers.depth + 1 };
+}
+
+// A comment opened on its own over the current layers: one entry more, and the composer is closed
+export function addThread(layers: ReaderLayers, id: string): ReaderLayers {
+  return { ...layers, threads: [...layers.threads, id], composing: false, depth: layers.depth + 1 };
+}
+
+// The comment composer opened over the current layers: one entry more
+export function addComposing(layers: ReaderLayers): ReaderLayers {
+  return { ...layers, composing: true, depth: layers.depth + 1 };
 }
 
 // The pages a page needs on screen: its parent first, when it is a subpage

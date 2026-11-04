@@ -1,9 +1,8 @@
 import React from 'react';
-import { Box, Divider, Button, Tooltip, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Divider, Button, useMediaQuery, useTheme } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import DoneIcon from '@mui/icons-material/Done';
-import CommentIcon from '@mui/icons-material/Comment';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useTranslation } from 'react-i18next';
 import DirectionalIcon from '../DirectionalIcon';
@@ -17,7 +16,6 @@ interface ReaderControlsProps {
   onMarkAsRead: () => void;
   onPrevious: () => void;
   onNext: () => void;
-  onGoToComments?: () => void;
 }
 
 /**
@@ -33,7 +31,6 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
   onMarkAsRead,
   onPrevious,
   onNext,
-  onGoToComments,
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -67,7 +64,7 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
           ) : <div></div>}
         </Box>
 
-        {/* Center - Mark as Read & Comments buttons */}
+        {/* Center - Mark as Read button */}
         <Box sx={{
           display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
@@ -86,20 +83,6 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
             >
               {markReadSuccess ? t('readerControls.markedAsRead') : t('readerControls.markAsRead')}
             </Button>
-          )}
-
-          {onGoToComments && (
-            <Tooltip title={t('readerControls.viewComments')}>
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={<CommentIcon />}
-                onClick={onGoToComments}
-                {...buttonProps}
-              >
-                {t('readerControls.comments')}
-              </Button>
-            </Tooltip>
           )}
         </Box>
 

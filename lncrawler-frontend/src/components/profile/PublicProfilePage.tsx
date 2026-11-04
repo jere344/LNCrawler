@@ -8,17 +8,17 @@ import {
     Tab,
     Button,
     CircularProgress,
-    Divider,
     Chip,
     Alert,
     Grid,
     Link as MuiLink,
+    Pagination,
 } from '@mui/material';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { profileService } from '@services/profile.service';
 import type { PublicProfile } from '@models/user_types';
-import type { ReadingList } from '@models/readinglist_types';
+import type { ReadingListResponse } from '@models/readinglist_types';
 import type { Novel } from '@models/novels_types';
 import type { Comment } from '@models/comments_types';
 import type { Review } from '@services/review.service';
@@ -30,6 +30,7 @@ import { BaseNovelCard } from '@components/common/novelcardtypes/BaseNovelCard';
 import { getNovelSourceLink, getNovelDisplayTitle, formatDate, formatDateTime, formatNumber } from '@utils/Misc';
 import ReadingListCard from '@components/readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
+import CommentMessage from '@components/comments/CommentMessage';
 import PublicLibraryTab from '@components/library/PublicLibraryTab';
 import PinnedNovelsPicker from './PinnedNovelsPicker';
 
@@ -282,27 +283,14 @@ const OverviewTab: React.FC<{
 
 const ReadingListsTab: React.FC<{ username: string }> = ({ username }) => {
     const { t } = useTranslation();
-    const [lists, setLists] = useState<ReadingList[]>([]);
-    const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-
-    useEffect(() => {
-        let active = true;
-        setLoading(true);
-        profileService
-            .getUserReadingLists(username, page)
-            .then((data) => {
-                if (!active) return;
-                setLists(data.results);
-                setTotalPages(data.total_pages);
-            })
-            .catch((err) => console.error('Error loading reading lists:', err))
-            .finally(() => active && setLoading(false));
-        return () => {
-            active = false;
-        };
-    }, [username, page]);
+    // A failed page keeps the last loaded results, as before.
+    const { data, loading } = useAsync<ReadingListResponse>(
+        () => profileService.getUserReadingLists(username, page),
+        [username, page],
+    );
+    const lists = data?.results ?? [];
+    const totalPages = data?.total_pages ?? 1;
 
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
     if (lists.length === 0) return <Alert severity="info">{t('profile.emptySection')}</Alert>;
@@ -316,34 +304,21 @@ const ReadingListsTab: React.FC<{ username: string }> = ({ username }) => {
                     </Grid>
                 ))}
             </Grid>
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            <ProfilePagination page={page} totalPages={totalPages} onChange={setPage} />
         </Box>
     );
 };
 
 const ReviewsTab: React.FC<{ username: string }> = ({ username }) => {
     const { t } = useTranslation();
-    const [reviews, setReviews] = useState<Review[]>([]);
-    const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-
-    useEffect(() => {
-        let active = true;
-        setLoading(true);
-        profileService
-            .getUserReviews(username, page)
-            .then((data) => {
-                if (!active) return;
-                setReviews(data.reviews);
-                setTotalPages(data.pagination.total_pages);
-            })
-            .catch((err) => console.error('Error loading reviews:', err))
-            .finally(() => active && setLoading(false));
-        return () => {
-            active = false;
-        };
-    }, [username, page]);
+    // A failed page keeps the last loaded results, as before.
+    const { data, loading } = useAsync(
+        () => profileService.getUserReviews(username, page),
+        [username, page],
+    );
+    const reviews: Review[] = data?.reviews ?? [];
+    const totalPages = data?.pagination.total_pages ?? 1;
 
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
     if (reviews.length === 0) return <Alert severity="info">{t('profile.emptySection')}</Alert>;
@@ -351,7 +326,7 @@ const ReviewsTab: React.FC<{ username: string }> = ({ username }) => {
     return (
         <Box>
             <OverviewReviewsSection reviews={reviews} isLoading={loading} />
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            <ProfilePagination page={page} totalPages={totalPages} onChange={setPage} />
         </Box>
     );
 };
@@ -366,68 +341,16 @@ const commentTargetPath = (comment: Comment): string | null => {
     return null;
 };
 
-const CommentMessage: React.FC<{ comment: Comment }> = ({ comment }) => {
-    const { t } = useTranslation();
-    const [revealed, setRevealed] = useState(false);
-
-    if (!comment.contains_spoiler) {
-        return (
-            <Typography sx={{ mt: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {comment.message}
-            </Typography>
-        );
-    }
-
-    return (
-        <Box sx={{ mt: 1 }}>
-            <Typography
-                onClick={() => setRevealed((value) => !value)}
-                sx={{
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    filter: revealed ? 'none' : 'blur(5px)',
-                    cursor: 'pointer',
-                    transition: 'filter 0.2s',
-                    p: 1,
-                }}
-            >
-                {comment.message}
-            </Typography>
-            {!revealed && (
-                <Typography
-                    variant="caption"
-                    sx={{ color: 'warning.main', display: 'block', mt: 0.5, fontStyle: 'italic' }}
-                >
-                    {t('comments.spoiler')}
-                </Typography>
-            )}
-        </Box>
-    );
-};
-
 const CommentsTab: React.FC<{ username: string }> = ({ username }) => {
     const { t, i18n } = useTranslation();
-    const [comments, setComments] = useState<Comment[]>([]);
-    const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-
-    useEffect(() => {
-        let active = true;
-        setLoading(true);
-        profileService
-            .getUserComments(username, page)
-            .then((data) => {
-                if (!active) return;
-                setComments(data.results);
-                setTotalPages(data.total_pages);
-            })
-            .catch((err) => console.error('Error loading comments:', err))
-            .finally(() => active && setLoading(false));
-        return () => {
-            active = false;
-        };
-    }, [username, page]);
+    // A failed page keeps the last loaded results, as before.
+    const { data, loading } = useAsync(
+        () => profileService.getUserComments(username, page),
+        [username, page],
+    );
+    const comments: Comment[] = data?.results ?? [];
+    const totalPages = data?.total_pages ?? 1;
 
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>;
     if (comments.length === 0) return <Alert severity="info">{t('profile.emptySection')}</Alert>;
@@ -454,34 +377,24 @@ const CommentsTab: React.FC<{ username: string }> = ({ username }) => {
                                         {formatDateTime(comment.created_at, i18n.language)}
                                     </Typography>
                                 </Box>
-                                <CommentMessage comment={comment} />
+                                <CommentMessage message={comment.message} containsSpoiler={comment.contains_spoiler} />
                             </Paper>
                         </Grid>
                     );
                 })}
             </Grid>
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+            <ProfilePagination page={page} totalPages={totalPages} onChange={setPage} />
         </Box>
     );
 };
 
-const Pagination: React.FC<{ page: number; totalPages: number; onChange: (page: number) => void }> = ({ page, totalPages, onChange }) => {
+// Same MUI pagination as the other list pages, shown only when there is more than one page.
+const ProfilePagination: React.FC<{ page: number; totalPages: number; onChange: (page: number) => void }> = ({ page, totalPages, onChange }) => {
     if (totalPages <= 1) return null;
     return (
-        <>
-            <Divider sx={{ my: 3 }} />
-            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, alignItems: 'center' }}>
-                <Button disabled={page <= 1} onClick={() => onChange(page - 1)}>
-                    Prev
-                </Button>
-                <Typography>
-                    {page} / {totalPages}
-                </Typography>
-                <Button disabled={page >= totalPages} onClick={() => onChange(page + 1)}>
-                    Next
-                </Button>
-            </Box>
-        </>
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+            <Pagination count={totalPages} page={page} onChange={(_, value) => onChange(value)} color="primary" />
+        </Box>
     );
 };
 

@@ -56,53 +56,6 @@ export const novelService = {
     return response.data;
   },
 
-  // Get comments for a novel
-  getNovelComments: async (novelSlug: string) => {
-    const response = await api.get(`/novels/${novelSlug}/comments/`);
-    return response.data;
-  },
-  
-  // Add a comment to a novel
-  addNovelComment: async (novelSlug: string, commentData: { 
-    author_name: string; 
-    message: string; 
-    contains_spoiler: boolean;
-    parent_id?: string; // Optional parent ID for replies
-  }) => {
-    const response = await api.post(
-      `/novels/${novelSlug}/comments/add/`,
-      commentData
-    );
-    return response.data;
-  },
-  
-  // Get comments for a chapter
-  getChapterComments: async (novelSlug: string, sourceSlug: string, chapterNumber: number) => {
-    const response = await api.get(
-      `/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/comments/`
-    );
-    return response.data;
-  },
-  
-  // Add a comment to a chapter
-  addChapterComment: async (
-    novelSlug: string,
-    sourceSlug: string,
-    chapterNumber: number,
-    commentData: { 
-      author_name: string; 
-      message: string; 
-      contains_spoiler: boolean;
-      parent_id?: string; // Optional parent ID for replies
-    }
-  ) => {
-    const response = await api.post(
-      `/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/comments/add/`,
-      commentData
-    );
-    return response.data;
-  },
-
   searchNovels: async (params: {
     query?: string;
     page?: number;

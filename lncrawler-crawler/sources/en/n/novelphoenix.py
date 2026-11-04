@@ -8,6 +8,29 @@ from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
+# Watermark paragraphs injected mid-chapter. The wording is randomised and often
+# omits the site name, so match the recurring themes instead of exact sentences.
+# Only short, standalone blocks are tested (see download_chapter_body), and every
+# alternative needs a watermark-only combination of words, never one common word.
+_WATERMARK_RE = re.compile(
+    r"novel\s*phoenix"
+    # "...on Amazon ... stolen / report / without the author's consent"
+    r"|\bamazon\b.{0,120}\b(report|stolen|consent|unlawful\w*|theft|purloined|lifted|obtained|taken|violation)\b"
+    r"|\b(report|stolen|consent|unlawful\w*|theft|purloined|lifted|obtained|taken|violation)\b.{0,120}\bamazon\b"
+    # "stolen / unauthorized ... author's consent / report the violation"
+    r"|\b(stolen|theft|purloined|unlawful\w*|unauthori[sz]ed|pirate site)\b.{0,100}\b(author|report|violation|sightings?|content|story|tale|narrative|novel|book)\b"
+    r"|without the author'?s (consent|approval|permission)"
+    r"|\breport (the|any) (violation|sightings?|appearances?|instances?)\b"
+    # "support the author ... original site / official source / reading it there"
+    r"|\b(support|supports)\b.{0,60}\b(author|authors|creativity)\b.{0,80}\b(there|original|official|visiting|finding|seeking|reading)\b"
+    r"|\bsupport (the )?(original )?(creators?|authors?)\b.{0,3}$"
+    r"|\b(pirated|pirate)\b.{0,60}\b(copy|site|version)\b"
+    r"|\b(official|preferred) (release|platform)\b.{0,60}\b(support|author|novel)\b"
+    r"|\b(original|official|genuine|true) (site|source|version|home|story|platform)\b.{0,80}\b(novel|story|tale|narrative|book|author|support)\b"
+    r"|\b(novel|story|tale|narrative|book)\b.{0,60}\b(hosted|published|found|available|is from|true home|originates)\b.{0,40}\b(another|different|elsewhere|original|official|other)\b",
+    re.I,
+)
+
 
 class NovelPhoenixCrawler(Crawler):
     base_url = ["https://novelphoenix.com/"]
@@ -111,8 +134,9 @@ class NovelPhoenixCrawler(Crawler):
                 if not match:
                     continue
                 number = int(match.group(1))
+                label = a.select_one(".chapter-title")
                 found[number] = (
-                    a.get_text(" ", strip=True) or "Chapter %d" % number,
+                    (label or a).get_text(" ", strip=True) or "Chapter %d" % number,
                     self.absolute_url(a["href"]),
                 )
 
@@ -125,4 +149,9 @@ class NovelPhoenixCrawler(Crawler):
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
         contents = soup.select_one("#content")
+        if contents:
+            for node in contents.find_all(["p", "div"]):
+                text = node.get_text(" ", strip=True)
+                if len(text) < 160 and _WATERMARK_RE.search(text):
+                    node.extract()
         return self.cleaner.extract_contents(contents)

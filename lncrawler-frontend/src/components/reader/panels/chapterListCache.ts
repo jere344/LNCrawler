@@ -1,4 +1,5 @@
 import type { NovelChaptersResponse } from '@models/novels_types';
+import { createSharedRequests, type SharedRequests } from '@utils/sharedRequest';
 
 // A listing older than this is fetched again on the next open
 export const CHAPTER_LIST_TTL_MS = 10 * 60 * 1000;
@@ -22,7 +23,7 @@ interface Listing {
   // The page that holds each chapter number asked for with `around` (unfiltered only)
   aroundPages: Map<number, number>;
   // Requests on their way, shared by every caller that asks for the same thing
-  inflight: Map<string, Promise<NovelChaptersResponse>>;
+  inflight: SharedRequests<NovelChaptersResponse>;
 }
 
 export interface ChapterListCache {
@@ -77,47 +78,23 @@ export function createChapterListCache(
   const listingFor = (novelSlug: string, sourceSlug: string): Listing => {
     const existing = freshListing(novelSlug, sourceSlug);
     if (existing) return existing;
-    const fresh: Listing = { fetchedAt: now(), pages: new Map(), aroundPages: new Map(), inflight: new Map() };
+    const fresh: Listing = { fetchedAt: now(), pages: new Map(), aroundPages: new Map(), inflight: createSharedRequests() };
     listings.set(sourceKey(novelSlug, sourceSlug), fresh);
     return fresh;
-  };
-
-  // Sends a request once for everyone who asks while it is in flight; `store` keeps a success
-  const share = (
-    listing: Listing,
-    key: string,
-    send: () => Promise<NovelChaptersResponse>,
-    store: (data: NovelChaptersResponse) => void,
-  ): Promise<NovelChaptersResponse> => {
-    const pending = listing.inflight.get(key);
-    if (pending) return pending;
-    const request = send().then(
-      (data) => {
-        listing.inflight.delete(key);
-        store(data);
-        return data;
-      },
-      (error: unknown) => {
-        listing.inflight.delete(key);
-        throw error;
-      },
-    );
-    listing.inflight.set(key, request);
-    return request;
   };
 
   const loadPage = (listing: Listing, request: ChapterPageRequest, search: string, page: number) => {
     const key = pageKey(search, page);
     const loaded = listing.pages.get(key);
     if (loaded) return Promise.resolve(loaded);
-    return share(
-      listing,
+    return listing.inflight.run(
       key,
       () => fetchPage({ novelSlug: request.novelSlug, sourceSlug: request.sourceSlug, page, search }),
       // The server answers a page past the end with its last page: the list has shrunk, so it is not kept
       (data) => {
         if (data.current_page === page) listing.pages.set(key, data);
         else dropListing(request.novelSlug, request.sourceSlug, listing);
+        return data;
       },
     );
   };
@@ -125,13 +102,13 @@ export function createChapterListCache(
   const loadAround = (listing: Listing, request: ChapterPageRequest, around: number) => {
     const known = findAroundPage(listing, around);
     if (known !== undefined) return loadPage(listing, request, '', known);
-    return share(
-      listing,
+    return listing.inflight.run(
       `around:${around}`,
       () => fetchPage({ novelSlug: request.novelSlug, sourceSlug: request.sourceSlug, around }),
       (data) => {
         listing.pages.set(pageKey('', data.current_page), data);
         listing.aroundPages.set(around, data.current_page);
+        return data;
       },
     );
   };

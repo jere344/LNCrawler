@@ -170,6 +170,7 @@ const Header = () => {
     return (
         <>
         <AppBar
+            data-app-header
             position={staticHeader ? "static" : hideOnScroll ? "fixed" : "sticky"}
             color="default"
             elevation={1}

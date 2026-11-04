@@ -62,6 +62,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('keyC', 'readerSettingsPages.keyC', 'keys', ['keyC']),
   entry('keyD', 'readerSettingsPages.keyD', 'keys', ['keyD']),
   entry('keyF', 'readerSettingsPages.keyF', 'keys', ['keyF']),
+  entry('keyM', 'readerSettingsPages.keyM', 'keys', ['keyM']),
 
   entry('controlsTrigger', 'readerSettingsPages.showControlsWith', 'touch', ['controlsTrigger'], 'middle'),
   entry('swipeLeftGesture', 'gestureSettings.swipeLeft', 'touch', ['swipeLeftGesture']),

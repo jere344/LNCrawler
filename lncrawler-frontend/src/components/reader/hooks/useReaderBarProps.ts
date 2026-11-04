@@ -14,7 +14,6 @@ interface UseReaderBarPropsOptions {
   reservedEnd: number;
   shortcuts: ReaderShortcuts;
   setControlsVisible: (visible: boolean) => void;
-  setActiveTab: (tab: number) => void;
   markRead: MarkReadProps;
   fullscreen: FullscreenProps;
   navigation: {
@@ -24,11 +23,14 @@ interface UseReaderBarPropsOptions {
   };
   onToggleChapters: () => void;
   onToggleDisplay: () => void;
+  toggleComments: () => void;
+  commentsOpen: boolean;
+  commentCount: number;
   onOpenSettings: () => void;
   onListen: () => void;
 }
 
-// Props for the reader bars, the comments switch that hides the touch bars, and the chapter label
+// Props for the reader bars, and the chapter label
 export function useReaderBarProps({
   chapter,
   controlsVisible,
@@ -38,12 +40,14 @@ export function useReaderBarProps({
   reservedEnd,
   shortcuts,
   setControlsVisible,
-  setActiveTab,
   markRead,
   fullscreen,
   navigation,
   onToggleChapters,
   onToggleDisplay,
+  toggleComments,
+  commentsOpen,
+  commentCount,
   onOpenSettings,
   onListen,
 }: UseReaderBarPropsOptions) {
@@ -57,13 +61,6 @@ export function useReaderBarProps({
     if (!isDesktop) setControlsVisible(false);
   };
 
-  // Switch to the comments tab, scroll back to the top and hide the touch bars
-  const switchToComments = () => {
-    setActiveTab(1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    hideOnTouch();
-  };
-
   const barProps: ReaderBarProps = {
     controlsVisible,
     chapterTitle: chapterLabel,
@@ -71,6 +68,8 @@ export function useReaderBarProps({
     hasPrev: !!chapter?.prev_chapter,
     hasNext: !!chapter?.next_chapter,
     displayOpen: panel === 'display',
+    commentsOpen,
+    commentCount,
     reservedStart,
     reservedEnd,
     shortcuts,
@@ -87,9 +86,9 @@ export function useReaderBarProps({
       hideOnTouch();
       onListen();
     },
-    onComments: switchToComments,
+    onComments: toggleComments,
     onSettings: onOpenSettings,
   };
 
-  return { barProps, switchToComments, chapterLabel };
+  return { barProps, chapterLabel };
 }

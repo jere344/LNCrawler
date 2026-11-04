@@ -1,4 +1,4 @@
-import { AppBar, Box, ButtonBase, Divider, IconButton, type IconButtonProps, Toolbar, Tooltip, Typography } from '@mui/material';
+import { AppBar, Badge, Box, ButtonBase, Divider, IconButton, type IconButtonProps, Toolbar, Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ListIcon from '@mui/icons-material/List';
@@ -39,6 +39,8 @@ const ReaderDesktopToolbar = ({
   hasPrev,
   hasNext,
   displayOpen,
+  commentsOpen,
+  commentCount,
   reservedStart,
   reservedEnd,
   shortcuts,
@@ -57,6 +59,7 @@ const ReaderDesktopToolbar = ({
 }: ReaderBarProps) => {
   const { t } = useTranslation();
   const displayLabel = t('readerControls.display');
+  const commentsLabel = t('readerControls.comments');
 
   // Hidden: slid above the viewport, out of the tab order, and no longer taking up space
   return (
@@ -124,8 +127,16 @@ const ReaderDesktopToolbar = ({
         <ToolbarAction label={t('reader.listen')} onClick={onListen}>
           <HeadphonesIcon />
         </ToolbarAction>
-        <ToolbarAction label={t('readerControls.comments')} onClick={onComments}>
-          <CommentIcon />
+        <ToolbarAction
+          label={t('readerControls.commentsCount', { count: commentCount })}
+          title={shortcuts.comments ? `${commentsLabel} (${shortcuts.comments})` : commentsLabel}
+          onClick={onComments}
+          aria-expanded={commentsOpen}
+          aria-keyshortcuts={shortcuts.comments}
+        >
+          <Badge badgeContent={commentCount} max={999} color="primary" invisible={commentCount === 0}>
+            <CommentIcon />
+          </Badge>
         </ToolbarAction>
         <ToolbarAction label={t('readerControls.settings')} onClick={onSettings}>
           <SettingsIcon />

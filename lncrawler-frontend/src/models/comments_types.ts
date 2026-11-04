@@ -32,3 +32,14 @@ export interface CommentFormData {
   contains_spoiler: boolean;
   parent_id?: string;
 }
+
+export type CommentOrdering = 'top' | 'new';
+
+// The top comment of a chapter, as the chapter content payload gives it; the message is null for a spoiler
+export interface CommentPreview {
+  id: string;
+  author_name: string;
+  message: string | null;
+  contains_spoiler: boolean;
+  vote_score: number;
+}

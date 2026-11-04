@@ -1,12 +1,10 @@
-import { useMemo, type MouseEvent, type RefObject, type SyntheticEvent } from 'react';
+import { useMemo, type MouseEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
   Typography,
   Paper,
   Box,
-  Tabs,
-  Tab,
   IconButton,
   Button,
 } from '@mui/material';
@@ -14,16 +12,16 @@ import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import CommentIcon from '@mui/icons-material/Comment';
 import SettingsIcon from '@mui/icons-material/Settings';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
+import type { CommentPreview } from '@models/comments_types';
 import { getChapterLabel } from '@utils/Misc';
 import BreadcrumbNav from '../../common/BreadcrumbNav';
-import CommentSection from '../../comments/CommentSection';
 import ReaderContent from './ReaderContent';
 import ReaderControls from '../controls/ReaderControls';
 import ReaderViewport from '../viewport/ReaderViewport';
+import ChapterCommentsCard from './ChapterCommentsCard';
 import { reservedMargin } from '../panels/panelLayout';
 import type { ReaderTapProps } from '../hooks/useReaderTapInput';
 import { useReaderSettings } from '../hooks/useReaderSettings';
@@ -31,16 +29,13 @@ import type { MarkReadProps } from '../controls/readerBarTypes';
 import { TTS_BAR_HEIGHT } from '../tts/ttsTypes';
 import type { SwipeableHandlers } from 'react-swipeable';
 
-// The listen and settings buttons beside the tabs
+// The listen and settings buttons at the end of the title row
 const ICON_BUTTON_SX = { color: 'text.secondary', '&:hover': { color: 'primary.main' }, scale: '1.2' };
 
 interface ChapterArticleProps {
   chapter: IChapterContent;
   novelSlug?: string;
   sourceSlug?: string;
-  chapterNumber?: string;
-  activeTab: number;
-  onTabChange: (event: SyntheticEvent, value: number) => void;
   // Sentinel placed after the chapter text, watched to detect the reader reaching its end
   endOfChapterRef: RefObject<HTMLDivElement | null>;
   tapProps: ReaderTapProps;
@@ -52,7 +47,10 @@ interface ChapterArticleProps {
   markRead: MarkReadProps;
   onPrevious: () => void;
   onNext: () => void;
-  onGoToComments: () => void;
+  // All comments on the chapter, the posted ones included
+  commentCount: number;
+  topComment: CommentPreview | null;
+  onOpenComments: (opts?: { compose?: boolean }) => void;
   ttsOpen: boolean;
   // Height of the audiobook mini bar, kept clear of the end of the chapter
   barHeight: number;
@@ -62,14 +60,11 @@ interface ChapterArticleProps {
   reservedEnd: number;
 }
 
-// The article: breadcrumbs, title, tabs, the text and the controls at its end
+// The article: breadcrumbs, title, the text, the comments summary and the controls at its end
 const ChapterArticle = ({
   chapter,
   novelSlug,
   sourceSlug,
-  chapterNumber,
-  activeTab,
-  onTabChange,
   endOfChapterRef,
   tapProps,
   swipeHandlers,
@@ -80,7 +75,9 @@ const ChapterArticle = ({
   markRead: { showMarkRead, markReadSuccess, markingAsRead, onMarkAsRead },
   onPrevious,
   onNext,
-  onGoToComments,
+  commentCount,
+  topComment,
+  onOpenComments,
   ttsOpen,
   barHeight,
   reservedStart,
@@ -95,17 +92,6 @@ const ChapterArticle = ({
     () => <ReaderContent chapter={chapter} settings={settings} />,
     [chapter, settings]
   );
-
-  const chapterDataForComments = useMemo(() => {
-    if (novelSlug && sourceSlug && chapterNumber) {
-      return {
-        novelSlug,
-        sourceSlug,
-        chapterNumber: parseInt(chapterNumber),
-      };
-    }
-    return null;
-  }, [novelSlug, sourceSlug, chapterNumber]);
 
   // The reader leaves through its own navigation, so its panels do not stay in the history. A modified click keeps the link's own behaviour.
   const handleChapterListClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -176,29 +162,15 @@ const ChapterArticle = ({
               </Typography>
             </Box>
   
-            {/* Tab controls */}
+            {/* Listen and settings, kept on every layout so screen reader users can always reach them */}
             <Box sx={{
               borderBottom: 1,
               borderColor: 'divider',
               mb: 2,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'flex-end'
             }}>
-              <Tabs value={activeTab} onChange={onTabChange} aria-label={t('reader.chapters')}>
-                <Tab label={t('reader.chapterTab')} id="tab-0" />
-                <Tab
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      {t('reader.commentsTab')}
-                      <CommentIcon sx={{ ml: 1 }} />
-                    </Box>
-                  }
-                  id="tab-1"
-                />
-              </Tabs>
-  
-              {/* Kept on every layout so screen reader users can always reach the controls */}
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <IconButton
                   onClick={onListen}
@@ -236,8 +208,8 @@ const ChapterArticle = ({
               </Box>
             )}
   
-            {/* Chapter content Tab */}
-            <Box role="tabpanel" hidden={activeTab !== 0} sx={{ mb: 4 }}>
+            {/* Chapter content */}
+            <Box sx={{ mb: 4 }}>
               <ReaderViewport
                 controlsTrigger={settings.controlsTrigger}
                 tapProps={tapProps}
@@ -252,15 +224,15 @@ const ChapterArticle = ({
               </ReaderViewport>
               <Box ref={endOfChapterRef} aria-hidden="true" sx={{ height: 1 }} />
             </Box>
-  
-            {/* Comments Tab */}
-            <Box role="tabpanel" hidden={activeTab !== 1} sx={{ mb: 4 }}>
-              {chapterDataForComments && activeTab === 1 && (
-                <CommentSection
-                  chapterData={chapterDataForComments}
-                  title={t('reader.chapterComments')}
-                />
-              )}
+
+            {/* Comments summary: opens the comments panel */}
+            <Box sx={{ mb: 4 }}>
+              <ChapterCommentsCard
+                count={commentCount}
+                chapterLabel={chapterLabel}
+                topComment={topComment}
+                onOpen={onOpenComments}
+              />
             </Box>
   
             {/* Reader Controls */}
@@ -273,7 +245,6 @@ const ChapterArticle = ({
               onMarkAsRead={onMarkAsRead}
               onPrevious={onPrevious}
               onNext={onNext}
-              onGoToComments={onGoToComments}
             />
           </Paper>
         </Container>

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useReaderSettings } from '../hooks/useReaderSettings';
 import { updateReaderSetting } from '../readerSettingsStore';
 import type { ReaderSettings } from '../readerSettingsSchema';
+import { TOUCH_TARGET } from '../touchTarget';
 
 // Settings that hold a plain number, so a stepper can write them
 type NumericSettingKey = {
@@ -24,7 +25,6 @@ interface StepperProps {
   value?: number;
 }
 
-const TARGET_SIZE = 44;
 const MUTED_SX = { color: 'text.disabled' };
 
 // Number of digits after the point in the step, so 0.1 rounds to one decimal
@@ -50,7 +50,7 @@ const Stepper = ({ settingKey, step, min, max, format, label, decreaseLabel = 'â
         onClick={() => { if (!atMin) write(value - step); }}
         aria-disabled={atMin}
         aria-label={t('readerDisplay.decrease', { label })}
-        sx={{ minWidth: TARGET_SIZE, minHeight: TARGET_SIZE, ...(atMin && MUTED_SX) }}
+        sx={{ ...TOUCH_TARGET, ...(atMin && MUTED_SX) }}
       >
         {decreaseLabel}
       </IconButton>
@@ -61,7 +61,7 @@ const Stepper = ({ settingKey, step, min, max, format, label, decreaseLabel = 'â
         onClick={() => { if (!atMax) write(value + step); }}
         aria-disabled={atMax}
         aria-label={t('readerDisplay.increase', { label })}
-        sx={{ minWidth: TARGET_SIZE, minHeight: TARGET_SIZE, ...(atMax && MUTED_SX) }}
+        sx={{ ...TOUCH_TARGET, ...(atMax && MUTED_SX) }}
       >
         {increaseLabel}
       </IconButton>

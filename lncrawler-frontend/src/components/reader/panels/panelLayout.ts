@@ -14,6 +14,19 @@ export function panelWidth(mode: ReaderLayoutMode): number | null {
   }
 }
 
+// Width of the comments panel in px; null on phones, where it covers the whole screen
+export function commentsWidth(mode: ReaderLayoutMode): number | null {
+  switch (mode) {
+    case 'phone':
+      return null;
+    case 'tablet':
+    case 'phoneLandscape':
+      return 400;
+    default:
+      return 440;
+  }
+}
+
 // Width of the chapter list at the start edge, off phones (on phones it overlays the text)
 export const CHAPTER_LIST_WIDTH = 360;
 
@@ -21,6 +34,7 @@ export const CHAPTER_LIST_WIDTH = 360;
 export function reservedEnd(panel: ReaderPanel, mode: ReaderLayoutMode): number {
   if (panel === 'display') return mode === 'phoneLandscape' ? 360 : 0;
   if (panel === 'settings' || panel === 'customize') return panelWidth(mode) ?? 0;
+  if (panel === 'comments') return commentsWidth(mode) ?? 0;
   return 0;
 }
 

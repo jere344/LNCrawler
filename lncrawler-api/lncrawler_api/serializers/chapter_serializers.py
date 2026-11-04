@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.db.models import Subquery
 from ..models import AudiobookChapter, AudiobookPart, Chapter
+from ..models.comments_models import Comment
 from ..services.audiobook_public import LISTENABLE_PART_Q, chapter_audio_hidden, chapter_audio_url
 from ..utils import build_media_url
 from .mixins import ProfileFieldsMixin
@@ -11,7 +12,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     Serializes chapter information.
 
     ``card`` is the lightweight chapter row (default); ``content`` adds the
-    chapter body and navigation.
+    chapter body, navigation and the comment summary of the chapter.
     """
     body = serializers.SerializerMethodField()
     prev_chapter = serializers.SerializerMethodField()
@@ -30,6 +31,8 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     audio_duration_s = serializers.SerializerMethodField()
     language = serializers.SerializerMethodField()
     has_audio = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    top_comment = serializers.SerializerMethodField()
 
     default_profile = 'card'
     field_profiles = {
@@ -41,6 +44,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             'source_id', 'source_name', 'source_slug', 'language', 'body', 'prev_chapter', 'next_chapter',
             'prev_chapter_id', 'next_chapter_id',
             'images_path', 'source_overview_image_url', 'audio_url', 'audio_duration_s',
+            'comment_count', 'top_comment',
         ],
         'unavailable': [
             'chapter_id', 'title', 'novel_title', 'prev_chapter', 'next_chapter',
@@ -163,3 +167,28 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     def get_has_audio(self, obj: Chapter):
         # Set by the chapter list view (chapter_has_audio_subquery); a queryset without it reports False.
         return bool(getattr(obj, 'annotated_has_audio', False))
+
+    def get_comment_count(self, obj: Chapter):
+        # Every comment on this chapter number, across all sources, replies included.
+        return Comment.objects.for_chapter_number(
+            obj.novel_from_source.novel_id, obj.chapter_id
+        ).count()
+
+    def get_top_comment(self, obj: Chapter):
+        # Highest vote score among the root comments, newest first on ties.
+        top = (
+            Comment.objects.for_chapter_number(obj.novel_from_source.novel_id, obj.chapter_id)
+            .roots()
+            .ranked('top')
+            .first()
+        )
+        if top is None:
+            return None
+        return {
+            'id': str(top.id),
+            'author_name': top.author_name,
+            # A spoiler's text stays hidden in the summary; the flag tells the reader why.
+            'message': None if top.contains_spoiler else top.message[:160],
+            'contains_spoiler': top.contains_spoiler,
+            'vote_score': top.vote_score,
+        }

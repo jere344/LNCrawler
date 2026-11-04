@@ -1,4 +1,5 @@
 import { ReadingList } from './readinglist_types';
+import type { CommentPreview } from './comments_types';
 
 export interface Novel {
   id: string;
@@ -146,6 +147,9 @@ export interface ChapterContent {
   language?: string | null;
   audio_url?: string | null;
   audio_duration_s?: number | null;
+  // Comments of the chapter, replies included, shared by every source with this chapter number
+  comment_count?: number;
+  top_comment?: CommentPreview | null;
 }
 
 export interface UnavailableChapterInfo {

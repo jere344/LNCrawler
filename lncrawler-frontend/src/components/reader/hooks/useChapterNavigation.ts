@@ -7,7 +7,6 @@ interface ChapterNavigationOptions {
   chapter: IChapterContent | null;
   saveScrollIfReady: (force?: boolean) => void;
   markBeforeLeaving: () => Promise<void>;
-  setActiveTab: (tab: number) => void;
   // Closes the open layers first, so no stale layer sits in the history behind the chapter
   closeThen: (run: () => void) => void;
 }
@@ -19,7 +18,6 @@ export function useChapterNavigation({
   chapter,
   saveScrollIfReady,
   markBeforeLeaving,
-  setActiveTab,
   closeThen,
 }: ChapterNavigationOptions) {
   const navigate = useNavigate();
@@ -44,7 +42,6 @@ export function useChapterNavigation({
     await markBeforeLeaving();
 
     // Navigate to the target (or to the unavailable chapter that sits in between)
-    setActiveTab(0);
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${gapChapter ?? targetChapter}`);
   };
 
@@ -79,7 +76,6 @@ export function useChapterNavigation({
     closeThen(async () => {
       saveScrollIfReady(true);
       await markBeforeLeaving();
-      setActiveTab(0);
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}`);
     });
   };

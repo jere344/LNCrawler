@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
-import { useChapterCache } from './useChapterCache';
+import { isChapterOfNovel, useChapterCache } from './useChapterCache';
 
 interface ChapterLoaderOptions {
   novelSlug?: string;
@@ -20,7 +20,7 @@ export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadS
   const [unavailableChapter, setUnavailableChapter] = useState<UnavailableChapterInfo | null>(null);
 
   // Chapter content cache and preload
-  const { fetchChapterContent, preloadNextChapter } = useChapterCache(novelSlug, sourceSlug);
+  const { fetchChapterContent, preloadNextChapter, bumpCommentCount: bumpCachedCommentCount } = useChapterCache(novelSlug, sourceSlug);
 
   // Tags each chapter fetch so a slow older request can't overwrite a newer one
   const loadRequestIdRef = useRef(0);
@@ -76,5 +76,14 @@ export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadS
     // eslint-disable-next-line react-hooks/exhaustive-deps -- t/loader/onLoadStart intentionally omitted; route params are the inputs
   }, [novelSlug, sourceSlug, chapterNumber]);
 
-  return { chapter, loading, error, unavailableChapter };
+  // A comment posted to a chapter of this novel: the cached payloads and the chapter on screen count it
+  const bumpCommentCount = useCallback((chapterNumber: number) => {
+    if (!novelSlug) return;
+    bumpCachedCommentCount(novelSlug, chapterNumber);
+    setChapter((current) => (current && isChapterOfNovel(current, novelSlug, chapterNumber)
+      ? { ...current, comment_count: (current.comment_count ?? 0) + 1 }
+      : current));
+  }, [novelSlug, bumpCachedCommentCount]);
+
+  return { chapter, loading, error, unavailableChapter, bumpCommentCount };
 }

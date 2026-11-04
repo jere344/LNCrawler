@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CHAPTER_LIST_WIDTH, panelWidth, reservedEnd, reservedMargin, reservedStart } from './panelLayout';
+import {
+  CHAPTER_LIST_WIDTH,
+  commentsWidth,
+  panelWidth,
+  reservedEnd,
+  reservedMargin,
+  reservedStart,
+} from './panelLayout';
 
 describe('panelWidth', () => {
   it('covers the whole screen on phones', () => {
@@ -13,6 +20,22 @@ describe('panelWidth', () => {
 
   it('is 600px on desktop', () => {
     expect(panelWidth('desktop')).toBe(600);
+  });
+});
+
+describe('commentsWidth', () => {
+  it('covers the whole screen on phones', () => {
+    expect(commentsWidth('phone')).toBeNull();
+  });
+
+  it('is 400px on tablets and phone landscape', () => {
+    expect(commentsWidth('tablet')).toBe(400);
+    expect(commentsWidth('phoneLandscape')).toBe(400);
+  });
+
+  it('is 440px on desktop, narrower than the settings panel', () => {
+    expect(commentsWidth('desktop')).toBe(440);
+    expect(commentsWidth('desktop')).toBeLessThan(panelWidth('desktop') ?? 0);
   });
 });
 
@@ -30,9 +53,16 @@ describe('reservedEnd', () => {
     expect(reservedEnd('customize', 'desktop')).toBe(600);
   });
 
+  it('reserves the comments panel width off phones', () => {
+    expect(reservedEnd('comments', 'tablet')).toBe(400);
+    expect(reservedEnd('comments', 'phoneLandscape')).toBe(400);
+    expect(reservedEnd('comments', 'desktop')).toBe(440);
+  });
+
   it('reserves nothing on phones or with no panel open', () => {
     expect(reservedEnd('settings', 'phone')).toBe(0);
     expect(reservedEnd('customize', 'phone')).toBe(0);
+    expect(reservedEnd('comments', 'phone')).toBe(0);
     expect(reservedEnd('none', 'desktop')).toBe(0);
   });
 });

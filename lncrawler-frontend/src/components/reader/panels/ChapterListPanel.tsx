@@ -144,7 +144,6 @@ const ChapterListPanel = ({
       mode={mode}
       side="start"
       showBack={false}
-      onBack={onClose}
       flush
       headerExtra={
         <IconButton onClick={onClose} aria-label={t('readerChapters.close')}>

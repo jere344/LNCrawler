@@ -6,6 +6,7 @@ export interface ReaderShortcuts {
   prev?: string;
   next?: string;
   display?: string;
+  comments?: string;
   fullscreen?: string;
 }
 
@@ -32,6 +33,9 @@ export interface ReaderBarProps {
   hasPrev: boolean;
   hasNext: boolean;
   displayOpen: boolean;
+  // Whether the comments panel is open, and how many comments the chapter has, the posted ones included
+  commentsOpen: boolean;
+  commentCount: number;
   // Width in px kept clear at the start edge (the chapter list, off phones)
   reservedStart: number;
   // Width in px kept clear at the end edge (the display panel, on phone landscape)

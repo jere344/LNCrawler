@@ -14,6 +14,7 @@ import { defaultSettings } from '../readerDefaults';
 import { useSettingsContext } from '../settings/settingsContext';
 import { fitsInSheet } from './displayLayout';
 import { DISPLAY_MODULE_DEFS } from './displayModules';
+import { TOUCH_TARGET } from '../touchTarget';
 import SheetPreview from './SheetPreview';
 
 interface SortableModuleRowProps {
@@ -25,7 +26,7 @@ interface SortableModuleRowProps {
 
 // One control in the sheet: a drag handle, its name, and a remove button
 const SortableModuleRow = ({ module, canRemove, touch, onRemove }: SortableModuleRowProps) => {
-  const touchTarget = touch ? { minWidth: 44, minHeight: 44 } : undefined;
+  const touchTarget = touch ? TOUCH_TARGET : undefined;
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: module });
   const label = t(DISPLAY_MODULE_DEFS[module].labelKey);
@@ -72,7 +73,7 @@ const DisplayCustomizer = () => {
   const canAdd = (module: DisplayModule) => fitsInSheet([...modules, module], viewportHeight, mode);
   const noRoom = available.every((module) => !canAdd(module));
   const touchLayout = mode === 'phone' || mode === 'tablet' || mode === 'phoneLandscape';
-  const touchTarget = touchLayout ? { minWidth: 44, minHeight: 44 } : undefined;
+  const touchTarget = touchLayout ? TOUCH_TARGET : undefined;
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;

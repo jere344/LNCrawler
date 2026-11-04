@@ -4,10 +4,10 @@ import { decomposeColor, hslToRgb, rgbToHex } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { useReaderSettings } from '../hooks/useReaderSettings';
 import { updateReaderSetting } from '../readerSettingsStore';
+import { TOUCH_MIN_HEIGHT, TOUCH_TARGET } from '../touchTarget';
 
 const HEX_CODE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SIX_DIGIT_HEX = /^#[0-9a-f]{6}$/i;
-const TARGET_SIZE = 44;
 
 // The six-digit lowercase form of a valid code, so #fff is stored as #ffffff
 const toSixDigits = (code: string) => {
@@ -67,10 +67,10 @@ const ColorField = ({ settingKey, label, presets, fallback, settingId }: ColorFi
 
   return (
     <Box component="section" aria-label={label} data-setting-id={settingId} sx={{ py: 1.5 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, minHeight: TARGET_SIZE }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, minHeight: TOUCH_MIN_HEIGHT }}>
         <Typography sx={{ fontWeight: 600 }}>{label}</Typography>
         {value ? (
-          <Button size="small" onClick={() => setColor(null)} sx={{ minHeight: TARGET_SIZE }}>
+          <Button size="small" onClick={() => setColor(null)} sx={{ minHeight: TOUCH_MIN_HEIGHT }}>
             {t('readerSettingsPages.colorDefault')}
           </Button>
         ) : (
@@ -93,7 +93,7 @@ const ColorField = ({ settingKey, label, presets, fallback, settingId }: ColorFi
               aria-checked={selected}
               aria-label={preset}
               onClick={() => setColor(preset)}
-              sx={{ width: TARGET_SIZE, height: TARGET_SIZE, borderRadius: '50%' }}
+              sx={{ ...TOUCH_TARGET, borderRadius: '50%' }}
             >
               <Box
                 aria-hidden="true"
@@ -127,7 +127,7 @@ const ColorField = ({ settingKey, label, presets, fallback, settingId }: ColorFi
           slotProps={{ htmlInput: { maxLength: 7, spellCheck: false, autoCapitalize: 'off', autoComplete: 'off' } }}
           sx={{ flex: 1, minWidth: 0 }}
         />
-        <Box component="label" sx={{ position: 'relative', width: TARGET_SIZE, height: TARGET_SIZE, flexShrink: 0, cursor: 'pointer' }}>
+        <Box component="label" sx={{ position: 'relative', ...TOUCH_TARGET, flexShrink: 0, cursor: 'pointer' }}>
           <Box
             component="input"
             type="color"

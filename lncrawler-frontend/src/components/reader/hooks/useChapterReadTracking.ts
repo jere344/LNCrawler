@@ -13,7 +13,6 @@ interface ChapterReadTrackingOptions {
   currentChapterKey: string;
   chapter: IChapterContent | null;
   loading: boolean;
-  activeTab: number;
   isAuthenticated: boolean;
   isNarrow: boolean;
   markReadBehavior: MarkReadBehavior;
@@ -33,7 +32,6 @@ export function useChapterReadTracking({
   currentChapterKey,
   chapter,
   loading,
-  activeTab,
   isAuthenticated,
   isNarrow,
   markReadBehavior,
@@ -69,7 +67,7 @@ export function useChapterReadTracking({
   // chapter (which has no "next" to navigate to) is recorded too
   useEffect(() => {
     latestChapterKeyRef.current = currentChapterKey;
-    if (!isAutoMarkEnabled || loading || !chapter || activeTab !== 0 ||
+    if (!isAutoMarkEnabled || loading || !chapter ||
         !novelSlug || !sourceSlug || !chapterNumber ||
         autoMarkedKeyRef.current === currentChapterKey) return;
     const endElement = endOfChapterRef.current;
@@ -119,7 +117,7 @@ export function useChapterReadTracking({
     window.addEventListener('scroll', checkEndReached, { passive: true });
     return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- novelSlug, sourceSlug and chapterNumber are encoded in currentChapterKey
-  }, [isAutoMarkEnabled, loading, chapter, activeTab, currentChapterKey]);
+  }, [isAutoMarkEnabled, loading, chapter, currentChapterKey]);
 
   // Automatic marking when leaving the chapter before its end was reached
   const markBeforeLeaving = async () => {

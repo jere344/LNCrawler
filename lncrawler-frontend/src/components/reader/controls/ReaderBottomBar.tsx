@@ -1,4 +1,4 @@
-import { AppBar, Box, Button, Slide, Toolbar, Typography } from '@mui/material';
+import { AppBar, Badge, Box, Button, Slide, Toolbar, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import CommentIcon from '@mui/icons-material/Comment';
@@ -24,6 +24,8 @@ const ReaderBottomBar = ({
   hasPrev,
   hasNext,
   displayOpen,
+  commentsOpen,
+  commentCount,
   reservedStart,
   reservedEnd,
   shortcuts,
@@ -51,7 +53,19 @@ const ReaderBottomBar = ({
       keyShortcut: shortcuts.display,
     },
     { label: t('reader.listen'), icon: <HeadphonesIcon />, onClick: onListen },
-    { label: t('readerControls.comments'), icon: <CommentIcon />, onClick: onComments },
+    {
+      label: t('readerControls.comments'),
+      // The count is announced, the visible label stays short
+      ariaLabel: t('readerControls.commentsCount', { count: commentCount }),
+      icon: (
+        <Badge badgeContent={commentCount} max={999} color="primary" invisible={commentCount === 0}>
+          <CommentIcon />
+        </Badge>
+      ),
+      onClick: onComments,
+      expanded: commentsOpen,
+      keyShortcut: shortcuts.comments,
+    },
     { label: t('readerControls.settings'), icon: <SettingsIcon />, onClick: onSettings },
   ];
 
@@ -89,6 +103,7 @@ const ReaderBottomBar = ({
                 <Button
                   key={action.label}
                   onClick={action.onClick}
+                  aria-label={action.ariaLabel}
                   aria-expanded={action.expanded}
                   aria-keyshortcuts={action.keyShortcut}
                   color="inherit"

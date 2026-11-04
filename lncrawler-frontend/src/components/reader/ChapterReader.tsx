@@ -51,8 +51,15 @@ const ChapterReader = () => {
     panel,
     pages,
     searching,
+    threads,
+    composing,
     toggleDisplay,
     toggleChapters,
+    toggleComments,
+    openComments,
+    pushThread,
+    startComposing,
+    stopComposing,
     openSettings,
     openCustomize,
     closePanel,
@@ -66,7 +73,6 @@ const ChapterReader = () => {
   const reservedEnd = panelReservedEnd(panel, mode);
   // The desktop toolbar starts shown; the touch bars start hidden
   const [controlsVisible, setControlsVisible] = useState(isDesktop);
-  const [activeTab, setActiveTab] = useState(0);
 
   // Each time the layout switches, the bars go back to their starting state for it
   useEffect(() => {
@@ -83,7 +89,7 @@ const ChapterReader = () => {
   // Current chapter key for scroll position tracking
   const currentChapterKey = `${novelSlug}|${sourceSlug}|${chapterNumber}`;
 
-  const { chapter, loading, error, unavailableChapter } = useChapterLoader({
+  const { chapter, loading, error, unavailableChapter, bumpCommentCount } = useChapterLoader({
     novelSlug,
     sourceSlug,
     chapterNumber,
@@ -113,7 +119,6 @@ const ChapterReader = () => {
     currentChapterKey,
     chapter,
     loading,
-    activeTab,
     isAuthenticated,
     isNarrow,
     markReadBehavior: readerSettings.markReadBehavior,
@@ -135,7 +140,6 @@ const ChapterReader = () => {
     chapter,
     saveScrollIfReady,
     markBeforeLeaving,
-    setActiveTab,
     closeThen,
   });
 
@@ -157,6 +161,7 @@ const ChapterReader = () => {
     goPrev,
     setControlsVisible,
     toggleDisplay,
+    toggleComments,
     toggleFullscreen: fullscreen.toggle,
   });
 
@@ -191,6 +196,7 @@ const ChapterReader = () => {
     prev: keyLabelFor(keyBindings, 'prevChapter'),
     next: keyLabelFor(keyBindings, 'nextChapter'),
     display: keyLabelFor(keyBindings, 'displaySheet'),
+    comments: keyLabelFor(keyBindings, 'comments'),
     fullscreen: keyLabelFor(keyBindings, 'fullscreen'),
   };
 
@@ -200,7 +206,16 @@ const ChapterReader = () => {
   const revealControls = useCallback(() => setControlsVisible(true), []);
   useRevealOnTopHover(isDesktop && !controlsVisible, revealControls);
 
-  const { barProps, switchToComments, chapterLabel } = useReaderBarProps({
+  // The chapter's comments, the ones posted in this session included
+  const commentKey = {
+    novelSlug: novelSlug ?? '',
+    sourceSlug: sourceSlug ?? '',
+    // The route always has a number once the chapter is shown (the loader waits for it)
+    chapterNumber: parseInt(chapterNumber ?? ''),
+  };
+  const commentCount = chapter?.comment_count ?? 0;
+
+  const { barProps, chapterLabel } = useReaderBarProps({
     chapter,
     controlsVisible,
     isDesktop,
@@ -209,12 +224,14 @@ const ChapterReader = () => {
     reservedEnd,
     shortcuts,
     setControlsVisible,
-    setActiveTab,
     markRead,
     fullscreen: { supported: fullscreen.supported, active: fullscreen.active, onToggle: fullscreen.toggle },
     navigation: { goPrev, goNext, goToSource },
     onToggleChapters: toggleChapters,
     onToggleDisplay: toggleDisplay,
+    toggleComments,
+    commentsOpen: panel === 'comments',
+    commentCount,
     onOpenSettings: () => openSettings(),
     onListen: handleListen,
   });
@@ -290,6 +307,21 @@ const ChapterReader = () => {
           }}
           onTtsBeforePreview={tts.pause}
           onClosePanel={closePanel}
+          comments={{
+            novelSlug: commentKey.novelSlug,
+            sourceSlug: commentKey.sourceSlug,
+            chapterNumber: commentKey.chapterNumber,
+            chapterLabel,
+            totalCount: commentCount,
+            threads,
+            composing,
+            onBack: popPage,
+            onPushThread: pushThread,
+            onStartComposing: startComposing,
+            onStopComposing: stopComposing,
+            // The count goes to the cached chapter it was posted to, which may no longer be on screen
+            onPosted: bumpCommentCount,
+          }}
           onBack={popPage}
           onPushPage={pushPage}
           onSetDeskPage={setDeskPage}
@@ -303,9 +335,6 @@ const ChapterReader = () => {
         chapter={chapter}
         novelSlug={novelSlug}
         sourceSlug={sourceSlug}
-        chapterNumber={chapterNumber}
-        activeTab={activeTab}
-        onTabChange={(_event, value) => setActiveTab(value)}
         endOfChapterRef={endOfChapterRef}
         tapProps={tapProps}
         swipeHandlers={swipeHandlers}
@@ -316,7 +345,9 @@ const ChapterReader = () => {
         markRead={markRead}
         onPrevious={goPrev}
         onNext={goNext}
-        onGoToComments={switchToComments}
+        commentCount={commentCount}
+        topComment={chapter.top_comment ?? null}
+        onOpenComments={openComments}
         ttsOpen={tts.open}
         barHeight={barHeight}
         reservedStart={reservedStart}
@@ -325,7 +356,7 @@ const ChapterReader = () => {
 
       <ReaderKeyboardNavigation
         enabled={readerSettings.keyboardNavigation}
-        paused={(panel === 'settings' || panel === 'customize' || panel === 'chapters') && mode === 'phone'}
+        paused={(panel === 'settings' || panel === 'customize' || panel === 'chapters' || panel === 'comments') && mode === 'phone'}
         bindings={keyBindings}
         onAction={runKeyAction}
         // Escape goes back one layer, like Back, and only while a panel is open, so it never hides the desktop toolbar
