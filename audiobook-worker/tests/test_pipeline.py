@@ -200,7 +200,7 @@ def _book(**slices):
 def _fake_analysis(calls=None, *, raises=None, checkpoint=False, add=True):
     """Stands in for analyse_part: records the call, optionally writes a checkpoint and adds one character."""
 
-    def analyse(chapters, lang, series, llm, *, checkpoint_path, progress, tag, key=None):
+    def analyse(chapters, lang, series, llm, *, checkpoint_path, progress, tag, key=None, **_):
         if calls is not None:
             calls.append({"chapters": chapters, "lang": lang, "series": series, "llm": llm,
                           "checkpoint": checkpoint_path, "tag": tag, "key": key})
@@ -601,6 +601,46 @@ def test_worker_casting_is_skipped_once_done(tmp_path):
     pipe.state["casting_done"] = True
     pipe._casting()
     assert cw.events == []
+
+
+class RecyclingCw(CastCw):
+    """The sidecar recycles after the first voice of the first `recycles` design runs."""
+
+    def __init__(self, books, *, recycles):
+        super().__init__(books)
+        self.recycles = recycles
+
+    def design(self, book_id, character_ids, model_key, scope):
+        if self.recycles == 0:
+            return super().design(book_id, character_ids, model_key, scope)
+        self.recycles -= 1
+        first = list(super().design(book_id, character_ids[:1], model_key, scope))[:-1]
+        self.designs[-1] = list(character_ids)
+        self.events[-1] = ("design", tuple(character_ids))
+        error = {"type": "error", "code": "sidecar_unavailable", "message": "TTS sidecar is unreachable"}
+        return iter([*first, error])
+
+
+def test_a_design_cut_by_a_sidecar_recycle_goes_on_with_the_voices_left(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "DESIGN_SIDECAR_WAIT_S", 0)
+    rows = [_row("narrator", 40, "qwen-narrator"), _row("mara", 30), _row("bob", 25)]
+    cw = RecyclingCw({"bk_1": _book(cast={"characters": rows})}, recycles=1)
+    pipe = _worker_pipe(tmp_path, cw)
+    pipe._casting()
+    assert cw.designs == [["mara", "bob"], ["bob"]]
+    assert all(r["ttsEngine"] == "qwen" for r in cw.books["bk_1"]["cast"]["characters"][1:])
+    assert pipe.state["casting_done"] is True
+
+
+def test_a_sidecar_that_keeps_recycling_fails_the_design_as_retryable(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "DESIGN_SIDECAR_WAIT_S", 0)
+    rows = [_row("narrator", 40, "qwen-narrator")] + [_row(f"c{i}", 30) for i in range(6)]
+    cw = RecyclingCw({"bk_1": _book(cast={"characters": rows})}, recycles=99)
+    pipe = _worker_pipe(tmp_path, cw)
+    with pytest.raises(CastwrightError) as info:
+        pipe._casting()
+    assert info.value.code == "sidecar_unavailable" and info.value.retryable
+    assert len(cw.designs) == pipeline.DESIGN_SIDECAR_RETRIES + 1
 
 
 def test_a_refused_design_is_retried_once_after_unloading_qwen(tmp_path):

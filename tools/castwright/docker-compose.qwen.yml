@@ -17,6 +17,12 @@ services:
       KOKORO_DEVICE: ${KOKORO_DEVICE:-cpu}
       QWEN_HZ_MODEL_DIR: /hz/model-base/q8
       QWEN_HZ_DECODER_CHUNK: ${QWEN_HZ_DECODER_CHUNK:-48}
+      # hz runs small numpy matrix products every frame. OpenBLAS starts one thread per host core (12) inside a
+      # 6-CPU container and they fight: one thread renders ~60% faster (5.7x -> 8.6x realtime on a real chapter).
+      OPENBLAS_NUM_THREADS: ${OPENBLAS_NUM_THREADS:-1}
+      # hz's VRAM depends on the line count (fixed context per line), not on line length, so Castwright's
+      # count x length budget only makes long-line batches narrow. 0 = fixed batches of QWEN_BATCH_SIZE_17B (32): +7%.
+      QWEN_BATCH_TOKEN_BUDGET_17B: ${QWEN_BATCH_TOKEN_BUDGET_17B:-0}
       # hz is invisible to the sidecar's torch metric and its long batches peak with under 100 MB free on the 8 GB card (GTX 1080
       # with a desktop). Each dip under the floor kills the sidecar, so the floor only stops a real out-of-memory.
       SIDECAR_VRAM_FREE_FLOOR_MB: ${SIDECAR_VRAM_FREE_FLOOR_MB:-50}

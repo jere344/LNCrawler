@@ -39,6 +39,8 @@ CLAIM_RETRY_IDLE = 300  # Retry-After seconds when no part can be claimed
 CONTRACT_VERSION = '1'
 LANGUAGES_MAX = 20  # most language codes a worker may announce in one request
 PIN_RELEASE_DAYS = 7  # days without contact after which a worker's audiobooks may be claimed by another worker
+SYNOPSIS_MAX = 2000  # characters of synopsis sent in a claim
+TAGS_MAX = 20  # most tag names sent in a claim
 WORKER_ID_MAX = 64
 WORKER_VERSION_MAX = 64
 STAGE_MAX = 64
@@ -176,6 +178,14 @@ def _authors(source):
     return [author.name for author in source.authors.all()]
 
 
+def _synopsis(source):
+    return (source.synopsis or '').strip()[:SYNOPSIS_MAX]
+
+
+def _tags(source):
+    return sorted(tag.name for tag in source.tags.all())[:TAGS_MAX]
+
+
 def _claim_payload(request, part, audiobook):
     source = audiobook.source
     chapters = svc.part_chapters(part)
@@ -187,6 +197,8 @@ def _claim_payload(request, part, audiobook):
             'authors': _authors(source),
             'language': audiobook.language,
             'slug': source.novel.slug,
+            'synopsis': _synopsis(source),
+            'tags': _tags(source),
         },
         'part': {
             'index': part.index,

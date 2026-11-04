@@ -421,6 +421,20 @@ patch(
     "            log.debug(\"Creating ONNX session with providers=%s\", build_providers)\n",
 )
 
+# 20. Kokoro ORT session: cap the intra-op threads. Unset, ORT starts one per host core (12) inside the 6-CPU
+#     container and they fight: the CPU Kokoro of the qwen stack ran at 0.69x realtime, 2.05x with 4 threads.
+#     KOKORO_ORT_THREADS (default 4; 0 = ORT's default).
+patch(
+    "kokoro: cap the ORT intra-op threads",
+    "            session_kwargs: dict[str, Any] = {\"providers\": build_providers}\n",
+    "            session_kwargs: dict[str, Any] = {\"providers\": build_providers}\n"
+    "            _ort_threads = int(os.environ.get(\"KOKORO_ORT_THREADS\", \"4\") or 0)\n"
+    "            if _ort_threads > 0:\n"
+    "                _so = rt.SessionOptions()\n"
+    "                _so.intra_op_num_threads = _ort_threads\n"
+    "                session_kwargs[\"sess_options\"] = _so\n",
+)
+
 
 def main(argv):
     src = argv[1] if len(argv) > 1 else DEFAULT_PATH

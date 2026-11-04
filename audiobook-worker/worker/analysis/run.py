@@ -17,13 +17,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from worker import state
-from worker.analysis.attribution import attribute_chapter, chunk_pieces, sentences_from_labels
+from worker.analysis.attribution import CONFIDENCE_NARRATION, _halves, _paragraphs, attribute_chapter, chunk_pieces, sentences_from_labels
 from worker.analysis.cast import EVIDENCE_LIMIT, CastEntry, detect_cast
-from worker.analysis.protocol import clip, numbered_pieces, quote_runs
+from worker.analysis.narrator import narrator_style
+from worker.analysis.protocol import VOICE_STYLE_LIMIT, clip, numbered_pieces, quote_runs
 from worker.series import NARRATOR, VOICE_KEYS, Record, Series
 
 if TYPE_CHECKING:  # the import would be circular at runtime: worker.llm imports this package's protocol module
     from worker.llm import LlmClient, Usage
+    from worker.segment import Piece
 
 log = logging.getLogger("worker.analysis")
 
@@ -45,7 +47,7 @@ STAT_KEYS = (
 NARRATOR_NAME = "Narrator"
 CHARACTER_ROLE = "Character"
 EVIDENCE_PER_CHARACTER = 3
-VOICE_STYLE_LIMIT = 300
+NARRATOR_SAMPLE_CHARS = 6000  # the opening narration the narrator's voice is chosen from
 GENDER_WORD = re.compile(
     r"\b(male|female|man|woman|boy|girl|masculine|feminine|guy|lady|androgynous|gender-?neutral|genderless|unisex)\b",
     re.IGNORECASE,
@@ -112,11 +114,16 @@ def analyse_part(
     cast_chunk_chars: int = CAST_CHUNK_CHARS,
     progress: Callable[[int, int], None] | None = None,
     tag: str = "",
+    title: str = "",
+    synopsis: str = "",
+    tags: list[str] | None = None,
+    audiobook_id: str | None = None,
 ) -> PartAnalysis:
     """The cast rows and numbered sentences of a part, given as (chapter id, text) in order. The series gains the
     chapters' characters and line counts in memory. With a checkpoint path, the chapters done before are restored from
     it, and each finished chapter is saved there; the caller removes the file. `key` (the Castwright book id) and the
-    chapter ids identify the part: a checkpoint of another book or chapter list is discarded."""
+    chapter ids identify the part: a checkpoint of another book or chapter list is discarded. With an audiobook_id, a
+    series whose narrator has no voice style gets one from this part (see narrator.py)."""
     started = time.monotonic()
     counted = _CountingLlm(llm)
     done: dict[str, dict[str, Any]] = {}
@@ -154,6 +161,13 @@ def analyse_part(
         if progress:
             progress(len(done), len(chapters))
     sentences = _numbered_sentences(chapters, done)
+    if audiobook_id:
+        counts = _narrator_voice(
+            series, sentences, counted, audiobook_id=audiobook_id, title=title, synopsis=synopsis,
+            tags=tags or [], lang=lang, tag=tag,
+        )
+        for key_name, value in counts.items():
+            totals[key_name] += value
     cast_rows = _cast_rows(series, sentences, _part_evidence(chapters, done))
     stats = {**totals, "seconds": round(time.monotonic() - started, 3)}
     return PartAnalysis(cast_rows=cast_rows, sentences=sentences, stats=stats)
@@ -178,7 +192,7 @@ def _analyse_chapter(
     groups = chunk_pieces(pieces, chunk_chars)
     entries: list[CastEntry] = []
     for group in chunk_pieces(pieces, cast_chunk_chars):
-        found = detect_cast(group, quote_runs(group), lang, series, llm, window=window, cap=cap, tag=tag)
+        found = _detect_cast_or_split(group, lang, series, llm, window=window, cap=cap, tag=tag)
         entries = _merge_entries(entries, found)
         for entry in found:
             series.upsert(
@@ -236,6 +250,26 @@ def _merge_entries(entries: list[CastEntry], found: list[CastEntry]) -> list[Cas
         else:
             merged[position] = merged[position].merged(entry)
     return merged
+
+
+def _detect_cast_or_split(
+    pieces: list[Piece], lang: str, series: Series, llm: LlmClient, *, window: int, cap: int, tag: str
+) -> list[CastEntry]:
+    """detect_cast, but a reply that hits its token budget (the model looped) splits the chunk at its middle paragraph
+    and asks again for each half. A single paragraph that still loops gives no cast: its quotes stay narration."""
+    from worker.llm import LlmError  # worker.llm imports this package
+
+    try:
+        return detect_cast(pieces, quote_runs(pieces), lang, series, llm, window=window, cap=cap, tag=tag)
+    except LlmError as exc:
+        if not exc.truncated:
+            raise
+    if len(_paragraphs(pieces)) < 2:
+        log.warning("%s cast_detection looped on a single paragraph; its quotes stay narration", tag)
+        return []
+    first, second = _halves(pieces)
+    found = _detect_cast_or_split(first, lang, series, llm, window=window, cap=cap, tag=tag)
+    return _merge_entries(found, _detect_cast_or_split(second, lang, series, llm, window=window, cap=cap, tag=tag))
 
 
 def _add_lines(series: Series, character_id: str, lines: int) -> None:
@@ -306,6 +340,49 @@ def _cast_rows(
             )
         )
     return rows
+
+
+def _narrator_voice(
+    series: Series,
+    sentences: list[dict[str, Any]],
+    llm: _CountingLlm,
+    *,
+    audiobook_id: str,
+    title: str,
+    synopsis: str,
+    tags: list[str],
+    lang: str,
+    tag: str,
+) -> dict[str, int]:
+    """Sets the narrator's voice style from this part, when the series has none. A series whose narrator already has a
+    voice keeps it, so parts already published keep their narrator. The default style (seeded from an older part's
+    cast) counts as none. The sample is the part's plain narration, without unattributed quotes. Returns the LLM calls
+    and tokens used, for the part's stats."""
+    _ensure_narrator(series)
+    record = series.records[NARRATOR]
+    if record.voice or (record.voice_style and record.voice_style != DEFAULT_NARRATOR_STYLE):
+        return {}
+    before = (llm.calls, llm.prompt_tokens, llm.completion_tokens)
+    texts = [
+        sentence["text"].strip()
+        for sentence in sentences
+        if sentence["characterId"] == NARRATOR and sentence.get("confidence") == CONFIDENCE_NARRATION
+    ]
+    record.voice_style = narrator_style(
+        llm,
+        title=title,
+        synopsis=synopsis,
+        tags=tags,
+        sample=clip(" ".join(texts), NARRATOR_SAMPLE_CHARS),
+        seed_key=audiobook_id,
+        lang=lang,
+        tag=tag,
+    )
+    return {
+        "llm_calls": llm.calls - before[0],
+        "prompt_tokens": llm.prompt_tokens - before[1],
+        "completion_tokens": llm.completion_tokens - before[2],
+    }
 
 
 def _ensure_narrator(series: Series) -> None:

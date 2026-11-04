@@ -47,6 +47,12 @@ RUN git clone -q https://github.com/HaujetZhao/Qwen3-TTS-GGUF /hz \
  && mkdir -p /hz/qwen3_tts_gguf/inference/bin \
  && cp -a build/bin/*.so* /hz/qwen3_tts_gguf/inference/bin/ \
  && ls -la /hz/qwen3_tts_gguf/inference/bin
+# hz's decoder session takes ONNX Runtime's default CUDA arena, which grows in powers of two: ~0.8 GB more peak VRAM
+# for the same speed, enough to push the 8 GB card under the sidecar's free floor about once per chapter.
+RUN f=/hz/qwen3_tts_gguf/inference/decoder.py \
+ && grep -q "providers.insert(0, 'CUDAExecutionProvider')" "$f" \
+ && sed -i "s/providers.insert(0, 'CUDAExecutionProvider')/providers.insert(0, ('CUDAExecutionProvider', {'arena_extend_strategy': 'kSameAsRequested'}))/" "$f" \
+ && grep -q kSameAsRequested "$f"
 
 # --- hz-0: empty stand-in so the final stage can always COPY from hzsel -------
 FROM python:3.12-slim-trixie AS hz-0

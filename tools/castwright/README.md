@@ -112,6 +112,9 @@ Settings (env, or `.env` for compose):
 | `KOKORO_ORT_GPU_MEM_MB` | `3072` | Cap on Kokoro's ONNX Runtime CUDA arena (patch 19). `0` = no cap |
 | `QWEN_HZ_INSTRUCT` | `ignore` | `torch` sends live-instruct batches to torch again (patch 6). Passed through by `docker-compose.qwen.yml`, so it can be set in `.env` |
 | `SEG_CAPACITY_ADMISSION` | `0` | Castwright's capacity admission is off (see the patch notes) |
+| `OPENBLAS_NUM_THREADS` | `1` | hz's per-frame numpy work. More threads fight over the 6 CPUs: 5.7x -> 8.6x realtime with 1 |
+| `QWEN_BATCH_TOKEN_BUDGET_17B` | `0` | Fixed batches of 32. hz memory follows the line count, not length, so the count x length budget only made long-line batches narrow (+7%) |
+| `KOKORO_ORT_THREADS` | `4` | Kokoro's ONNX Runtime threads (patch 20). `0` = ORT's default, which ran CPU Kokoro at 0.69x realtime instead of 2.05x |
 
 **Switch back to torch:** `QWEN_17B_BACKEND=torch`, then `up -d` again. The same image serves both.
 
@@ -121,6 +124,7 @@ Patches in `hz/patch_sidecar.py` (numbered there, applied at build):
 - **6, live instruct:** Castwright sets `liveInstruct` on every 1.7B batch. Sending those to torch meant fp32 torch on every real render, which does not fit the 8 GB card next to anything else (CUDA OOM, recycle storm). hz has no instruct input, so it takes them and drops the per-line instruct phrase; prosody comes from the cloned voice alone. `QWEN_HZ_INSTRUCT=torch` restores the old routing.
 - **18, design admission:** with sequential design (on by default with hz, patch 13), Qwen is unloaded before the design route's capacity check. The check used to run first. After the first design of a cast, the Base from its clone prompt stayed resident, so every later design failed with `noCapacity`.
 - **19, Kokoro arena:** the ONNX Runtime CUDA arena is capped at `KOKORO_ORT_GPU_MEM_MB`, and cuDNN uses a heuristic conv search with no max workspace. Unbounded, the arena grew with the variable batch shapes until the card was full, the desktop's free VRAM hit 0 MB and the sidecar recycled (code 43). The exhaustive search asked for workspaces that overran a 1536 MB cap on long lines.
+- **20, Kokoro threads:** the Kokoro ONNX session gets `KOKORO_ORT_THREADS` intra-op threads (default 4). ORT's default starts one per host core inside the 6-CPU container, and CPU Kokoro ran 3x slower.
 - **`SEG_CAPACITY_ADMISSION=0`:** with one card, the sidecar's capacity admission has nothing to choose between and only refuses. It cannot see hz's memory, and its learned VoiceDesign peak (~7.4 GB) never fits beside the Windows desktop. The hard VRAM ceilings and the sequential design patches guard the card instead.
 - **Exact lines that never end (`hz/hz_backend.py`, not a patch):** some lines rarely or never reach end of speech, at any temperature: `Failure to complete challenges may result in death.` ended about 1 render in 3, and `Suppressing his` not at all. The runaway is babble, not silence, and it failed the whole chapter while looking like a VRAM recycle storm. A cut-short line now gets a step limit of about 3x its length and 120 s of tries with other endings, then splits in two (twice) with a third of the budget per piece, and finally keeps the start of the runaway, logged at error as `kept the first`. It no longer fails the chapter, and the worst case stays near 6 minutes, under Castwright's 600 s call timeout.
 
@@ -155,7 +159,13 @@ Numbers are from the GTX 1080 (8 GB).
 - **hz-gguf for the 1.7B tier:** 1.7B Q8_0 mixed-voice batches of 32 gave xRT 6.38 (~153 chapters per 8-hour night, 6.2 GB peak). Torch 1.7B in fp32 gave 0.15–0.6 and spilled past 8 GB. Castwright's old path (plain qwen-tts 0.6B fp32, batch 4) gave 0.83. Every 1.7B voice sounded slightly better than every 0.6B, so speed decided.
 - **Big batches are the speed:** hz line by line gave 1.56, so the sidecar batches many lines of mixed voices into one `clone_batch`.
 - **Q8_0 over Q5_K:** Q5_K was only about 1% faster (6.44 vs 6.38), so the Q8_0 talker is the pick.
-- **Decoder chunk 48 vs hz's 12:** fewer decoder calls per chapter, with the same quality by ear and WER.
+- **Decoder chunk 48 vs hz's 12:** fewer decoder calls per chapter, with the same quality by ear and WER. 96 or 400 saved only ~5% more.
+- **Speed pass (2026-11-04), same audio:** on one real chapter (114 Qwen lines, 4 voices) hz went from 108 s to 64.5 s
+  (5.7x -> 9.45x realtime): one OpenBLAS thread (the big one), fixed batches of 32, and hz's decoder ONNX session on
+  `kSameAsRequested` (Dockerfile; peak VRAM 7.9 -> 7.1 GB, so fewer free-floor recycles). Tried and dropped: a
+  vectorised top-k sampler (-5%, most of `pred_sample` is the GPU sync) and decoding finished lines on a thread
+  during the frame loop (no gain, the GPU is already busy, +0.8 GB peak). Profile per batch: the code predictor is
+  ~60% of the loop, the decoder ~30% of a batch, the talker ~10%.
 - **fp32 on Pascal:** fp16 runs at 1/64 of the rate and segfaults, and the fp16 ONNX decoder has no cuDNN plan (it falls back to CPU silently). So the Qwen load and the decoder are fp32.
 - **Sequential voice design on 8 GB:** the 1.7B VoiceDesign and the 0.6B Base can't sit on the card together (OOM at design). The sidecar unloads Qwen before each design. Design runs once per character, so this costs no nightly throughput.
 

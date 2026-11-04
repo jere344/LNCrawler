@@ -37,6 +37,8 @@ DESIGN_MODEL = "qwen3-tts-1.7b"
 CANCEL_DELETE_WAIT_S = 60
 CANCEL_DELETE_STEP_S = 5
 WARNINGS_MAX = 50  # the part state keeps the newest warnings only
+DESIGN_SIDECAR_RETRIES = 3  # design runs restarted after the sidecar recycled mid-run
+DESIGN_SIDECAR_WAIT_S = 30  # the sidecar respawns in a few seconds; this also lets the card settle
 NON_ENGLISH_NOTE = "non-English book: every character forced onto Qwen"
 
 
@@ -382,6 +384,10 @@ class PartPipeline:
                 key=self._book_id,
                 progress=on_chapter,
                 tag=self.part_id,
+                title=self.claim.series.get("title", ""),
+                synopsis=self.claim.series.get("synopsis") or "",
+                tags=list(self.claim.series.get("tags") or []),
+                audiobook_id=self.claim.audiobook_id,
             )
         except LlmError as exc:
             raise PartFailed(str(exc), retryable=exc.retryable) from exc
@@ -532,6 +538,26 @@ class PartPipeline:
         self.cw.put_state(self._book_id, "manuscript", {"sentences": moved})
 
     def _design(self, character_ids: list[str]) -> None:
+        """Designs the voices. A run cut short by a sidecar recycle is started again, after a wait, for the characters
+        still without a voice."""
+        remaining = list(character_ids)
+        for attempt in range(DESIGN_SIDECAR_RETRIES + 1):
+            try:
+                self._design_run(remaining)
+                return
+            except CastwrightError as exc:
+                if exc.code != "sidecar_unavailable" or attempt == DESIGN_SIDECAR_RETRIES:
+                    raise
+            rows = _cast_rows(self._book())
+            remaining = [cid for cid in remaining if not any(str(r.get("id")) == cid and casting.has_voice(r) for r in rows)]
+            if not remaining:
+                return
+            self._log("sidecar restarted during design; designing the %d left in %d s", len(remaining), DESIGN_SIDECAR_WAIT_S)
+            if self.stop.wait(DESIGN_SIDECAR_WAIT_S):
+                raise Stopped()
+            self._check()
+
+    def _design_run(self, character_ids: list[str]) -> None:
         self._log("designing %d voices", len(character_ids))
         try:
             self._consume_design(self.cw.design(self._book_id, character_ids, DESIGN_MODEL, "bases"), len(character_ids))
