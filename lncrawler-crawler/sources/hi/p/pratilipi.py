@@ -18,6 +18,7 @@ false: this is an original-authoring platform, not a translation index.
 
 import json
 import logging
+import re
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 
@@ -221,7 +222,7 @@ class PratilipiCrawler(Crawler):
         for entry in data.get("contents") or []:
             content = entry.get("content") or {}
             url = content.get("pageUrlSEO") or content.get("pageUrl")
-            title = (content.get("title") or "").strip()
+            title = " ".join((content.get("title") or "").split())
             if not url or not title:
                 continue
             author = (content.get("author") or {}).get("displayName") or ""
@@ -263,8 +264,10 @@ class PratilipiCrawler(Crawler):
         self.genres = categories
         self.novel_tags = list(categories)
 
-        synopsis = data.get("summary") or data.get("clippedContent") or ""
-        self.novel_synopsis = synopsis.strip()
+        # "summary" is the blurb; the API sends the literal "None" when there is
+        # none. clippedContent is the opening text of the story, not a synopsis.
+        synopsis = data.get("summary") or ""
+        self.novel_synopsis = "" if synopsis.strip() == "None" else synopsis.strip()
 
         title_en = (data.get("titleEn") or "").strip()
         if title_en and title_en != self.novel_title:
@@ -276,6 +279,13 @@ class PratilipiCrawler(Crawler):
             "FINISHED": NovelStatus.completed,
             "ONGOING": NovelStatus.ongoing,
         }.get(state, NovelStatus.unknown)
+
+    def _part_title(self, title: str) -> str:
+        # Part titles repeat the work name: "<work>-<part>". Keep the part only.
+        if not self.novel_title:
+            return title
+        prefix = re.escape(self.novel_title) + r"\s*-\s*"
+        return re.sub(r"^" + prefix, "", title).strip() or title
 
     def _read_series(self, series_slug: str) -> None:
         data = self._gql(
@@ -312,7 +322,9 @@ class PratilipiCrawler(Crawler):
                 self.chapters.append(
                     Chapter(
                         id=chapter_id,
-                        title=(pratilipi.get("title") or f"Chapter {chapter_id}").strip(),
+                        title=self._part_title(
+                            (pratilipi.get("title") or f"Chapter {chapter_id}").strip()
+                        ),
                         url=self._absolute(pratilipi.get("pageUrl") or ""),
                         volume=1,
                     )
@@ -343,7 +355,9 @@ class PratilipiCrawler(Crawler):
             self.chapters.append(
                 Chapter(
                     id=chapter_id,
-                    title=(item.get("title") or f"Chapter {chapter_id}").strip(),
+                    title=self._part_title(
+                        (item.get("title") or f"Chapter {chapter_id}").strip()
+                    ),
                     url=read_url,
                     volume=1,
                 )
@@ -384,4 +398,4 @@ class PratilipiCrawler(Crawler):
 
         if not html:
             return ""
-        return self.cleaner.extract_contents(self.make_soup(html))
+        return self.cleaner.extract_contents(self.make_soup(html).body)

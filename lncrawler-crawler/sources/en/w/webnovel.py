@@ -14,8 +14,12 @@ from lncrawl.webdriver.elements import By
 
 logger = logging.getLogger(__name__)
 
+SYNOPSIS_TAGS_RE = re.compile(r"\n\s*\*{3,}\s*\n\s*Tags:\s*\n(?P<tags>.*)\Z", re.S)
+
 
 class WebnovelCrawler(BasicBrowserTemplate):
+    is_disabled = True
+    disable_reason = "Most chapters are locked behind coins or a pass; about 75 percent locked on sampled novels"
     base_url = [
         "https://m.webnovel.com/",
         "https://www.webnovel.com/",
@@ -127,7 +131,7 @@ class WebnovelCrawler(BasicBrowserTemplate):
 
         self.novel_cover = (
             f"{self.origin.scheme}://book-pic.webnovel.com/bookcover/{self.novel_id}"
-            + f"?coverUpdateTime{int(1000 * time())}&imageMogr2/thumbnail/600x"
+            + f"?coverUpdateTime={int(1000 * time())}&imageMogr2/thumbnail/600x"
         )
 
         if "authorName" in book_info:
@@ -137,8 +141,18 @@ class WebnovelCrawler(BasicBrowserTemplate):
                 [x.get("name") for x in book_info["authorItems"] if x.get("name")]
             )
 
+        author_tags = []
         if book_info.get("description"):
-            self.novel_synopsis = book_info["description"].strip()
+            synopsis = book_info["description"].strip()
+            # Some authors' synopses end with a "Tags:" block of hashtags
+            m = SYNOPSIS_TAGS_RE.search(synopsis)
+            if m:
+                synopsis = synopsis[: m.start()].strip()
+                author_tags = [
+                    t.rstrip(".;:!?") for t in re.findall(r"#([^\s#,]+)", m.group("tags"))
+                ]
+                author_tags = [t for t in author_tags if t]
+            self.novel_synopsis = synopsis
 
         # To get the chapter list catalog
         soup = self.get_soup(f"{self.novel_url.strip('/')}/catalog")
@@ -153,6 +167,14 @@ class WebnovelCrawler(BasicBrowserTemplate):
                 for tag in tag_meta["content"].split(",")
                 if tag.strip()
             ]
+
+        # "R18" is the adult rating label, not a genre tag
+        self.is_adult = any(t.lower() == "r18" for t in self.novel_tags)
+        tags = {}
+        for tag in self.novel_tags + author_tags:
+            if tag.lower() != "r18":
+                tags.setdefault(tag.lower(), tag)
+        self.novel_tags = list(tags.values())
         logger.info("Novel tags: %s", self.novel_tags)
 
         if not self.chapters:
@@ -166,22 +188,32 @@ class WebnovelCrawler(BasicBrowserTemplate):
         self.parse_chapter_catalog(self.browser.soup)
 
     def parse_chapter_catalog(self, soup: BeautifulSoup) -> None:
+        locked = 0
         for div in soup.select(".j_catalog_list .volume-item"):
             vol = Volume(
                 id=len(self.volumes) + 1,
                 title=div.find("h4").text.strip(),
             )
-            self.volumes.append(vol)
+            chapters = []
             for li in div.select("li"):
+                # Locked chapters only expose a short preview of the body
+                if li.find("use", attrs={"xlink:href": "#i-lock"}):
+                    locked += 1
+                    continue
                 a = li.find("a")
                 chap = Chapter(
-                    id=len(self.chapters) + 1,
+                    id=len(self.chapters) + len(chapters) + 1,
                     volume=vol.id,
                     title=a.get("title"),
                     cid=li.get("data-report-cid"),
                     url=self.absolute_url(a.get("href")),
                 )
-                self.chapters.append(chap)
+                chapters.append(chap)
+            if chapters:
+                self.volumes.append(vol)
+                self.chapters.extend(chapters)
+        if locked:
+            logger.info("Skipped %d locked chapter(s)", locked)
 
     def download_chapter_body_in_browser(self, chapter: Chapter) -> str:
         path = urlparse(chapter.url).path.strip("/")

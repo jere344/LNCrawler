@@ -2,17 +2,26 @@
 import logging
 import re
 
-from bs4 import Tag
+from bs4 import Comment, NavigableString, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+# Site-name credit appended to the end of some chapter bodies,
+# e.g. "...truyen full, truyenfull, truyenfullvn, truyenfulllive" or "truyenfull,truyenfull.com".
+WATERMARK_RE = re.compile(
+    r"\s*(?:truyen\s?full(?:vn|live|\.com)?[\s,.]*)+\s*$", re.IGNORECASE
+)
 
 
 class TruyenHoanCrawler(Crawler):
     base_url = "https://truyenhoan.com/"
     has_mtl = False
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def search_novel(self, query):
         soup = self.get_soup("https://truyenhoan.com/tim-kiem", params={"q": query})
@@ -91,7 +100,13 @@ class TruyenHoanCrawler(Crawler):
         ]
         logger.info("Novel tags: %s", self.genres + self.tags)
 
-        synopsis = soup.select_one(".desc")
+        status_label = soup.find("h3", string=re.compile(r"Trạng thái"))
+        status_value = status_label.find_next_sibling() if status_label else None
+        if status_value:
+            self.status = self._parse_status(status_value.get_text(" ", strip=True))
+
+        # ".desc" also holds the "latest chapters" box; the blurb is ".desc-text".
+        synopsis = soup.select_one(".desc-text")
         if synopsis:
             self.novel_synopsis = synopsis.get_text(" ", strip=True)
 
@@ -106,7 +121,8 @@ class TruyenHoanCrawler(Crawler):
         seen = set()
         for page in range(1, last_page + 1):
             page_soup = soup if page == 1 else self.get_soup(f"{base}trang-{page}/")
-            for a in page_soup.select("a[href*='/chuong-']"):
+            # Scope to the main list: the novel page also shows a "latest chapters" box first.
+            for a in page_soup.select("ul.list-chapter a[href*='/chuong-']"):
                 href = a.get("href", "")
                 if not re.match(r"^https://truyenhoan\.com/[a-z0-9-]+/chuong-\d+\.html$", href):
                     continue
@@ -126,5 +142,29 @@ class TruyenHoanCrawler(Crawler):
         soup = self.get_soup(chapter["url"])
         body = soup.select_one(".chapter-c") or soup.select_one("#chapter-content")
         if isinstance(body, Tag):
+            for text in body.find_all(string=True):
+                if isinstance(text, Comment) or text.find_parent(["script", "style"]):
+                    continue
+                cleaned = WATERMARK_RE.sub("", text)
+                if cleaned == text:
+                    continue
+                if cleaned.strip():
+                    text.replace_with(NavigableString(cleaned))
+                else:
+                    text.extract()
             return self.cleaner.extract_contents(body)
         return ""
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.sub_text(body, WATERMARK_RE, "")
+
+    @staticmethod
+    def _parse_status(label):
+        low = (label or "").lower()
+        if "full" in low or "hoàn" in low:
+            return NovelStatus.completed
+        if "tạm" in low:
+            return NovelStatus.hiatus
+        if "đang" in low or "còn tiếp" in low:
+            return NovelStatus.ongoing
+        return NovelStatus.unknown

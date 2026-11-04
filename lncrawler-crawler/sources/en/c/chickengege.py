@@ -4,15 +4,32 @@ import re
 
 from bs4 import Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
 from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
+# Site boilerplate appended to every chapter: support pitch and staff credit.
+_BOILERPLATE_RE = re.compile(
+    r"^(?:Always support our Chicken Lord|This chapter is migrated and/or formatted by)"
+)
+
+
+def _drop_boilerplate(root) -> None:
+    for tag in root.find_all("i"):
+        if _BOILERPLATE_RE.match(tag.get_text(" ", strip=True)):
+            tag.decompose()
+    for p in root.select("p"):
+        if not p.get_text(strip=True) and not p.find("img"):
+            p.decompose()
+
 
 class ChickenGegeCrawler(Crawler):
     base_url = ["https://www.chickengege.org/"]
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         self.init_executor(ratelimit=1)
@@ -83,6 +100,14 @@ class ChickenGegeCrawler(Crawler):
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
         contents = soup.select_one("article div.entry-content")
+        if not isinstance(contents, Tag):
+            return ""
         self.cleaner.clean_contents(contents)
+        _drop_boilerplate(contents)
 
         return str(contents)
+
+    def _migrate_v2(self, body, chapter):
+        soup = body_migrations.parse(body)
+        _drop_boilerplate(soup)
+        return str(soup)

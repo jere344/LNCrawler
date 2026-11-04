@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
+from html import escape
 from urllib.parse import quote_plus, urlparse
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import SearchResult, Volume
 
 logger = logging.getLogger(__name__)
+
+# Book headings in the table of contents: "Book 2", "Book 2 – Title", optionally
+# followed by a status such as "(Complete)".
+BOOK_STATUS_RE = r"\s*\((?:Complete|Completed|Ongoing|Hiatus)\)$"
+BOOK_HEADING_RE = r"Book \d+(?:\s*[-–—:]\s*.+?)?(?:" + BOOK_STATUS_RE + ")?"
 
 
 class Virlyce(Crawler):
@@ -52,6 +59,9 @@ class Virlyce(Crawler):
 
         for p in soup.select("div.entry-content p"):
             text = p.get_text(" ", strip=True)
+            if text.startswith("Synopsis:"):
+                blurb = text[len("Synopsis:") :].strip()
+                self.novel_synopsis = "<p>%s</p>" % escape(blurb)
             if text.startswith("Categories:"):
                 self.novel_tags = [
                     tag.strip()
@@ -61,18 +71,35 @@ class Virlyce(Crawler):
                 break
         logger.info("Novel tags: %s", self.novel_tags)
 
-        # Stops external links being selected as chapters
-        chapters = soup.select('div.entry-content p [href*="virlyce.com/"]')
-
-        for a in chapters:
-            chap_id = len(self.chapters) + 1
-            self.chapters.append(
-                {
-                    "id": chap_id,
-                    "url": self.absolute_url(a["href"]),
-                    "title": a.text.strip() or ("Chapter %d" % chap_id),
-                }
-            )
+        # The table of contents lists each book in bold ("Book 2 – Title (Complete)")
+        # above its chapter links. Only links inside paragraphs are chapters, not
+        # the share buttons.
+        volumes = []
+        volume = None
+        book_heading = None
+        for p in soup.select("div.entry-content p"):
+            for el in p.find_all(["strong", "a"]):
+                if el.name == "strong":
+                    text = el.get_text(" ", strip=True)
+                    if re.fullmatch(BOOK_HEADING_RE, text):
+                        book_heading = re.sub(BOOK_STATUS_RE, "", text)
+                        volume = None
+                elif "virlyce.com/" in (el.get("href") or ""):
+                    # A volume is only created once it has a chapter
+                    if volume is None and book_heading is not None:
+                        volume = Volume(id=len(volumes) + 1, title=book_heading)
+                        volumes.append(volume)
+                        book_heading = None
+                    chap_id = len(self.chapters) + 1
+                    chapter = {
+                        "id": chap_id,
+                        "url": self.absolute_url(el["href"]),
+                        "title": el.text.strip(),
+                    }
+                    if volume is not None:
+                        chapter["volume"] = volume.id
+                    self.chapters.append(chapter)
+        self.volumes = volumes
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])

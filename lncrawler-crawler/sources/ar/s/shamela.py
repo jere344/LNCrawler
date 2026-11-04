@@ -21,8 +21,11 @@ from lncrawl.models import Chapter, NovelStatus
 logger = logging.getLogger(__name__)
 
 BOOK_ID_RE = re.compile(r"/book/(\d+)")
-PAREN_RE = re.compile(r"\s*[(（][^)）]*[)）]")
+PAREN_RE = re.compile(r"\s*[(（\[][^)）\]]*[)）\]]")
 EDITOR_SPLIT_RE = re.compile(r"\s+-\s+|،")
+# Card labels naming who edited the text: "المحقق" (editor), "اعتنى به"
+# (prepared by), "دراسة وتحقيق" (study and edition).
+EDITOR_LABELS = ("المحقق", "اعتنى به", "دراسة وتحقيق")
 
 
 class ShamelaCrawler(Crawler):
@@ -82,9 +85,11 @@ class ShamelaCrawler(Crawler):
         self.novel_author = PAREN_RE.sub("", fields.get("المؤلف", "")).strip()
         self.editors = [
             name.strip()
-            for name in EDITOR_SPLIT_RE.split(fields.get("المحقق", ""))
+            for label in EDITOR_LABELS
+            for name in EDITOR_SPLIT_RE.split(fields.get(label, ""))
             if name.strip()
         ]
+        self.original_publisher = fields.get("الناشر") or None
         self.status = NovelStatus.completed
 
         crumb = soup.select_one('ol.breadcrumb a[href*="/category/"]')

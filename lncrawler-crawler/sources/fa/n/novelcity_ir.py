@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 # Static WordPress categories that hold site pages, not novels.
 _EXCLUDED_SLUGS = {"books", "uncategorized"}
 _SLUG_RE = re.compile(r"/books/([^/?#]+)")
+# Chapter posts are titled "<novel name> – فصل (n)"; keep the chapter part.
+_CHAPTER_PREFIX_RE = re.compile(r"^.+?\s+–\s+(?=فصل)")
+# Text blocks that are the site's own about/copyright text, not the blurb.
+_SITE_TEXT_RE = re.compile(r"سایت ناول سیتی|©")
 
 
 class NovelCityCrawler(Crawler):
@@ -115,10 +119,27 @@ class NovelCityCrawler(Crawler):
         if isinstance(cover, Tag) and cover.get("content"):
             self.novel_cover = self.absolute_url(cover["content"])
 
-        # Short synopsis only; the longer text-editor blocks are not used.
-        desc = soup.select_one('meta[property="og:description"]')
-        if isinstance(desc, Tag) and desc.get("content"):
-            self.novel_synopsis = desc["content"].strip()
+        # The blurb is the first text block that is not site boilerplate. The
+        # og:description is a generic SEO sentence, kept only as a fallback.
+        blurb = next(
+            (
+                block
+                for block in soup.select(".elementor-widget-text-editor")
+                if not _SITE_TEXT_RE.search(block.get_text(" ", strip=True))
+            ),
+            None,
+        )
+        if isinstance(blurb, Tag):
+            # The blurb is bare text with one paragraph per line.
+            lines = [
+                self.cleaner.clean_text(line)
+                for line in blurb.get_text("\n").split("\n")
+            ]
+            self.novel_synopsis = "".join(f"<p>{line}</p>" for line in lines if line)
+        else:
+            desc = soup.select_one('meta[property="og:description"]')
+            if isinstance(desc, Tag) and desc.get("content"):
+                self.novel_synopsis = desc["content"].strip()
 
         self._read_chapters(slug)
 
@@ -149,11 +170,12 @@ class NovelCityCrawler(Crawler):
             items = response.json()
             for post in items or []:
                 title = (post.get("title") or {}).get("rendered") or ""
+                title = _CHAPTER_PREFIX_RE.sub("", html.unescape(title).strip())
                 self.chapters.append(
                     Chapter(
                         id=len(self.chapters) + 1,
                         url=post["link"],
-                        title=html.unescape(title).strip(),
+                        title=title,
                     )
                 )
             total_pages = int(response.headers.get("X-WP-TotalPages") or 1)

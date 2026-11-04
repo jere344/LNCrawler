@@ -6,7 +6,7 @@ from urllib.parse import quote_plus
 from bs4 import element
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +116,24 @@ class SyosetuAdultCrawler(Crawler):
                         }
                     )
 
+        if not self.chapters:
+            if soup.select_one(".p-novel__body"):
+                # Short stories (短編) have no chapter list: the body is on the novel page.
+                if not self.volumes:
+                    self.volumes.append({"id": 1, "title": "Volume 1"})
+                self.chapters.append(
+                    {
+                        "id": 1,
+                        "volume": self.volumes[0]["id"],
+                        "title": self.novel_title,
+                        "url": self.novel_url,
+                    }
+                )
+            else:
+                logger.warning(
+                    "No chapters found and no short-story body on %s", self.novel_url
+                )
+
         if not self.volumes:
             self.volumes.append({"id": 1, "title": "Volume 1"})
             for chapter in self.chapters:
@@ -129,13 +147,23 @@ class SyosetuAdultCrawler(Crawler):
             f"/novelview/infotop/ncode/{match.group(1)}/"
         )
         info = self.get_soup(info_url)
+        status_tag = info.select_one(".p-infotop-type__type")
+        if status_tag:
+            status_text = status_tag.get_text(strip=True)
+            if "連載" in status_text:
+                self.status = NovelStatus.ongoing
+            elif "完結" in status_text:
+                self.status = NovelStatus.completed
         for dt in info.select(".p-infotop-data__title"):
-            if "キーワード" not in dt.get_text():
-                continue
+            label = dt.get_text(strip=True)
             dd = dt.find_next_sibling("dd")
-            if dd:
+            if dd is None:
+                continue
+            if "あらすじ" in label:
+                # Short stories have no summary block on the novel page.
+                self.novel_synopsis = dd.get_text("\n", strip=True)
+            elif "キーワード" in label:
                 self.tags = [x for x in dd.get_text(" ", strip=True).split() if x]
-            break
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])

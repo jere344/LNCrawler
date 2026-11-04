@@ -38,6 +38,8 @@ _STATUSES = {
 
 
 class GoodDreamerCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Paywalled: only the first 5 chapters of each novel are free"
     base_url = "https://gooddreamer.id/"
     language = "id"
     has_mtl = False
@@ -183,7 +185,7 @@ class GoodDreamerCrawler(Crawler):
             html = self._fetch_chapter_html(chapter.id)
         if not html:
             return ""
-        return self.cleaner.extract_contents(self.make_soup(html))
+        return self.cleaner.extract_contents(self.make_soup(html).body)
 
     def _fetch_chapter_html(self, chapter_id: int) -> str:
         uri = self._novel_uri(self.novel_url)

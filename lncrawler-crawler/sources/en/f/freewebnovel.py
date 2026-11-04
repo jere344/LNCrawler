@@ -4,9 +4,20 @@ import re
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 from lncrawl.templates.soup.chapter_only import ChapterOnlySoupTemplate
 from lncrawl.templates.soup.searchable import SearchableSoupTemplate
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "complete": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
+
+# The novel page lists the first 40 chapters only; the site's own paged endpoint
+# (behind its "C.41 - C.80" selector) serves up to 200 per request.
+_CHAPTERS_PER_REQUEST = 200
 
 
 class FreeWebNovelCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
@@ -112,10 +123,85 @@ class FreeWebNovelCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
         for a in soup.select(".m-imgtxt .txt a[href*='/genre/']"):
             yield a.text.strip()
 
+    def parse_summary(self, soup: BeautifulSoup) -> str:
+        tag = soup.select_one(".m-desc .inner")
+        if not isinstance(tag, Tag):
+            return ""
+        lines = []
+        for p in tag.select("p"):
+            text = p.get_text(" ", strip=True)
+            if not text:
+                continue
+            # A paragraph starting with a dash continues the sentence before it.
+            if lines and text.startswith("–"):
+                lines[-1] += " " + text
+            else:
+                lines.append(text)
+        return "\n".join(lines)
+
+    @staticmethod
+    def _info_value(soup: BeautifulSoup, label: str) -> str:
+        for item in soup.select(".m-imgtxt .txt .item"):
+            icon = item.select_one(".glyphicon[title]")
+            if icon and icon.get("title") == label:
+                value = item.select_one(".right")
+                return value.get_text(" ", strip=True) if isinstance(value, Tag) else ""
+        return ""
+
+    def read_novel_info(self) -> None:
+        super().read_novel_info()
+        soup = self.last_soup
+        if not isinstance(soup, BeautifulSoup):
+            return
+        alt_titles = self._info_value(soup, "Alternative names")
+        if alt_titles:
+            self.alternative_titles = [
+                t.strip() for t in re.split(r"\s*[,;]\s*", alt_titles) if t.strip()
+            ]
+        status = self._info_value(soup, "Status")
+        self.status = _STATUSES.get(status.lower(), NovelStatus.unknown)
+
+    @staticmethod
+    def _parse_total_pages(value) -> int:
+        try:
+            return max(1, int(value or 1))
+        except (TypeError, ValueError):
+            return 1
+
+    def _more_chapter_tags(self) -> list:
+        tags = []
+        seen = set()
+        page, total_pages = 1, 1
+        while page <= total_pages and page <= 100:
+            try:
+                data = self.get_json(
+                    f"{self.novel_url}?ajax=chapters&page={page}&pageSize={_CHAPTERS_PER_REQUEST}",
+                    headers={"X-Requested-With": "XMLHttpRequest"},
+                )
+            except Exception as e:
+                # A partial chapter list must not be saved as the complete one.
+                raise RuntimeError(f"Chapter list page {page} failed: {e}") from e
+            total_pages = self._parse_total_pages(data.get("totalPage"))
+            added = 0
+            for a in self.make_soup(data.get("html") or "").select("li > a[href]"):
+                if a["href"] in seen:
+                    continue
+                seen.add(a["href"])
+                tags.append(a)
+                added += 1
+            if added == 0:
+                break
+            page += 1
+        return tags
+
     def select_chapter_tags(self, soup: BeautifulSoup):
-        chapters = soup.select("#idData")
-        for chapter in chapters:
-            yield from chapter.select("li > a")
+        listed = [a for chapter in soup.select("#idData") for a in chapter.select("li > a")]
+        seen = set()
+        for tag in listed + self._more_chapter_tags():
+            if tag["href"] in seen:
+                continue
+            seen.add(tag["href"])
+            yield tag
 
     def parse_chapter_item(self, tag: Tag, id: int) -> Chapter:
         return Chapter(

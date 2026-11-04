@@ -5,7 +5,7 @@ import re
 from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +62,18 @@ class XxsyCrawler(Crawler):
         self.novel_title = h1.get_text(strip=True) if h1 else book_id
         logger.info("Novel title: %s", self.novel_title)
 
-        m = re.search(r'"author":"([^"]+)"', html)
+        # Byline "文 / <author>" right after the title (the page JSON holds other books' authors too).
+        byline = h1.find_next_sibling("span") if h1 else None
+        m = re.match(r"文\s*/\s*(.+)", byline.get_text(strip=True)) if byline else None
         if m:
             self.novel_author = m.group(1).strip()
         logger.info("Novel author: %s", self.novel_author)
+
+        status_text = " ".join(s.get_text(strip=True) for s in soup.select("p.sub-cols span"))
+        if "完结" in status_text or "已完结" in status_text:
+            self.status = NovelStatus.completed
+        elif "连载" in status_text:
+            self.status = NovelStatus.ongoing
 
         m = re.search(r'"intro":"((?:[^"\\]|\\.)*)"', html)
         if m:
@@ -93,24 +101,34 @@ class XxsyCrawler(Crawler):
             self.absolute_url(f"/chapterlist/{book_id}")
         )
         # VIP chapters carry a lock <svg> icon and return only a short preview.
+        # Link-less rows are volume headings ("雨信篇"); a volume is created
+        # only when it has at least one free chapter.
         seen = set()
         vip_skipped = 0
+        volume = None
+        heading = ""
         for li in chapters_soup.select("div.profile-main li"):
             if li.find("svg"):
                 vip_skipped += 1
                 continue
             a = li.find("a", href=True)
             if not a:
+                heading = li.get_text(strip=True)
+                volume = None
                 continue
             href = a.get("href", "")
             if not re.search(r"/chapter/\d+/\d+$", href) or href in seen:
                 continue
             seen.add(href)
+            if volume is None:
+                volume = Volume(id=len(self.volumes) + 1, title=heading)
+                self.volumes.append(volume)
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
                     url=self.absolute_url(href),
                     title=a.get_text(strip=True),
+                    volume=volume.id,
                 )
             )
         logger.info("Skipped %d VIP-locked chapter(s)", vip_skipped)

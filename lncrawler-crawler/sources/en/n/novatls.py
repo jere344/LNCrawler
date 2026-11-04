@@ -21,6 +21,7 @@ from urllib.parse import unquote, urlencode
 
 from bs4 import BeautifulSoup, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
@@ -36,10 +37,21 @@ _STATUSES = {
     "cancelled": NovelStatus.hiatus,
 }
 
+# Site footer line appended to some chapters, not part of the text.
+_SITE_FOOTER_RE = re.compile(
+    r"best reading experience at\s+(www\.)?novatls\.com", re.I
+)
+
+
+def _strip_footer(body: str) -> str:
+    return body_migrations.drop_matching(body, _SITE_FOOTER_RE, max_length=200)
+
 
 class NovaTlsCrawler(Crawler):
     base_url = ["https://www.novatls.com/", "https://novatls.com/"]
     language = "en"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         self.cleaner.bad_css.update({"script", "style"})
@@ -192,4 +204,7 @@ class NovaTlsCrawler(Crawler):
             body = soup.select_one("main")
         if not isinstance(body, Tag):
             return ""
-        return self.cleaner.extract_contents(body)
+        return _strip_footer(self.cleaner.extract_contents(body))
+
+    def _migrate_v2(self, body, chapter):
+        return _strip_footer(body)

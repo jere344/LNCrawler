@@ -21,6 +21,7 @@ from urllib.parse import quote, urlparse
 
 from bs4 import BeautifulSoup, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, SearchResult, Volume
 
@@ -32,12 +33,34 @@ _CHAPTER_RE = re.compile(
     re.I,
 )
 _LEAD_RE = re.compile(r"^[\s\u2013\u2014-]+")
-_LABEL_STOP = r"(?=(?:Author|Translator|Synopsis|Description|Release|Artist|Editor):|Table of Contents|Bookmark\b)"
+# The bookmark widget, once its class is gone: its text is split over three paragraphs.
+_BOOKMARK_RE = re.compile(
+    r"^(?:Bookmark \(\s*\d*\s*\)|Please login to bookmark(?: Close)?|No account yet\? Register)$"
+)
+_LABEL_STOP = r"(?=(?:Author|Translator|Synopsis|Description|Release(?: rate)?|Artist|Editor):|Table of Contents|Bookmark\b)"
+
+
+def _is_nav_bar(text: str) -> bool:
+    return "Previous Chapter" in text and "Next Chapter" in text and len(text) < 120
+
+
+def _is_nav_bar_el(tag: Tag) -> bool:
+    # Innermost element only: a container also holding story text is kept.
+    if not _is_nav_bar(tag.get_text(" ", strip=True)):
+        return False
+    return not any(_is_nav_bar(d.get_text(" ", strip=True)) for d in tag.find_all(True))
+
+
+def _strip_site_lines(body: str) -> str:
+    body = body_migrations.drop_blocks(body, lambda text, tag: _is_nav_bar(text))
+    return body_migrations.drop_matching(body, _BOOKMARK_RE, max_length=60)
 
 
 class EatApplePiesCrawler(Crawler):
     base_url = "https://eatapplepies.com/"
     language = "en"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     @property
     def _api(self) -> str:
@@ -156,4 +179,13 @@ class EatApplePiesCrawler(Crawler):
         body = soup.select_one(".entry-content")
         if not isinstance(body, Tag):
             return ""
-        return self.cleaner.extract_contents(body)
+        # Bookmark-login widget and the "<< Previous Chapter | Index | Next Chapter >>" bar.
+        for el in body.select(".cbxwpbkmarkwrap"):
+            el.decompose()
+        for el in body.find_all(True):
+            if _is_nav_bar_el(el):
+                el.decompose()
+        return _strip_site_lines(self.cleaner.extract_contents(body))
+
+    def _migrate_v2(self, body, chapter):
+        return _strip_site_lines(body)

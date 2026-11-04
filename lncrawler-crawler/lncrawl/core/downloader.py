@@ -8,6 +8,7 @@ Writes:
 """
 
 import contextlib
+import copy
 import fcntl
 import gc
 import hashlib
@@ -47,6 +48,12 @@ _LARGE_DECODE_GATE = threading.Semaphore(1)
 # audiobook_service._VOLUME_COVER_RE on the API side must match it.
 VOLUME_COVER_RE = re.compile(r'<img\b[^>]*\bclass="volume-cover"[^>]*>')
 LEADING_H1_RE = re.compile(r"<h1>.*?</h1>", re.DOTALL)
+# First block of a chapter body, for spotting a title line the <h1> would repeat.
+FIRST_BLOCK_RE = re.compile(
+    r"\s*<(?P<tag>p|h[1-6]|div|strong|b|em|i|span|center)(?:\s[^>]*)?>(?P<inner>.*?)</(?P=tag)\s*>",
+    re.DOTALL | re.IGNORECASE,
+)
+IMG_TAG_RE = re.compile(r"<img\b", re.IGNORECASE)
 
 # Must match chapter_utils.SOURCE_LOCK_FILE on the API side: both lock the same
 # file so a chapter write never races the API's compress/extract.
@@ -152,6 +159,33 @@ def _chapter_file(chapter: Chapter, output_path: str) -> Path:
     return dir_name / (chapter_name + ".json")
 
 
+def _normalise_title(text: str) -> str:
+    return re.sub(r"\W", "", html.unescape(text or "").lower())
+
+
+def _drop_title_line(body: str, title: str) -> str:
+    """Drop the first block when it only repeats the chapter title.
+
+    Many sites open the body with the title as a <p>/<h2>/<strong> line, which
+    would show up twice once the <h1> is prepended. Only an exact match after
+    normalisation is dropped, and never a block holding an image.
+    """
+    norm_title = _normalise_title(title)
+    if not norm_title:
+        return body
+    match = FIRST_BLOCK_RE.match(body)
+    if not match:
+        return body
+    inner = match.group("inner")
+    if IMG_TAG_RE.search(inner) or re.search(rf"<{match.group('tag')}\b", inner, re.IGNORECASE):
+        return body
+    if _normalise_title(re.sub(r"<[^>]+>", "", inner)) != norm_title:
+        return body
+    rest = body[match.end():]
+    # A body that is only the title line keeps it, or the chapter would be empty.
+    return rest if rest.strip() else body
+
+
 def _save_chapter(file_name: Path, chapter: Chapter, output_path: str) -> None:
     if not chapter.body:
         chapter.body = "<p><i>Failed to download chapter body</i></p>"
@@ -159,7 +193,7 @@ def _save_chapter(file_name: Path, chapter: Chapter, output_path: str) -> None:
     title = html.escape(chapter.title or "")
     title = f"<h1>{title}</h1>"
     if not chapter.body.startswith(title):
-        chapter.body = title + chapter.body
+        chapter.body = title + _drop_title_line(chapter.body, chapter.title or "")
 
     chapter.word_count = count_words(chapter.body)
     _write_chapter_json(output_path, file_name, chapter.to_dict())
@@ -273,6 +307,37 @@ def _insert_volume_covers(app) -> None:
             logger.debug("Failed to set the volume cover of chapter %s", chapter.id)
 
 
+def _migrate_chapter(crawler, chapter: Chapter, old_chapter: dict, file_name: Path, output_path: str) -> bool:
+    """Upgrade a stale stored chapter with the source's body migrations.
+
+    The leading <h1> and volume cover are kept aside, so a migration only sees
+    what download_chapter_body returned. Returns False when the chapter must be
+    refetched instead.
+    """
+    body = old_chapter.get("body") or ""
+    head = LEADING_H1_RE.match(body)
+    end = head.end() if head else 0
+    cover = VOLUME_COVER_RE.match(body, end)
+    if cover:
+        end = cover.end()
+    try:
+        migrated = crawler.migrate_body(body[end:], copy.deepcopy(old_chapter), old_chapter.get("source_version", 1))
+        # An emptied body is a failed download on the fresh path too: refetch it.
+        if migrated is None or not re.sub(r"<[^>]+>", "", migrated).strip():
+            return False
+        # Same title as _save_chapter uses: the current TOC one.
+        migrated = _drop_title_line(migrated, str(chapter.title or old_chapter.get("title") or ""))
+    except Exception:
+        logger.warning(f"Migration of chapter {chapter.id} failed, refetching it", exc_info=True)
+        return False
+    data = dict(old_chapter, body=body[:end] + migrated, source_version=crawler.version)
+    _restore_chapter(chapter, data, file_name, output_path)
+    # The count includes the <h1> title, so it is taken after the title is rewritten.
+    chapter.word_count = count_words(chapter.body)
+    _write_chapter_json(output_path, file_name, chapter.to_dict())
+    return True
+
+
 def fetch_chapter_body(app) -> None:
     from .app import App
     from .crawler import Crawler
@@ -292,7 +357,11 @@ def fetch_chapter_body(app) -> None:
             if old_chapter.get("success") and _same_chapter(old_chapter, chapter):
                 # Files without the key predate versioning: they count as version 1.
                 if old_chapter.get("source_version", 1) != version:
-                    stale_chapters.add(chapter.id)
+                    if _migrate_chapter(app.crawler, chapter, old_chapter, file_name, app.output_path):
+                        logger.info(f"Migrated chapter {chapter.id} to version {version}")
+                        chapter.body = None
+                    else:
+                        stale_chapters.add(chapter.id)
                 else:
                     _restore_chapter(chapter, old_chapter, file_name, app.output_path)
                     logger.info(f"Restored chapter {chapter.id} from {file_name}")

@@ -5,14 +5,39 @@ from urllib.parse import urlencode
 
 from bs4.element import Tag
 
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 from lncrawl.templates.novelfull import NovelFullTemplate
 
 logger = logging.getLogger(__name__)
 
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
+
 
 class ReadNovelFullCrawler(NovelFullTemplate):
     base_url = "https://readnovelfull.com/"
+
+    def get_novel_soup(self):
+        self._novel_soup = super().get_novel_soup()
+        return self._novel_soup
+
+    def read_novel_info(self) -> None:
+        super().read_novel_info()
+        for li in self._novel_soup.select(".info li"):
+            header = li.select_one("h3")
+            if not header:
+                continue
+            label = header.get_text(strip=True).lower()
+            value = li.get_text(" ", strip=True).split(":", 1)[-1].strip()
+            if "alternative" in label:
+                self.alternative_titles = [
+                    part.strip() for part in value.split(",") if part.strip()
+                ]
+            elif "status" in label:
+                self.status = _STATUSES.get(value.lower(), NovelStatus.unknown)
 
     def select_search_items(self, query: str) -> Iterable[Tag]:
         params = {"keyword": query}

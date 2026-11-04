@@ -15,16 +15,22 @@ the HTML page does not show.
 import hashlib
 import logging
 import re
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
 from bs4 import Tag
 
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import SearchResult, Volume
+from lncrawl.models import Chapter, SearchResult, Volume
 from lncrawl.templates.epub import EpubCrawler
 
 logger = logging.getLogger(__name__)
+
+# Wuxiaworld-derived EPUBs put a "Previous Chapter Next Chapter" bar at the top
+# and bottom of every chapter; the cleaned body turns it into a plain paragraph.
+_NAV_PARAGRAPH_RE = re.compile(
+    r"<p>\s*(?:Previous|Next) Chapter(?:\s+(?:Previous|Next) Chapter)?\s*</p>"
+)
 
 
 class ArmaellLibraryCrawler(EpubCrawler):
@@ -33,6 +39,8 @@ class ArmaellLibraryCrawler(EpubCrawler):
         "https://www.armaell-library.net/",
     ]
     language = "en"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     # -- catalog ------------------------------------------------------- #
 
@@ -115,6 +123,20 @@ class ArmaellLibraryCrawler(EpubCrawler):
             if name:
                 self.novel_author = name.strip()
 
+        translators = []
+        for a in soup.select("a[title='Translator']"):
+            name = a.get_text(" ", strip=True)
+            if name and name not in translators:
+                translators.append(name)
+        if translators:
+            self.translators = translators
+
+        publisher = soup.select_one("a[title='Publisher']")
+        if isinstance(publisher, Tag):
+            name = publisher.get_text(" ", strip=True)
+            if name:
+                self.original_publisher = name
+
         desc = soup.select_one(".description")
         if isinstance(desc, Tag):
             self.novel_synopsis = self.cleaner.extract_contents(desc)
@@ -141,15 +163,28 @@ class ArmaellLibraryCrawler(EpubCrawler):
             return self.absolute_url(link["href"])
         return None
 
-    def _volume_urls(self, soup) -> List[str]:
-        urls: List[str] = []
+    def _volume_urls(self, soup) -> List[Tuple[str, str]]:
+        """(EPUB url, site volume name) per volume card, in page order."""
+        volumes: List[Tuple[str, str]] = []
         seen = set()
-        for a in soup.select("a.download-link[href*='/download/book/epub/']"):
-            epub_url = self._resolve_epub(self.absolute_url(a["href"]))
+        for card in soup.select(".bookpresentation"):
+            link = card.select_one("a.download-link[href*='/download/book/epub/']")
+            if not isinstance(link, Tag) or not link.get("href"):
+                continue
+            epub_url = self._resolve_epub(self.absolute_url(link["href"]))
             if epub_url and epub_url not in seen:
                 seen.add(epub_url)
-                urls.append(epub_url)
-        return urls
+                name = card.select_one(".title")
+                title = name.get_text(" ", strip=True) if isinstance(name, Tag) else ""
+                volumes.append((epub_url, title))
+        if not volumes:
+            # No usable volume card: take the page-wide EPUB links, unnamed.
+            for a in soup.select("a.download-link[href*='/download/book/epub/']"):
+                epub_url = self._resolve_epub(self.absolute_url(a["href"]))
+                if epub_url and epub_url not in seen:
+                    seen.add(epub_url)
+                    volumes.append((epub_url, ""))
+        return volumes
 
     def _apply_publisher(self, book) -> None:
         """Lift ``dc:publisher`` out of the OPF (often the source publisher).
@@ -191,12 +226,12 @@ class ArmaellLibraryCrawler(EpubCrawler):
         self._apply_alternate_titles()
         self.apply_existing_meta()
 
-        urls = self._volume_urls(soup)
-        if not urls:
+        volumes = self._volume_urls(soup)
+        if not volumes:
             raise LNException("No EPUB downloads found on this novel page")
 
         self.progress_unit = "volumes"
-        self.progress_total = len(urls)
+        self.progress_total = len(volumes)
         self.progress = 0
 
         existing = {} if self._refresh_requested() else self._existing_by_volume()
@@ -206,8 +241,11 @@ class ArmaellLibraryCrawler(EpubCrawler):
                 if isinstance(chapter.get("id"), int):
                     next_id = max(next_id, chapter["id"] + 1)
 
-        for index, url in enumerate(urls, start=1):
-            book_key = "v" + hashlib.md5(url.encode("utf-8")).hexdigest()[:10]
+        for index, (url, name) in enumerate(volumes, start=1):
+            # The last path segment is a timestamp token that changes over time:
+            # keying on it would give every update new chapter URLs (full refetch).
+            stable = url.rstrip("/").rsplit("/", 1)[0]
+            book_key = "v" + hashlib.md5(stable.encode("utf-8")).hexdigest()[:10]
             self._volume_urls_by_key[book_key] = url
 
             cover_url = None
@@ -231,7 +269,7 @@ class ArmaellLibraryCrawler(EpubCrawler):
             self.volumes.append(
                 Volume(
                     id=index,
-                    title=self._volume_title(url, index),
+                    title=name or self._volume_title(url, index),
                     cover_url=cover_url,
                 )
             )
@@ -239,3 +277,10 @@ class ArmaellLibraryCrawler(EpubCrawler):
 
         if not self.novel_title:
             self.novel_title = self.novel_url.rstrip("/").rsplit("/", 1)[-1].replace("-", " ")
+
+    def download_chapter_body(self, chapter: Chapter) -> str:
+        body = super().download_chapter_body(chapter)
+        return _NAV_PARAGRAPH_RE.sub("", body)
+
+    def _migrate_v2(self, body, chapter):
+        return _NAV_PARAGRAPH_RE.sub("", body)

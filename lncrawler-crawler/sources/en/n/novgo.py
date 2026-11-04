@@ -4,7 +4,7 @@ import re
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class NovgoCrawler(Crawler):
     base_url = ["https://novgo.net/", "https://allnovelfull.com/"]
     language = "en"
+    version = 2
 
     def search_novel(self, query):
         soup = self.get_soup(
@@ -80,6 +81,17 @@ class NovgoCrawler(Crawler):
             if a.get_text(strip=True)
         ]
         logger.info("Novel genres: %s", self.genres)
+        self.is_adult = "Adult" in self.genres
+
+        status = soup.select_one(".m-imgtxt .txt span[title='Status']")
+        if status and status.parent:
+            value = status.parent.get_text(" ", strip=True).lower()
+            if "completed" in value:
+                self.status = NovelStatus.completed
+            elif "hiatus" in value:
+                self.status = NovelStatus.hiatus
+            elif "ongoing" in value:
+                self.status = NovelStatus.ongoing
 
         last_page = 1
         for a in soup.select('a[href*="page="]'):
@@ -92,23 +104,36 @@ class NovgoCrawler(Crawler):
             page_soup = (
                 soup if page == 1 else self.get_soup(self.novel_url, params={"page": page})
             )
-            for a in page_soup.select('a[href*="/chapter-"]'):
-                match = re.search(r"/chapter-(\d+)", a.get("href", ""))
-                if not match:
-                    continue
-                number = int(match.group(1))
-                found[number] = self.absolute_url(a["href"])
+            for a in page_soup.select('a.con[href*="/chapter-"]'):
+                url = self.absolute_url(a["href"])
+                if url not in found:
+                    title = a.get("title") or a.get_text(" ", strip=True)
+                    title = " ".join(title.replace("\u200b", "").split())
+                    found[url] = re.sub(r"^Chapter\s*[–-]\s*(\d)", r"Chapter \1", title)
 
-        for index, number in enumerate(sorted(found)):
+        # The number comes from the title: decimal chapters (392.1) have
+        # "3921" in their URL.
+        def order(item):
+            match = re.match(r"Chapter (\d+(?:\.\d+)?)", item[1])
+            return float(match.group(1)) if match else float("inf")
+
+        for index, (url, title) in enumerate(sorted(found.items(), key=order)):
+            # "Chapter 2165 (END) - Title" -> "Chapter 2165 (END): Title"
+            title = re.sub(r"^(Chapter \d+(?:\.\d+)?(?: \(END\))?) - ", r"\1: ", title)
             self.chapters.append(
                 {
                     "id": index + 1,
-                    "title": "Chapter %d" % number,
-                    "url": found[number],
+                    "title": title,
+                    "url": url,
                 }
             )
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
-        contents = soup.select_one(".m-read") or soup.select_one("main")
+        # .m-read also holds the reader settings, navigation and comments
+        contents = (
+            soup.select_one(".fwn-reader-txt")
+            or soup.select_one(".m-read")
+            or soup.select_one("main")
+        )
         return self.cleaner.extract_contents(contents)

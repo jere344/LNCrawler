@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 class OpowiadaniaCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Anonymous readers only get the first 50 percent of each text; the rest needs an account"
     base_url = "https://opowiadania.pl/"
 
     # -- helpers ------------------------------------------------------- #
@@ -120,9 +122,13 @@ class OpowiadaniaCrawler(Crawler):
         if not genres:
             eyebrow = soup.select_one(".reader-heading .eyebrow")
             if isinstance(eyebrow, Tag):
-                name = eyebrow.get_text(" ", strip=True).split("·")[0].strip()
-                if name:
-                    genres.append(name)
+                # "Poezja · Filozofia · 1 min czytania": genres, then reading time
+                parts = eyebrow.get_text(" ", strip=True).split("·")
+                genres.extend(
+                    part.strip()
+                    for part in parts
+                    if part.strip() and "czytania" not in part
+                )
         self.genres = genres
         self.novel_tags = list(genres)
 

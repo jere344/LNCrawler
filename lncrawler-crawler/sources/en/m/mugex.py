@@ -36,6 +36,8 @@ _STATUSES = {
 
 
 class MugexCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "More than half of the chapters are paywalled or locked; partial novels are not offered"
     base_url = "https://mugexnovels.com/"
     language = "en"
 

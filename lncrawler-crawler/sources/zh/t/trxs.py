@@ -36,6 +36,7 @@ class TrxsCrawler(Crawler):
     base_url = ["https://www.trxs.cc/"]
     language = "zh"
     is_adult = False
+    version = 2
 
     def _parse_listing(self, soup) -> List[SearchResult]:
         results = []
@@ -168,10 +169,11 @@ class TrxsCrawler(Crawler):
         # The first chapter repeats the novel header (title, 作者, 简介 and the synopsis
         # lines) before the body. Body paragraphs start with full-width spaces; the
         # header lines do not, so drop everything before the first indented paragraph.
-        if any(t.strip().startswith(("作者", "简介")) for t in raw[:3]):
-            for j, t in enumerate(raw):
-                if t.startswith("　"):
-                    raw = raw[j:]
-                    break
+        # The title and 作者 can share one line ("title 作者：name"), hence the search.
+        first = next((j for j, t in enumerate(raw) if t.startswith("　")), 0)
+        if any(
+            re.search(r"作者[:：]", t) or t.strip().startswith("简介") for t in raw[:first]
+        ):
+            raw = raw[first:]
         paragraphs = [t.strip() for t in raw]
         return "".join(f"<p>{escape(t)}</p>" for t in paragraphs if t)

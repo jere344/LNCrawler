@@ -9,20 +9,29 @@ per page (``<novel>/trang-N/#chapter-list``). Chapter text lives in
 
 import logging
 import re
+import unicodedata
 from typing import List
 from urllib.parse import quote_plus
 
-from bs4 import Tag
+from bs4 import Comment, NavigableString, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, NovelStatus, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
 
 _NOVEL_URL_RE = re.compile(r"^(https?://[^/]+/[^/?#]+?\.\d+)(?:/|$)")
 _TRANG_RE = re.compile(r"/trang-(\d+)/")
 _MAX_BROWSE_PAGES = 40
+# Site-name credit appended to the end of some chapter bodies,
+# e.g. "...truyen full, truyenfull, truyenfullvn, truyenfulllive" or "truyenfull,truyenfull.com".
+_WATERMARK_RE = re.compile(
+    r"\s*(?:truyen\s?full(?:vn|live|\.com)?[\s,.]*)+\s*$", re.IGNORECASE
+)
+# Intro sentence the site generates in front of some synopses.
+_SYNOPSIS_INTRO = "Các bạn đang đọc truyện"
 
 
 def _clean(text: str) -> str:
@@ -37,6 +46,8 @@ class WeTruyenCrawler(Crawler):
     ]
     language = "vi"
     has_mtl = False
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def search_novel(self, query: str) -> List[SearchResult]:
         soup = self.get_soup(f"{self.home_url}tim-kiem/?tukhoa={quote_plus(query)}")
@@ -121,6 +132,7 @@ class WeTruyenCrawler(Crawler):
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
+                    volume=1,
                     url=url,
                     title=_clean(a.get_text()),
                 )
@@ -164,6 +176,10 @@ class WeTruyenCrawler(Crawler):
             soup.select_one("div.desc-text")
         )
         if isinstance(desc, Tag):
+            for text in desc.find_all(string=True):
+                # Site text mixes decomposed accents and no-break spaces: normalize first.
+                if unicodedata.normalize("NFC", _clean(text)).startswith(_SYNOPSIS_INTRO):
+                    text.extract()
             self.novel_synopsis = self.cleaner.extract_contents(desc)
 
         status_text = self.__info_value(soup, "trạng thái").lower()
@@ -174,6 +190,7 @@ class WeTruyenCrawler(Crawler):
         logger.info("Novel status: %s", getattr(self, "status", None))
 
         # Volumes: none on this site, chapters form a flat list.
+        self.volumes.append(Volume(id=1, title="Volume 1"))
         self.__collect_chapters(soup)
         page_count = self.__page_count(soup)
         logger.info("Chapter list pages: %d", page_count)
@@ -194,4 +211,17 @@ class WeTruyenCrawler(Crawler):
             return ""
         for bad in body.select("script, ins, div[class*='ads']"):
             bad.extract()
+        for text in body.find_all(string=True):
+            if isinstance(text, Comment) or text.find_parent(["script", "style"]):
+                continue
+            cleaned = _WATERMARK_RE.sub("", text)
+            if cleaned == text:
+                continue
+            if cleaned.strip():
+                text.replace_with(NavigableString(cleaned))
+            else:
+                text.extract()
         return self.cleaner.extract_contents(body)
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.sub_text(body, _WATERMARK_RE, "")

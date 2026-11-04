@@ -13,14 +13,19 @@ too, so those pages are rejected with an error rather than returning empty text.
 """
 
 import logging
+import re
 
 from bs4 import Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter
 
 logger = logging.getLogger(__name__)
+
+# Bare page-navigation label after each poem.
+_HOME_LABEL = "BACK TO HOME PAGE"
 
 
 class ApnaCrawler(Crawler):
@@ -31,6 +36,8 @@ class ApnaCrawler(Crawler):
         "http://www.apnaorg.com/",
     ]
     language = "pa"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def read_novel_info(self) -> None:
         page_url = self.novel_url.split("#", 1)[0].rstrip("/")
@@ -73,4 +80,10 @@ class ApnaCrawler(Crawler):
         content = section.select_one("div.apna-rb-content") if isinstance(section, Tag) else None
         if not isinstance(content, Tag):
             return ""
+        for label in content.find_all(string=lambda s: s.strip() == _HOME_LABEL):
+            label.extract()
         return self.cleaner.extract_contents(content)
+
+    def _migrate_v2(self, body, chapter):
+        # The label can be merged into the last line of a poem: cut it out of the text.
+        return body_migrations.sub_text(body, r"\s*" + re.escape(_HOME_LABEL), "")

@@ -161,6 +161,9 @@ class NineKafeCrawler(EpubCrawler):
 
         volumes: List[Tuple[str, str]] = []
         for label, chunk_url in chunks:
+            # Each range is also offered as a PDF, which cannot be read here.
+            if re.search(r"\bpdf\b", label, re.IGNORECASE):
+                continue
             epub_url = self._resolve_epub(chunk_url)
             if epub_url:
                 volumes.append((label or chunk_url, epub_url))

@@ -26,8 +26,14 @@ from lncrawl.models import Chapter, SearchResult, Volume
 logger = logging.getLogger(__name__)
 
 # Only real chapter posts. Announcements, annexes and one-off posts are skipped.
-CHAPTER_RE = re.compile(r"Chapitre\s*\d+", re.IGNORECASE)
+# Prologues and epilogues of a tome are story text, so they are kept.
+CHAPTER_RE = re.compile(
+    r"Chapitre\s*\d+|(?:^|[,–-]\s*)(?:Prologue|Épilogue)\b", re.IGNORECASE
+)
 TOME_RE = re.compile(r"Tome\s*(\d+)", re.IGNORECASE)
+# Post titles read "<novel>, Tome N, Chapitre M" or "<novel> – Tome N – ...";
+# the novel name and the tome are dropped (the tome is the volume).
+TOME_PREFIX_RE = re.compile(r"^.*?\bTome\s*\d+\s*[,–-]\s*", re.IGNORECASE)
 # Meta categories ("Publication", "Special"...) that are not novels.
 META_CATEGORIES = {"publication", "special", "test", "annonce"}
 
@@ -41,6 +47,8 @@ def _is_meta_category(cat: dict) -> bool:
 class NoveldeglaceCrawler(Crawler):
     base_url = "https://noveldeglace.com/"
     language = "fr"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     # -- helpers ------------------------------------------------------- #
 
@@ -161,7 +169,7 @@ class NoveldeglaceCrawler(Crawler):
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
-                    title=title,
+                    title=TOME_PREFIX_RE.sub("", title, count=1),
                     url=self.absolute_url(f"/chapitre/{post['slug']}/"),
                     volume=volume_id,
                 )
@@ -178,9 +186,10 @@ class NoveldeglaceCrawler(Crawler):
 
         # Only ul elements inside share/related/nav widgets are dropped; real
         # list content in the chapter text is kept.
+        # div.index is the "Table des matières" box of multi-part chapters.
         for bad in body.select(
             "script, style, button, form, input, label, footer, svg, "
-            "[class*=jscolor], [class*=mistape], "
+            "[class*=jscolor], [class*=mistape], div.index, "
             "[class*=share] ul, [class*=related] ul, nav ul"
         ):
             bad.extract()
@@ -191,3 +200,9 @@ class NoveldeglaceCrawler(Crawler):
                 div.extract()
 
         return self.cleaner.extract_contents(body)
+
+    def _migrate_v2(self, body, chapter):
+        # The box is removed by class (div.index), which the stored body no longer has.
+        if "Table des mati" in body:
+            return None
+        return body

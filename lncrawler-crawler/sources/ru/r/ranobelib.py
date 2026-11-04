@@ -273,7 +273,7 @@ class RanobeLibCrawler(Crawler):
                 Chapter(
                     id=len(chapters) + 1,
                     url=url,
-                    title=name or f"Глава {number}",
+                    title=name,
                     volume=volume,
                     api_slug=slug,
                     api_volume=volume_raw,
@@ -308,3 +308,9 @@ class RanobeLibCrawler(Crawler):
         if isinstance(content, dict):
             return "".join(_pm_block_html(b) for b in content.get("content") or [])
         return ""
+
+    # -- images -------------------------------------------------------- #
+
+    def download_image(self, url: str, **kwargs):
+        # cover.imglib.info answers 403 unless the request names the site.
+        return super().download_image(url, headers={"Referer": self.home_url}, **kwargs)

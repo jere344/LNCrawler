@@ -206,7 +206,7 @@ class AkatsukiCrawler(Crawler):
         keywords = self._field(view, "キーワード")
         if keywords is not None:
             tags.extend(
-                t for t in re.split(r"[　\s]+", keywords.get_text(" ", strip=True)) if t
+                t for t in re.split(r"[,、　\s]+", keywords.get_text(" ", strip=True)) if t
             )
         genre = self._field(view, "ジャンル")
         if genre is not None:

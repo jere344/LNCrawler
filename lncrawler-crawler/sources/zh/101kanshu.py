@@ -100,7 +100,8 @@ class Kanshu101Crawler(Crawler):
         logger.info("Novel title: %s", self.novel_title)
 
         author = box.select_one("a[href*='/author/']")
-        if author:
+        # 佚名 ("anonymous") is the site's placeholder when the author is unknown.
+        if author and author.get_text(strip=True) != "佚名":
             self.novel_author = author.get_text(strip=True)
 
         cover = soup.select_one(".bookimg2 img")

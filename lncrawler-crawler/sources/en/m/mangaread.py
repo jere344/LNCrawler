@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import re
+
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +89,11 @@ class MangaReadCrawler(Crawler):
 
         synopsis_tag = soup.select_one("div.summary__content")
         if synopsis_tag:
+            # "A brief description of the manhua X:" is a heading the site adds
+            # to every synopsis.
+            for p in synopsis_tag.select("p"):
+                if p.get_text(strip=True).startswith("A brief description of the"):
+                    p.decompose()
             self.novel_synopsis = self.cleaner.extract_contents(synopsis_tag)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
@@ -105,9 +112,17 @@ class MangaReadCrawler(Crawler):
             if heading.get_text(strip=True) == "Alternative":
                 self.alternative_titles = [
                     name.strip()
-                    for name in content.get_text(" ", strip=True).split(",")
+                    for name in re.split(r"[,;]", content.get_text(" ", strip=True))
                     if name.strip()
                 ]
+            elif heading.get_text(strip=True) == "Status":
+                status = content.get_text(" ", strip=True).lower()
+                if "ongoing" in status:
+                    self.status = NovelStatus.ongoing
+                elif "completed" in status:
+                    self.status = NovelStatus.completed
+                elif "hiatus" in status:
+                    self.status = NovelStatus.hiatus
 
         clean_novel_url = self.novel_url.split("?")[0].strip("/")
         response = self.submit_form(f"{clean_novel_url}/ajax/chapters/")

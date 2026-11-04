@@ -3,18 +3,27 @@ import logging
 import re
 from typing import List
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+# site notices stuck to the end of some bodies
+_BAD_TEXTS = [r"記住首發網站域名", r"台灣小說網"]
+_BAD_TEXT_RE = re.compile("|".join(_BAD_TEXTS))
 
 
 class TwkanCrawler(Crawler):
     base_url = "https://twkan.com/"
 
     language = "zh"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
+
+    def initialize(self) -> None:
+        self.cleaner.bad_text_regex.update(_BAD_TEXTS)
 
     @staticmethod
     def _book_id(text: str) -> str:
@@ -98,6 +107,13 @@ class TwkanCrawler(Crawler):
         if isinstance(synopsis, Tag):
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
+        status = soup.select_one("meta[property='og:novel:status']")
+        status_text = status.get("content", "") if isinstance(status, Tag) else ""
+        if "連載" in status_text or "未" in status_text:
+            self.status = NovelStatus.ongoing
+        elif "全本" in status_text or "完" in status_text:
+            self.status = NovelStatus.completed
+
         tags = []
         sort_name = re.search(r"sortName:\s*'([^']*)'", html)
         if sort_name:
@@ -136,3 +152,11 @@ class TwkanCrawler(Crawler):
         soup = self.get_soup(chapter.url)
         contents = soup.select_one("#txtcontent0")
         return self.cleaner.extract_contents(contents)
+
+    def _migrate_v2(self, body, chapter):
+        return re.sub(
+            r"<p>(.*?)</p>",
+            lambda m: "" if _BAD_TEXT_RE.search(m.group(1)) else m.group(0),
+            body,
+            flags=re.S,
+        )

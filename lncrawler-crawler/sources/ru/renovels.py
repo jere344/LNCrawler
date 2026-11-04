@@ -1,11 +1,26 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
+from html import escape
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+# The API glues a "new" badge onto the name of recent chapters ("1 - 3новое").
+_NEW_BADGE_RE = re.compile(r"(?<=\S)новое$")
+
+_STATUS_NAMES = [
+    ("закончен", NovelStatus.completed),
+    ("завершен", NovelStatus.completed),
+    ("онгоинг", NovelStatus.ongoing),
+    ("выпуск", NovelStatus.ongoing),
+    ("продолж", NovelStatus.ongoing),
+    ("приостанов", NovelStatus.hiatus),
+    ("заморож", NovelStatus.hiatus),
+]
 
 # api.renovels.org is DDoS-Guarded/geo-blocked; the same API is reachable
 # anonymously through the renovels.org proxy, so route every call there.
@@ -75,10 +90,19 @@ class RenovelsCrawler(Crawler):
         ).split("[")[0].strip()
         logger.info("Novel title: %s", self.novel_title)
 
-        self.novel_synopsis = self.cleaner.extract_contents(
-            self.make_soup(content.get("description") or "")
+        # Plain text, one paragraph per line.
+        self.novel_synopsis = "".join(
+            f"<p>{escape(line.strip())}</p>"
+            for line in (content.get("description") or "").splitlines()
+            if line.strip()
         )
         logger.info("Novel synopsis length: %s", len(self.novel_synopsis))
+
+        status_name = str((content.get("status") or {}).get("name") or "").lower()
+        self.status = next(
+            (value for key, value in _STATUS_NAMES if key in status_name),
+            NovelStatus.unknown,
+        )
 
         cover = (content.get("img") or {}).get("high")
         if cover:
@@ -114,11 +138,14 @@ class RenovelsCrawler(Crawler):
 
         for chapter in reversed(pre_chapters):
             chap_id = len(self.chapters) + 1
-            chap_name = chapter.get("name")
+            chap_name = _NEW_BADGE_RE.sub("", chapter.get("name") or "").strip()
+            if chap_name == f"{chapter.get('tome')} - {chapter.get('chapter')}":
+                # Bare "tome - chapter" label, no chapter name behind it.
+                chap_name = ""
             self.chapters.append(
                 {
                     "id": chap_id,
-                    "title": chap_name if chap_name else chapter["chapter"],
+                    "title": chap_name,
                     "url": f"https://renovels.org/novel/{slug}/{chapter['id']}",
                     "chapter_id": chapter["id"],
                 }
@@ -135,4 +162,6 @@ class RenovelsCrawler(Crawler):
             f"{api_base}/v2/titles/chapters/{chapter['chapter_id']}/"
         )
         content = data.get("content") or ""
-        return self.cleaner.extract_contents(self.make_soup(content))
+        soup = self.make_soup(content)
+        # Read the <body> only; the document wrapper would leak into the text.
+        return self.cleaner.extract_contents(soup.body or soup)

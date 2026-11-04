@@ -1,24 +1,27 @@
 # -*- coding: utf-8 -*-
 import logging
 import re
-from typing import Generator
+from typing import Dict, Generator, List, Union
 from urllib.parse import unquote
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import Chapter, SearchResult
-from lncrawl.templates.soup.chapter_only import ChapterOnlySoupTemplate
+from lncrawl.core.exeptions import LNException
+from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 from lncrawl.templates.soup.searchable import SearchableSoupTemplate
 
 logger = logging.getLogger(__name__)
 
+CHAPTER_PAGE_SIZE = 180
+CHAPTER_PAGE_CAP = 100
 
-class RanobeHubCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
+
+class RanobeHubCrawler(SearchableSoupTemplate):
     base_url = "https://ranobehub.org/"
     language = "ru"
 
     def initialize(self) -> None:
-        self.init_executor()
+        self.init_executor(ratelimit=1)
 
     # -- search -------------------------------------------------------- #
 
@@ -88,6 +91,16 @@ class RanobeHubCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
             if title:
                 self.alternative_titles = [title]
 
+        status_tag = soup.select_one(".book-kicker-status") if soup else None
+        if isinstance(status_tag, Tag):
+            text = status_tag.get_text(strip=True).lower()
+            if "процесс" in text:
+                self.status = NovelStatus.ongoing
+            elif "заверш" in text:
+                self.status = NovelStatus.completed
+            elif "приостанов" in text:
+                self.status = NovelStatus.hiatus
+
     def parse_authors(self, soup: BeautifulSoup):
         for a in soup.select("a[href^='/author/']"):
             text = a.get_text(strip=True)
@@ -109,34 +122,84 @@ class RanobeHubCrawler(SearchableSoupTemplate, ChapterOnlySoupTemplate):
                 yield text
 
     @staticmethod
-    def _chapter_title(tag: Tag) -> str:
-        for span in tag.find_all("span", recursive=False):
-            if not span.get("class"):
-                return span.get_text(" ", strip=True)
-        return tag.get_text(" ", strip=True)
+    def _volume_titles(soup: BeautifulSoup) -> Dict[int, str]:
+        # Each accordion trigger reads "Том N" and, when the volume has a name,
+        # a <small> with the full title, e.g. "Том 5: Красный Жрец".
+        titles: Dict[int, str] = {}
+        for item in soup.select(".book-volume-list [data-slot='accordion-item']"):
+            trigger = item.select_one("[data-slot='accordion-trigger']")
+            if not isinstance(trigger, Tag):
+                continue
+            label = trigger.select_one("strong")
+            if not isinstance(label, Tag):
+                continue
+            match = re.search(r"\d+", label.get_text(" ", strip=True))
+            if not match:
+                continue
+            name = trigger.select_one("small")
+            source = name if isinstance(name, Tag) else label
+            titles[int(match.group())] = source.get_text(" ", strip=True)
+        return titles
 
-    def select_chapter_tags(self, soup: BeautifulSoup) -> Generator[Tag, None, None]:
-        container = soup.select_one(".book-volume-list") or soup
-        rows = container.select("a.chapter-row[href*='/chapter/']")
-        # The site lists chapters newest-first; reverse for reading order.
-        for tag in reversed(rows):
-            href = tag["href"]
-            if not re.search(r"/chapter/\d+$", href):
-                continue
-            ordinal = tag.find("small")
-            if ordinal and ordinal.get_text(strip=True) == "0":
-                continue
-            title = self._chapter_title(tag)
-            if "иллюстрации" in title:
-                continue
-            yield tag
+    def _chapter_items(self, book_id: int) -> List[dict]:
+        # The novel page only renders the first chapters of the first volume.
+        # The full list comes from this listing, in reading order.
+        items: List[dict] = []
+        seen = set()
+        offset = 0
+        for _ in range(CHAPTER_PAGE_CAP):
+            data = self.get_json(
+                f"{self.home_url}api/books/{book_id}/chapters"
+                f"?sort=asc&offset={offset}&limit={CHAPTER_PAGE_SIZE}"
+            )
+            if not isinstance(data, dict):
+                logger.warning("Unexpected chapter listing for book %s", book_id)
+                return items
+            added = 0
+            for item in data.get("items") or []:
+                if not isinstance(item, dict) or item.get("id") is None:
+                    continue
+                if item["id"] not in seen:
+                    seen.add(item["id"])
+                    items.append(item)
+                    added += 1
+            offset = data.get("nextOffset")
+            if offset is None or not added:
+                return items
+        logger.warning("Chapter listing stopped at the page cap for book %s", book_id)
+        return items
 
-    def parse_chapter_item(self, tag: Tag, id: int) -> Chapter:
-        return Chapter(
-            id=id,
-            url=self.absolute_url(tag["href"]),
-            title=self._chapter_title(tag) or f"Chapter {id}",
-        )
+    def parse_chapter_list(
+        self, soup: BeautifulSoup
+    ) -> Generator[Union[Volume, Chapter], None, None]:
+        match = re.search(r"/ranobe/(\d+)", self.novel_url)
+        if not match:
+            raise LNException("Cannot find the book id in the novel URL")
+        book_id = int(match.group(1))
+        slug_match = re.search(r"/ranobe/([^/?#]+)", self.novel_url)
+        slug = slug_match.group(1) if slug_match else str(book_id)
+        titles = self._volume_titles(soup)
+
+        chapters: List[Chapter] = []
+        for item in self._chapter_items(book_id):
+            title = " ".join(str(item.get("title") or "").split())
+            if item.get("number") == 0 or "иллюстрации" in title.lower():
+                continue
+            volume = item.get("volume")
+            chapters.append(
+                Chapter(
+                    id=len(chapters) + 1,
+                    url=self.absolute_url(f"/ranobe/{slug}/chapter/{item['id']}"),
+                    title=title,
+                    volume=volume if isinstance(volume, int) and volume > 0 else None,
+                )
+            )
+
+        volume_ids = sorted({c.volume for c in chapters if c.volume})
+        for vol_id in volume_ids:
+            yield Volume(id=vol_id, title=titles.get(vol_id) or f"Том {vol_id}")
+        for chapter in chapters:
+            yield chapter
 
     # -- chapter body -------------------------------------------------- #
 

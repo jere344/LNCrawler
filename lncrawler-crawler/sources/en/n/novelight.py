@@ -2,20 +2,77 @@
 
 import logging
 import re
+import unicodedata
 from typing import List
 from urllib.parse import quote_plus, urlencode
 
 from bs4 import Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+# Site watermarks: the site name written with lookalike letters (Cyrillic,
+# mathematical styled letters) between matching decorations, e.g.
+# "❀ Novelight ❀ (Don't copy, read here)", plus a "stolen" sentence.
+_WATERMARK_DECOS = "◆◇❀❁✿❖✦✪✧★☆~♦✩✫#➤/°•◈⊛"
+_WATERMARK_LOOKALIKES = str.maketrans(
+    {
+        "а": "a",
+        "с": "c",
+        "е": "e",
+        "г": "g",
+        "һ": "h",
+        "і": "i",
+        "ı": "i",
+        "ι": "i",
+        "т": "t",
+        "ј": "j",
+        "о": "o",
+        "р": "p",
+        "ѕ": "s",
+        "у": "y",
+        "х": "x",
+    }
+)
+# Group 1: leading spaces; 2/3/4: opening decorations, name, closing decorations
+# (1-3 characters each, not necessarily the same); 5-7: «», {} and [] names;
+# 8: "(...)" suffix; 9: trailing spaces. The lookbehind makes a run of spaces
+# start only once, so the leading \s* never backtracks over the same run twice.
+WATERMARK_RE = re.compile(
+    rf"((?<!\s)\s*)(?:([{_WATERMARK_DECOS}]{{1,3}})([^<>{_WATERMARK_DECOS}]{{3,40}}?)"
+    rf"([{_WATERMARK_DECOS}]{{1,3}})"
+    r"|«([^<>«»]{3,40}?)»|\{([^<>{}]{3,40}?)\}|\[([^<>\[\]]{3,40}?)\])"
+    r"(\s*\([^()<>]{0,80}\))?(\s*)"
+)
+STOLEN_RE = re.compile(
+    r"\s*(?i:If you are reading this translation anywhere other than"
+    r" Novelight\.net or SilkRoadTL, it has been stolen\.)"
+)
+
+
+def _strip_watermark(match: re.Match) -> str:
+    name = next(g for g in match.groups()[2:7] if g is not None)
+    name = unicodedata.normalize("NFKC", name)
+    # NFKC turns "Ⅰ" into "I". A capital "I" can stand for a lowercase "l" (a
+    # lookalike) or be a real "i" (all-caps "NOVELIGHT"): accept either reading.
+    readings = {name.lower(), name.replace("I", "l").lower()}
+    if not any(
+        re.sub(r"[^a-z]", "", r.translate(_WATERMARK_LOOKALIKES)) == "novelight"
+        for r in readings
+    ):
+        return match.group(0)
+    spaced = match.group(1) or match.group(9)
+    return " " if spaced else ""
 
 
 class NoveLightCrawler(Crawler):
     base_url = "https://novelight.net/"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         self.cleaner.bad_css.update(["div.advertisment"])
@@ -72,6 +129,10 @@ class NoveLightCrawler(Crawler):
 
         novel_synopsis = soup.select_one("div#information section.text-info")
         if isinstance(novel_synopsis, Tag):
+            # first line is a "「 ✦ Read <title> Novel ✦ 」" site banner
+            for p in novel_synopsis.select("p"):
+                if re.match(r"^[「\s✦]*Read .+ Novel\s*✦", p.get_text(strip=True)):
+                    p.decompose()
             self.novel_synopsis = self.cleaner.extract_contents(novel_synopsis)
 
         novel_tags = soup.select(
@@ -79,12 +140,17 @@ class NoveLightCrawler(Crawler):
         )
         for tag in novel_tags:
             self.novel_tags.append(tag.get_text().strip())
+        # "R-18" is a content rating, not a tag
+        self.is_adult = any(t.upper() == "R-18" for t in self.novel_tags)
+        self.novel_tags = [t for t in self.novel_tags if t.upper() != "R-18"]
 
         for item in soup.select(".mini-info .item"):
             header = item.select_one(".sub-header")
             if not header:
                 continue
             label = header.get_text(strip=True).lower()
+            info = item.select_one(".info")
+            value = info.get_text(" ", strip=True).lower() if info else ""
             if label == "genres":
                 self.genres = [
                     a.get_text(strip=True) for a in item.select(".info a")
@@ -95,6 +161,17 @@ class NoveLightCrawler(Crawler):
                     for d in item.select(".info div")
                     if d.get_text(strip=True)
                 ]
+            elif label == "status":
+                if "completed" in value:
+                    self.status = NovelStatus.completed
+                elif "hiatus" in value or "on hold" in value:
+                    self.status = NovelStatus.hiatus
+                elif "releasing" in value or "ongoing" in value:
+                    self.status = NovelStatus.ongoing
+            elif label == "type" and info:
+                edition = info.get_text(" ", strip=True)
+                if edition.lower() in ("web novel", "light novel"):
+                    self.novel_edition = edition
 
         novel_author = soup.select_one(".mini-info a[href^='/character/'] div.info")
         if isinstance(novel_author, Tag) and novel_author.get_text():
@@ -160,8 +237,16 @@ class NoveLightCrawler(Crawler):
                 "x-requested-with": "XMLHttpRequest",
             },
         )
-        soup = self.make_soup(data["content"])
+        content = WATERMARK_RE.sub(_strip_watermark, data["content"])
+        content = STOLEN_RE.sub("", content)
+        content = re.sub(r"<div>\s*</div>", "", content)
+        soup = self.make_soup(content)
         contents = soup.select_one(".chapter-text")
         self.cleaner.clean_contents(contents)
 
         return str(contents)
+
+    def _migrate_v2(self, body, chapter):
+        body = body_migrations.sub_text(body, WATERMARK_RE, _strip_watermark, drop_empty=False)
+        body = body_migrations.sub_text(body, STOLEN_RE, "", drop_empty=False)
+        return re.sub(r"<div>\s*</div>", "", body)

@@ -42,6 +42,8 @@ _STATUSES = {
 # The browse listing has 24 novels per page; the MTL share is about 23 %, so this
 # cap is reached only for offsets of several thousand.
 _MAX_BROWSE_PAGES = 60
+# Some free chapters carry the site's VIP badge in the title ("Chapter 878 VIP").
+_VIP_BADGE_RE = re.compile(r"\s+VIP$")
 
 
 class ReadNovelEuCrawler(Crawler):
@@ -188,7 +190,7 @@ class ReadNovelEuCrawler(Crawler):
         self.alternative_titles = [
             t.strip() for t in novel.get("altTitles") or [] if t and t.strip()
         ]
-        self.novel_author = (novel.get("author") or {}).get("name") or "Unknown"
+        self.novel_author = (novel.get("author") or {}).get("name") or ""
         if novel.get("coverKey"):
             self.novel_cover = _COVER.format(key=novel["coverKey"])
         self.novel_synopsis = (novel.get("description") or "").strip()
@@ -230,7 +232,11 @@ class ReadNovelEuCrawler(Crawler):
 
         for number in sorted(numbered):
             item = numbered[number]
-            title = (item.get("title") or "").strip() or f"Chapter {number}"
+            raw_title = (item.get("title") or "").strip()
+            stripped = _VIP_BADGE_RE.sub("", raw_title)
+            if not re.fullmatch(r"Chapter \d+", stripped):
+                stripped = raw_title
+            title = stripped or f"Chapter {number}"
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,

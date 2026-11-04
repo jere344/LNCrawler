@@ -26,7 +26,8 @@ _EPUB_RE = re.compile(r"https?://[^\"'\s<>]+\.epub\b", re.IGNORECASE)
 _PUBLISHER_RE = re.compile(r":\s*([^:,\[\]]+?)\s*,\s*\[?\d{4}")
 # Italian front/back matter the English-only EPUB matcher does not know.
 _MATTER_IT_RE = re.compile(
-    r"(copertina|frontespizio|colophon|liber\s*liber|indice|sommario|informazioni|pagina\s+del\s+titolo)",
+    r"(copertina|frontespizio|colophon|liber\s*liber|indice|sommario|informazioni|pagina\s+del\s+titolo"
+    r"|tavola\s+dei\s+contenuti|\btoc\b)",
     re.IGNORECASE,
 )
 

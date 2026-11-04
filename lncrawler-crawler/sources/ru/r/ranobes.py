@@ -1,16 +1,45 @@
 # -*- coding: utf-8 -*-
+import json
 import logging
 import re
+from urllib.parse import urljoin
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_DATA_MARKER = "window.__DATA__ = "
+_TRANSLATION_STATUS = {
+    "active": NovelStatus.ongoing,
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "frozen": NovelStatus.hiatus,
+    "hiatus": NovelStatus.hiatus,
+}
+
+
+def _toc_data(soup) -> dict:
+    # Chapter lists are rendered by Vue from an inline JSON blob.
+    for script in soup.find_all("script"):
+        text = script.string or ""
+        start = text.find(_DATA_MARKER)
+        if start >= 0:
+            try:
+                data, _ = json.JSONDecoder().raw_decode(text, start + len(_DATA_MARKER))
+            except ValueError:
+                return {}
+            return data
+    return {}
 
 
 class RanobesComCrawler(Crawler):
     base_url = "https://ranobes.com/"
     language = "ru"
+
+    def initialize(self):
+        # A chapter list is one request per 25 chapters; the site answers 429.
+        self.init_executor(ratelimit=1)
 
     def search_novel(self, query):
         soup = self.submit_form_for_soup(
@@ -70,6 +99,15 @@ class RanobesComCrawler(Crawler):
             self.novel_synopsis = synopsis.get("content", "")
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
+        # Translation status ("Перевод: Активен"), else the original one.
+        status_link = soup.select_one(
+            '.r-fullstory-spec a[href*="/tags/status-trs/"]'
+        ) or soup.select_one('.r-fullstory-spec a[href*="/tags/status-end/"]')
+        self.status = NovelStatus.unknown
+        if status_link is not None:
+            key = status_link.get("href", "").rstrip("/").split("/")[-1].lower()
+            self.status = _TRANSLATION_STATUS.get(key, NovelStatus.unknown)
+
         genres = [
             a.get_text(strip=True)
             for a in soup.select("#mc-fs-genre .links a")
@@ -88,34 +126,34 @@ class RanobesComCrawler(Crawler):
 
         toc_url = None
         for a in soup.select("a[href]"):
-            if re.match(r"^https?://ranobes\.com/chapters/[^/]+/$", a.get("href", "")):
-                toc_url = a["href"]
+            href = urljoin(self.novel_url, a.get("href", ""))
+            if re.match(r"^https?://ranobes\.com/chapters/[^/]+/$", href):
+                toc_url = href
                 break
         if not toc_url:
             return
 
-        slug = toc_url.rstrip("/").split("/")[-1]
-        pattern = re.compile(r"/chapters/%s/\d+-" % re.escape(slug))
-        date_re = re.compile(r"\d{1,2} \S+ \d{4} в \d{1,2}:\d{2}$")
         seen = set()
         entries = []
         page = 1
-        while page <= 300:
+        pages_count = 1
+        while page <= min(pages_count, 300):
             url = toc_url if page == 1 else "%spage/%d/" % (toc_url, page)
-            try:
-                page_soup = self.get_soup(url)
-            except Exception:
+            data = _toc_data(self.get_soup(url))
+            pages_count = int(data.get("pages_count") or 1)
+            items = data.get("chapters") or []
+            if not items:
                 break
-            links = [
-                (a.get_text(strip=True), a["href"])
-                for a in page_soup.select("a[href]")
-                if pattern.search(a["href"]) and a["href"] not in seen
-            ]
-            if not links:
-                break
-            for title, href in links:
+            added = 0
+            for item in items:
+                href = urljoin(self.home_url, item.get("link") or "")
+                if not href or href in seen:
+                    continue
                 seen.add(href)
-                entries.append((date_re.sub("", title).strip(), href))
+                entries.append(((item.get("title") or "").strip(), href))
+                added += 1
+            if not added:
+                break
             page += 1
 
         for title, href in reversed(entries):

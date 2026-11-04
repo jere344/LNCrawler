@@ -2,13 +2,45 @@
 import json
 import logging
 import re
+
+from bs4 import Tag
+
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
+# Creator promo closing many chapters (Webnovel / Patreon / social follow).
+PROMO_LINK_RE = re.compile(
+    r"patreon|discord|instagram|ko-fi|twitter|x\.com|facebook|tiktok|youtube|t\.me|telegram|webnovel",
+    re.I,
+)
+SEPARATOR_RE = re.compile(r"^\*{3,}$")
+
+
+def _promo_tail(paragraphs):
+    """Paragraphs of the creator promo closing a chapter, or [].
+
+    The promo follows the last "*****" break: a short tail naming a platform.
+    Matched on text, since stored bodies no longer keep link hrefs.
+    """
+    breaks = [i for i, p in enumerate(paragraphs) if SEPARATOR_RE.match(p.get_text(strip=True))]
+    if not breaks:
+        return []
+    tail = paragraphs[breaks[-1] :]
+    if (
+        len(tail) <= 12
+        and any(PROMO_LINK_RE.search(p.get_text(" ")) for p in tail)
+        and all(len(p.get_text(strip=True)) <= 250 for p in tail[1:])
+    ):
+        return tail
+    return []
+
 
 class FenrirScans(Crawler):
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
     base_url = ["https://fenrirscans.com/"]
     search_url = "https://fenrirscans.com/wp-admin/admin-ajax.php"
     has_manga = False
@@ -82,19 +114,38 @@ class FenrirScans(Crawler):
             self.novel_title = title.text.strip()
 
         # Synopsis
-        summary = soup.select_one(
-            ".novel-description, .description-full, .description-short"
+        # The page holds a short and a full copy of the blurb plus show-more buttons.
+        summary = (
+            soup.select_one(".description-full")
+            or soup.select_one(".description-short")
+            or soup.select_one(".novel-description")
         )
         if summary:
+            for button in summary.select(".show-more-btn, .show-less-btn"):
+                button.decompose()
             self.novel_synopsis = self.cleaner.extract_contents(summary)
+
+        # Status: <a class="status-badge status-ongoing">Devam Ediyor</a>
+        badge = soup.select_one(".status-badge")
+        badge_classes = badge.get("class", []) if isinstance(badge, Tag) else []
+        if "status-completed" in badge_classes:
+            self.status = NovelStatus.completed
+        elif "status-ongoing" in badge_classes:
+            self.status = NovelStatus.ongoing
+        elif "status-hiatus" in badge_classes:
+            self.status = NovelStatus.hiatus
 
         # Cover
         cover = soup.find("img", {"class": "wp-post-image"})
         if cover:
             self.novel_cover = self.absolute_url(cover.get("src"))
         # Tags/Genres
-        for tag in soup.select(".novel-genres-main a, .genre-tag-main"):
-            self.novel_tags.append(tag.text.strip())
+        # "+N" is a genre-more button, not a genre: skip it
+        for tag in soup.select(".novel-genres-main a, a.genre-tag-main"):
+            text = tag.text.strip()
+            if re.fullmatch(r"\+\d+", text):
+                continue
+            self.novel_tags.append(text)
 
         # Author
         author = soup.select_one(".novel-author, .author-link")
@@ -150,4 +201,13 @@ class FenrirScans(Crawler):
         if not content:
             logger.error("No content found for chapter: %s", chapter["url"])
             return None
+        # Creator promo closes some chapters (see _promo_tail).
+        for p in _promo_tail(content.find_all("p")):
+            p.decompose()
         return self.cleaner.extract_contents(content)
+
+    def _migrate_v2(self, body, chapter):
+        soup = body_migrations.parse(body)
+        for p in _promo_tail(soup.find_all("p")):
+            p.decompose()
+        return str(soup)

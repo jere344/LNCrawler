@@ -14,6 +14,7 @@ from urllib.parse import quote
 
 from bs4 import Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
@@ -37,10 +38,20 @@ _STATUS_MAP = {
 
 _VOLUME_RE = re.compile(r"\bvol(?:ume)?\.?\s*(\d+)", re.IGNORECASE)
 _TITLE_PREFIX_RE = re.compile(r"^\s*chapter\s+", re.IGNORECASE)
+_FOOTER_MARKERS = (
+    "Agradecimentos",
+    "Agradecemos a todos",
+    "Outras Informações",
+)
 
+
+# Longest line of the supporter list in a stored body (one name per <p>).
+_SUPPORTER_LINE_MAX = 80
 
 class TsundokuCrawler(Crawler):
     base_url = "https://tsundoku.com.br/"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     @staticmethod
     def _clean_title(text: str) -> str:
@@ -98,7 +109,7 @@ class TsundokuCrawler(Crawler):
         if alt_tag:
             self.alternative_titles = [
                 name.strip()
-                for name in re.split(r"[;]", alt_tag.get_text(" ", strip=True))
+                for name in re.split(r"[;,]", alt_tag.get_text(" ", strip=True))
                 if name.strip()
             ]
 
@@ -179,4 +190,71 @@ class TsundokuCrawler(Crawler):
         body = soup.select_one("#readerarea") or soup.select_one(".entry-content")
         if not isinstance(body, Tag):
             return ""
+        # Scanlator footer at the end of the text: thanks heading, supporter
+        # list, "Outras Informações" with Discord and staff links. It is
+        # anchored on the supporter list or "Outras Informações" (never story
+        # text); the cut starts at the thanks heading before that anchor,
+        # within a few blocks of it, so an earlier note mentioning
+        # "Agradecimentos" is kept.
+        blocks = [c for c in body.find_all(recursive=False) if isinstance(c, Tag)]
+        anchor = None
+        for i, block in enumerate(blocks):
+            text = block.get_text(" ", strip=True)
+            if (
+                "listaApoiadores" in (block.get("class") or [])
+                or block.select_one(".listaApoiadores")
+                or (len(text) <= 300 and "Outras Informações" in text)
+            ):
+                anchor = i
+                break
+        if anchor is not None:
+            start = anchor
+            for i in range(anchor - 1, max(anchor - 6, -1), -1):
+                text = blocks[i].get_text(" ", strip=True)
+                if len(text) <= 300 and any(m in text for m in _FOOTER_MARKERS):
+                    start = i
+            for block in blocks[start:]:
+                block.decompose()
         return self.cleaner.extract_contents(body)
+
+    def _migrate_v2(self, body, chapter):
+        # Same cut as download_chapter_body, anchored on the text only: the
+        # supporter list class is gone from stored bodies.
+        soup = body_migrations.parse(body)
+        blocks = soup.find_all(recursive=False)
+        texts = [body_migrations.block_text(b) for b in blocks]
+        anchor = next(
+            (i for i, t in enumerate(texts) if len(t) <= 300 and "Outras Informações" in t),
+            None,
+        )
+        if anchor is None:
+            if any("Agradecemos a todos" in t for t in texts):
+                return None
+            return body
+        # Stored bodies have the supporter list as many <p>, so search back for
+        # the nearest thanks block across short lines only (supporter names): a
+        # story paragraph on the way means the thanks block is not the footer.
+        # Then climb over the thanks blocks right above it (heading, then
+        # "Agradecemos a todos").
+        def is_thanks(text):
+            return len(text) <= 300 and ("Agradecimentos" in text or "Agradecemos a todos" in text)
+
+        start = anchor
+        nearest = None
+        for i in range(anchor - 1, -1, -1):
+            if is_thanks(texts[i]):
+                nearest = i
+                break
+            if len(texts[i]) > _SUPPORTER_LINE_MAX:
+                break
+        if nearest is not None:
+            start = nearest
+            for i in range(nearest - 1, -1, -1):
+                if not texts[i]:
+                    continue
+                if not is_thanks(texts[i]):
+                    break
+                start = i
+        for block in blocks[start:]:
+            block.decompose()
+        return str(soup)

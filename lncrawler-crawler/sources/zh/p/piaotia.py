@@ -18,7 +18,7 @@ from bs4 import Comment, Tag
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,14 @@ class PiaotiaCrawler(Crawler):
         m = re.search(r"类\s*别\s*[：:]\s*([^\s|]+)", text)
         if m:
             self.novel_tags = [m.group(1)]
+        m = re.search(r"文\s*章\s*状\s*态\s*[：:]\s*([^\s|]+)", text)
+        status = m.group(1) if m else ""
+        if "连载" in status or "連載" in status:
+            self.status = NovelStatus.ongoing
+        elif any(k in status for k in ("全本", "完本", "完结", "完結")):
+            self.status = NovelStatus.completed
+        else:
+            self.status = NovelStatus.unknown
 
         cover = soup.select_one(f'img[src$="/{aid}s.jpg"]')
         if cover and cover.get("src"):

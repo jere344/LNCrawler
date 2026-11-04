@@ -2,13 +2,20 @@
 
 import json
 import logging
+import re
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 search_url = "%ssearch?q=%s"
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
 
 
 class MangaBuddyCrawler(Crawler):
@@ -77,7 +84,17 @@ class MangaBuddyCrawler(Crawler):
         )
         logger.info("Novel author: %s", self.novel_author)
 
-        self.novel_synopsis = manga.get("summary") or ""
+        # The summary ends with store links ("[Original Webtoon](...)",
+        # "Official Translations"), which are not part of the blurb.
+        summary = manga.get("summary") or ""
+        self.novel_synopsis = re.split(
+            r"\n\s*(?:\[Original |\*\*Official Translations)", summary, maxsplit=1
+        )[0].strip()
+
+        self.status = _STATUSES.get(
+            str(manga.get("status") or "").strip().lower(), NovelStatus.unknown
+        )
+        self.is_adult = bool(manga.get("isAdult"))
 
         self.novel_tags = [g["name"].strip() for g in manga.get("genres") or []]
 

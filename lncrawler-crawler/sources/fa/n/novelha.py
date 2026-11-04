@@ -122,7 +122,12 @@ class NovelhaCrawler(Crawler):
         book = self._book_jsonld(soup)
 
         self.novel_title = (book.get("name") or "").strip()
-        self.novel_synopsis = (book.get("description") or "").strip()
+        # The JSON-LD description is cut at about 400 characters; the summary block is the full blurb.
+        summary = soup.select_one('[class*="synBody"]')
+        if isinstance(summary, Tag):
+            self.novel_synopsis = self.cleaner.extract_contents(summary)
+        else:
+            self.novel_synopsis = (book.get("description") or "").strip()
         self.novel_cover = self.absolute_url(book.get("image") or "") or None
 
         alternate = (book.get("alternateName") or "").strip()
@@ -137,8 +142,13 @@ class NovelhaCrawler(Crawler):
         if isinstance(translator, dict) and translator.get("name"):
             self.translators = [translator["name"].strip()]
 
+        # The JSON-LD publisher is the site itself ("ناولها", novelha.net), not the original publisher.
         publisher = book.get("publisher") or {}
-        if isinstance(publisher, dict) and publisher.get("name"):
+        if (
+            isinstance(publisher, dict)
+            and publisher.get("name")
+            and "novelha" not in (publisher.get("url") or "")
+        ):
             self.original_publisher = publisher["name"].strip()
 
         rating = book.get("aggregateRating") or {}

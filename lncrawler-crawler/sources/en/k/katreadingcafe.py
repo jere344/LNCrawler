@@ -32,6 +32,8 @@ _VOLUME_RE = re.compile(r"\bVolume\s+(\d+)", re.I)
 
 
 class KatReadingCafeCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "More than half of the chapters are paywalled or locked; partial novels are not offered"
     base_url = ["https://katreadingcafe.com/"]
     language = "en"
 

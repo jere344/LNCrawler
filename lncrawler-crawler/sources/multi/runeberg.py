@@ -48,6 +48,9 @@ _FURNITURE_RE = re.compile(
     r"|Ser\s+du\s+n\w+\s+fel\?\s*Korrektur\w+\s+sidan\s+nu!"
     r"|/?\s*This\s+page\s+has\s+never\s+been\s+proofread\.?"
     r"|/?\s*Denna\s+sida\s+har\s+aldrig\s+korrektur\w+\.?"
+    r"|This\s+page\s+has\s+been\s+proofread\s+at\s+least\s+once\.?"
+    r"|Denna\s+sida\s+har\s+korrektur\w+\s+minst\s+en\s+g\w+\.?"
+    r"|\((?:diff|history|skillnad|historik)\)"
     r"|On\s+this\s+page\s*/\s*p\S*\s+denna\s+sida",
     re.IGNORECASE | re.DOTALL,
 )
@@ -125,6 +128,13 @@ class ProjectRunebergCrawler(Crawler):
                 authors.append(name)
         self.novel_author = ", ".join(authors)
 
+        # Subject classification shown as "Tema: <a href="/tema/...">".
+        self.novel_tags = [
+            a.get_text(" ", strip=True)
+            for a in soup.select('a[href^="/tema/"]')
+            if a.get_text(" ", strip=True)
+        ]
+
         text = soup.get_text(" ", strip=True)
         lang_match = _LANG_RE.search(text)
         label = lang_match.group(1).lower() if lang_match else ""
@@ -136,6 +146,9 @@ class ProjectRunebergCrawler(Crawler):
         if not pages:
             raise LNException("No scanned pages linked from work index")
 
+        # absolute_url() drops the trailing slash of the work directory, so the
+        # pages must be joined to it explicitly (/<dir>/NNNN.html).
+        work_url = self.novel_url.rstrip("/") + "/"
         self.volumes = [Volume(id=1, title="Volume 1")]
         for name in pages:
             number = int(name)
@@ -143,7 +156,7 @@ class ProjectRunebergCrawler(Crawler):
                 Chapter(
                     id=len(self.chapters) + 1,
                     title=f"Page {number}",
-                    url=self.absolute_url(f"{name}.html"),
+                    url=f"{work_url}{name}.html",
                     volume=1,
                     volume_title="Volume 1",
                 )

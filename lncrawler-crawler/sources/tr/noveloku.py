@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 class NovelOkuCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Site lists novels but has no chapters at all"
     base_url = "https://noveloku.com/"
     language = "tr"
     has_manga = False
@@ -75,9 +77,14 @@ class NovelOkuCrawler(Crawler):
             self.novel_author = author.get_text(strip=True)
         logger.info("Novel author: %s", self.novel_author)
 
-        desc = soup.select_one('meta[name="description"]')
+        # The meta description is "<title> Türkçe novel serisini oku. <blurb>…" (cut)
+        desc = soup.select_one(".nk-series-detail-description")
         if isinstance(desc, Tag):
-            self.novel_synopsis = desc.get("content") or ""
+            self.novel_synopsis = self.cleaner.extract_contents(desc)
+        else:
+            meta = soup.select_one('meta[name="description"]')
+            if isinstance(meta, Tag):
+                self.novel_synopsis = meta.get("content") or ""
 
         self.genres = [
             a.get_text(strip=True)
@@ -88,7 +95,9 @@ class NovelOkuCrawler(Crawler):
 
         alt = soup.select_one(".nk-series-detail-alt-title")
         if isinstance(alt, Tag):
-            self.alternative_titles = [alt.get_text(strip=True)]
+            self.alternative_titles = [
+                t.strip() for t in alt.get_text(strip=True).split(",") if t.strip()
+            ]
 
         seen = set()
         entries = []

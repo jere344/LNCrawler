@@ -19,7 +19,7 @@ from typing import List
 from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,14 @@ DETAIL_API = "https://api.niyaydd.com"
 CHAPTER_API = "https://www.dek-d.com/api/v3.0"
 REFERER = {"Referer": "https://novel.dek-d.com/", "Origin": "https://novel.dek-d.com"}
 
+# Platform promo added to the end of many chapters (shelf/comment appeal) and
+# the cross-promo of another novel (on the info chapter).
+PROMO_MARKERS = ("กดเก็บเข้าชั้น", "อยากอ่านเรื่องนี้ จิ้มได้เลย")
+
 
 class NovelDekDCrawler(Crawler):
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
     base_url = ["https://novel.dek-d.com/", "https://writer.dek-d.com/"]
     language = "th"
     has_manga = False
@@ -97,6 +103,9 @@ class NovelDekDCrawler(Crawler):
         self.novel_title = unescape(data.get("title") or "").strip()
         self.novel_synopsis = unescape(data.get("description") or "")
         self.novel_cover = (data.get("thumbnail") or {}).get("normal")
+        # state.end is set by the author when the story is finished
+        ended = bool((data.get("state") or {}).get("end"))
+        self.status = NovelStatus.completed if ended else NovelStatus.ongoing
 
         owners = data.get("owners") or []
         self.novel_author = ", ".join(
@@ -105,7 +114,10 @@ class NovelDekDCrawler(Crawler):
                 (unescape(o.get("alias") or o.get("username") or "") for o in owners),
             )
         )
-        self.tags = [unescape(t) for t in (data.get("tags") or []) if t]
+        # "นิยาย" is the generic "novel" type label, not a tag
+        self.tags = [
+            unescape(t) for t in (data.get("tags") or []) if t and t != "นิยาย"
+        ]
         self.genres: List[str] = []
 
         page = 1
@@ -155,4 +167,25 @@ class NovelDekDCrawler(Crawler):
         payload = self.get_json(
             f"{CHAPTER_API}/novel/{novel_id}/chapter/{chapter_id}", headers=REFERER
         ).get("data") or {}
-        return payload.get("body") or ""
+        return self._strip_promos(payload.get("body") or "")
+
+    def _strip_promos(self, body: str) -> str:
+        if not any(marker in body for marker in PROMO_MARKERS):
+            return body
+        soup = self.make_soup(body)
+        for p in soup.find_all("p"):
+            if not any(marker in p.get_text() for marker in PROMO_MARKERS):
+                continue
+            # the <hr> before the appeal and the recommendation image after it go too
+            prev = p.find_previous_sibling()
+            if prev is not None and prev.name == "hr":
+                prev.decompose()
+            nxt = p.find_next_sibling()
+            if nxt is not None and nxt.name == "figure":
+                nxt.decompose()
+            p.decompose()
+        return soup.body.decode_contents() if soup.body else str(soup)
+
+    def _migrate_v2(self, body, chapter):
+        # Stored bodies are the raw API HTML, the same input _strip_promos gets.
+        return self._strip_promos(body)

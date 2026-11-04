@@ -13,9 +13,15 @@ import logging
 from urllib.parse import quote_plus
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
 
 
 class SainoKanTLSCrawler(Crawler):
@@ -81,8 +87,18 @@ class SainoKanTLSCrawler(Crawler):
             if heading.get_text(strip=True).lower() == "synopsis":
                 para = heading.find_next_sibling("p")
                 if para:
-                    self.novel_synopsis = para.get_text(" ", strip=True)
+                    text = para.get_text(" ", strip=True)
+                    # Novels without a blurb repeat the title in this slot.
+                    if text != self.novel_title:
+                        self.novel_synopsis = text
                 break
+
+        status_icon = soup.select_one("i.fa-signal")
+        status = status_icon.find_next_sibling("span") if status_icon else None
+        if status:
+            self.status = _STATUSES.get(
+                status.get_text(strip=True).lower(), NovelStatus.unknown
+            )
 
         self.novel_tags = [
             a.get_text(strip=True) for a in soup.select("a[href*='category=']")
@@ -92,8 +108,11 @@ class SainoKanTLSCrawler(Crawler):
             (h for h in soup.find_all("h2") if h.get_text(strip=True) == "Chapters"),
             None,
         )
-        card = chapters_heading.find_parent("div", class_="rounded-lg") if chapters_heading else None
+        card = chapters_heading.find_parent("div", class_="card") if chapters_heading else None
         for a in (card.select("a[href]") if card else []):
+            # Paid or members-only chapters have no link, only a single "Login to Read".
+            if "/login" in a["href"]:
+                continue
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,

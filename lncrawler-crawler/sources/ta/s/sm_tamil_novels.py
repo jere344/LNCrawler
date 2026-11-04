@@ -11,7 +11,7 @@ sharing one slug base, and a chapter URL maps to the post with that slug.
 import html
 import logging
 import re
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from urllib.parse import unquote, urlparse
 
 from bs4 import Tag
@@ -43,6 +43,19 @@ def _base_slug(slug: str) -> str:
 def _chapter_no(slug: str) -> int:
     match = re.search(r"-(\d+)$", unquote(slug or ""))
     return int(match.group(1)) if match else 0
+
+
+def _chapter_key(post: Dict) -> Tuple[int, int]:
+    """Reading order from the title: 'ஆட்டம்-45(2)' -> (45, 2).
+
+    Slugs are not reliable for split chapters ('ஆட்டம்-8(1)' is slug -71),
+    so the title number comes first and the slug number is the fallback.
+    """
+    title = _unescape(post["title"]["rendered"])
+    match = re.search(r"(\d+)\s*(?:\((\d+)\))?\s*$", title)
+    if match:
+        return int(match.group(1)), int(match.group(2) or 0)
+    return _chapter_no(post["slug"]), 0
 
 
 class SmTamilNovelsCrawler(Crawler):
@@ -79,7 +92,7 @@ class SmTamilNovelsCrawler(Crawler):
         )
         target = _base_slug(post["slug"])
         siblings = [p for p in found if _base_slug(p["slug"]) == target]
-        siblings.sort(key=lambda p: _chapter_no(p["slug"]))
+        siblings.sort(key=_chapter_key)
         return siblings
 
     def _terms(self, post: Dict) -> List[str]:
@@ -150,10 +163,11 @@ class SmTamilNovelsCrawler(Crawler):
 
         page = self.get_soup(self.novel_url)
         author = page.select_one(".author, .byline a, [rel=author]")
-        if isinstance(author, Tag) and author.get_text(strip=True):
-            self.novel_author = author.get_text(" ", strip=True)
-
-        self.novel_synopsis = self._synopsis(siblings[0]["id"])
+        if isinstance(author, Tag):
+            name = author.get_text(" ", strip=True)
+            # "admin" is the WordPress account of the site, not a writer
+            if name and name.lower() != "admin":
+                self.novel_author = name
 
         for index, item in enumerate(siblings, start=1):
             chapter_title = _unescape(item["title"]["rendered"]) or f"Chapter {index}"
@@ -166,16 +180,6 @@ class SmTamilNovelsCrawler(Crawler):
             )
         logger.info("Found %d chapters for %s", len(self.chapters), self.novel_title)
 
-    def _synopsis(self, post_id: int) -> str:
-        try:
-            data = self._api(f"/posts/{post_id}", _fields="content")
-        except Exception:
-            return ""
-        raw = (data.get("content") or {}).get("rendered") or ""
-        text = re.sub(r"<[^>]+>", " ", raw)
-        text = re.sub(r"\s+", " ", _unescape(text)).strip()
-        return text[:400]
-
     # -- chapter body -------------------------------------------------- #
 
     def download_chapter_body(self, chapter: Chapter) -> str:
@@ -186,4 +190,4 @@ class SmTamilNovelsCrawler(Crawler):
         raw = (posts[0].get("content") or {}).get("rendered") or ""
         if not raw:
             return ""
-        return self.cleaner.extract_contents(self.make_soup(raw))
+        return self.cleaner.extract_contents(self.make_soup(raw).body)

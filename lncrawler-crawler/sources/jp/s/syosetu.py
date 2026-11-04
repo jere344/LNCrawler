@@ -3,7 +3,7 @@ import logging
 import re
 from urllib.parse import quote_plus
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 from bs4 import element
 
 logger = logging.getLogger(__name__)
@@ -95,7 +95,10 @@ class SyosetuCrawler(Crawler):
         volume_id = 0
         chapter_id = 0
         for page_soup in pages:
-            for tag in page_soup.select_one(".p-eplist"):
+            eplist = page_soup.select_one(".p-eplist")
+            if not eplist:
+                continue
+            for tag in eplist:
 
                 if type(tag) is element.NavigableString:
                     continue
@@ -118,6 +121,20 @@ class SyosetuCrawler(Crawler):
                         "url": self.absolute_url(tag["href"]),
                     })
 
+        if not self.chapters:
+            if soup.select_one(".p-novel__body"):
+                # Short stories (短編) have no chapter list: the body is on the novel page.
+                if not self.volumes:
+                    self.volumes.append({"id": 1, "title": "Volume 1"})
+                self.chapters.append({
+                    "id": 1,
+                    "volume": self.volumes[0]["id"],
+                    "title": self.novel_title,
+                    "url": self.novel_url,
+                })
+            else:
+                logger.warning("No chapters found and no short-story body on %s", self.novel_url)
+
         # Novels without 部分 (parts) have no volume markers; keep them in a
         # single volume instead of leaving every chapter at volume 0.
         if not self.volumes:
@@ -139,12 +156,22 @@ class SyosetuCrawler(Crawler):
             f"/novelview/infotop/ncode/{match.group(1)}/"
         )
         info = self.get_soup(info_url)
+        status_tag = info.select_one(".p-infotop-type__type")
+        if status_tag:
+            status_text = status_tag.get_text(strip=True)
+            if "連載" in status_text:
+                self.status = NovelStatus.ongoing
+            elif "完結" in status_text:
+                self.status = NovelStatus.completed
         for dt in info.select(".p-infotop-data__title"):
             label = dt.get_text(strip=True)
             dd = dt.find_next_sibling("dd")
             if dd is None:
                 continue
-            if "キーワード" in label:
+            if "あらすじ" in label:
+                # Short stories have no summary block on the novel page.
+                self.novel_synopsis = dd.get_text("\n", strip=True)
+            elif "キーワード" in label:
                 self.tags = [x for x in dd.get_text(" ", strip=True).split() if x]
             elif "ジャンル" in label:
                 self.genres = [dd.get_text(strip=True)]

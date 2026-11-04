@@ -8,13 +8,13 @@ PDF and Unicode links.  A novel URL is one of those etext files; all files
 sharing the same ``pmuniNNNN`` work id become its chapters.
 """
 
-import html
 import logging
 import re
 from typing import List, Tuple
 
 from bs4 import Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, NovelStatus, SearchResult
 
@@ -59,6 +59,9 @@ class ProjectMaduraiCrawler(Crawler):
     language = "ta"
     has_manga = False
     has_mtl = False
+    # v2: the usage notice and empty paragraphs are no longer kept in bodies.
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     # -- catalogue ----------------------------------------------------- #
 
@@ -156,16 +159,10 @@ class ProjectMaduraiCrawler(Crawler):
 
         self.status = NovelStatus.completed
 
-        soup = self.get_soup(self.novel_url)
-        meta = soup.select_one('meta[name="description"]')
-        if isinstance(meta, Tag) and meta.get("content"):
-            self.novel_synopsis = html.unescape(meta["content"]).strip()
-
         self.volumes.append({"id": 1, "title": "Volume 1"})
         for index, link in enumerate(links, start=1):
-            title = self.novel_title
-            if len(links) > 1:
-                title = f"{self.novel_title} ({index})"
+            # One file is the whole work; a split work has no title per part.
+            title = self.novel_title if len(links) == 1 else ""
             self.chapters.append(
                 Chapter(id=index, volume=1, title=title, url=link)
             )
@@ -192,9 +189,58 @@ class ProjectMaduraiCrawler(Crawler):
         for block in body.select("ul"):
             if "Project Madurai" in block.get_text(" "):
                 block.decompose()
+        # The usage notice is spread over several text nodes and tags: cut the
+        # run from its first line to the "freely distribute" line.
+        start = body.find(string=re.compile(r"This webpage with Tamil Text"))
+        end = body.find(string=re.compile(r"freely distribute this file"))
+        if start is not None and end is not None:
+            # Collect the run only if the end line follows the start line.
+            run = []
+            for node in start.next_elements:
+                if node is end:
+                    break
+                run.append(node)
+            else:
+                run = None
+            if run is not None:
+                enclosing = [parent for parent in end.parents]
+                for node in run:
+                    # Keep the tags that wrap the end line; only their content before it goes.
+                    if any(node is parent for parent in enclosing):
+                        continue
+                    node.extract()
+                start.extract()
+                end.extract()
+
+        # Single lines of boilerplate (runs above are already gone).
         for text in body.find_all(string=True):
             value = text.strip()
             if value and any(marker in value for marker in _BOILERPLATE):
                 text.extract()
 
+        for para in body.find_all("p"):
+            if not para.get_text(strip=True) and not para.find("img"):
+                para.decompose()
+
         return self.cleaner.extract_contents(body)
+
+    def _migrate_v2(self, body, chapter):
+        soup = body_migrations.parse(body)
+        blocks = soup.find_all(recursive=False)
+        texts = [body_migrations.block_text(b) for b in blocks]
+        # The stored body has lost the "freely distribute" line (a boilerplate
+        # marker), so the notice ends at the site link line that precedes it.
+        start = next((i for i, t in enumerate(texts) if "This webpage with Tamil Text" in t), None)
+        if start is not None:
+            end = next(
+                (i for i in range(start, min(start + 15, len(blocks))) if "projectmadurai.org" in texts[i]),
+                None,
+            )
+            if end is None:
+                return None
+            for block in blocks[start : end + 1]:
+                block.decompose()
+        for para in soup.find_all("p"):
+            if not para.get_text(strip=True) and not para.find("img"):
+                para.decompose()
+        return str(soup)

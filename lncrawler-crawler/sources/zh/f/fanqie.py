@@ -95,6 +95,8 @@ def _clean_content(content: str) -> str:
 
 
 class FanqieCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most chapters are locked; only about the first 10 of each novel are free"
     base_url = "https://fanqienovel.com/"
     language = "zh"
 
@@ -192,6 +194,12 @@ class FanqieCrawler(Crawler):
         self.read_count = page.get("readCount")
 
         self._read_chapters(page)
+        skipped = sum(
+            1 for items in (page.get("chapterListWithVolume") or []) for it in items
+            if it.get("isChapterLock")
+        )
+        if skipped:
+            logger.info("Skipped %d locked chapters for %s", skipped, self.novel_title)
         if not self.chapters:
             raise ValueError(f"No chapters found for {self.novel_title!r}")
         logger.info("Found %d chapters for %s", len(self.chapters), self.novel_title)

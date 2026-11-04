@@ -3,9 +3,15 @@ import logging
 from urllib.parse import urlparse
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUS_MAP = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
 
 
 class WuxiaworldCrawler(Crawler):
@@ -76,6 +82,11 @@ class WuxiaworldCrawler(Crawler):
         head = soup.select_one(".novel-head")
         if head:
             text = head.get_text(" ", strip=True)
+            # The meta line starts with the status: "Ongoing · Author: ... · 7370 chapters".
+            meta = head.select_one("p.muted")
+            if meta:
+                status = meta.get_text(" ", strip=True).split("·")[0].strip().lower()
+                self.status = _STATUS_MAP.get(status, NovelStatus.unknown)
             if "Author:" in text:
                 self.novel_author = text.split("Author:", 1)[1].split("·")[0].strip()
 

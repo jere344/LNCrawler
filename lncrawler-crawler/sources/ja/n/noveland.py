@@ -29,6 +29,8 @@ _PUSH_RE = re.compile(r'self\.__next_f\.push\(\[(\d+),("(?:[^"\\]|\\.)*")\]\)')
 
 
 class NovelLandCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Author-enabled AI protection scrambles episode text and asks collectors to stop"
     base_url = "https://novel-land.com/"
     language = "ja"
     has_mtl = False

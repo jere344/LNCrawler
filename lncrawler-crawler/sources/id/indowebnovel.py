@@ -1,15 +1,36 @@
 # -*- coding: utf-8 -*-
 import logging
+import re
 
+from bs4 import NavigableString
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
 
 logger = logging.getLogger(__name__)
 
+# Some chapters carry a novelFire.net credit inside an obfuscated tag (<nf94b2>).
+_WATERMARK_RE = re.compile(r"n[oô]velfire(?:\.net)?", re.IGNORECASE)
+
+
+def _strip_watermark(root) -> None:
+    for text in root.find_all(string=_WATERMARK_RE):
+        holder = text.parent
+        remainder = _WATERMARK_RE.sub("", text).strip()
+        if len(text) < 200 and len(remainder) < len(text) / 2:
+            # Short node that is mostly watermark: drop the whole node.
+            text.extract()
+        else:
+            # Story text shares the node: drop only the matched span.
+            text.replace_with(NavigableString(_WATERMARK_RE.sub("", text)))
+        if holder.name != "p" and not holder.get_text(strip=True):
+            holder.decompose()
+
 
 class IndowebnovelCrawler(Crawler):
     base_url = "https://indowebnovel.id/"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self):
         self.home_url = "https://indowebnovel.id/"
@@ -79,7 +100,12 @@ class IndowebnovelCrawler(Crawler):
         self.novel_title = (h2 or possible_title).get_text(strip=True)
         logger.info("Novel title: %s", self.novel_title)
 
-        self.novel_author = "Translated by Indowebnovel"
+        self.novel_author = ""
+        for item in soup.select("ul.series-infolist li"):
+            label = item.find("b")
+            if label and label.get_text(strip=True).lower() == "author":
+                value = item.find("span")
+                self.novel_author = (value or item).get_text(" ", strip=True)
         logger.info("Novel author: %s", self.novel_author)
 
         self.genres = [
@@ -114,12 +140,34 @@ class IndowebnovelCrawler(Crawler):
                 {
                     "id": chap_id,
                     "url": self.absolute_url(a["href"]),
-                    "title": a.get_text(" - ", strip=True) or ("Chapter %d" % chap_id),
+                    "title": self._chapter_title(a),
                 }
             )
 
+    def _chapter_title(self, link) -> str:
+        # The link holds "<series> – Chapter N <language>" and a date <span>.
+        span = link.find("span") or link
+        title = re.sub(r"\s+", " ", span.get_text(" ", strip=True)).strip()
+        title = re.sub(r"\s*Bahasa Indonesia$", "", title, flags=re.IGNORECASE)
+        if self.novel_title:
+            title = re.sub(
+                r"^" + re.escape(self.novel_title) + r"\s*[–-]\s*", "", title
+            )
+        return title
+
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
+        content = soup.select_one("#content")
+        if content is not None:
+            _strip_watermark(content)
         contents = soup.select("#content p")
-        body = [str(p) for p in contents if p.text.strip()]
-        return "<p>" + "</p><p>".join(body) + "</p>"
+        # Each <p> is already a paragraph: join them as-is (no <p> inside <p>).
+        return "".join(str(p) for p in contents if p.text.strip())
+
+    def _migrate_v2(self, body, chapter):
+        soup = self.make_soup(body)
+        # The old body wrapped every <p> in a second <p>: keep the inner one.
+        for inner in [p for p in soup.find_all("p") if p.parent.name == "p"]:
+            inner.parent.replace_with(inner)
+        _strip_watermark(soup)
+        return "".join(str(p) for p in soup.find_all("p") if p.text.strip())

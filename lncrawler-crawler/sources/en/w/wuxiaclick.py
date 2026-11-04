@@ -1,110 +1,223 @@
 # -*- coding: utf-8 -*-
-import logging
-from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
 import json
+import logging
+from html import escape
+from urllib.parse import quote
+
+from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
-api_novel_chapter_url = "https://wuxia.click/api/chapters/"
 home_url = "https://wuxia.click/"
+cover_url = "https://cdn.wuxiaworld.eu/"
+
+# Search and browse pages hold 24 novels, the table of contents 100 chapters.
+MAX_SEARCH_RESULTS = 50
+MAX_LIST_PAGES = 100
+MAX_TOC_PAGES = 100
+
+STATUS_MAP = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
+
+
+def _next_data(soup) -> dict:
+    # Every page carries its data in <script id="__NEXT_DATA__">.
+    script = soup.find("script", {"id": "__NEXT_DATA__"})
+    if not script or not script.string:
+        raise LNException("No __NEXT_DATA__ payload")
+    return json.loads(script.string)
+
+
+def _cover(key, size: int):
+    if not key:
+        return None
+    return "%s%s-%d.webp" % (cover_url, key, size)
+
+
+def _novel_url(slug: str) -> str:
+    return home_url + "novel/" + slug
+
+
+def _info(novel: dict) -> str:
+    parts = []
+    if novel.get("status"):
+        parts.append(novel["status"].capitalize())
+    parts.append("%s chapters" % (novel.get("chapterCount") or 0))
+    if novel.get("latestChapterTitle"):
+        parts.append("Latest: %s" % novel["latestChapterTitle"])
+    return ", ".join(parts)
 
 
 class WuxiaClick(Crawler):
     base_url = ["https://wuxia.click/"]
-    search_results_data = []
+
+    def initialize(self) -> None:
+        # Table of contents and listing pages are fetched one after another.
+        self.init_executor(ratelimit=1)
 
     def search_novel(self, query):
-
-        soup = self.get_soup(home_url + "search/" + query)
-        # json is inside <script id="__NEXT_DATA__" type="application/json"></script>
-
-        script = soup.find("script", {"id": "__NEXT_DATA__"})
-        data = json.loads(script.contents[0])
-
-        data = data["props"]["pageProps"]["dehydratedState"]["queries"][0]["state"][
-            "data"
-        ]["results"]
-
         results = []
-        for novel in data:
-            results.append(
-                {
-                    "title": novel["name"],
-                    "url": home_url + "novel/" + novel["slug"],
-                    "info": "Latest: %s" % novel["chapters"],
-                }
-            )
-        return results
+        seen = set()
+        page = 1
+        total_pages = 1
+        while (
+            len(results) < MAX_SEARCH_RESULTS
+            and page <= total_pages
+            and page <= MAX_LIST_PAGES
+        ):
+            url = home_url + "search/" + quote(query, safe="")
+            if page > 1:
+                url += "?page=%d" % page
+            props = _next_data(self.get_soup(url))["props"]["pageProps"]
+            result = props.get("result") or {}
+            items = result.get("items") or []
+            total_pages = result.get("totalPages") or 1
+            if not items:
+                break
+            for novel in items:
+                slug = novel.get("slug")
+                # MTL novels are excluded from search.
+                if not slug or novel.get("isMtl") or slug in seen:
+                    continue
+                seen.add(slug)
+                results.append(
+                    SearchResult(
+                        title=novel.get("title") or "",
+                        url=_novel_url(slug),
+                        info=_info(novel),
+                        cover=_cover(novel.get("coverKey"), 240),
+                    )
+                )
+            page += 1
+        return results[:MAX_SEARCH_RESULTS]
 
     def browse_novels(self, offset: int = 0, limit: int = 50):
         results = []
-        cursor = 0
-        while len(results) < offset + limit:
-            data = self.get_json(
-                "%sapi/novels/?limit=50&offset=%d&order=-total_views"
-                % (self.home_url, cursor)
-            )
-            items = data.get("results") or []
+        seen = set()
+        needed = offset + limit
+        page = 1
+        total_pages = 1
+        while (
+            len(results) < needed
+            and page <= total_pages
+            and page <= MAX_LIST_PAGES
+        ):
+            url = home_url + "browse"
+            if page > 1:
+                url += "?page=%d" % page
+            props = _next_data(self.get_soup(url))["props"]["pageProps"]
+            listing = props.get("listing") or {}
+            items = listing.get("items") or []
+            total_pages = listing.get("totalPages") or 1
             if not items:
                 break
-            for item in items:
+            for novel in items:
+                slug = novel.get("slug")
+                # MTL novels are excluded from browse.
+                if not slug or novel.get("isMtl") or slug in seen:
+                    continue
+                seen.add(slug)
                 results.append(
                     SearchResult(
-                        title=item["name"],
-                        url="%snovel/%s" % (self.home_url, item["slug"]),
+                        title=novel.get("title") or "",
+                        url=_novel_url(slug),
+                        info=_info(novel),
+                        cover=_cover(novel.get("coverKey"), 240),
                     )
                 )
-            cursor += len(items)
-            if not data.get("next"):
-                break
-            if cursor > 2000:
-                break
-        return results[offset : offset + limit]
+            page += 1
+        return results[offset:needed]
 
     def read_novel_info(self):
-        soup = self.get_soup(self.novel_url)
-        script = soup.find("script", {"id": "__NEXT_DATA__"})
-        novel_data = json.loads(script.contents[0])
-        novel_data = novel_data["props"]["pageProps"]["dehydratedState"]["queries"][0][
-            "state"
-        ]["data"]
+        data = _next_data(self.get_soup(self.novel_url))
+        props = data["props"]["pageProps"]
+        novel = props["novel"]
 
-        possible_title = novel_data["name"]
-        assert possible_title, "No novel title"
-        self.novel_title = possible_title
+        self.novel_title = novel["title"]
+        assert self.novel_title, "No novel title"
         logger.info("Novel title: %s", self.novel_title)
 
-        self.novel_author = novel_data["author"]["name"]
-        logger.info('%s', self.novel_author)
+        self.novel_author = (novel.get("author") or {}).get("name") or ""
+        logger.info("Novel author: %s", self.novel_author)
 
-        self.novel_cover = novel_data["image"]
+        self.novel_cover = _cover(novel.get("coverKey"), 480)
         logger.info("Novel cover: %s", self.novel_cover)
 
-        self.novel_synopsis = novel_data["description"]
-        logger.info("Novel synopsis: %s", self.novel_synopsis)
+        self.novel_synopsis = novel.get("description") or ""
+        self.alternative_titles = [t for t in novel.get("altTitles") or [] if t]
+        self.status = STATUS_MAP.get(
+            (novel.get("status") or "").lower(), NovelStatus.unknown
+        )
+        self.is_adult = bool(novel.get("isAdult"))
+        if novel.get("isMtl"):
+            self.has_mtl = True
 
-        self.novel_tags = [x["name"] for x in novel_data["categories"]] + [
-            x["name"] for x in novel_data["tags"]
+        self.novel_tags = [g["name"] for g in novel.get("genres") or []] + [
+            t["name"] for t in novel.get("tags") or []
         ]
         logger.info("Novel tags: %s", self.novel_tags)
 
-        slug = novel_data["slug"]
-        chapter_data = self.get_response(api_novel_chapter_url + slug + "/?format=json").json()
-        for chapter in chapter_data:
-            chap_id = chapter["index"]
+        self._read_chapter_list(
+            novel["slug"], props.get("toc") or {}, data.get("buildId")
+        )
+
+    def _read_chapter_list(self, slug: str, toc: dict, build_id) -> None:
+        # The first TOC page is in the novel page; the rest come from the
+        # Next.js data route (100 chapters per page), HTML pages as fallback.
+        chapters = {}
+        page = 1
+        total_pages = len(toc.get("ranges") or []) or 1
+        while True:
+            added = 0
+            for item in toc.get("items") or []:
+                number = item.get("number")
+                if number is None or number in chapters:
+                    continue
+                chapters[number] = item.get("title") or ""
+                added += 1
+            if not added or page >= total_pages or page >= MAX_TOC_PAGES:
+                break
+            page += 1
+            toc = self._toc_page(slug, page, build_id)
+
+        if not chapters:
+            raise LNException("No chapters found in the table of contents")
+
+        # Chapter URLs use the site chapter number, ids follow reading order.
+        for index, number in enumerate(sorted(chapters), start=1):
             self.chapters.append(
                 {
-                    "id": chap_id,
-                    "title": chapter["title"],
-                    "url": home_url + "chapter/" + chapter["novSlugChapSlug"],
+                    "id": index,
+                    "title": chapters[number],
+                    "url": "%schapter/%s-%d" % (home_url, slug, number),
                 }
             )
+        logger.info("Found %d chapters", len(self.chapters))
+
+    def _toc_page(self, slug: str, page: int, build_id) -> dict:
+        if build_id:
+            try:
+                data = self.get_json(
+                    "%s_next/data/%s/novel/%s.json?page=%d"
+                    % (home_url, build_id, slug, page)
+                )
+                return data["pageProps"]["toc"]
+            except Exception as e:
+                logger.debug("TOC data route failed (%s), using HTML page", e)
+        data = _next_data(self.get_soup("%snovel/%s?page=%d" % (home_url, slug, page)))
+        return data["props"]["pageProps"]["toc"]
 
     def download_chapter_body(self, chapter):
-        soup = self.get_soup(chapter["url"])
-        script = soup.find("script", {"id": "__NEXT_DATA__"})
-        chapter_data = json.loads(script.contents[0])
-        contents = chapter_data["props"]["pageProps"]["dehydratedState"]["queries"][0]["state"]["data"]["text"]
-
-        contents = "<p>" + contents.replace("\n", "</p><p>") + "</p>"
-        return contents
+        props = _next_data(self.get_soup(chapter["url"]))["props"]["pageProps"]
+        paragraphs = ((props.get("data") or {}).get("chapter") or {}).get(
+            "paragraphs"
+        ) or []
+        return "".join(
+            "<p>%s</p>" % escape(p.strip(), quote=False)
+            for p in paragraphs
+            if p and p.strip()
+        )

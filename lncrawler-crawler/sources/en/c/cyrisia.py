@@ -44,6 +44,8 @@ _BRACKET_RE = re.compile(r"\[[^\]]*\]")
 _EMOJI_RE = re.compile(
     "[\U0001F000-\U0001FAFF\u2190-\u21FF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D]+"
 )
+# Series type badge under the title (``<a class="skind skind-...">``).
+_EDITIONS = {"skind-ln": "Light Novel", "skind-webnovel": "Web Novel"}
 
 
 class CyrisiaCrawler(EpubCrawler):
@@ -116,6 +118,11 @@ class CyrisiaCrawler(EpubCrawler):
             terms.append(str(value))
         return [term.lower() for term in terms if term]
 
+    @staticmethod
+    def _is_mtl(meta: Optional[dict]) -> bool:
+        tags = (meta or {}).get("tags") or []
+        return any(str(tag).strip().lower() == "mtl" for tag in tags)
+
     @classmethod
     def _search_rank(cls, name: str, meta: Optional[dict], query: str) -> Optional[int]:
         query = query.lower()
@@ -166,6 +173,9 @@ class CyrisiaCrawler(EpubCrawler):
 
         ranked = []
         for name in names:
+            # Machine-translated series are flagged in the catalog; keep them out.
+            if self._is_mtl(metadata.get(name)):
+                continue
             rank = self._search_rank(name, metadata.get(name), query)
             if rank is not None:
                 ranked.append((rank, name))
@@ -204,6 +214,12 @@ class CyrisiaCrawler(EpubCrawler):
         if isinstance(cover, Tag) and cover.get("content"):
             self.novel_cover = self.absolute_url(cover["content"])
 
+        kind = soup.select_one("div.sh-meta a.skind")
+        if isinstance(kind, Tag):
+            for css_class in kind.get("class") or []:
+                if css_class in _EDITIONS:
+                    self.novel_edition = _EDITIONS[css_class]
+
         desc = soup.select_one("p.synopsis-trunc")
         if isinstance(desc, Tag):
             self.novel_synopsis = desc.get_text(" ", strip=True)
@@ -229,7 +245,9 @@ class CyrisiaCrawler(EpubCrawler):
                 text = str(value).strip()
                 if text and text not in tags:
                     tags.append(text)
-        self.novel_tags = tags
+        if self._is_mtl(meta):
+            self.has_mtl = True
+        self.novel_tags = [tag for tag in tags if tag.lower() != "mtl"]
 
         titles: List[str] = []
         for key in ("title_en", "title_ja", "romaji", "synonyms", "aliases"):

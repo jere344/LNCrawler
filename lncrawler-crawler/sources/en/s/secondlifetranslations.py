@@ -1,11 +1,20 @@
 # -*- coding: utf-8 -*-
+import html
 import logging
+import re
 from urllib.parse import quote_plus
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
 
 clear = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 crypt = "rhbndjzvqkiexcwsfpogytumalVUQXWSAZKBJNTLEDGIRHCPFOMY"
@@ -20,9 +29,12 @@ def decrypt_string(crypted_string):
 
 class SecondLifeTransCrawler(Crawler):
     base_url = 'https://secondlifetranslations.com/'
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self):
-        self.cleaner.bad_css.update(['.jmbl-disclaimer'])
+        # The "Support <translator> on Ko-fi" call-to-action block at the end of some chapters.
+        self.cleaner.bad_css.update(['.jmbl-disclaimer', '.wp-block-buttons'])
 
     def search_novel(self, query):
         data = self.get_json(
@@ -77,6 +89,35 @@ class SecondLifeTransCrawler(Crawler):
             a.text.strip() for a in soup.select('.novelgenres a')
         ]
         logger.info('Novel tags: %s', self.novel_tags)
+        self.is_adult = 'Adult' in self.novel_tags
+
+        # "Label:" lines followed by their value, e.g. "Translation Status:" / "Ongoing".
+        lines = []
+        if novelcontent:
+            lines = novelcontent.get_text('\n', strip=True).split('\n')
+        fields = {}
+        for label, value in zip(lines, lines[1:]):
+            if label.endswith(':') and not value.endswith(':'):
+                fields.setdefault(label[:-1].lower(), value)
+
+        self.status = _STATUSES.get(
+            fields.get('translation status', '').lower(), NovelStatus.unknown
+        )
+        raw_title = fields.get('raw title & source', '')
+        if raw_title:
+            self.alternative_titles = [raw_title]
+
+        # The summary block holds the blurb, a "Synopsis:" label, a tag line and
+        # sometimes the translator's note; only the blurb paragraphs are kept.
+        summary = soup.select_one('div.novel-entry-content')
+        if summary:
+            paragraphs = []
+            for p in summary.find_all('p'):
+                text = p.get_text(' ', strip=True)
+                if not text or (text.endswith(':') and len(text) < 40) or re.match(r'(tags?|translators?)\b', text, re.I):
+                    continue
+                paragraphs.append(f'<p>{html.escape(text, quote=False)}</p>')
+            self.novel_synopsis = ''.join(paragraphs)
 
         volumes = soup.select('button.accordion')
         for vol_id, volume in enumerate(volumes, 1):
@@ -99,3 +140,6 @@ class SecondLifeTransCrawler(Crawler):
             span.string = decrypt_string(span.text)
 
         return self.cleaner.extract_contents(contents)
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.drop_matching(body, r"^Support .{1,40} on Ko-fi$", max_length=60)

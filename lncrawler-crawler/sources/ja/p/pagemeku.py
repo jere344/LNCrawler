@@ -117,7 +117,6 @@ class PageMekuCrawler(Crawler):
             self.novel_synopsis = synopsis.get_text(" ", strip=True)
 
         genres = []
-        tags = []
         status = NovelStatus.ongoing
         for badge in soup.select("span.badge"):
             link = badge.select_one('a[href*="/genres/"]')
@@ -125,24 +124,24 @@ class PageMekuCrawler(Crawler):
                 genres.append(link.get_text(" ", strip=True))
                 continue
             text = badge.get_text(" ", strip=True)
-            if not text:
-                continue
             if text in _STATUSES:
                 status = _STATUSES[text]
-            elif re.search(r"\d", text) and ("文字" in text):
-                tags.append(text)
-            elif "AI" in text or "言語" in text or "だれでも" in text:
-                tags.append(text)
         self.genres = list(dict.fromkeys(genres))
         self.status = status
+        self.novel_tags = list(self.genres)
 
-        self.volumes.append(Volume(id=1, title="Volume 1"))
-        seen = set()
+        # The "最初から読む" button links to the first chapter too, without a
+        # title attribute: keep the titled chapter-list entry for that URL.
+        links = {}
         for anchor in soup.select('a[href*="/chapters/"]'):
             href = anchor.get("href") or ""
-            if not href or href in seen:
+            if not href:
                 continue
-            seen.add(href)
+            if href not in links or anchor.get("title"):
+                links[href] = anchor
+
+        self.volumes.append(Volume(id=1, title="Volume 1"))
+        for href, anchor in links.items():
             title = (anchor.get("title") or anchor.get_text(" ", strip=True)).strip()
             self.chapters.append(
                 Chapter(
@@ -152,9 +151,6 @@ class PageMekuCrawler(Crawler):
                     volume=1,
                 )
             )
-        tags.append(f"全{len(self.chapters)}話")
-        self.tags = list(dict.fromkeys(tags))
-        self.novel_tags = list(dict.fromkeys(self.genres + self.tags))
         logger.info("Found %d chapters for %s", len(self.chapters), self.novel_title)
 
     def download_chapter_body(self, chapter: Chapter) -> str:

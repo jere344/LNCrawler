@@ -3,8 +3,9 @@ import logging
 import math
 import re
 
-from bs4 import Tag
+from bs4 import Comment, NavigableString, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import NovelStatus, SearchResult
 
@@ -14,12 +15,15 @@ API = "https://truyenyy.mobi/wp-json/wp/v2/novel"
 CHAPTERS_PER_PAGE = 100
 MAX_CHAPTER_PAGES = 200
 MTL_RE = re.compile(r"\bconvert(?:er)?\b|nửa sau là convert", re.IGNORECASE)
+SITE_BOILERPLATE = "Chúng tôi rất vui khi các bạn đến với Website"
 
 
 class TruyenYyCrawler(Crawler):
     base_url = "https://truyenyy.mobi/"
     language = "vi"
     has_mtl = False
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         # Polite on first indexing: one request per second across all jobs.
@@ -70,9 +74,9 @@ class TruyenYyCrawler(Crawler):
         ]
         self.novel_author = ", ".join(dict.fromkeys(authors))
 
+        # Novel's own genres only: ".tag-list" is the site-wide genre menu.
         genres = [a.get_text(strip=True) for a in soup.select('a[itemprop="genre"]')]
-        tags = [a.get_text(strip=True) for a in soup.select(".tag-list a")]
-        self.novel_tags = list(dict.fromkeys(t for t in genres + tags if t))
+        self.novel_tags = list(dict.fromkeys(t for t in genres if t))
 
         status_tag = soup.select_one(".info .text-success")
         self.status = self._parse_status(status_tag.get_text(strip=True) if status_tag else "")
@@ -83,9 +87,17 @@ class TruyenYyCrawler(Crawler):
 
         desc = soup.select_one(".desc-text")
         if desc:
-            self.novel_synopsis = "\n".join(
-                p.get_text(" ", strip=True) for p in desc.select("p") if p.get_text(strip=True)
-            ) or desc.get_text(" ", strip=True)
+            paragraphs = [p.get_text(" ", strip=True) for p in desc.select("p")]
+            blurb = []
+            for text in paragraphs or [desc.get_text(" ", strip=True)]:
+                # First paragraph is site boilerplate shared by every novel.
+                if not text or text.startswith(SITE_BOILERPLATE):
+                    continue
+                # The credits block (Tác giả, Editer, Beta...) comes before "Văn án".
+                if "Văn án" in text:
+                    text = text.split("Văn án", 1)[1].strip()
+                blurb.append(text)
+            self.novel_synopsis = "\n".join(t for t in blurb if t)
 
         # Convert (machine translation) credit: flag only the affected novels.
         if MTL_RE.search(self.novel_synopsis or "") or MTL_RE.search(
@@ -133,6 +145,12 @@ class TruyenYyCrawler(Crawler):
         if not isinstance(body, Tag):
             return ""
         paragraphs = [p for p in body.find_all("p", recursive=False)]
+        # Server repeats passages back to back inside one text node; keep one copy.
+        for p in paragraphs:
+            for node in p.find_all(string=True):
+                single = self._undouble(node)
+                if single is not None:
+                    node.replace_with(NavigableString(single))
         # Server duplicates every paragraph; keep one copy.
         texts = [p.get_text(" ", strip=True) for p in paragraphs]
         n = len(paragraphs)
@@ -141,6 +159,28 @@ class TruyenYyCrawler(Crawler):
         elif n >= 2 and n % 2 == 0 and all(texts[i] == texts[i + 1] for i in range(0, n, 2)):
             paragraphs = paragraphs[::2]
         return "".join(str(p) for p in paragraphs if p.get_text(strip=True))
+
+    def _migrate_v2(self, body, chapter):
+        soup = body_migrations.parse(body)
+        for node in list(soup.find_all(string=True)):
+            single = self._undouble(node)
+            if single is not None:
+                node.replace_with(NavigableString(single))
+        return str(soup)
+
+    @staticmethod
+    def _undouble(node):
+        """Return one copy when a text node is the same passage written twice, else None."""
+        if isinstance(node, Comment):
+            return None
+        s = str(node).strip()
+        for cut in range(len(s) // 2 - 3, len(s) // 2 + 4):
+            if cut <= 0 or cut >= len(s) or not s[cut].isspace():
+                continue
+            first, second = s[:cut].strip(), s[cut:].strip()
+            if len(first) >= 40 and first == second:
+                return first
+        return None
 
     @staticmethod
     def _parse_status(label):

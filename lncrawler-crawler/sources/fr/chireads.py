@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
+import re
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
 
@@ -77,9 +78,13 @@ class Chireads(Crawler):
         if cover:
             self.novel_cover = self.absolute_url(cover.get("src"))
 
-        self.novel_title = (
-            metadata.select_one(".refresh-detail-title").text.split("|")[0].strip()
+        # The title cell holds the French title followed by alternative titles,
+        # separated by " | " (novel 0) or " / " (novel 1).
+        title_parts = re.split(
+            r"\s+[|/]\s+", metadata.select_one(".refresh-detail-title").text.strip()
         )
+        self.novel_title = title_parts[0].strip()
+        self.alternative_titles = [x.strip() for x in title_parts[1:] if x.strip()]
 
         for row in content.select(".refresh-detail-meta > div"):
             dt = row.select_one("dt")
@@ -87,6 +92,25 @@ class Chireads(Crawler):
             if dt and dd and "Auteur" in dt.text:
                 self.novel_author = dd.text.strip()
                 break
+
+        # "Traducteur" (or "Fantrad" for fan translations). The Fantrad cell can
+        # also hold "Check : <name>" after a "|", which is the proofreader.
+        translators = []
+        for row in content.select(".refresh-detail-meta > div"):
+            dt = row.select_one("dt")
+            dd = row.select_one("dd")
+            if not (dt and dd):
+                continue
+            label = dt.text.strip()
+            if "Traduc" in label or "Fantrad" in label:
+                for part in dd.text.split("|"):
+                    part = part.strip()
+                    if part.lower().startswith("check"):
+                        self.editors = [part.split(":", 1)[-1].strip()]
+                    elif part:
+                        translators.append(part)
+        if translators:
+            self.translators = translators
 
         # Chapters are grouped into tome (volume) segments. Each segment is a
         # <button aria-controls="refresh-detail-volume-N"> whose text holds the

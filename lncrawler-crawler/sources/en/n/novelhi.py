@@ -6,7 +6,7 @@ from typing import List
 from urllib.parse import quote
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ class NovelHiCrawler(Crawler):
     ]
 
     language = "en"
+    version = 2
 
     def search_novel(self, query: str) -> List[SearchResult]:
         data = self.get_json(
@@ -70,17 +71,27 @@ class NovelHiCrawler(Crawler):
                 author = span.find("em")
                 if author:
                     self.novel_author = author.text.strip()
+            elif text.strip().startswith("Status"):
+                value = span.get_text(" ", strip=True).lower()
+                if "completed" in value:
+                    self.status = NovelStatus.completed
+                elif "hiatus" in value:
+                    self.status = NovelStatus.hiatus
+                elif "ongoing" in value:
+                    self.status = NovelStatus.ongoing
         logger.info("Novel author: %s", self.novel_author)
 
-        synopsis_tag = soup.select_one(".intro_txt") or soup.select_one(".detail-desc")
+        # ".intro_txt" also holds the "show less" / "show more" toggle links
+        synopsis_tag = soup.select_one(".detail-desc") or soup.select_one(".intro_txt")
         if synopsis_tag:
             self.novel_synopsis = synopsis_tag.get_text("\n", strip=True)
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
         try:
-            genres = self.get_json(f"{self.home_url}book/listBookGenre?bookId={book_id}")
+            # listBookGenre returns the site-wide genre menu, not this novel's genres
+            genres = self.get_json(f"{self.home_url}book/queryBookGenre?bookId={book_id}")
             self.novel_tags = ", ".join(
-                item["name"] for item in (genres.get("data") or [])
+                item["genreName"] for item in (genres.get("data") or [])
             )
         except Exception as e:
             logger.warning("Failed to parse novel tags | %s", e)
@@ -131,6 +142,10 @@ class NovelHiCrawler(Crawler):
         content = payload.get("content") or ""
         if payload.get("fontObfuscation"):
             content = self._decode_rot13_text(content)
+
+        # a stray "<sent ...NOVELHI_SENT_CLOSE>" open tag leaves one <sent>
+        # unclosed, so every later sentence is repeated inside it
+        content = re.sub(r"<sent id=[^>]*NOVELHI_SENT_CLOSE>", "", content)
 
         body = self.make_soup(content)
         paragraphs = body.select("sent")

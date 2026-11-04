@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Naver novels (novel.naver.com) - Korean: Challenge League and Webnovel.
+"""Naver novels (novel.naver.com) - Korean: Challenge League only.
 
-Both sections use the same server-rendered markup and are served by one source.
-The URL path decides the section for a novel:
+Only the Challenge League section (챌린지리그, ``/challenge/...``) is offered:
+all its chapters are readable without login.
 
-- ``/challenge/...`` (챌린지리그): all chapters readable without login.
-- ``/webnovel/...`` (웹소설): free chapters only. A paid chapter has no readable
-  text on its detail page, so it returns an empty body and is skipped. Nothing
-  here attempts to pay, log in or unlock a chapter.
+The Webnovel section (웹소설, ``/webnovel/...``) is not supported. Most of its
+chapters are paid (e.g. 3 free out of 97), and sources where more than half the
+chapters are paywalled are not offered. ``read_novel_info`` raises LNException
+for a webnovel URL, and search and browse never return webnovel novels.
 
-Search and browse cover both sections. Search results carry the section label in
-``info`` next to the author so the two are told apart.
+Search results carry the section label in ``info`` next to the author.
 """
 
 import html
@@ -20,15 +19,18 @@ from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote_plus, urlparse
 
 from lncrawl.core.crawler import Crawler
+from lncrawl.core.exeptions import LNException
 from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 SITE = "https://novel.naver.com"
+# Sections offered by this source.
 SECTIONS = {
     "/challenge": "챌린지리그",
-    "/webnovel": "웹소설",
 }
+# Recognised in URLs but refused: paywalled, see module docstring.
+PAYWALLED_SECTION = "/webnovel"
 GENRES = [101, 102, 103, 104, 106, 109, 110, 111]
 MAX_PAGES = 500
 
@@ -36,7 +38,6 @@ _NOVEL_ID_RE = re.compile(r"novelId=(\d+)")
 _VOLUME_RE = re.compile(r"volumeNo=(\d+)")
 _EMAIL_RE = re.compile(r"^작가\s*email", re.IGNORECASE)
 _SIGNATURE_RE = re.compile(r"^《[^《》]+》$")
-_WEBNOVEL_NUMBER_RE = re.compile(r"^#\s*\d+\.\s*")
 
 
 def _subject(node) -> str:
@@ -70,20 +71,20 @@ class NaverNovelCrawler(Crawler):
     def _section(url: str) -> Optional[str]:
         """Return "/challenge" or "/webnovel" from the URL path, else None."""
         path = urlparse(url or "").path
-        for prefix in SECTIONS:
+        for prefix in (*SECTIONS, PAYWALLED_SECTION):
             if path.startswith(prefix + "/"):
                 return prefix
         return None
 
     @classmethod
     def _cards(cls, soup) -> List[Tuple[str, str, str]]:
-        """(section, novel_id, title) for every novel link on a listing page."""
+        """(section, novel_id, title) for every offered novel link on a listing page."""
         titles: Dict[Tuple[str, str], str] = {}
         for a in soup.select('a[href*="/list?novelId="]'):
             href = a.get("href", "")
             prefix = cls._section(href)
             novel_id = cls._novel_id(href)
-            if not prefix or not novel_id:
+            if prefix not in SECTIONS or not novel_id:
                 continue
             key = (prefix, novel_id)
             title = ""
@@ -156,30 +157,32 @@ class NaverNovelCrawler(Crawler):
                 results.append(SearchResult(title=title, url=novel_url))
             return len(results) - before
 
-        # Webnovel genre pages first, then Challenge popular and genre pages.
-        for prefix in ("/webnovel", "/challenge"):
-            if prefix == "/challenge" and not full():
-                pull(f"{SITE}/challenge/popular")
-            for genre in GENRES:
-                if full():
-                    break
-                for page in range(1, MAX_PAGES + 1):
-                    if full():
-                        break
-                    if pull(f"{SITE}{prefix}/genre?genre={genre}&page={page}") == 0:
-                        break
+        # Challenge popular page first, then the Challenge genre pages.
+        if not full():
+            pull(f"{SITE}/challenge/popular")
+        for genre in GENRES:
             if full():
                 break
+            for page in range(1, MAX_PAGES + 1):
+                if full():
+                    break
+                if pull(f"{SITE}/challenge/genre?genre={genre}&page={page}") == 0:
+                    break
         return results[offset : offset + limit]
 
     def read_novel_info(self) -> None:
         prefix = self._section(self.novel_url)
+        if prefix == PAYWALLED_SECTION:
+            raise LNException(
+                "Naver Webnovel (novel.naver.com/webnovel) is not supported: most of its "
+                "chapters are paid, so only a few are free. Use a Challenge League "
+                "(novel.naver.com/challenge) novel instead."
+            )
         novel_id = self._novel_id(self.novel_url)
         if not prefix or not novel_id:
             raise ValueError(f"Unsupported Naver novel URL: {self.novel_url}")
 
-        if prefix in ("/webnovel", "/challenge"):
-            self.novel_edition = "Web Novel"
+        self.novel_edition = "Web Novel"
 
         soup = self.get_soup(f"{SITE}{prefix}/list?novelId={novel_id}")
         title = soup.select_one("h2.title")
@@ -217,7 +220,7 @@ class NaverNovelCrawler(Crawler):
             self.chapters.append(
                 Chapter(
                     id=index,
-                    title=title_text or f"Chapter {number}",
+                    title=title_text,
                     url=f"{SITE}{prefix}/detail?novelId={novel_id}&volumeNo={number}",
                 )
             )
@@ -240,10 +243,7 @@ class NaverNovelCrawler(Crawler):
                 number = int(match.group(1))
                 if number in found:
                     continue
-                title = _subject(li.select_one("p.subj"))
-                if prefix == "/webnovel":
-                    title = _WEBNOVEL_NUMBER_RE.sub("", title)
-                found[number] = title
+                found[number] = _subject(li.select_one("p.subj"))
                 new_count += 1
             if new_count == 0:
                 break

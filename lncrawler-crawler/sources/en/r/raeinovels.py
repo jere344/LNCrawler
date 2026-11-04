@@ -118,7 +118,10 @@ class RaeiNovelsCrawler(Crawler):
         for key in ("novelTags", "nuTags"):
             for tag in novel.get(key) or []:
                 text = str(tag).strip()
-                if text and text not in tags:
+                # "R-18" is a content rating, not a tag
+                if text.upper() == "R-18":
+                    self.is_adult = True
+                elif text and text.lower() not in (t.lower() for t in tags):
                     tags.append(text)
         self.genres = genres
         self.tags = tags

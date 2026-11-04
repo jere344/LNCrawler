@@ -223,8 +223,14 @@ class Kanunu8Crawler(Crawler):
     def read_novel_info(self):
         soup = self.get_soup(self.novel_url, encoding="gbk")
 
-        page_title = soup.title.get_text(strip=True) if soup.title else ""
-        title = page_title.split(" - ")[0]
+        # The <title> of some books lists the part titles after the name ("X /X1,X2");
+        # the <h1> carries the name alone.
+        h1 = soup.select_one("h1")
+        if h1 and h1.get_text(strip=True):
+            title = h1.get_text(strip=True)
+        else:
+            page_title = soup.title.get_text(strip=True) if soup.title else ""
+            title = page_title.split(" - ")[0]
         self.novel_title = re.split(r"\s+by\s+", title)[0].strip() or "Unknown"
 
         text = soup.get_text(" ", strip=True)
@@ -237,27 +243,36 @@ class Kanunu8Crawler(Crawler):
         self.novel_synopsis = m.group(1).strip() if m else ""
 
         self.status = NovelStatus.unknown
-        self.volumes = [Volume(id=1, title="正文")]
 
+        # Chapters sit under <div class="mulu-title"><h2> part headings (in document
+        # order); a book without headings is one "正文" volume.
+        volumes: List[Volume] = []
         chapters = []
         seen = set()
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
+        heading = "正文"
+        for el in soup.select(".mulu-title h2, a[href]"):
+            if el.name == "h2":
+                heading = el.get_text(strip=True) or "正文"
+                continue
+            href = el["href"]
             if not CHAPTER_HREF_RE.match(href):
                 continue
             url = urljoin(self.novel_url, href)
-            title = a.get_text(strip=True)
+            title = el.get_text(strip=True)
             if not title or url in seen:
                 continue
             seen.add(url)
+            if not volumes or volumes[-1].title != heading:
+                volumes.append(Volume(id=len(volumes) + 1, title=heading))
             chapters.append(
                 Chapter(
                     id=len(chapters) + 1,
                     url=url,
                     title=title,
-                    volume=1,
+                    volume=volumes[-1].id,
                 )
             )
+        self.volumes = volumes
         self.chapters = chapters
         logger.info("kanunu8: %d chapters for %s", len(chapters), self.novel_title)
 

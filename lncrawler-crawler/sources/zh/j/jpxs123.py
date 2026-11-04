@@ -96,7 +96,9 @@ class JpXs123Crawler(Crawler):
         raw_title = h1.get_text(strip=True)
         if "全本" in raw_title:
             self.status = NovelStatus.completed
-        self.novel_title = re.sub(r"\s*[（(](全本|连载|完结)[)）]\s*$", "", raw_title).strip()
+        self.novel_title = re.sub(
+            r"\s*[（(](全本|连载|完结|\d+\s*-\s*\d+)[)）]\s*$", "", raw_title
+        ).strip()
         logger.info("Novel title: %s", self.novel_title)
 
         author_link = soup.select_one(".date span a")
@@ -121,7 +123,9 @@ class JpXs123Crawler(Crawler):
                 if line.strip()
             ]
             synopsis_lines = []
-            in_synopsis = False
+            # Some pages have no "简介：" label: the untagged lines are the blurb.
+            has_label = any(line.startswith("简介：") for line in lines)
+            in_synopsis = not has_label
             for line in lines:
                 if line.startswith("别名："):
                     alias = line[len("别名："):].strip()

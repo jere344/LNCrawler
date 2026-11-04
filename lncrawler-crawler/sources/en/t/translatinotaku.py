@@ -17,7 +17,8 @@ import re
 
 from bs4 import BeautifulSoup, Tag
 
-from lncrawl.models import NovelStatus, SearchResult
+from lncrawl.core import body_migrations
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 from lncrawl.templates.madara import MadaraTemplate
 
 logger = logging.getLogger(__name__)
@@ -35,16 +36,66 @@ _STATUSES = {
 }
 
 
+# The site files the source language among the genres ("Chinese", "Korean").
+_LANGUAGE_GENRES = {"chinese", "korean", "japanese", "english"}
+
+# Chapter titles start with a short name of the novel: "GLSR Chapter 1 (Part 1)".
+_NOVEL_PREFIX = re.compile(r"^[A-Z][A-Z.]*\s+(?=Chapter\b)")
+
+
+def _has_gravatar(tag: Tag, images: dict) -> bool:
+    """True if the block shows a gravatar: the src, or the original URL of a stored image."""
+    imgs = [tag] if tag.name == "img" else tag.find_all("img")
+    for img in imgs:
+        src = img.get("src") or ""
+        if "gravatar.com" in src or "gravatar.com" in images.get(src.rsplit("/", 1)[-1], ""):
+            return True
+    return False
+
+
 class TranslatinOtakuCrawler(MadaraTemplate):
     base_url = "https://translatinotaku.net/"
     language = "en"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
+
+    def initialize(self) -> None:
+        super().initialize()
+        self.cleaner.bad_css.update(
+            [
+                # Ad slots (ezoic / adsense scripts) and the author box with the Patreon promo.
+                ".code-block",
+                ".wp-biographia-container-around",
+            ]
+        )
 
     def read_novel_info(self) -> None:
         super().read_novel_info()
         self.novel_edition = "Web Novel"
 
+    def _migrate_v2(self, body, chapter):
+        # The translator's author box is the last block: drop it and everything after.
+        images = chapter.get("images") or {}
+        dropping = False
+
+        def drop(text, tag):
+            nonlocal dropping
+            dropping = dropping or _has_gravatar(tag, images)
+            return dropping
+
+        return body_migrations.drop_blocks(body, drop)
+
+    def parse_chapter_item(self, tag: Tag, id: int) -> Chapter:
+        return Chapter(
+            id=id,
+            title=_NOVEL_PREFIX.sub("", tag.text.strip()),
+            url=self.absolute_url(tag["href"]),
+        )
+
     def parse_genres(self, soup: BeautifulSoup):
-        genres = list(super().parse_genres(soup))
+        genres = [
+            g for g in super().parse_genres(soup) if g.lower() not in _LANGUAGE_GENRES
+        ]
         self.genres = genres
         yield from genres
         for item in soup.select(".post-content_item"):

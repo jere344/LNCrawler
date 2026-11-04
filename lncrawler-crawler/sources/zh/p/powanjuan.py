@@ -83,10 +83,15 @@ class PoWanJuanCrawler(Crawler):
         if categories:
             self.novel_tags = categories
 
+        seen = set()
         for a in soup.select("a[href]"):
             href = a["href"]
             if not re.search(r"/view/\d+-\d+-\d+\.html$", href):
                 continue
+            # The "在线阅读" (read online) button points at chapter 1 and repeats its URL.
+            if href in seen or a.get_text(strip=True) == "在线阅读":
+                continue
+            seen.add(href)
             self.chapters.append(
                 {
                     "id": len(self.chapters) + 1,

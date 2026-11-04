@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+from html import escape
 
 from bs4.element import Tag
 from lncrawl.core.crawler import Crawler
@@ -28,9 +29,9 @@ class TigerTranslations(Crawler):
             for line in content.text.splitlines():
                 if "author:" in line.lower():
                     self.novel_author = line[line.find(':') + 1:].strip()
-                    # Use synopsis to refer to translator / source -> not sure if ok to do
-                    self.novel_synopsis = "Translated by TigerTranslations.org"
+                    self.translators = ["TigerTranslations"]
                     break  # no need to continue after finding author
+            self.novel_synopsis = self._synopsis(content)
             first = content.find("p")
             if first:
                 titles = []
@@ -55,17 +56,37 @@ class TigerTranslations(Crawler):
         if not isinstance(content, Tag):
             return
 
-        for a in content.select("a"):
-            if not a.text.strip().lower().startswith("chapter"):
+        links = [a for a in content.select("a") if a.text.strip().lower().startswith("chapter")]
+        for i, a in enumerate(links):
+            url = self.absolute_url(a["href"])
+            # Some posts are listed twice, or with a wrong number on the first
+            # entry: keep the last entry for that post, its title is the right one.
+            if any(self.absolute_url(b["href"]) == url for b in links[i + 1 :]):
                 continue
             chap_id = 1 + len(self.chapters)
             self.chapters.append(
                 Chapter(
                     id=chap_id,
-                    url=self.absolute_url(a["href"]),
+                    url=url,
                     title=a.text,
                 ),
             )
+
+    @staticmethod
+    def _synopsis(content: Tag) -> str:
+        # The blurb sits between the "Author:" line and the chapter links.
+        paragraphs = []
+        after_author = False
+        for p in content.find_all("p", recursive=False):
+            text = p.get_text(" ", strip=True)
+            if not after_author:
+                after_author = text.lower().startswith("author:")
+                continue
+            if text.lower().startswith("chapter"):
+                break
+            if text:
+                paragraphs.append("<p>%s</p>" % escape(text))
+        return "".join(paragraphs)
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter.url)

@@ -38,8 +38,16 @@ WIKISOURCE_LANGS = [
 
 # ``|key = value`` within a template call, stopping at the next template
 # parameter. Only spaces/tabs may follow ``=`` before the value, otherwise an
-# empty parameter would swallow the next line.
-_PARAM_RE = re.compile(r"\|\s*([^=\n|]+?)[ \t]*=[ \t]*(.*?)[ \t]*(?=\n\s*[|}]|$)", re.S)
+# empty parameter would swallow the next line. Parameters written on one line
+# (``| translator = | section = ...``) end at the next ``| key =`` or ``}}``.
+# A value may contain a balanced nested template (``{{nowrap|bar}}``), which is
+# consumed whole so its ``}}`` does not end the value.
+_PARAM_RE = re.compile(
+    r"\|\s*([^=\n|]+?)[ \t]*=[ \t]*"
+    r"((?:\{\{(?:[^{}]|\{\{[^{}]*\}\})*\}\}|[^{}]|\{(?!\{)|\}(?!\}))*?)[ \t]*"
+    r"(?=\n\s*[|}]|\s*\|\s*[^=\n|{}\[\]]+?[ \t]*=|\s*\}\}|$)",
+    re.S,
+)
 _HTML_RE = re.compile(r"<[^>]+>")
 
 

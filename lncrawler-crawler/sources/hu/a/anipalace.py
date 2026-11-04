@@ -61,10 +61,16 @@ class AniPalaceCrawler(Crawler):
         if info.get("Lektor"):
             self.editors = [info["Lektor"]]
         if info.get("Cím"):
-            self.alternative_titles = [info["Cím"]]
+            self.alternative_titles = [
+                x.strip() for x in info["Cím"].split(" / ") if x.strip()
+            ]
 
+        # An italic paragraph that is wholly <em> is the translation credit, not the blurb.
         paragraphs = [
-            p.get_text(" ", strip=True) for p in soup.select(".markdown-content p")
+            re.sub(r"^Összefoglaló\s*:\s*", "", p.get_text(" ", strip=True))
+            for p in soup.select(".markdown-content p")
+            if "".join(em.get_text(strip=True) for em in p.find_all("em"))
+            != p.get_text(strip=True)
         ]
         self.novel_synopsis = "\n".join(p for p in paragraphs if p)
 
@@ -151,7 +157,7 @@ class AniPalaceCrawler(Crawler):
 
         if not parts:
             return ""
-        return self.cleaner.extract_contents(self.make_soup("".join(parts)))
+        return self.cleaner.extract_contents(self.make_soup("".join(parts)).body)
 
     # -- helpers ------------------------------------------------------- #
 

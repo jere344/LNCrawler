@@ -6,12 +6,14 @@ from urllib.parse import quote_plus
 from bs4 import Tag
 
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import SearchResult
+from lncrawl.models import NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
 
 
 class SfacgCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Most chapters are VIP-only; about 80 percent locked on sampled novels"
     base_url = "https://book.sfacg.com/"
     has_mtl = False
 
@@ -69,25 +71,68 @@ class SfacgCrawler(Crawler):
         if synopsis:
             self.novel_synopsis = synopsis.get_text("\n", strip=True)
 
+        author = soup.select_one(".author-info .author-name span")
+        if author:
+            self.novel_author = author.get_text(strip=True)
+
+        # Genre ("类型：都市") and the reader tags, e.g. "历史", "女性主角".
+        detail = soup.select_one(".count-detail")
+        detail_text = detail.get_text(" ", strip=True) if detail else ""
+        genre = re.search(r"类型[:：]\s*(\S+)", detail_text)
+        tags = [genre.group(1)] if genre else []
+        for tag in soup.select("ul.tag-list li.tag .text"):
+            name = tag.get_text(strip=True)
+            if name and name not in tags:
+                tags.append(name)
+        if tags:
+            self.novel_tags = tags
+
+        # Status is shown as "字数：1787364字[连载中]" in the detail row.
+        state = re.search(r"\[([^\]]+)\]", detail_text)
+        state_text = state.group(1) if state else ""
+        if "连载" in state_text or "連載" in state_text:
+            self.status = NovelStatus.ongoing
+        elif any(k in state_text for k in ("完结", "完結", "完本", "全本")):
+            self.status = NovelStatus.completed
+        else:
+            self.status = NovelStatus.unknown
+
         index = self.get_soup(base + "MainIndex/")
-        self.volumes.append({"id": 1, "title": "Volume 1"})
+        # One catalog block per volume; locked VIP entries link to /vip/c/<id>/
+        # and are not chapters, so they are skipped and counted.
+        locked = len(index.select(".story-catalog a[href*='/vip/']"))
+        if locked:
+            logger.info("Skipped %d VIP chapters", locked)
         seen = set()
-        for a in index.select("a[href]"):
-            href = a.get("href", "")
-            if not re.search(r"/Novel/\d+/\d+/\d+/?$", href):
-                continue
-            url = self.absolute_url(href)
-            if url in seen:
-                continue
-            seen.add(url)
-            self.chapters.append(
-                {
-                    "id": len(self.chapters) + 1,
-                    "volume": 1,
-                    "title": a.get_text(" ", strip=True),
-                    "url": url,
-                }
+        for group in index.select(".story-catalog") or [index]:
+            head = group.select_one(".catalog-title")
+            # Volume names are written as "【novel name】 volume name".
+            name = (
+                re.sub(r"^【[^】]*】\s*", "", head.get_text(" ", strip=True)) if head else ""
             )
+            volume = None
+            for a in group.select("a[href]"):
+                href = a.get("href", "")
+                if not re.search(r"/Novel/\d+/\d+/\d+/?$", href):
+                    continue
+                url = self.absolute_url(href)
+                if url in seen:
+                    continue
+                seen.add(url)
+                if volume is None:
+                    volume = {
+                        "id": len(self.volumes) + 1,
+                        "title": name or f"Volume {len(self.volumes) + 1}",
+                    }
+                    self.volumes.append(volume)
+                self.chapters.append(
+                    {
+                        "id": len(self.chapters) + 1,
+                        "volume": volume["id"],
+                        "title": a.get_text(" ", strip=True),
+                        "url": url,
+                    }
+                )
 
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])

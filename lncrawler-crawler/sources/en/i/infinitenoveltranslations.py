@@ -3,6 +3,9 @@ import logging
 import re
 from urllib.parse import quote_plus
 
+from bs4 import Tag
+
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
 
@@ -10,9 +13,20 @@ logger = logging.getLogger(__name__)
 
 SKIP_SLUGS = {"light-novels"}
 
+_LINK_BAR_RE = re.compile(r"Previous Chapter|Next Chapter|Table of Contents")
+
+
+def _drop_link_bars(root) -> None:
+    for p in root.find_all("p"):
+        text = p.get_text(" ", strip=True)
+        if p.find("a") and len(text) < 150 and _LINK_BAR_RE.search(text):
+            p.decompose()
+
 
 class InfiniteNovelTranslationsCrawler(Crawler):
     base_url = "https://infinitenoveltranslations.net/"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def search_novel(self, query):
         soup = self.get_soup(self.absolute_url("/?s=" + quote_plus(query)))
@@ -67,9 +81,23 @@ class InfiniteNovelTranslationsCrawler(Crawler):
             self.novel_title = title.get_text(strip=True)
         logger.info("Novel title: %s", self.novel_title)
 
-        desc = soup.select_one('meta[property="og:description"]')
-        if desc:
-            self.novel_synopsis = desc.get("content", "")
+        # The blurb is the paragraphs at the top of the info box, before the
+        # Japanese/English title block. The og:description meta is the post
+        # byline ("Author » date » url") on some novels, so it is only a fallback.
+        info_box = soup.select_one(".bs-card-box.padding-20")
+        blurb = []
+        if info_box:
+            for child in info_box.find_all(recursive=False):
+                if child.name == "div":
+                    break
+                if child.name == "p" and child.get_text(strip=True):
+                    blurb.append(child.get_text(" ", strip=True))
+        if blurb:
+            self.novel_synopsis = "\n".join(blurb)
+        else:
+            desc = soup.select_one('meta[property="og:description"]')
+            if desc:
+                self.novel_synopsis = desc.get("content", "")
         logger.info("Novel synopsis: %s", self.novel_synopsis)
 
         cover = soup.select_one(
@@ -88,11 +116,15 @@ class InfiniteNovelTranslationsCrawler(Crawler):
             )
         logger.info("Novel author: %s", self.novel_author)
 
-        japanese = soup.find("strong", string="Japanese Title")
-        if japanese and japanese.next_sibling:
-            self.alternative_titles = [
-                str(japanese.next_sibling).strip().strip(" :|：").strip()
-            ]
+        alt_titles = []
+        for label in ("Romaji Title", "Japanese Title"):
+            node = soup.find("strong", string=label)
+            if node and node.next_sibling:
+                value = str(node.next_sibling).strip().strip(" :|：").strip()
+                if value:
+                    alt_titles.append(value)
+        if alt_titles:
+            self.alternative_titles = alt_titles
         logger.info("Alternative titles: %s", self.alternative_titles)
 
         seen = set()
@@ -114,5 +146,13 @@ class InfiniteNovelTranslationsCrawler(Crawler):
     def download_chapter_body(self, chapter):
         soup = self.get_soup(chapter["url"])
         contents = soup.select_one(".hentry .bs-card-box") or soup.select_one(".hentry")
+        if not isinstance(contents, Tag):
+            return ""
         self.cleaner.clean_contents(contents)
+        _drop_link_bars(contents)
         return str(contents)
+
+    def _migrate_v2(self, body, chapter):
+        soup = body_migrations.parse(body)
+        _drop_link_bars(soup)
+        return str(soup)

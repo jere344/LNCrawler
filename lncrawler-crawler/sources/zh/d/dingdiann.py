@@ -36,12 +36,17 @@ _CATALOG_PAGES = ["/"] + [f"/class/{n}_1.html" for n in (1, 2, 3, 4, 5, 6, 7, 8,
 ]
 _NOVEL_HREF = re.compile(r"^(https?://[^/]+)?/ddk\d+/?$")
 _BOILERPLATE = re.compile(r"各位书友要是觉得.*$", re.S)
+# site banner and link lines at the end of bodies, and an inline "雅文吧" mark in some
+_LINE_WATERMARK = re.compile(r"^1秒记住顶点小说|^\(https?://[^)\s]+\)$")
+_INLINE_WATERMARK = re.compile(r"﹏﹎＞[\s>]*﹎雅文吧")
 
 
 class DingdiannCrawler(Crawler):
     base_url = ["https://www.diandingnnn.cc/", "https://dingdlann.cc/", "https://dingdiann.com/"]
     language = "zh"
     has_mtl = False
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         # Catalog and chapter requests are spaced out to avoid a ban on first indexing.
@@ -203,5 +208,15 @@ class DingdiannCrawler(Crawler):
         for br in body.find_all("br"):
             br.replace_with("\n")
         lines = [line.strip().replace("　", "").strip() for line in body.get_text().split("\n")]
-        paragraphs = [line for line in lines if line]
+        lines = [_INLINE_WATERMARK.sub("", line).strip() for line in lines]
+        paragraphs = [line for line in lines if line and not _LINE_WATERMARK.match(line)]
         return "".join(f"<p>{p}</p>" for p in paragraphs)
+
+    def _migrate_v2(self, body, chapter):
+        def fix(m):
+            text = _INLINE_WATERMARK.sub("", m.group(1)).strip()
+            if not text or _LINE_WATERMARK.match(text):
+                return ""
+            return f"<p>{text}</p>"
+
+        return re.sub(r"<p>(.*?)</p>", fix, body, flags=re.S)

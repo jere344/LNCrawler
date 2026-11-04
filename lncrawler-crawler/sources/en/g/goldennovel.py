@@ -19,10 +19,19 @@ from typing import List
 from urllib.parse import quote_plus, urlparse
 from xml.etree import ElementTree
 
+from bs4 import Tag
+
 from lncrawl.core.crawler import Crawler
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUSES = {
+    "ongoing": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "complete": NovelStatus.completed,
+    "hiatus": NovelStatus.hiatus,
+}
 
 _CATEGORY_RE = re.compile(r"^/index\.php/(?:category/)?([^/]+)/([^/]+)/?")
 
@@ -143,18 +152,38 @@ class GoldenNovelCrawler(Crawler):
             if not label:
                 continue
             key = label.get_text(strip=True).lower()
+            label_text = label.get_text(" ", strip=True)
+            text = li.get_text(" ", strip=True)
+            # The author and status values are plain text; genres are links.
+            value = text[len(label_text) :].strip() if text.startswith(label_text) else text
+            links = [a.get_text(" ", strip=True) for a in li.select("a")]
             if key == "author":
-                authors = [a.get_text(" ", strip=True) for a in li.select("a")]
-                self.novel_author = ", ".join(x for x in authors if x)
+                self.novel_author = ", ".join(x for x in (links or [value]) if x)
             elif key == "genres":
-                genres = [a.get_text(" ", strip=True) for a in li.select("a")]
+                genres = links
+            elif key == "status":
+                self.status = _STATUSES.get(value.lower(), NovelStatus.unknown)
         self.novel_tags = [g for g in genres if g]
+
+        # The original-language title sits in the synopsis block, removed below.
+        original_title = soup.select_one(".np-novel__original-title")
+        if original_title and original_title.get_text(strip=True):
+            self.alternative_titles = [original_title.get_text(" ", strip=True).strip("《》")]
 
         synopsis = soup.select_one("section.np-novel__synopsis .np-prose")
         if synopsis:
             for bad in synopsis.select(".np-novel__original"):
                 bad.extract()
-            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
+            # One line per paragraph, as plain text (not HTML).
+            lines = []
+            for node in synopsis.children:
+                if isinstance(node, Tag):
+                    line = node.get_text(" ", strip=True)
+                else:
+                    line = str(node).strip()
+                if line:
+                    lines.append(line)
+            self.novel_synopsis = "\n".join(lines)
 
         feed_link = soup.select_one("a.np-btn--rss[href]")
         feed_url = (

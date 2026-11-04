@@ -15,6 +15,7 @@ from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup, Tag
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import Chapter, NovelStatus, SearchResult, Volume
 
@@ -41,10 +42,36 @@ _EDITIONS = {
     "raw novel": "Raw",
 }
 
+# Sponsor thanks and Patreon / rating appeals added by the site, not part of the text.
+_PROMO_RE = re.compile(
+    r"generously sponsored by|big thanks to our sponsor|swing by our"
+    r"|rate and leave a review|rating and reviewing",
+    re.I,
+)
+
+
+def _is_promo(text: str) -> bool:
+    return len(text) < 300 and bool(_PROMO_RE.search(text))
+
+
+def _strip_promo(body: str) -> str:
+    return body_migrations.drop_blocks(body, lambda text, tag: _is_promo(text))
+
 
 class NoodleBrainSquadCrawler(Crawler):
     base_url = "https://noodlebrainsquad.org/"
     language = "en"
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
+
+    @staticmethod
+    def _drop_promo_paragraphs(root: Tag) -> None:
+        for p in root.find_all("p"):
+            if _is_promo(p.get_text(" ", strip=True)):
+                p.decompose()
+
+    def _migrate_v2(self, body, chapter):
+        return _strip_promo(body)
 
     @staticmethod
     def _rating_value(soup: BeautifulSoup, label: str) -> str:
@@ -98,10 +125,11 @@ class NoodleBrainSquadCrawler(Crawler):
 
         summary = soup.select_one(".mindesc .entry-content")
         if isinstance(summary, Tag):
-            self.novel_synopsis = self.cleaner.extract_contents(summary)
             updates = summary.select_one('a[href*="novelupdates.com"]')
             if isinstance(updates, Tag) and updates.get("href"):
                 self.novelupdates_url = updates["href"]
+            self._drop_promo_paragraphs(summary)
+            self.novel_synopsis = self.cleaner.extract_contents(summary)
 
         author_span = None
         for b in soup.find_all("b"):
@@ -143,9 +171,7 @@ class NoodleBrainSquadCrawler(Crawler):
         edition = _EDITIONS.get(novel_type.lower())
         if edition:
             self.novel_edition = edition
-        self.novel_tags = list(
-            dict.fromkeys(genres + ([novel_type] if novel_type else []) + tags)
-        )
+        self.novel_tags = list(dict.fromkeys(genres + tags))
 
         self.volumes.append(Volume(id=1, title="Volume 1"))
         rows = soup.select("div.eplister.eplisterfull ul li a[href]")
@@ -171,4 +197,4 @@ class NoodleBrainSquadCrawler(Crawler):
         body = soup.select_one(".entry-content") or soup.select_one(".epcontent")
         if not isinstance(body, Tag):
             return ""
-        return self.cleaner.extract_contents(body)
+        return _strip_promo(self.cleaner.extract_contents(body))

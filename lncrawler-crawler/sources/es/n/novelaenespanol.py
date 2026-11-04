@@ -30,6 +30,10 @@ CHAPTERS_API = (
 ALL_NOVELS_URL = "https://novelaenespanol.com/todas-las-novelas/"
 SEARCH_URL = "https://novelaenespanol.com/search/"
 
+_FIELD_LABEL_RE = re.compile(r"^\s*(Nombres asociados|Autor \(es\))\s*:?\s*$", re.I)
+_READ_HEADING_RE = re.compile(r"^leer .+ en espa[nñ]ol", re.I)
+_SITE_CREDIT_RE = re.compile(r"^(El autor|Traducci[oó]n)\s*:", re.I)
+
 _STATUSES = {
     "terminado": NovelStatus.completed,
     "completado": NovelStatus.completed,
@@ -42,8 +46,11 @@ _STATUSES = {
 
 
 class NovelaEnEspanolCrawler(Crawler):
+    is_disabled = True
+    disable_reason = "Machine-translated: every chapter credits the translation to Artificial_Intelligence"
     base_url = "https://novelaenespanol.com/"
     language = "es"
+    version = 2
 
     # -- metadata helpers ---------------------------------------------- #
 
@@ -179,14 +186,24 @@ class NovelaEnEspanolCrawler(Crawler):
         if isinstance(author, Tag):
             self.novel_author = self._strip_label(author.get_text(" ", strip=True), "Autor")
 
+        translator = soup.select_one('meta[itemprop="translator"]')
+        if isinstance(translator, Tag) and translator.get("content"):
+            self.translators = [translator["content"].strip()]
+
         status = card.select_one(".cat-status")
         if isinstance(status, Tag):
             self.status = self._status_from(status.get_text(" ", strip=True))
 
-        synopsis = card.select_one(".category-exerpt") or card.select_one(
-            ".description"
+        # The short excerpt ends in "Descripción completa"; the hidden full text
+        # has the whole blurb followed by bare "Nombres asociados" / "Autor (es)" labels.
+        synopsis = (
+            card.select_one("div.category-exerpt.description")
+            or card.select_one(".category-exerpt")
+            or card.select_one(".description")
         )
         if isinstance(synopsis, Tag):
+            for label in synopsis.find_all("p", string=_FIELD_LABEL_RE):
+                label.decompose()
             self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
         genres = [
@@ -211,10 +228,12 @@ class NovelaEnEspanolCrawler(Crawler):
         )
         chapters = chapters or []
         chapters.reverse()
-        for index, item in enumerate(chapters, start=1):
+        for item in chapters:
             post_name = item.get("post_name")
-            if not post_name:
+            # The novel's own landing page (post_name == slug) comes last in the list.
+            if not post_name or post_name == slug:
                 continue
+            index = len(self.chapters) + 1
             self.chapters.append(
                 Chapter(
                     id=index,
@@ -225,6 +244,23 @@ class NovelaEnEspanolCrawler(Crawler):
 
     def download_chapter_body(self, chapter: Chapter) -> str:
         soup = self.get_soup(chapter.url)
-        body = soup.select_one(".entry-content")
+        # .js-full-content leaves out the cover thumbnail the theme hides with JS.
+        body = soup.select_one(".js-full-content") or soup.select_one(".entry-content")
         assert isinstance(body, Tag), "No chapter body"
+        # Every chapter closes with an SEO heading, then the site's author/translator credit.
+        heading = next(
+            (
+                h3
+                for h3 in body.find_all("h3")
+                if _READ_HEADING_RE.match(h3.get_text(" ", strip=True))
+            ),
+            None,
+        )
+        if heading is not None:
+            for sibling in list(heading.find_next_siblings()):
+                if sibling.name == "p" and _SITE_CREDIT_RE.match(
+                    sibling.get_text(" ", strip=True)
+                ):
+                    sibling.decompose()
+            heading.decompose()
         return self.cleaner.extract_contents(body)

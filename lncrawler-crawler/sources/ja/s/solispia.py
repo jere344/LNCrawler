@@ -10,6 +10,7 @@ scraper passes the Cloudflare proxy without a challenge.
 
 import logging
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from bs4 import Tag
 
@@ -30,7 +31,6 @@ _STATUSES = {
 class SolispiaCrawler(Crawler):
     base_url = ["https://solispia.com/", "https://pink.solispia.com/"]
     language = "ja"
-    is_adult = True
 
     # -- helpers ------------------------------------------------------- #
 
@@ -125,6 +125,8 @@ class SolispiaCrawler(Crawler):
 
     def read_novel_info(self) -> None:
         self.novel_edition = "Web Novel"
+        # R18 works are only served from the pink mirror; solispia.com is all ages.
+        self.is_adult = (urlparse(self.novel_url).hostname or "").startswith("pink.")
         soup = self.get_soup(self.novel_url)
         gated = self._pass_r18_gate(soup)
         if gated is not None:
@@ -152,12 +154,6 @@ class SolispiaCrawler(Crawler):
         synopsis = soup.select_one(".summary")
         if isinstance(synopsis, Tag):
             self.novel_synopsis = synopsis.get_text(" ", strip=True)
-
-        alternative = soup.select_one(".text-catchphrase")
-        if isinstance(alternative, Tag):
-            text = alternative.get_text(" ", strip=True)
-            if text:
-                self.alternative_titles = [text]
 
         genres = []
         tags = []

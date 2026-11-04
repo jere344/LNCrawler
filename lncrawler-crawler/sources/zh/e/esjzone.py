@@ -191,16 +191,22 @@ class EsjZoneCrawler(Crawler):
             raise LNException("No readable chapter list (login/R18 gated?)")
 
         volume = None
+        # a heading becomes a Volume only once a chapter sits under it: the site
+        # has stacked headings ("第二卷" then "第五章") with nothing between them
+        pending_title = None
         for item in chapter_list.find_all(["p", "a"]):
             classes = item.get("class") or []
             if item.name == "p" and "non" in classes:
                 title_txt = item.get_text(" ", strip=True)
                 if title_txt:
-                    volume = Volume(id=len(self.volumes) + 1, title=title_txt)
-                    self.volumes.append(volume)
+                    pending_title = title_txt
                 continue
             if item.name != "a" or not item.get("href"):
                 continue
+            if pending_title is not None:
+                volume = Volume(id=len(self.volumes) + 1, title=pending_title)
+                self.volumes.append(volume)
+                pending_title = None
             self.chapters.append(
                 Chapter(
                     id=len(self.chapters) + 1,
