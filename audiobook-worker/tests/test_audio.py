@@ -98,3 +98,41 @@ def test_validate_flags_a_long_internal_pause(tmp_path):
     _ffmpeg("-f", "lavfi", "-i", expr, "-ac", "1", "-ar", "48000", "-c:a", "libopus", "-b:a", "24k", str(src))
     failures = audio.validate(str(src))
     assert any("internal silence" in f for f in failures), failures
+
+
+def test_the_third_attempt_is_used_when_the_first_two_fail_the_peak(tmp_path, monkeypatch):
+    encoded = []
+    verdicts = iter([["true peak -1.4 dBTP, want <= -1.5"], ["true peak -1.4 dBTP, want <= -1.5"], []])
+    monkeypatch.setattr(audio, "encode_chapter", lambda src, dst, **kw: encoded.append(kw))
+    monkeypatch.setattr(audio, "validate", lambda path: next(verdicts))
+    audio.encode_checked("src.mp3", str(tmp_path / "out.ogg"))
+    assert [kw["target_tp"] for kw in encoded] == [-2.0, -2.5, -3.0]
+    assert encoded[2]["trim"] == audio.TRIM_RETUNED
+
+
+def test_a_crashed_check_gets_the_next_attempt(tmp_path, monkeypatch):
+    encoded = []
+    outcomes = iter([audio.AudioError(["ffmpeg analysis exited 1"]), []])
+
+    def validate(path):
+        outcome = next(outcomes)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(audio, "encode_chapter", lambda src, dst, **kw: encoded.append(kw))
+    monkeypatch.setattr(audio, "validate", validate)
+    audio.encode_checked("src.mp3", str(tmp_path / "out.ogg"))
+    assert len(encoded) == 2
+
+
+def test_a_crashed_check_on_the_last_attempt_is_raised(tmp_path, monkeypatch):
+    def validate(path):
+        raise audio.AudioError(["ffmpeg analysis exited 1"])
+
+    monkeypatch.setattr(audio, "encode_chapter", lambda src, dst, **kw: None)
+    monkeypatch.setattr(audio, "validate", validate)
+    with pytest.raises(audio.AudioError) as info:
+        audio.encode_checked("src.mp3", str(tmp_path / "out.ogg"))
+    assert info.value.retryable is True
+    assert info.value.reasons == ["ffmpeg analysis exited 1"]

@@ -166,7 +166,7 @@ class BakaCrawler(Crawler):
 
         description = soup.select_one("#fiction-description")
         if isinstance(description, Tag):
-            self.novel_synopsis = description.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(description)
 
         self._read_stats(soup)
         self._read_chapter_list(soup, slug)

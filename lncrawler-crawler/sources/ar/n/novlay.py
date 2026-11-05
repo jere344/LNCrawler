@@ -161,7 +161,7 @@ class NovlayCrawler(Crawler):
             or soup.select_one('[itemprop="description"]')
         )
         if isinstance(description, Tag):
-            self.novel_synopsis = description.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(description)
         if not self.novel_synopsis:
             self.novel_synopsis = self._meta(soup, "og:description")
 

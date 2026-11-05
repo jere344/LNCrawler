@@ -148,7 +148,7 @@ class NovelrestCrawler(Crawler):
         img = soup.select_one(".thumb img, .thumbook img, .ts-post-image")
         if img is not None and img.get("src"):
             cover = _CDN_RE.sub("https://", img["src"])
-            self.novel_cover = cover.split("?", 1)[0]
+            self.novel_cover = self.absolute_url(cover.split("?", 1)[0])
 
         synopsis = soup.select_one(".synp .entry-content")
         if synopsis is not None:

@@ -68,7 +68,7 @@ class WuxiaCityCrawler(Crawler):
 
         self.novel_title = soup.find("h1", class_="book-name").text
         self.novel_author = soup.find("dl", class_="author").dd.text
-        self.novel_cover = soup.find("div", class_="book-img").img.get("src")
+        self.novel_cover = self.image_url(soup.select_one("div.book-img img"))
         self.novel_tags = [
             span.get_text(strip=True)
             for span in soup.select(".book-generes .label")

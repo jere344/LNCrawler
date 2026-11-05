@@ -113,7 +113,6 @@ Settings (env, or `.env` for compose):
 | `QWEN_HZ_INSTRUCT` | `ignore` | `torch` sends live-instruct batches to torch again (patch 6). Passed through by `docker-compose.qwen.yml`, so it can be set in `.env` |
 | `SEG_CAPACITY_ADMISSION` | `0` | Castwright's capacity admission is off (see the patch notes) |
 | `OPENBLAS_NUM_THREADS` | `1` | hz's per-frame numpy work. More threads fight over the 6 CPUs: 5.7x -> 8.6x realtime with 1 |
-| `QWEN_BATCH_TOKEN_BUDGET_17B` | `0` | Fixed batches of 32. hz memory follows the line count, not length, so the count x length budget only made long-line batches narrow (+7%) |
 | `KOKORO_ORT_THREADS` | `4` | Kokoro's ONNX Runtime threads (patch 20). `0` = ORT's default, which ran CPU Kokoro at 0.69x realtime instead of 2.05x |
 
 **Switch back to torch:** `QWEN_17B_BACKEND=torch`, then `up -d` again. The same image serves both.
@@ -162,7 +161,10 @@ Numbers are from the GTX 1080 (8 GB).
 - **Decoder chunk 48 vs hz's 12:** fewer decoder calls per chapter, with the same quality by ear and WER. 96 or 400 saved only ~5% more.
 - **Speed pass (2026-11-04), same audio:** on one real chapter (114 Qwen lines, 4 voices) hz went from 108 s to 64.5 s
   (5.7x -> 9.45x realtime): one OpenBLAS thread (the big one), fixed batches of 32, and hz's decoder ONNX session on
-  `kSameAsRequested` (Dockerfile; peak VRAM 7.9 -> 7.1 GB, so fewer free-floor recycles). Tried and dropped: a
+  `kSameAsRequested` (Dockerfile; lower peak in a one-chapter run). Fixed batches of 32 (`QWEN_BATCH_TOKEN_BUDGET_17B=0`,
+  +7%) were reverted: hz reserves 768 context tokens per line, so 32 long lines hold ~2.8 GB of KV where the token
+  budget kept them at 12-18. On long chapters the card hit the free floor every 3-4 batches, and a chapter with two
+  recycles fails. Tried and dropped: a
   vectorised top-k sampler (-5%, most of `pred_sample` is the GPU sync) and decoding finished lines on a thread
   during the frame loop (no gain, the GPU is already busy, +0.8 GB peak). Profile per batch: the code predictor is
   ~60% of the loop, the decoder ~30% of a batch, the talker ~10%.

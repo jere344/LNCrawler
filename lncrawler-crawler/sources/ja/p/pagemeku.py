@@ -114,7 +114,7 @@ class PageMekuCrawler(Crawler):
 
         synopsis = soup.select_one("div.text-body-secondary.fs-14")
         if isinstance(synopsis, Tag):
-            self.novel_synopsis = synopsis.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
         genres = []
         status = NovelStatus.ongoing

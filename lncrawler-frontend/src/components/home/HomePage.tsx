@@ -163,7 +163,7 @@ const HomePage: React.FC = () => {
           </Grid>
         ) : (
           <Grid container spacing={3}>
-            {homeData?.trending_novels.slice(0, 4).map((novel, index) => (
+            {homeData?.trending_novels?.slice(0, 4).map((novel, index) => (
               <Grid size={{ xs: 6, sm: 3 }} key={novel.id}>
                 <TrendingNovelCard 
                   novel={novel} 
@@ -200,7 +200,7 @@ const HomePage: React.FC = () => {
           </Grid>
         ) : (
           <Grid container spacing={2}>
-            {homeData?.top_novels.slice(0, 12).map((novel, rank) => (
+            {homeData?.top_novels?.slice(0, 12).map((novel, rank) => (
               <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={novel.id}>
                 <NovelItemCard 
                   novel={novel} 
@@ -255,7 +255,7 @@ const HomePage: React.FC = () => {
             </Grid>
           ) : (
             <Grid container spacing={1}>
-              {homeData?.top_novels.slice(0, 12).map((novel) => (
+              {homeData?.top_novels?.slice(0, 12).map((novel) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
@@ -286,7 +286,7 @@ const HomePage: React.FC = () => {
             </Grid>
           ) : (
             <Grid container spacing={1}>
-              {homeData?.trending_novels.slice(0, 12).map((novel) => (
+              {homeData?.trending_novels?.slice(0, 12).map((novel) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
@@ -317,7 +317,7 @@ const HomePage: React.FC = () => {
             </Grid>
           ) : (
             <Grid container spacing={1}>
-              {homeData?.top_rated_novels.slice(0, 12).map((novel) => (
+              {homeData?.top_rated_novels?.slice(0, 12).map((novel) => (
                 <Grid size={{ xs: 6, sm: 4, md: 3 }} key={novel.id}>
                   <CompactNovelCard
                     novel={novel}
@@ -402,7 +402,7 @@ const HomePage: React.FC = () => {
         ) : (
           homeData && (
             <Grid container spacing={2}>
-              {homeData.recently_updated.slice(0, 12).map((source) => (
+              {homeData.recently_updated?.slice(0, 12).map((source) => (
                 <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
                   <ChapterCard
                     source={source}

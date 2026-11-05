@@ -12,6 +12,7 @@ import gc
 import itertools
 import logging
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -30,6 +31,10 @@ RUNAWAY_MIN_FRAMES = 100
 # Seconds of tries on a whole line. Each split gets a third per piece, so the worst case stays
 # near 6 minutes: under the worker's 600 s stream timeout and Castwright's 600 s call timeout.
 RUNAWAY_BUDGET_S = 120
+# Items with at most this many word characters that still give no audio
+# get a short pause instead of failing the batch.
+SILENT_MAX_WORD_CHARS = 2
+SILENT_PAUSE_S = 0.3
 RUNAWAY_SPLITS = 2
 # Length of speech kept from a runaway when nothing else ended.
 RUNAWAY_KEEP_S_PER_CHAR = 0.08
@@ -175,7 +180,9 @@ class HzBackend:
         An item is truncated when it hits max_steps or runs out of its per-seq
         context (prompt + frames >= n_ctx - 1). Each truncated item is re-rendered
         alone with the retry runner and the larger retry limits. Still truncated
-        after that raises, naming the item."""
+        after that raises, naming the item. An item with no audio that was not
+        truncated is re-rendered alone through the ladder; if that gives no audio
+        either, it raises (never silence)."""
         if not items:
             raise RuntimeError("hz synth_batch called with no items.")
         with self._lock:
@@ -197,9 +204,23 @@ class HzBackend:
                         i, len(r.codes), prompt_len, self.retry_max_steps, self.retry_n_ctx,
                     )
                     r = self._render_retry(text, voice, lang, i)
+                elif r.audio is None or len(r.audio) == 0:
+                    log.warning(
+                        "hz batch item %d came back with no audio (%d chars); re-rendering alone",
+                        i, len(text),
+                    )
+                    r = self._render_empty_retry(text, voice, lang, i)
                 audio = r.audio
+                if (audio is None or len(audio) == 0) and len(re.sub(r"\W", "", text)) <= SILENT_MAX_WORD_CHARS:
+                    # A fragment like 'T' (an emoticon or stray letter left after
+                    # normalisation) makes hz stop at once, alone or batched. There
+                    # is no sentence to lose, so a short pause stands in for it.
+                    log.warning("hz batch item %d is unspeakable (%r); using %.1fs of silence", i, text, SILENT_PAUSE_S)
+                    audio = np.zeros(int(SAMPLE_RATE * SILENT_PAUSE_S), dtype=np.float32)
                 if audio is None or len(audio) == 0:
-                    raise RuntimeError(f"hz produced no audio for batch item {i}")
+                    raise RuntimeError(
+                        f"hz produced no audio for batch item {i} ({len(text)} chars): {text[:60]!r}"
+                    )
                 wavs.append(np.asarray(audio, dtype=np.float32))
         return wavs, SAMPLE_RATE
 
@@ -267,6 +288,15 @@ class HzBackend:
             self._retry_runner = api.BatchRunner(self._engine, n_ctx_per_seq=self.retry_n_ctx)
         audio = self._render_audio(text, voice, lang, index, RUNAWAY_BUDGET_S, RUNAWAY_SPLITS)
         return types.SimpleNamespace(audio=audio, codes=[])
+
+    def _render_empty_retry(self, text, voice, lang, index: int):
+        """Re-render an item the batch returned with no audio, alone, through the ladder.
+        No split and no silence fallback: audio stays None if the ladder gives none."""
+        api = _import_hz()
+        if self._retry_runner is None:
+            self._retry_runner = api.BatchRunner(self._engine, n_ctx_per_seq=self.retry_n_ctx)
+        res, _ = self._render_ladder(text, voice, lang, index, RUNAWAY_BUDGET_S)
+        return res if res is not None else types.SimpleNamespace(audio=None, codes=[])
 
     def decode_codes_to_wav(self, codes, wav_path: str) -> None:
         """Decode a (T, 16) codec array with hz's own ONNX decoder

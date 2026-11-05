@@ -112,10 +112,8 @@ class QiufengShuwuCrawler(Crawler):
 
         intro = soup.select_one("#intro")
         if intro:
-            self.novel_synopsis = "\n".join(
-                p.get_text(" ", strip=True)
-                for p in intro.select("p")
-                if p.get_text(strip=True)
+            self.novel_synopsis = "".join(
+                self.cleaner.extract_contents(p) for p in intro.find_all("p", recursive=False)
             )
 
         self.status = NovelStatus.unknown

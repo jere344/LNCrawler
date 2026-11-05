@@ -40,7 +40,8 @@ class KatReadingCafeCrawler(Crawler):
     # -- helpers ------------------------------------------------------- #
 
     def _novel_url(self, slug: str) -> str:
-        return f"{self.home_url}category/{slug}/"
+        # The /series/ page carries the novel metadata; the /category/ page is empty.
+        return f"{self.home_url}series/{slug}/"
 
     def _fetch_categories(self, query: str) -> List[dict]:
         cats: List[dict] = []
@@ -114,6 +115,37 @@ class KatReadingCafeCrawler(Crawler):
 
     # -- novel --------------------------------------------------------- #
 
+    def _read_series_metadata(self) -> None:
+        # Metadata lives on the /series/ page, not in the category API.
+        try:
+            soup = self.make_soup(self.get_response(self.novel_url).text)
+        except Exception as e:
+            logger.warning("Could not load series page %s: %s", self.novel_url, e)
+            return
+
+        title = soup.select_one("h1.entry-title")
+        if title:
+            self.novel_title = title.get_text(strip=True)
+
+        cover = soup.select_one(".sertothumb img")
+        if cover:
+            src = cover.get("src") or cover.get("data-src")
+            if src:
+                self.novel_cover = self.absolute_url(src)
+
+        for row in soup.select(".sertoauth .serl"):
+            label = row.select_one(".sername")
+            if label and label.get_text(strip=True) == "Author":
+                names = [a.get_text(strip=True) for a in row.select(".serval a")]
+                self.novel_author = ", ".join(n for n in names if n)
+
+        synopsis = soup.select_one(".sersys.entry-content p")
+        if synopsis:
+            self.novel_synopsis = synopsis.get_text(" ", strip=True)
+
+        tags = [a.get_text(strip=True) for a in soup.select(".sertogenre a, .sertags a")]
+        self.novel_tags = list(dict.fromkeys(t for t in tags if t))
+
     def read_novel_info(self) -> None:
         slug = unquote(urlparse(self.novel_url).path.rstrip("/").split("/")[-1])
         cats = self._fetch_categories(f"slug={quote_plus(slug)}")
@@ -121,6 +153,7 @@ class KatReadingCafeCrawler(Crawler):
             raise LNException(f"No novel category found for slug '{slug}'")
         category = cats[0]
         self.novel_title = unescape(category["name"]).strip()
+        self._read_series_metadata()
 
         skipped = 0
         volume_ids = set()

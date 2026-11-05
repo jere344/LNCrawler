@@ -17,7 +17,7 @@ No JSON API: everything is server-rendered HTML.
 import logging
 import re
 import time
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 from urllib.parse import quote_plus, urljoin
 
 from bs4 import BeautifulSoup, Tag
@@ -84,6 +84,33 @@ def _dedupe(values: List[str]) -> List[str]:
     return out
 
 
+def _html_to_text(markup: str) -> str:
+    """Plain text from an HTML fragment, keeping <br> line breaks."""
+    return BeautifulSoup(markup, "html.parser").get_text("\n", strip=True)
+
+
+def _has_chapter_rows(soup: BeautifulSoup) -> bool:
+    return soup.select_one("table.listing tr[id^='c_']") is not None
+
+
+def _is_complete_novel_page(soup: BeautifulSoup) -> bool:
+    """True once both the info panel and the chapter list are in the page.
+
+    A challenge page or a half-rendered page has neither. Saving one of those
+    yields a novel with no metadata and no chapters, so callers must treat a
+    False result as "retry in the browser", not as a valid empty novel.
+    """
+    has_info = (
+        _labelled_block(soup, "Description") is not None
+        or _labelled_block(soup, "Author") is not None
+    )
+    has_chapters = _has_chapter_rows(soup) or any(
+        h.get_text(" ", strip=True).startswith("Chapters (")
+        for h in soup.find_all("h4")
+    )
+    return has_info and has_chapters
+
+
 def _novel_meta(soup: BeautifulSoup, page_url: str) -> dict:
     meta = {}
 
@@ -103,34 +130,39 @@ def _novel_meta(soup: BeautifulSoup, page_url: str) -> dict:
         img = soup.select_one("img.lazy-image")
         meta["cover"] = urljoin(page_url, img["src"]) if isinstance(img, Tag) and img.get("src") else ""
 
+    # Description: keep the line breaks the site puts between its <br> lines.
     og_desc = soup.find("meta", attrs={"property": "og:description"})
     synopsis = ""
     block = _labelled_block(soup, "Description")
     if block is not None:
-        synopsis = "\n\n".join(
-            p.get_text(" ", strip=True) for p in block.find_all("p") if p.get_text(strip=True)
-        )
+        paragraphs = [p.get_text("\n", strip=True) for p in block.find_all("p")]
+        synopsis = "\n\n".join(p for p in paragraphs if p)
     if not synopsis and isinstance(og_desc, Tag):
-        synopsis = (og_desc.get("content") or "").strip()
+        synopsis = _html_to_text(og_desc.get("content") or "")
     meta["synopsis"] = synopsis
 
-    block = _labelled_block(soup, "Author")
-    authors = [a.get_text(" ", strip=True) for a in block.select("a[href*='/author/']")] if block else []
+    # Authors: the labelled row; fall back to any author link in the info panel.
+    scope = _labelled_block(soup, "Author") or _info_scope(soup)
+    authors = [a.get_text(" ", strip=True) for a in scope.select("a[href*='/author/']")]
     meta["authors"] = _dedupe(authors)
 
+    # "Associated Names" shows "N/A" when there are none; the link is a placeholder.
     block = _labelled_block(soup, "Associated Names")
     alt = [a.get_text(" ", strip=True) for a in block.find_all("a", href=True)] if block else []
-    meta["alt_titles"] = [t for t in _dedupe(alt) if t != title]
+    meta["alt_titles"] = [t for t in _dedupe(alt) if t != title and t.upper() != "N/A"]
 
-    # Genre and Tags rows share one container.
-    block = _labelled_block(soup, "Genre")
-    genres: List[str] = []
-    tags: List[str] = []
-    if block is not None:
-        genres = [a.get_text(" ", strip=True) for a in block.select("a[href*='/gen/']")]
-        tags = [a.get_text(" ", strip=True) for a in block.select("a[href*='/tags/']")]
+    # Genre and Tags rows share one container; fall back to the info panel.
+    block = _labelled_block(soup, "Genre") or _info_scope(soup)
+    genres = [a.get_text(" ", strip=True) for a in block.select("a[href*='/gen/']")]
+    tags = [a.get_text(" ", strip=True) for a in block.select("a[href*='/tags/']")]
     meta["tags"] = _dedupe(genres + tags)
     return meta
+
+
+def _info_scope(soup: BeautifulSoup) -> Tag:
+    """The novel info panel, or the whole page if the panel is missing."""
+    panel = soup.select_one("div.panel-body")
+    return panel if isinstance(panel, Tag) else soup
 
 
 def _chapter_rows(soup: BeautifulSoup, base: str) -> List[Tuple[Optional[int], str, str]]:
@@ -167,16 +199,17 @@ class NovelsPlCrawler(BasicBrowserTemplate):
 
     # -- helpers ------------------------------------------------------- #
 
-    def _browser_soup(self, url: str) -> BeautifulSoup:
+    def _browser_soup(self, url: str, ready: Optional[Callable[[BeautifulSoup], bool]] = None) -> BeautifulSoup:
         self.visit(url)
         # The Anubis proof-of-work runs in JS and reloads the real page after
-        # it is solved; wait until the site's own title shows up.
+        # it is solved; wait until the site's own title shows up and, when a
+        # caller asks, until the content it needs is rendered.
         for _ in range(90):
             try:
                 soup = self.browser.soup
             except Exception:
                 soup = None  # page may be mid-reload
-            if soup is not None and _is_site_title(soup):
+            if soup is not None and _is_site_title(soup) and (ready is None or ready(soup)):
                 return soup
             time.sleep(1)
         return self.browser.soup
@@ -220,11 +253,18 @@ class NovelsPlCrawler(BasicBrowserTemplate):
 
     def read_novel_info_in_soup(self) -> None:
         soup = self._soup_fetch(self.novel_url)
+        if not _is_complete_novel_page(soup):
+            # Never save a novel from a page without its info panel or chapters.
+            raise FallbackToBrowser("Novel page incomplete (no info panel or chapter list)")
         self._fill_novel(soup, self._soup_fetch)
 
     def read_novel_info_in_browser(self) -> None:
-        soup = self._browser_soup(self.novel_url)
-        self._fill_novel(soup, self._browser_soup)
+        soup = self._browser_soup(self.novel_url, ready=_is_complete_novel_page)
+        if not _is_complete_novel_page(soup):
+            raise LNException("Novel page did not render its info panel or chapter list")
+        self._fill_novel(
+            soup, lambda url: self._browser_soup(url, ready=_has_chapter_rows)
+        )
 
     def _fill_novel(self, soup: BeautifulSoup, fetch) -> None:
         base = self.novel_url.split("?")[0]

@@ -90,7 +90,7 @@ class SainoKanTLSCrawler(Crawler):
                     text = para.get_text(" ", strip=True)
                     # Novels without a blurb repeat the title in this slot.
                     if text != self.novel_title:
-                        self.novel_synopsis = text
+                        self.novel_synopsis = self.cleaner.extract_contents(para)
                 break
 
         status_icon = soup.select_one("i.fa-signal")

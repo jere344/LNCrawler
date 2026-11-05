@@ -189,8 +189,9 @@ class NaverNovelCrawler(Crawler):
         self.novel_title = title.get_text(" ", strip=True) if title else ""
 
         cover = soup.select_one(".section_area_info .thumbnail img")
-        if cover is not None and cover.get("src"):
-            self.novel_cover = cover["src"]
+        url = self.image_url(cover)
+        if url:
+            self.novel_cover = url
 
         author = soup.select_one("div.info_group a.link")
         if author is not None:

@@ -773,3 +773,172 @@ def test_the_audio_json_is_written_atomically(tmp_path, monkeypatch):
     matches = [(path, data) for path, data in writes if path.endswith(".audio.json")]
     assert matches == [(pipe._audio_json_path(1001), {"durationSec": 12.0, "segments": []})]
     assert pipe.state["uploaded"] == {"1001": "ab" * 32}
+
+
+# -- generation: retries and banking ------------------------------------------
+
+
+class RenderCw:
+    """Castwright stub for generation and encode. Each generate call streams the next list of `runs` (the last one
+    repeats). A chapter has audio once it is in `rendered` or a run has completed it."""
+
+    def __init__(self, runs, rendered=()):
+        self.runs = list(runs)
+        self.rendered = set(rendered)
+        self.generate_calls = []
+
+    def generate(self, book_id, model_key):
+        self.generate_calls.append(model_key)
+        events = self.runs[min(len(self.generate_calls), len(self.runs)) - 1]
+        for event in events:
+            if event["type"] == "chapter_complete":
+                self.rendered.add(int(event["chapterId"]))
+            yield event
+
+    def book_state(self, book_id):
+        return _book()
+
+    def info(self):
+        return {"appVersion": "test"}
+
+    def chapter_audio(self, book_id, chapter_id):
+        return {"durationSec": 12.0, "segments": []} if chapter_id in self.rendered else None
+
+    def download_mp3(self, book_id, chapter_id, dest):
+        open(dest, "wb").close()
+
+
+class UploadProd:
+    def __init__(self):
+        self.uploads = []
+
+    def upload_chapter(self, part_id, chapter_id, path):
+        self.uploads.append(chapter_id)
+        return f"sha-{chapter_id}"
+
+
+def _render_pipe(tmp_path, monkeypatch, cw, chapter_map):
+    monkeypatch.setattr(pipeline, "GENERATION_RETRY_WAIT_S", 0)
+    monkeypatch.setattr(pipeline.audio, "encode_checked", lambda src, dst: open(dst, "wb").close())
+    pipe = _pipe(tmp_path, cw)
+    pipe.prod = UploadProd()
+    pipe.state.update(chapter_map=chapter_map, uploaded={}, fallback_lines={})
+    return pipe
+
+
+def test_a_failed_generation_banks_the_rendered_chapters_before_it_raises(tmp_path, monkeypatch):
+    cw = RenderCw(runs=[[{"type": "chapter_complete", "chapterId": 11}, {"type": "idle"}]])
+    pipe = _render_pipe(tmp_path, monkeypatch, cw, {"11": 1001, "12": 1002})
+    with pytest.raises(PartFailed) as info:
+        pipe._generation()
+    assert info.value.retryable is True
+    assert str(info.value) == "generation failed: chapter 12 not rendered"
+    assert pipe.prod.uploads == [1001]
+    assert pipe.state["uploaded"] == {"1001": "sha-1001"}
+    assert len(cw.generate_calls) == pipeline.GENERATION_RETRIES + 1
+
+
+def test_banking_keeps_castwrights_audio_so_uploaded_chapters_are_not_rendered_again(tmp_path, monkeypatch):
+    cw = RenderCw(runs=[[{"type": "chapter_complete", "chapterId": 11}, {"type": "idle"}]])
+    pipe = _render_pipe(tmp_path, monkeypatch, cw, {"11": 1001, "12": 1002})
+    deleted = []
+    monkeypatch.setattr(pipe, "_delete_workspace_audio", lambda book_dir, slug: deleted.append(slug))
+    with pytest.raises(PartFailed):
+        pipe._generation()
+    assert pipe.prod.uploads == [1001]
+    assert deleted == []
+
+
+def test_a_sidecar_recycle_during_generation_is_retried_not_fatal(tmp_path, monkeypatch):
+    error = {"type": "error", "code": "sidecar_unavailable", "message": "TTS sidecar is unreachable"}
+    cw = RenderCw(runs=[[error], [{"type": "chapter_complete", "chapterId": 11}, {"type": "idle"}]])
+    pipe = _render_pipe(tmp_path, monkeypatch, cw, {"11": 1001})
+    pipe._generation()
+    assert len(cw.generate_calls) == 2
+    assert pipe._unrendered() == []
+
+
+def test_a_retried_generation_starts_its_progress_from_the_rendered_count(tmp_path, monkeypatch):
+    cw = RenderCw(runs=[[{"type": "chapter_complete", "chapterId": 11}, {"type": "idle"}], [{"type": "idle"}]])
+    pipe = _render_pipe(tmp_path, monkeypatch, cw, {"11": 1001, "12": 1002})
+    fractions = []
+    generate = cw.generate
+
+    def record(book_id, model_key):
+        fractions.append(pipe.progress.snapshot()[0])
+        return generate(book_id, model_key)
+
+    cw.generate = record
+    with pytest.raises(PartFailed):
+        pipe._generation()
+    # The generation stage starts at 0.30 of the bar and spans 0.60: one of two chapters rendered is half of it.
+    assert fractions[0] == pytest.approx(0.30)
+    assert fractions[1] == pytest.approx(0.30 + 0.60 * 0.5)
+
+
+class OutageCw(RenderCw):
+    """Castwright stub that is unreachable: its first `down_runs` generate calls fail to connect, and info fails for
+    its first `down_polls` calls."""
+
+    def __init__(self, runs, *, down_runs=0, down_polls=0):
+        super().__init__(runs)
+        self.down_runs = down_runs
+        self.down_polls = down_polls
+        self.info_calls = 0
+
+    def generate(self, book_id, model_key):
+        if self.down_runs:
+            self.down_runs -= 1
+            self.generate_calls.append(model_key)
+            raise CastwrightError("unreachable", "connection refused", True)
+        return super().generate(book_id, model_key)
+
+    def info(self):
+        self.info_calls += 1
+        if self.info_calls <= self.down_polls:
+            raise CastwrightError("unreachable", "connection refused", True)
+        return super().info()
+
+
+def test_an_unreachable_castwright_is_polled_until_it_answers_and_the_retry_goes_on(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "CASTWRIGHT_POLL_S", 0)
+    cw = OutageCw([[{"type": "chapter_complete", "chapterId": 11}, {"type": "idle"}]], down_runs=1, down_polls=2)
+    pipe = _render_pipe(tmp_path, monkeypatch, cw, {"11": 1001})
+    pipe._generation()
+    assert cw.info_calls == 3
+    assert len(cw.generate_calls) == 2
+    assert pipe._unrendered() == []
+
+
+def test_an_unreachable_castwright_that_stays_down_fails_the_part_as_retryable(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "CASTWRIGHT_WAIT_S", 0)
+    monkeypatch.setattr(pipeline, "CASTWRIGHT_POLL_S", 0)
+    cw = OutageCw([[{"type": "idle"}]], down_runs=99, down_polls=99)
+    pipe = _render_pipe(tmp_path, monkeypatch, cw, {"11": 1001})
+    with pytest.raises(PartFailed) as info:
+        pipe._generation()
+    assert info.value.retryable is True
+    assert "unreachable: connection refused" in str(info.value)
+    assert len(cw.generate_calls) == 1
+
+
+class DropAfterRunCw(RenderCw):
+    """Castwright stub that drops off right after the first run: the check that follows the run finds no connection."""
+
+    def __init__(self, runs):
+        super().__init__(runs)
+        self.audio_checks = 0
+
+    def chapter_audio(self, book_id, chapter_id):
+        self.audio_checks += 1
+        if self.audio_checks == 2:
+            raise CastwrightError("unreachable", "connection reset", True)
+        return super().chapter_audio(book_id, chapter_id)
+
+
+def test_an_unreachable_castwright_found_by_the_check_after_a_run_is_retried(tmp_path, monkeypatch):
+    cw = DropAfterRunCw(runs=[[{"type": "chapter_complete", "chapterId": 11}, {"type": "idle"}], [{"type": "idle"}]])
+    pipe = _render_pipe(tmp_path, monkeypatch, cw, {"11": 1001})
+    pipe._generation()
+    assert len(cw.generate_calls) == 2
+    assert pipe._unrendered() == []

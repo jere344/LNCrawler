@@ -39,6 +39,10 @@ CANCEL_DELETE_STEP_S = 5
 WARNINGS_MAX = 50  # the part state keeps the newest warnings only
 DESIGN_SIDECAR_RETRIES = 3  # design runs restarted after the sidecar recycled mid-run
 DESIGN_SIDECAR_WAIT_S = 30  # the sidecar respawns in a few seconds; this also lets the card settle
+GENERATION_RETRIES = 3  # generation runs again after a failed run, for the chapters still missing
+GENERATION_RETRY_WAIT_S = 30  # between generation runs, so a recycled sidecar has time to respawn
+CASTWRIGHT_WAIT_S = 300  # how long a generation retry waits for an unreachable Castwright to answer
+CASTWRIGHT_POLL_S = 10
 NON_ENGLISH_NOTE = "non-English book: every character forced onto Qwen"
 
 
@@ -131,6 +135,7 @@ class PartPipeline:
         self.progress = progress
         self.llm = llm
         self.state: dict[str, Any] = {}
+        self._generation_fraction = 0.0  # the last generation fraction reported in this part attempt
 
     # -- helpers ---------------------------------------------------------
 
@@ -225,6 +230,7 @@ class PartPipeline:
         self._generation()
         self._encode_upload()
         self._complete()
+        self._cleanup_workspace_audio()
         state.drop(self.cfg.data_dir, self.part_id)
         self.progress.idle()
         self._log("done")
@@ -592,39 +598,110 @@ class PartPipeline:
         self._stage("generation", "rendering audio")
         model_key = casting.RUN_MODEL_KEYS[self._profile()]
         total = max(len(self.state["chapter_map"]), 1)
-        failures = self._safe_run(model_key, total)
-        missing = self._unrendered()
-        if failures or missing:
+        failures: list[str] = []
+        missing: list[str] | None = []
+        unreachable = False
+        for retry in range(GENERATION_RETRIES + 1):
+            if retry:
+                self._log("generation retry %d of %d: failures=%s", retry, GENERATION_RETRIES, failures)
+                if self.stop.wait(GENERATION_RETRY_WAIT_S):
+                    raise Stopped()
+                self._check()
+                if unreachable and not self._wait_for_castwright():
+                    break
             # Same modelKey: the POST subscribes to a live run or starts one for the chapters still missing.
-            self._log("generation retry: failures=%s missing=%s", failures, missing)
-            failures = self._safe_run(model_key, total)
-            missing = self._unrendered()
+            failures, missing, unreachable = self._safe_run(model_key, total)
+            if not failures and not missing:
+                break
+        if missing is None:
+            # The last run ended before its check. Castwright is asked once more; without an answer nothing is banked.
+            missing = self._missing_or_none()
         if failures or missing:
-            reasons = failures + [f"chapter {cid} not rendered" for cid in missing]
+            if missing is not None:
+                self._bank_rendered(missing)
+            reasons = failures + [f"chapter {cid} not rendered" for cid in missing or []]
             raise PartFailed("generation failed: " + "; ".join(reasons), retryable=True)
         self.progress.set_fraction(1.0)
 
-    def _safe_run(self, model_key: str, total: int) -> list[str]:
-        """One generation run. A dropped stream counts as a failed run, so the caller re-subscribes once."""
+    def _safe_run(self, model_key: str, total: int) -> tuple[list[str], list[str] | None, bool]:
+        """One generation run and the check after it. A dropped stream, a recycled sidecar or an unreachable Castwright
+        counts as a failed run, so the caller retries. Returns (failures, missing, unreachable). missing is None when
+        the run ended in a failure before the check."""
         try:
-            return self._run_generation(model_key, total)
+            return self._run_generation(model_key, total), self._unrendered(), False
         except CastwrightError as exc:
-            if exc.code != "stream_dropped":
+            if exc.code == "stream_dropped":
+                failure = f"stream dropped: {exc.message}"
+            elif exc.code in ("sidecar_unavailable", "unreachable"):
+                failure = f"{exc.code}: {exc.message}"
+            else:
                 raise
-            return [f"stream dropped: {exc.message}"]
+            return [failure], None, exc.code == "unreachable"
+
+    def _missing_or_none(self) -> list[str] | None:
+        """The chapters still missing, or None when Castwright cannot answer right now."""
+        try:
+            return self._unrendered()
+        except CastwrightError as exc:
+            if exc.code not in ("sidecar_unavailable", "unreachable"):
+                raise
+            return None
+
+    def _wait_for_castwright(self) -> bool:
+        """Polls Castwright until it answers, for up to CASTWRIGHT_WAIT_S. False when it still does not."""
+        deadline = time.monotonic() + CASTWRIGHT_WAIT_S
+        while True:
+            try:
+                self.cw.info()
+                return True
+            except CastwrightError:
+                pass
+            if time.monotonic() >= deadline:
+                self._log("Castwright still unreachable after %d s", CASTWRIGHT_WAIT_S)
+                return False
+            if self.stop.wait(CASTWRIGHT_POLL_S):
+                raise Stopped()
+            self._check()
+
+    def _bank_rendered(self, missing: list[str]) -> None:
+        """Encodes and uploads each rendered chapter before a failed generation is raised. The retry renders the rest."""
+        for cw_id, _ch_id in self._pending_chapters():
+            if cw_id in missing:
+                continue
+            try:
+                self._encode_upload(only={cw_id})
+            except PartFailed as exc:
+                if not exc.retryable:
+                    # Not retryable at the encode stage either: the chapter fails the same way there, so this propagates.
+                    raise
+                self._log("could not bank chapter %s: %s", cw_id, exc)
+            except CastwrightError as exc:
+                self._log("could not bank the rendered chapters: %s", exc)
+                return
+
+    def _rendered_ids(self) -> set[str]:
+        """Castwright chapter ids that are rendered or uploaded. The progress bar starts from these."""
+        uploaded = {cw_id for cw_id, ch_id in self.state["chapter_map"].items() if str(ch_id) in self.state["uploaded"]}
+        return uploaded | ({cw_id for cw_id, _ch_id in self._pending_chapters()} - set(self._unrendered()))
+
+    def _report_generation(self, fraction: float) -> None:
+        """The bar never goes back within this part attempt, even when a retry starts from fewer chapters."""
+        self._generation_fraction = max(self._generation_fraction, fraction)
+        self.progress.set_fraction(self._generation_fraction)
 
     def _run_generation(self, model_key: str, total: int) -> list[str]:
         failures: list[str] = []
-        done: set[str] = set()
+        done = self._rendered_ids()
+        self._report_generation(len(done) / total)
         for event in self.cw.generate(self._book_id, model_key):
             self._check()
             kind = event_type(event)
             if kind == "progress":
                 in_chapter = float(event.get("progress") or 0)
-                self.progress.set_fraction((len(done) + in_chapter) / total)
+                self._report_generation((len(done) + in_chapter) / total)
             elif kind == "chapter_complete":
                 done.add(str(event.get("chapterId")))
-                self.progress.set_fraction(len(done) / total)
+                self._report_generation(len(done) / total)
             elif kind == "chapter_failed":
                 failures.append(f"chapter {event.get('chapterId')}: {event.get('errorReason')}")
             elif kind == "warning":
@@ -672,7 +749,8 @@ class PartPipeline:
             if str(seg.get("characterId")) in qwen_ids and seg.get("renderedFallbackEngine")
         )
 
-    def _encode_upload(self) -> None:
+    def _encode_upload(self, only: set[str] | None = None) -> None:
+        """Encodes and uploads the pending chapters, or only the Castwright chapter ids in `only`."""
         self._stage("encode", "encoding chapters")
         book = self._book()
         book_state = book.get("state") or {}
@@ -683,7 +761,7 @@ class PartPipeline:
             qwen_ids = {str(r.get("id")) for r in _cast_rows(book) if r.get("ttsEngine") == "qwen"}
         folder = state.part_folder(self.cfg.data_dir, self.part_id)
         os.makedirs(folder, exist_ok=True)
-        pending = self._pending_chapters()
+        pending = [(cw_id, ch_id) for cw_id, ch_id in self._pending_chapters() if only is None or cw_id in only]
         for index, (cw_id, ch_id) in enumerate(pending):
             self._check()
             self.progress.set_fraction(index / len(pending), f"encoding chapter {ch_id}")
@@ -713,8 +791,21 @@ class PartPipeline:
             self._log("uploaded chapter %s sha=%s", ch_id, sha[:12])
             # The ogg stays until complete succeeds, so a CompleteRejected re-upload can resend it.
             os.remove(mp3)
-            self._delete_workspace_audio(book_dir, slugs.get(cw_id))
+            # Castwright's own audio stays until the part completes: Castwright
+            # renders every chapter without audio, so deleting it here would make
+            # the next generation run render uploaded chapters again.
             self._stage("encode", f"encoded chapter {ch_id}")
+
+    def _cleanup_workspace_audio(self) -> None:
+        """After complete: removes Castwright's rendered audio for every chapter of the part."""
+        try:
+            book_state = self._book().get("state") or {}
+        except CastwrightError as exc:
+            self._log("workspace audio cleanup skipped: %s", exc)
+            return
+        book_dir = self.state.get("book_dir")
+        for c in book_state.get("chapters") or []:
+            self._delete_workspace_audio(book_dir, c.get("slug"))
 
     def _delete_workspace_audio(self, book_dir: str | None, slug: str | None) -> None:
         """Removes this chapter's rendered files under <WORKSPACE_DIR>/books/. Never manuscript.* or .audiobook."""

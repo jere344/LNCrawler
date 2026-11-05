@@ -108,11 +108,13 @@ class TruyenHoanCrawler(Crawler):
         # ".desc" also holds the "latest chapters" box; the blurb is ".desc-text".
         synopsis = soup.select_one(".desc-text")
         if synopsis:
-            self.novel_synopsis = synopsis.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
         for img in soup.select("img[src*='/medias/covers/']"):
-            self.novel_cover = img["src"]
-            break
+            url = self.image_url(img)
+            if url:
+                self.novel_cover = url
+                break
 
         pages = [int(x) for x in re.findall(r"/trang-(\d+)/", str(soup))]
         last_page = max(pages) if pages else 1
