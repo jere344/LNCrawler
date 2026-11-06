@@ -2,7 +2,7 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Box, Typography } from '@mui/material';
 import type { DimGestureSide } from '../readerSettingsSchema';
 import { updateReaderSetting } from '../readerSettingsStore';
-import { DIM_LEVEL_MAX, dimBandWidth, dimLevelFromDrag } from '../readerGeometry';
+import { dimBandWidth, dimLevelFromDrag } from '../readerGeometry';
 import { useViewportSize } from '../hooks/useViewportSize';
 import type { ReaderTapProps } from '../hooks/useReaderTapInput';
 
@@ -64,6 +64,9 @@ const DimGestureStrip = ({ side, savedWidth, dimLevel, tapProps, onTap }: DimGes
     tapProps.onPointerCancel?.(e);
   };
 
+  // The HUD shows visibility, not dimming: 100% is undimmed, and it rises as the finger moves up
+  const visibility = 100 - dimLevel;
+
   return (
     <>
       <Box
@@ -106,9 +109,9 @@ const DimGestureStrip = ({ side, savedWidth, dimLevel, tapProps, onTap }: DimGes
           }}
         >
           <Box sx={{ position: 'relative', width: 6, height: 120, borderRadius: 3, overflow: 'hidden', bgcolor: 'action.disabledBackground' }}>
-            <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${(dimLevel / DIM_LEVEL_MAX) * 100}%`, bgcolor: 'text.primary' }} />
+            <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${visibility}%`, bgcolor: 'text.primary' }} />
           </Box>
-          <Typography variant="body2" component="span" sx={{ minWidth: '3em' }}>{dimLevel}%</Typography>
+          <Typography variant="body2" component="span" sx={{ minWidth: '3em' }}>{visibility}%</Typography>
         </Box>
       )}
     </>

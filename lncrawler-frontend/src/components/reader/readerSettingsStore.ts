@@ -3,7 +3,7 @@ import { deleteCookie, getCookie } from '@utils/cookies';
 import { defaultSettings } from './readerDefaults';
 import { sanitizeSettings, type ReaderSettings } from './readerSettingsSchema';
 
-const STORAGE_VERSION = 1;
+export const STORAGE_VERSION = 1;
 const WRITE_DELAY_MS = 300;
 // Keys of the old one-cookie-per-setting format, including the key it replaced
 const LEGACY_COOKIE_KEYS = [...Object.keys(defaultSettings), 'centerTapToOpenSettings'];
@@ -15,12 +15,15 @@ let state: ReaderSettings | null = null;
 let writePending = false;
 let writeTimer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<Listener>();
+// Told only about changes made on this device, never about settings that came from another tab or the server
+const changeListeners = new Set<Listener>();
 
 // Full settings from raw input: every missing or invalid key gets its default
-const buildFrom = (raw: unknown): ReaderSettings => ({ ...defaultSettings, ...sanitizeSettings(raw) });
+export const buildReaderSettings = (raw: unknown): ReaderSettings => ({ ...defaultSettings, ...sanitizeSettings(raw) });
+const buildFrom = buildReaderSettings;
 
 // Defaults for a first load or a reset. Under RTL the swipes swap, so "next" still follows the reading direction.
-const baseDefaults = (): ReaderSettings => {
+export const baseDefaults = (): ReaderSettings => {
   if (typeof document === 'undefined' || document.documentElement.dir !== 'rtl') return { ...defaultSettings };
   return {
     ...defaultSettings,
@@ -133,14 +136,32 @@ export const subscribeReaderSettings = (listener: Listener): (() => void) => {
   };
 };
 
+export const subscribeReaderSettingsChanges = (listener: Listener): (() => void) => {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+};
+
+const setLocalState = (next: ReaderSettings): void => {
+  setState(next);
+  changeListeners.forEach((listener) => listener());
+};
+
 export const updateReaderSetting = <K extends keyof ReaderSettings>(key: K, value: ReaderSettings[K]): void => {
-  setState({ ...getState(), [key]: value });
+  setLocalState({ ...getState(), [key]: value });
 };
 
 export const replaceReaderSettings = (next: ReaderSettings): void => {
-  setState({ ...next });
+  setLocalState({ ...next });
 };
 
 export const resetReaderSettings = (): void => {
-  setState(baseDefaults());
+  setLocalState(baseDefaults());
+};
+
+// Settings that came from the server: saved and shown, but not reported as a change, so they are not sent back
+export const applyRemoteReaderSettings = (raw: unknown): void => {
+  getState();
+  setState(buildFrom(raw));
 };

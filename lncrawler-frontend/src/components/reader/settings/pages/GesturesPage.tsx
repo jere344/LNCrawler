@@ -5,7 +5,7 @@ import ScreenZoneMap, { type ScreenZone } from '../ScreenZoneMap';
 import { SettingGroupHeading, SettingRow, SettingSelect, SettingStepper } from '../SettingRows';
 import { useReaderSettings } from '../../hooks/useReaderSettings';
 import { updateReaderSetting } from '../../readerSettingsStore';
-import type { ControlsTrigger, EdgeTapBehavior } from '../../readerSettingsSchema';
+import type { CenterAction, EdgeTapBehavior } from '../../readerSettingsSchema';
 import { dimBandMax, dimBandWidth } from '../../readerGeometry';
 import { useViewportSize } from '../../hooks/useViewportSize';
 import { useSettingsContext } from '../settingsContext';
@@ -16,21 +16,13 @@ const ZONE_LABEL_KEYS: Record<ScreenZone, string> = {
   right: 'readerSettingsPages.zoneRight',
 };
 
-const TRIGGER_LABEL_KEYS: Record<ControlsTrigger, string> = {
-  singleTap: 'readerSettingsPages.trigger.singleTap',
-  doubleTap: 'readerSettingsPages.trigger.doubleTap',
-  longPress: 'readerSettingsPages.trigger.longPress',
-  off: 'readerSettingsPages.trigger.off',
+const CENTER_ACTION_LABEL_KEYS: Record<CenterAction, string> = {
+  none: 'gestureSettings.doNothing',
+  controls: 'gestureSettings.showControls',
+  fullscreen: 'gestureSettings.fullscreen',
 };
 
-// Only the triggers that need a hint have one
-const TRIGGER_HINT_KEYS: Partial<Record<ControlsTrigger, string>> = {
-  doubleTap: 'readerSettingsPages.triggerHint.doubleTap',
-  longPress: 'readerSettingsPages.triggerHint.longPress',
-  off: 'readerSettingsPages.triggerHint.off',
-};
-
-const TRIGGERS: ControlsTrigger[] = ['singleTap', 'doubleTap', 'longPress', 'off'];
+const CENTER_ACTIONS: CenterAction[] = ['controls', 'fullscreen', 'none'];
 
 const EDGE_TAP_LABEL_KEYS: Record<EdgeTapBehavior, string> = {
   none: 'behaviorSettings.doNothing',
@@ -99,9 +91,11 @@ const GesturesPage = ({ initialZone = 'middle' }: GesturesPageProps) => {
   const bandPx = Math.round((viewportWidth * bandWidth) / 100);
 
   const edgeValue = (behavior: EdgeTapBehavior) => t(EDGE_TAP_LABEL_KEYS[behavior]);
-  const middleValue = settings.controlsTrigger === 'off'
-    ? t(TRIGGER_LABEL_KEYS.off)
-    : t('readerSettingsPages.controlsValue', { trigger: t(TRIGGER_LABEL_KEYS[settings.controlsTrigger]) });
+  const middleValue = t('readerSettingsPages.centerValue', {
+    single: t(CENTER_ACTION_LABEL_KEYS[settings.centerSingleTap]),
+    double: t(CENTER_ACTION_LABEL_KEYS[settings.centerDoubleTap]),
+    long: t(CENTER_ACTION_LABEL_KEYS[settings.centerLongPress]),
+  });
 
   const items = {
     left: { label: t(ZONE_LABEL_KEYS.left), value: edgeValue(settings.leftEdgeTapBehavior) },
@@ -109,10 +103,9 @@ const GesturesPage = ({ initialZone = 'middle' }: GesturesPageProps) => {
     right: { label: t(ZONE_LABEL_KEYS.right), value: edgeValue(settings.rightEdgeTapBehavior) },
   };
 
-  const triggerOptions = TRIGGERS.map((trigger) => ({
-    value: trigger,
-    label: t(TRIGGER_LABEL_KEYS[trigger]),
-    hint: TRIGGER_HINT_KEYS[trigger] && t(TRIGGER_HINT_KEYS[trigger]),
+  const centerOptions = CENTER_ACTIONS.map((action) => ({
+    value: action,
+    label: t(CENTER_ACTION_LABEL_KEYS[action]),
   }));
   const edgeOptions = (Object.keys(EDGE_TAP_LABEL_KEYS) as EdgeTapBehavior[]).map((behavior) => ({
     value: behavior,
@@ -122,19 +115,16 @@ const GesturesPage = ({ initialZone = 'middle' }: GesturesPageProps) => {
     { value: 'none', label: t('gestureSettings.doNothing') },
     { value: 'prevChapter', label: t('gestureSettings.previousChapter') },
     { value: 'nextChapter', label: t('gestureSettings.nextChapter') },
+    { value: 'chapterList', label: t('gestureSettings.chapterList') },
+    { value: 'comments', label: t('gestureSettings.comments') },
   ];
 
   const renderMiddle = () => (
     <>
-      <SettingGroupHeading>{t('readerSettingsPages.showControlsWith')}</SettingGroupHeading>
-      <ChoiceGroup
-        label={t('readerSettingsPages.showControlsWith')}
-        settingId="controlsTrigger"
-        value={settings.controlsTrigger}
-        options={triggerOptions}
-        onChange={(value) => updateReaderSetting('controlsTrigger', value as ControlsTrigger)}
-      />
-      {settings.controlsTrigger === 'longPress' && settings.textSelectable && (
+      <SettingSelect settingKey="centerSingleTap" settingId="centerSingleTap" title={t('readerSettingsPages.trigger.singleTap')} options={centerOptions} />
+      <SettingSelect settingKey="centerDoubleTap" settingId="centerDoubleTap" title={t('readerSettingsPages.trigger.doubleTap')} options={centerOptions} />
+      <SettingSelect settingKey="centerLongPress" settingId="centerLongPress" title={t('readerSettingsPages.trigger.longPress')} options={centerOptions} />
+      {settings.centerLongPress !== 'none' && settings.textSelectable && (
         <Alert severity="warning" sx={{ mt: 1.5 }}>
           <Typography variant="body2">{t('readerSettingsPages.longPressWarning')}</Typography>
           <Button size="small" onClick={() => updateReaderSetting('textSelectable', false)} sx={{ mt: 0.5 }}>

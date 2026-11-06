@@ -40,10 +40,10 @@ describe('migration from cookies', () => {
     setCookie(READER_COOKIE_PREFIX + 'centerTapToOpenSettings', JSON.stringify(false));
 
     expect(store.getReaderSettings().fontSize).toBe(20);
-    expect(store.getReaderSettings().controlsTrigger).toBe('off');
+    expect(store.getReaderSettings().centerSingleTap).toBe('none');
     expect(storedValue()).toEqual({
       version: 1,
-      settings: expect.objectContaining({ fontSize: 20, controlsTrigger: 'off' }),
+      settings: expect.objectContaining({ fontSize: 20, centerSingleTap: 'none' }),
     });
     expect(document.cookie).not.toContain(READER_COOKIE_PREFIX);
   });
@@ -130,6 +130,43 @@ describe('subscriptions', () => {
 
     store.updateReaderSetting('fontSize', 18);
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('change listeners', () => {
+  it('fires for a local update', () => {
+    const listener = vi.fn();
+    store.subscribeReaderSettingsChanges(listener);
+
+    store.updateReaderSetting('fontSize', 18);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('fires for a replace and for a reset', () => {
+    const listener = vi.fn();
+    store.subscribeReaderSettingsChanges(listener);
+
+    store.replaceReaderSettings({ ...defaultSettings, fontSize: 20 });
+    store.resetReaderSettings();
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not fire for settings applied from the server', () => {
+    const listener = vi.fn();
+    store.subscribeReaderSettingsChanges(listener);
+
+    store.applyRemoteReaderSettings({ ...defaultSettings, fontSize: 26 });
+    expect(listener).not.toHaveBeenCalled();
+    expect(store.getReaderSettings().fontSize).toBe(26);
+  });
+
+  it('applying from the server still notifies the settings listeners', () => {
+    const listener = vi.fn();
+    store.subscribeReaderSettings(listener);
+
+    store.applyRemoteReaderSettings({ ...defaultSettings, fontSize: 26 });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(store.getReaderSettings().fontSize).toBe(26);
   });
 });
 

@@ -64,7 +64,9 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('keyF', 'readerSettingsPages.keyF', 'keys', ['keyF']),
   entry('keyM', 'readerSettingsPages.keyM', 'keys', ['keyM']),
 
-  entry('controlsTrigger', 'readerSettingsPages.showControlsWith', 'touch', ['controlsTrigger'], 'middle'),
+  entry('centerSingleTap', 'gestureSettings.centerSingleTap', 'touch', ['centerSingleTap'], 'middle'),
+  entry('centerDoubleTap', 'gestureSettings.centerDoubleTap', 'touch', ['centerDoubleTap'], 'middle'),
+  entry('centerLongPress', 'gestureSettings.centerLongPress', 'touch', ['centerLongPress'], 'middle'),
   entry('swipeLeftGesture', 'gestureSettings.swipeLeft', 'touch', ['swipeLeftGesture']),
   entry('swipeRightGesture', 'gestureSettings.swipeRight', 'touch', ['swipeRightGesture']),
   entry('edgeTap', 'readerSettingsPages.tapThisEdge', 'touch', ['leftEdgeTapBehavior', 'rightEdgeTapBehavior'], 'right'),
@@ -73,8 +75,15 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('readerHeaderBehavior', 'readerSettingsPages.siteHeader', 'reading', ['readerHeaderBehavior']),
   entry('markReadBehavior', 'behaviorSettings.markAsReadBehavior', 'reading', ['markReadBehavior']),
   entry('textSelectable', 'behaviorSettings.allowSelection', 'reading', ['textSelectable']),
+  entry('readingMode', 'behaviorSettings.readingMode', 'reading', ['readingMode']),
+  entry('infiniteShowComments', 'behaviorSettings.infiniteShowComments', 'reading', ['infiniteShowComments']),
   entry('savePosition', 'behaviorSettings.rememberPosition', 'reading', ['savePosition']),
   entry('hideScrollbar', 'layoutSettings.hideScrollbar', 'reading', ['hideScrollbar']),
+
+  entry('overlayEnabled', 'readerSettingsPages.overlay.enable', 'overlay', ['overlayEnabled']),
+  entry('overlayPosition', 'readerSettingsPages.overlay.position', 'overlay', ['overlayPosition']),
+  entry('overlaySize', 'readerSettingsPages.overlay.size', 'overlay', ['overlaySize']),
+  entry('overlayItems', 'readerSettingsPages.overlay.content', 'overlay', ['overlayItems']),
 
   entry('ttsPreferAudiobook', 'ttsSettings.whatReads', 'listen', ['ttsPreferAudiobook']),
   entry('ttsRate', 'ttsSettings.speed', 'listen', ['ttsRate']),

@@ -737,7 +737,12 @@
     "chapters": "Kapitel",
     "openSettings": "Öppna läsarinställningar",
     "markedRead": "Kapitlet markerades som läst!",
-    "listen": "Lyssna"
+    "listen": "Lyssna",
+    "retry": "Försök igen",
+    "infiniteLoading": "Laddar nästa kapitel",
+    "infiniteEnd": "Du har nått det senaste kapitlet.",
+    "infiniteUnavailable": "Kapitel {chapter} är inte tillgängligt.",
+    "infiniteOpenChapter": "Öppna kapitel {chapter}"
   },
   "readerControls": {
     "previousChapter": "Föregående kapitel",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Helskärm",
     "exitFullscreen": "Avsluta helskärm",
     "commentsCount": "{count, plural, =0 {Kommentarer} one {Kommentarer, # kommentar} other {Kommentarer, # kommentarer}}"
+  },
+  "readerOverlay": {
+    "page": "Sida {page}/{pages}",
+    "chapterOf": "Kap. {current}/{total}",
+    "dim": "Dämpning {percent}%"
   },
   "readerChapters": {
     "open": "Öppna kapitellistan",
@@ -879,6 +889,25 @@
     "resetTitle": "Återställ inställningarna till standard?",
     "resetBody": "Detta återställer alla läsarinställningar till standardvärden. Denna åtgärd kan inte ångras.",
     "reset": "Återställ",
+    "syncTitle": "Synkronisering",
+    "syncDevice": "Den här enheten använder",
+    "syncDeviceAuto": "Automatiskt ({type})",
+    "syncDeviceMobile": "Telefoninställningar",
+    "syncDeviceDesktop": "Datorinställningar",
+    "syncDeviceOff": "Synkronisera inte på den här enheten",
+    "syncTypeMobile": "telefon",
+    "syncTypeDesktop": "dator",
+    "syncStatusSignedOut": "Logga in för att behålla dina inställningar på alla enheter.",
+    "syncStatusOff": "Inställningarna stannar på den här enheten.",
+    "syncStatusPending": "Väntar på servern…",
+    "syncStatusSyncing": "Sparar…",
+    "syncStatusSynced": "Synkroniserat med dina {type}inställningar.",
+    "syncStatusError": "Kunde inte synkronisera. Vi försöker igen senare.",
+    "syncStatusNeedsChoice": "Välj vilka inställningar som ska behållas.",
+    "syncChoiceTitle": "Vilka inställningar ska den här enheten använda?",
+    "syncChoiceBody": "Den här enheten har egna inställningar, och du har också sparade {type}inställningar (uppdaterade {date}).",
+    "syncChoiceSaved": "Använd sparade",
+    "syncChoiceDevice": "Behåll den här enhetens",
     "tts": "Textuppläsning"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Gester",
       "keys": "Tangentbord",
       "reading": "Läsning",
+      "overlay": "Infooverlay",
       "listen": "Lyssning",
       "voice": "Röst och kvalitet",
       "backup": "Säkerhetskopiering och återställning"
     },
     "listenSub": "Röst, hastighet, markering. Finns även i spelaren.",
+    "overlay": {
+      "enable": "Visa infooverlay",
+      "enableHint": "En liten remsa över texten med tid, framsteg och mer.",
+      "homeOn": "{count, plural, one {# objekt} other {# objekt}}",
+      "homeOff": "Av",
+      "layout": "Layout",
+      "position": "Position",
+      "positions": {
+        "top": "Upptill",
+        "bottom": "Nedtill"
+      },
+      "size": "Storlek",
+      "sizes": {
+        "full": "Full bredd",
+        "center": "Mittkapsel",
+        "left": "Vänsterkapsel",
+        "right": "Högerkapsel"
+      },
+      "content": "Innehåll",
+      "contentHint": "Tryck för att lägga till eller ta bort. Objekt visas i den ordning du lägger till dem. Batteri visas bara i webbläsare som stöder det.",
+      "items": {
+        "time12": "Tid (12 h)",
+        "time24": "Tid (24 h)",
+        "chapterPage": "Kapitelframsteg (sida)",
+        "chapterSlider": "Kapitelframsteg (reglage)",
+        "chapterPercent": "Kapitelframsteg (%)",
+        "battery": "Batteri",
+        "bookPercent": "Bokframsteg (%)",
+        "bookChapter": "Bokframsteg (kapitel)",
+        "dimness": "Dämpning (%)"
+      }
+    },
     "sheetCount": "{count, plural, one {# kontroll} other {# kontroller}}",
     "textSub": "{size} px · {font} · Rader {lines}×",
     "colorsSub": "{theme} · Nattfilter {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "av",
     "nightStrength": "{strength} %",
     "scheduled": " · Schemalagt",
-    "touchSub": "Kontroller: {trigger} · Dra för att dämpa: {side}",
+    "touchSummary": "Tryck: {tap} · Dubbeltryck: {double} · Svep för att dämpa: {side}",
     "trigger": {
       "singleTap": "Enkeltryck",
       "doubleTap": "Dubbeltryck",
-      "longPress": "Långtryck",
-      "off": "Av"
+      "longPress": "Långtryck"
     },
     "dimSide": {
       "off": "Av",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Mitten",
     "zoneRight": "Höger kant",
     "dimTag": "Dämpa",
-    "controlsValue": "Kontroller: {trigger}",
+    "centerValue": "Tryck: {single} · Dubbel: {double} · Håll: {long}",
     "siteHeader": "Sidhuvud på webbplatsen",
     "touchNote": "Dessa gäller när du använder en pekskärm, även på en pekskärmsdator.",
     "chooseZone": "Välj en zon för att ändra vad den gör.",
     "screenZones": "Skärmzoner",
     "swipes": "Svep",
-    "showControlsWith": "Visa kontroller med",
-    "triggerHint": {
-      "doubleTap": "Enkeltryck avbryter aldrig läsningen",
-      "longPress": "Håll inne i en halv sekund",
-      "off": "Använd knapparna överst i kapitlet"
-    },
     "longPressWarning": "På telefoner startar ett långtryck även textmarkering. De två krockar i själva texten.",
     "turnOffSelection": "Stäng av textmarkering",
     "tapThisEdge": "Tryck på den här kanten",
@@ -1032,7 +1087,9 @@
     "keyD": "tangentbord tangent visning",
     "keyF": "tangentbord tangent helskärm",
     "keyM": "tangentbord tangent kommentarer",
-    "controlsTrigger": "tryck dubbeltryck långtryck håll verktygsfält meny mitten center gest",
+    "centerSingleTap": "tryck enkel verktygsfält meny kontroller mitten gest",
+    "centerDoubleTap": "dubbeltryck helskärm mitten gest",
+    "centerLongPress": "långt tryck håll verktygsfält kontroller helskärm mitten gest",
     "swipeLeftGesture": "gest nästa kapitel",
     "swipeRightGesture": "gest föregående kapitel",
     "edgeTap": "vänster höger tryck zon scrolla kapitel gest",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "toppfält navbar scrolla fast flytande",
     "markReadBehavior": "framsteg avslutad automatisk",
     "textSelectable": "kopiera markera",
+    "readingMode": "oändlig kontinuerlig rullning nästa kapitel sida",
+    "infiniteShowComments": "kommentarer kort slutet av kapitel oändlig rullning dölj",
     "savePosition": "bokmärke återuppta scrolla",
     "hideScrollbar": "rullningslist scroll bar",
     "ttsPreferAudiobook": "lyssna tts ljudbok berättare inspelning källa enhet",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "lyssna tts wake lock vaken",
     "importSettings": "säkerhetskopia återställ fil",
     "exportSettings": "säkerhetskopia spara fil",
-    "resetDefaults": "återställ rensa säkerhetskopia"
+    "resetDefaults": "återställ rensa säkerhetskopia",
+    "overlayEnabled": "overlay infooverlay statusfält klocka info remsa hud",
+    "overlayPosition": "overlay upptill nedtill position statusfält",
+    "overlaySize": "overlay bredd kapsel full mitten vänster höger",
+    "overlayItems": "overlay tid klocka batteri framsteg sida procent kapitel bok dämpning"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Beteende för markera som läst",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Knapp + automatisk",
     "allowSelection": "Tillåt textmarkering/kopiering",
     "rememberPosition": "Kom ihåg läsplacering",
+    "readingMode": "Läsläge",
+    "readingModeChapter": "Ett kapitel per sida",
+    "readingModeInfinite": "Oändlig rullning",
+    "readingModeChapterHint": "Varje kapitel öppnas på en egen sida. Använd knapparna, tangenterna eller gesterna för att byta kapitel.",
+    "readingModeInfiniteHint": "Nästa kapitel laddas under det nuvarande medan du rullar.",
+    "infiniteShowComments": "Kommentarer mellan kapitel",
+    "infiniteShowCommentsHint": "Visa varje kapitels kommentarskort i rullningen. Kommentarerna finns kvar i läsarens kontroller.",
     "doNothing": "Gör ingenting",
     "scrollUp": "Rulla upp",
     "scrollDown": "Rulla ner",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Svep höger",
     "doNothing": "Gör ingenting",
     "previousChapter": "Föregående kapitel",
-    "nextChapter": "Nästa kapitel"
+    "nextChapter": "Nästa kapitel",
+    "chapterList": "Öppna kapitellista",
+    "fullscreen": "Växla helskärm",
+    "showControls": "Visa kontroller",
+    "comments": "Öppna kommentarer"
   },
   "keyboardSettings": {
     "enable": "Tangentbordsgenvägar",

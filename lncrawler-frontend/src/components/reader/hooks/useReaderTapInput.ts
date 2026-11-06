@@ -1,5 +1,5 @@
 import { useEffect, useRef, type HTMLAttributes, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import type { ControlsTrigger, EdgeTapBehavior, ReaderSettings } from '../readerSettingsSchema';
+import type { CenterAction, EdgeTapBehavior, ReaderSettings } from '../readerSettingsSchema';
 
 const EDGE_TAP_WIDTH_PERCENTAGE = 15; // % of screen width for edge tap detection
 const DOUBLE_TAP_MS = 350;
@@ -25,7 +25,8 @@ export interface TapInput {
   width: number;
   leftEdge: EdgeTapBehavior;
   rightEdge: EdgeTapBehavior;
-  trigger: ControlsTrigger;
+  singleTap: CenterAction;
+  doubleTap: CenterAction;
   now: number;
   lastTapAt: number;
   lastHiddenAt: number;
@@ -40,6 +41,7 @@ type TapAction =
   | 'edgeLeft'
   | 'edgeRight'
   | 'seek'
+  | 'fullscreen'
   | 'showControls'
   | 'recordTap';
 
@@ -53,32 +55,40 @@ export function decideTap(input: TapInput): TapAction {
 
   if (input.longPressFired || !input.selectionCollapsed || input.onControl) return 'ignore';
   if (input.panelOpen) return 'closePanel';
+
+  const edgeWidth = input.width * (EDGE_TAP_WIDTH_PERCENTAGE / 100);
+  // An edge set to 'none' falls through to the centre behaviour
+  const inCenter = (input.x > edgeWidth || input.leftEdge === 'none') && (input.x < input.width - edgeWidth || input.rightEdge === 'none');
+
+  // Checked before the controls: the first tap of a double tap already did its own single-tap action
+  if (inCenter && input.doubleTap !== 'none' && input.now - input.lastTapAt < DOUBLE_TAP_MS) {
+    if (input.doubleTap === 'fullscreen') return 'fullscreen';
+    // The tap that hid the controls must not count as the first of a double tap
+    if (input.now - input.lastHiddenAt > DOUBLE_TAP_MS) return input.controlsVisible ? 'hideControls' : 'showControls';
+  }
+
   if (input.controlsVisible) return 'hideControls';
 
-  // An edge set to 'none' falls through to the centre behaviour
-  const edgeWidth = input.width * (EDGE_TAP_WIDTH_PERCENTAGE / 100);
   if (input.x <= edgeWidth && input.leftEdge !== 'none') return 'edgeLeft';
   if (input.x >= input.width - edgeWidth && input.rightEdge !== 'none') return 'edgeRight';
 
   if (input.seekTap()) return 'seek';
 
-  if (input.trigger === 'singleTap') return 'showControls';
-  if (input.trigger === 'doubleTap') {
-    // The tap that hid the controls must not count as the first of a double tap
-    const isDoubleTap = input.now - input.lastTapAt < DOUBLE_TAP_MS && input.now - input.lastHiddenAt > DOUBLE_TAP_MS;
-    return isDoubleTap ? 'showControls' : 'recordTap';
-  }
-  return 'ignore';
+  if (input.singleTap === 'controls') return 'showControls';
+  if (input.singleTap === 'fullscreen') return 'fullscreen';
+  // Nothing to do, but it can be the first tap of a double tap
+  return 'recordTap';
 }
 
 interface TapOptions {
-  settings: Pick<ReaderSettings, 'controlsTrigger' | 'leftEdgeTapBehavior' | 'rightEdgeTapBehavior'>;
+  settings: Pick<ReaderSettings, 'centerSingleTap' | 'centerDoubleTap' | 'centerLongPress' | 'leftEdgeTapBehavior' | 'rightEdgeTapBehavior'>;
   controlsVisible: boolean;
   panelOpen: boolean;
   setControlsVisible: (visible: boolean) => void;
   closePanel: () => void;
   onEdge: (edge: 'left' | 'right', behavior: EdgeTapBehavior) => void;
   seekTap: (target: Node) => boolean;
+  onFullscreen: () => void;
 }
 
 // Touch and mouse input on the text. Returns the props for the reader viewport.
@@ -90,6 +100,7 @@ export function useReaderTapInput({
   closePanel,
   onEdge,
   seekTap,
+  onFullscreen,
 }: TapOptions): { tapProps: ReaderTapProps; tapAt: (x: number, width: number, target: EventTarget) => void } {
   const pointerTypeRef = useRef<string | null>(null);
   const longPressFiredRef = useRef(false);
@@ -129,7 +140,8 @@ export function useReaderTapInput({
       width,
       leftEdge: settings.leftEdgeTapBehavior,
       rightEdge: settings.rightEdgeTapBehavior,
-      trigger: settings.controlsTrigger,
+      singleTap: settings.centerSingleTap,
+      doubleTap: settings.centerDoubleTap,
       now,
       lastTapAt: lastTapAtRef.current,
       lastHiddenAt: lastHiddenAtRef.current,
@@ -153,12 +165,18 @@ export function useReaderTapInput({
       case 'showControls':
         setControlsVisible(true);
         break;
-      case 'recordTap':
-        lastTapAtRef.current = now;
+      case 'fullscreen':
+        // The first tap may have shown the controls; the reader goes clean
+        setControlsVisible(false);
+        onFullscreen();
         break;
       default:
         // 'ignore' and 'seek' have nothing left to do
         break;
+    }
+    // The next tap pairs with this one; a completed double tap does not start another
+    if (pointerType !== null && pointerType !== 'mouse' && action !== 'closePanel' && action !== 'ignore') {
+      lastTapAtRef.current = action === 'fullscreen' ? 0 : now;
     }
   };
 
@@ -171,13 +189,14 @@ export function useReaderTapInput({
     pointerTypeRef.current = e.pointerType;
     longPressFiredRef.current = false;
     cancelLongPress();
-    if (settings.controlsTrigger !== 'longPress' || e.pointerType === 'mouse' || controlsVisible || panelOpen) return;
+    if (settings.centerLongPress === 'none' || e.pointerType === 'mouse' || controlsVisible || panelOpen) return;
 
     pressStartRef.current = { x: e.clientX, y: e.clientY };
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null;
       longPressFiredRef.current = true;
-      setControlsVisible(true);
+      if (settings.centerLongPress === 'controls') setControlsVisible(true);
+      else onFullscreen();
     }, LONG_PRESS_MS);
   };
 
@@ -195,7 +214,7 @@ export function useReaderTapInput({
 
   // Long press can open the system menu, which would hide the bars again
   const onContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (settings.controlsTrigger === 'longPress') e.preventDefault();
+    if (settings.centerLongPress !== 'none') e.preventDefault();
   };
 
   return {

@@ -8,46 +8,48 @@ import { PARAGRAPH_INDENT, readerTextStyles } from './readerTextStyles';
 interface ReaderContentProps {
   chapter: ChapterContent;
   settings: ReaderSettings;
+  // id of the text element, so TTS can find it
+  contentId: string;
 }
 
 const bodyStyles = `
 <style>
-  #reader-content img { 
+  .reader-content img { 
     max-width: 100%; 
     height: auto; 
     break-inside: avoid;
   }
-  #reader-content figure,
-  #reader-content table,
-  #reader-content pre {
+  .reader-content figure,
+  .reader-content table,
+  .reader-content pre {
     break-inside: avoid;
   }
-  #reader-content h1,
-  #reader-content h2,
-  #reader-content h3 {
+  .reader-content h1,
+  .reader-content h2,
+  .reader-content h3 {
     break-after: avoid;
   }
-  #reader-content a {
+  .reader-content a {
     pointer-events: none;
     cursor: default;
     color: inherit;
   }
-  #reader-content a:hover {
+  .reader-content a:hover {
     text-decoration: none;
   }
-  #reader-content code {
+  .reader-content code {
     padding: 0px 4px;
     font-family: monospace;
     font-size: 90%;
   }
-  #reader-content form {
+  .reader-content form {
     display: none;
   }
-  #reader-content.paragraph-indent p {
+  .reader-content.paragraph-indent p {
     text-indent: ${PARAGRAPH_INDENT};
   }
-  #reader-content.paragraph-indent p:first-child,
-  #reader-content.paragraph-indent p:first-of-type {
+  .reader-content.paragraph-indent p:first-child,
+  .reader-content.paragraph-indent p:first-of-type {
     text-indent: 0;
   }
 </style>
@@ -60,6 +62,9 @@ const arePropsEqual = (prevProps: ReaderContentProps, nextProps: ReaderContentPr
     prevProps.chapter.body !== nextProps.chapter.body ||
     prevProps.chapter.images_path !== nextProps.chapter.images_path;
   
+  // A different id is a different section of the stream
+  const idChanged = prevProps.contentId !== nextProps.contentId;
+
   // Compare settings properties that affect rendering
   const settingsChanged = 
     prevProps.settings.fontSize !== nextProps.settings.fontSize ||
@@ -73,10 +78,10 @@ const arePropsEqual = (prevProps: ReaderContentProps, nextProps: ReaderContentPr
     prevProps.settings.paragraphSpacing !== nextProps.settings.paragraphSpacing;
   
   // Only re-render if something important changed
-  return !(chapterChanged || settingsChanged);
+  return !(chapterChanged || idChanged || settingsChanged);
 };
 
-const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
+const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings, contentId }) => {
   const safeBody = React.useMemo(() => {
     const withImages = (chapter.body || '').replace(
       /src="images\//g,
@@ -88,8 +93,8 @@ const ReaderContent: React.FC<ReaderContentProps> = ({ chapter, settings }) => {
   return (
     <Typography
       sx={readerTextStyles(settings)}
-      id="reader-content"
-      className={settings.paragraphIndent ? 'paragraph-indent' : ''}
+      id={contentId}
+      className={settings.paragraphIndent ? 'reader-content paragraph-indent' : 'reader-content'}
       dangerouslySetInnerHTML= {{ __html: bodyStyles + safeBody }}
     />
   );

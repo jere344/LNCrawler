@@ -244,11 +244,33 @@ const TtsPlayerBar: React.FC<TtsPlayerBarProps> = ({
             }),
       }}
     >
-      <LinearProgress
-        variant={tts.status === 'preparing' && downloadPercent === null ? 'indeterminate' : 'determinate'}
-        value={downloadPercent ?? tts.progress * 100}
-        sx={{ height: 3 }}
-      />
+      {tts.status === 'preparing' && downloadPercent === null ? (
+        <LinearProgress variant="indeterminate" sx={{ height: 3 }} />
+      ) : (
+        // Played (primary), then audio already synthesized ahead, then the rest.
+        <Box sx={{ position: 'relative', height: 3, bgcolor: 'action.disabledBackground' }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              insetBlock: 0,
+              insetInlineStart: 0,
+              width: `${Math.max(downloadPercent ?? 0, tts.buffered * 100, tts.progress * 100)}%`,
+              bgcolor: 'action.disabled',
+              transition: 'width 0.3s ease',
+            }}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              insetBlock: 0,
+              insetInlineStart: 0,
+              width: `${downloadPercent ?? tts.progress * 100}%`,
+              bgcolor: 'primary.main',
+              transition: 'width 0.3s ease',
+            }}
+          />
+        </Box>
+      )}
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 2, pr: 0.5, pt: 0.5 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>

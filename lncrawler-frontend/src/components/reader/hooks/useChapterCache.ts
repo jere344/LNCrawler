@@ -11,17 +11,19 @@ interface ChapterCache {
 export const isChapterOfNovel = (chapter: IChapterContent, novelSlug: string, chapterNumber: number): boolean =>
   chapter.novel_slug === novelSlug && chapter.chapter_id === chapterNumber;
 
+// Helper function to generate a cache key
+const getCacheKey = (novel: string, source: string, chapter: number): string => {
+  return `${novel}|${source}|${chapter}`;
+};
+
 export function useChapterCache(novelSlug: string | undefined, sourceSlug: string | undefined) {
   // Create a ref to store our chapter cache that persists through renders
   const chapterCacheRef = useRef<ChapterCache>({});
-
-  // Helper function to generate a cache key
-  const getCacheKey = (novel: string, source: string, chapter: number): string => {
-    return `${novel}|${source}|${chapter}`;
-  };
+  // Requests still in flight, so a preload and a load of the same chapter share one fetch
+  const pendingRef = useRef<Record<string, Promise<IChapterContent>>>({});
 
   // Function to fetch chapter content
-  const fetchChapterContent = async (novel: string, source: string, chapterNum: number): Promise<IChapterContent> => {
+  const fetchChapterContent = useCallback(async (novel: string, source: string, chapterNum: number): Promise<IChapterContent> => {
     const cacheKey = getCacheKey(novel, source, chapterNum);
 
     // Check if chapter exists in cache
@@ -29,13 +31,17 @@ export function useChapterCache(novelSlug: string | undefined, sourceSlug: strin
       return chapterCacheRef.current[cacheKey];
     }
 
-    // If not in cache, fetch from API
-    const response = await novelService.getChapterContent(novel, source, chapterNum);
-
-    // Store in cache
-    chapterCacheRef.current[cacheKey] = response;
-    return response;
-  };
+    // If not in cache, fetch from API, once
+    pendingRef.current[cacheKey] ??= novelService.getChapterContent(novel, source, chapterNum)
+      .then((response) => {
+        chapterCacheRef.current[cacheKey] = response;
+        return response;
+      })
+      .finally(() => {
+        delete pendingRef.current[cacheKey];
+      });
+    return pendingRef.current[cacheKey];
+  }, []);
 
   // Function to preload next chapter
   const preloadNextChapter = async (nextChapterNum: number) => {

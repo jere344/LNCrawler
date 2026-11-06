@@ -7,6 +7,9 @@ import { findReaderTheme, fontOptions } from '../readerOptions';
 import { SETTINGS_PAGES, type SettingsPageId } from './settingsPages';
 import { SettingGroupHeading } from './SettingRows';
 import BackupPage from './pages/BackupPage';
+import type { CenterAction } from '../readerSettingsSchema';
+
+const CENTER_LABEL: Record<CenterAction, string> = { none: 'doNothing', controls: 'showControls', fullscreen: 'fullscreen' };
 
 interface HomeRowProps {
   page: SettingsPageId;
@@ -74,8 +77,9 @@ const SettingsHome = ({ onOpen }: { onOpen: (page: SettingsPageId) => void }) =>
       <HomeRow
         page="touch"
         onOpen={onOpen}
-        sub={t('readerSettingsPages.touchSub', {
-          trigger: t(`readerSettingsPages.trigger.${settings.controlsTrigger}`),
+        sub={t('readerSettingsPages.touchSummary', {
+          tap: t(`gestureSettings.${CENTER_LABEL[settings.centerSingleTap]}`),
+          double: t(`gestureSettings.${CENTER_LABEL[settings.centerDoubleTap]}`),
           side: t(`readerSettingsPages.dimSide.${settings.dimGestureSide}`),
         })}
       />
@@ -92,6 +96,13 @@ const SettingsHome = ({ onOpen }: { onOpen: (page: SettingsPageId) => void }) =>
             ? 'readerSettingsPages.headerPageTop'
             : 'readerSettingsPages.headerReappear'),
         })}
+      />
+      <HomeRow
+        page="overlay"
+        onOpen={onOpen}
+        sub={settings.overlayEnabled
+          ? t('readerSettingsPages.overlay.homeOn', { count: settings.overlayItems.length })
+          : t('readerSettingsPages.overlay.homeOff')}
       />
       <HomeRow page="listen" onOpen={onOpen} sub={t('readerSettingsPages.listenSub')} />
 

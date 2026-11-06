@@ -1,12 +1,12 @@
 import React from 'react';
 import { Box } from '@mui/material';
-import type { ControlsTrigger } from '../readerSettingsSchema';
+import type { CenterAction } from '../readerSettingsSchema';
 import type { ReaderTapProps } from '../hooks/useReaderTapInput';
 import ReaderTintOverlays from './ReaderTintOverlays';
 
 interface ReaderViewportProps {
   children: React.ReactNode;
-  controlsTrigger: ControlsTrigger;
+  centerLongPress: CenterAction;
   tapProps: ReaderTapProps;
   dimLevel?: number;
   nightMode?: boolean;
@@ -18,7 +18,7 @@ interface ReaderViewportProps {
 
 const ReaderViewport = ({
   children,
-  controlsTrigger,
+  centerLongPress,
   tapProps,
   dimLevel = 0,
   nightMode = false,
@@ -35,7 +35,7 @@ const ReaderViewport = ({
         position: 'relative',
         // Stops double-tap zoom while keeping pinch and scroll
         touchAction: 'manipulation',
-        WebkitTouchCallout: controlsTrigger === 'longPress' ? 'none' : undefined,
+        WebkitTouchCallout: centerLongPress !== 'none' ? 'none' : undefined,
       }}
     >
       <ReaderTintOverlays

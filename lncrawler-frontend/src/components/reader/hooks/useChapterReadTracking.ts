@@ -24,7 +24,16 @@ interface ChapterReadTrackingOptions {
   ttsOpenRef: MutableRefObject<boolean>;
 }
 
-// Manual and automatic "mark as read" for the current chapter
+// The chapters marked as read in this session, for the novel and source they belong to
+interface MarkedChapters {
+  scope: string;
+  chapters: Set<number>;
+}
+
+// Shared empty set, for a novel or source with no chapter marked yet
+const NO_CHAPTERS: Set<number> = new Set();
+
+// Manual and automatic "mark as read" for the chapters of the reader
 export function useChapterReadTracking({
   novelSlug,
   sourceSlug,
@@ -41,11 +50,56 @@ export function useChapterReadTracking({
 }: ChapterReadTrackingOptions) {
   const { t } = useTranslation();
   const { notify } = useNotification();
-  const [markingAsRead, setMarkingAsRead] = useState(false);
-  const [markReadSuccess, setMarkReadSuccess] = useState(false);
 
-  // Key of the chapter already marked as read automatically (null if none)
-  const autoMarkedKeyRef = useRef<string | null>(null);
+  // The novel and source of the reader now; the marked chapters of another one do not count
+  const scope = `${novelSlug}|${sourceSlug}`;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+
+  // Marked chapters, with a mirror for the callbacks, which read them after an await
+  const [marked, setMarked] = useState<MarkedChapters>({ scope, chapters: new Set() });
+  const markedRef = useRef(marked);
+  const markedChapters = marked.scope === scope ? marked.chapters : NO_CHAPTERS;
+
+  // Chapters with a "mark as read" request in flight, by hand or automatically, with a mirror for the same reason
+  const [inFlight, setInFlight] = useState<MarkedChapters>({ scope, chapters: new Set() });
+  const inFlightRef = useRef(inFlight);
+  const markingChapters = inFlight.scope === scope ? inFlight.chapters : NO_CHAPTERS;
+
+  // Whether a chapter of the reader's novel and source was marked in this session
+  const isMarked = (n: number): boolean =>
+    markedRef.current.scope === scope && markedRef.current.chapters.has(n);
+
+  // Whether a chapter is marked, or its request is already on its way
+  const isBusy = (n: number): boolean =>
+    isMarked(n) || (inFlightRef.current.scope === scope && inFlightRef.current.chapters.has(n));
+
+  // Records a request as in flight before it is sent, so the same chapter is not sent twice
+  const startMarking = (n: number, forScope: string) => {
+    const base = inFlightRef.current.scope === forScope ? inFlightRef.current.chapters : new Set<number>();
+    const next: MarkedChapters = { scope: forScope, chapters: new Set(base).add(n) };
+    inFlightRef.current = next;
+    setInFlight(next);
+  };
+
+  // Drops a request from the in-flight chapters once it has settled; nothing to do once the reader has left its novel or source
+  const finishMarking = (n: number, forScope: string) => {
+    if (inFlightRef.current.scope !== forScope || !inFlightRef.current.chapters.has(n)) return;
+    const chapters = new Set(inFlightRef.current.chapters);
+    chapters.delete(n);
+    const next: MarkedChapters = { scope: forScope, chapters };
+    inFlightRef.current = next;
+    setInFlight(next);
+  };
+
+  // Records a chapter as read, unless the reader has left that novel or source meanwhile
+  const addMarked = (n: number, forScope: string) => {
+    if (scopeRef.current !== forScope) return;
+    const base = markedRef.current.scope === forScope ? markedRef.current.chapters : new Set<number>();
+    const next: MarkedChapters = { scope: forScope, chapters: new Set(base).add(n) };
+    markedRef.current = next;
+    setMarked(next);
+  };
 
   // Automatic marking runs for signed-in users when the setting says so
   const isAutoMarkEnabled = isAuthenticated &&
@@ -55,26 +109,17 @@ export function useChapterReadTracking({
   const showMarkReadButton = isAuthenticated &&
     (markReadBehavior === 'button' || markReadBehavior === 'buttonAutomatic');
 
-  // A previous chapter's "mark as read" success must not bleed into the next.
-  useEffect(() => {
-    setMarkReadSuccess(false);
-  }, [novelSlug, sourceSlug, chapterNumber]);
-
-  // Key of the chapter currently shown, so a late response can tell it is stale
-  const latestChapterKeyRef = useRef(currentChapterKey);
-
   // Mark the chapter as read once the reader reaches its end, so the last
   // chapter (which has no "next" to navigate to) is recorded too
   useEffect(() => {
-    latestChapterKeyRef.current = currentChapterKey;
     if (!isAutoMarkEnabled || loading || !chapter ||
         !novelSlug || !sourceSlug || !chapterNumber ||
-        autoMarkedKeyRef.current === currentChapterKey) return;
+        isMarked(parseInt(chapterNumber))) return;
     const endElement = endOfChapterRef.current;
     if (!endElement) return;
 
     const key = currentChapterKey;
-    let pending = false;
+    const number = parseInt(chapterNumber);
     const stop = () => {
       observer.disconnect();
       window.removeEventListener('scroll', checkEndReached);
@@ -84,7 +129,7 @@ export function useChapterReadTracking({
     // not fire again until it leaves and re-enters the viewport
     const checkEndReached = () => {
       // Right after a route change the previous chapter is still on screen
-      if (pending || loadedChapterKeyRef.current !== key) return;
+      if (loadedChapterKeyRef.current !== key || isBusy(number)) return;
       const bottomOverlay = ttsOpenRef.current
         ? (isNarrow ? TTS_BAR_HEIGHT.mobile : TTS_BAR_HEIGHT.desktop)
         : 0;
@@ -96,18 +141,17 @@ export function useChapterReadTracking({
 
       // Stay subscribed until the request succeeds, so a failure retries on the
       // next scroll
-      pending = true;
-      userService.markChapterAsRead(novelSlug, sourceSlug, parseInt(chapterNumber))
+      startMarking(number, scope);
+      userService.markChapterAsRead(novelSlug, sourceSlug, number)
         .then(() => {
-          autoMarkedKeyRef.current = key;
+          addMarked(number, scope);
           stop();
-          if (latestChapterKeyRef.current === key) setMarkReadSuccess(true);
         })
         .catch((error) => {
           console.error('Error automatically marking chapter as read:', error);
         })
         .finally(() => {
-          pending = false;
+          finishMarking(number, scope);
         });
     };
     const observer = new IntersectionObserver((entries) => {
@@ -125,44 +169,53 @@ export function useChapterReadTracking({
         chapterNumber &&
         novelSlug &&
         sourceSlug &&
-        autoMarkedKeyRef.current !== currentChapterKey) {
+        !isBusy(parseInt(chapterNumber))) {
+      const number = parseInt(chapterNumber);
+      startMarking(number, scope);
       try {
-        await userService.markChapterAsRead(
-          novelSlug,
-          sourceSlug,
-          parseInt(chapterNumber)
-        );
+        await userService.markChapterAsRead(novelSlug, sourceSlug, number);
+        addMarked(number, scope);
       } catch (error) {
         console.error('Error automatically marking chapter as read:', error);
+      } finally {
+        finishMarking(number, scope);
       }
     }
   };
 
-  // Function to mark the current chapter as read
-  const handleMarkAsRead = async () => {
-    if (!novelSlug || !sourceSlug || !chapterNumber || !isAuthenticated) return;
+  // Marks a chapter of the reader's novel as read, by hand
+  const markChapter = async (n: number) => {
+    if (!novelSlug || !sourceSlug || !isAuthenticated || isBusy(n)) return;
 
+    startMarking(n, scope);
     try {
-      setMarkingAsRead(true);
-      await userService.markChapterAsRead(
-        novelSlug,
-        sourceSlug,
-        parseInt(chapterNumber)
-      );
-      setMarkReadSuccess(true);
+      await userService.markChapterAsRead(novelSlug, sourceSlug, n);
+      addMarked(n, scope);
       notify({ message: t('reader.markedRead'), severity: 'success', duration: 3000 });
     } catch (error) {
       console.error('Error marking chapter as read:', error);
     } finally {
-      setMarkingAsRead(false);
+      finishMarking(n, scope);
     }
   };
 
+  // Function to mark the current chapter as read
+  const handleMarkAsRead = () => {
+    if (!novelSlug || !sourceSlug || !chapterNumber || !isAuthenticated) return;
+    void markChapter(parseInt(chapterNumber));
+  };
+
+  const currentNumber = parseInt(chapterNumber ?? '');
+
   return {
-    markingAsRead,
-    markReadSuccess,
+    markingAsRead: markingChapters.has(currentNumber),
+    markReadSuccess: markedChapters.has(currentNumber),
     showMarkReadButton,
     handleMarkAsRead,
     markBeforeLeaving,
+    markedChapters,
+    markingChapters,
+    markChapter,
   };
 }
+

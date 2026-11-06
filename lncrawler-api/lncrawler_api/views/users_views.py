@@ -13,13 +13,13 @@ import uuid
 from ..languages import parse_languages
 from ..models.chapter_models import Chapter
 from ..models.audiobook_models import ListeningProgress
-from ..models.users_models import LibraryFolder, NovelBookmark, ReadingHistory
+from ..models.users_models import LibraryFolder, NovelBookmark, ReaderSettingsSlot, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
 from ..models.sources_models import NovelFromSource, adult_novel_ids
 from ..serializers.audiobook_serializers import audiobook_card
 from ..serializers.novels_serializers import NovelSerializer
 from ..serializers.reading_history_serializers import ReadingHistorySerializer
-from ..serializers.users_serializers import UserSerializer
+from ..serializers.users_serializers import ReaderSettingsWriteSerializer, UserSerializer, reader_settings_slot_data
 from ..services.audiobook_public import annotate_public_totals, visible_audiobooks
 from ..services.reading_history import advance_reading_history
 from ..utils import resolve_novel_slug
@@ -614,3 +614,66 @@ def search_users(request):
     )
     serializer = UserSerializer(users, many=True, context={"request": request}, profile='compact')
     return Response(serializer.data)
+
+
+
+READER_SETTINGS_SLOTS = {choice for choice, _ in ReaderSettingsSlot.SLOT_CHOICES}
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def list_reader_settings(request):
+    """
+    The device types the user has saved reader settings for, without the settings themselves.
+    """
+    slots = ReaderSettingsSlot.objects.filter(user=request.user).order_by("slot")
+    return Response([
+        {"slot": slot.slot, "revision": slot.revision, "updated_at": slot.updated_at}
+        for slot in slots
+    ])
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def reader_settings_slot(request, slot):
+    """
+    GET: the saved reader settings for one device type, or 404.
+    PUT: saves them. The write must start from the current revision (`base_revision`),
+    or from null when nothing is saved yet; otherwise 409 with the current copy,
+    so a device can never overwrite settings it has not seen.
+    """
+    if slot not in READER_SETTINGS_SLOTS:
+        return Response({"detail": "Unknown device type."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "GET":
+        saved = get_object_or_404(ReaderSettingsSlot, user=request.user, slot=slot)
+        return Response(reader_settings_slot_data(saved))
+
+    serializer = ReaderSettingsWriteSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    payload = serializer.validated_data
+    base_revision = payload["base_revision"]
+
+    try:
+        with transaction.atomic():
+            saved = ReaderSettingsSlot.objects.select_for_update().filter(user=request.user, slot=slot).first()
+            if saved is None:
+                if base_revision is not None:
+                    return Response({"revision": None}, status=status.HTTP_409_CONFLICT)
+                saved = ReaderSettingsSlot.objects.create(
+                    user=request.user, slot=slot, data=payload["data"],
+                    schema_version=payload["schema_version"], revision=1,
+                )
+            elif base_revision != saved.revision:
+                return Response(reader_settings_slot_data(saved), status=status.HTTP_409_CONFLICT)
+            else:
+                saved.data = payload["data"]
+                saved.schema_version = payload["schema_version"]
+                saved.revision += 1
+                saved.save(update_fields=["data", "schema_version", "revision", "updated_at"])
+    except IntegrityError:
+        # Another first save for this device type landed at the same time
+        current = ReaderSettingsSlot.objects.get(user=request.user, slot=slot)
+        return Response(reader_settings_slot_data(current), status=status.HTTP_409_CONFLICT)
+
+    return Response(reader_settings_slot_data(saved))

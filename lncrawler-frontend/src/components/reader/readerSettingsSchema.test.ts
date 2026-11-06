@@ -62,14 +62,23 @@ describe('sanitizeSettings', () => {
     expect(sanitizeSettings({ displaySheetModules: 'size' })).toEqual({});
   });
 
-  it('maps centerTapToOpenSettings to controlsTrigger', () => {
-    expect(sanitizeSettings({ centerTapToOpenSettings: true })).toEqual({ controlsTrigger: 'singleTap' });
-    expect(sanitizeSettings({ centerTapToOpenSettings: false })).toEqual({ controlsTrigger: 'off' });
+  it('maps centerTapToOpenSettings to the centre actions', () => {
+    expect(sanitizeSettings({ centerTapToOpenSettings: true }))
+      .toEqual({ centerSingleTap: 'controls', centerDoubleTap: 'fullscreen', centerLongPress: 'none' });
+    expect(sanitizeSettings({ centerTapToOpenSettings: false }))
+      .toEqual({ centerSingleTap: 'none', centerDoubleTap: 'fullscreen', centerLongPress: 'none' });
   });
 
-  it('lets an explicit controlsTrigger win over the legacy key', () => {
+  it('moves an old controlsTrigger to its slot, ahead of the legacy key', () => {
     expect(sanitizeSettings({ centerTapToOpenSettings: false, controlsTrigger: 'doubleTap' }))
-      .toEqual({ controlsTrigger: 'doubleTap' });
+      .toEqual({ centerSingleTap: 'none', centerDoubleTap: 'controls', centerLongPress: 'none' });
+    expect(sanitizeSettings({ controlsTrigger: 'longPress' }))
+      .toEqual({ centerSingleTap: 'none', centerDoubleTap: 'fullscreen', centerLongPress: 'controls' });
+  });
+
+  it('keeps explicit centre actions over an old controlsTrigger', () => {
+    expect(sanitizeSettings({ controlsTrigger: 'doubleTap', centerSingleTap: 'fullscreen' }))
+      .toEqual({ centerSingleTap: 'fullscreen' });
   });
 
   it('returns an empty object for non-object input', () => {
@@ -92,6 +101,17 @@ describe('sanitizeSettings', () => {
       ttsEngine: defaultSettings.ttsEngine,
       ttsPreferAudiobook: true,
     });
+  });
+
+  it('keeps the reading mode only when it is a known one', () => {
+    expect(sanitizeSettings({ readingMode: 'infinite' })).toEqual({ readingMode: 'infinite' });
+    expect(sanitizeSettings({ readingMode: 'paged' })).toEqual({});
+    expect(sanitizeSettings({ readingMode: 3 })).toEqual({});
+  });
+
+  it('keeps the infinite comments switch as a boolean', () => {
+    expect(sanitizeSettings({ infiniteShowComments: false })).toEqual({ infiniteShowComments: false });
+    expect(sanitizeSettings({ infiniteShowComments: 'no' })).toEqual({});
   });
 
   it('keeps the browser and HD engines', () => {

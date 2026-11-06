@@ -737,7 +737,12 @@
     "chapters": "Chapters",
     "openSettings": "Open reader settings",
     "markedRead": "Chapter marked as read successfully!",
-    "listen": "Listen"
+    "listen": "Listen",
+    "retry": "Retry",
+    "infiniteLoading": "Loading the next chapter",
+    "infiniteEnd": "You've reached the latest chapter.",
+    "infiniteUnavailable": "Chapter {chapter} is unavailable.",
+    "infiniteOpenChapter": "Open chapter {chapter}"
   },
   "readerControls": {
     "previousChapter": "Previous Chapter",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Full screen",
     "exitFullscreen": "Exit full screen",
     "commentsCount": "{count, plural, =0 {Comments} one {Comments, # comment} other {Comments, # comments}}"
+  },
+  "readerOverlay": {
+    "page": "Page {page}/{pages}",
+    "chapterOf": "Ch. {current}/{total}",
+    "dim": "Dim {percent}%"
   },
   "readerChapters": {
     "open": "Open chapter list",
@@ -879,6 +889,25 @@
     "resetTitle": "Reset Settings to Defaults?",
     "resetBody": "This will reset all reader settings to their default values. This action cannot be undone.",
     "reset": "Reset",
+    "syncTitle": "Sync",
+    "syncDevice": "This device uses",
+    "syncDeviceAuto": "Detect ({type})",
+    "syncDeviceMobile": "Phone settings",
+    "syncDeviceDesktop": "Desktop settings",
+    "syncDeviceOff": "Don't sync on this device",
+    "syncTypeMobile": "phone",
+    "syncTypeDesktop": "desktop",
+    "syncStatusSignedOut": "Sign in to keep your settings across devices.",
+    "syncStatusOff": "Settings stay on this device.",
+    "syncStatusPending": "Waiting for the server…",
+    "syncStatusSyncing": "Saving…",
+    "syncStatusSynced": "Synced with your {type} settings.",
+    "syncStatusError": "Couldn't sync. We'll try again later.",
+    "syncStatusNeedsChoice": "Choose which settings to keep.",
+    "syncChoiceTitle": "Which settings should this device use?",
+    "syncChoiceBody": "This device has its own settings, and you also have saved {type} settings (updated {date}).",
+    "syncChoiceSaved": "Use saved",
+    "syncChoiceDevice": "Keep this device's",
     "tts": "Text to Speech"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Gestures",
       "keys": "Keyboard",
       "reading": "Reading",
+      "overlay": "Info overlay",
       "listen": "Listening",
       "voice": "Voice and quality",
       "backup": "Backup and reset"
     },
     "listenSub": "Voice, speed, highlight. Also in the player.",
+    "overlay": {
+      "enable": "Show info overlay",
+      "enableHint": "A small strip over the text with the time, progress and more.",
+      "homeOn": "{count, plural, one {# item} other {# items}}",
+      "homeOff": "Off",
+      "layout": "Layout",
+      "position": "Position",
+      "positions": {
+        "top": "Top",
+        "bottom": "Bottom"
+      },
+      "size": "Size",
+      "sizes": {
+        "full": "Full width",
+        "center": "Center pill",
+        "left": "Left pill",
+        "right": "Right pill"
+      },
+      "content": "Content",
+      "contentHint": "Tap to add or remove. Items show in the order you add them. Battery only shows on browsers that expose it.",
+      "items": {
+        "time12": "Time (12h)",
+        "time24": "Time (24h)",
+        "chapterPage": "Chapter progress (page)",
+        "chapterSlider": "Chapter progress (slider)",
+        "chapterPercent": "Chapter progress (%)",
+        "battery": "Battery",
+        "bookPercent": "Book progress (%)",
+        "bookChapter": "Book progress (chapter)",
+        "dimness": "Dimness (%)"
+      }
+    },
     "sheetCount": "{count, plural, one {# control} other {# controls}}",
     "textSub": "{size} px · {font} · Lines {lines}×",
     "colorsSub": "{theme} · Night filter {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "off",
     "nightStrength": "{strength}%",
     "scheduled": " · Scheduled",
-    "touchSub": "Controls: {trigger} · Slide to dim: {side}",
+    "touchSummary": "Tap: {tap} · Double tap: {double} · Slide to dim: {side}",
     "trigger": {
       "singleTap": "Single tap",
       "doubleTap": "Double tap",
-      "longPress": "Long press",
-      "off": "Off"
+      "longPress": "Long press"
     },
     "dimSide": {
       "off": "Off",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Middle",
     "zoneRight": "Right edge",
     "dimTag": "Dim",
-    "controlsValue": "Controls: {trigger}",
+    "centerValue": "Tap: {single} · Double: {double} · Hold: {long}",
     "siteHeader": "Site header",
     "touchNote": "These apply when you use a touch screen, including on a touch laptop.",
     "chooseZone": "Choose a zone to change what it does.",
     "screenZones": "Screen zones",
     "swipes": "Swipes",
-    "showControlsWith": "Show controls with",
-    "triggerHint": {
-      "doubleTap": "Single taps never interrupt reading",
-      "longPress": "Hold for half a second",
-      "off": "Use the buttons at the top of the chapter"
-    },
     "longPressWarning": "On phones, a long press also starts text selection. The two will compete on the text itself.",
     "turnOffSelection": "Turn off text selection",
     "tapThisEdge": "Tapping this edge",
@@ -1032,7 +1087,9 @@
     "keyD": "keyboard key display",
     "keyF": "keyboard key fullscreen full screen",
     "keyM": "keyboard key comments",
-    "controlsTrigger": "tap double long press hold toolbar menu centre center gesture",
+    "centerSingleTap": "tap single press toolbar menu controls centre center middle gesture",
+    "centerDoubleTap": "double tap press fullscreen full screen centre center middle gesture",
+    "centerLongPress": "long press hold toolbar controls fullscreen centre center middle gesture",
     "swipeLeftGesture": "gesture next chapter",
     "swipeRightGesture": "gesture previous chapter",
     "edgeTap": "left right tap zone scroll chapter gesture",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "top bar navbar scroll sticky floating",
     "markReadBehavior": "progress finished automatic",
     "textSelectable": "copy select",
+    "readingMode": "infinite continuous scroll next chapter page",
+    "infiniteShowComments": "comments card end of chapter infinite scroll hide",
     "savePosition": "bookmark resume scroll",
     "hideScrollbar": "scroll bar",
     "ttsPreferAudiobook": "listen tts audiobook narrated narration recording source device",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "listen tts wake lock awake",
     "importSettings": "backup restore file",
     "exportSettings": "backup save file",
-    "resetDefaults": "restore clear backup"
+    "resetDefaults": "restore clear backup",
+    "overlayEnabled": "overlay status bar clock info strip hud",
+    "overlayPosition": "overlay top bottom status bar",
+    "overlaySize": "overlay width pill full center left right",
+    "overlayItems": "overlay time clock battery progress page percent chapter book dim"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Mark as Read Behavior",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Button + Automatic",
     "allowSelection": "Allow Text Selection/Copy",
     "rememberPosition": "Remember Reading Position",
+    "readingMode": "Reading Mode",
+    "readingModeChapter": "One Chapter per Page",
+    "readingModeInfinite": "Infinite Scroll",
+    "readingModeChapterHint": "Each chapter opens on its own page. Use the buttons, keys or gestures to change chapter.",
+    "readingModeInfiniteHint": "The next chapter loads below the current one as you scroll.",
+    "infiniteShowComments": "Comments Between Chapters",
+    "infiniteShowCommentsHint": "Show each chapter's comments card in the scroll. Comments stay available from the reader controls.",
     "doNothing": "Do Nothing",
     "scrollUp": "Scroll Up",
     "scrollDown": "Scroll Down",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Swipe Right",
     "doNothing": "Do Nothing",
     "previousChapter": "Previous Chapter",
-    "nextChapter": "Next Chapter"
+    "nextChapter": "Next Chapter",
+    "chapterList": "Open Chapter List",
+    "fullscreen": "Toggle Fullscreen",
+    "showControls": "Show Controls",
+    "comments": "Open Comments"
   },
   "keyboardSettings": {
     "enable": "Keyboard shortcuts",

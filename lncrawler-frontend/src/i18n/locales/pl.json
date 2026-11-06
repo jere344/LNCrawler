@@ -737,7 +737,12 @@
     "chapters": "Rozdziały",
     "openSettings": "Otwórz ustawienia czytnika",
     "markedRead": "Rozdział został pomyślnie oznaczony jako przeczytany!",
-    "listen": "Słuchaj"
+    "listen": "Słuchaj",
+    "retry": "Spróbuj ponownie",
+    "infiniteLoading": "Wczytywanie następnego rozdziału",
+    "infiniteEnd": "Dotarłeś do najnowszego rozdziału.",
+    "infiniteUnavailable": "Rozdział {chapter} jest niedostępny.",
+    "infiniteOpenChapter": "Otwórz rozdział {chapter}"
   },
   "readerControls": {
     "previousChapter": "Poprzedni rozdział",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Pełny ekran",
     "exitFullscreen": "Wyjdź z trybu pełnego ekranu",
     "commentsCount": "{count, plural, =0 {Komentarze} one {Komentarze, # komentarz} few {Komentarze, # komentarze} many {Komentarze, # komentarzy} other {Komentarze, # komentarza}}"
+  },
+  "readerOverlay": {
+    "page": "Str. {page}/{pages}",
+    "chapterOf": "Rozdz. {current}/{total}",
+    "dim": "Przyciem. {percent}%"
   },
   "readerChapters": {
     "open": "Otwórz listę rozdziałów",
@@ -879,6 +889,25 @@
     "resetTitle": "Przywrócić ustawienia domyślne?",
     "resetBody": "Spowoduje to przywrócenie wszystkich ustawień czytnika do wartości domyślnych. Tej czynności nie można cofnąć.",
     "reset": "Resetuj",
+    "syncTitle": "Synchronizacja",
+    "syncDevice": "To urządzenie używa",
+    "syncDeviceAuto": "Automatycznie ({type})",
+    "syncDeviceMobile": "Ustawienia telefonu",
+    "syncDeviceDesktop": "Ustawienia komputera",
+    "syncDeviceOff": "Nie synchronizuj na tym urządzeniu",
+    "syncTypeMobile": "telefonu",
+    "syncTypeDesktop": "komputera",
+    "syncStatusSignedOut": "Zaloguj się, aby zachować ustawienia na wszystkich urządzeniach.",
+    "syncStatusOff": "Ustawienia zostają na tym urządzeniu.",
+    "syncStatusPending": "Oczekiwanie na serwer…",
+    "syncStatusSyncing": "Zapisywanie…",
+    "syncStatusSynced": "Zsynchronizowano z ustawieniami {type}.",
+    "syncStatusError": "Nie udało się zsynchronizować. Spróbujemy później.",
+    "syncStatusNeedsChoice": "Wybierz, które ustawienia zachować.",
+    "syncChoiceTitle": "Których ustawień ma używać to urządzenie?",
+    "syncChoiceBody": "To urządzenie ma własne ustawienia, a masz też zapisane ustawienia {type} (zaktualizowane {date}).",
+    "syncChoiceSaved": "Użyj zapisanych",
+    "syncChoiceDevice": "Zachowaj z tego urządzenia",
     "tts": "Czytanie na głos"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Gesty",
       "keys": "Klawiatura",
       "reading": "Czytanie",
+      "overlay": "Nakładka informacji",
       "listen": "Słuchanie",
       "voice": "Głos i jakość",
       "backup": "Kopia zapasowa i reset"
     },
     "listenSub": "Głos, prędkość, podświetlenie. Także w odtwarzaczu.",
+    "overlay": {
+      "enable": "Pokaż nakładkę informacji",
+      "enableHint": "Mały pasek nad tekstem z czasem, postępem i nie tylko.",
+      "homeOn": "{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}",
+      "homeOff": "Wyłączone",
+      "layout": "Układ",
+      "position": "Położenie",
+      "positions": {
+        "top": "Góra",
+        "bottom": "Dół"
+      },
+      "size": "Rozmiar",
+      "sizes": {
+        "full": "Pełna szerokość",
+        "center": "Pastylka na środku",
+        "left": "Pastylka z lewej",
+        "right": "Pastylka z prawej"
+      },
+      "content": "Zawartość",
+      "contentHint": "Dotknij, aby dodać lub usunąć. Elementy są wyświetlane w kolejności dodawania. Bateria jest widoczna tylko w przeglądarkach, które ją udostępniają.",
+      "items": {
+        "time12": "Czas (12 h)",
+        "time24": "Czas (24 h)",
+        "chapterPage": "Postęp rozdziału (strona)",
+        "chapterSlider": "Postęp rozdziału (suwak)",
+        "chapterPercent": "Postęp rozdziału (%)",
+        "battery": "Bateria",
+        "bookPercent": "Postęp książki (%)",
+        "bookChapter": "Postęp książki (rozdział)",
+        "dimness": "Przyciemnienie (%)"
+      }
+    },
     "sheetCount": "{count, plural, one {# element sterujący} few {# elementy sterujące} many {# elementów sterujących} other {# elementu sterującego}}",
     "textSub": "{size} px · {font} · Wiersze {lines}×",
     "colorsSub": "{theme} · Filtr nocny {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "wył.",
     "nightStrength": "{strength}%",
     "scheduled": " · Zaplanowany",
-    "touchSub": "Sterowanie: {trigger} · Przesuń, by przyciemnić: {side}",
+    "touchSummary": "Dotknięcie: {tap} · Podwójne: {double} · Przesuń, by przyciemnić: {side}",
     "trigger": {
       "singleTap": "Pojedyncze dotknięcie",
       "doubleTap": "Podwójne dotknięcie",
-      "longPress": "Długie przytrzymanie",
-      "off": "Wyłączone"
+      "longPress": "Długie przytrzymanie"
     },
     "dimSide": {
       "off": "Wyłączone",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Środek",
     "zoneRight": "Prawa krawędź",
     "dimTag": "Przyciemnienie",
-    "controlsValue": "Sterowanie: {trigger}",
+    "centerValue": "Dotyk: {single} · Podwójny: {double} · Przytrzymanie: {long}",
     "siteHeader": "Nagłówek strony",
     "touchNote": "Dotyczy to ekranów dotykowych, także w laptopach z ekranem dotykowym.",
     "chooseZone": "Wybierz strefę, aby zmienić jej działanie.",
     "screenZones": "Strefy ekranu",
     "swipes": "Przesunięcia",
-    "showControlsWith": "Pokaż sterowanie przez",
-    "triggerHint": {
-      "doubleTap": "Pojedyncze dotknięcia nigdy nie przerywają czytania",
-      "longPress": "Przytrzymaj przez pół sekundy",
-      "off": "Użyj przycisków u góry rozdziału"
-    },
     "longPressWarning": "Na telefonach długie przytrzymanie uruchamia też zaznaczanie tekstu. Oba gesty będą kolidować na samym tekście.",
     "turnOffSelection": "Wyłącz zaznaczanie tekstu",
     "tapThisEdge": "Dotknięcie tej krawędzi",
@@ -1032,7 +1087,9 @@
     "keyD": "klawiatura klawisz wyświetlanie",
     "keyF": "klawiatura klawisz pełny ekran",
     "keyM": "klawisz klawiatury komentarze",
-    "controlsTrigger": "dotknięcie podwójne długie przytrzymaj pasek menu środek center gest",
+    "centerSingleTap": "dotyk pojedynczy pasek narzędzi menu kontrolki środek gest",
+    "centerDoubleTap": "podwójne dotknięcie pełny ekran środek gest",
+    "centerLongPress": "długie przytrzymanie pasek narzędzi kontrolki pełny ekran środek gest",
     "swipeLeftGesture": "gest następny rozdział",
     "swipeRightGesture": "gest poprzedni rozdział",
     "edgeTap": "lewa prawa dotknięcie strefa przewijanie rozdział gest",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "górny pasek navbar przewijanie przyklejony pływający",
     "markReadBehavior": "postęp ukończony automatycznie",
     "textSelectable": "kopiuj zaznacz",
+    "readingMode": "nieskończone ciągłe przewijanie następny rozdział strona",
+    "infiniteShowComments": "komentarze karta koniec rozdziału nieskończone przewijanie ukryj",
     "savePosition": "zakładka wznów przewijanie",
     "hideScrollbar": "pasek przewijania scroll bar",
     "ttsPreferAudiobook": "słuchaj tts audiobook narracja nagranie źródło urządzenie",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "słuchaj tts wake lock czuwanie",
     "importSettings": "kopia zapasowa przywróć plik",
     "exportSettings": "kopia zapasowa zapisz plik",
-    "resetDefaults": "przywróć wyczyść kopia zapasowa"
+    "resetDefaults": "przywróć wyczyść kopia zapasowa",
+    "overlayEnabled": "nakładka pasek stanu zegar informacje hud",
+    "overlayPosition": "nakładka góra dół położenie pasek stanu",
+    "overlaySize": "nakładka szerokość pastylka pełna środek lewo prawo",
+    "overlayItems": "nakładka czas zegar bateria postęp strona procent rozdział książka przyciemnienie"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Zachowanie oznaczania jako przeczytane",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Przycisk + automatyczne",
     "allowSelection": "Zezwól na zaznaczanie/kopiowanie tekstu",
     "rememberPosition": "Zapamiętaj pozycję czytania",
+    "readingMode": "Tryb czytania",
+    "readingModeChapter": "Jeden rozdział na stronę",
+    "readingModeInfinite": "Nieskończone przewijanie",
+    "readingModeChapterHint": "Każdy rozdział otwiera się na osobnej stronie. Użyj przycisków, klawiszy lub gestów, aby zmienić rozdział.",
+    "readingModeInfiniteHint": "Następny rozdział wczytuje się pod bieżącym podczas przewijania.",
+    "infiniteShowComments": "Komentarze między rozdziałami",
+    "infiniteShowCommentsHint": "Pokazuj kartę komentarzy każdego rozdziału podczas przewijania. Komentarze pozostają dostępne z elementów sterowania czytnika.",
     "doNothing": "Nic nie rób",
     "scrollUp": "Przewiń w górę",
     "scrollDown": "Przewiń w dół",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Przesuń w prawo",
     "doNothing": "Nic nie rób",
     "previousChapter": "Poprzedni rozdział",
-    "nextChapter": "Następny rozdział"
+    "nextChapter": "Następny rozdział",
+    "chapterList": "Otwórz listę rozdziałów",
+    "fullscreen": "Przełącz pełny ekran",
+    "showControls": "Pokaż kontrolki",
+    "comments": "Otwórz komentarze"
   },
   "keyboardSettings": {
     "enable": "Skróty klawiaturowe",

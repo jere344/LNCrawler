@@ -5,6 +5,7 @@ import { useReturnFocus } from '../hooks/useReturnFocus';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 import { useEnteredOnFrame } from '../hooks/useEnteredOnFrame';
 import { useDocumentScrollLock } from '../hooks/useDocumentScrollLock';
+import { useKeyboardAvoidance } from '../hooks/useKeyboardAvoidance';
 import { sheetDragResult, usePointerDragY } from '../hooks/sheetDrag';
 
 const HANDLE_HEIGHT = 22;
@@ -36,6 +37,8 @@ const ReaderBottomSheet = ({ title, full, onFullChange, onClose, composing = fal
   const tall = full || composing;
 
   useDocumentScrollLock(true);
+  // With the keyboard up the sheet keeps its top where it was and its bottom sits on the keyboard
+  const keyboard = useKeyboardAvoidance(composing);
   useReturnFocus(focusRef);
 
   // A drag up opens the sheet fully; a drag down closes the composer, shrinks the sheet, or closes it when it is already partial. A tap toggles it.
@@ -67,16 +70,17 @@ const ReaderBottomSheet = ({ title, full, onFullChange, onClose, composing = fal
         zIndex: (theme) => theme.zIndex.appBar + 3,
         insetInline: 0,
         // Sits above the TTS bar
-        bottom: bottomOffset,
+        bottom: keyboard ? 'auto' : bottomOffset,
         display: 'flex',
         flexDirection: 'column',
         boxSizing: 'border-box',
         outline: 'none',
         // The full height stops short of the top strip and of the bar below
-        height: tall ? `calc(100dvh - ${FULL_GAP + bottomOffset}px)` : PARTIAL_HEIGHT,
+        height: keyboard ? keyboard.height - FULL_GAP : tall ? `calc(100dvh - ${FULL_GAP + bottomOffset}px)` : PARTIAL_HEIGHT,
+        ...(keyboard ? { top: keyboard.top + FULL_GAP } : {}),
         borderStartStartRadius: '16px',
         borderStartEndRadius: '16px',
-        transition: reducedMotion ? 'none' : 'transform 0.25s ease-out, height 0.25s ease-out',
+        transition: reducedMotion ? 'none' : keyboard ? 'transform 0.25s ease-out' : 'transform 0.25s ease-out, height 0.25s ease-out',
         // Starts below the screen until the first frame, then slides up
         ...(!entered && !reducedMotion ? { transform: 'translateY(100%)' } : {}),
       }}

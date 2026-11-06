@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth import get_user_model
 from django.db.models import Count, F, IntegerField, OuterRef, Prefetch, Q, Subquery, Sum
 from rest_framework import serializers
@@ -6,7 +8,7 @@ from auth_app.serializers import SOCIAL_LINK_KEYS, absolute_media_url
 from auth_app.models import PRIVACY_CHOICES, PRIVACY_SECTIONS
 
 from ..languages import is_supported_language, normalize_language, parse_languages
-from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel, ReadingHistory
+from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel, ReaderSettingsSlot, ReadingHistory
 from ..models.chapter_models import Chapter
 from ..models.novels_models import Novel, Tag
 from ..privacy import are_friends, can_view
@@ -325,3 +327,36 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
                     representation.get(field), self.context
                 )
         return representation
+
+
+
+# Settings are a flat set of about fifty values; this leaves plenty of room
+READER_SETTINGS_MAX_BYTES = 32 * 1024
+
+
+def reader_settings_slot_data(slot):
+    return {
+        'slot': slot.slot,
+        'data': slot.data,
+        'schema_version': slot.schema_version,
+        'revision': slot.revision,
+        'updated_at': slot.updated_at,
+    }
+
+
+class ReaderSettingsWriteSerializer(serializers.Serializer):
+    """
+    A save of one device type's reader settings. `base_revision` is the revision the client
+    started from, or null when it has never seen a copy. The keys inside `data` are not checked:
+    the client cleans them on load.
+    """
+    data = serializers.JSONField()
+    schema_version = serializers.IntegerField(min_value=1)
+    base_revision = serializers.IntegerField(min_value=1, allow_null=True)
+
+    def validate_data(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('Expected an object.')
+        if len(json.dumps(value).encode('utf-8')) > READER_SETTINGS_MAX_BYTES:
+            raise serializers.ValidationError('Settings are too large.')
+        return value

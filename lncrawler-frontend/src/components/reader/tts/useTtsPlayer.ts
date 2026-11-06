@@ -64,10 +64,11 @@ export interface UseTtsPlayerArgs {
   topOffset: number;
   /** Height of the player bar, so auto-scroll keeps text above it. */
   bottomOffset: number;
+  /** The text being read; defaults to #reader-content. */
+  getRoot?: () => HTMLElement | null;
 }
 
 const AUTOSCROLL_IDLE_MS = 4000;
-const PREFETCH_AHEAD = 2;
 
 /** 10 s of silence: keeps the media session (lock screen controls) alive
  *  while device voices speak, since speechSynthesis has none of its own. */
@@ -98,6 +99,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const [chunkIndex, setChunkIndex] = useState(-1);
   const [blockIndex, setBlockIndex] = useState(-1);
   const [blockCount, setBlockCount] = useState(0);
+  // Fraction of the chapter (by paragraph) synthesized ahead of the playhead.
+  const [buffered, setBuffered] = useState(0);
   const [download, setDownload] = useState<{ loaded: number; total: number } | null>(null);
   const [sleepTimer, setSleepTimer] = useState<SleepTimer>({ mode: 'off' });
   // HD voice failed this session: read with device voices instead.
@@ -109,6 +112,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const statusRef = useRef<TtsStatus>('idle');
   const sleepRef = useRef(sleepTimer);
   sleepRef.current = sleepTimer;
+  // The text being read: the reader's own unless the caller gives another
+  const readRoot = () => (argsRef.current.getRoot ?? getContentRoot)();
 
   const docRef = useRef<TtsDocument | null>(null);
   const indexRef = useRef(-1);
@@ -122,6 +127,8 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const keepAliveRef = useRef<HTMLAudioElement | null>(null);
   const endAudioRef = useRef<((finished: boolean) => void) | null>(null);
   const prefetchRef = useRef(new Map<number, SynthJob>());
+  // Chunks whose audio has finished synthesizing.
+  const loadedRef = useRef(new Set<number>());
   const audioUrlRef = useRef<string | null>(null);
   const bakedVolumeRef = useRef(1);
   const prefetchKeyRef = useRef('');
@@ -179,6 +186,20 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     const jobs = prefetchRef.current;
     cancelJobs([...jobs.values()].map(j => j.id));
     jobs.clear();
+    loadedRef.current.clear();
+    setBuffered(0);
+  };
+
+  /** Recompute how far the audio is ready, contiguously from the playhead. */
+  const updateBuffered = () => {
+    const doc = docRef.current;
+    const from = indexRef.current;
+    if (!doc || from < 0 || engineRef.current !== 'neural') { setBuffered(0); return; }
+    let last = from - 1;
+    while (loadedRef.current.has(last + 1)) last++;
+    const block = last >= from ? doc.chunks[last].block : -1;
+    // Rounded so the state only changes when the bar visibly moves.
+    setBuffered(block >= 0 && doc.blockCount > 0 ? Math.round(((block + 1) / doc.blockCount) * 200) / 200 : 0);
   };
 
   /** Stop whatever is being spoken right now and invalidate the running loop. */
@@ -205,7 +226,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
 
   const ensureDocument = (): TtsDocument | null => {
     if (docRef.current) return docRef.current;
-    const root = getContentRoot();
+    const root = readRoot();
     if (!root) return null;
     const { prefs: p, chapterTitle: title } = argsRef.current;
     const doc = buildDocument(root, { lang: argsRef.current.lang, skipNotes: p.ttsSkipNotes, title: p.ttsReadTitle ? title : undefined });
@@ -223,7 +244,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   /** Chunk index to start from when nothing is in progress: the first block
    *  on screen, or the title when the chapter is scrolled to the top. */
   const startingChunk = (doc: TtsDocument): number => {
-    const root = getContentRoot();
+    const root = readRoot();
     if (!root) return 0;
     const block = firstVisibleBlock(root, argsRef.current.topOffset);
     if (block === 0 && window.scrollY < 50) return 0;
@@ -235,7 +256,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
 
   const showChunk = (i: number) => {
     const doc = docRef.current;
-    const root = getContentRoot();
+    const root = readRoot();
     if (!doc || !root) return;
     const chunk = doc.chunks[i];
     if (!chunk) return;
@@ -269,26 +290,41 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     }
     let job = prefetchRef.current.get(i);
     if (!job) {
-      job = synthesize(voice.id, options, doc.chunks[i].text);
-      // Avoid unhandled rejections for jobs that end up cancelled.
-      job.promise.catch(() => undefined);
-      prefetchRef.current.set(i, job);
+      const created = synthesize(voice.id, options, doc.chunks[i].text);
+      job = created;
+      loadedRef.current.delete(i);
+      prefetchRef.current.set(i, created);
+      // The rejection handler avoids unhandled rejections for cancelled jobs.
+      created.promise.then(() => {
+        if (prefetchRef.current.get(i) !== created) return;
+        loadedRef.current.add(i);
+        updateBuffered();
+      }, () => undefined);
     }
     return job;
   };
 
-  const dropJob = (i: number) => {
-    const job = prefetchRef.current.get(i);
-    if (!job) return;
-    prefetchRef.current.delete(i);
+  /** Queue synthesis of everything from chunk `i` to the end of the chapter.
+   *  Sentences already played stay cached, so rewinding is instant; the cache
+   *  is cleared when the voice, its options or the text change. */
+  const queueFrom = (i: number) => {
+    const doc = docRef.current;
+    if (!doc) return;
+    const jobs = prefetchRef.current;
+    // The worker runs jobs in the order queued: after a seek, anything still
+    // waiting from before it must not sit in front of the sentence needed now.
+    const waiting = [...jobs].filter(([k]) => !loadedRef.current.has(k));
+    if (!jobs.has(i) || waiting.some(([k]) => k < i)) {
+      cancelJobs(waiting.map(([, j]) => j.id));
+      waiting.forEach(([k]) => jobs.delete(k));
+    }
+    for (let k = i; k < doc.chunks.length; k++) jobFor(k);
   };
 
   const speakNeural = async (i: number, alive: () => boolean): Promise<boolean> => {
-    const job = jobFor(i);
+    queueFrom(i);
+    const job = prefetchRef.current.get(i);
     if (!job) return false;
-    // Drop stale jobs far behind, queue the next ones.
-    prefetchRef.current.forEach((_, k) => { if (k < i) dropJob(k); });
-    for (let k = 1; k <= PREFETCH_AHEAD; k++) jobFor(i + k);
 
     const { wav } = await job.promise;
     if (!alive()) return false;
@@ -318,7 +354,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
       }
     });
     endAudioRef.current = null;
-    dropJob(i);
     return finished;
   };
 
@@ -364,6 +399,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
       if (!alive()) return;
       indexRef.current = i;
       setChunkIndex(i);
+      updateBuffered();
       showChunk(i);
       let finished: boolean;
       try {
@@ -512,6 +548,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     haltOutput();
     indexRef.current = target;
     setChunkIndex(target);
+    updateBuffered();
     if (wasPlaying) {
       runFrom(target);
     } else {
@@ -542,7 +579,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
 
   /** Start reading at the paragraph containing `node` (tap to seek). */
   const seekToNode = useCallback((node: Node) => {
-    const root = getContentRoot();
+    const root = readRoot();
     if (!root) return false;
     const block = blockIndexOf(root, node);
     if (block === -1) return false;
@@ -824,6 +861,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     paragraph: currentBlockNumber,
     paragraphCount: readableBlocks,
     progress: blockProgress,
+    buffered,
     sleepTimer,
     setSleepTimer,
     start,
@@ -839,7 +877,7 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     switchToHdVoices,
     /** Readable blocks of the current chapter (for tap to seek). */
     getBlocks: () => {
-      const root = getContentRoot();
+      const root = readRoot();
       return root ? getBlocks(root) : [];
     },
   };

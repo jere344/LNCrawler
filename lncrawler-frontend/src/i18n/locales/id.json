@@ -737,7 +737,12 @@
     "chapters": "Bab",
     "openSettings": "Buka pengaturan pembaca",
     "markedRead": "Bab berhasil ditandai sudah dibaca!",
-    "listen": "Dengarkan"
+    "listen": "Dengarkan",
+    "retry": "Coba lagi",
+    "infiniteLoading": "Memuat bab berikutnya",
+    "infiniteEnd": "Anda telah mencapai bab terbaru.",
+    "infiniteUnavailable": "Bab {chapter} tidak tersedia.",
+    "infiniteOpenChapter": "Buka bab {chapter}"
   },
   "readerControls": {
     "previousChapter": "Bab Sebelumnya",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Layar penuh",
     "exitFullscreen": "Keluar dari layar penuh",
     "commentsCount": "{count, plural, =0 {Komentar} one {Komentar, # komentar} other {Komentar, # komentar}}"
+  },
+  "readerOverlay": {
+    "page": "Hal. {page}/{pages}",
+    "chapterOf": "Bab {current}/{total}",
+    "dim": "Redup {percent}%"
   },
   "readerChapters": {
     "open": "Buka daftar bab",
@@ -879,6 +889,25 @@
     "resetTitle": "Atur Ulang Pengaturan ke Default?",
     "resetBody": "Ini akan mengatur ulang semua pengaturan pembaca ke nilai defaultnya. Tindakan ini tidak dapat dibatalkan.",
     "reset": "Atur Ulang",
+    "syncTitle": "Sinkronisasi",
+    "syncDevice": "Perangkat ini memakai",
+    "syncDeviceAuto": "Otomatis ({type})",
+    "syncDeviceMobile": "Pengaturan ponsel",
+    "syncDeviceDesktop": "Pengaturan desktop",
+    "syncDeviceOff": "Jangan sinkronkan di perangkat ini",
+    "syncTypeMobile": "ponsel",
+    "syncTypeDesktop": "desktop",
+    "syncStatusSignedOut": "Masuk agar pengaturanmu tersimpan di semua perangkat.",
+    "syncStatusOff": "Pengaturan tetap di perangkat ini.",
+    "syncStatusPending": "Menunggu server…",
+    "syncStatusSyncing": "Menyimpan…",
+    "syncStatusSynced": "Tersinkron dengan pengaturan {type} kamu.",
+    "syncStatusError": "Gagal menyinkronkan. Kami akan mencoba lagi nanti.",
+    "syncStatusNeedsChoice": "Pilih pengaturan yang ingin disimpan.",
+    "syncChoiceTitle": "Pengaturan mana yang dipakai perangkat ini?",
+    "syncChoiceBody": "Perangkat ini punya pengaturan sendiri, dan kamu juga punya pengaturan {type} tersimpan (diperbarui {date}).",
+    "syncChoiceSaved": "Pakai yang tersimpan",
+    "syncChoiceDevice": "Pertahankan milik perangkat ini",
     "tts": "Text to Speech"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Gestur sentuh",
       "keys": "Keyboard",
       "reading": "Membaca",
+      "overlay": "Overlay info",
       "listen": "Mendengarkan",
       "voice": "Suara dan kualitas",
       "backup": "Cadangan dan reset"
     },
     "listenSub": "Suara, kecepatan, sorotan. Juga ada di pemutar.",
+    "overlay": {
+      "enable": "Tampilkan overlay info",
+      "enableHint": "Strip kecil di atas teks dengan waktu, kemajuan, dan lainnya.",
+      "homeOn": "{count, plural, other {# item}}",
+      "homeOff": "Mati",
+      "layout": "Tata letak",
+      "position": "Posisi",
+      "positions": {
+        "top": "Atas",
+        "bottom": "Bawah"
+      },
+      "size": "Ukuran",
+      "sizes": {
+        "full": "Lebar penuh",
+        "center": "Pil tengah",
+        "left": "Pil kiri",
+        "right": "Pil kanan"
+      },
+      "content": "Konten",
+      "contentHint": "Ketuk untuk menambah atau menghapus. Item ditampilkan sesuai urutan penambahannya. Baterai hanya ditampilkan di browser yang mendukungnya.",
+      "items": {
+        "time12": "Waktu (12 jam)",
+        "time24": "Waktu (24 jam)",
+        "chapterPage": "Kemajuan bab (halaman)",
+        "chapterSlider": "Kemajuan bab (geser)",
+        "chapterPercent": "Kemajuan bab (%)",
+        "battery": "Baterai",
+        "bookPercent": "Kemajuan buku (%)",
+        "bookChapter": "Kemajuan buku (bab)",
+        "dimness": "Keredupan (%)"
+      }
+    },
     "sheetCount": "{count, plural, other {# kontrol}}",
     "textSub": "{size} px · {font} · Baris {lines}×",
     "colorsSub": "{theme} · Filter malam {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "mati",
     "nightStrength": "{strength}%",
     "scheduled": " · Terjadwal",
-    "touchSub": "Kontrol: {trigger} · Geser untuk redupkan: {side}",
+    "touchSummary": "Ketuk: {tap} · Ketuk dua kali: {double} · Geser untuk redup: {side}",
     "trigger": {
       "singleTap": "Ketuk sekali",
       "doubleTap": "Ketuk dua kali",
-      "longPress": "Tekan lama",
-      "off": "Mati"
+      "longPress": "Tekan lama"
     },
     "dimSide": {
       "off": "Mati",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Tengah",
     "zoneRight": "Tepi kanan",
     "dimTag": "Redup",
-    "controlsValue": "Kontrol: {trigger}",
+    "centerValue": "Ketuk: {single} · Dua kali: {double} · Tahan: {long}",
     "siteHeader": "Header situs",
     "touchNote": "Ini berlaku saat Anda memakai layar sentuh, termasuk laptop dengan layar sentuh.",
     "chooseZone": "Pilih zona untuk mengubah fungsinya.",
     "screenZones": "Zona layar",
     "swipes": "Geser",
-    "showControlsWith": "Tampilkan kontrol dengan",
-    "triggerHint": {
-      "doubleTap": "Ketukan tunggal tidak pernah menghentikan membaca",
-      "longPress": "Tahan selama setengah detik",
-      "off": "Gunakan tombol di bagian atas bab"
-    },
     "longPressWarning": "Di ponsel, tekan lama juga memulai seleksi teks. Keduanya akan bentrok pada teks itu sendiri.",
     "turnOffSelection": "Matikan seleksi teks",
     "tapThisEdge": "Ketuk tepi ini",
@@ -1032,7 +1087,9 @@
     "keyD": "keyboard tombol tampilan",
     "keyF": "keyboard tombol layar penuh",
     "keyM": "tombol keyboard komentar",
-    "controlsTrigger": "ketuk dua kali tekan lama tahan toolbar menu tengah gestur",
+    "centerSingleTap": "ketuk tunggal bilah alat menu kontrol tengah gestur",
+    "centerDoubleTap": "ketuk dua kali layar penuh tengah gestur",
+    "centerLongPress": "tekan lama tahan bilah alat kontrol layar penuh tengah gestur",
     "swipeLeftGesture": "gestur bab berikutnya",
     "swipeRightGesture": "gestur bab sebelumnya",
     "edgeTap": "kiri kanan ketuk zona gulir bab gestur",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "bilah atas navbar gulir menempel mengambang",
     "markReadBehavior": "progres selesai otomatis",
     "textSelectable": "salin pilih",
+    "readingMode": "tanpa batas berkelanjutan gulir bab berikutnya halaman",
+    "infiniteShowComments": "komentar kartu akhir bab gulir tak terbatas sembunyikan",
     "savePosition": "penanda lanjut gulir",
     "hideScrollbar": "bilah gulir scrollbar",
     "ttsPreferAudiobook": "dengar tts buku audio narasi rekaman sumber perangkat",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "dengar tts wake lock layar tetap nyala",
     "importSettings": "cadangan pulihkan file impor",
     "exportSettings": "cadangan simpan file ekspor",
-    "resetDefaults": "pulihkan hapus cadangan"
+    "resetDefaults": "pulihkan hapus cadangan",
+    "overlayEnabled": "overlay status bar jam info strip hud",
+    "overlayPosition": "overlay atas bawah posisi status bar",
+    "overlaySize": "overlay lebar pil penuh tengah kiri kanan",
+    "overlayItems": "overlay waktu jam baterai kemajuan halaman persen bab buku redup"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Perilaku Tandai Sudah Dibaca",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Tombol + Otomatis",
     "allowSelection": "Izinkan Pemilihan/Salin Teks",
     "rememberPosition": "Ingat Posisi Membaca",
+    "readingMode": "Mode Membaca",
+    "readingModeChapter": "Satu Bab per Halaman",
+    "readingModeInfinite": "Gulir Tanpa Batas",
+    "readingModeChapterHint": "Setiap bab terbuka di halamannya sendiri. Gunakan tombol, tombol keyboard, atau gestur untuk berganti bab.",
+    "readingModeInfiniteHint": "Bab berikutnya dimuat di bawah bab saat ini selagi Anda menggulir.",
+    "infiniteShowComments": "Komentar Antar Bab",
+    "infiniteShowCommentsHint": "Tampilkan kartu komentar setiap bab di dalam gulir. Komentar tetap dapat diakses dari kontrol pembaca.",
     "doNothing": "Lakukan Nihil",
     "scrollUp": "Gulir ke Atas",
     "scrollDown": "Gulir ke Bawah",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Geser ke Kanan",
     "doNothing": "Lakukan Nihil",
     "previousChapter": "Bab Sebelumnya",
-    "nextChapter": "Bab Berikutnya"
+    "nextChapter": "Bab Berikutnya",
+    "chapterList": "Buka daftar bab",
+    "fullscreen": "Alihkan layar penuh",
+    "showControls": "Tampilkan kontrol",
+    "comments": "Buka komentar"
   },
   "keyboardSettings": {
     "enable": "Pintasan keyboard",

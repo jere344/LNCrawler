@@ -181,3 +181,24 @@ class ReadingListItem(models.Model):
     
     def __str__(self):
         return f"{self.novel.title} in {self.reading_list.title}"
+
+class ReaderSettingsSlot(models.Model):
+    """
+    A user's reader settings for one device type. Phones and desktops keep separate copies.
+    `revision` goes up on every save, so a device writing from an outdated copy is refused.
+    """
+    SLOT_CHOICES = [('mobile', 'Mobile'), ('desktop', 'Desktop')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reader_settings_slots')
+    slot = models.CharField(max_length=16, choices=SLOT_CHOICES)
+    data = models.JSONField(default=dict)
+    schema_version = models.PositiveIntegerField(default=1)
+    revision = models.PositiveIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'slot')
+
+    def __str__(self):
+        return f"{self.user.username} reader settings ({self.slot}, r{self.revision})"

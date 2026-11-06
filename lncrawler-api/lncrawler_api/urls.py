@@ -79,6 +79,8 @@ urlpatterns = [
     path('users/library/reorder/', users_views.reorder_library, name='reorder_library'),
     
     # User Reading History
+    path('users/reader-settings/', users_views.list_reader_settings, name='list_reader_settings'),
+    path('users/reader-settings/<str:slot>/', users_views.reader_settings_slot, name='reader_settings_slot'),
     path('users/reading-history/', users_views.list_reading_history, name='list_reading_history'),
     path('users/reading-history/<uuid:history_id>/delete/', users_views.delete_reading_history, name='delete_reading_history'),
     path('users/listening-history/<int:progress_id>/delete/', users_views.delete_listening_history, name='delete_listening_history'),

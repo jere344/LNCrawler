@@ -737,7 +737,12 @@
     "chapters": "章",
     "openSettings": "リーダー設定を開く",
     "markedRead": "章を既読にしました！",
-    "listen": "聴く"
+    "listen": "聴く",
+    "retry": "再試行",
+    "infiniteLoading": "次の章を読み込み中",
+    "infiniteEnd": "最新の章に到達しました。",
+    "infiniteUnavailable": "第{chapter}章は利用できません。",
+    "infiniteOpenChapter": "第{chapter}章を開く"
   },
   "readerControls": {
     "previousChapter": "前の章",
@@ -756,6 +761,11 @@
     "enterFullscreen": "全画面表示",
     "exitFullscreen": "全画面表示を終了",
     "commentsCount": "{count, plural, =0 {コメント} other {コメント、#件}}"
+  },
+  "readerOverlay": {
+    "page": "{page}/{pages}ページ",
+    "chapterOf": "{current}/{total}章",
+    "dim": "減光 {percent}%"
   },
   "readerChapters": {
     "open": "章リストを開く",
@@ -879,6 +889,25 @@
     "resetTitle": "設定をデフォルトに戻しますか？",
     "resetBody": "すべてのリーダー設定がデフォルト値に戻ります。この操作は元に戻せません。",
     "reset": "リセット",
+    "syncTitle": "同期",
+    "syncDevice": "このデバイスで使う設定",
+    "syncDeviceAuto": "自動（{type}）",
+    "syncDeviceMobile": "スマートフォンの設定",
+    "syncDeviceDesktop": "パソコンの設定",
+    "syncDeviceOff": "このデバイスでは同期しない",
+    "syncTypeMobile": "スマートフォン",
+    "syncTypeDesktop": "パソコン",
+    "syncStatusSignedOut": "サインインすると、設定を複数のデバイスで使えます。",
+    "syncStatusOff": "設定はこのデバイスにのみ保存されます。",
+    "syncStatusPending": "サーバーを待っています…",
+    "syncStatusSyncing": "保存中…",
+    "syncStatusSynced": "{type}の設定と同期しています。",
+    "syncStatusError": "同期できませんでした。後でもう一度試します。",
+    "syncStatusNeedsChoice": "残す設定を選んでください。",
+    "syncChoiceTitle": "このデバイスでどの設定を使いますか？",
+    "syncChoiceBody": "このデバイスには独自の設定があり、保存済みの{type}の設定もあります（{date}更新）。",
+    "syncChoiceSaved": "保存済みを使う",
+    "syncChoiceDevice": "このデバイスの設定を残す",
     "tts": "読み上げ"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "ジェスチャー",
       "keys": "キーボード",
       "reading": "読書",
+      "overlay": "情報オーバーレイ",
       "listen": "音声読み上げ",
       "voice": "音声と品質",
       "backup": "バックアップとリセット"
     },
     "listenSub": "音声、速度、ハイライト。プレーヤーでも設定できます。",
+    "overlay": {
+      "enable": "情報オーバーレイを表示",
+      "enableHint": "テキストの上に表示される小さなバーで、時刻や進捗などを表示します。",
+      "homeOn": "{count, plural, other {# 項目}}",
+      "homeOff": "オフ",
+      "layout": "レイアウト",
+      "position": "位置",
+      "positions": {
+        "top": "上",
+        "bottom": "下"
+      },
+      "size": "サイズ",
+      "sizes": {
+        "full": "全幅",
+        "center": "中央のピル",
+        "left": "左のピル",
+        "right": "右のピル"
+      },
+      "content": "内容",
+      "contentHint": "タップで追加・削除します。項目は追加した順に表示されます。バッテリーは対応するブラウザでのみ表示されます。",
+      "items": {
+        "time12": "時刻 (12時間)",
+        "time24": "時刻 (24時間)",
+        "chapterPage": "章の進捗 (ページ)",
+        "chapterSlider": "章の進捗 (スライダー)",
+        "chapterPercent": "章の進捗 (%)",
+        "battery": "バッテリー",
+        "bookPercent": "書籍の進捗 (%)",
+        "bookChapter": "書籍の進捗 (章)",
+        "dimness": "減光 (%)"
+      }
+    },
     "sheetCount": "{count, plural, other {# 個のコントロール}}",
     "textSub": "{size} px · {font} · 行 {lines}×",
     "colorsSub": "{theme} · ナイトフィルター {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "オフ",
     "nightStrength": "{strength}%",
     "scheduled": " · スケジュール設定あり",
-    "touchSub": "コントロール: {trigger} · スライドで減光: {side}",
+    "touchSummary": "タップ: {tap} · ダブルタップ: {double} · スライドで減光: {side}",
     "trigger": {
       "singleTap": "1回タップ",
       "doubleTap": "ダブルタップ",
-      "longPress": "長押し",
-      "off": "オフ"
+      "longPress": "長押し"
     },
     "dimSide": {
       "off": "オフ",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "中央",
     "zoneRight": "右端",
     "dimTag": "減光",
-    "controlsValue": "コントロール: {trigger}",
+    "centerValue": "タップ: {single} · ダブル: {double} · 長押し: {long}",
     "siteHeader": "サイトのヘッダー",
     "touchNote": "タッチスクリーン（タッチ対応のノートパソコンを含む）で操作するときに適用されます。",
     "chooseZone": "ゾーンを選ぶと、その動作を変更できます。",
     "screenZones": "画面のゾーン",
     "swipes": "スワイプ",
-    "showControlsWith": "コントロールを表示する操作",
-    "triggerHint": {
-      "doubleTap": "1回タップでは読書が中断されません",
-      "longPress": "0.5秒間押し続ける",
-      "off": "章の上部にあるボタンを使う"
-    },
     "longPressWarning": "スマートフォンでは、長押しでテキスト選択も始まります。文字の上で両方の操作が競合します。",
     "turnOffSelection": "テキスト選択をオフにする",
     "tapThisEdge": "この端をタップしたとき",
@@ -1032,7 +1087,9 @@
     "keyD": "キーボード キー 表示",
     "keyF": "キーボード キー 全画面",
     "keyM": "キーボード キー コメント",
-    "controlsTrigger": "タップ ダブルタップ 長押し 押す ツールバー メニュー 中央 ジェスチャー",
+    "centerSingleTap": "タップ 単押し ツールバー メニュー コントロール 中央 ジェスチャー",
+    "centerDoubleTap": "ダブルタップ 全画面 中央 ジェスチャー",
+    "centerLongPress": "長押し ツールバー コントロール 全画面 中央 ジェスチャー",
     "swipeLeftGesture": "ジェスチャー 次の章",
     "swipeRightGesture": "ジェスチャー 前の章",
     "edgeTap": "左 右 タップ ゾーン スクロール 章 ジェスチャー",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "上部バー ナビバー スクロール 固定 フローティング",
     "markReadBehavior": "進捗 読了 自動",
     "textSelectable": "コピー 選択",
+    "readingMode": "無限 連続 スクロール 次の章 ページ",
+    "infiniteShowComments": "コメント カード 章の終わり 無限スクロール 非表示",
     "savePosition": "しおり 再開 スクロール",
     "hideScrollbar": "スクロール バー",
     "ttsPreferAudiobook": "聴く tts オーディオブック ナレーション 録音 ソース デバイス",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "音声 tts ウェイクロック スリープ防止 起動",
     "importSettings": "バックアップ 復元 ファイル",
     "exportSettings": "バックアップ 保存 ファイル",
-    "resetDefaults": "復元 消去 バックアップ"
+    "resetDefaults": "復元 消去 バックアップ",
+    "overlayEnabled": "オーバーレイ ステータスバー 時計 情報 ストリップ hud",
+    "overlayPosition": "オーバーレイ 上 下 位置 ステータスバー",
+    "overlaySize": "オーバーレイ 幅 ピル 全幅 中央 左 右",
+    "overlayItems": "オーバーレイ 時刻 時計 バッテリー 進捗 ページ 割合 章 書籍 減光"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "既読の動作",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "ボタン＋自動",
     "allowSelection": "テキストの選択/コピーを許可",
     "rememberPosition": "読書位置を記憶",
+    "readingMode": "閲覧モード",
+    "readingModeChapter": "1ページに1章",
+    "readingModeInfinite": "無限スクロール",
+    "readingModeChapterHint": "各章は個別のページで開きます。章を切り替えるには、ボタン、キー、ジェスチャーを使用します。",
+    "readingModeInfiniteHint": "スクロールすると、次の章が現在の章の下に読み込まれます。",
+    "infiniteShowComments": "章の間のコメント",
+    "infiniteShowCommentsHint": "各章のコメントカードをスクロール内に表示します。コメントはリーダーの操作メニューからも引き続き開けます。",
     "doNothing": "何もしない",
     "scrollUp": "上にスクロール",
     "scrollDown": "下にスクロール",
@@ -1102,7 +1172,11 @@
     "swipeRight": "右にスワイプ",
     "doNothing": "何もしない",
     "previousChapter": "前の章",
-    "nextChapter": "次の章"
+    "nextChapter": "次の章",
+    "chapterList": "章リストを開く",
+    "fullscreen": "全画面を切り替え",
+    "showControls": "コントロールを表示",
+    "comments": "コメントを開く"
   },
   "keyboardSettings": {
     "enable": "キーボードショートカット",

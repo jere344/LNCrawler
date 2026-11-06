@@ -1,5 +1,5 @@
 /**
- * Turns the rendered chapter (#reader-content) into speakable chunks, and
+ * Turns the rendered chapter (#reader-content, the first section in infinite mode) into speakable chunks, and
  * maps chunks back to the DOM for highlighting and auto-scroll.
  *
  * Blocks are always re-queried from the live DOM by index, because the
@@ -232,7 +232,7 @@ export function ensureHighlightStyle(blockColor: string, sentenceColor: string):
     document.head.appendChild(style);
   }
   style.textContent = `
-    #reader-content .${ACTIVE_CLASS} {
+    .reader-content .${ACTIVE_CLASS} {
       background-color: ${blockColor};
       box-shadow: 0 0 0 0.35em ${blockColor};
       border-radius: 2px;

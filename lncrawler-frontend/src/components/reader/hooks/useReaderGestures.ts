@@ -10,6 +10,8 @@ interface ReaderGesturesOptions {
   swipeRightGesture: SwipeGesture;
   onNextChapter: () => void;
   onPrevChapter: () => void;
+  onToggleChapters: () => void;
+  onToggleComments: () => void;
 }
 
 export function useReaderGestures({
@@ -19,11 +21,15 @@ export function useReaderGestures({
   swipeRightGesture,
   onNextChapter,
   onPrevChapter,
+  onToggleChapters,
+  onToggleComments,
 }: ReaderGesturesOptions) {
   // One mapping for both directions: the gesture setting names the action
   const runGesture = (gesture: SwipeGesture) => {
     if (gesture === 'nextChapter') onNextChapter();
     else if (gesture === 'prevChapter') onPrevChapter();
+    else if (gesture === 'chapterList') onToggleChapters();
+    else if (gesture === 'comments') onToggleComments();
   };
 
   // trackMouse stays off, so only touch swipes count

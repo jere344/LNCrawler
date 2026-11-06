@@ -1,9 +1,13 @@
-import { useEffect, type MutableRefObject } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 import { useScrollPersistence, SCROLL_SAVE_THROTTLE } from './useScrollPersistence';
 
 interface ReaderScrollSavingOptions {
   currentChapterKey: string;
+  // Infinite mode: the section of the chapter being read; null for the whole document
+  sectionKey: string | null;
+  // Bumped by the loader on each real load; an in-place switch keeps it
+  loadId: number;
   chapter: IChapterContent | null;
   loading: boolean;
   savePosition: boolean;
@@ -14,35 +18,43 @@ interface ReaderScrollSavingOptions {
 // Scroll position save/restore for the current chapter
 export function useReaderScrollSaving({
   currentChapterKey,
+  sectionKey,
+  loadId,
   chapter,
   loading,
   savePosition,
   loadedChapterKeyRef,
 }: ReaderScrollSavingOptions) {
-  const { saveScrollPosition, restoreScrollPosition, scrollRestoreTimeoutRef } = useScrollPersistence({
+  const { saveScrollPosition, restoreScrollPosition, cancelRestore } = useScrollPersistence({
     currentChapterKey,
     savePosition,
   });
+
+  // The load whose position was last restored: a switch in place keeps the window where it is
+  const restoredLoadIdRef = useRef<number | null>(null);
+  // Section key of the chapter whose text is on screen, committed with loadedChapterKeyRef
+  const loadedSectionKeyRef = useRef<string | null>(null);
 
   // Only save while the current chapter's text is on screen: during a load the
   // DOM is the spinner or the previous chapter, which would overwrite the
   // saved position before it is restored.
   const saveScrollIfReady = (force = false) => {
     if (loadedChapterKeyRef.current !== currentChapterKey) return;
-    saveScrollPosition(force);
+    saveScrollPosition(loadedSectionKeyRef.current, force);
   };
 
   useEffect(() => {
     if (!loading && chapter) {
       // The chapter's text is now committed, so saves for this key are safe
       loadedChapterKeyRef.current = currentChapterKey;
-      restoreScrollPosition();
+      loadedSectionKeyRef.current = sectionKey;
+      if (restoredLoadIdRef.current !== loadId) {
+        restoredLoadIdRef.current = loadId;
+        restoreScrollPosition(sectionKey);
+      }
     }
     return () => {
-      if (scrollRestoreTimeoutRef.current !== null) {
-        clearTimeout(scrollRestoreTimeoutRef.current);
-        scrollRestoreTimeoutRef.current = null;
-      }
+      cancelRestore();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only on the listed scroll inputs
   }, [loading, chapter]);

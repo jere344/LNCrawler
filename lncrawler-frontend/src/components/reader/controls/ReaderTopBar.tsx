@@ -1,14 +1,13 @@
 import { AppBar, Box, ButtonBase, IconButton, Slide, Toolbar, Tooltip, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import HomeIcon from '@mui/icons-material/Home';
 import ListIcon from '@mui/icons-material/List';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import DoneIcon from '@mui/icons-material/Done';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import type { ReaderBarProps } from './readerBarTypes';
-import DirectionalIcon from '../DirectionalIcon';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 // Touch layouts: slides in from the top when the bars are shown
@@ -50,17 +49,17 @@ const ReaderTopBar = ({
         }}
       >
         <Toolbar sx={{ height: 64, minHeight: 64, gap: 1 }}>
-          <IconButton edge="start" color="inherit" onClick={onHome} aria-label={t('readerControls.backToNovel')}>
-            <DirectionalIcon><ArrowBackIcon /></DirectionalIcon>
-          </IconButton>
-
-          <IconButton color="inherit" onClick={onChapterList} aria-label={t('readerControls.chapterNavigation')}>
+          <IconButton edge="start" color="inherit" onClick={onChapterList} aria-label={t('readerControls.chapterNavigation')}>
             <ListIcon />
           </IconButton>
 
+          <IconButton color="inherit" onClick={onHome} aria-label={t('readerControls.backToNovel')}>
+            <HomeIcon />
+          </IconButton>
+
           <ButtonBase
-            onClick={onChapterList}
-            aria-label={t('readerChapters.open')}
+            onClick={onHome}
+            aria-label={t('readerControls.backToNovel')}
             sx={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', textAlign: 'start', borderRadius: 1, py: 0.5 }}
           >
             <Box sx={{ minWidth: 0 }}>

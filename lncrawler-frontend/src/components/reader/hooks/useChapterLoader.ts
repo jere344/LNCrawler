@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
 import { isChapterOfNovel, useChapterCache } from './useChapterCache';
+import { classifyChapterError } from './chapterErrors';
 
 interface ChapterLoaderOptions {
   novelSlug?: string;
@@ -9,25 +10,44 @@ interface ChapterLoaderOptions {
   chapterNumber?: string;
   // Called as a new chapter starts loading, before its text is on screen
   onLoadStart: () => void;
+  // A chapter already on the page (infinite mode): the route switches to it without a load
+  findOnPage?: (chapterNumber: number) => IChapterContent | null;
 }
 
 // Fetches the chapter for the route and preloads the next one
-export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadStart }: ChapterLoaderOptions) {
+export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadStart, findOnPage }: ChapterLoaderOptions) {
   const { t } = useTranslation();
   const [chapter, setChapter] = useState<IChapterContent | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [unavailableChapter, setUnavailableChapter] = useState<UnavailableChapterInfo | null>(null);
+  // Request id of the load that set `chapter`; an in-place switch keeps it
+  const [loadId, setLoadId] = useState(0);
 
   // Chapter content cache and preload
   const { fetchChapterContent, preloadNextChapter, bumpCommentCount: bumpCachedCommentCount } = useChapterCache(novelSlug, sourceSlug);
 
   // Tags each chapter fetch so a slow older request can't overwrite a newer one
   const loadRequestIdRef = useRef(0);
+  // Kept current so the effect below keeps its route-param deps
+  const findOnPageRef = useRef(findOnPage);
+  findOnPageRef.current = findOnPage;
 
   useEffect(() => {
     const loadCurrentChapter = async () => {
       if (!novelSlug || !sourceSlug || !chapterNumber) return;
+
+      const chapterNo = parseInt(chapterNumber);
+      const onPage = findOnPageRef.current?.(chapterNo);
+      if (onPage) {
+        // Cancels a load still in flight, which would otherwise leave the spinner on
+        ++loadRequestIdRef.current;
+        setError(null);
+        setUnavailableChapter(null);
+        setLoading(false);
+        setChapter(onPage);
+        return;
+      }
 
       const requestId = ++loadRequestIdRef.current;
       setError(null);
@@ -43,6 +63,7 @@ export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadS
         // Ignore a stale response if the user navigated to another chapter.
         if (requestId !== loadRequestIdRef.current) return;
         setChapter(chapterData);
+        setLoadId(requestId);
 
         // Preload next chapter if it exists
         if (chapterData.next_chapter) {
@@ -51,17 +72,14 @@ export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadS
       } catch (err) {
         if (requestId !== loadRequestIdRef.current) return;
         console.error('Error fetching chapter content:', err);
-        const response = (err as {
-          response?: { status?: number; data?: UnavailableChapterInfo };
-        })?.response;
-        const unavailable = response?.status === 404 ? response.data : undefined;
-        if (response?.status === 451) {
+        const failure = classifyChapterError(err);
+        if (failure.kind === 'dmca') {
           setError(t('reader.dmcaUnavailable'));
-        } else if (unavailable && typeof unavailable.chapter_id === 'number') {
+        } else if (failure.kind === 'unavailable') {
           // The chapter exists but has no content: show the unavailable page
           // instead of a generic error, with working next/prev navigation.
           setChapter(null);
-          setUnavailableChapter(unavailable);
+          setUnavailableChapter(failure.info);
         } else {
           setError(t('reader.loadFailed'));
         }
@@ -85,5 +103,5 @@ export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadS
       : current));
   }, [novelSlug, bumpCachedCommentCount]);
 
-  return { chapter, loading, error, unavailableChapter, bumpCommentCount };
+  return { chapter, loading, error, unavailableChapter, loadId, bumpCommentCount, fetchChapterContent };
 }

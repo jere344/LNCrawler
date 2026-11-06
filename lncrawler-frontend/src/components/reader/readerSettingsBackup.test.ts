@@ -3,11 +3,11 @@ import { parseReaderSettingsFile } from './readerSettingsBackup';
 import { defaultSettings } from './readerDefaults';
 
 describe('parseReaderSettingsFile', () => {
-  it('maps an old 1.0 file with centerTapToOpenSettings:false to controlsTrigger off', () => {
+  it('maps an old 1.0 file with centerTapToOpenSettings:false to a single tap that does nothing', () => {
     const text = JSON.stringify({ version: '1.0', centerTapToOpenSettings: false, fontSize: 20 });
 
     const settings = parseReaderSettingsFile(text);
-    expect(settings.controlsTrigger).toBe('off');
+    expect(settings.centerSingleTap).toBe('none');
     expect(settings.fontSize).toBe(20);
   });
 

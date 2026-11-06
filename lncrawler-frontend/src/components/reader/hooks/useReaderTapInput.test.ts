@@ -13,7 +13,8 @@ const touchTap = (overrides: Partial<TapInput> = {}): TapInput => ({
   width: 1000,
   leftEdge: 'chapter',
   rightEdge: 'chapter',
-  trigger: 'singleTap',
+  singleTap: 'controls',
+  doubleTap: 'none',
   now: 10_000,
   lastTapAt: 0,
   lastHiddenAt: 0,
@@ -42,7 +43,7 @@ describe('decideTap', () => {
         pointerType: 'mouse',
         x: 10,
         leftEdge: 'chapter',
-        trigger: 'singleTap',
+        singleTap: 'controls',
       });
       expect(decideTap(input)).toBe('ignore');
     });
@@ -93,21 +94,21 @@ describe('decideTap', () => {
     });
 
     it('shows the controls on a single tap in the centre', () => {
-      expect(decideTap(touchTap({ trigger: 'singleTap' }))).toBe('showControls');
+      expect(decideTap(touchTap({ singleTap: 'controls' }))).toBe('showControls');
     });
 
-    it('ignores centre taps when the trigger is off', () => {
-      expect(decideTap(touchTap({ trigger: 'off' }))).toBe('ignore');
+    it('only records a centre tap when the single tap does nothing', () => {
+      expect(decideTap(touchTap({ singleTap: 'none' }))).toBe('recordTap');
     });
   });
 
   describe('edge set to none', () => {
     it('falls through to the centre behaviour on the left', () => {
-      expect(decideTap(touchTap({ x: 10, leftEdge: 'none', trigger: 'singleTap' }))).toBe('showControls');
+      expect(decideTap(touchTap({ x: 10, leftEdge: 'none', singleTap: 'controls' }))).toBe('showControls');
     });
 
     it('falls through to the centre behaviour on the right', () => {
-      expect(decideTap(touchTap({ x: 990, rightEdge: 'none', trigger: 'singleTap' }))).toBe('showControls');
+      expect(decideTap(touchTap({ x: 990, rightEdge: 'none', singleTap: 'controls' }))).toBe('showControls');
     });
 
     it('still lets the seek happen when the edge falls through', () => {
@@ -120,28 +121,56 @@ describe('decideTap', () => {
     });
   });
 
-  describe('double tap trigger', () => {
-    const doubleTap = (overrides: Partial<TapInput>) => touchTap({ trigger: 'doubleTap', ...overrides });
+  describe('double tap', () => {
+    const dbl = (overrides: Partial<TapInput> = {}) => touchTap({ singleTap: 'none', doubleTap: 'controls', ...overrides });
 
     it('records the first tap', () => {
-      expect(decideTap(doubleTap({ now: 10_000, lastTapAt: 0 }))).toBe('recordTap');
+      expect(decideTap(dbl({ now: 10_000, lastTapAt: 0 }))).toBe('recordTap');
     });
 
     it('shows the controls when the second tap comes within 350ms', () => {
-      expect(decideTap(doubleTap({ now: 10_000, lastTapAt: 9_700 }))).toBe('showControls');
+      expect(decideTap(dbl({ now: 10_000, lastTapAt: 9_700 }))).toBe('showControls');
     });
 
     it('records a second tap that comes too late', () => {
-      expect(decideTap(doubleTap({ now: 10_000, lastTapAt: 9_650 }))).toBe('recordTap');
+      expect(decideTap(dbl({ now: 10_000, lastTapAt: 9_650 }))).toBe('recordTap');
     });
 
     it('does not count the tap that hid the controls as the first of a double tap', () => {
-      // The hide happened 200ms ago, so the next tap cannot pair with it
-      expect(decideTap(doubleTap({ now: 10_000, lastTapAt: 9_900, lastHiddenAt: 9_800 }))).toBe('recordTap');
+      expect(decideTap(dbl({ now: 10_000, lastTapAt: 9_900, lastHiddenAt: 9_800 }))).toBe('recordTap');
     });
 
     it('pairs taps again once the hide is older than the window', () => {
-      expect(decideTap(doubleTap({ now: 10_000, lastTapAt: 9_900, lastHiddenAt: 9_000 }))).toBe('showControls');
+      expect(decideTap(dbl({ now: 10_000, lastTapAt: 9_900, lastHiddenAt: 9_000 }))).toBe('showControls');
     });
+
+    it('hides the controls when both taps show them', () => {
+      expect(decideTap(dbl({ singleTap: 'controls', controlsVisible: true, lastTapAt: 9_900 }))).toBe('hideControls');
+    });
+
+    describe('fullscreen', () => {
+      const fs = (o: Partial<TapInput> = {}) => touchTap({ doubleTap: 'fullscreen', lastTapAt: 9_900, ...o });
+
+      it('toggles fullscreen on a second tap in the middle', () => {
+        expect(decideTap(fs())).toBe('fullscreen');
+        expect(decideTap(fs({ controlsVisible: true }))).toBe('fullscreen');
+      });
+
+      it('needs the second tap within the window', () => {
+        expect(decideTap(fs({ lastTapAt: 9_000 }))).toBe('showControls');
+      });
+
+      it('leaves the edges alone', () => {
+        expect(decideTap(fs({ x: 50 }))).toBe('edgeLeft');
+      });
+
+      it('does nothing extra when the double tap is none', () => {
+        expect(decideTap(fs({ doubleTap: 'none' }))).toBe('showControls');
+      });
+    });
+  });
+
+  it('runs fullscreen as the single tap action', () => {
+    expect(decideTap(touchTap({ singleTap: 'fullscreen' }))).toBe('fullscreen');
   });
 });

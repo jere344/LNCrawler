@@ -737,7 +737,12 @@
     "chapters": "Bölümler",
     "openSettings": "Okuyucu ayarlarını aç",
     "markedRead": "Bölüm başarıyla okundu olarak işaretlendi!",
-    "listen": "Dinle"
+    "listen": "Dinle",
+    "retry": "Tekrar dene",
+    "infiniteLoading": "Sonraki bölüm yükleniyor",
+    "infiniteEnd": "En son bölüme ulaştınız.",
+    "infiniteUnavailable": "{chapter}. bölüm kullanılamıyor.",
+    "infiniteOpenChapter": "{chapter}. bölümü aç"
   },
   "readerControls": {
     "previousChapter": "Önceki Bölüm",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Tam ekran",
     "exitFullscreen": "Tam ekrandan çık",
     "commentsCount": "{count, plural, =0 {Yorumlar} one {Yorumlar, # yorum} other {Yorumlar, # yorum}}"
+  },
+  "readerOverlay": {
+    "page": "Sayfa {page}/{pages}",
+    "chapterOf": "Böl. {current}/{total}",
+    "dim": "Karartma {percent}%"
   },
   "readerChapters": {
     "open": "Bölüm listesini aç",
@@ -879,6 +889,25 @@
     "resetTitle": "Ayarlar Varsayılanlara Sıfırlansın mı?",
     "resetBody": "Bu, tüm okuyucu ayarlarını varsayılan değerlerine sıfırlayacaktır. Bu işlem geri alınamaz.",
     "reset": "Sıfırla",
+    "syncTitle": "Senkronizasyon",
+    "syncDevice": "Bu cihaz şunu kullanır",
+    "syncDeviceAuto": "Otomatik ({type})",
+    "syncDeviceMobile": "Telefon ayarları",
+    "syncDeviceDesktop": "Masaüstü ayarları",
+    "syncDeviceOff": "Bu cihazda senkronize etme",
+    "syncTypeMobile": "telefon",
+    "syncTypeDesktop": "masaüstü",
+    "syncStatusSignedOut": "Ayarlarını tüm cihazlarda korumak için giriş yap.",
+    "syncStatusOff": "Ayarlar bu cihazda kalır.",
+    "syncStatusPending": "Sunucu bekleniyor…",
+    "syncStatusSyncing": "Kaydediliyor…",
+    "syncStatusSynced": "{type} ayarlarınla senkronize edildi.",
+    "syncStatusError": "Senkronize edilemedi. Daha sonra tekrar deneyeceğiz.",
+    "syncStatusNeedsChoice": "Hangi ayarların kalacağını seç.",
+    "syncChoiceTitle": "Bu cihaz hangi ayarları kullansın?",
+    "syncChoiceBody": "Bu cihazın kendi ayarları var ve ayrıca kayıtlı {type} ayarların da var ({date} tarihinde güncellendi).",
+    "syncChoiceSaved": "Kayıtlıları kullan",
+    "syncChoiceDevice": "Bu cihazınkini koru",
     "tts": "Metinden sese"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Dokunma hareketleri",
       "keys": "Klavye",
       "reading": "Okuma",
+      "overlay": "Bilgi katmanı",
       "listen": "Dinleme",
       "voice": "Ses ve kalite",
       "backup": "Yedekleme ve sıfırlama"
     },
     "listenSub": "Ses, hız, vurgu. Oynatıcıda da bulunur.",
+    "overlay": {
+      "enable": "Bilgi katmanını göster",
+      "enableHint": "Metnin üstünde saat, ilerleme ve daha fazlasını gösteren küçük bir şerit.",
+      "homeOn": "{count, plural, one {# öğe} other {# öğe}}",
+      "homeOff": "Kapalı",
+      "layout": "Düzen",
+      "position": "Konum",
+      "positions": {
+        "top": "Üst",
+        "bottom": "Alt"
+      },
+      "size": "Boyut",
+      "sizes": {
+        "full": "Tam genişlik",
+        "center": "Ortada kapsül",
+        "left": "Solda kapsül",
+        "right": "Sağda kapsül"
+      },
+      "content": "İçerik",
+      "contentHint": "Eklemek veya kaldırmak için dokunun. Öğeler eklediğiniz sırayla görünür. Pil yalnızca bunu destekleyen tarayıcılarda görünür.",
+      "items": {
+        "time12": "Saat (12 sa.)",
+        "time24": "Saat (24 sa.)",
+        "chapterPage": "Bölüm ilerlemesi (sayfa)",
+        "chapterSlider": "Bölüm ilerlemesi (kaydırıcı)",
+        "chapterPercent": "Bölüm ilerlemesi (%)",
+        "battery": "Pil",
+        "bookPercent": "Kitap ilerlemesi (%)",
+        "bookChapter": "Kitap ilerlemesi (bölüm)",
+        "dimness": "Karanlık (%)"
+      }
+    },
     "sheetCount": "{count, plural, other {# denetim}}",
     "textSub": "{size} px · {font} · Satır {lines}×",
     "colorsSub": "{theme} · Gece filtresi {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "kapalı",
     "nightStrength": "{strength}%",
     "scheduled": " · Zamanlanmış",
-    "touchSub": "Denetimler: {trigger} · Karartmak için kaydır: {side}",
+    "touchSummary": "Dokunma: {tap} · Çift dokunma: {double} · Karartmak için kaydır: {side}",
     "trigger": {
       "singleTap": "Tek dokunuş",
       "doubleTap": "Çift dokunuş",
-      "longPress": "Uzun basma",
-      "off": "Kapalı"
+      "longPress": "Uzun basma"
     },
     "dimSide": {
       "off": "Kapalı",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Orta",
     "zoneRight": "Sağ kenar",
     "dimTag": "Karartma",
-    "controlsValue": "Denetimler: {trigger}",
+    "centerValue": "Dokunma: {single} · Çift: {double} · Basılı tut: {long}",
     "siteHeader": "Site üst bilgisi",
     "touchNote": "Bunlar dokunmatik ekran kullanırken geçerlidir; dokunmatik ekranlı dizüstü bilgisayarlar dahil.",
     "chooseZone": "Ne yaptığını değiştirmek için bir bölge seçin.",
     "screenZones": "Ekran bölgeleri",
     "swipes": "Kaydırmalar",
-    "showControlsWith": "Denetimleri şununla göster:",
-    "triggerHint": {
-      "doubleTap": "Tek dokunuşlar okumayı asla kesmez",
-      "longPress": "Yarım saniye basılı tutun",
-      "off": "Bölümün üstündeki düğmeleri kullanın"
-    },
     "longPressWarning": "Telefonlarda uzun basma metin seçimini de başlatır. İkisi metnin üzerinde çakışır.",
     "turnOffSelection": "Metin seçimini kapat",
     "tapThisEdge": "Bu kenara dokunma",
@@ -1032,7 +1087,9 @@
     "keyD": "klavye tuş görünüm",
     "keyF": "klavye tuş tam ekran",
     "keyM": "klavye tuşu yorumlar",
-    "controlsTrigger": "dokunuş çift uzun basma basılı tutma araç çubuğu menü orta merkez hareket",
+    "centerSingleTap": "dokunma tek araç çubuğu menü kontroller orta hareket",
+    "centerDoubleTap": "çift dokunma tam ekran orta hareket",
+    "centerLongPress": "uzun basma basılı tut araç çubuğu kontroller tam ekran orta hareket",
     "swipeLeftGesture": "hareket sonraki bölüm",
     "swipeRightGesture": "hareket önceki bölüm",
     "edgeTap": "sol sağ dokunuş bölge kaydırma bölüm hareket",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "üst çubuk navbar kaydırma yapışkan yüzen",
     "markReadBehavior": "ilerleme okundu otomatik bitti",
     "textSelectable": "kopyala seç",
+    "readingMode": "sonsuz sürekli kaydırma sonraki bölüm sayfa",
+    "infiniteShowComments": "yorumlar kart bölüm sonu sonsuz kaydırma gizle",
     "savePosition": "yer imi devam kaydırma",
     "hideScrollbar": "kaydırma çubuğu",
     "ttsPreferAudiobook": "dinle tts sesli kitap anlatım kayıt kaynak cihaz",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "dinle tts ekran açık uyanık",
     "importSettings": "yedek geri yükle dosya",
     "exportSettings": "yedek kaydet dosya",
-    "resetDefaults": "geri yükle temizle yedek"
+    "resetDefaults": "geri yükle temizle yedek",
+    "overlayEnabled": "overlay katman durum çubuğu saat bilgi şerit hud",
+    "overlayPosition": "overlay üst alt konum durum çubuğu",
+    "overlaySize": "overlay genişlik kapsül tam orta sol sağ",
+    "overlayItems": "overlay saat zaman pil ilerleme sayfa yüzde bölüm kitap karanlık"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Okundu Olarak İşaretleme Davranışı",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Düğme + Otomatik",
     "allowSelection": "Metin Seçimine/Kopyalamaya İzin Ver",
     "rememberPosition": "Okuma Konumunu Hatırla",
+    "readingMode": "Okuma Modu",
+    "readingModeChapter": "Sayfa Başına Bir Bölüm",
+    "readingModeInfinite": "Sonsuz Kaydırma",
+    "readingModeChapterHint": "Her bölüm kendi sayfasında açılır. Bölüm değiştirmek için düğmeleri, tuşları veya hareketleri kullanın.",
+    "readingModeInfiniteHint": "Kaydırdıkça sonraki bölüm mevcut bölümün altına yüklenir.",
+    "infiniteShowComments": "Bölümler Arası Yorumlar",
+    "infiniteShowCommentsHint": "Her bölümün yorum kartını kaydırma akışında gösterir. Yorumlara okuyucu denetimlerinden erişilmeye devam edilir.",
     "doNothing": "Hiçbir Şey Yapma",
     "scrollUp": "Yukarı Kaydır",
     "scrollDown": "Aşağı Kaydır",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Sağa Kaydır",
     "doNothing": "Hiçbir Şey Yapma",
     "previousChapter": "Önceki Bölüm",
-    "nextChapter": "Sonraki Bölüm"
+    "nextChapter": "Sonraki Bölüm",
+    "chapterList": "Bölüm listesini aç",
+    "fullscreen": "Tam ekranı aç/kapat",
+    "showControls": "Kontrolleri göster",
+    "comments": "Yorumları aç"
   },
   "keyboardSettings": {
     "enable": "Klavye kısayolları",

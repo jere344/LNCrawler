@@ -36,6 +36,19 @@ const isWithinSchedule = (startTime: string, endTime: string) => {
   return currentTime >= start && currentTime <= end;
 };
 
+// `inset: 0` follows the visual viewport, which lags behind while the mobile address bar collapses or expands
+// during a fast scroll, leaving an undimmed strip at the bottom. Sizing to the large viewport (with a
+// vh fallback) keeps the overlay taller than any screen state.
+const fullScreenSx = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  width: '100%',
+  // Bleed below the screen as a last guard against sub-pixel gaps while the bar animates
+  height: 'calc(100vh + 64px)',
+  '@supports (height: 100lvh)': { height: 'calc(100lvh + 64px)' },
+} as const;
+
 // Dimming and night mode filter, drawn over the whole screen without blocking clicks
 const ReaderTintOverlays = ({
   dimLevel,
@@ -63,8 +76,7 @@ const ReaderTintOverlays = ({
       {dimLevel > 0 && (
         <Box
           sx={{
-            position: 'fixed',
-            inset: 0,
+            ...fullScreenSx,
             backgroundColor: 'black',
             opacity: dimLevel / 100,
             zIndex: theme.zIndex.appBar,
@@ -76,8 +88,7 @@ const ReaderTintOverlays = ({
       {/* Night Mode Blue Light Filter Overlay */}
       <Box
         sx={{
-          position: 'fixed',
-          inset: 0,
+          ...fullScreenSx,
           backgroundColor: '#ffb347', // Warm orange tint to filter blue light
           opacity: nightModeActive ? nightModeStrength / 100 : 0,
           zIndex: theme.zIndex.appBar,

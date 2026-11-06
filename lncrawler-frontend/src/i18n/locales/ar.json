@@ -737,7 +737,12 @@
     "chapters": "الفصول",
     "openSettings": "فتح إعدادات القارئ",
     "markedRead": "تم وضع علامة مقروء على الفصل بنجاح!",
-    "listen": "استماع"
+    "listen": "استماع",
+    "retry": "إعادة المحاولة",
+    "infiniteLoading": "جارٍ تحميل الفصل التالي",
+    "infiniteEnd": "لقد وصلت إلى أحدث فصل.",
+    "infiniteUnavailable": "الفصل {chapter} غير متاح.",
+    "infiniteOpenChapter": "فتح الفصل {chapter}"
   },
   "readerControls": {
     "previousChapter": "الفصل السابق",
@@ -756,6 +761,11 @@
     "enterFullscreen": "ملء الشاشة",
     "exitFullscreen": "إنهاء ملء الشاشة",
     "commentsCount": "{count, plural, =0 {التعليقات} one {التعليقات، تعليق واحد} two {التعليقات، تعليقان} few {التعليقات، # تعليقات} many {التعليقات، # تعليقًا} other {التعليقات، # تعليق}}"
+  },
+  "readerOverlay": {
+    "page": "صفحة {page}/{pages}",
+    "chapterOf": "ف. {current}/{total}",
+    "dim": "تعتيم {percent}%"
   },
   "readerChapters": {
     "open": "فتح قائمة الفصول",
@@ -879,6 +889,25 @@
     "resetTitle": "إعادة تعيين الإعدادات إلى الافتراضية؟",
     "resetBody": "سيؤدي هذا إلى إعادة تعيين جميع إعدادات القارئ إلى قيمها الافتراضية. لا يمكن التراجع عن هذا الإجراء.",
     "reset": "إعادة تعيين",
+    "syncTitle": "المزامنة",
+    "syncDevice": "يستخدم هذا الجهاز",
+    "syncDeviceAuto": "تلقائي ({type})",
+    "syncDeviceMobile": "إعدادات الهاتف",
+    "syncDeviceDesktop": "إعدادات الكمبيوتر",
+    "syncDeviceOff": "لا تزامن على هذا الجهاز",
+    "syncTypeMobile": "الهاتف",
+    "syncTypeDesktop": "الكمبيوتر",
+    "syncStatusSignedOut": "سجّل الدخول للاحتفاظ بإعداداتك على كل أجهزتك.",
+    "syncStatusOff": "تبقى الإعدادات على هذا الجهاز.",
+    "syncStatusPending": "بانتظار الخادم…",
+    "syncStatusSyncing": "جارٍ الحفظ…",
+    "syncStatusSynced": "تمت المزامنة مع إعدادات {type}.",
+    "syncStatusError": "تعذّرت المزامنة. سنحاول لاحقًا.",
+    "syncStatusNeedsChoice": "اختر الإعدادات التي تريد الاحتفاظ بها.",
+    "syncChoiceTitle": "ما الإعدادات التي يجب أن يستخدمها هذا الجهاز؟",
+    "syncChoiceBody": "لهذا الجهاز إعداداته الخاصة، ولديك أيضًا إعدادات {type} محفوظة (آخر تحديث {date}).",
+    "syncChoiceSaved": "استخدام المحفوظة",
+    "syncChoiceDevice": "الاحتفاظ بإعدادات هذا الجهاز",
     "tts": "تحويل النص إلى كلام"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "الإيماءات",
       "keys": "لوحة المفاتيح",
       "reading": "القراءة",
+      "overlay": "طبقة المعلومات",
       "listen": "الاستماع",
       "voice": "الصوت والجودة",
       "backup": "النسخ الاحتياطي وإعادة الضبط"
     },
     "listenSub": "الصوت والسرعة والتمييز. متاحة أيضًا في المشغل.",
+    "overlay": {
+      "enable": "إظهار طبقة المعلومات",
+      "enableHint": "شريط صغير فوق النص يعرض الوقت والتقدم وغير ذلك.",
+      "homeOn": "{count, plural, zero {لا عناصر} one {عنصر واحد} two {عنصران} few {# عناصر} many {# عنصرًا} other {# عنصر}}",
+      "homeOff": "إيقاف",
+      "layout": "التخطيط",
+      "position": "الموضع",
+      "positions": {
+        "top": "أعلى",
+        "bottom": "أسفل"
+      },
+      "size": "الحجم",
+      "sizes": {
+        "full": "عرض كامل",
+        "center": "كبسولة في المنتصف",
+        "left": "كبسولة يسار",
+        "right": "كبسولة يمين"
+      },
+      "content": "المحتوى",
+      "contentHint": "اضغط للإضافة أو الإزالة. تظهر العناصر بالترتيب الذي تضيفها به. تظهر البطارية فقط في المتصفحات التي تتيحها.",
+      "items": {
+        "time12": "الوقت (12 ساعة)",
+        "time24": "الوقت (24 ساعة)",
+        "chapterPage": "تقدم الفصل (الصفحة)",
+        "chapterSlider": "تقدم الفصل (شريط)",
+        "chapterPercent": "تقدم الفصل (%)",
+        "battery": "البطارية",
+        "bookPercent": "تقدم الكتاب (%)",
+        "bookChapter": "تقدم الكتاب (الفصل)",
+        "dimness": "التعتيم (%)"
+      }
+    },
     "sheetCount": "{count, plural, one {# عنصر تحكم} two {# عنصرا تحكم} few {# عناصر تحكم} many {# عنصر تحكم} other {# عنصر تحكم}}",
     "textSub": "{size} px · {font} · الأسطر {lines}×",
     "colorsSub": "{theme} · مرشح الليل {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "متوقف",
     "nightStrength": "{strength}%",
     "scheduled": " · مجدول",
-    "touchSub": "عناصر التحكم: {trigger} · التعتيم بالتمرير: {side}",
+    "touchSummary": "اللمس: {tap} · اللمس المزدوج: {double} · السحب للتعتيم: {side}",
     "trigger": {
       "singleTap": "نقرة واحدة",
       "doubleTap": "نقرتان",
-      "longPress": "ضغطة مطولة",
-      "off": "متوقف"
+      "longPress": "ضغطة مطولة"
     },
     "dimSide": {
       "off": "متوقف",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "الوسط",
     "zoneRight": "الحافة اليمنى",
     "dimTag": "تعتيم",
-    "controlsValue": "عناصر التحكم: {trigger}",
+    "centerValue": "لمس: {single} · مزدوج: {double} · مطوّل: {long}",
     "siteHeader": "ترويسة الموقع",
     "touchNote": "تُطبَّق هذه الإعدادات عند استخدام شاشة لمس، بما في ذلك الحواسيب المحمولة ذات الشاشات اللمسية.",
     "chooseZone": "اختر منطقة لتغيير ما تفعله.",
     "screenZones": "مناطق الشاشة",
     "swipes": "التمريرات",
-    "showControlsWith": "إظهار عناصر التحكم بـ",
-    "triggerHint": {
-      "doubleTap": "النقرة الواحدة لا تقطع القراءة أبدًا",
-      "longPress": "اضغط مطولًا لمدة نصف ثانية",
-      "off": "استخدم الأزرار أعلى الفصل"
-    },
     "longPressWarning": "على الهواتف، الضغط المطول يبدأ أيضًا تحديد النص. وسيتنازع الأمران على النص نفسه.",
     "turnOffSelection": "إيقاف تحديد النص",
     "tapThisEdge": "عند النقر على هذه الحافة",
@@ -1032,7 +1087,9 @@
     "keyD": "لوحة مفاتيح مفتاح العرض",
     "keyF": "مفتاح لوحة المفاتيح ملء الشاشة",
     "keyM": "مفتاح لوحة المفاتيح تعليقات",
-    "controlsTrigger": "نقر نقرتين ضغط مطول إمساك شريط أدوات قائمة وسط إيماءة",
+    "centerSingleTap": "لمس ضغطة واحدة شريط أدوات قائمة عناصر التحكم منتصف وسط إيماءة",
+    "centerDoubleTap": "لمس مزدوج ملء الشاشة منتصف وسط إيماءة",
+    "centerLongPress": "ضغط مطول شريط أدوات عناصر التحكم ملء الشاشة منتصف وسط إيماءة",
     "swipeLeftGesture": "إيماءة الفصل التالي",
     "swipeRightGesture": "إيماءة الفصل السابق",
     "edgeTap": "يسار يمين نقر منطقة تمرير فصل إيماءة",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "شريط علوي شريط تنقل تمرير ثابت عائم",
     "markReadBehavior": "تقدم انتهاء تلقائي",
     "textSelectable": "نسخ تحديد",
+    "readingMode": "لانهائي تمرير متواصل الفصل التالي صفحة",
+    "infiniteShowComments": "التعليقات بطاقة نهاية الفصل تمرير لا نهائي إخفاء",
     "savePosition": "إشارة مرجعية استئناف تمرير",
     "hideScrollbar": "شريط التمرير",
     "ttsPreferAudiobook": "استماع tts كتاب صوتي سرد تسجيل مصدر جهاز",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "استماع tts wake lock إبقاء مستيقظ شاشة",
     "importSettings": "نسخ احتياطي استعادة ملف",
     "exportSettings": "نسخ احتياطي حفظ ملف",
-    "resetDefaults": "استعادة مسح نسخ احتياطي"
+    "resetDefaults": "استعادة مسح نسخ احتياطي",
+    "overlayEnabled": "overlay طبقة شريط الحالة ساعة معلومات",
+    "overlayPosition": "overlay أعلى أسفل الموضع شريط الحالة",
+    "overlaySize": "overlay عرض كبسولة كامل وسط يسار يمين",
+    "overlayItems": "overlay الوقت ساعة البطارية التقدم صفحة نسبة فصل كتاب تعتيم"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "سلوك وضع علامة مقروء",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "زر + تلقائي",
     "allowSelection": "السماح بتحديد/نسخ النص",
     "rememberPosition": "تذكر موضع القراءة",
+    "readingMode": "وضع القراءة",
+    "readingModeChapter": "فصل واحد لكل صفحة",
+    "readingModeInfinite": "تمرير لانهائي",
+    "readingModeChapterHint": "يُفتح كل فصل في صفحته الخاصة. استخدم الأزرار أو المفاتيح أو الإيماءات لتغيير الفصل.",
+    "readingModeInfiniteHint": "يُحمَّل الفصل التالي أسفل الفصل الحالي أثناء التمرير.",
+    "infiniteShowComments": "التعليقات بين الفصول",
+    "infiniteShowCommentsHint": "إظهار بطاقة تعليقات كل فصل ضمن التمرير. تبقى التعليقات متاحة من عناصر التحكم في القارئ.",
     "doNothing": "لا تفعل شيئًا",
     "scrollUp": "التمرير لأعلى",
     "scrollDown": "التمرير لأسفل",
@@ -1102,7 +1172,11 @@
     "swipeRight": "التمرير لليمين",
     "doNothing": "لا تفعل شيئًا",
     "previousChapter": "الفصل السابق",
-    "nextChapter": "الفصل التالي"
+    "nextChapter": "الفصل التالي",
+    "chapterList": "فتح قائمة الفصول",
+    "fullscreen": "تبديل ملء الشاشة",
+    "showControls": "إظهار عناصر التحكم",
+    "comments": "فتح التعليقات"
   },
   "keyboardSettings": {
     "enable": "اختصارات لوحة المفاتيح",

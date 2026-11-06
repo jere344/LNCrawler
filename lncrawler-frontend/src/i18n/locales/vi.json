@@ -737,7 +737,12 @@
     "chapters": "Chương",
     "openSettings": "Mở cài đặt trình đọc",
     "markedRead": "Đã đánh dấu chương là đã đọc thành công!",
-    "listen": "Nghe"
+    "listen": "Nghe",
+    "retry": "Thử lại",
+    "infiniteLoading": "Đang tải chương tiếp theo",
+    "infiniteEnd": "Bạn đã đọc đến chương mới nhất.",
+    "infiniteUnavailable": "Chương {chapter} không khả dụng.",
+    "infiniteOpenChapter": "Mở chương {chapter}"
   },
   "readerControls": {
     "previousChapter": "Chương trước",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Toàn màn hình",
     "exitFullscreen": "Thoát toàn màn hình",
     "commentsCount": "{count, plural, =0 {Bình luận} other {Bình luận, # bình luận}}"
+  },
+  "readerOverlay": {
+    "page": "Trang {page}/{pages}",
+    "chapterOf": "Ch. {current}/{total}",
+    "dim": "Làm tối {percent}%"
   },
   "readerChapters": {
     "open": "Mở danh sách chương",
@@ -879,6 +889,25 @@
     "resetTitle": "Đặt lại cài đặt về mặc định?",
     "resetBody": "Thao tác này sẽ đặt lại tất cả cài đặt trình đọc về giá trị mặc định. Hành động này không thể hoàn tác.",
     "reset": "Đặt lại",
+    "syncTitle": "Đồng bộ",
+    "syncDevice": "Thiết bị này dùng",
+    "syncDeviceAuto": "Tự động ({type})",
+    "syncDeviceMobile": "Cài đặt điện thoại",
+    "syncDeviceDesktop": "Cài đặt máy tính",
+    "syncDeviceOff": "Không đồng bộ trên thiết bị này",
+    "syncTypeMobile": "điện thoại",
+    "syncTypeDesktop": "máy tính",
+    "syncStatusSignedOut": "Đăng nhập để giữ cài đặt trên mọi thiết bị.",
+    "syncStatusOff": "Cài đặt chỉ lưu trên thiết bị này.",
+    "syncStatusPending": "Đang chờ máy chủ…",
+    "syncStatusSyncing": "Đang lưu…",
+    "syncStatusSynced": "Đã đồng bộ với cài đặt {type} của bạn.",
+    "syncStatusError": "Không thể đồng bộ. Sẽ thử lại sau.",
+    "syncStatusNeedsChoice": "Chọn cài đặt muốn giữ.",
+    "syncChoiceTitle": "Thiết bị này nên dùng cài đặt nào?",
+    "syncChoiceBody": "Thiết bị này có cài đặt riêng, và bạn cũng có cài đặt {type} đã lưu (cập nhật {date}).",
+    "syncChoiceSaved": "Dùng bản đã lưu",
+    "syncChoiceDevice": "Giữ của thiết bị này",
     "tts": "Đọc thành tiếng"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Cử chỉ",
       "keys": "Bàn phím",
       "reading": "Đọc",
+      "overlay": "Lớp thông tin",
       "listen": "Nghe",
       "voice": "Giọng đọc và chất lượng",
       "backup": "Sao lưu và đặt lại"
     },
     "listenSub": "Giọng đọc, tốc độ, tô sáng. Cũng có trong trình phát.",
+    "overlay": {
+      "enable": "Hiện lớp thông tin",
+      "enableHint": "Một dải nhỏ phía trên văn bản hiển thị thời gian, tiến độ và nhiều thông tin khác.",
+      "homeOn": "{count, plural, other {# mục}}",
+      "homeOff": "Tắt",
+      "layout": "Bố cục",
+      "position": "Vị trí",
+      "positions": {
+        "top": "Trên",
+        "bottom": "Dưới"
+      },
+      "size": "Kích thước",
+      "sizes": {
+        "full": "Toàn chiều rộng",
+        "center": "Viên giữa",
+        "left": "Viên bên trái",
+        "right": "Viên bên phải"
+      },
+      "content": "Nội dung",
+      "contentHint": "Chạm để thêm hoặc xóa. Các mục hiển thị theo thứ tự bạn thêm. Pin chỉ hiển thị trên trình duyệt hỗ trợ điều này.",
+      "items": {
+        "time12": "Thời gian (12 giờ)",
+        "time24": "Thời gian (24 giờ)",
+        "chapterPage": "Tiến độ chương (trang)",
+        "chapterSlider": "Tiến độ chương (thanh trượt)",
+        "chapterPercent": "Tiến độ chương (%)",
+        "battery": "Pin",
+        "bookPercent": "Tiến độ sách (%)",
+        "bookChapter": "Tiến độ sách (chương)",
+        "dimness": "Độ tối (%)"
+      }
+    },
     "sheetCount": "{count, plural, other {# điều khiển}}",
     "textSub": "{size} px · {font} · Dòng {lines}×",
     "colorsSub": "{theme} · Bộ lọc ban đêm {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "tắt",
     "nightStrength": "{strength}%",
     "scheduled": " · Đã lên lịch",
-    "touchSub": "Điều khiển: {trigger} · Vuốt để làm tối: {side}",
+    "touchSummary": "Chạm: {tap} · Chạm đúp: {double} · Vuốt để làm tối: {side}",
     "trigger": {
       "singleTap": "Chạm một lần",
       "doubleTap": "Chạm đúp",
-      "longPress": "Nhấn giữ",
-      "off": "Tắt"
+      "longPress": "Nhấn giữ"
     },
     "dimSide": {
       "off": "Tắt",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Giữa",
     "zoneRight": "Mép phải",
     "dimTag": "Làm tối",
-    "controlsValue": "Điều khiển: {trigger}",
+    "centerValue": "Chạm: {single} · Đúp: {double} · Giữ: {long}",
     "siteHeader": "Tiêu đề trang web",
     "touchNote": "Các cài đặt này áp dụng khi bạn dùng màn hình cảm ứng, kể cả laptop có màn hình cảm ứng.",
     "chooseZone": "Chọn một vùng để thay đổi chức năng của vùng đó.",
     "screenZones": "Vùng màn hình",
     "swipes": "Vuốt",
-    "showControlsWith": "Hiện điều khiển bằng",
-    "triggerHint": {
-      "doubleTap": "Chạm đơn không bao giờ làm gián đoạn việc đọc",
-      "longPress": "Giữ nửa giây",
-      "off": "Dùng các nút ở đầu chương"
-    },
     "longPressWarning": "Trên điện thoại, nhấn giữ cũng bắt đầu chọn văn bản. Hai thao tác sẽ tranh nhau trên chính văn bản.",
     "turnOffSelection": "Tắt chọn văn bản",
     "tapThisEdge": "Khi chạm vào mép này",
@@ -1032,7 +1087,9 @@
     "keyD": "bàn phím phím hiển thị",
     "keyF": "bàn phím phím toàn màn hình",
     "keyM": "phím bàn phím bình luận",
-    "controlsTrigger": "chạm chạm đúp nhấn giữ giữ thanh công cụ menu giữa cử chỉ",
+    "centerSingleTap": "chạm đơn thanh công cụ menu điều khiển giữa cử chỉ",
+    "centerDoubleTap": "chạm đúp toàn màn hình giữa cử chỉ",
+    "centerLongPress": "nhấn giữ thanh công cụ điều khiển toàn màn hình giữa cử chỉ",
     "swipeLeftGesture": "cử chỉ chương tiếp",
     "swipeRightGesture": "cử chỉ chương trước",
     "edgeTap": "trái phải chạm vùng cuộn chương cử chỉ",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "thanh trên thanh điều hướng cuộn dính nổi",
     "markReadBehavior": "tiến độ hoàn thành tự động",
     "textSelectable": "sao chép chọn",
+    "readingMode": "vô hạn liên tục cuộn chương tiếp theo trang",
+    "infiniteShowComments": "bình luận thẻ cuối chương cuộn vô hạn ẩn",
     "savePosition": "đánh dấu tiếp tục cuộn",
     "hideScrollbar": "thanh cuộn",
     "ttsPreferAudiobook": "nghe tts sách nói thuyết minh ghi âm nguồn thiết bị",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "nghe tts wake lock thức",
     "importSettings": "sao lưu khôi phục tệp",
     "exportSettings": "sao lưu lưu tệp",
-    "resetDefaults": "khôi phục xóa sao lưu"
+    "resetDefaults": "khôi phục xóa sao lưu",
+    "overlayEnabled": "overlay lớp thanh trạng thái đồng hồ thông tin dải hud",
+    "overlayPosition": "overlay trên dưới vị trí thanh trạng thái",
+    "overlaySize": "overlay chiều rộng viên đầy đủ giữa trái phải",
+    "overlayItems": "overlay thời gian đồng hồ pin tiến độ trang phần trăm chương sách tối"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Hành vi đánh dấu đã đọc",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Nút + Tự động",
     "allowSelection": "Cho phép chọn/sao chép văn bản",
     "rememberPosition": "Ghi nhớ vị trí đọc",
+    "readingMode": "Chế độ đọc",
+    "readingModeChapter": "Mỗi trang một chương",
+    "readingModeInfinite": "Cuộn vô hạn",
+    "readingModeChapterHint": "Mỗi chương mở trên một trang riêng. Dùng nút, phím hoặc cử chỉ để chuyển chương.",
+    "readingModeInfiniteHint": "Chương tiếp theo sẽ tải bên dưới chương hiện tại khi bạn cuộn.",
+    "infiniteShowComments": "Bình luận giữa các chương",
+    "infiniteShowCommentsHint": "Hiển thị thẻ bình luận của mỗi chương trong khi cuộn. Bình luận vẫn có thể mở từ các điều khiển của trình đọc.",
     "doNothing": "Không làm gì",
     "scrollUp": "Cuộn lên",
     "scrollDown": "Cuộn xuống",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Vuốt sang phải",
     "doNothing": "Không làm gì",
     "previousChapter": "Chương trước",
-    "nextChapter": "Chương sau"
+    "nextChapter": "Chương sau",
+    "chapterList": "Mở danh sách chương",
+    "fullscreen": "Bật/tắt toàn màn hình",
+    "showControls": "Hiện điều khiển",
+    "comments": "Mở bình luận"
   },
   "keyboardSettings": {
     "enable": "Phím tắt",

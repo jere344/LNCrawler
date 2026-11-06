@@ -14,6 +14,8 @@ import { AudioPlayerProvider, useAudioPlayer } from '@context/AudioPlayerContext
 import MiniPlayer from '@components/audio/MiniPlayer';
 import FullPlayer from '@components/audio/FullPlayer';
 import { useScrollRestoration } from './router/useScrollRestoration';
+import { useReaderSettingsSync } from '@components/reader/sync/useReaderSettingsSync';
+import ReaderSyncChoiceDialog from '@components/reader/sync/ReaderSyncChoiceDialog';
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
     useScrollRestoration();
@@ -33,6 +35,7 @@ function AppWithTheme() {
     const { theme } = useTheme();
     const { i18n } = useTranslation();
     const { uiLanguage } = useLanguage();
+    useReaderSettingsSync();
 
     // Resolve the active code ('' means "browser" -> whatever i18next detected).
     const activeLanguage = uiLanguage || i18n.resolvedLanguage || 'en';
@@ -80,6 +83,7 @@ function AppWithTheme() {
                 </Box>
                 <MiniPlayer />
                 <FullPlayer />
+                <ReaderSyncChoiceDialog />
                 </Wrapper>
                 </AudioPlayerProvider>
                 </NotificationProvider>

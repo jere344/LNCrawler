@@ -5,13 +5,18 @@ import { defaultSettings } from './readerDefaults';
 
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
 export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
-export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter';
+export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter' | 'chapterList' | 'comments';
 export type KeyAction = 'none' | 'scrollUp' | 'scrollDown' | 'prevChapter' | 'nextChapter' | 'toggleControls' | 'displaySheet' | 'fullscreen' | 'comments';
-export type ControlsTrigger = 'singleTap' | 'doubleTap' | 'longPress' | 'off';
+export type CenterAction = 'none' | 'controls' | 'fullscreen';
 export type DimGestureSide = 'off' | 'left' | 'right';
 export type ReaderHeaderBehavior = 'reappear' | 'pageTop';
+export type ReadingMode = 'chapter' | 'infinite';
 export const DISPLAY_MODULES = ['size', 'line', 'para', 'margin', 'indent', 'align', 'theme', 'font', 'dim', 'warm'] as const;
 export type DisplayModule = typeof DISPLAY_MODULES[number];
+export const OVERLAY_ITEMS = ['time12', 'time24', 'chapterPage', 'chapterSlider', 'chapterPercent', 'battery', 'bookPercent', 'bookChapter', 'dimness'] as const;
+export type OverlayItem = typeof OVERLAY_ITEMS[number];
+export type OverlayPosition = 'top' | 'bottom';
+export type OverlaySize = 'full' | 'center' | 'left' | 'right';
 
 export interface ReaderSettings extends TtsPrefs {
   fontSize: number;
@@ -28,6 +33,8 @@ export interface ReaderSettings extends TtsPrefs {
   rightEdgeTapBehavior: EdgeTapBehavior;
   textSelectable: boolean;
   savePosition: boolean;
+  readingMode: ReadingMode;
+  infiniteShowComments: boolean;
   markReadBehavior: MarkReadBehavior;
   keyboardNavigation: boolean;
   keyArrowLeft: KeyAction;
@@ -46,11 +53,17 @@ export interface ReaderSettings extends TtsPrefs {
   hideScrollbar: boolean;
   paragraphIndent: boolean;
   paragraphSpacing: number;
-  controlsTrigger: ControlsTrigger;
+  centerSingleTap: CenterAction;
+  centerDoubleTap: CenterAction;
+  centerLongPress: CenterAction;
   dimGestureSide: DimGestureSide;
   dimGestureWidth: number;
   readerHeaderBehavior: ReaderHeaderBehavior;
   displaySheetModules: DisplayModule[];
+  overlayEnabled: boolean;
+  overlayPosition: OverlayPosition;
+  overlaySize: OverlaySize;
+  overlayItems: OverlayItem[];
   nightMode: boolean;
   nightModeStrength: number;
   nightModeScheduleEnabled: boolean;
@@ -79,8 +92,9 @@ const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   leftEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
   rightEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
   markReadBehavior: ['none', 'button', 'automatic', 'buttonAutomatic'],
-  swipeLeftGesture: ['none', 'prevChapter', 'nextChapter'],
-  swipeRightGesture: ['none', 'prevChapter', 'nextChapter'],
+  readingMode: ['chapter', 'infinite'],
+  swipeLeftGesture: ['none', 'prevChapter', 'nextChapter', 'chapterList', 'comments'],
+  swipeRightGesture: ['none', 'prevChapter', 'nextChapter', 'chapterList', 'comments'],
   keyArrowLeft: KEY_ACTIONS,
   keyArrowRight: KEY_ACTIONS,
   keyArrowUp: KEY_ACTIONS,
@@ -92,9 +106,13 @@ const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   keyD: KEY_ACTIONS,
   keyF: KEY_ACTIONS,
   keyM: KEY_ACTIONS,
-  controlsTrigger: ['singleTap', 'doubleTap', 'longPress', 'off'],
+  centerSingleTap: ['none', 'controls', 'fullscreen'],
+  centerDoubleTap: ['none', 'controls', 'fullscreen'],
+  centerLongPress: ['none', 'controls', 'fullscreen'],
   dimGestureSide: ['off', 'left', 'right'],
   readerHeaderBehavior: ['reappear', 'pageTop'],
+  overlayPosition: ['top', 'bottom'],
+  overlaySize: ['full', 'center', 'left', 'right'],
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -117,6 +135,12 @@ const sanitizeModules = (value: unknown): DisplayModule[] | undefined => {
   if (!Array.isArray(value)) return undefined;
   const modules = [...new Set(value)].filter((m): m is DisplayModule => DISPLAY_MODULES.includes(m));
   return modules.length > 0 ? modules : undefined;
+};
+
+// Known overlay items only, without repeats, order kept. An empty list is valid: the overlay then shows nothing.
+const sanitizeOverlayItems = (value: unknown): OverlayItem[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  return [...new Set(value)].filter((item): item is OverlayItem => OVERLAY_ITEMS.includes(item));
 };
 
 // Blank strings must not become 0 through Number('')
@@ -159,6 +183,7 @@ const sanitizeValue = (key: keyof ReaderSettings, value: unknown): unknown => {
   const def = defaultSettings[key];
   if ((TTS_RECORD_KEYS as readonly string[]).includes(key)) return sanitizeVoiceMap(value);
   if (key === 'displaySheetModules') return sanitizeModules(value);
+  if (key === 'overlayItems') return sanitizeOverlayItems(value);
   // Null defaults (fontFamily/fontColor/backgroundColor) accept null or a short string
   if (def === null) {
     if (COLOR_KEYS.includes(key)) {
@@ -172,11 +197,31 @@ const sanitizeValue = (key: keyof ReaderSettings, value: unknown): unknown => {
   return undefined;
 };
 
-// Old cookies and v1.0 exports only know centerTapToOpenSettings. An explicit controlsTrigger wins.
+const CENTER_KEYS = ['centerSingleTap', 'centerDoubleTap', 'centerLongPress'] as const;
+const LEGACY_TRIGGER_KEY: Record<string, (typeof CENTER_KEYS)[number]> = {
+  singleTap: 'centerSingleTap',
+  doubleTap: 'centerDoubleTap',
+  longPress: 'centerLongPress',
+};
+
+// Old cookies and exports held one controls trigger (or, before it, centerTapToOpenSettings).
+// It becomes the slot that shows the controls; the other slots take their defaults, never 'controls'.
+// Explicit centre settings win.
 const withLegacyControlsTrigger = (raw: Record<string, unknown>): Record<string, unknown> => {
-  const legacy = raw.centerTapToOpenSettings;
-  if (typeof legacy !== 'boolean' || sanitizeValue('controlsTrigger', raw.controlsTrigger) !== undefined) return raw;
-  return { ...raw, controlsTrigger: legacy ? 'singleTap' : 'off' };
+  if (CENTER_KEYS.some((key) => key in raw)) return raw;
+  let trigger = raw.controlsTrigger;
+  if (typeof trigger !== 'string' || !(trigger === 'off' || trigger in LEGACY_TRIGGER_KEY)) {
+    const legacy = raw.centerTapToOpenSettings;
+    if (typeof legacy !== 'boolean') return raw;
+    trigger = legacy ? 'singleTap' : 'off';
+  }
+  const migrated: Record<string, unknown> = { ...raw };
+  CENTER_KEYS.forEach((key) => {
+    migrated[key] = LEGACY_TRIGGER_KEY[trigger as string] === key
+      ? 'controls'
+      : defaultSettings[key] === 'controls' ? 'none' : defaultSettings[key];
+  });
+  return migrated;
 };
 
 // 'narrated' used to be an engine. It is now the audiobook preference, and the engine goes back to its default.

@@ -7,6 +7,7 @@ import TouchAppIcon from '@mui/icons-material/TouchApp';
 import KeyboardIcon from '@mui/icons-material/Keyboard';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import BackupIcon from '@mui/icons-material/Backup';
 import ListeningPage from './pages/ListeningPage';
 import VoicePage from './pages/VoicePage';
@@ -17,9 +18,10 @@ import ColorsPage from './pages/ColorsPage';
 import GesturesPage from './pages/GesturesPage';
 import KeyboardPage from './pages/KeyboardPage';
 import ReadingPage from './pages/ReadingPage';
+import OverlayPage from './pages/OverlayPage';
 import type { ScreenZone } from './ScreenZoneMap';
 
-export type SettingsPageId = 'text' | 'colors' | 'custom' | 'touch' | 'keys' | 'reading' | 'listen' | 'voice' | 'backup';
+export type SettingsPageId = 'text' | 'colors' | 'custom' | 'touch' | 'keys' | 'reading' | 'overlay' | 'listen' | 'voice' | 'backup';
 
 // Props a page can take when the settings search opens it
 interface SettingsPageProps {
@@ -39,6 +41,7 @@ export const SETTINGS_PAGES: Record<SettingsPageId, SettingsPageDef> = {
   touch: { titleKey: 'readerSettingsPages.pages.touch', Icon: TouchAppIcon, Component: GesturesPage },
   keys: { titleKey: 'readerSettingsPages.pages.keys', Icon: KeyboardIcon, Component: KeyboardPage },
   reading: { titleKey: 'readerSettingsPages.pages.reading', Icon: MenuBookIcon, Component: ReadingPage },
+  overlay: { titleKey: 'readerSettingsPages.pages.overlay', Icon: PictureInPictureAltIcon, Component: OverlayPage },
   listen: { titleKey: 'readerSettingsPages.pages.listen', Icon: RecordVoiceOverIcon, Component: ListeningPage },
   // A subpage of listen: not in the home or the desktop nav, so no order entry
   voice: { titleKey: 'readerSettingsPages.pages.voice', Icon: RecordVoiceOverIcon, Component: VoicePage },
@@ -46,4 +49,4 @@ export const SETTINGS_PAGES: Record<SettingsPageId, SettingsPageDef> = {
 };
 
 // Order of the desktop nav
-export const SETTINGS_PAGE_ORDER: SettingsPageId[] = ['text', 'colors', 'custom', 'keys', 'touch', 'reading', 'backup', 'listen'];
+export const SETTINGS_PAGE_ORDER: SettingsPageId[] = ['text', 'colors', 'custom', 'keys', 'touch', 'reading', 'overlay', 'backup', 'listen'];

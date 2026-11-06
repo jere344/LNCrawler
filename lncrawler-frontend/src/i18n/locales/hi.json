@@ -737,7 +737,12 @@
     "chapters": "अध्याय",
     "openSettings": "रीडर सेटिंग्स खोलें",
     "markedRead": "अध्याय सफलतापूर्वक पढ़ा हुआ चिह्नित हुआ!",
-    "listen": "सुनें"
+    "listen": "सुनें",
+    "retry": "फिर से कोशिश करें",
+    "infiniteLoading": "अगला अध्याय लोड हो रहा है",
+    "infiniteEnd": "आप नवीनतम अध्याय तक पहुँच गए हैं।",
+    "infiniteUnavailable": "अध्याय {chapter} उपलब्ध नहीं है।",
+    "infiniteOpenChapter": "अध्याय {chapter} खोलें"
   },
   "readerControls": {
     "previousChapter": "पिछला अध्याय",
@@ -756,6 +761,11 @@
     "enterFullscreen": "पूर्ण स्क्रीन",
     "exitFullscreen": "पूर्ण स्क्रीन से बाहर निकलें",
     "commentsCount": "{count, plural, =0 {टिप्पणियाँ} one {टिप्पणियाँ, # टिप्पणी} other {टिप्पणियाँ, # टिप्पणियाँ}}"
+  },
+  "readerOverlay": {
+    "page": "पृष्ठ {page}/{pages}",
+    "chapterOf": "अध्या. {current}/{total}",
+    "dim": "मंदता {percent}%"
   },
   "readerChapters": {
     "open": "अध्याय सूची खोलें",
@@ -879,6 +889,25 @@
     "resetTitle": "सेटिंग्स को डिफ़ॉल्ट पर रीसेट करें?",
     "resetBody": "इससे सभी रीडर सेटिंग्स उनके डिफ़ॉल्ट मानों पर रीसेट हो जाएंगी। इस क्रिया को पूर्ववत नहीं किया जा सकता।",
     "reset": "रीसेट करें",
+    "syncTitle": "सिंक",
+    "syncDevice": "यह डिवाइस उपयोग करता है",
+    "syncDeviceAuto": "स्वचालित ({type})",
+    "syncDeviceMobile": "फ़ोन सेटिंग्स",
+    "syncDeviceDesktop": "डेस्कटॉप सेटिंग्स",
+    "syncDeviceOff": "इस डिवाइस पर सिंक न करें",
+    "syncTypeMobile": "फ़ोन",
+    "syncTypeDesktop": "डेस्कटॉप",
+    "syncStatusSignedOut": "अपनी सेटिंग्स सभी डिवाइस पर रखने के लिए साइन इन करें।",
+    "syncStatusOff": "सेटिंग्स इसी डिवाइस पर रहती हैं।",
+    "syncStatusPending": "सर्वर का इंतज़ार…",
+    "syncStatusSyncing": "सहेजा जा रहा है…",
+    "syncStatusSynced": "आपकी {type} सेटिंग्स के साथ सिंक है।",
+    "syncStatusError": "सिंक नहीं हो सका। हम बाद में फिर कोशिश करेंगे।",
+    "syncStatusNeedsChoice": "चुनें कि कौन सी सेटिंग्स रखनी हैं।",
+    "syncChoiceTitle": "यह डिवाइस कौन सी सेटिंग्स उपयोग करे?",
+    "syncChoiceBody": "इस डिवाइस की अपनी सेटिंग्स हैं, और आपकी {type} सेटिंग्स भी सहेजी हुई हैं ({date} को अपडेट)।",
+    "syncChoiceSaved": "सहेजी हुई उपयोग करें",
+    "syncChoiceDevice": "इस डिवाइस की रखें",
     "tts": "टेक्स्ट से भाषण"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "इशारे",
       "keys": "कीबोर्ड",
       "reading": "पढ़ना",
+      "overlay": "जानकारी ओवरले",
       "listen": "सुनना",
       "voice": "आवाज़ और गुणवत्ता",
       "backup": "बैकअप और रीसेट"
     },
     "listenSub": "आवाज़, गति, हाइलाइट। प्लेयर में भी उपलब्ध।",
+    "overlay": {
+      "enable": "जानकारी ओवरले दिखाएं",
+      "enableHint": "टेक्स्ट के ऊपर एक छोटी पट्टी जिसमें समय, प्रगति और अन्य जानकारी होती है।",
+      "homeOn": "{count, plural, one {# आइटम} other {# आइटम}}",
+      "homeOff": "बंद",
+      "layout": "लेआउट",
+      "position": "स्थिति",
+      "positions": {
+        "top": "ऊपर",
+        "bottom": "नीचे"
+      },
+      "size": "आकार",
+      "sizes": {
+        "full": "पूरी चौड़ाई",
+        "center": "बीच में गोली",
+        "left": "बाईं गोली",
+        "right": "दाईं गोली"
+      },
+      "content": "सामग्री",
+      "contentHint": "जोड़ने या हटाने के लिए टैप करें। आइटम उसी क्रम में दिखते हैं जिस क्रम में आप उन्हें जोड़ते हैं। बैटरी केवल उन ब्राउज़रों में दिखती है जो इसे उपलब्ध कराते हैं।",
+      "items": {
+        "time12": "समय (12 घंटे)",
+        "time24": "समय (24 घंटे)",
+        "chapterPage": "अध्याय प्रगति (पृष्ठ)",
+        "chapterSlider": "अध्याय प्रगति (स्लाइडर)",
+        "chapterPercent": "अध्याय प्रगति (%)",
+        "battery": "बैटरी",
+        "bookPercent": "पुस्तक प्रगति (%)",
+        "bookChapter": "पुस्तक प्रगति (अध्याय)",
+        "dimness": "मंदता (%)"
+      }
+    },
     "sheetCount": "{count, plural, one {# नियंत्रण} other {# नियंत्रण}}",
     "textSub": "{size} px · {font} · पंक्तियाँ {lines}×",
     "colorsSub": "{theme} · नाइट फ़िल्टर {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "बंद",
     "nightStrength": "{strength}%",
     "scheduled": " · निर्धारित",
-    "touchSub": "नियंत्रण: {trigger} · स्लाइड करके मंद करें: {side}",
+    "touchSummary": "टैप: {tap} · डबल टैप: {double} · मंद करने के लिए स्लाइड: {side}",
     "trigger": {
       "singleTap": "एक बार टैप",
       "doubleTap": "दो बार टैप",
-      "longPress": "देर तक दबाएँ",
-      "off": "बंद"
+      "longPress": "देर तक दबाएँ"
     },
     "dimSide": {
       "off": "बंद",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "बीच",
     "zoneRight": "दायाँ किनारा",
     "dimTag": "मंद",
-    "controlsValue": "नियंत्रण: {trigger}",
+    "centerValue": "टैप: {single} · डबल: {double} · होल्ड: {long}",
     "siteHeader": "साइट हेडर",
     "touchNote": "ये तब लागू होते हैं जब आप टच स्क्रीन इस्तेमाल करते हैं, टच लैपटॉप पर भी।",
     "chooseZone": "कोई ज़ोन चुनें और बदलें कि वह क्या करे।",
     "screenZones": "स्क्रीन ज़ोन",
     "swipes": "स्वाइप",
-    "showControlsWith": "नियंत्रण दिखाएँ:",
-    "triggerHint": {
-      "doubleTap": "एक बार टैप करने से पढ़ना कभी नहीं रुकता",
-      "longPress": "आधा सेकंड दबाए रखें",
-      "off": "अध्याय के ऊपर के बटन इस्तेमाल करें"
-    },
     "longPressWarning": "फ़ोन पर देर तक दबाने से टेक्स्ट चुनना भी शुरू होता है। ये दोनों टेक्स्ट पर आपस में टकराएँगे।",
     "turnOffSelection": "टेक्स्ट चुनना बंद करें",
     "tapThisEdge": "इस किनारे पर टैप करना",
@@ -1032,7 +1087,9 @@
     "keyD": "कीबोर्ड कुंजी प्रदर्शन",
     "keyF": "कीबोर्ड कुंजी पूर्ण स्क्रीन",
     "keyM": "कीबोर्ड कुंजी टिप्पणियाँ",
-    "controlsTrigger": "टैप डबल लंबा दबाना होल्ड टूलबार मेनू बीच इशारा",
+    "centerSingleTap": "टैप सिंगल प्रेस टूलबार मेनू नियंत्रण बीच जेस्चर",
+    "centerDoubleTap": "डबल टैप पूर्ण स्क्रीन बीच जेस्चर",
+    "centerLongPress": "लंबा दबाएँ होल्ड टूलबार नियंत्रण पूर्ण स्क्रीन बीच जेस्चर",
     "swipeLeftGesture": "इशारा अगला अध्याय",
     "swipeRightGesture": "इशारा पिछला अध्याय",
     "edgeTap": "बाएँ दाएँ टैप ज़ोन स्क्रॉल अध्याय इशारा",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "टॉप बार नेवबार स्क्रॉल चिपका तैरता",
     "markReadBehavior": "प्रगति पूरा स्वचालित",
     "textSelectable": "कॉपी चुनें",
+    "readingMode": "अनंत लगातार स्क्रॉल अगला अध्याय पेज",
+    "infiniteShowComments": "टिप्पणियाँ कार्ड अध्याय का अंत अनंत स्क्रॉल छिपाएँ",
     "savePosition": "बुकमार्क फिर से शुरू स्क्रॉल",
     "hideScrollbar": "स्क्रॉल बार",
     "ttsPreferAudiobook": "सुनें tts ऑडियोबुक वर्णन रिकॉर्डिंग स्रोत डिवाइस",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "सुनना tts wake lock जागृत",
     "importSettings": "बैकअप रीस्टोर फ़ाइल",
     "exportSettings": "बैकअप सहेजें फ़ाइल",
-    "resetDefaults": "रीस्टोर साफ़ बैकअप"
+    "resetDefaults": "रीस्टोर साफ़ बैकअप",
+    "overlayEnabled": "overlay ओवरले स्टेटस बार घड़ी जानकारी पट्टी hud",
+    "overlayPosition": "overlay ऊपर नीचे स्थिति स्टेटस बार",
+    "overlaySize": "overlay चौड़ाई गोली पूरा बीच बाएं दाएं",
+    "overlayItems": "overlay समय घड़ी बैटरी प्रगति पृष्ठ प्रतिशत अध्याय पुस्तक मंदता"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "पढ़ा हुआ चिह्नित करने का व्यवहार",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "बटन + स्वचालित",
     "allowSelection": "टेक्स्ट चयन/कॉपी की अनुमति दें",
     "rememberPosition": "पठन स्थान याद रखें",
+    "readingMode": "पढ़ने का मोड",
+    "readingModeChapter": "प्रति पेज एक अध्याय",
+    "readingModeInfinite": "अनंत स्क्रॉल",
+    "readingModeChapterHint": "हर अध्याय अपने अलग पेज पर खुलता है। अध्याय बदलने के लिए बटन, कुंजियों या जेस्चर का उपयोग करें।",
+    "readingModeInfiniteHint": "स्क्रॉल करते समय अगला अध्याय मौजूदा अध्याय के नीचे लोड होता है।",
+    "infiniteShowComments": "अध्यायों के बीच टिप्पणियाँ",
+    "infiniteShowCommentsHint": "हर अध्याय का टिप्पणी कार्ड स्क्रॉल में दिखाएँ। टिप्पणियाँ रीडर नियंत्रणों से उपलब्ध रहेंगी।",
     "doNothing": "कुछ न करें",
     "scrollUp": "ऊपर स्क्रॉल करें",
     "scrollDown": "नीचे स्क्रॉल करें",
@@ -1102,7 +1172,11 @@
     "swipeRight": "दाएं स्वाइप करें",
     "doNothing": "कुछ न करें",
     "previousChapter": "पिछला अध्याय",
-    "nextChapter": "अगला अध्याय"
+    "nextChapter": "अगला अध्याय",
+    "chapterList": "अध्याय सूची खोलें",
+    "fullscreen": "पूर्ण स्क्रीन चालू/बंद करें",
+    "showControls": "नियंत्रण दिखाएँ",
+    "comments": "टिप्पणियाँ खोलें"
   },
   "keyboardSettings": {
     "enable": "कीबोर्ड शॉर्टकट",

@@ -737,7 +737,12 @@
     "chapters": "Kapitler",
     "openSettings": "Åbn læserindstillinger",
     "markedRead": "Kapitlet blev markeret som læst!",
-    "listen": "Lyt"
+    "listen": "Lyt",
+    "retry": "Prøv igen",
+    "infiniteLoading": "Indlæser næste kapitel",
+    "infiniteEnd": "Du er nået til det seneste kapitel.",
+    "infiniteUnavailable": "Kapitel {chapter} er ikke tilgængeligt.",
+    "infiniteOpenChapter": "Åbn kapitel {chapter}"
   },
   "readerControls": {
     "previousChapter": "Forrige kapitel",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Fuld skærm",
     "exitFullscreen": "Afslut fuld skærm",
     "commentsCount": "{count, plural, =0 {Kommentarer} one {Kommentarer, # kommentar} other {Kommentarer, # kommentarer}}"
+  },
+  "readerOverlay": {
+    "page": "Side {page}/{pages}",
+    "chapterOf": "Kap. {current}/{total}",
+    "dim": "Dæmp {percent}%"
   },
   "readerChapters": {
     "open": "Åbn kapitelliste",
@@ -879,6 +889,25 @@
     "resetTitle": "Nulstil indstillingerne til standard?",
     "resetBody": "Dette nulstiller alle læserindstillinger til deres standardværdier. Denne handling kan ikke fortrydes.",
     "reset": "Nulstil",
+    "syncTitle": "Synkronisering",
+    "syncDevice": "Denne enhed bruger",
+    "syncDeviceAuto": "Automatisk ({type})",
+    "syncDeviceMobile": "Telefonindstillinger",
+    "syncDeviceDesktop": "Computerindstillinger",
+    "syncDeviceOff": "Synkroniser ikke på denne enhed",
+    "syncTypeMobile": "telefon",
+    "syncTypeDesktop": "computer",
+    "syncStatusSignedOut": "Log ind for at beholde dine indstillinger på tværs af enheder.",
+    "syncStatusOff": "Indstillingerne bliver på denne enhed.",
+    "syncStatusPending": "Venter på serveren…",
+    "syncStatusSyncing": "Gemmer…",
+    "syncStatusSynced": "Synkroniseret med dine {type}-indstillinger.",
+    "syncStatusError": "Kunne ikke synkronisere. Vi prøver igen senere.",
+    "syncStatusNeedsChoice": "Vælg hvilke indstillinger der skal beholdes.",
+    "syncChoiceTitle": "Hvilke indstillinger skal denne enhed bruge?",
+    "syncChoiceBody": "Denne enhed har sine egne indstillinger, og du har også gemte {type}-indstillinger (opdateret {date}).",
+    "syncChoiceSaved": "Brug gemte",
+    "syncChoiceDevice": "Behold denne enheds",
     "tts": "Oplæsning"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Bevægelser",
       "keys": "Tastatur",
       "reading": "Læsning",
+      "overlay": "Infooverlay",
       "listen": "Lytning",
       "voice": "Stemme og kvalitet",
       "backup": "Backup og nulstilling"
     },
     "listenSub": "Stemme, hastighed, fremhævning. Også i afspilleren.",
+    "overlay": {
+      "enable": "Vis infooverlay",
+      "enableHint": "En lille stribe over teksten med tid, fremskridt og mere.",
+      "homeOn": "{count, plural, one {# element} other {# elementer}}",
+      "homeOff": "Fra",
+      "layout": "Layout",
+      "position": "Position",
+      "positions": {
+        "top": "Øverst",
+        "bottom": "Nederst"
+      },
+      "size": "Størrelse",
+      "sizes": {
+        "full": "Fuld bredde",
+        "center": "Midterpille",
+        "left": "Venstre pille",
+        "right": "Højre pille"
+      },
+      "content": "Indhold",
+      "contentHint": "Tryk for at tilføje eller fjerne. Elementer vises i den rækkefølge, du tilføjer dem. Batteri vises kun i browsere, der understøtter det.",
+      "items": {
+        "time12": "Tid (12 t)",
+        "time24": "Tid (24 t)",
+        "chapterPage": "Kapitelfremskridt (side)",
+        "chapterSlider": "Kapitelfremskridt (skyder)",
+        "chapterPercent": "Kapitelfremskridt (%)",
+        "battery": "Batteri",
+        "bookPercent": "Bogfremskridt (%)",
+        "bookChapter": "Bogfremskridt (kapitel)",
+        "dimness": "Dæmpning (%)"
+      }
+    },
     "sheetCount": "{count, plural, one {# kontrol} other {# kontroller}}",
     "textSub": "{size} px · {font} · Linjer {lines}×",
     "colorsSub": "{theme} · Nattefilter {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "fra",
     "nightStrength": "{strength} %",
     "scheduled": " · Planlagt",
-    "touchSub": "Kontroller: {trigger} · Stryg for at dæmpe: {side}",
+    "touchSummary": "Tryk: {tap} · Dobbelttryk: {double} · Træk for at dæmpe: {side}",
     "trigger": {
       "singleTap": "Enkelttryk",
       "doubleTap": "Dobbelttryk",
-      "longPress": "Langt tryk",
-      "off": "Fra"
+      "longPress": "Langt tryk"
     },
     "dimSide": {
       "off": "Fra",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Midten",
     "zoneRight": "Højre kant",
     "dimTag": "Dæmp",
-    "controlsValue": "Kontroller: {trigger}",
+    "centerValue": "Tryk: {single} · Dobbelt: {double} · Hold: {long}",
     "siteHeader": "Webstedets sidehoved",
     "touchNote": "Disse gælder når du bruger en touchskærm, også på en touch-bærbar.",
     "chooseZone": "Vælg en zone for at ændre, hvad den gør.",
     "screenZones": "Skærmzoner",
     "swipes": "Stryg",
-    "showControlsWith": "Vis kontroller med",
-    "triggerHint": {
-      "doubleTap": "Enkelttryk afbryder aldrig læsningen",
-      "longPress": "Hold inde i et halvt sekund",
-      "off": "Brug knapperne øverst i kapitlet"
-    },
     "longPressWarning": "På telefoner starter et langt tryk også tekstmarkering. De to kommer i konflikt på selve teksten.",
     "turnOffSelection": "Slå tekstmarkering fra",
     "tapThisEdge": "Tryk på denne kant",
@@ -1032,7 +1087,9 @@
     "keyD": "tastatur tast visning",
     "keyF": "tastatur tast fuld skærm",
     "keyM": "tastatur tast kommentarer",
-    "controlsTrigger": "tryk dobbelttryk langt tryk hold værktøjslinje menu midten center bevægelse",
+    "centerSingleTap": "tryk enkelt værktøjslinje menu kontroller midten bevægelse",
+    "centerDoubleTap": "dobbelttryk fuldskærm midten bevægelse",
+    "centerLongPress": "langt tryk hold værktøjslinje kontroller fuldskærm midten bevægelse",
     "swipeLeftGesture": "bevægelse næste kapitel",
     "swipeRightGesture": "bevægelse forrige kapitel",
     "edgeTap": "venstre højre tryk zone scroll kapitel bevægelse",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "topbjælke navbar scroll fastgjort svævende",
     "markReadBehavior": "fremskridt færdig automatisk",
     "textSelectable": "kopiér markér",
+    "readingMode": "uendelig kontinuerlig rulning næste kapitel side",
+    "infiniteShowComments": "kommentarer kort slutningen af kapitel uendelig rul skjul",
     "savePosition": "bogmærke genoptag scroll",
     "hideScrollbar": "rullebjælke scroll bar",
     "ttsPreferAudiobook": "lyt tts lydbog fortælling indspilning kilde enhed",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "lyt tts wake lock vågen",
     "importSettings": "backup gendan fil",
     "exportSettings": "backup gem fil",
-    "resetDefaults": "nulstil ryd backup"
+    "resetDefaults": "nulstil ryd backup",
+    "overlayEnabled": "overlay infooverlay statuslinje ur info stribe",
+    "overlayPosition": "overlay øverst nederst position statuslinje",
+    "overlaySize": "overlay bredde pille fuld midt venstre højre",
+    "overlayItems": "overlay tid ur batteri fremskridt side procent kapitel bog dæmpning"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Adfærd for markér som læst",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Knap + automatisk",
     "allowSelection": "Tillad tekstmarkering/kopiering",
     "rememberPosition": "Husk læseposition",
+    "readingMode": "Læsetilstand",
+    "readingModeChapter": "Ét kapitel pr. side",
+    "readingModeInfinite": "Uendelig rulning",
+    "readingModeChapterHint": "Hvert kapitel åbner på sin egen side. Brug knapperne, tasterne eller bevægelserne til at skifte kapitel.",
+    "readingModeInfiniteHint": "Det næste kapitel indlæses under det nuværende, mens du ruller.",
+    "infiniteShowComments": "Kommentarer mellem kapitler",
+    "infiniteShowCommentsHint": "Vis hvert kapitels kommentarkort i rullningen. Kommentarerne er stadig tilgængelige fra læserens kontrolelementer.",
     "doNothing": "Gør ingenting",
     "scrollUp": "Rul op",
     "scrollDown": "Rul ned",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Stryg til højre",
     "doNothing": "Gør ingenting",
     "previousChapter": "Forrige kapitel",
-    "nextChapter": "Næste kapitel"
+    "nextChapter": "Næste kapitel",
+    "chapterList": "Åbn kapitelliste",
+    "fullscreen": "Skift fuldskærm",
+    "showControls": "Vis kontroller",
+    "comments": "Åbn kommentarer"
   },
   "keyboardSettings": {
     "enable": "Tastaturgenveje",

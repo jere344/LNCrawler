@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import { chapterRange, progressIn, scrollYFor } from './chapterRange';
 
 // Interface for scroll position storage
 interface ScrollPositions {
@@ -23,6 +24,9 @@ export function useScrollPersistence({
   // Pending scroll-restore retry timer, cleared on chapter change/unmount
   const scrollRestoreTimeoutRef = useRef<number | null>(null);
 
+  // Animation frame of the restore still queued, cancelled with the retry timer
+  const restoreFrameRef = useRef<number | null>(null);
+
   // Load saved scroll positions from localStorage
   useEffect(() => {
     try {
@@ -39,24 +43,18 @@ export function useScrollPersistence({
   // Add a ref to track the last time we saved the scroll position
   const lastScrollSaveRef = useRef<number>(0);
   
-  // Calculate scroll position as a percentage of total scrollable height
-  const calculateScrollPercentage = (): number => {
-    const scrollTop = window.scrollY;
-    const scrollHeight = document.documentElement.scrollHeight;
-    const clientHeight = document.documentElement.clientHeight;
-    
-    // If there's nothing to scroll, return 0
-    if (scrollHeight <= clientHeight) return 0;
-    
-    // Calculate how far we've scrolled as a percentage
-    const scrollableHeight = scrollHeight - clientHeight;
-    return (scrollTop / scrollableHeight) * 100;
+  // Scroll position as a percentage of the chapter's scrollable height (its section in infinite mode)
+  const calculateScrollPercentage = (sectionKey: string | null): number => {
+    const range = chapterRange(sectionKey);
+    if (!range) return 0;
+    return progressIn(range, window.scrollY) * 100;
   };
 
   // Save current reading position (percentage of the chapter) with throttling.
   // Both page mode and text mode store the same metric, so switching between
   // them or rotating the device restores the same place in the text.
-  const saveScrollPosition = (force = false) => {
+  // sectionKey is the section the chapter's text is on screen as, null for the whole document
+  const saveScrollPosition = (sectionKey: string | null, force = false) => {
     if (!currentChapterKey || !savePosition) return;
     
     const now = Date.now();
@@ -66,7 +64,7 @@ export function useScrollPersistence({
     }
     lastScrollSaveRef.current = now;
 
-    const percentage = calculateScrollPercentage();
+    const percentage = calculateScrollPercentage(sectionKey);
 
     // Re-insert the current key last so it is the most recently used; pruning
     // below then evicts the genuinely least-recently-read chapter, not merely
@@ -97,35 +95,47 @@ export function useScrollPersistence({
     }
   };
 
-  // Restore the text-mode window scroll from the saved percentage.
-  const restoreScrollPosition = (attempt = 0) => {
+  // Stops a restore that is still queued: its retry timer and its frame
+  const cancelRestore = () => {
+    if (scrollRestoreTimeoutRef.current !== null) {
+      clearTimeout(scrollRestoreTimeoutRef.current);
+      scrollRestoreTimeoutRef.current = null;
+    }
+    if (restoreFrameRef.current !== null) {
+      cancelAnimationFrame(restoreFrameRef.current);
+      restoreFrameRef.current = null;
+    }
+  };
+
+  // Restore the text-mode window scroll from the saved percentage, in the section of the chapter being restored (null for the whole document).
+  const restoreScrollPosition = (sectionKey: string | null, attempt = 0) => {
     if (!currentChapterKey || !savePosition) return;
     
     const savedPercentage = scrollPositionsRef.current[currentChapterKey];
     if (savedPercentage === undefined) return;
 
     // Use requestAnimationFrame to avoid layout thrashing
-    requestAnimationFrame(() => {
-      // Read scroll dimensions
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = document.documentElement.clientHeight;
-      const scrollableHeight = scrollHeight - clientHeight;
-      
-      if (scrollableHeight <= 0) {
+    restoreFrameRef.current = requestAnimationFrame(() => {
+      restoreFrameRef.current = null;
+      // Read the chapter's range (its section in infinite mode)
+      const range = chapterRange(sectionKey);
+
+      if (!range || range.length <= 0) {
         // Try again later if content hasn't fully rendered, but stop after a
         // bounded number of attempts so this can't loop forever.
         if (attempt >= MAX_SCROLL_RESTORE_RETRIES) return;
         scrollRestoreTimeoutRef.current = window.setTimeout(
-          () => restoreScrollPosition(attempt + 1),
+          () => restoreScrollPosition(sectionKey, attempt + 1),
           100,
         );
         return;
       }
-      
-      const scrollTop = (savedPercentage / 100) * scrollableHeight;
+
+      const scrollTop = scrollYFor(range, savedPercentage / 100);
       
       // Write to scroll position in next frame
-      requestAnimationFrame(() => {
+      restoreFrameRef.current = requestAnimationFrame(() => {
+        restoreFrameRef.current = null;
         window.scrollTo({
           top: scrollTop,
           behavior: 'auto' // Use 'auto' instead of 'smooth' to avoid animation issues
@@ -134,5 +144,5 @@ export function useScrollPersistence({
     });
   };
 
-  return { saveScrollPosition, restoreScrollPosition, scrollRestoreTimeoutRef };
+  return { saveScrollPosition, restoreScrollPosition, cancelRestore };
 }

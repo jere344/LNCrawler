@@ -737,7 +737,12 @@
     "chapters": "บท",
     "openSettings": "เปิดการตั้งค่าตัวอ่าน",
     "markedRead": "ทำเครื่องหมายบทว่าอ่านแล้วสำเร็จ!",
-    "listen": "ฟัง"
+    "listen": "ฟัง",
+    "retry": "ลองอีกครั้ง",
+    "infiniteLoading": "กำลังโหลดบทถัดไป",
+    "infiniteEnd": "คุณอ่านถึงบทล่าสุดแล้ว",
+    "infiniteUnavailable": "บทที่ {chapter} ไม่พร้อมใช้งาน",
+    "infiniteOpenChapter": "เปิดบทที่ {chapter}"
   },
   "readerControls": {
     "previousChapter": "บทก่อนหน้า",
@@ -756,6 +761,11 @@
     "enterFullscreen": "เต็มหน้าจอ",
     "exitFullscreen": "ออกจากเต็มหน้าจอ",
     "commentsCount": "{count, plural, =0 {ความคิดเห็น} other {ความคิดเห็น # รายการ}}"
+  },
+  "readerOverlay": {
+    "page": "หน้า {page}/{pages}",
+    "chapterOf": "บท {current}/{total}",
+    "dim": "หรี่แสง {percent}%"
   },
   "readerChapters": {
     "open": "เปิดรายการตอน",
@@ -879,6 +889,25 @@
     "resetTitle": "รีเซ็ตการตั้งค่าเป็นค่าเริ่มต้น?",
     "resetBody": "การดำเนินการนี้จะรีเซ็ตการตั้งค่าตัวอ่านทั้งหมดเป็นค่าเริ่มต้น การกระทำนี้ไม่สามารถย้อนกลับได้",
     "reset": "รีเซ็ต",
+    "syncTitle": "ซิงค์",
+    "syncDevice": "อุปกรณ์นี้ใช้",
+    "syncDeviceAuto": "อัตโนมัติ ({type})",
+    "syncDeviceMobile": "การตั้งค่าโทรศัพท์",
+    "syncDeviceDesktop": "การตั้งค่าเดสก์ท็อป",
+    "syncDeviceOff": "ไม่ซิงค์บนอุปกรณ์นี้",
+    "syncTypeMobile": "โทรศัพท์",
+    "syncTypeDesktop": "เดสก์ท็อป",
+    "syncStatusSignedOut": "ลงชื่อเข้าใช้เพื่อเก็บการตั้งค่าไว้ใช้ในทุกอุปกรณ์",
+    "syncStatusOff": "การตั้งค่าจะอยู่บนอุปกรณ์นี้เท่านั้น",
+    "syncStatusPending": "กำลังรอเซิร์ฟเวอร์…",
+    "syncStatusSyncing": "กำลังบันทึก…",
+    "syncStatusSynced": "ซิงค์กับการตั้งค่า{type}แล้ว",
+    "syncStatusError": "ซิงค์ไม่สำเร็จ จะลองใหม่ภายหลัง",
+    "syncStatusNeedsChoice": "เลือกการตั้งค่าที่จะเก็บไว้",
+    "syncChoiceTitle": "อุปกรณ์นี้ควรใช้การตั้งค่าใด",
+    "syncChoiceBody": "อุปกรณ์นี้มีการตั้งค่าของตัวเอง และคุณยังมีการตั้งค่า{type}ที่บันทึกไว้ (อัปเดตเมื่อ {date})",
+    "syncChoiceSaved": "ใช้ที่บันทึกไว้",
+    "syncChoiceDevice": "เก็บของอุปกรณ์นี้",
     "tts": "การอ่านออกเสียง"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "ท่าทางสัมผัส",
       "keys": "แป้นพิมพ์",
       "reading": "การอ่าน",
+      "overlay": "ซ้อนทับข้อมูล",
       "listen": "การฟัง",
       "voice": "เสียงและคุณภาพ",
       "backup": "สำรองและรีเซ็ต"
     },
     "listenSub": "เสียง ความเร็ว การไฮไลต์ ใช้ได้ในตัวเล่นด้วย",
+    "overlay": {
+      "enable": "แสดงซ้อนทับข้อมูล",
+      "enableHint": "แถบเล็กบนข้อความที่แสดงเวลา ความคืบหน้า และอื่น ๆ",
+      "homeOn": "{count, plural, other {# รายการ}}",
+      "homeOff": "ปิด",
+      "layout": "เค้าโครง",
+      "position": "ตำแหน่ง",
+      "positions": {
+        "top": "ด้านบน",
+        "bottom": "ด้านล่าง"
+      },
+      "size": "ขนาด",
+      "sizes": {
+        "full": "เต็มความกว้าง",
+        "center": "แคปซูลตรงกลาง",
+        "left": "แคปซูลซ้าย",
+        "right": "แคปซูลขวา"
+      },
+      "content": "เนื้อหา",
+      "contentHint": "แตะเพื่อเพิ่มหรือลบ รายการจะแสดงตามลำดับที่คุณเพิ่ม แบตเตอรี่จะแสดงเฉพาะในเบราว์เซอร์ที่รองรับเท่านั้น",
+      "items": {
+        "time12": "เวลา (12 ชม.)",
+        "time24": "เวลา (24 ชม.)",
+        "chapterPage": "ความคืบหน้าบท (หน้า)",
+        "chapterSlider": "ความคืบหน้าบท (แถบเลื่อน)",
+        "chapterPercent": "ความคืบหน้าบท (%)",
+        "battery": "แบตเตอรี่",
+        "bookPercent": "ความคืบหน้าหนังสือ (%)",
+        "bookChapter": "ความคืบหน้าหนังสือ (บท)",
+        "dimness": "การหรี่แสง (%)"
+      }
+    },
     "sheetCount": "{count, plural, other {# ตัวควบคุม}}",
     "textSub": "{size} px · {font} · บรรทัด {lines}×",
     "colorsSub": "{theme} · ตัวกรองกลางคืน {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "ปิด",
     "nightStrength": "{strength}%",
     "scheduled": " · ตั้งเวลา",
-    "touchSub": "ตัวควบคุม: {trigger} · เลื่อนเพื่อหรี่แสง: {side}",
+    "touchSummary": "แตะ: {tap} · แตะสองครั้ง: {double} · ปัดเพื่อหรี่: {side}",
     "trigger": {
       "singleTap": "แตะครั้งเดียว",
       "doubleTap": "แตะสองครั้ง",
-      "longPress": "กดค้าง",
-      "off": "ปิด"
+      "longPress": "กดค้าง"
     },
     "dimSide": {
       "off": "ปิด",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "กลาง",
     "zoneRight": "ขอบขวา",
     "dimTag": "หรี่",
-    "controlsValue": "ตัวควบคุม: {trigger}",
+    "centerValue": "แตะ: {single} · สองครั้ง: {double} · กดค้าง: {long}",
     "siteHeader": "ส่วนหัวของเว็บไซต์",
     "touchNote": "การตั้งค่านี้ใช้เมื่อคุณใช้หน้าจอสัมผัส รวมถึงแล็ปท็อปที่มีหน้าจอสัมผัส",
     "chooseZone": "เลือกโซนเพื่อเปลี่ยนการทำงานของโซนนั้น",
     "screenZones": "โซนบนหน้าจอ",
     "swipes": "การปัด",
-    "showControlsWith": "แสดงตัวควบคุมด้วย",
-    "triggerHint": {
-      "doubleTap": "การแตะครั้งเดียวจะไม่ขัดจังหวะการอ่าน",
-      "longPress": "กดค้างครึ่งวินาที",
-      "off": "ใช้ปุ่มที่ด้านบนของบท"
-    },
     "longPressWarning": "บนโทรศัพท์ การกดค้างจะเริ่มการเลือกข้อความด้วย ทั้งสองอย่างจะแย่งกันทำงานบนข้อความ",
     "turnOffSelection": "ปิดการเลือกข้อความ",
     "tapThisEdge": "เมื่อแตะขอบนี้",
@@ -1032,7 +1087,9 @@
     "keyD": "แป้นพิมพ์ ปุ่ม การแสดงผล",
     "keyF": "คีย์บอร์ด คีย์ เต็มหน้าจอ",
     "keyM": "ปุ่มคีย์บอร์ด ความคิดเห็น",
-    "controlsTrigger": "แตะ แตะสองครั้ง กดค้าง ถือ แถบเครื่องมือ เมนู กลาง ท่าทาง",
+    "centerSingleTap": "แตะ ครั้งเดียว แถบเครื่องมือ เมนู ปุ่มควบคุม กลาง ท่าทาง",
+    "centerDoubleTap": "แตะสองครั้ง เต็มหน้าจอ กลาง ท่าทาง",
+    "centerLongPress": "กดค้าง แถบเครื่องมือ ปุ่มควบคุม เต็มหน้าจอ กลาง ท่าทาง",
     "swipeLeftGesture": "ท่าทาง บทถัดไป",
     "swipeRightGesture": "ท่าทาง บทก่อนหน้า",
     "edgeTap": "ซ้าย ขวา แตะ โซน เลื่อน บท ท่าทาง",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "แถบด้านบน แถบนำทาง เลื่อน ติดหนึบ ลอย",
     "markReadBehavior": "ความคืบหน้า เสร็จ อัตโนมัติ",
     "textSelectable": "คัดลอก เลือก",
+    "readingMode": "ไม่สิ้นสุด ต่อเนื่อง เลื่อน บทถัดไป หน้า",
+    "infiniteShowComments": "ความคิดเห็น การ์ด ท้ายตอน เลื่อนไม่สิ้นสุด ซ่อน",
     "savePosition": "บุ๊กมาร์ก กลับไปอ่านต่อ เลื่อน",
     "hideScrollbar": "แถบเลื่อน",
     "ttsPreferAudiobook": "ฟัง tts หนังสือเสียง การบรรยาย การบันทึก แหล่ง อุปกรณ์",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "ฟัง tts wake lock ตื่น",
     "importSettings": "สำรอง กู้คืน ไฟล์",
     "exportSettings": "สำรอง บันทึก ไฟล์",
-    "resetDefaults": "กู้คืน ล้าง สำรอง"
+    "resetDefaults": "กู้คืน ล้าง สำรอง",
+    "overlayEnabled": "overlay ซ้อนทับ แถบสถานะ นาฬิกา ข้อมูล แถบ hud",
+    "overlayPosition": "overlay ด้านบน ด้านล่าง ตำแหน่ง แถบสถานะ",
+    "overlaySize": "overlay ความกว้าง แคปซูล เต็ม กลาง ซ้าย ขวา",
+    "overlayItems": "overlay เวลา นาฬิกา แบตเตอรี่ ความคืบหน้า หน้า เปอร์เซ็นต์ บท หนังสือ หรี่แสง"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "พฤติกรรมการทำเครื่องหมายว่าอ่านแล้ว",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "ปุ่ม + อัตโนมัติ",
     "allowSelection": "อนุญาตให้เลือก/คัดลอกข้อความ",
     "rememberPosition": "จดจำตำแหน่งการอ่าน",
+    "readingMode": "โหมดการอ่าน",
+    "readingModeChapter": "หนึ่งบทต่อหน้า",
+    "readingModeInfinite": "เลื่อนไม่สิ้นสุด",
+    "readingModeChapterHint": "แต่ละบทจะเปิดในหน้าของตัวเอง ใช้ปุ่ม แป้นพิมพ์ หรือท่าทางเพื่อเปลี่ยนบท",
+    "readingModeInfiniteHint": "บทถัดไปจะโหลดต่อท้ายบทปัจจุบันขณะที่คุณเลื่อน",
+    "infiniteShowComments": "ความคิดเห็นระหว่างตอน",
+    "infiniteShowCommentsHint": "แสดงการ์ดความคิดเห็นของแต่ละตอนในขณะเลื่อนอ่าน ความคิดเห็นยังเข้าถึงได้จากตัวควบคุมของผู้อ่าน",
     "doNothing": "ไม่ทำอะไร",
     "scrollUp": "เลื่อนขึ้น",
     "scrollDown": "เลื่อนลง",
@@ -1102,7 +1172,11 @@
     "swipeRight": "ปัดขวา",
     "doNothing": "ไม่ทำอะไร",
     "previousChapter": "บทก่อนหน้า",
-    "nextChapter": "บทถัดไป"
+    "nextChapter": "บทถัดไป",
+    "chapterList": "เปิดรายการตอน",
+    "fullscreen": "สลับเต็มหน้าจอ",
+    "showControls": "แสดงปุ่มควบคุม",
+    "comments": "เปิดความคิดเห็น"
   },
   "keyboardSettings": {
     "enable": "ปุ่มลัดแป้นพิมพ์",

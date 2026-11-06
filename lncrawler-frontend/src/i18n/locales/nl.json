@@ -737,7 +737,12 @@
     "chapters": "Hoofdstukken",
     "openSettings": "Lezerinstellingen openen",
     "markedRead": "Hoofdstuk succesvol als gelezen gemarkeerd!",
-    "listen": "Luisteren"
+    "listen": "Luisteren",
+    "retry": "Opnieuw proberen",
+    "infiniteLoading": "Volgend hoofdstuk laden",
+    "infiniteEnd": "Je hebt het nieuwste hoofdstuk bereikt.",
+    "infiniteUnavailable": "Hoofdstuk {chapter} is niet beschikbaar.",
+    "infiniteOpenChapter": "Hoofdstuk {chapter} openen"
   },
   "readerControls": {
     "previousChapter": "Vorig hoofdstuk",
@@ -756,6 +761,11 @@
     "enterFullscreen": "Volledig scherm",
     "exitFullscreen": "Volledig scherm verlaten",
     "commentsCount": "{count, plural, =0 {Reacties} one {Reacties, # reactie} other {Reacties, # reacties}}"
+  },
+  "readerOverlay": {
+    "page": "Pagina {page}/{pages}",
+    "chapterOf": "Hfst. {current}/{total}",
+    "dim": "Dimmen {percent}%"
   },
   "readerChapters": {
     "open": "Hoofdstukkenlijst openen",
@@ -879,6 +889,25 @@
     "resetTitle": "Instellingen terugzetten naar standaard?",
     "resetBody": "Hiermee worden alle lezerinstellingen teruggezet naar hun standaardwaarden. Deze actie kan niet ongedaan worden gemaakt.",
     "reset": "Resetten",
+    "syncTitle": "Synchronisatie",
+    "syncDevice": "Dit apparaat gebruikt",
+    "syncDeviceAuto": "Automatisch ({type})",
+    "syncDeviceMobile": "Telefooninstellingen",
+    "syncDeviceDesktop": "Desktopinstellingen",
+    "syncDeviceOff": "Niet synchroniseren op dit apparaat",
+    "syncTypeMobile": "telefoon",
+    "syncTypeDesktop": "desktop",
+    "syncStatusSignedOut": "Log in om je instellingen op al je apparaten te bewaren.",
+    "syncStatusOff": "Instellingen blijven op dit apparaat.",
+    "syncStatusPending": "Wachten op de server…",
+    "syncStatusSyncing": "Opslaan…",
+    "syncStatusSynced": "Gesynchroniseerd met je {type}-instellingen.",
+    "syncStatusError": "Synchroniseren mislukt. We proberen het later opnieuw.",
+    "syncStatusNeedsChoice": "Kies welke instellingen je wilt houden.",
+    "syncChoiceTitle": "Welke instellingen moet dit apparaat gebruiken?",
+    "syncChoiceBody": "Dit apparaat heeft eigen instellingen, en je hebt ook opgeslagen {type}-instellingen (bijgewerkt op {date}).",
+    "syncChoiceSaved": "Opgeslagen gebruiken",
+    "syncChoiceDevice": "Die van dit apparaat houden",
     "tts": "Tekst-naar-spraak"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "Gebaren",
       "keys": "Toetsenbord",
       "reading": "Lezen",
+      "overlay": "Infolaag",
       "listen": "Luisteren",
       "voice": "Stem en kwaliteit",
       "backup": "Back-up en herstel"
     },
     "listenSub": "Stem, snelheid, markering. Ook in de speler.",
+    "overlay": {
+      "enable": "Infolaag tonen",
+      "enableHint": "Een kleine balk over de tekst met tijd, voortgang en meer.",
+      "homeOn": "{count, plural, one {# item} other {# items}}",
+      "homeOff": "Uit",
+      "layout": "Indeling",
+      "position": "Positie",
+      "positions": {
+        "top": "Boven",
+        "bottom": "Onder"
+      },
+      "size": "Grootte",
+      "sizes": {
+        "full": "Volledige breedte",
+        "center": "Pil in het midden",
+        "left": "Pil links",
+        "right": "Pil rechts"
+      },
+      "content": "Inhoud",
+      "contentHint": "Tik om toe te voegen of te verwijderen. Items worden getoond in de volgorde waarin je ze toevoegt. Batterij wordt alleen getoond in browsers die dit ondersteunen.",
+      "items": {
+        "time12": "Tijd (12 u)",
+        "time24": "Tijd (24 u)",
+        "chapterPage": "Hoofdstukvoortgang (pagina)",
+        "chapterSlider": "Hoofdstukvoortgang (schuifbalk)",
+        "chapterPercent": "Hoofdstukvoortgang (%)",
+        "battery": "Batterij",
+        "bookPercent": "Boekvoortgang (%)",
+        "bookChapter": "Boekvoortgang (hoofdstuk)",
+        "dimness": "Verduistering (%)"
+      }
+    },
     "sheetCount": "{count, plural, one {# bediening} other {# bedieningen}}",
     "textSub": "{size} px · {font} · Regels {lines}×",
     "colorsSub": "{theme} · Nachtfilter {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "uit",
     "nightStrength": "{strength}%",
     "scheduled": " · Gepland",
-    "touchSub": "Bedieningen: {trigger} · Schuif om te verduisteren: {side}",
+    "touchSummary": "Tik: {tap} · Dubbeltik: {double} · Slepen om te dimmen: {side}",
     "trigger": {
       "singleTap": "Enkele tik",
       "doubleTap": "Dubbele tik",
-      "longPress": "Lang indrukken",
-      "off": "Uit"
+      "longPress": "Lang indrukken"
     },
     "dimSide": {
       "off": "Uit",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "Midden",
     "zoneRight": "Rechterrand",
     "dimTag": "Verduisteren",
-    "controlsValue": "Bedieningen: {trigger}",
+    "centerValue": "Tik: {single} · Dubbel: {double} · Vasthouden: {long}",
     "siteHeader": "Koptekst van de site",
     "touchNote": "Deze gelden wanneer je een touchscreen gebruikt, ook op een touchlaptop.",
     "chooseZone": "Kies een zone om te wijzigen wat die doet.",
     "screenZones": "Schermzones",
     "swipes": "Vegen",
-    "showControlsWith": "Bedieningen tonen met",
-    "triggerHint": {
-      "doubleTap": "Enkele tikken onderbreken het lezen nooit",
-      "longPress": "Houd een halve seconde vast",
-      "off": "Gebruik de knoppen bovenaan het hoofdstuk"
-    },
     "longPressWarning": "Op telefoons start een lang indrukken ook tekstselectie. Die twee botsen op de tekst zelf.",
     "turnOffSelection": "Tekstselectie uitschakelen",
     "tapThisEdge": "Tikken op deze rand",
@@ -1032,7 +1087,9 @@
     "keyD": "toetsenbord toets weergave",
     "keyF": "toetsenbord toets volledig scherm",
     "keyM": "toetsenbord toets reacties",
-    "controlsTrigger": "tik dubbel lang indrukken vasthouden werkbalk menu midden gebaar",
+    "centerSingleTap": "tik enkel werkbalk menu knoppen midden gebaar",
+    "centerDoubleTap": "dubbeltik volledig scherm midden gebaar",
+    "centerLongPress": "lang drukken vasthouden werkbalk knoppen volledig scherm midden gebaar",
     "swipeLeftGesture": "gebaar volgend hoofdstuk",
     "swipeRightGesture": "gebaar vorig hoofdstuk",
     "edgeTap": "links rechts tik zone scrollen hoofdstuk gebaar",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "bovenbalk navbar scrollen vast zwevend",
     "markReadBehavior": "voortgang voltooid automatisch",
     "textSelectable": "kopiëren selecteren",
+    "readingMode": "oneindig doorlopend scrollen volgend hoofdstuk pagina",
+    "infiniteShowComments": "reacties kaart einde hoofdstuk oneindig scrollen verbergen",
     "savePosition": "bladwijzer hervatten scrollen",
     "hideScrollbar": "scrollbalk",
     "ttsPreferAudiobook": "luisteren tts luisterboek vertelling opname bron apparaat",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "luisteren tts scherm aan wakker",
     "importSettings": "back-up herstellen bestand",
     "exportSettings": "back-up opslaan bestand",
-    "resetDefaults": "herstel wissen back-up"
+    "resetDefaults": "herstel wissen back-up",
+    "overlayEnabled": "overlay laag statusbalk klok info balk hud",
+    "overlayPosition": "overlay boven onder positie statusbalk",
+    "overlaySize": "overlay breedte pil volledig midden links rechts",
+    "overlayItems": "overlay tijd klok batterij voortgang pagina percentage hoofdstuk boek dimmen"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "Gedrag voor markeren als gelezen",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "Knop + automatisch",
     "allowSelection": "Tekstselectie/kopiëren toestaan",
     "rememberPosition": "Leespositie onthouden",
+    "readingMode": "Leesmodus",
+    "readingModeChapter": "Eén hoofdstuk per pagina",
+    "readingModeInfinite": "Oneindig scrollen",
+    "readingModeChapterHint": "Elk hoofdstuk opent op een eigen pagina. Gebruik de knoppen, toetsen of gebaren om van hoofdstuk te wisselen.",
+    "readingModeInfiniteHint": "Het volgende hoofdstuk wordt onder het huidige geladen terwijl je scrolt.",
+    "infiniteShowComments": "Reacties tussen hoofdstukken",
+    "infiniteShowCommentsHint": "Toon de reactiekaart van elk hoofdstuk in het scrollen. Reacties blijven beschikbaar via de leesbediening.",
     "doNothing": "Niets doen",
     "scrollUp": "Omhoog scrollen",
     "scrollDown": "Omlaag scrollen",
@@ -1102,7 +1172,11 @@
     "swipeRight": "Naar rechts vegen",
     "doNothing": "Niets doen",
     "previousChapter": "Vorig hoofdstuk",
-    "nextChapter": "Volgend hoofdstuk"
+    "nextChapter": "Volgend hoofdstuk",
+    "chapterList": "Hoofdstukkenlijst openen",
+    "fullscreen": "Volledig scherm wisselen",
+    "showControls": "Knoppen tonen",
+    "comments": "Reacties openen"
   },
   "keyboardSettings": {
     "enable": "Sneltoetsen",

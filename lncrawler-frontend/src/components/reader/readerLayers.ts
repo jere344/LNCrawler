@@ -34,6 +34,7 @@ const PAGE_IDS: Record<SettingsPageId, true> = {
   touch: true,
   keys: true,
   reading: true,
+  overlay: true,
   listen: true,
   voice: true,
   backup: true,

@@ -7,6 +7,7 @@ import { useNotification } from '@context/NotificationContext';
 import { useReaderSettings } from '../../hooks/useReaderSettings';
 import { replaceReaderSettings, resetReaderSettings } from '../../readerSettingsStore';
 import { exportReaderSettings, parseReaderSettingsFile, pickJsonFile } from '../../readerSettingsBackup';
+import ReaderSyncSection from '../../sync/ReaderSyncSection';
 
 const BackupPage = () => {
   const { t } = useTranslation();
@@ -33,6 +34,7 @@ const BackupPage = () => {
 
   return (
     <Box>
+      <ReaderSyncSection />
       <Typography color="text.secondary" sx={{ mb: 2 }}>{t('readerSettingsPages.backupNote')}</Typography>
       <Stack spacing={1}>
         <Stack direction="row" spacing={1}>

@@ -737,7 +737,12 @@
     "chapters": "章节",
     "openSettings": "打开阅读器设置",
     "markedRead": "章节已成功标记为已读！",
-    "listen": "收听"
+    "listen": "收听",
+    "retry": "重试",
+    "infiniteLoading": "正在加载下一章",
+    "infiniteEnd": "你已读到最新一章。",
+    "infiniteUnavailable": "第 {chapter} 章不可用。",
+    "infiniteOpenChapter": "打开第 {chapter} 章"
   },
   "readerControls": {
     "previousChapter": "上一章",
@@ -756,6 +761,11 @@
     "enterFullscreen": "全屏",
     "exitFullscreen": "退出全屏",
     "commentsCount": "{count, plural, =0 {评论} other {评论，# 条}}"
+  },
+  "readerOverlay": {
+    "page": "第 {page}/{pages} 页",
+    "chapterOf": "第 {current}/{total} 章",
+    "dim": "暗度 {percent}%"
   },
   "readerChapters": {
     "open": "打开章节列表",
@@ -879,6 +889,25 @@
     "resetTitle": "将设置恢复为默认值？",
     "resetBody": "这会将所有阅读器设置恢复为默认值。此操作无法撤销。",
     "reset": "重置",
+    "syncTitle": "同步",
+    "syncDevice": "此设备使用",
+    "syncDeviceAuto": "自动（{type}）",
+    "syncDeviceMobile": "手机设置",
+    "syncDeviceDesktop": "电脑设置",
+    "syncDeviceOff": "不在此设备上同步",
+    "syncTypeMobile": "手机",
+    "syncTypeDesktop": "电脑",
+    "syncStatusSignedOut": "登录后即可在多台设备上保留设置。",
+    "syncStatusOff": "设置仅保存在此设备上。",
+    "syncStatusPending": "正在等待服务器…",
+    "syncStatusSyncing": "正在保存…",
+    "syncStatusSynced": "已与你的{type}设置同步。",
+    "syncStatusError": "同步失败，稍后会重试。",
+    "syncStatusNeedsChoice": "请选择要保留的设置。",
+    "syncChoiceTitle": "此设备应使用哪套设置？",
+    "syncChoiceBody": "此设备有自己的设置，你也有已保存的{type}设置（更新于 {date}）。",
+    "syncChoiceSaved": "使用已保存的",
+    "syncChoiceDevice": "保留此设备的设置",
     "tts": "文本朗读"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "手势",
       "keys": "键盘",
       "reading": "阅读",
+      "overlay": "信息浮层",
       "listen": "听读",
       "voice": "语音和质量",
       "backup": "备份与重置"
     },
     "listenSub": "语音、速度、高亮。播放器中也可设置。",
+    "overlay": {
+      "enable": "显示信息浮层",
+      "enableHint": "文字上方的小条，显示时间、进度等信息。",
+      "homeOn": "{count, plural, other {# 项}}",
+      "homeOff": "关",
+      "layout": "布局",
+      "position": "位置",
+      "positions": {
+        "top": "顶部",
+        "bottom": "底部"
+      },
+      "size": "尺寸",
+      "sizes": {
+        "full": "全宽",
+        "center": "居中胶囊",
+        "left": "左侧胶囊",
+        "right": "右侧胶囊"
+      },
+      "content": "内容",
+      "contentHint": "点击即可添加或移除。项目按添加顺序显示。电量仅在支持该功能的浏览器中显示。",
+      "items": {
+        "time12": "时间 (12 小时)",
+        "time24": "时间 (24 小时)",
+        "chapterPage": "章节进度 (页)",
+        "chapterSlider": "章节进度 (滑块)",
+        "chapterPercent": "章节进度 (%)",
+        "battery": "电量",
+        "bookPercent": "全书进度 (%)",
+        "bookChapter": "全书进度 (章)",
+        "dimness": "暗度 (%)"
+      }
+    },
     "sheetCount": "{count, plural, other {# 个控件}}",
     "textSub": "{size} px · {font} · 行数 {lines}×",
     "colorsSub": "{theme} · 夜间滤镜 {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "关",
     "nightStrength": "{strength}%",
     "scheduled": " · 已定时",
-    "touchSub": "控件：{trigger} · 滑动调暗：{side}",
+    "touchSummary": "点按：{tap} · 双击：{double} · 滑动调暗：{side}",
     "trigger": {
       "singleTap": "单击",
       "doubleTap": "双击",
-      "longPress": "长按",
-      "off": "关"
+      "longPress": "长按"
     },
     "dimSide": {
       "off": "关",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "中间",
     "zoneRight": "右边缘",
     "dimTag": "调暗",
-    "controlsValue": "控件：{trigger}",
+    "centerValue": "点按：{single} · 双击：{double} · 长按：{long}",
     "siteHeader": "网站页眉",
     "touchNote": "在触屏设备（包括触屏笔记本）上使用时生效。",
     "chooseZone": "选择一个区域以更改其功能。",
     "screenZones": "屏幕区域",
     "swipes": "滑动",
-    "showControlsWith": "显示控件的方式",
-    "triggerHint": {
-      "doubleTap": "单击不会打断阅读",
-      "longPress": "按住半秒",
-      "off": "使用章节顶部的按钮"
-    },
     "longPressWarning": "在手机上，长按也会开始选择文字，两者会在文字上产生冲突。",
     "turnOffSelection": "关闭文字选择",
     "tapThisEdge": "点按此边缘时",
@@ -1032,7 +1087,9 @@
     "keyD": "键盘 按键 显示",
     "keyF": "键盘 按键 全屏",
     "keyM": "键盘按键 评论",
-    "controlsTrigger": "点击 双击 长按 按住 工具栏 菜单 居中 中间 手势",
+    "centerSingleTap": "点按 单击 工具栏 菜单 控件 中间 手势",
+    "centerDoubleTap": "双击 全屏 中间 手势",
+    "centerLongPress": "长按 工具栏 控件 全屏 中间 手势",
     "swipeLeftGesture": "手势 下一章",
     "swipeRightGesture": "手势 上一章",
     "edgeTap": "左 右 点击 区域 滚动 章节 手势",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "顶栏 导航栏 滚动 固定 浮动",
     "markReadBehavior": "进度 已读 完成 自动",
     "textSelectable": "复制 选择",
+    "readingMode": "无限 连续 滚动 下一章 页面",
+    "infiniteShowComments": "评论 卡片 章节末尾 无限滚动 隐藏",
     "savePosition": "书签 续读 滚动",
     "hideScrollbar": "滚动 滚动条",
     "ttsPreferAudiobook": "收听 tts 有声书 旁白 录音 来源 设备",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "语音 tts 唤醒锁 保持唤醒 常亮",
     "importSettings": "备份 恢复 文件 导入",
     "exportSettings": "备份 保存 文件 导出",
-    "resetDefaults": "恢复 清除 备份"
+    "resetDefaults": "恢复 清除 备份",
+    "overlayEnabled": "overlay 浮层 状态栏 时钟 信息 条 hud",
+    "overlayPosition": "overlay 顶部 底部 位置 状态栏",
+    "overlaySize": "overlay 宽度 胶囊 全宽 居中 左 右",
+    "overlayItems": "overlay 时间 时钟 电量 进度 页 百分比 章 书 暗度"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "标记为已读行为",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "按钮 + 自动",
     "allowSelection": "允许选择/复制文本",
     "rememberPosition": "记住阅读位置",
+    "readingMode": "阅读模式",
+    "readingModeChapter": "每页一章",
+    "readingModeInfinite": "无限滚动",
+    "readingModeChapterHint": "每一章在单独的页面中打开。使用按钮、按键或手势切换章节。",
+    "readingModeInfiniteHint": "滚动时，下一章会加载在当前章节下方。",
+    "infiniteShowComments": "章节之间的评论",
+    "infiniteShowCommentsHint": "在滚动阅读中显示每章的评论卡片。仍可通过阅读器控件查看评论。",
     "doNothing": "不执行任何操作",
     "scrollUp": "向上滚动",
     "scrollDown": "向下滚动",
@@ -1102,7 +1172,11 @@
     "swipeRight": "向右滑动",
     "doNothing": "不执行任何操作",
     "previousChapter": "上一章",
-    "nextChapter": "下一章"
+    "nextChapter": "下一章",
+    "chapterList": "打开章节列表",
+    "fullscreen": "切换全屏",
+    "showControls": "显示控件",
+    "comments": "打开评论"
   },
   "keyboardSettings": {
     "enable": "键盘快捷键",

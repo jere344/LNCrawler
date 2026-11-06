@@ -8,6 +8,10 @@ export const AUTH_USER_KEY = 'user';
 export const READER_SETTINGS_KEY = 'lncrawler_reader_settings';
 // Prefix of the old one-cookie-per-setting format. Only read to migrate, never written.
 export const READER_COOKIE_PREFIX = 'lncrawler_reader_';
+// What this device last agreed on with the server for its reader settings
+export const READER_SYNC_KEY = 'lncrawler_reader_sync';
+// Which server copy this device uses ('mobile', 'desktop' or 'off'); missing means detect it
+export const READER_DEVICE_SLOT_KEY = 'lncrawler_reader_device_slot';
 
 // Reads and parses a JSON value. Falls back when the key is missing or the
 // stored text is not valid JSON.

@@ -737,7 +737,12 @@
     "chapters": "화",
     "openSettings": "리더 설정 열기",
     "markedRead": "화를 읽음으로 표시했습니다!",
-    "listen": "듣기"
+    "listen": "듣기",
+    "retry": "다시 시도",
+    "infiniteLoading": "다음 챕터를 불러오는 중",
+    "infiniteEnd": "최신 챕터에 도달했습니다.",
+    "infiniteUnavailable": "{chapter}화는 이용할 수 없습니다.",
+    "infiniteOpenChapter": "{chapter}화 열기"
   },
   "readerControls": {
     "previousChapter": "이전 화",
@@ -756,6 +761,11 @@
     "enterFullscreen": "전체 화면",
     "exitFullscreen": "전체 화면 종료",
     "commentsCount": "{count, plural, =0 {댓글} other {댓글 #개}}"
+  },
+  "readerOverlay": {
+    "page": "{page}/{pages} 페이지",
+    "chapterOf": "{current}/{total}장",
+    "dim": "어둡기 {percent}%"
   },
   "readerChapters": {
     "open": "챕터 목록 열기",
@@ -879,6 +889,25 @@
     "resetTitle": "설정을 기본값으로 재설정할까요?",
     "resetBody": "모든 리더 설정이 기본값으로 재설정됩니다. 이 작업은 되돌릴 수 없습니다.",
     "reset": "재설정",
+    "syncTitle": "동기화",
+    "syncDevice": "이 기기에서 사용할 설정",
+    "syncDeviceAuto": "자동 ({type})",
+    "syncDeviceMobile": "휴대폰 설정",
+    "syncDeviceDesktop": "데스크톱 설정",
+    "syncDeviceOff": "이 기기에서는 동기화 안 함",
+    "syncTypeMobile": "휴대폰",
+    "syncTypeDesktop": "데스크톱",
+    "syncStatusSignedOut": "로그인하면 여러 기기에서 설정을 유지할 수 있습니다.",
+    "syncStatusOff": "설정은 이 기기에만 저장됩니다.",
+    "syncStatusPending": "서버를 기다리는 중…",
+    "syncStatusSyncing": "저장 중…",
+    "syncStatusSynced": "{type} 설정과 동기화되었습니다.",
+    "syncStatusError": "동기화하지 못했습니다. 나중에 다시 시도합니다.",
+    "syncStatusNeedsChoice": "유지할 설정을 선택하세요.",
+    "syncChoiceTitle": "이 기기에서 어떤 설정을 사용할까요?",
+    "syncChoiceBody": "이 기기에는 자체 설정이 있고, 저장된 {type} 설정도 있습니다({date} 업데이트).",
+    "syncChoiceSaved": "저장된 설정 사용",
+    "syncChoiceDevice": "이 기기 설정 유지",
     "tts": "음성 읽기"
   },
   "readerSettingsPages": {
@@ -892,11 +921,44 @@
       "touch": "제스처",
       "keys": "키보드",
       "reading": "읽기",
+      "overlay": "정보 오버레이",
       "listen": "듣기",
       "voice": "음성 및 품질",
       "backup": "백업 및 초기화"
     },
     "listenSub": "음성, 속도, 강조 표시. 플레이어에서도 설정할 수 있습니다.",
+    "overlay": {
+      "enable": "정보 오버레이 표시",
+      "enableHint": "텍스트 위에 시간, 진행률 등을 보여주는 작은 막대입니다.",
+      "homeOn": "{count, plural, other {항목 #개}}",
+      "homeOff": "끔",
+      "layout": "레이아웃",
+      "position": "위치",
+      "positions": {
+        "top": "위",
+        "bottom": "아래"
+      },
+      "size": "크기",
+      "sizes": {
+        "full": "전체 너비",
+        "center": "가운데 알약",
+        "left": "왼쪽 알약",
+        "right": "오른쪽 알약"
+      },
+      "content": "내용",
+      "contentHint": "탭하여 추가하거나 제거합니다. 항목은 추가한 순서대로 표시됩니다. 배터리는 이를 지원하는 브라우저에서만 표시됩니다.",
+      "items": {
+        "time12": "시간 (12시간)",
+        "time24": "시간 (24시간)",
+        "chapterPage": "장 진행 (페이지)",
+        "chapterSlider": "장 진행 (슬라이더)",
+        "chapterPercent": "장 진행 (%)",
+        "battery": "배터리",
+        "bookPercent": "책 진행 (%)",
+        "bookChapter": "책 진행 (장)",
+        "dimness": "어둡기 (%)"
+      }
+    },
     "sheetCount": "{count, plural, other {컨트롤 #개}}",
     "textSub": "{size} px · {font} · 줄 {lines}×",
     "colorsSub": "{theme} · 야간 필터 {night}{scheduled}",
@@ -904,12 +966,11 @@
     "nightOff": "끔",
     "nightStrength": "{strength}%",
     "scheduled": " · 예약됨",
-    "touchSub": "컨트롤: {trigger} · 밀어서 어둡게: {side}",
+    "touchSummary": "탭: {tap} · 두 번 탭: {double} · 밀어서 어둡게: {side}",
     "trigger": {
       "singleTap": "한 번 탭",
       "doubleTap": "두 번 탭",
-      "longPress": "길게 누르기",
-      "off": "끔"
+      "longPress": "길게 누르기"
     },
     "dimSide": {
       "off": "끔",
@@ -956,18 +1017,12 @@
     "zoneMiddle": "가운데",
     "zoneRight": "오른쪽 가장자리",
     "dimTag": "어둡게",
-    "controlsValue": "컨트롤: {trigger}",
+    "centerValue": "탭: {single} · 두 번: {double} · 길게: {long}",
     "siteHeader": "사이트 헤더",
     "touchNote": "터치스크린(터치를 지원하는 노트북 포함)을 사용할 때 적용됩니다.",
     "chooseZone": "영역을 선택하면 그 영역의 동작을 바꿀 수 있습니다.",
     "screenZones": "화면 영역",
     "swipes": "스와이프",
-    "showControlsWith": "컨트롤 표시 방법",
-    "triggerHint": {
-      "doubleTap": "한 번 탭해도 읽기가 중단되지 않습니다",
-      "longPress": "0.5초 동안 누르기",
-      "off": "장 상단의 버튼을 사용하세요"
-    },
     "longPressWarning": "휴대폰에서는 길게 누르면 텍스트 선택도 시작됩니다. 두 동작이 텍스트에서 충돌합니다.",
     "turnOffSelection": "텍스트 선택 끄기",
     "tapThisEdge": "이 가장자리를 탭할 때",
@@ -1032,7 +1087,9 @@
     "keyD": "키보드 키 표시",
     "keyF": "키보드 키 전체 화면",
     "keyM": "키보드 키 댓글",
-    "controlsTrigger": "탭 두 번 탭 길게 누르기 누르기 도구 모음 메뉴 가운데 제스처",
+    "centerSingleTap": "탭 한 번 툴바 메뉴 컨트롤 가운데 제스처",
+    "centerDoubleTap": "두 번 탭 전체 화면 가운데 제스처",
+    "centerLongPress": "길게 누르기 툴바 컨트롤 전체 화면 가운데 제스처",
     "swipeLeftGesture": "제스처 다음 장",
     "swipeRightGesture": "제스처 이전 장",
     "edgeTap": "왼쪽 오른쪽 탭 영역 스크롤 장 제스처",
@@ -1040,6 +1097,8 @@
     "readerHeaderBehavior": "상단 바 내비게이션 바 스크롤 고정 떠다니는",
     "markReadBehavior": "진행률 읽음 자동",
     "textSelectable": "복사 선택",
+    "readingMode": "무한 연속 스크롤 다음 챕터 페이지",
+    "infiniteShowComments": "댓글 카드 챕터 끝 무한 스크롤 숨기기",
     "savePosition": "책갈피 재개 스크롤",
     "hideScrollbar": "스크롤 막대",
     "ttsPreferAudiobook": "듣기 tts 오디오북 내레이션 녹음 소스 기기",
@@ -1060,7 +1119,11 @@
     "ttsKeepScreenOn": "음성 tts 화면 켜짐 잠금 깨우기",
     "importSettings": "백업 복원 파일",
     "exportSettings": "백업 저장 파일",
-    "resetDefaults": "복원 지우기 백업"
+    "resetDefaults": "복원 지우기 백업",
+    "overlayEnabled": "오버레이 상태 표시줄 시계 정보 막대 hud",
+    "overlayPosition": "오버레이 위 아래 위치 상태 표시줄",
+    "overlaySize": "오버레이 너비 알약 전체 가운데 왼쪽 오른쪽",
+    "overlayItems": "오버레이 시간 시계 배터리 진행 페이지 퍼센트 장 책 어둡기"
   },
   "behaviorSettings": {
     "markAsReadBehavior": "읽음 표시 동작",
@@ -1070,6 +1133,13 @@
     "buttonAndAutomatic": "버튼 + 자동",
     "allowSelection": "텍스트 선택/복사 허용",
     "rememberPosition": "읽기 위치 기억",
+    "readingMode": "읽기 모드",
+    "readingModeChapter": "페이지당 한 챕터",
+    "readingModeInfinite": "무한 스크롤",
+    "readingModeChapterHint": "각 챕터가 별도의 페이지에서 열립니다. 버튼, 키 또는 제스처로 챕터를 바꾸세요.",
+    "readingModeInfiniteHint": "스크롤하면 다음 챕터가 현재 챕터 아래에 불러와집니다.",
+    "infiniteShowComments": "챕터 사이 댓글",
+    "infiniteShowCommentsHint": "각 챕터의 댓글 카드를 스크롤 중에 표시합니다. 댓글은 리더 컨트롤에서 계속 볼 수 있습니다.",
     "doNothing": "아무것도 안 함",
     "scrollUp": "위로 스크롤",
     "scrollDown": "아래로 스크롤",
@@ -1102,7 +1172,11 @@
     "swipeRight": "오른쪽으로 스와이프",
     "doNothing": "아무것도 안 함",
     "previousChapter": "이전 화",
-    "nextChapter": "다음 화"
+    "nextChapter": "다음 화",
+    "chapterList": "챕터 목록 열기",
+    "fullscreen": "전체 화면 전환",
+    "showControls": "컨트롤 표시",
+    "comments": "댓글 열기"
   },
   "keyboardSettings": {
     "enable": "키보드 단축키",
