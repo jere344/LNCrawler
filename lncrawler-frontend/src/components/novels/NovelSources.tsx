@@ -18,8 +18,8 @@ import {
   useTheme,
   Grid as Grid,
   CardMedia,
-  Pagination,
 } from '@mui/material';
+import PageNav from '@components/common/PageNav';
 import { Link } from 'react-router-dom';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import UpdateIcon from '@mui/icons-material/Update';
@@ -428,16 +428,12 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
         </Grid>
       ))}
     </Grid>
-    {sourcesPageCount > 1 && (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-        <Pagination
-          count={sourcesPageCount}
-          page={currentSourcesPage}
-          onChange={(_, value) => setSourcesPage(value)}
-          color="primary"
-        />
-      </Box>
-    )}
+    <PageNav
+      page={currentSourcesPage}
+      totalPages={sourcesPageCount}
+      onChange={setSourcesPage}
+      sx={{ mt: 3 }}
+    />
     </>
   );
 };

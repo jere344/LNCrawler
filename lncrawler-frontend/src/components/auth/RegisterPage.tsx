@@ -58,34 +58,25 @@ const RegisterPage: React.FC = () => {
     // Check username/email availability with debounce
     if (name === 'username' && value.length >= 3) {
       if (usernameDebounceTimer.current) clearTimeout(usernameDebounceTimer.current);
-      usernameDebounceTimer.current = setTimeout(() => checkUsername(value), 500);
+      usernameDebounceTimer.current = setTimeout(() => checkAvailability('username', value), 500);
     }
-    
+
     if (name === 'email' && value.includes('@')) {
       if (emailDebounceTimer.current) clearTimeout(emailDebounceTimer.current);
-      emailDebounceTimer.current = setTimeout(() => checkEmail(value), 500);
+      emailDebounceTimer.current = setTimeout(() => checkAvailability('email', value), 500);
     }
   };
-  
-  const checkUsername = async (username: string) => {
+
+  // Flags the field when the server says its username or email is already taken
+  const checkAvailability = async (field: 'username' | 'email', value: string) => {
     try {
-      const { username_exists } = await authService.checkUserExists({ username });
-      if (username_exists) {
-        setErrors(prev => ({ ...prev, username: t('auth.usernameTaken') }));
+      const response = await authService.checkUserExists({ [field]: value });
+      if (response[`${field}_exists`]) {
+        const message = field === 'username' ? t('auth.usernameTaken') : t('auth.emailRegistered');
+        setErrors(prev => ({ ...prev, [field]: message }));
       }
     } catch (error) {
-      console.error('Error checking username:', error);
-    }
-  };
-  
-  const checkEmail = async (email: string) => {
-    try {
-      const { email_exists } = await authService.checkUserExists({ email });
-      if (email_exists) {
-        setErrors(prev => ({ ...prev, email: t('auth.emailRegistered') }));
-      }
-    } catch (error) {
-      console.error('Error checking email:', error);
+      console.error(`Error checking ${field}:`, error);
     }
   };
 

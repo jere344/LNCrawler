@@ -9,27 +9,22 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
-import { useAdultContent } from '@context/AdultContentContext';
-import { AdultBadge } from '@components/common/AdultBadge';
+import { NovelCover } from '@components/common/NovelCover';
 import { formatTimeAgo, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 
 interface NovelItemCardProps {
   novel: Novel;
-  onClick?: () => void;
   rank?: number;
   isLoading?: boolean;
   to?: To;
   state?: unknown;
-  forceAdultBlur?: boolean;
   showAddedDate?: boolean;
   // Hide the cover's star rating badge (e.g. new novels with no ratings yet).
   hideRating?: boolean;
 }
 
-const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isLoading = false, to, state, forceAdultBlur = false, showAddedDate = false, hideRating = false }) => {
+const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, isLoading = false, to, state, showAddedDate = false, hideRating = false }) => {
   const { t } = useTranslation();
-  const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(novel.is_adult, novel.id, forceAdultBlur);
   const displaySource = novel.reading_source ?? novel.prefered_source;
   if (isLoading) {
     return (
@@ -69,8 +64,7 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
       customSx={{ position: 'absolute', bottom: 8, right: 8, zIndex: 2 }}
       buttonSize={28}
     />
-    <ButtonBase 
-      onClick={onClick}
+    <ButtonBase
       component={to ? Link : 'button'}
       to={to}
       state={to ? state : undefined}
@@ -95,42 +89,35 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, onClick, isL
           mx: 'auto'
         }}
       >
-        <Box
-          component="img"
+        <NovelCover
           src={novelCoverUrl(displaySource)}
           alt={getNovelDisplayTitle(novel)}
-          onClick={blurred ? revealHandler(novel.id) : undefined}
-          sx={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            cursor: blurred ? 'pointer' : undefined,
-            filter: blurred ? 'blur(16px)' : 'none',
-          }}
-          
-        />
-        <AdultBadge isAdult={novel.is_adult} novelId={novel.id} forceAdult={forceAdultBlur} />
-        {!hideRating && (
-        <Badge 
-          sx={{
-            position: 'absolute',
-            bottom: 4,
-            left: 4,
-            background: 'rgba(0,0,0,0.7)',
-            color: 'white',
-            borderRadius: '3px',
-            padding: '0 4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.3,
-          }}
+          novelId={novel.id}
+          isAdult={novel.is_adult}
+          sx={{ width: '100%', height: '100%' }}
         >
-          <StarIcon sx={{ fontSize: 14 }} />
-          <Typography variant="caption">
-            {novel.avg_rating ? novel.avg_rating.toFixed(1) : '-'}
-          </Typography>
-        </Badge>
-        )}
+          {!hideRating && (
+          <Badge
+            sx={{
+              position: 'absolute',
+              bottom: 4,
+              left: 4,
+              background: 'rgba(0,0,0,0.7)',
+              color: 'white',
+              borderRadius: '3px',
+              padding: '0 4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.3,
+            }}
+          >
+            <StarIcon sx={{ fontSize: 14 }} />
+            <Typography variant="caption">
+              {novel.avg_rating ? novel.avg_rating.toFixed(1) : '-'}
+            </Typography>
+          </Badge>
+          )}
+        </NovelCover>
       </Card>
       
       <Box sx={{ px: 0.5, width: '100%' }}>

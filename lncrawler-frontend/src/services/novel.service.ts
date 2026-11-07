@@ -71,35 +71,24 @@ export const novelService = {
     sort_order?: 'asc' | 'desc';
     adult?: 'hide' | 'show' | 'only';
   }) => {
-    // Build query string
-    const queryParams = new URLSearchParams();
-    
-    if (params.query) queryParams.append('query', params.query);
-    if (params.page) queryParams.append('page', params.page.toString());
-    if (params.page_size) queryParams.append('page_size', params.page_size.toString());
-    if (params.status) queryParams.append('status', params.status);
-    if (params.language) queryParams.append('language', params.language);
-    if (params.languages && params.languages.length) {
-      params.languages.forEach(language => queryParams.append('languages', language));
-    }
-    if (params.min_rating) queryParams.append('min_rating', params.min_rating.toString());
-    if (params.sort_by) queryParams.append('sort_by', params.sort_by);
-    if (params.sort_order) queryParams.append('sort_order', params.sort_order);
-    if (params.adult) queryParams.append('adult', params.adult);
-    
-    if (params.tag && params.tag.length) {
-      params.tag.forEach(tag => queryParams.append('tag', tag));
-    }
-    
-    if (params.exclude_tag && params.exclude_tag.length) {
-      params.exclude_tag.forEach(tag => queryParams.append('exclude_tag', tag));
-    }
-    
-    if (params.author && params.author.length) {
-      params.author.forEach(author => queryParams.append('author', author));
-    }
-    
-    const response = await api.get(`/novels/search/?${queryParams}`);
+    // Empty strings and 0 are left out, as before; empty arrays add nothing.
+    const response = await api.get('/novels/search/', {
+      params: {
+        query: params.query || undefined,
+        page: params.page || undefined,
+        page_size: params.page_size || undefined,
+        status: params.status || undefined,
+        language: params.language || undefined,
+        languages: params.languages,
+        min_rating: params.min_rating || undefined,
+        sort_by: params.sort_by || undefined,
+        sort_order: params.sort_order || undefined,
+        adult: params.adult || undefined,
+        tag: params.tag,
+        exclude_tag: params.exclude_tag,
+        author: params.author,
+      },
+    });
     return response.data;
   },
 
@@ -119,10 +108,7 @@ export const novelService = {
   // `languages` filters every section to those content languages; when the
   // list is empty no language parameter is sent and the sections stay global.
   getHomePageData: async (languages: string[] = []) => {
-    const queryParams = new URLSearchParams();
-    languages.forEach((language) => queryParams.append('languages', language));
-    const suffix = queryParams.toString() ? `?${queryParams}` : '';
-    const response = await api.get(`/novels/home/${suffix}`);
+    const response = await api.get('/novels/home/', { params: { languages } });
     return response.data;
   },
 

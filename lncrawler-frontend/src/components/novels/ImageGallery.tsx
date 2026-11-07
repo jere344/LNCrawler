@@ -10,7 +10,6 @@ import {
   Button,
   ImageList,
   ImageListItem,
-  Pagination,
   Dialog,
   IconButton,
   useTheme,
@@ -29,6 +28,7 @@ import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
 import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
+import PageNav from '@components/common/PageNav';
 import type { AsyncData, GalleryLoaderData, GalleryImage } from '../../router/loaders';
 
 type ImageWithDimensions = GalleryImage & { width?: number; height?: number };
@@ -56,7 +56,7 @@ const ImageGallery = () => {
     setDimensions({});
   }, [novelSlug, sourceSlug, page]);
 
-  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
+  const handlePageChange = (value: number) => {
     setParams({ page: String(value) });
   };
 
@@ -303,17 +303,15 @@ const ImageGallery = () => {
           )}
         </Box>
         
-        {gallery && gallery.total_pages > 1 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-            <Pagination
-              count={gallery.total_pages}
-              page={page}
-              onChange={handlePageChange}
-              color="primary"
-              size={isMobile ? "small" : "medium"}
-              siblingCount={isMobile ? 0 : 1}
-            />
-          </Box>
+        {gallery && (
+          <PageNav
+            page={page}
+            totalPages={gallery.total_pages}
+            onChange={handlePageChange}
+            size={isMobile ? 'small' : 'medium'}
+            siblingCount={isMobile ? 0 : 1}
+            sx={{ mt: 4 }}
+          />
         )}
       </Paper>
 

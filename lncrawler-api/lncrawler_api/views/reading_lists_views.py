@@ -57,6 +57,20 @@ def _reading_lists_query_set(user=None, full=True):
     )
 
 
+def _load_list_for_role(request, list_id, roles, message, queryset=None):
+    """
+    The reading list and the viewer's role on it, or a 403 response with
+    ``message`` when that role is not one of ``roles``.
+    """
+    if queryset is None:
+        queryset = ReadingList.objects.all()
+    reading_list = get_object_or_404(queryset, id=list_id)
+    role = get_reading_list_role(reading_list, request.user)
+    if role not in roles:
+        return _forbidden(message)
+    return reading_list, role
+
+
 @api_view(["GET"])
 def list_all_reading_lists(request):
     """
@@ -124,11 +138,13 @@ def update_reading_list(request, list_id):
     Update a reading list's title and description. Editors and the owner can
     edit metadata; only the owner can change visibility.
     """
-    reading_list = get_object_or_404(ReadingList, id=list_id)
-    role = get_reading_list_role(reading_list, request.user)
-
-    if role not in ('owner', 'editor'):
-        return _forbidden("You do not have permission to edit this reading list.")
+    loaded = _load_list_for_role(
+        request, list_id, ('owner', 'editor'),
+        "You do not have permission to edit this reading list.",
+    )
+    if isinstance(loaded, Response):
+        return loaded
+    reading_list, role = loaded
 
     if 'is_public' in request.data and role != 'owner':
         return _forbidden("Only the owner can change a list's visibility.")
@@ -151,10 +167,13 @@ def delete_reading_list(request, list_id):
     """
     Delete a reading list. Only the creator can delete the list.
     """
-    reading_list = get_object_or_404(ReadingList, id=list_id)
-
-    if get_reading_list_role(reading_list, request.user) != 'owner':
-        return _forbidden("You do not have permission to delete this reading list.")
+    loaded = _load_list_for_role(
+        request, list_id, ('owner',),
+        "You do not have permission to delete this reading list.",
+    )
+    if isinstance(loaded, Response):
+        return loaded
+    reading_list, _ = loaded
 
     reading_list.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
@@ -169,12 +188,14 @@ def add_novel_to_list(request, list_id):
     # Lock the list row so concurrent adds serialize and can't pick the same
     # next position (a plain max+1 outside a transaction races).
     with transaction.atomic():
-        reading_list = get_object_or_404(
-            ReadingList.objects.select_for_update(), id=list_id
+        loaded = _load_list_for_role(
+            request, list_id, ('owner', 'editor'),
+            "You do not have permission to modify this reading list.",
+            queryset=ReadingList.objects.select_for_update(),
         )
-
-        if get_reading_list_role(reading_list, request.user) not in ('owner', 'editor'):
-            return _forbidden("You do not have permission to modify this reading list.")
+        if isinstance(loaded, Response):
+            return loaded
+        reading_list, _ = loaded
 
         # Find the highest position and increment by 1 for new item
         highest_position = ReadingListItem.objects.filter(reading_list=reading_list).order_by('-position').first()
@@ -277,10 +298,13 @@ def reorder_list_items(request, list_id):
     Reorder items in a reading list.
     Expects a list of {id: uuid, position: number} objects.
     """
-    reading_list = get_object_or_404(ReadingList, id=list_id)
-
-    if get_reading_list_role(reading_list, request.user) not in ('owner', 'editor'):
-        return _forbidden("You do not have permission to modify this reading list.")
+    loaded = _load_list_for_role(
+        request, list_id, ('owner', 'editor'),
+        "You do not have permission to modify this reading list.",
+    )
+    if isinstance(loaded, Response):
+        return loaded
+    reading_list, _ = loaded
 
     # Validate request data format
     if not isinstance(request.data, list):
@@ -402,10 +426,12 @@ def collaborator_detail(request, list_id, collaborator_id):
     """
     Change a collaborator's role or remove them. Owner only.
     """
-    reading_list = get_object_or_404(ReadingList, id=list_id)
-
-    if get_reading_list_role(reading_list, request.user) != 'owner':
-        return _forbidden("Only the owner can manage collaborators.")
+    loaded = _load_list_for_role(
+        request, list_id, ('owner',), "Only the owner can manage collaborators.",
+    )
+    if isinstance(loaded, Response):
+        return loaded
+    reading_list, _ = loaded
 
     collaborator = get_object_or_404(
         ReadingListCollaborator, id=collaborator_id, reading_list=reading_list

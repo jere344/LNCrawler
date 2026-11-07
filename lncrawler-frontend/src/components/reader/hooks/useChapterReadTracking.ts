@@ -101,6 +101,21 @@ export function useChapterReadTracking({
     setMarked(next);
   };
 
+  // One "mark as read" request: the chapter is in flight until it settles, and counts as read once it succeeds
+  const sendMarkRead = async (novel: string, source: string, n: number, failureMessage: string): Promise<boolean> => {
+    startMarking(n, scope);
+    try {
+      await userService.markChapterAsRead(novel, source, n);
+      addMarked(n, scope);
+      return true;
+    } catch (error) {
+      console.error(failureMessage, error);
+      return false;
+    } finally {
+      finishMarking(n, scope);
+    }
+  };
+
   // Automatic marking runs for signed-in users when the setting says so
   const isAutoMarkEnabled = isAuthenticated &&
     (markReadBehavior === 'automatic' || markReadBehavior === 'buttonAutomatic');
@@ -141,18 +156,9 @@ export function useChapterReadTracking({
 
       // Stay subscribed until the request succeeds, so a failure retries on the
       // next scroll
-      startMarking(number, scope);
-      userService.markChapterAsRead(novelSlug, sourceSlug, number)
-        .then(() => {
-          addMarked(number, scope);
-          stop();
-        })
-        .catch((error) => {
-          console.error('Error automatically marking chapter as read:', error);
-        })
-        .finally(() => {
-          finishMarking(number, scope);
-        });
+      void sendMarkRead(novelSlug, sourceSlug, number, 'Error automatically marking chapter as read:').then((marked) => {
+        if (marked) stop();
+      });
     };
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) checkEndReached();
@@ -170,16 +176,7 @@ export function useChapterReadTracking({
         novelSlug &&
         sourceSlug &&
         !isBusy(parseInt(chapterNumber))) {
-      const number = parseInt(chapterNumber);
-      startMarking(number, scope);
-      try {
-        await userService.markChapterAsRead(novelSlug, sourceSlug, number);
-        addMarked(number, scope);
-      } catch (error) {
-        console.error('Error automatically marking chapter as read:', error);
-      } finally {
-        finishMarking(number, scope);
-      }
+      await sendMarkRead(novelSlug, sourceSlug, parseInt(chapterNumber), 'Error automatically marking chapter as read:');
     }
   };
 
@@ -187,15 +184,8 @@ export function useChapterReadTracking({
   const markChapter = async (n: number) => {
     if (!novelSlug || !sourceSlug || !isAuthenticated || isBusy(n)) return;
 
-    startMarking(n, scope);
-    try {
-      await userService.markChapterAsRead(novelSlug, sourceSlug, n);
-      addMarked(n, scope);
+    if (await sendMarkRead(novelSlug, sourceSlug, n, 'Error marking chapter as read:')) {
       notify({ message: t('reader.markedRead'), severity: 'success', duration: 3000 });
-    } catch (error) {
-      console.error('Error marking chapter as read:', error);
-    } finally {
-      finishMarking(n, scope);
     }
   };
 

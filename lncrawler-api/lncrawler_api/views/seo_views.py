@@ -135,6 +135,25 @@ def _gone(request, status, message):
     return HttpResponse(body, status=status, content_type="text/html; charset=utf-8")
 
 
+def _load_page(request, novel_slug, source_slug=None, source_queryset=None):
+    """The novel behind a page, and its source when source_slug is given.
+
+    Returns (novel, source), with source None for novel pages, or an error
+    response: 451 for a DMCA work, 404 for a missing or adult source.
+    """
+    novel = resolve_novel_slug(novel_slug)
+    if novel.is_dmca:
+        return _gone(request, 451, "This work is unavailable due to a DMCA request.")
+    if source_slug is None:
+        return novel, None
+    if source_queryset is None:
+        source_queryset = NovelFromSource.objects.select_related("novel", "external_source")
+    source = get_object_or_404(source_queryset.filter(novel=novel), source_slug=source_slug)
+    if _is_adult_novel(novel):
+        raise Http404("Source not available")
+    return novel, source
+
+
 def seo_home(request):
     novels = (
         public_novels(Novel.objects.all())
@@ -178,9 +197,10 @@ def seo_home(request):
 
 
 def seo_novel(request, novel_slug):
-    novel = resolve_novel_slug(novel_slug)
-    if novel.is_dmca:
-        return _gone(request, 451, "This work is unavailable due to a DMCA request.")
+    loaded = _load_page(request, novel_slug)
+    if isinstance(loaded, HttpResponse):
+        return loaded
+    novel, _ = loaded
 
     sources = list(
         novel.sources.select_related("external_source")
@@ -292,17 +312,14 @@ def seo_novel(request, novel_slug):
 
 
 def seo_source(request, novel_slug, source_slug):
-    novel = resolve_novel_slug(novel_slug)
-    if novel.is_dmca:
-        return _gone(request, 451, "This work is unavailable due to a DMCA request.")
-    source = get_object_or_404(
-        NovelFromSource.objects.select_related("novel", "external_source")
-        .prefetch_related("authors", "tags", "alternative_titles")
-        .filter(novel=novel),
-        source_slug=source_slug,
+    loaded = _load_page(
+        request, novel_slug, source_slug,
+        source_queryset=NovelFromSource.objects.select_related("novel", "external_source")
+        .prefetch_related("authors", "tags", "alternative_titles"),
     )
-    if _is_adult_novel(novel):
-        raise Http404("Source not available")
+    if isinstance(loaded, HttpResponse):
+        return loaded
+    novel, source = loaded
 
     synopsis = _clean_text(source.synopsis, 320)
     source_name = source.external_source.source_name
@@ -398,17 +415,10 @@ def seo_source(request, novel_slug, source_slug):
 
 
 def seo_chapterlist(request, novel_slug, source_slug):
-    novel = resolve_novel_slug(novel_slug)
-    if novel.is_dmca:
-        return _gone(request, 451, "This work is unavailable due to a DMCA request.")
-    source = get_object_or_404(
-        NovelFromSource.objects.select_related("novel", "external_source").filter(
-            novel=novel
-        ),
-        source_slug=source_slug,
-    )
-    if _is_adult_novel(novel):
-        raise Http404("Source not available")
+    loaded = _load_page(request, novel_slug, source_slug)
+    if isinstance(loaded, HttpResponse):
+        return loaded
+    novel, source = loaded
 
     chapters = (
         source.chapters.only("chapter_id", "title", "has_content").order_by("chapter_id")
@@ -466,17 +476,10 @@ def seo_chapterlist(request, novel_slug, source_slug):
 
 
 def seo_chapter(request, novel_slug, source_slug, chapter_number):
-    novel = resolve_novel_slug(novel_slug)
-    if novel.is_dmca:
-        return _gone(request, 451, "This work is unavailable due to a DMCA request.")
-    source = get_object_or_404(
-        NovelFromSource.objects.select_related("novel", "external_source").filter(
-            novel=novel
-        ),
-        source_slug=source_slug,
-    )
-    if _is_adult_novel(novel):
-        raise Http404("Source not available")
+    loaded = _load_page(request, novel_slug, source_slug)
+    if isinstance(loaded, HttpResponse):
+        return loaded
+    novel, source = loaded
     chapter = get_object_or_404(source.chapters, chapter_id=chapter_number)
     if not chapter.has_content:
         raise Http404("Chapter content not available")
@@ -602,9 +605,10 @@ def seo_audiobooks(request):
 
 
 def seo_audiobook(request, novel_slug):
-    novel = resolve_novel_slug(novel_slug)
-    if novel.is_dmca:
-        return _gone(request, 451, "This work is unavailable due to a DMCA request.")
+    loaded = _load_page(request, novel_slug)
+    if isinstance(loaded, HttpResponse):
+        return loaded
+    novel, _ = loaded
     audiobook = get_visible_audiobook_or_404(
         None, novel_slug, request.GET.get("lang", "en"), adult='exclude'
     )

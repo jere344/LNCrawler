@@ -1,28 +1,23 @@
 import React, { useState } from 'react';
 import { 
-  Card, CardActionArea, CardMedia, CardContent, 
+  Card, CardActionArea, CardContent,
   Typography, Box, Rating, Skeleton, Tooltip,
   Grid as Grid
 } from '@mui/material';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
 import { Novel } from '@models/novels_types';
-import { formatCount, getChapterName, languageFlagUrl, languageCodeToName, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
+import { formatCount, getChapterName, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
-import { useAdultContent } from '@context/AdultContentContext';
-import { AdultBadge } from '@components/common/AdultBadge';
-import { DmcaBadge } from '@components/common/DmcaBadge';
-import { AudiobookBadge } from '@components/audiobooks/AudiobookBadge';
+import { NovelCover } from '@components/common/NovelCover';
+import { NovelLanguageFlags } from '@components/common/NovelLanguageFlags';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
-import MarkAsReadButton from '@components/common/MarkAsReadButton';
+import MarkAsReadButton, { getUnreadChapterCount } from '@components/common/MarkAsReadButton';
 import CompactAddToListButton from '@components/readinglist/CompactAddToListButton';
 import NovelStatsChips from './NovelStatsChips';
 import { useTranslation } from 'react-i18next';
-
-const FLAG_WIDTH = 30
-const MAX_FLAGS_PER_ROW = 10
 
 export interface BaseNovelCardProps {
   novel: Novel;
@@ -41,26 +36,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
 }) => {
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
-  const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(novel.is_adult, novel.id);
   const { t } = useTranslation();
-  const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => {
-    if (novel.reading_history) {
-      // Only chapters with content count (backend supplies the count), so
-      // gaps left by failed downloads don't inflate the badge.
-      const unread = novel.reading_history.unread_chapters;
-      if (unread === undefined || unread === null) {
-        return null;
-      }
-      return unread > 0 ? unread : null;
-    }
-    else if (novel.is_bookmarked && novel.prefered_source) {
-      const available = novel.prefered_source.available_chapters_count
-        ?? novel.prefered_source.latest_available_chapter?.chapter_id;
-      return available && available > 0 ? available : null;
-    }
-    return null;
-  });
+  const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => getUnreadChapterCount(novel));
   
   const unreadChapters = localUnreadChapters;
 
@@ -129,14 +106,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
     zIndex: 10
   };
 
-  const flagRows = novel.languages.length > MAX_FLAGS_PER_ROW
-    ? [
-        novel.languages.slice(0, Math.ceil(novel.languages.length / 2)),
-        novel.languages.slice(Math.ceil(novel.languages.length / 2)),
-      ]
-    : [novel.languages];
-  const maxFlagsInRow = Math.max(1, ...flagRows.map((row) => row.length));
-
   return (
     <Card 
       sx={{ 
@@ -202,92 +171,18 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
         state={to ? state : undefined}
       >
         <Box sx={{ position: 'relative', paddingTop: '150%' }}>
-          <CardMedia
-            component="img"
-            image={novelCoverUrl(preferredSource)}
+          <NovelCover
+            src={novelCoverUrl(preferredSource)}
             alt={getNovelDisplayTitle(novel)}
-            onClick={blurred ? revealHandler(novel.id) : undefined}
-            sx={{ 
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              opacity: novel.is_dmca ? 0.55 : 1,
-              cursor: blurred ? 'pointer' : undefined,
-              filter: [
-                novel.is_dmca ? 'grayscale(100%)' : null,
-                blurred ? 'blur(16px)' : null,
-              ].filter(Boolean).join(' ') || 'none',
-            }}
-          />
-          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
-          {novel.is_dmca && <DmcaBadge bottom={8} />}
-          {novel.has_audiobook && <AudiobookBadge />}
-          {/* Language flags */}
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              display: 'flex',
-              justifyContent: 'flex-end',
-              pointerEvents: 'none',
-            }}
+            novelId={novel.id}
+            isAdult={novel.is_adult}
+            isDmca={novel.is_dmca}
+            hasAudiobook={novel.has_audiobook}
+            sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
           >
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                width: `min(100%, ${FLAG_WIDTH * maxFlagsInRow}px)`,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
-                border: '1px solid rgb(0, 0, 0)',
-                borderRadius: 1,
-                pointerEvents: 'auto',
-              }}
-            >
-              {novel.languages.length > 0 ? (
-                flagRows.map((row, rowIndex) => (
-                  <Box key={rowIndex} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    {row.map((lang, index) => (
-                      <Tooltip key={lang} title={languageCodeToName(t, lang)}>
-                        <img
-                          src={languageFlagUrl(lang)}
-                          alt={languageCodeToName(t, lang)}
-                          style={{
-                            display: 'block',
-                            flexShrink: 0,
-                            width: `${FLAG_WIDTH}px`,
-                            height: '20px',
-                            objectFit: 'cover',
-                            borderRadius: '2px',
-                            marginLeft: index === 0
-                              ? 0
-                              : `calc(-1 * max(0px, (${FLAG_WIDTH}px * ${row.length} - 100%) / ${row.length - 1}))`,
-                          }}
-                        />
-                      </Tooltip>
-                    ))}
-                  </Box>
-                ))
-              ) : (
-                <Tooltip title={t('cards.unknownLanguage')}>
-                  <Typography
-                    sx={{
-                      fontSize: '0.8rem', // Adjusted size for consistency
-                      color: '#fff',
-                      fontWeight: 'bold',
-                      lineHeight: 1, // Ensure '?' is vertically centered if it's taller
-                    }}
-                  >
-                    ?
-                  </Typography>
-                </Tooltip>
-              )}
-            </Box>
-          </Box>
+            {/* Language flags */}
+            <NovelLanguageFlags languages={novel.languages} />
+          </NovelCover>
         </Box>
         <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', pt: 1.5, pb: 1 }}>
           <Typography 

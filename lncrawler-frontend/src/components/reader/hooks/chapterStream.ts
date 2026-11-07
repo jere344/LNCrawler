@@ -1,4 +1,5 @@
-import type { ChapterContent, UnavailableChapterInfo } from '@models/novels_types';
+import type { ChapterContent } from '@models/novels_types';
+import { isChapterOfNovel, withCommentAdded } from './chapterComments';
 import { sectionKeyOf } from './chapterRange';
 
 // Most chapter sections kept on the page at once in infinite mode
@@ -12,7 +13,6 @@ export interface ChapterStreamState {
   end: StreamEnd | null;
   // The chapter the stream stopped at: the gap's or the unavailable chapter's number
   endChapter: number | null;
-  unavailable: UnavailableChapterInfo | null;
   // The loader's load the list started from: a new load of the route starts a new list
   loadId: number;
 }
@@ -21,7 +21,7 @@ export type ChapterStreamAction =
   | { type: 'reset'; anchor: ChapterContent; loadId: number }
   | { type: 'loadStart' }
   | { type: 'append'; chapter: ChapterContent }
-  | { type: 'end'; reason: StreamEnd; chapter?: number | null; unavailable?: UnavailableChapterInfo | null }
+  | { type: 'end'; reason: StreamEnd; chapter?: number | null }
   | { type: 'retry' }
   | { type: 'cancel' }
   | { type: 'trimTop'; count: number }
@@ -32,7 +32,6 @@ export const initialStreamState: ChapterStreamState = {
   loading: false,
   end: null,
   endChapter: null,
-  unavailable: null,
   loadId: -1,
 };
 
@@ -42,7 +41,7 @@ const isSameChapter = (a: ChapterContent, b: ChapterContent): boolean =>
 export function chapterStreamReducer(state: ChapterStreamState, action: ChapterStreamAction): ChapterStreamState {
   switch (action.type) {
     case 'reset':
-      return { chapters: [action.anchor], loading: false, end: null, endChapter: null, unavailable: null, loadId: action.loadId };
+      return { chapters: [action.anchor], loading: false, end: null, endChapter: null, loadId: action.loadId };
     case 'loadStart':
       return state.loading || state.end ? state : { ...state, loading: true };
     case 'append': {
@@ -55,14 +54,13 @@ export function chapterStreamReducer(state: ChapterStreamState, action: ChapterS
     }
     case 'end': {
       const endChapter = action.chapter ?? null;
-      const unavailable = action.unavailable ?? null;
-      if (!state.loading && state.end === action.reason && state.endChapter === endChapter && state.unavailable === unavailable) {
+      if (!state.loading && state.end === action.reason && state.endChapter === endChapter) {
         return state;
       }
-      return { ...state, loading: false, end: action.reason, endChapter, unavailable };
+      return { ...state, loading: false, end: action.reason, endChapter };
     }
     case 'retry':
-      return state.end === 'error' ? { ...state, end: null, endChapter: null, unavailable: null } : state;
+      return state.end === 'error' ? { ...state, end: null, endChapter: null } : state;
     // The stream was turned off mid-fetch: the dropped result must not leave it loading
     case 'cancel':
       return state.loading ? { ...state, loading: false } : state;
@@ -72,14 +70,11 @@ export function chapterStreamReducer(state: ChapterStreamState, action: ChapterS
     }
     // A comment posted to a chapter of this novel: every section of it on the page counts it
     case 'bumpComment': {
-      const matches = (chapter: ChapterContent): boolean =>
-        chapter.novel_slug === action.novelSlug && chapter.chapter_id === action.chapterNumber;
+      const matches = (chapter: ChapterContent): boolean => isChapterOfNovel(chapter, action.novelSlug, action.chapterNumber);
       if (!state.chapters.some(matches)) return state;
       return {
         ...state,
-        chapters: state.chapters.map((chapter) => (matches(chapter)
-          ? { ...chapter, comment_count: (chapter.comment_count ?? 0) + 1 }
-          : chapter)),
+        chapters: state.chapters.map((chapter) => (matches(chapter) ? withCommentAdded(chapter) : chapter)),
       };
     }
   }

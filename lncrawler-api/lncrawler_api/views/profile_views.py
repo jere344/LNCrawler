@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -59,7 +59,6 @@ def _comment_title_prefetches(viewer):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
 def user_public_profile(request, username):
     """Public profile header for a user (bio, banner, socials, pinned novels,
     plus stats/genres/recent reads when visibility allows)."""
@@ -69,7 +68,6 @@ def user_public_profile(request, username):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
 def user_library(request, username):
     owner = _target(username)
     viewer = request.user
@@ -84,7 +82,6 @@ def user_library(request, username):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
 def user_reviews(request, username):
     owner = _target(username)
     if not can_view(request.user, owner, 'reviews'):
@@ -100,7 +97,6 @@ def user_reviews(request, username):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
 def user_comments(request, username):
     owner = _target(username)
     if not can_view(request.user, owner, 'comments'):
@@ -122,7 +118,6 @@ def user_comments(request, username):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
 def user_reading_lists(request, username):
     owner = _target(username)
     viewer = request.user
@@ -137,7 +132,6 @@ def user_reading_lists(request, username):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
 def user_friends(request, username):
     owner = _target(username)
     if not can_view(request.user, owner, 'friends'):

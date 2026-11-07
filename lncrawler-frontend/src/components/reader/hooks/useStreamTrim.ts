@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { ChapterContent } from '@models/novels_types';
-import { sectionKeyOf } from './chapterRange';
+import { sectionElement, sectionKeyOf } from './chapterRange';
 import { MAX_STREAM_CHAPTERS, trimCount } from './chapterStream';
 
 // A section measured before a trim, and where its text sat on screen
@@ -8,9 +8,6 @@ interface PendingTrim {
   key: string;
   top: number;
 }
-
-const sectionElement = (key: string) =>
-  document.querySelector<HTMLElement>(`[data-chapter-key="${CSS.escape(key)}"]`);
 
 // Keeps the infinite-scroll page to its last chapters, and holds the text on screen when sections above it go
 export function useStreamTrim(

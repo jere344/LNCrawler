@@ -9,8 +9,6 @@ import {
   useMediaQuery,
   IconButton,
   Chip,
-  Switch,
-  FormControlLabel,
   Autocomplete,
   Select,
   MenuItem,
@@ -51,8 +49,9 @@ import ShareIcon from '@mui/icons-material/Share';
 import LockIcon from '@mui/icons-material/Lock';
 import PublicIcon from '@mui/icons-material/Public';
 import GroupIcon from '@mui/icons-material/Group';
-import ReadingListCard from '@components/common/novelcardtypes/ReadingListItemCard';
+import ReadingListNovelCard from '@components/common/novelcardtypes/ReadingListItemCard';
 import ConfirmDialog from '@components/common/ConfirmDialog';
+import ReadingListFormDialog from '@components/common/ReadingListFormDialog';
 import { formatTimeAgo, getNovelSourceLink } from '@utils/Misc';
 import { useTranslation } from 'react-i18next';
 import { ReadingListCollaborator } from '@models/readinglist_types';
@@ -128,7 +127,7 @@ const SortableNovelItem = ({ item, canEdit, onEditNote, onRemoveItem }: {
         minWidth: 0,
         overflow: 'hidden'
       }}>
-        <ReadingListCard 
+        <ReadingListNovelCard
           novel={item.novel} 
           {...getNovelSourceLink(item.novel)} 
           note={item.note}
@@ -573,63 +572,21 @@ const ReadingListDetail = () => {
       )}
 
       {/* Edit List Dialog */}
-      <Dialog 
-        open={editDialogOpen} 
+      <ReadingListFormDialog
+        open={editDialogOpen}
+        heading={t('readingLists.editTitle')}
+        submitLabel={t('common.save')}
+        idPrefix="edit-"
+        title={editTitle}
+        description={editDescription}
+        isPublic={editIsPublic}
+        showVisibility={isOwner()}
+        onTitleChange={setEditTitle}
+        onDescriptionChange={setEditDescription}
+        onIsPublicChange={setEditIsPublic}
+        onSubmit={handleUpdateList}
         onClose={() => setEditDialogOpen(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>{t('readingLists.editTitle')}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            id="edit-title"
-            label={t('readingLists.listTitle')}
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            required
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            id="edit-description"
-            label={t('readingLists.descriptionOptional')}
-            type="text"
-            fullWidth
-            variant="outlined"
-            multiline
-            rows={4}
-            value={editDescription}
-            onChange={(e) => setEditDescription(e.target.value)}
-          />
-          {isOwner() && (
-            <FormControlLabel
-              sx={{ mt: 1 }}
-              control={
-                <Switch
-                  checked={editIsPublic}
-                  onChange={(e) => setEditIsPublic(e.target.checked)}
-                />
-              }
-              label={editIsPublic ? t('readingLists.public') : t('readingLists.private')}
-            />
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setEditDialogOpen(false)}>{t('common.cancel')}</Button>
-          <Button 
-            onClick={handleUpdateList} 
-            variant="contained"
-            disabled={!editTitle.trim()}
-          >
-            {t('common.save')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
 
       {/* Delete List Confirmation Dialog */}
       <ConfirmDialog

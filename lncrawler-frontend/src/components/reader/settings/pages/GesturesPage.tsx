@@ -179,7 +179,6 @@ const GesturesPage = ({ initialZone = 'middle' }: GesturesPageProps) => {
             min={5}
             max={bandMax}
             format={(value) => `${value}%`}
-            label={t('readerSettingsPages.bandWidth')}
           />
         )}
       </>

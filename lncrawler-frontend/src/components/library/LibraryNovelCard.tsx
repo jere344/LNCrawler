@@ -36,6 +36,7 @@ import { DmcaBadge } from '@components/common/DmcaBadge';
 import MarkAsReadConfirmDialog from '@components/common/MarkAsReadConfirmDialog';
 import {
   getMarkAsReadTarget,
+  getUnreadChapterCount,
   hasUnreadChapters,
 } from '@components/common/MarkAsReadButton';
 import { userService } from '@services/user.service';
@@ -74,21 +75,7 @@ interface DndHandle {
 }
 
 const CoverOverlays: React.FC<{ novel: Novel }> = ({ novel }) => {
-  const unread = useMemo(() => {
-    if (novel.reading_history) {
-      // Only chapters with content count (backend supplies the count), so
-      // gaps left by failed downloads don't inflate the badge.
-      const unread = novel.reading_history.unread_chapters;
-      if (unread === undefined || unread === null) return null;
-      return unread > 0 ? unread : null;
-    }
-    if (novel.is_bookmarked && novel.prefered_source) {
-      const available = novel.prefered_source.available_chapters_count
-        ?? novel.prefered_source.latest_available_chapter?.chapter_id;
-      return available && available > 0 ? available : null;
-    }
-    return null;
-  }, [novel]);
+  const unread = useMemo(() => getUnreadChapterCount(novel), [novel]);
 
   return (
     <>

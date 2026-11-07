@@ -2,30 +2,21 @@ import React from 'react';
 import { Box } from '@mui/material';
 import type { CenterAction } from '../readerSettingsSchema';
 import type { ReaderTapProps } from '../hooks/useReaderTapInput';
-import ReaderTintOverlays from './ReaderTintOverlays';
+import ReaderTintOverlays, { type ReaderTintSettings } from './ReaderTintOverlays';
 
 interface ReaderViewportProps {
   children: React.ReactNode;
   centerLongPress: CenterAction;
   tapProps: ReaderTapProps;
-  dimLevel?: number;
-  nightMode?: boolean;
-  nightModeStrength?: number;
-  nightModeScheduleEnabled?: boolean;
-  nightModeStartTime?: string;
-  nightModeEndTime?: string;
+  // Dimming and night mode, drawn over the viewport
+  settings: ReaderTintSettings;
 }
 
 const ReaderViewport = ({
   children,
   centerLongPress,
   tapProps,
-  dimLevel = 0,
-  nightMode = false,
-  nightModeStrength = 50,
-  nightModeScheduleEnabled = false,
-  nightModeStartTime = '20:00',
-  nightModeEndTime = '06:00',
+  settings,
 }: ReaderViewportProps) => {
   return (
     <Box
@@ -38,14 +29,7 @@ const ReaderViewport = ({
         WebkitTouchCallout: centerLongPress !== 'none' ? 'none' : undefined,
       }}
     >
-      <ReaderTintOverlays
-        dimLevel={dimLevel}
-        nightMode={nightMode}
-        nightModeStrength={nightModeStrength}
-        nightModeScheduleEnabled={nightModeScheduleEnabled}
-        nightModeStartTime={nightModeStartTime}
-        nightModeEndTime={nightModeEndTime}
-      />
+      <ReaderTintOverlays settings={settings} />
 
       {children}
     </Box>

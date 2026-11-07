@@ -9,7 +9,7 @@ interface AdultContentContextType {
     blurCovers: boolean;
     isRevealed: (id?: string) => boolean;
     reveal: (id?: string) => void;
-    isBlurred: (isAdult?: boolean, id?: string, forceAdult?: boolean) => boolean;
+    isBlurred: (isAdult?: boolean, id?: string) => boolean;
     // Attach to a blurred cover/badge so clicking it reveals that cover.
     revealHandler: (id?: string) => (event: React.MouseEvent) => void;
 }
@@ -40,12 +40,9 @@ export const AdultContentProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setRevealed((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
     }, []);
 
-    // `forceAdult` blurs adult covers even in 'no' mode (used by sections that
-    // show the viewer's own content regardless of the adult preference).
     const isBlurred = useCallback(
-        (isAdult?: boolean, id?: string, forceAdult = false) =>
-            (blurCovers || (forceAdult && showR18 === 'no')) && !!isAdult && !isRevealed(id),
-        [blurCovers, showR18, isRevealed],
+        (isAdult?: boolean, id?: string) => blurCovers && !!isAdult && !isRevealed(id),
+        [blurCovers, isRevealed],
     );
 
     const revealHandler = useCallback(

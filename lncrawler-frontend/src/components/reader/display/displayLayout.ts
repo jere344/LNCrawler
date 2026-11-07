@@ -16,13 +16,20 @@ export const MODULE_LAYOUT: Record<DisplayModule, { half: boolean; height: numbe
   warm: { half: false, height: 44 },
 };
 
-const SHEET_HEADER_HEIGHT = 44;
-const SHEET_PADDING = 14;
+export const SHEET_HEADER_HEIGHT = 44;
+export const SHEET_PADDING = 14;
 const ROW_GAP = 10;
 // Tablet sheets sit above the bottom bar, which takes this much room
 const TABLET_BOTTOM_SPACE = READER_BOTTOM_BAR_HEIGHT;
 // The sheet may take at most this share of the viewport height on phones and tablets
 const MAX_SHEET_RATIO = 0.58;
+
+// Sheet width on each layout; the phone sheet spans the viewport
+export const SHEET_WIDTH: Record<Exclude<ReaderLayoutMode, 'phone'>, number> = { tablet: 480, phoneLandscape: 360, desktop: 400 };
+
+// Phone, tablet and phone landscape take touch input: their controls get touch-sized targets
+export const isTouchLayout = (mode: ReaderLayoutMode): boolean =>
+  mode === 'phone' || mode === 'tablet' || mode === 'phoneLandscape';
 
 // Groups the modules into lines: two consecutive half modules share a line
 export function pairRows(modules: DisplayModule[]): DisplayModule[][] {

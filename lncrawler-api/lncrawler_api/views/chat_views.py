@@ -4,7 +4,7 @@ from rest_framework import status
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
 from ..models.chat_models import ChatMessage
-from ..utils import get_client_ip, resolve_author, MAX_MESSAGE_LENGTH
+from ..utils import get_client_ip, resolve_author, validate_message
 from ..utils.pagination import paginated_response
 from ..serializers.chat_serializers import ChatMessageSerializer
 
@@ -31,17 +31,10 @@ def add_chat_message(request):
     except ValidationError as exc:
         return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 
-    if isinstance(message, str):
-        message = message.strip()
-
-    if not message:
-        return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if not isinstance(message, str) or len(message) > MAX_MESSAGE_LENGTH:
-        return Response(
-            {'error': f'Message must be at most {MAX_MESSAGE_LENGTH} characters'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    try:
+        message = validate_message(message)
+    except ValidationError as exc:
+        return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 
     parent = None
     if parent_id:
@@ -79,19 +72,10 @@ def edit_chat_message(request, message_id):
         return Response({'error': 'You can only edit your own messages'},
                         status=status.HTTP_403_FORBIDDEN)
 
-    message = request.data.get('message')
-    if not isinstance(message, str):
-        return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-    message = message.strip()
-    if not message:
-        return Response({'error': 'Message is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-    if len(message) > MAX_MESSAGE_LENGTH:
-        return Response(
-            {'error': f'Message must be at most {MAX_MESSAGE_LENGTH} characters'},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    try:
+        message = validate_message(request.data.get('message'))
+    except ValidationError as exc:
+        return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 
     chat_message.message = message
     chat_message.edited = True

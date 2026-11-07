@@ -6,14 +6,9 @@ import type { ReaderLayoutMode } from '../hooks/useReaderLayout';
 import { useViewportSize } from '../hooks/useViewportSize';
 import { paragraphIndentFor } from '../content/readerTextStyles';
 import DisplayModuleGrid from './DisplayModuleGrid';
-import { sheetHeight } from './displayLayout';
+import { SHEET_HEADER_HEIGHT, SHEET_PADDING, SHEET_WIDTH, sheetHeight } from './displayLayout';
 
 const PREVIEW_HEIGHT = 204;
-// Sheet width on each layout; the phone sheet spans the viewport
-const SHEET_WIDTH: Record<Exclude<ReaderLayoutMode, 'phone'>, number> = { tablet: 480, phoneLandscape: 360, desktop: 400 };
-// Same header and padding as the real sheet, so the scale below matches sheetHeight
-const SHEET_HEADER_HEIGHT = 44;
-const SHEET_PADDING = 14;
 
 interface SheetPreviewProps {
   mode: ReaderLayoutMode;

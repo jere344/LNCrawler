@@ -12,6 +12,7 @@ import { sheetDragResult, usePointerDragY } from '../hooks/sheetDrag';
 import { READER_BOTTOM_BAR_HEIGHT } from '../controls/readerBarTypes';
 import { TOUCH_TARGET } from '../touchTarget';
 import DisplayModuleGrid from './DisplayModuleGrid';
+import { SHEET_WIDTH, isTouchLayout } from './displayLayout';
 
 // Where the sheet sits on each layout (logical properties, so it mirrors under RTL)
 const placement = (mode: ReaderLayoutMode, bottomOffset: number): SxProps<Theme> => {
@@ -32,7 +33,7 @@ const placement = (mode: ReaderLayoutMode, bottomOffset: number): SxProps<Theme>
         insetInline: 0,
         marginInline: 'auto',
         bottom: `${READER_BOTTOM_BAR_HEIGHT + 8 + bottomOffset}px`,
-        width: 480,
+        width: SHEET_WIDTH.tablet,
         maxWidth: 'calc(100% - 32px)',
         borderRadius: '16px',
         maxHeight: '60dvh',
@@ -43,7 +44,7 @@ const placement = (mode: ReaderLayoutMode, bottomOffset: number): SxProps<Theme>
         top: 0,
         bottom: 0,
         insetInlineEnd: 0,
-        width: 360,
+        width: SHEET_WIDTH.phoneLandscape,
         borderRadius: 0,
         overflowY: 'auto',
       };
@@ -51,7 +52,7 @@ const placement = (mode: ReaderLayoutMode, bottomOffset: number): SxProps<Theme>
       return {
         top: 72,
         insetInlineEnd: 16,
-        width: 400,
+        width: SHEET_WIDTH.desktop,
         borderRadius: '12px',
         maxHeight: '80dvh',
         overflowY: 'auto',
@@ -76,7 +77,7 @@ const DisplaySheet = ({ mode, bottomOffset, onClose, onCustomize, onAllSettings 
   const reducedMotion = usePrefersReducedMotion();
   // The sheet mounts closed and slides up on the next frame
   const entered = useEnteredOnFrame();
-  const touchLayout = mode === 'phone' || mode === 'tablet' || mode === 'phoneLandscape';
+  const touchLayout = isTouchLayout(mode);
   // Touch layouts: header buttons get a touch-sized target
   const touchTarget = touchLayout ? TOUCH_TARGET : undefined;
 

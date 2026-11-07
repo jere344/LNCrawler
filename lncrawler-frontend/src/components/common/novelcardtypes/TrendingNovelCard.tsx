@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Card, CardActionArea, CardMedia, CardContent, 
+  Card, CardActionArea, CardContent,
   Typography, Box, Skeleton // Added Skeleton
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -11,13 +11,10 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
-import { useAdultContent } from '@context/AdultContentContext';
-import { AdultBadge } from '@components/common/AdultBadge';
-import { AudiobookBadge } from '@components/audiobooks/AudiobookBadge';
+import { NovelCover } from '@components/common/NovelCover';
 
 interface TrendingNovelCardProps {
   novel: Novel;
-  onClick?: () => void;
   isLoading?: boolean;
   rank?: number;
   to?: To;
@@ -25,16 +22,13 @@ interface TrendingNovelCardProps {
 }
 
 const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({ 
-  novel, 
-  onClick, 
+  novel,
   rank,
   isLoading = false,
   to,
   state
 }) => {
   const { t } = useTranslation();
-  const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(novel.is_adult, novel.id);
   if (isLoading) {
     return (
       <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible' }}>
@@ -122,7 +116,6 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
 
       <CardActionArea 
         sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
-        onClick={onClick}
         component={to ? Link : 'div'}
         to={to}
         state={to ? state : undefined}
@@ -154,22 +147,14 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
               {t('cards.hot')}
             </Typography>
           </Box>
-          <CardMedia
-            component="img"
-            image={novelCoverUrl(preferredSource)}
+          <NovelCover
+            src={novelCoverUrl(preferredSource)}
             alt={getNovelDisplayTitle(novel)}
-            onClick={blurred ? revealHandler(novel.id) : undefined}
-            sx={{ 
-              width: '100%',
-              aspectRatio: '2/3',
-              objectFit: 'cover',
-              display: 'block',
-              cursor: blurred ? 'pointer' : undefined,
-              filter: blurred ? 'blur(16px)' : 'none',
-            }}
+            novelId={novel.id}
+            isAdult={novel.is_adult}
+            hasAudiobook={novel.has_audiobook}
+            sx={{ width: '100%', aspectRatio: '2/3', display: 'block' }}
           />
-          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
-          {novel.has_audiobook && <AudiobookBadge />}
         </Box>
 
         <CardContent sx={{

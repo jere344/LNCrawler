@@ -12,7 +12,6 @@ import {
     Alert,
     Grid,
     Link as MuiLink,
-    Pagination,
 } from '@mui/material';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +32,7 @@ import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSe
 import CommentMessage from '@components/comments/CommentMessage';
 import PublicLibraryTab from '@components/library/PublicLibraryTab';
 import PinnedNovelsPicker from './PinnedNovelsPicker';
+import PageNav from '@components/common/PageNav';
 
 // Social fields hold handles/pseudos, not URLs. Map the ones with a known
 // profile URL shape so the chip links out; others render as plain text.
@@ -304,7 +304,7 @@ const ReadingListsTab: React.FC<{ username: string }> = ({ username }) => {
                     </Grid>
                 ))}
             </Grid>
-            <ProfilePagination page={page} totalPages={totalPages} onChange={setPage} />
+            <PageNav page={page} totalPages={totalPages} onChange={setPage} sx={{ my: 4 }} />
         </Box>
     );
 };
@@ -326,7 +326,7 @@ const ReviewsTab: React.FC<{ username: string }> = ({ username }) => {
     return (
         <Box>
             <OverviewReviewsSection reviews={reviews} isLoading={loading} />
-            <ProfilePagination page={page} totalPages={totalPages} onChange={setPage} />
+            <PageNav page={page} totalPages={totalPages} onChange={setPage} sx={{ my: 4 }} />
         </Box>
     );
 };
@@ -383,17 +383,7 @@ const CommentsTab: React.FC<{ username: string }> = ({ username }) => {
                     );
                 })}
             </Grid>
-            <ProfilePagination page={page} totalPages={totalPages} onChange={setPage} />
-        </Box>
-    );
-};
-
-// Same MUI pagination as the other list pages, shown only when there is more than one page.
-const ProfilePagination: React.FC<{ page: number; totalPages: number; onChange: (page: number) => void }> = ({ page, totalPages, onChange }) => {
-    if (totalPages <= 1) return null;
-    return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-            <Pagination count={totalPages} page={page} onChange={(_, value) => onChange(value)} color="primary" />
+            <PageNav page={page} totalPages={totalPages} onChange={setPage} sx={{ my: 4 }} />
         </Box>
     );
 };

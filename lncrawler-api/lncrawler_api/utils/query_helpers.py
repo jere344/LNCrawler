@@ -55,16 +55,10 @@ def exclude_adult(queryset, user=None, path=''):
     return queryset.exclude(**{f'{path}pk__in': adult_novel_ids()})
 
 
-def _latest_content_chapter():
+def _content_chapter(ordering):
     return Chapter.objects.filter(
         novel_from_source=OuterRef('pk'), has_content=True
-    ).order_by('-chapter_id')
-
-
-def _first_content_chapter():
-    return Chapter.objects.filter(
-        novel_from_source=OuterRef('pk'), has_content=True
-    ).order_by('chapter_id')
+    ).order_by(ordering)
 
 
 def available_chapters_count(source):
@@ -229,7 +223,7 @@ def sources_queryset(
     deferred. ``associations=False`` drops the authors/tags prefetches too, for
     profiles that only read scalar source columns (e.g. the reading-list preview
     thumbnail)."""
-    latest = _latest_content_chapter()
+    latest = _content_chapter('-chapter_id')
     if summary:
         associations = False
     if not associations:
@@ -279,7 +273,7 @@ def sources_queryset(
             )
         return qs
 
-    first = _first_content_chapter()
+    first = _content_chapter('chapter_id')
     qs = qs.annotate(
         first_chapter_id=Subquery(first.values('chapter_id')[:1]),
         first_chapter_title=Subquery(first.values('title')[:1]),

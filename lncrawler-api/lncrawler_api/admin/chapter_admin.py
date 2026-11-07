@@ -2,6 +2,7 @@ from django.contrib import admin
 from ..models import Chapter, Comment
 from django.utils.html import format_html
 from django.urls import reverse
+from .display import truncate
 from .perf import CappedCountPaginator
 
 
@@ -16,8 +17,7 @@ class ChapterCommentInline(admin.TabularInline):
     ordering = ("-created_at",)
 
     def message_preview(self, obj):
-        preview = obj.message[:30] + "..." if len(obj.message) > 30 else obj.message
-        return preview
+        return truncate(obj.message, 30)
     message_preview.short_description = "Message"
 
     def vote_score(self, obj):

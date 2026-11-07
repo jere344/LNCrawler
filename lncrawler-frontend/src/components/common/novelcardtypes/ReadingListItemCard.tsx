@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Card, CardActionArea, CardMedia, CardContent, 
-  Typography, Box, Rating, Skeleton, Tooltip,
-  IconButton, Paper, Menu, MenuItem, ListItemIcon, ListItemText,
+  Card, CardActionArea, CardContent,
+  Typography, Box, Rating,
+  IconButton, Menu, MenuItem, ListItemIcon, ListItemText,
   Dialog, DialogTitle, DialogContent, DialogActions, Button,
   useMediaQuery, useTheme,
 } from '@mui/material';
@@ -12,21 +12,18 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { Novel } from '@models/novels_types';
-import { formatCount, languageFlagUrl, languageCodeToName, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
+import { formatCount, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import BookmarkButton from '@components/common/BookmarkButton';
 import { useTranslation } from 'react-i18next';
-import { useAdultContent } from '@context/AdultContentContext';
-import { AdultBadge } from '@components/common/AdultBadge';
-import { DmcaBadge } from '@components/common/DmcaBadge';
+import { NovelCover } from '@components/common/NovelCover';
+import { NovelLanguageFlags } from '@components/common/NovelLanguageFlags';
 import NovelStatsChips from './NovelStatsChips';
 
 export interface ReadingListCardProps {
   novel: Novel;
-  onClick?: () => void;
-  isLoading?: boolean;
   to?: To;
   state?: unknown;
   note?: string;
@@ -36,10 +33,8 @@ export interface ReadingListCardProps {
   itemId?: string;
 }
 
-export const ReadingListCard: React.FC<ReadingListCardProps> = ({ 
-  novel, 
-  onClick, 
-  isLoading = false,
+export const ReadingListNovelCard: React.FC<ReadingListCardProps> = ({
+  novel,
   to,
   state,
   note,
@@ -50,8 +45,6 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
 }) => {
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
-  const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(novel.is_adult, novel.id);
   const { t } = useTranslation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -98,28 +91,6 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
       setIsNoteTruncated(element.scrollHeight > element.clientHeight);
     }
   }, [note]);
-
-  if (isLoading) {
-    return (
-      <Paper sx={{ 
-        display: 'flex', 
-        height: 180,
-        overflow: 'hidden'
-      }}>
-        <Box sx={{ width: 120, flexShrink: 0 }}>
-          <Skeleton variant="rectangular" width="100%" height="100%" />
-        </Box>
-        <CardContent sx={{ flex: 1 }}>
-          <Skeleton variant="text" height={32} />
-          <Skeleton variant="text" width="60%" />
-          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-            <Skeleton variant="rectangular" width={80} height={24} />
-            <Skeleton variant="rectangular" width={80} height={24} />
-          </Box>
-        </CardContent>
-      </Paper>
-    );
-  }
 
   return (
     <Card 
@@ -186,79 +157,24 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
 
       {/* Cover Image */}
       <Box sx={{ width: 120, flexShrink: 0, position: 'relative' }}>
-        <CardActionArea 
+        <CardActionArea
           sx={{ height: '100%' }}
-          onClick={onClick}
           component={to ? Link : 'div'}
           to={to}
           state={to ? state : undefined}
         >
-          <CardMedia
-            component="img"
-            image={novelCoverUrl(preferredSource)}
+          <NovelCover
+            src={novelCoverUrl(preferredSource)}
             alt={getNovelDisplayTitle(novel)}
-            onClick={blurred ? revealHandler(novel.id) : undefined}
-            sx={{ 
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              opacity: novel.is_dmca ? 0.55 : 1,
-              cursor: blurred ? 'pointer' : undefined,
-              filter: [
-                novel.is_dmca ? 'grayscale(100%)' : null,
-                blurred ? 'blur(16px)' : null,
-              ].filter(Boolean).join(' ') || 'none',
-            }}
-          />
-          <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
-          {novel.is_dmca && <DmcaBadge top={4} left={4} />}
-          {/* Language flags */}
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 4,
-              right: 4,
-              display: 'flex',
-              gap: 0.25,
-              alignItems: 'center',
-            }}
+            novelId={novel.id}
+            isAdult={novel.is_adult}
+            isDmca={novel.is_dmca}
+            dmcaBadgeProps={{ top: 4, left: 4 }}
+            sx={{ width: '100%', height: '100%' }}
           >
-            {novel.languages.length > 0 ? (
-              novel.languages.slice(0, 2).map((lang) => (
-                <Tooltip key={lang} title={languageCodeToName(t, lang)}>
-                  <img 
-                    src={languageFlagUrl(lang)} 
-                    alt={languageCodeToName(t, lang)}
-                    style={{ 
-                      width: '20px',
-                      height: '14px',
-                      objectFit: 'cover',
-                      borderRadius: '2px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                    }}
-                  />
-                </Tooltip>
-              ))
-            ) : (
-              <Tooltip title={t('cards.unknownLanguage')}>
-                <Box
-                  sx={{
-                    width: '20px',
-                    height: '14px',
-                    bgcolor: 'rgba(0,0,0,0.6)',
-                    color: 'white',
-                    fontSize: '0.7rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '2px',
-                  }}
-                >
-                  ?
-                </Box>
-              </Tooltip>
-            )}
-          </Box>
+            {/* Language flags */}
+            <NovelLanguageFlags languages={novel.languages} size="small" />
+          </NovelCover>
         </CardActionArea>
       </Box>
 
@@ -270,7 +186,6 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
             alignItems: 'stretch',
             minWidth: 0,
           }}
-          onClick={onClick}
           component={to ? Link : 'div'}
           to={to}
           state={to ? state : undefined}
@@ -551,4 +466,4 @@ export const ReadingListCard: React.FC<ReadingListCardProps> = ({
   );
 };
 
-export default ReadingListCard;
+export default ReadingListNovelCard;

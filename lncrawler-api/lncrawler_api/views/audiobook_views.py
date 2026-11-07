@@ -308,10 +308,8 @@ class AudiobookDownloadView(APIView):
                 AudiobookDailyStat.bump(audiobook.pk, downloads=1)
             return _serve_m4b(request, part, cached)
 
-        job = audiobook_m4b.active_m4b_job(part, fmt)
-        if job is None:
-            user = request.user if request.user.is_authenticated else None
-            job = audiobook_m4b.enqueue_m4b_job(part, fmt, user=user)
+        user = request.user if request.user.is_authenticated else None
+        job = audiobook_m4b.enqueue_m4b_job(part, fmt, user=user)
         progress = min(job.progress / job.total_items, 1.0) if job.total_items else None
         response = Response({'status': 'building', 'progress': progress}, status=202)
         response['Retry-After'] = str(BUILD_RETRY_SECONDS)

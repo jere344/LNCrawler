@@ -5,6 +5,7 @@ from ..models import (
     Comment,
     CommentVote,
 )
+from .display import comment_target, parent_link, truncate
 
 
 # Inline for showing comment votes in Comment admin
@@ -37,7 +38,7 @@ class CommentReplyInline(admin.TabularInline):
     
     def message_preview(self, obj):
         url = reverse("admin:lncrawler_api_comment_change", args=[obj.id])
-        preview = obj.message[:50] + "..." if len(obj.message) > 50 else obj.message
+        preview = truncate(obj.message, 50)
         return format_html('<a href="{}">{}</a>', url, preview)
 
     vote_score.short_description = "Vote Score"
@@ -88,8 +89,7 @@ class CommentAdmin(admin.ModelAdmin):
 
     def message_preview(self, obj):
         # Truncate long messages for display in the list
-        preview = obj.message[:50] + "..." if len(obj.message) > 50 else obj.message
-        return preview
+        return truncate(obj.message, 50)
 
     message_preview.short_description = "Message"
 
@@ -104,19 +104,12 @@ class CommentAdmin(admin.ModelAdmin):
     reply_count.short_description = "Replies"
 
     def target_display(self, obj):
-        if obj.novel:
-            return f"Novel: {obj.novel.title}"
-        elif obj.chapter:
-            return f"Chapter: {obj.chapter.title}"
-        return "Unknown"
+        return comment_target(obj)
 
     target_display.short_description = "Target"
 
     def parent_comment(self, obj):
-        if obj.parent:
-            url = reverse("admin:lncrawler_api_comment_change", args=[obj.parent.id])
-            return format_html('<a href="{}">{}</a>', url, f"Reply to: {obj.parent.author_name}")
-        return "Top-level comment"
+        return parent_link(obj, "admin:lncrawler_api_comment_change", "Top-level comment")
 
     parent_comment.short_description = "Parent Comment"
 
@@ -141,11 +134,7 @@ class CommentVoteAdmin(admin.ModelAdmin):
     raw_id_fields = ("comment",)
 
     def comment_preview(self, obj):
-        preview = (
-            obj.comment.message[:30] + "..."
-            if len(obj.comment.message) > 30
-            else obj.comment.message
-        )
+        preview = truncate(obj.comment.message, 30)
         return f"{obj.comment.author_name}: {preview}"
 
     comment_preview.short_description = "Comment"

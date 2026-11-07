@@ -40,17 +40,21 @@ export const downloadUrl = (slug: string, lang: string, index: number, format: A
 export const audiobookService = {
   // Visible audiobooks, paginated, with the sort and filters of the list page.
   list: async (params: AudiobookListParams = {}): Promise<AudiobookListResponse> => {
-    const query = new URLSearchParams();
-    if (params.sort) query.append('sort', params.sort);
-    if (params.q) query.append('q', params.q);
-    params.tag?.forEach((tag) => query.append('tag', tag));
-    params.exclude_tag?.forEach((tag) => query.append('exclude_tag', tag));
-    params.author?.forEach((author) => query.append('author', author));
-    if (params.listening) query.append('listening', '1');
-    if (params.page) query.append('page', String(params.page));
-    if (params.page_size) query.append('page_size', String(params.page_size));
-    withLang(query, params.lang ?? 'en');
-    const response = await api.get(`/audiobooks/?${query}`);
+    const lang = params.lang ?? 'en';
+    const response = await api.get('/audiobooks/', {
+      params: {
+        sort: params.sort || undefined,
+        q: params.q || undefined,
+        tag: params.tag,
+        exclude_tag: params.exclude_tag,
+        author: params.author,
+        listening: params.listening ? '1' : undefined,
+        page: params.page || undefined,
+        page_size: params.page_size || undefined,
+        // Same rule as withLang: English is the backend default
+        lang: lang !== 'en' ? lang : undefined,
+      },
+    });
     return response.data;
   },
 

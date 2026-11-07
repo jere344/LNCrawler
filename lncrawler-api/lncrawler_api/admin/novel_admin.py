@@ -17,6 +17,8 @@ from ..services.split_service import (
     split_novel,
 )
 from ..utils.slug import slugify
+from .actions import update_action
+from .display import truncate
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
@@ -71,8 +73,7 @@ class NovelCommentInline(admin.TabularInline):
     ordering = ("-created_at",)
 
     def message_preview(self, obj):
-        preview = obj.message[:30] + "..." if len(obj.message) > 30 else obj.message
-        return preview
+        return truncate(obj.message, 30)
     message_preview.short_description = "Message"
 
     def vote_score(self, obj):
@@ -91,8 +92,7 @@ class NovelReviewInline(admin.TabularInline):
     ordering = ("-created_at",)
 
     def content_preview(self, obj):
-        preview = obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
-        return preview
+        return truncate(obj.content, 50)
     content_preview.short_description = "Content"
 
 
@@ -256,15 +256,12 @@ class NovelAdmin(admin.ModelAdmin):
     change_list_template = "admin/lncrawler_api/novel/change_list.html"
     change_form_template = "admin/lncrawler_api/novel/change_form.html"
 
-    @admin.action(description="Mark selected novels as DMCA takedown")
-    def mark_dmca(self, request, queryset):
-        updated = queryset.update(is_dmca=True)
-        self.message_user(request, f"{updated} novel(s) marked as DMCA.")
-
-    @admin.action(description="Unmark selected novels as DMCA takedown")
-    def unmark_dmca(self, request, queryset):
-        updated = queryset.update(is_dmca=False)
-        self.message_user(request, f"{updated} novel(s) unmarked as DMCA.")
+    mark_dmca = update_action(
+        "Mark selected novels as DMCA takedown", "{} novel(s) marked as DMCA.", is_dmca=True,
+    )
+    unmark_dmca = update_action(
+        "Unmark selected novels as DMCA takedown", "{} novel(s) unmarked as DMCA.", is_dmca=False,
+    )
 
     @admin.action(description="Generate audiobook (enqueue next part)")
     def generate_audiobook(self, request, queryset):

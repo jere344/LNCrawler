@@ -8,7 +8,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
-import { useAudioPlayer, useAudioPlayerTime } from '@context/AudioPlayerContext';
+import { SEEK_BACK_S, SEEK_FORWARD_S, useAudioPlayer, useAudioPlayerTime } from '@context/AudioPlayerContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { audiobookPath, audiobookRevealKey } from '@utils/audiobook';
 import { formatClock } from '@utils/duration';
@@ -87,7 +87,7 @@ const MiniPlayer: React.FC = () => {
         </Typography>
       </Box>
       <Tooltip title={t('audioPlayer.rewind')}>
-        <IconButton aria-label={t('audioPlayer.rewind')} onClick={() => player.skip(-15)} size="small">
+        <IconButton aria-label={t('audioPlayer.rewind')} onClick={() => player.skip(-SEEK_BACK_S)} size="small">
           <ReplayIcon />
         </IconButton>
       </Tooltip>
@@ -105,7 +105,7 @@ const MiniPlayer: React.FC = () => {
         </span>
       </Tooltip>
       <Tooltip title={t('audioPlayer.forward')}>
-        <IconButton aria-label={t('audioPlayer.forward')} onClick={() => player.skip(30)} size="small">
+        <IconButton aria-label={t('audioPlayer.forward')} onClick={() => player.skip(SEEK_FORWARD_S)} size="small">
           <Forward30Icon />
         </IconButton>
       </Tooltip>

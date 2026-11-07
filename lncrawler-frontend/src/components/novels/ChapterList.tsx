@@ -15,7 +15,6 @@ import {
   Divider,
   TextField,
   InputAdornment,
-  Pagination,
   FormControl,
   InputLabel,
   Select,
@@ -29,6 +28,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import { Chapter } from '@models/novels_types';
 import BreadcrumbNav from '../common/BreadcrumbNav';
+import PageNav from '@components/common/PageNav';
 import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
@@ -68,7 +68,7 @@ const ChapterList = () => {
     return { volumeChapters: chaptersByVolume, volumes: Array.from(volumeList).sort((a, b) => a - b) };
   }, [chapterData]);
 
-  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
+  const handlePageChange = (value: number) => {
     setParams({ page: String(value) });
   };
 
@@ -209,18 +209,13 @@ const ChapterList = () => {
           </Grid>
         </Box>
 
-        {chapterData.total_pages > 1 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-            <Pagination 
-              count={chapterData.total_pages} 
-              page={chapterData.current_page}
-              onChange={handlePageChange} 
-              color="primary" 
-              showFirstButton 
-              showLastButton
-            />
-          </Box>
-        )}
+        <PageNav
+          page={chapterData.current_page}
+          totalPages={chapterData.total_pages}
+          onChange={handlePageChange}
+          showEdgeButtons
+          sx={{ mb: 3 }}
+        />
         
         {volumes.length > 0 ? (
           volumes.map(volume => {
@@ -274,18 +269,13 @@ const ChapterList = () => {
           </Typography>
         )}
         
-        {chapterData.total_pages > 1 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-            <Pagination 
-              count={chapterData.total_pages} 
-              page={chapterData.current_page}
-              onChange={handlePageChange} 
-              color="primary" 
-              showFirstButton 
-              showLastButton
-            />
-          </Box>
-        )}
+        <PageNav
+          page={chapterData.current_page}
+          totalPages={chapterData.total_pages}
+          onChange={handlePageChange}
+          showEdgeButtons
+          sx={{ mt: 3 }}
+        />
       </Paper>
     </Container>
   );

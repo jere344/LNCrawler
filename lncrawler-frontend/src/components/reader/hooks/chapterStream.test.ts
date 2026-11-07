@@ -28,7 +28,7 @@ const withChapters = (...numbers: number[]): ChapterStreamState => ({
 describe('chapterStreamReducer', () => {
   it('starts the stream again from the anchor', () => {
     const state = chapterStreamReducer(withChapters(1, 2, 3), { type: 'reset', anchor: makeChapter(5), loadId: 2 });
-    expect(state).toEqual({ chapters: [makeChapter(5)], loading: false, end: null, endChapter: null, unavailable: null, loadId: 2 });
+    expect(state).toEqual({ chapters: [makeChapter(5)], loading: false, end: null, endChapter: null, loadId: 2 });
   });
 
   it('appends the chapter that follows the last one', () => {
@@ -68,15 +68,14 @@ describe('chapterStreamReducer', () => {
   });
 
   it('stops at an end and records where', () => {
-    const unavailable = { chapter_id: 3, title: 'Three', novel_title: 'Novel' };
-    const state = chapterStreamReducer(withChapters(1, 2), { type: 'end', reason: 'unavailable', chapter: 3, unavailable });
-    expect(state).toMatchObject({ end: 'unavailable', endChapter: 3, unavailable, loading: false });
+    const state = chapterStreamReducer(withChapters(1, 2), { type: 'end', reason: 'unavailable', chapter: 3 });
+    expect(state).toMatchObject({ end: 'unavailable', endChapter: 3, loading: false });
   });
 
   it('retries only after an error', () => {
     const failed = chapterStreamReducer(withChapters(1), { type: 'end', reason: 'error', chapter: 2 });
     const retried = chapterStreamReducer(failed, { type: 'retry' });
-    expect(retried).toMatchObject({ end: null, endChapter: null, unavailable: null });
+    expect(retried).toMatchObject({ end: null, endChapter: null });
 
     const dmca = chapterStreamReducer(withChapters(1), { type: 'end', reason: 'dmca', chapter: 2 });
     expect(chapterStreamReducer(dmca, { type: 'retry' })).toBe(dmca);

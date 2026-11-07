@@ -1,15 +1,12 @@
 import { useCallback, useRef } from 'react';
 import { novelService } from '../../../services/api';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
+import { isChapterOfNovel, withCommentAdded } from './chapterComments';
 
 // Interface for our chapter cache
 interface ChapterCache {
   [key: string]: IChapterContent;
 }
-
-// Whether a payload is chapter `chapterNumber` of the novel: every source of it shares the chapter's comments
-export const isChapterOfNovel = (chapter: IChapterContent, novelSlug: string, chapterNumber: number): boolean =>
-  chapter.novel_slug === novelSlug && chapter.chapter_id === chapterNumber;
 
 // Helper function to generate a cache key
 const getCacheKey = (novel: string, source: string, chapter: number): string => {
@@ -58,7 +55,7 @@ export function useChapterCache(novelSlug: string | undefined, sourceSlug: strin
   const bumpCommentCount = useCallback((novel: string, chapterNum: number) => {
     for (const [cacheKey, cached] of Object.entries(chapterCacheRef.current)) {
       if (!isChapterOfNovel(cached, novel, chapterNum)) continue;
-      chapterCacheRef.current[cacheKey] = { ...cached, comment_count: (cached.comment_count ?? 0) + 1 };
+      chapterCacheRef.current[cacheKey] = withCommentAdded(cached);
     }
   }, []);
 

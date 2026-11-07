@@ -6,7 +6,6 @@ import {
   clearHighlight,
   ensureHighlightStyle,
   firstVisibleBlock,
-  getBlocks,
   getContentRoot,
   highlightChunk,
   blockIndexOf,
@@ -30,6 +29,8 @@ import {
 } from './neuralClient';
 import { hasNeuralVoices, resolveNeuralVoice, type NeuralVoice } from './voiceCatalog';
 import { nextBlockChunk, previousBlockChunk } from './ttsChunks';
+import { playbackStateOf, setMediaSessionHandlers } from '@utils/mediaSession';
+import { silentWavUrl } from '@utils/silentWav';
 
 export type TtsStatus =
   | 'idle'          // bar open, nothing playing yet / finished
@@ -69,21 +70,6 @@ export interface UseTtsPlayerArgs {
 }
 
 const AUTOSCROLL_IDLE_MS = 4000;
-
-/** 10 s of silence: keeps the media session (lock screen controls) alive
- *  while device voices speak, since speechSynthesis has none of its own. */
-function makeSilenceUrl(): string {
-  const rate = 8000;
-  const samples = rate * 10;
-  const buffer = new ArrayBuffer(44 + samples * 2);
-  const v = new DataView(buffer);
-  const w = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  w(0, 'RIFF'); v.setUint32(4, 36 + samples * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
-  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true);
-  v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, samples * 2, true);
-  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
-}
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -173,7 +159,9 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
   const startKeepAlive = () => {
     if (engineRef.current !== 'browser') return;
     if (!keepAliveRef.current) {
-      const a = new Audio(makeSilenceUrl());
+      // 10 s of silence: keeps the media session (lock screen controls) alive
+      // while device voices speak, since speechSynthesis has none of its own.
+      const a = new Audio(silentWavUrl(10));
       a.loop = true;
       keepAliveRef.current = a;
     }
@@ -611,12 +599,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- uses refs only
   }, []);
 
-  /** Open the bar and start reading (toolbar button). */
-  const start = useCallback(() => {
-    if (statusRef.current === 'playing') return;
-    play();
-  }, [play]);
-
   const confirmDownload = useCallback(() => {
     const voice = neuralVoiceRef.current;
     if (!voice) return;
@@ -805,18 +787,12 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
       ['seekbackward', () => skipChunk(-1)],
       ['seekforward', () => skipChunk(1)],
     ];
-    handlers.forEach(([action, handler]) => {
-      try { ms.setActionHandler(action, handler); } catch { /* unsupported action */ }
-    });
-    return () => {
-      handlers.forEach(([action]) => {
-        try { ms.setActionHandler(action, null); } catch { /* unsupported action */ }
-      });
-    };
+    setMediaSessionHandlers(handlers);
+    return () => setMediaSessionHandlers(handlers.map(([action]): [MediaSessionAction, null] => [action, null]));
   }, [open, chapterTitle, novelTitle, artwork, play, pause, close, skipBlock, skipChunk]);
   useEffect(() => {
     if (!navigator.mediaSession) return;
-    navigator.mediaSession.playbackState = status === 'playing' ? 'playing' : status === 'paused' ? 'paused' : 'none';
+    navigator.mediaSession.playbackState = playbackStateOf(status);
   }, [status]);
 
   // The global audiobook player started: stop reading aloud.
@@ -855,7 +831,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     errorDetail,
     engine,
     neuralVoice,
-    neuralFallback,
     download,
     chunkIndex,
     paragraph: currentBlockNumber,
@@ -864,7 +839,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     buffered,
     sleepTimer,
     setSleepTimer,
-    start,
     play,
     pause,
     toggle,
@@ -875,11 +849,6 @@ export function useTtsPlayer(args: UseTtsPlayerArgs) {
     confirmDownload,
     switchToDeviceVoices,
     switchToHdVoices,
-    /** Readable blocks of the current chapter (for tap to seek). */
-    getBlocks: () => {
-      const root = readRoot();
-      return root ? getBlocks(root) : [];
-    },
   };
 }
 

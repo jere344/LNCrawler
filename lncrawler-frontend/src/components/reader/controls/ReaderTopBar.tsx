@@ -1,14 +1,11 @@
-import { AppBar, Box, ButtonBase, IconButton, Slide, Toolbar, Tooltip, Typography } from '@mui/material';
+import { AppBar, Box, ButtonBase, IconButton, Slide, Toolbar, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import HomeIcon from '@mui/icons-material/Home';
 import ListIcon from '@mui/icons-material/List';
-import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
-import DoneIcon from '@mui/icons-material/Done';
-import FullscreenIcon from '@mui/icons-material/Fullscreen';
-import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import type { ReaderBarProps } from './readerBarTypes';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { FullscreenButton, MarkReadButton } from './BarButtons';
 
 // Touch layouts: slides in from the top when the bars are shown
 const ReaderTopBar = ({
@@ -73,26 +70,10 @@ const ReaderTopBar = ({
           </ButtonBase>
 
           {showMarkRead && (
-            <IconButton
-              color="primary"
-              onClick={onMarkAsRead}
-              disabled={markingAsRead || markReadSuccess}
-              aria-label={markReadSuccess ? t('readerControls.markedAsRead') : t('readerControls.markAsRead')}
-            >
-              {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
-            </IconButton>
+            <MarkReadButton markReadSuccess={markReadSuccess} markingAsRead={markingAsRead} onMarkAsRead={onMarkAsRead} />
           )}
           {fullscreen.supported && (
-            <Tooltip title={fullscreenTitle}>
-              <IconButton
-                color="inherit"
-                onClick={fullscreen.onToggle}
-                aria-label={fullscreenLabel}
-                aria-pressed={fullscreen.active}
-              >
-                {fullscreen.active ? <FullscreenExitIcon /> : <FullscreenIcon />}
-              </IconButton>
-            </Tooltip>
+            <FullscreenButton active={fullscreen.active} label={fullscreenLabel} title={fullscreenTitle} onToggle={fullscreen.onToggle} />
           )}
         </Toolbar>
       </AppBar>

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Box, useTheme } from '@mui/material';
+import type { ReaderSettings } from '../readerSettingsSchema';
+
+// The settings the tint reads: dimming and the night mode filter
+export type ReaderTintSettings = Pick<ReaderSettings,
+  'dimLevel' | 'nightMode' | 'nightModeStrength' | 'nightModeScheduleEnabled' | 'nightModeStartTime' | 'nightModeEndTime'>;
 
 interface ReaderTintOverlaysProps {
-  dimLevel: number;
-  nightMode: boolean;
-  nightModeStrength: number;
-  nightModeScheduleEnabled: boolean;
-  nightModeStartTime: string;
-  nightModeEndTime: string;
+  settings: ReaderTintSettings;
 }
 
 const TIME_PATTERN = /^\d{2}:\d{2}$/;
@@ -50,14 +50,8 @@ const fullScreenSx = {
 } as const;
 
 // Dimming and night mode filter, drawn over the whole screen without blocking clicks
-const ReaderTintOverlays = ({
-  dimLevel,
-  nightMode,
-  nightModeStrength,
-  nightModeScheduleEnabled,
-  nightModeStartTime,
-  nightModeEndTime,
-}: ReaderTintOverlaysProps) => {
+const ReaderTintOverlays = ({ settings }: ReaderTintOverlaysProps) => {
+  const { dimLevel, nightMode, nightModeStrength, nightModeScheduleEnabled, nightModeStartTime, nightModeEndTime } = settings;
   const theme = useTheme();
 
   // Re-render every minute so a schedule boundary is crossed without a reload.

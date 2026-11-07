@@ -1,13 +1,10 @@
-import { AppBar, Badge, Box, Button, Slide, Toolbar, Typography } from '@mui/material';
+import { AppBar, Box, Button, Slide, Toolbar, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useTranslation } from 'react-i18next';
-import CommentIcon from '@mui/icons-material/Comment';
-import HeadphonesIcon from '@mui/icons-material/Headphones';
-import SettingsIcon from '@mui/icons-material/Settings';
 import { ChapterStepButton } from './ChapterStepButtons';
 import ChapterProgress from './ChapterProgress';
 import type { ReaderBarProps } from './readerBarTypes';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { useBarActions } from './barActions';
 
 interface ReaderBottomBarProps extends ReaderBarProps {
   bottomOffset: number;
@@ -40,34 +37,10 @@ const ReaderBottomBar = ({
   isNarrow,
   isPhoneLandscape,
 }: ReaderBottomBarProps) => {
-  const { t } = useTranslation();
   const theme = useTheme();
   const reducedMotion = usePrefersReducedMotion();
 
-  const actions = [
-    {
-      label: t('readerControls.display'),
-      icon: <Typography component="span" sx={{ fontWeight: 600, lineHeight: 1 }}>Aa</Typography>,
-      onClick: onDisplay,
-      expanded: displayOpen,
-      keyShortcut: shortcuts.display,
-    },
-    { label: t('reader.listen'), icon: <HeadphonesIcon />, onClick: onListen },
-    {
-      label: t('readerControls.comments'),
-      // The count is announced, the visible label stays short
-      ariaLabel: t('readerControls.commentsCount', { count: commentCount }),
-      icon: (
-        <Badge badgeContent={commentCount} max={999} color="primary" invisible={commentCount === 0}>
-          <CommentIcon />
-        </Badge>
-      ),
-      onClick: onComments,
-      expanded: commentsOpen,
-      keyShortcut: shortcuts.comments,
-    },
-    { label: t('readerControls.settings'), icon: <SettingsIcon />, onClick: onSettings },
-  ];
+  const actions = useBarActions({ displayOpen, commentsOpen, commentCount, shortcuts, onDisplay, onListen, onComments, onSettings });
 
   return (
     <Slide direction="up" in={controlsVisible} timeout={reducedMotion ? 0 : undefined} mountOnEnter unmountOnExit>

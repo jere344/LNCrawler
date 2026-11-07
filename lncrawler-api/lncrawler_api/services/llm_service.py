@@ -227,13 +227,25 @@ _CONF_RE = re.compile(r'"confidence"\s*:\s*([0-9]*\.?[0-9]+)')
 _REASON_RE = re.compile(r'"reason"\s*:\s*"((?:[^"\\]|\\.)*)"', re.DOTALL)
 
 
+def parse_json_object(text, what="reply"):
+    """The JSON object in an LLM reply: the text from its first "{" to its last "}".
+
+    Raises ``LLMParseError`` when there is no such object or it does not parse.
+    """
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise LLMParseError(f"no JSON object in {what}")
+    try:
+        return json.loads(text[start:end + 1])
+    except ValueError as exc:
+        raise LLMParseError(f"invalid JSON in {what}: {exc}") from exc
+
+
 def _parse_content(content):
     text = (content or "").strip()
-    start, end = text.find("{"), text.rfind("}")
-    snippet = text[start : end + 1] if start >= 0 and end > start else text
     try:
-        data = json.loads(snippet)
-    except ValueError:
+        data = parse_json_object(text)
+    except LLMParseError:
         data = None
     if isinstance(data, dict):
         return _normalize(data)
@@ -427,12 +439,16 @@ def start_cooldown(provider, seconds, reason):
     logger.warning("LLM provider %s cooling down for %ss: %s", provider.name, seconds, reason)
 
 
-def _cooldown_seconds(retry_after, default):
-    """Seconds a 429 asks to wait: its Retry-After, or ``default`` when it has none."""
+def retry_after_seconds(retry_after, default, minimum=1, number=int):
+    """Seconds a 429 asks to wait: its Retry-After, or ``default`` when it has none or is not a number.
+
+    ``number`` parses it (int or float) and ``minimum`` floors it; None means no floor.
+    """
     try:
-        return max(int(retry_after), 1)
+        seconds = number(retry_after)
     except (TypeError, ValueError):
         return default
+    return seconds if minimum is None else max(seconds, minimum)
 
 
 def can_afford(provider=None):
@@ -476,7 +492,7 @@ def chat(messages, max_tokens, purpose, session=None, response_schema=None, cand
                 prompt_version=prompt_version,
             )
         except RateLimited as exc:
-            start_cooldown(provider, _cooldown_seconds(exc.retry_after, provider.cooldown), "HTTP 429")
+            start_cooldown(provider, retry_after_seconds(exc.retry_after, provider.cooldown), "HTTP 429")
             reasons.append(f"{provider.name}: HTTP 429")
             continue
         except ProviderUnavailable as exc:

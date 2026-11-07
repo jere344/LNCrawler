@@ -12,7 +12,7 @@ import { updateReaderSetting } from '../readerSettingsStore';
 import { DISPLAY_MODULES, type DisplayModule } from '../readerSettingsSchema';
 import { defaultSettings } from '../readerDefaults';
 import { useSettingsContext } from '../settings/settingsContext';
-import { fitsInSheet } from './displayLayout';
+import { fitsInSheet, isTouchLayout } from './displayLayout';
 import { DISPLAY_MODULE_DEFS } from './displayModules';
 import { TOUCH_TARGET } from '../touchTarget';
 import SheetPreview from './SheetPreview';
@@ -72,7 +72,7 @@ const DisplayCustomizer = () => {
   const available = DISPLAY_MODULES.filter((module) => !modules.includes(module));
   const canAdd = (module: DisplayModule) => fitsInSheet([...modules, module], viewportHeight, mode);
   const noRoom = available.every((module) => !canAdd(module));
-  const touchLayout = mode === 'phone' || mode === 'tablet' || mode === 'phoneLandscape';
+  const touchLayout = isTouchLayout(mode);
   const touchTarget = touchLayout ? TOUCH_TARGET : undefined;
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {

@@ -45,6 +45,13 @@ const formatApiError = (data: unknown): string | null => {
   return parts.length ? parts.join('\n') : null;
 };
 
+// Reads a picked image into a data URL and hands it to the preview setter
+const readPreview = (file: File, setPreview: (url: string) => void) => {
+  const reader = new FileReader();
+  reader.onloadend = () => setPreview(reader.result as string);
+  reader.readAsDataURL(file);
+};
+
 const SettingsPage: React.FC = () => {
   const { updateProfile, refreshUser } = useAuth();
   const { t, i18n } = useTranslation();
@@ -109,13 +116,9 @@ const SettingsPage: React.FC = () => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
       setProfilePic(file);
-      
+
       // Create preview URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      readPreview(file, setPreviewUrl);
     }
   };
 
@@ -123,9 +126,7 @@ const SettingsPage: React.FC = () => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
       setBannerFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setBannerPreview(reader.result as string);
-      reader.readAsDataURL(file);
+      readPreview(file, setBannerPreview);
     }
   };
 

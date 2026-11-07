@@ -1,5 +1,5 @@
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
@@ -13,7 +13,6 @@ from ..utils import resolve_novel_slug
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
 def novel_reviews(request, novel_slug):
     """Get all reviews for a novel with pagination"""
     novel = resolve_novel_slug(novel_slug)
@@ -72,7 +71,6 @@ def review_detail(request, review_id):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
 def add_reaction(request, review_id):
     """Add or update a reaction to a review"""
     review = get_object_or_404(Review, id=review_id)
@@ -122,7 +120,6 @@ def add_reaction(request, review_id):
 
 
 @api_view(['DELETE'])
-@permission_classes([AllowAny])
 def remove_reaction(request, review_id):
     """Remove a reaction from a review"""
     review = get_object_or_404(Review, id=review_id)

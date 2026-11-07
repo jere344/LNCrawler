@@ -19,6 +19,25 @@ export const hasUnreadChapters = (novel: Novel): boolean => {
   return Boolean(novel.is_bookmarked && novel.prefered_source?.latest_available_chapter);
 };
 
+/** Unread chapter count shown on the cover, or null when there is none. */
+export const getUnreadChapterCount = (novel: Novel): number | null => {
+  if (novel.reading_history) {
+    // Only chapters with content count (backend supplies the count), so
+    // gaps left by failed downloads don't inflate the badge.
+    const unread = novel.reading_history.unread_chapters;
+    if (unread === undefined || unread === null) {
+      return null;
+    }
+    return unread > 0 ? unread : null;
+  }
+  if (novel.is_bookmarked && novel.prefered_source) {
+    const available = novel.prefered_source.available_chapters_count
+      ?? novel.prefered_source.latest_available_chapter?.chapter_id;
+    return available && available > 0 ? available : null;
+  }
+  return null;
+};
+
 /** Source slug and chapter number to mark as read, or null if none can be resolved. */
 export const getMarkAsReadTarget = (
   novel: Novel

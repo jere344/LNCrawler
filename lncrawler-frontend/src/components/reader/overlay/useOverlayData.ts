@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { chapterIndex, chapterListCache } from '../panels/chapterList';
-import { chapterRange, pagesIn, progressIn } from '../hooks/chapterRange';
+import { chapterRange, pagesIn, percentIn } from '../hooks/chapterRange';
 
 // Minimal shape of the Battery Status API, which only Chromium browsers ship
 interface BatteryManager extends EventTarget {
@@ -83,7 +83,7 @@ export function useScrollProgress(enabled: boolean, chapterId: number, sectionKe
       // The section is not on the page: the last value stays
       if (!range) return;
       const viewport = document.documentElement.clientHeight;
-      const percent = Math.round(progressIn(range, window.scrollY) * 100);
+      const percent = Math.round(percentIn(range, window.scrollY));
       const { page, pages } = pagesIn(range, viewport, window.scrollY);
       setProgress((previous) =>
         previous.percent === percent && previous.page === page && previous.pages === pages ? previous : { percent, page, pages });

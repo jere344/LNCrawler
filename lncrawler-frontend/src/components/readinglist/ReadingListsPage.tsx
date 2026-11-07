@@ -5,9 +5,9 @@ import {
     Typography,
   Box,
   Grid,
-  Alert, Button, 
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-  Pagination, InputAdornment, FormControlLabel, Switch
+  Alert, Button,
+  TextField,
+  InputAdornment
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { readingListService } from '@services/api';
@@ -15,6 +15,8 @@ import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '@context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import PageNav from '@components/common/PageNav';
+import ReadingListFormDialog from '@components/common/ReadingListFormDialog';
 import ReadingListCard from './ReadingListCard';
 import type { AsyncData, ReadingListsLoaderData } from '../../router/loaders';
 
@@ -53,7 +55,7 @@ const ReadingListsPage = () => {
     }
   };
 
-  const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
+  const handlePageChange = (value: number) => {
     setParams({ page: String(value) });
   };
 
@@ -145,75 +147,29 @@ const ReadingListsPage = () => {
             ))}
           </Grid>
 
-          {totalPages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-              <Pagination 
-                count={totalPages} 
-                page={page} 
-                onChange={handlePageChange}
-                color="primary"
-              />
-            </Box>
-          )}
+          <PageNav
+            page={page}
+            totalPages={totalPages}
+            onChange={handlePageChange}
+            sx={{ mt: 4 }}
+          />
         </>
       )}
 
       {/* Create New List Dialog */}
-      <Dialog 
-        open={createDialogOpen} 
+      <ReadingListFormDialog
+        open={createDialogOpen}
+        heading={t('readingLists.createTitle')}
+        submitLabel={t('readingLists.create')}
+        title={newListTitle}
+        description={newListDescription}
+        isPublic={newListIsPublic}
+        onTitleChange={setNewListTitle}
+        onDescriptionChange={setNewListDescription}
+        onIsPublicChange={setNewListIsPublic}
+        onSubmit={handleCreateList}
         onClose={() => setCreateDialogOpen(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>{t('readingLists.createTitle')}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            id="title"
-            label={t('readingLists.listTitle')}
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newListTitle}
-            onChange={(e) => setNewListTitle(e.target.value)}
-            required
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            margin="dense"
-            id="description"
-            label={t('readingLists.descriptionOptional')}
-            type="text"
-            fullWidth
-            variant="outlined"
-            multiline
-            rows={4}
-            value={newListDescription}
-            onChange={(e) => setNewListDescription(e.target.value)}
-          />
-          <FormControlLabel
-            sx={{ mt: 1 }}
-            control={
-              <Switch
-                checked={newListIsPublic}
-                onChange={(e) => setNewListIsPublic(e.target.checked)}
-              />
-            }
-            label={newListIsPublic ? t('readingLists.public') : t('readingLists.private')}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setCreateDialogOpen(false)}>{t('common.cancel')}</Button>
-          <Button 
-            onClick={handleCreateList} 
-            variant="contained"
-            disabled={!newListTitle.trim()}
-          >
-            {t('readingLists.create')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </Box>
   );
 };

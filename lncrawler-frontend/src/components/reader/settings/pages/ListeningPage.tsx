@@ -87,7 +87,6 @@ const ListeningPage = () => {
         settingKey="ttsRate"
         settingId="ttsRate"
         title={t('ttsSettings.speed')}
-        label={t('ttsSettings.speed')}
         step={0.25}
         min={0.5}
         max={3}

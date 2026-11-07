@@ -21,6 +21,57 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
   </Box>
 );
 
+// Grids of the home sections, shared with HomePage while it loads.
+export const TrendingSkeletonGrid = () => (
+  <Grid container spacing={3}>
+    {[...Array(4)].map((_, index) => (
+      <Grid size={{ xs: 6, sm: 3 }} key={`trending-skeleton-${index}`}>
+        <TrendingNovelCard novel={{} as Novel} isLoading={true} rank={index + 1} />
+      </Grid>
+    ))}
+  </Grid>
+);
+
+export const BestOfAllTimeSkeletonGrid = () => (
+  <Grid container spacing={2}>
+    {[...Array(12)].map((_, index) => (
+      <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`top-skeleton-${index}`}>
+        <NovelItemCard novel={{} as Novel} isLoading={true} rank={index + 1} />
+      </Grid>
+    ))}
+  </Grid>
+);
+
+export const RankingSkeletonGrid = ({ showClicks = false, showTrends = false, showRating = false }: { showClicks?: boolean; showTrends?: boolean; showRating?: boolean }) => (
+  <Grid container spacing={1}>
+    {[...Array(12)].map((_, index) => (
+      <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`ranking-skeleton-${index}`}>
+        <CompactNovelCard novel={{} as Novel} isLoading={true} showClicks={showClicks} showTrends={showTrends} showRating={showRating} />
+      </Grid>
+    ))}
+  </Grid>
+);
+
+export const RecentlyAddedSkeletonGrid = () => (
+  <Grid container spacing={2}>
+    {[...Array(6)].map((_, index) => (
+      <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`recently-added-skeleton-${index}`}>
+        <NovelItemCard novel={{} as Novel} isLoading={true} />
+      </Grid>
+    ))}
+  </Grid>
+);
+
+export const RecentlyUpdatedSkeletonGrid = ({ count }: { count: number }) => (
+  <Grid container spacing={2}>
+    {[...Array(count)].map((_, index) => (
+      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`recently-updated-skeleton-${index}`}>
+        <ChapterCard source={{} as NovelFromSource} isLoading={true} />
+      </Grid>
+    ))}
+  </Grid>
+);
+
 /**
  * Full-page home skeleton. Used both as the route's HydrateFallback (cold load)
  * and while the page revalidates, so the layout matches the loaded page and the
@@ -52,23 +103,11 @@ const HomeSkeleton = () => {
       )}
 
       <Section title={t('home.hottest')}>
-        <Grid container spacing={3}>
-          {[...Array(4)].map((_, index) => (
-            <Grid size={{ xs: 6, sm: 3 }} key={`trending-skeleton-${index}`}>
-              <TrendingNovelCard novel={{} as Novel} isLoading={true} rank={index + 1} />
-            </Grid>
-          ))}
-        </Grid>
+        <TrendingSkeletonGrid />
       </Section>
 
       <Section title={t('home.bestOfAllTime')}>
-        <Grid container spacing={2}>
-          {[...Array(12)].map((_, index) => (
-            <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`top-skeleton-${index}`}>
-              <NovelItemCard novel={{} as Novel} isLoading={true} rank={index + 1} onClick={() => {}} />
-            </Grid>
-          ))}
-        </Grid>
+        <BestOfAllTimeSkeletonGrid />
       </Section>
 
       {/* Audiobooks block: featured card and a row of covers, as in HomeAudiobooksSection. */}
@@ -101,13 +140,7 @@ const HomeSkeleton = () => {
           </Tabs>
         </Box>
         <Box sx={{ py: 3 }}>
-          <Grid container spacing={1}>
-            {[...Array(12)].map((_, index) => (
-              <Grid size={{ xs: 6, sm: 4, md: 3 }} key={`ranking-skeleton-${index}`}>
-                <CompactNovelCard novel={{} as Novel} isLoading={true} showTrends onClick={() => {}} />
-              </Grid>
-            ))}
-          </Grid>
+          <RankingSkeletonGrid showTrends />
         </Box>
       </Box>
 
@@ -126,23 +159,11 @@ const HomeSkeleton = () => {
       </Section>
 
       <Section title={t('home.recentlyAdded')}>
-        <Grid container spacing={2}>
-          {[...Array(6)].map((_, index) => (
-            <Grid size={{ xs: 4, sm: 3, md: 2, lg: 2 }} key={`recently-added-skeleton-${index}`}>
-              <NovelItemCard novel={{} as Novel} isLoading={true} onClick={() => {}} />
-            </Grid>
-          ))}
-        </Grid>
+        <RecentlyAddedSkeletonGrid />
       </Section>
 
       <Section title={t('home.recentlyUpdated')}>
-        <Grid container spacing={2}>
-          {[...Array(12)].map((_, index) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`recently-updated-skeleton-${index}`}>
-              <ChapterCard source={{} as NovelFromSource} isLoading={true} />
-            </Grid>
-          ))}
-        </Grid>
+        <RecentlyUpdatedSkeletonGrid count={12} />
       </Section>
     </Container>
   );

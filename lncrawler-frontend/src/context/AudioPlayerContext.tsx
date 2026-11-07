@@ -5,6 +5,7 @@ import { audiobookService } from '@services/api';
 import type { AudiobookChapter, AudiobookDetail, ListeningProgress } from '@models/audiobook_types';
 import { PROGRESS_KEY, progressKey, readLocalProgress } from '@utils/audiobook';
 import { readLocalStorage, writeLocalStorage } from '@utils/storage';
+import { playbackStateOf, setMediaSessionHandlers } from '@utils/mediaSession';
 import { useAuth } from './AuthContext';
 import { useNotification } from './NotificationContext';
 
@@ -64,17 +65,8 @@ type Handlers = Pick<
 >;
 
 // Handlers shared by the audio element listeners, the timers and the keyboard, which outlive a render.
-interface Actions {
+interface Actions extends Handlers {
   play: () => void;
-  pause: () => void;
-  toggle: () => void;
-  seekTo: (seconds: number) => void;
-  skip: (delta: number) => void;
-  next: () => void;
-  prev: () => void;
-  playChapter: (index: number) => void;
-  setSpeed: (speed: number) => void;
-  close: () => void;
   preloadNext: () => void;
   onLoaded: () => void;
   onPlaying: () => void;
@@ -86,7 +78,6 @@ interface Actions {
   onSeeked: () => void;
   onWaiting: () => void;
   onHide: () => void;
-  onTtsPlay: () => void;
   reportListening: () => void;
   persistProgress: (finished: boolean, onHide?: boolean) => void;
 }
@@ -117,8 +108,8 @@ const PLAY_REPORT_S = 120;
 const MIN_LISTEN_REPORT_S = 5;
 const PREFETCH_BEFORE_END_S = 30;
 const SLEEP_FADE_MS = 5_000;
-const SEEK_BACK_S = 15;
-const SEEK_FORWARD_S = 30;
+export const SEEK_BACK_S = 15;
+export const SEEK_FORWARD_S = 30;
 const SYNCED_FOR_KEY = 'audiobookProgressSyncedFor';
 const PROGRESS_LIMIT = 50;
 const READER_ROUTE = '/novels/:novelSlug/:sourceSlug/chapter/:chapterNumber';
@@ -204,7 +195,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   // Latest values for handlers that outlive a render (audio events, timers, keys).
   const live = useRef({ book, queue, index, speed, sleep, status, position, duration, isAuthenticated });
   live.current = { book, queue, index, speed, sleep, status, position, duration, isAuthenticated };
-  // Every handler below, refreshed each render; the listeners call through it.
+  // Every handler below, refreshed each render: the listeners and the handlers the provider exposes call through it.
   const actionsRef = useRef<Actions | null>(null);
 
   const pendingSeekRef = useRef(0);
@@ -526,14 +517,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }
   };
 
-  const onTtsPlay = () => {
-    pause();
-  };
-
   actionsRef.current = {
-    play, pause, toggle, seekTo, skip, next, prev, playChapter, setSpeed, close, preloadNext,
+    playAudiobook, toggle, pause, seekTo, skip, next, prev, playChapter, setSpeed, setSleep, close, play, preloadNext,
     onLoaded, onPlaying, onPause, onTimeUpdate, onEnded, onError, onDurationChange, onSeeked, onWaiting,
-    onHide, onTtsPlay, reportListening, persistProgress,
+    onHide, reportListening, persistProgress,
   };
   const actions = (): Actions => actionsRef.current as Actions;
 
@@ -554,7 +541,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const onVisibility = () => actions().onHide();
     window.addEventListener('pagehide', onVisibility);
     document.addEventListener('visibilitychange', onVisibility);
-    const onTts = () => actions().onTtsPlay();
+    const onTts = () => actions().pause();
     window.addEventListener(TTS_PLAY_EVENT, onTts);
     return () => {
       listeners.forEach(([event, handler]) => audio.removeEventListener(event, handler));
@@ -610,7 +597,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   // Lock screen and notification controls.
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
-    const handlers: [MediaSessionAction, (details: MediaSessionActionDetails) => void][] = [
+    setMediaSessionHandlers([
       ['play', () => actions().play()],
       ['pause', () => actions().pause()],
       ['seekbackward', (details) => actions().skip(-(details.seekOffset ?? SEEK_BACK_S))],
@@ -620,14 +607,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       ['seekto', (details) => {
         if (details.seekTime !== undefined) actions().seekTo(details.seekTime);
       }],
-    ];
-    handlers.forEach(([action, handler]) => {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch {
-        // this browser does not support the action
-      }
-    });
+    ]);
   }, []);
 
   useEffect(() => {
@@ -650,7 +630,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
-    navigator.mediaSession.playbackState = status === 'playing' ? 'playing' : status === 'paused' ? 'paused' : 'none';
+    navigator.mediaSession.playbackState = playbackStateOf(status);
   }, [status]);
 
   useEffect(() => {
@@ -707,23 +687,18 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   // The handlers keep one identity and call the closures of the latest render. With the memos below, a consumer
   // re-renders only when what it reads changes, not on every position tick.
-  const handlers: Handlers = {
-    playAudiobook, toggle, pause, seekTo, skip, next, prev, playChapter, setSpeed, setSleep, close,
-  };
-  const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
   const stable = useMemo<Handlers>(() => ({
-    playAudiobook: (...args) => handlersRef.current.playAudiobook(...args),
-    toggle: () => handlersRef.current.toggle(),
-    pause: () => handlersRef.current.pause(),
-    seekTo: (...args) => handlersRef.current.seekTo(...args),
-    skip: (...args) => handlersRef.current.skip(...args),
-    next: () => handlersRef.current.next(),
-    prev: () => handlersRef.current.prev(),
-    playChapter: (...args) => handlersRef.current.playChapter(...args),
-    setSpeed: (...args) => handlersRef.current.setSpeed(...args),
-    setSleep: (...args) => handlersRef.current.setSleep(...args),
-    close: () => handlersRef.current.close(),
+    playAudiobook: (...args) => actions().playAudiobook(...args),
+    toggle: () => actions().toggle(),
+    pause: () => actions().pause(),
+    seekTo: (...args) => actions().seekTo(...args),
+    skip: (...args) => actions().skip(...args),
+    next: () => actions().next(),
+    prev: () => actions().prev(),
+    playChapter: (...args) => actions().playChapter(...args),
+    setSpeed: (...args) => actions().setSpeed(...args),
+    setSleep: (...args) => actions().setSleep(...args),
+    close: () => actions().close(),
   }), []);
 
   const value = useMemo<AudioPlayerValue>(() => ({

@@ -12,7 +12,7 @@ from ..utils import (
     get_client_ip,
     resolve_novel_slug,
     resolve_author,
-    MAX_MESSAGE_LENGTH,
+    validate_message,
 )
 from ..serializers.comments_serializers import CommentSerializer, chapter_comment_context
 
@@ -82,12 +82,7 @@ def _validated_comment_input(data, default_spoiler=False):
     The message is stripped, then must be non-empty and at most
     ``MAX_MESSAGE_LENGTH`` characters. Raises ``ValidationError`` otherwise.
     """
-    message = data.get('message')
-    if not isinstance(message, str) or not message.strip():
-        raise ValidationError('Message is required')
-    message = message.strip()
-    if len(message) > MAX_MESSAGE_LENGTH:
-        raise ValidationError(f'Message must be at most {MAX_MESSAGE_LENGTH} characters')
+    message = validate_message(data.get('message'))
     return message, _flag(data.get('contains_spoiler', default_spoiler))
 
 

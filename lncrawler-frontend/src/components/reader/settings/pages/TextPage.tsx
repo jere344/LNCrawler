@@ -9,13 +9,6 @@ import { STEPPER_SPECS } from '../../display/stepperSpecs';
 const TextPage = () => {
   const { t } = useTranslation();
 
-  const sizeTitle = t('readerDisplay.modules.size.label');
-  const lineTitle = t('readerDisplay.modules.line.label');
-  const paragraphTitle = t('readerSettingsPages.betweenParagraphs');
-  const marginTitle = t('readerSettingsPages.sideMargins');
-  const wordTitle = t('readerSettingsPages.betweenWords');
-  const letterTitle = t('readerSettingsPages.betweenLetters');
-
   return (
     <Box>
       <SimulatedPreview />
@@ -26,11 +19,10 @@ const TextPage = () => {
       </Box>
 
       <SettingStepper
-        title={sizeTitle}
+        title={t('readerDisplay.modules.size.label')}
         settingKey="fontSize"
         settingId="fontSize"
         {...STEPPER_SPECS.fontSize}
-        label={sizeTitle}
       />
 
       <Box sx={{ pt: 2 }} data-setting-id="textAlign">
@@ -39,39 +31,34 @@ const TextPage = () => {
       </Box>
 
       <SettingStepper
-        title={lineTitle}
+        title={t('readerDisplay.modules.line.label')}
         settingKey="lineSpacing"
         settingId="lineSpacing"
         {...STEPPER_SPECS.lineSpacing}
-        label={lineTitle}
       />
       <SettingStepper
-        title={paragraphTitle}
+        title={t('readerSettingsPages.betweenParagraphs')}
         settingKey="paragraphSpacing"
         settingId="paragraphSpacing"
         {...STEPPER_SPECS.paragraphSpacing}
-        label={paragraphTitle}
       />
       <SettingStepper
-        title={marginTitle}
+        title={t('readerSettingsPages.sideMargins')}
         settingKey="margin"
         settingId="margin"
         {...STEPPER_SPECS.margin}
-        label={marginTitle}
       />
       <SettingStepper
-        title={wordTitle}
+        title={t('readerSettingsPages.betweenWords')}
         settingKey="wordSpacing"
         settingId="wordSpacing"
         {...STEPPER_SPECS.wordSpacing}
-        label={wordTitle}
       />
       <SettingStepper
-        title={letterTitle}
+        title={t('readerSettingsPages.betweenLetters')}
         settingKey="letterSpacing"
         settingId="letterSpacing"
         {...STEPPER_SPECS.letterSpacing}
-        label={letterTitle}
       />
       <SettingSwitch settingKey="paragraphIndent" settingId="paragraphIndent" title={t('readerSettingsPages.indentFirstLine')} />
 

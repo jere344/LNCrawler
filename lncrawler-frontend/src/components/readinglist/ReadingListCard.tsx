@@ -1,4 +1,4 @@
-import { Card, Typography, Box, Chip, Avatar, CardMedia } from "@mui/material";
+import { Card, Typography, Box, Chip, Avatar } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { ReadingList } from "@models/readinglist_types";
 import BookIcon from "@mui/icons-material/Book";
@@ -7,8 +7,7 @@ import PublicIcon from "@mui/icons-material/Public";
 import { formatTimeAgo } from "@utils/Misc";
 import { useTranslation } from "react-i18next";
 import UserLink from "@components/profile/UserLink";
-import { useAdultContent } from "@context/AdultContentContext";
-import { AdultBadge } from "@components/common/AdultBadge";
+import { NovelCover } from "@components/common/NovelCover";
 
 interface ReadingListCardProps {
     list: ReadingList;
@@ -16,9 +15,7 @@ interface ReadingListCardProps {
 
 const ReadingListCard = ({ list }: ReadingListCardProps) => {
     const { t } = useTranslation();
-    const { isBlurred, revealHandler } = useAdultContent();
     const firstItemNovel = list.first_item?.novel;
-    const blurred = isBlurred(firstItemNovel?.is_adult, firstItemNovel?.id);
     const firstItemCover = list.first_item?.novel.prefered_source?.cover_min_url;
     const defaultCoverBg = "linear-gradient(135deg, #0a3d91 0%, #1e88e5 100%)";
     const coverHeight = 160;
@@ -63,68 +60,60 @@ const ReadingListCard = ({ list }: ReadingListCardProps) => {
                     component={RouterLink}
                     to={`/reading-lists/${list.id}`}
                 >
-                    {firstItemCover ? (
-                        <CardMedia
-                            component="img"
+                    <NovelCover
+                        src={firstItemCover}
+                        alt={t("readingLists.coverAlt", { title: list.title })}
+                        novelId={firstItemNovel?.id}
+                        isAdult={firstItemNovel?.is_adult}
+                        sx={{ height: "100%", width: "100%" }}
+                        fallback={
+                            <Box
+                                sx={{
+                                    height: "100%",
+                                    width: "100%",
+                                    background: defaultCoverBg,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                }}
+                            >
+                                <BookIcon sx={{ fontSize: 40, color: "white" }} />
+                            </Box>
+                        }
+                    >
+                        {/* Book count badge */}
+                        <Chip
+                            icon={<BookIcon />}
+                            label={`${list.items_count || 0}`}
+                            size="small"
                             sx={{
-                                height: "100%",
-                                width: "100%",
-                                objectFit: "cover",
-                                cursor: blurred ? "pointer" : undefined,
-                                filter: blurred ? "blur(16px)" : "none",
+                                position: "absolute",
+                                top: 8,
+                                right: 8,
+                                backgroundColor: "rgba(0,0,0,0.6)",
+                                backdropFilter: "blur(4px)",
+                                color: "white",
+                                fontWeight: "bold",
+                                "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
                             }}
-                            image={firstItemCover}
-                            alt={t("readingLists.coverAlt", { title: list.title })}
-                            onClick={blurred ? revealHandler(firstItemNovel?.id) : undefined}
                         />
-                    ) : (
-                        <Box
+                        {/* Visibility badge */}
+                        <Chip
+                            icon={list.is_public ? <PublicIcon /> : <LockIcon />}
+                            label={list.is_public ? t("readingLists.public") : t("readingLists.private")}
+                            size="small"
                             sx={{
-                                height: "100%",
-                                width: "100%",
-                                background: defaultCoverBg,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
+                                position: "absolute",
+                                top: 8,
+                                left: 8,
+                                backgroundColor: "rgba(0,0,0,0.6)",
+                                backdropFilter: "blur(4px)",
+                                color: "white",
+                                fontWeight: "bold",
+                                "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
                             }}
-                        >
-                            <BookIcon sx={{ fontSize: 40, color: "white" }} />
-                        </Box>
-                    )}
-
-                    {/* Book count badge */}
-                    <Chip
-                        icon={<BookIcon />}
-                        label={`${list.items_count || 0}`}
-                        size="small"
-                        sx={{
-                            position: "absolute",
-                            top: 8,
-                            right: 8,
-                            backgroundColor: "rgba(0,0,0,0.6)",
-                            backdropFilter: "blur(4px)",
-                            color: "white",
-                            fontWeight: "bold",
-                            "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
-                        }}
-                    />
-                    {/* Visibility badge */}
-                    <Chip
-                        icon={list.is_public ? <PublicIcon /> : <LockIcon />}
-                        label={list.is_public ? t("readingLists.public") : t("readingLists.private")}
-                        size="small"
-                        sx={{
-                            position: "absolute",
-                            top: 8,
-                            left: 8,
-                            backgroundColor: "rgba(0,0,0,0.6)",
-                            backdropFilter: "blur(4px)",
-                            color: "white",
-                            fontWeight: "bold",
-                            "& .MuiChip-icon": { color: "white", fontSize: "0.9rem" },
-                        }}
-                    />
-                    <AdultBadge isAdult={firstItemNovel?.is_adult} novelId={firstItemNovel?.id} />
+                        />
+                    </NovelCover>
                 </Card>
 
                 {/* Right side - Content */}

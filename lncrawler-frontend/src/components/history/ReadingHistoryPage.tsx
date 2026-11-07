@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Grid as Grid,
-  Pagination,
   Alert,
   CircularProgress,
   useMediaQuery,
@@ -19,6 +18,7 @@ import type { HistoryKind, ListeningHistoryEntry } from '@models/audiobook_types
 import { useAuth } from '@context/AuthContext';
 import { useUrlListState } from '@utils/useUrlListState';
 import BreadcrumbNav from '../common/BreadcrumbNav';
+import PageNav from '@components/common/PageNav';
 import HistoryIcon from '@mui/icons-material/History';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import ReadingHistoryCard from '../common/novelcardtypes/ReadingHistoryCard';
@@ -92,7 +92,7 @@ const ReadingHistoryPage: React.FC = () => {
     setParams({ kind: value === 'all' ? null : value }, { replace: true });
   };
 
-  const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
+  const handlePageChange = (value: number) => {
     setPage(value);
     window.scrollTo(0, 0);
   };
@@ -236,17 +236,13 @@ const ReadingHistoryPage: React.FC = () => {
             </Grid>
           </Box>
 
-          {totalPages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-              <Pagination
-                count={totalPages}
-                page={page}
-                onChange={handlePageChange}
-                color="primary"
-                size={isMobile ? "small" : "medium"}
-              />
-            </Box>
-          )}
+          <PageNav
+            page={page}
+            totalPages={totalPages}
+            onChange={handlePageChange}
+            size={isMobile ? 'small' : 'medium'}
+            sx={{ my: 4 }}
+          />
         </>
       )}
 

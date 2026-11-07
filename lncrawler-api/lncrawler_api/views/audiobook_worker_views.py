@@ -22,7 +22,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 
 from ..models import Audiobook, AudiobookChapter, AudiobookPart, AudiobookWorker, Chapter
@@ -213,7 +213,6 @@ def _claim_payload(request, part, audiobook):
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAudiobookWorker])
-@throttle_classes([])
 def claim(request):
     error = _contract_error(request)
     if error:
@@ -274,7 +273,6 @@ def claim(request):
 @api_view(['GET'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAudiobookWorker])
-@throttle_classes([])
 def part_epub(request, part_id):
     error = _contract_error(request)
     if error:
@@ -307,7 +305,6 @@ def part_epub(request, part_id):
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAudiobookWorker])
-@throttle_classes([])
 def heartbeat(request, part_id):
     error = _contract_error(request)
     if error:
@@ -358,7 +355,6 @@ def _same_upload_exists(part, chapter_pk, sha256):
 @api_view(['PUT'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAudiobookWorker])
-@throttle_classes([])
 def chapter_upload(request, part_id, chapter_pk):
     error = _contract_error(request)
     if error:
@@ -479,7 +475,6 @@ def _build_cover_after_complete(audiobook_pk):
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAudiobookWorker])
-@throttle_classes([])
 def complete(request, part_id):
     error = _contract_error(request)
     if error:
@@ -585,7 +580,6 @@ def complete(request, part_id):
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAudiobookWorker])
-@throttle_classes([])
 def fail(request, part_id):
     error = _contract_error(request)
     if error:
@@ -622,7 +616,6 @@ def fail(request, part_id):
 @api_view(['POST'])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAudiobookWorker])
-@throttle_classes([])
 def ping(request):
     error = _contract_error(request)
     if error:

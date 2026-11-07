@@ -10,12 +10,6 @@ export interface RemoteReaderSettings {
   updated_at: string;
 }
 
-export interface RemoteSlotSummary {
-  slot: DeviceSlot;
-  revision: number;
-  updated_at: string;
-}
-
 // The server refused a write made from an outdated revision; `current` is its copy, or null when it has none
 export class ReaderSettingsConflict extends Error {
   constructor(public current: RemoteReaderSettings | null) {
@@ -26,11 +20,6 @@ export class ReaderSettingsConflict extends Error {
 const statusOf = (error: unknown): number | undefined => (error as ApiError).response?.status;
 
 const readerSettingsService = {
-  getSlots: async (): Promise<RemoteSlotSummary[]> => {
-    const response = await api.get('/users/reader-settings/');
-    return response.data;
-  },
-
   // null when the server has no copy for this device type
   getSlot: async (slot: DeviceSlot): Promise<RemoteReaderSettings | null> => {
     try {

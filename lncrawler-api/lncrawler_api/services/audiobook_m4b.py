@@ -17,12 +17,11 @@ import tempfile
 import time
 
 from django.conf import settings
-from django.db import IntegrityError, transaction
 from mutagen.mp4 import MP4, MP4Cover
 
 from ..models import Audiobook, AudiobookPart
 from . import audiobook_cover, audiobook_media, audiobook_service as svc
-from .epub_service import _build_lock
+from .epub_service import _build_lock, enqueue_job
 
 logger = logging.getLogger("lncrawler_api.audiobooks")
 
@@ -249,48 +248,11 @@ def parse_m4b_job_key(key):
     return parts[1], parts[2]
 
 
-def _active_m4b_job(key):
-    from ..models import Job
-
-    return Job.objects.filter(
-        job_type=Job.JOB_TYPE_M4B,
-        query=key,
-        status__in=[Job.STATUS_CREATED, Job.STATUS_DOWNLOADING],
-    ).first()
-
-
-def active_m4b_job(part, fmt):
-    """The queued or running job building this .m4b, or None."""
-    return _active_m4b_job(m4b_job_key(part.pk, fmt))
-
-
 def enqueue_m4b_job(part, fmt, user=None):
     """Return the active job for this .m4b, creating one if none is running."""
     from ..models import Job
 
-    key = m4b_job_key(part.pk, fmt)
-    existing = _active_m4b_job(key)
-    if existing is not None:
-        return existing
-    try:
-        with transaction.atomic():
-            return Job.objects.create(
-                job_type=Job.JOB_TYPE_M4B,
-                status=Job.STATUS_CREATED,
-                query=key,
-                user=user,
-                progress_unit="chapters",
-            )
-    except IntegrityError:
-        # A concurrent request created the active job first; the partial
-        # unique constraint rejected ours. If that job has already finished,
-        # reuse the most recent job of this key instead.
-        existing = _active_m4b_job(key) or Job.objects.filter(
-            job_type=Job.JOB_TYPE_M4B, query=key,
-        ).order_by('-created_at').first()
-        if existing is None:
-            raise
-        return existing
+    return enqueue_job(Job.JOB_TYPE_M4B, m4b_job_key(part.pk, fmt), user=user)
 
 
 def run_m4b_job(job_id, payload):

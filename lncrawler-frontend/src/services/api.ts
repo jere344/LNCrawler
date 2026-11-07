@@ -3,9 +3,12 @@ import { getCookie } from '../utils/cookies';
 import { AUTH_TOKEN_KEY, AUTH_USER_KEY } from '../utils/storage';
 import { API_BASE_URL } from './config';
 
+type ParamValue = string | number | boolean;
+
 interface RequestConfig {
   headers?: Record<string, string>;
-  params?: Record<string, string | number | boolean | undefined>;
+  // Array values repeat the key; undefined and null are left out of the query.
+  params?: Record<string, ParamValue | ParamValue[] | null | undefined>;
 }
 
 export interface ApiResponse {
@@ -75,7 +78,10 @@ const request = async (
   if (config?.params) {
     const query = new URLSearchParams();
     Object.entries(config.params).forEach(([key, value]) => {
-      if (value !== undefined) query.append(key, String(value));
+      const values = Array.isArray(value) ? value : [value];
+      values.forEach((item) => {
+        if (item !== undefined && item !== null) query.append(key, String(item));
+      });
     });
     const qs = query.toString();
     if (qs) fullUrl += (url.includes('?') ? '&' : '?') + qs;

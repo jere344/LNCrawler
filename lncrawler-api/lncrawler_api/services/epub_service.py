@@ -411,28 +411,28 @@ def parse_epub_job_key(key):
     return source_id, volume
 
 
-def _active_epub_job(key):
+def active_job(job_type, key):
+    """The queued or running job of this type and key, or None."""
     from ..models import Job
 
     return Job.objects.filter(
-        job_type=Job.JOB_TYPE_EPUB,
+        job_type=job_type,
         query=key,
         status__in=[Job.STATUS_CREATED, Job.STATUS_DOWNLOADING],
     ).first()
 
 
-def enqueue_epub_job(source, volume=None, user=None):
-    """Return the active job for this epub, creating one if none is running."""
+def enqueue_job(job_type, key, user=None):
+    """Return the active job of this type and key, creating one if none is running."""
     from ..models import Job
 
-    key = epub_job_key(source.id, volume)
-    existing = _active_epub_job(key)
+    existing = active_job(job_type, key)
     if existing is not None:
         return existing
     try:
         with transaction.atomic():
             return Job.objects.create(
-                job_type=Job.JOB_TYPE_EPUB,
+                job_type=job_type,
                 status=Job.STATUS_CREATED,
                 query=key,
                 user=user,
@@ -442,12 +442,19 @@ def enqueue_epub_job(source, volume=None, user=None):
         # A concurrent request created the active job first; the partial
         # unique constraint rejected ours. If that job has already finished,
         # reuse the most recent job of this key instead.
-        existing = _active_epub_job(key) or Job.objects.filter(
-            job_type=Job.JOB_TYPE_EPUB, query=key,
+        existing = active_job(job_type, key) or Job.objects.filter(
+            job_type=job_type, query=key,
         ).order_by('-created_at').first()
         if existing is None:
             raise
         return existing
+
+
+def enqueue_epub_job(source, volume=None, user=None):
+    """Return the active job for this epub, creating one if none is running."""
+    from ..models import Job
+
+    return enqueue_job(Job.JOB_TYPE_EPUB, epub_job_key(source.id, volume), user=user)
 
 
 def run_epub_job(job_id, payload):

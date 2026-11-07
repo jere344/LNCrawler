@@ -15,7 +15,6 @@ Every pure function here takes plain data so it can be unit tested without the
 network. Helpers that touch the database are kept small and explicit.
 """
 
-import json
 import logging
 import re
 import time
@@ -131,7 +130,9 @@ def embed_missing(batch_size=None, sleep=time.sleep):
                 if attempt == EMBED_MAX_RETRIES:
                     logger.warning("Tag embedding rate limited; stopping for this run")
                     return done
-                sleep(_retry_seconds(exc.retry_after))
+                sleep(llm_service.retry_after_seconds(
+                    exc.retry_after, DEFAULT_RETRY_SECONDS, minimum=None, number=float,
+                ))
             except llm_service.LLMError as exc:
                 logger.warning("Tag embedding failed: %s", exc)
                 return done
@@ -142,13 +143,6 @@ def embed_missing(batch_size=None, sleep=time.sleep):
         Tag.objects.bulk_update(batch, ["embedding", "embedding_model"])
         done += len(batch)
     return done
-
-
-def _retry_seconds(value):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return DEFAULT_RETRY_SECONDS
 
 
 def embedding_edges(ids, matrix, top_k, min_cos):
@@ -476,13 +470,7 @@ def parse_verify_response(content, set_ids):
     or when one of ``set_ids`` gets no usable answer. Malformed items are skipped, so
     their set counts as unanswered.
     """
-    start, end = content.find("{"), content.rfind("}")
-    if start == -1 or end <= start:
-        raise llm_service.LLMParseError("no JSON object in verification reply")
-    try:
-        data = json.loads(content[start:end + 1])
-    except ValueError as exc:
-        raise llm_service.LLMParseError(f"invalid JSON in verification reply: {exc}") from exc
+    data = llm_service.parse_json_object(content, what="verification reply")
     raw_sets = data.get("sets") if isinstance(data, dict) else None
     if not isinstance(raw_sets, list):
         raise llm_service.LLMParseError("verification reply has no 'sets' list")

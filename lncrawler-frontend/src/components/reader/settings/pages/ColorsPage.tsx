@@ -106,7 +106,6 @@ const ColorsPage = () => {
         settingKey="dimLevel"
         settingId="dimLevel"
         {...STEPPER_SPECS.dimLevel}
-        label={screenDimTitle}
       />
       <SettingSwitch
         settingKey="nightMode"
@@ -121,7 +120,6 @@ const ColorsPage = () => {
             settingKey="nightModeStrength"
             settingId="nightModeStrength"
             {...STEPPER_SPECS.nightModeStrength}
-            label={strengthTitle}
           />
           <SettingSwitch settingKey="nightModeScheduleEnabled" settingId="nightSchedule" title={t('readerSettingsPages.onSchedule')} />
         </>

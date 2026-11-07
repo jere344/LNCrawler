@@ -4,7 +4,7 @@ import {
   FormControl, InputLabel, Select, MenuItem, Checkbox,
   Chip, Button, FormGroup,
   FormControlLabel, Rating, IconButton, InputAdornment,
-  CircularProgress, Pagination, Stack, Autocomplete,
+  CircularProgress, Autocomplete,
   ToggleButton, ToggleButtonGroup,
   Grid as Grid,
 } from '@mui/material';
@@ -14,10 +14,14 @@ import SearchIcon from '@mui/icons-material/Search';
 import TuneIcon from '@mui/icons-material/Tune';
 import SortIcon from '@mui/icons-material/Sort';
 import CloseIcon from '@mui/icons-material/Close';
-import { novelService } from '../../services/api';
 import { defaultSortOrder } from '@services/novel.service';
 import BaseNovelCard from '../common/novelcardtypes/BaseNovelCard';
 import { useDebounce } from '@utils/useDebounce';
+import { useAutocomplete } from '@utils/useAutocomplete';
+import { useUrlListState } from '@utils/useUrlListState';
+import { parseSearchFilters } from '@utils/searchFilters';
+import type { SearchFilters } from '@utils/searchFilters';
+import PageNav from '@components/common/PageNav';
 import { languageFlagUrl, availableLanguages, languageCodeToName, getNovelSourceLink } from '@utils/Misc';
 import { useTheme } from '@theme/ThemeContext';
 import { useLanguage } from '@context/LanguageContext';
@@ -27,6 +31,8 @@ import { SearchResultsSkeleton } from './SearchSkeleton';
 import type { AsyncData, SearchLoaderData } from '../../router/loaders';
 
 type AdultFilter = 'hide' | 'show' | 'only';
+// Filter state as the key stores it: adult is 'default' while it matches the account default.
+type FilterState = Omit<SearchFilters, 'adult'> & { adult: AdultFilter | 'default' };
 
 
 interface FilterOptions {
@@ -69,6 +75,7 @@ const SearchPage: React.FC = () => {
   const { contentLanguages, languageFilterEnabled } = useLanguage();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { setParams } = useUrlListState();
 
   // Default the adult filter from the account preference: users who allow
   // adult content (yes/blur) start on 'show', everyone else on 'hide'.
@@ -134,10 +141,6 @@ const SearchPage: React.FC = () => {
   // No URL rewrite here: the loader already applies the stored content languages
   // on first arrival, so the page does not navigate (and refetch) on mount.
 
-  // State for autocomplete options
-  const [tagSuggestions, setTagSuggestions] = useState<Suggestion[]>([]);
-  const [authorSuggestions, setAuthorSuggestions] = useState<Suggestion[]>([]);
-  
   // State for autocomplete input values
   const [tagInput, setTagInput] = useState('');
   const [excludeTagInput, setExcludeTagInput] = useState('');
@@ -145,91 +148,28 @@ const SearchPage: React.FC = () => {
   const debouncedTagInput = useDebounce(tagInput);
   const debouncedExcludeTagInput = useDebounce(excludeTagInput);
   const debouncedAuthorInput = useDebounce(authorInput);
-  
-  // State for loading suggestions
-  const [loadingTags, setLoadingTags] = useState(false);
-  const [loadingAuthors, setLoadingAuthors] = useState(false);
-  
+
+  // Suggestions follow the debounced inputs. The exclude-tag input shares the tag list.
+  const { options: tagSuggestions, loading: loadingTags } = useAutocomplete('tag', debouncedTagInput || debouncedExcludeTagInput);
+  const { options: authorSuggestions, loading: loadingAuthors } = useAutocomplete('author', debouncedAuthorInput);
+
   // UI state
   const [showFilters, setShowFilters] = useState(false);
-  
-  // Fetch tag suggestions whenever the debounced input changes
-  useEffect(() => {
-    const query = debouncedTagInput || debouncedExcludeTagInput;
-    if (query.length < 1) {
-      setTagSuggestions([]);
-      setLoadingTags(false);
-      return;
-    }
-    let cancelled = false;
-    setLoadingTags(true);
-    novelService.getAutocompleteSuggestions('tag', query)
-      .then((response) => { if (!cancelled) setTagSuggestions(response); })
-      .catch((error) => {
-        console.error('Error fetching tag suggestions:', error);
-        if (!cancelled) setTagSuggestions([]);
-      })
-      .finally(() => { if (!cancelled) setLoadingTags(false); });
-    return () => { cancelled = true; };
-  }, [debouncedTagInput, debouncedExcludeTagInput]);
 
-  // Fetch author suggestions whenever the debounced input changes
-  useEffect(() => {
-    if (debouncedAuthorInput.length < 1) {
-      setAuthorSuggestions([]);
-      setLoadingAuthors(false);
-      return;
-    }
-    let cancelled = false;
-    setLoadingAuthors(true);
-    novelService.getAutocompleteSuggestions('author', debouncedAuthorInput)
-      .then((response) => { if (!cancelled) setAuthorSuggestions(response); })
-      .catch((error) => {
-        console.error('Error fetching author suggestions:', error);
-        if (!cancelled) setAuthorSuggestions([]);
-      })
-      .finally(() => { if (!cancelled) setLoadingAuthors(false); });
-    return () => { cancelled = true; };
-  }, [debouncedAuthorInput]);
-  
   // Update search params when filters change
   const updateSearchParams = (newParams: Record<string, string | string[] | number | null>) => {
-    const params = new URLSearchParams(searchParams);
-    
     // Reset to page 1 when filters change
-    params.set('page', '1');
-    
-    Object.entries(newParams).forEach(([key, value]) => {
-      // Remove existing values for this key
-      params.delete(key);
-      
-      if (value === null) {
-        // Skip if value is null
-      } else if (Array.isArray(value)) {
-        if (key === 'language' && value.length === 0) {
-          // Empty marker: the user chose "all languages" (see searchLoader).
-          params.append(key, '');
-        } else {
-          // Add all values from array
-          value.forEach(v => params.append(key, v));
-        }
-      } else if (value !== '') {
-        // Add single value
-        params.set(key, value.toString());
-      }
-    });
-
+    const updates: Record<string, string | string[] | number | null> = { page: '1', ...newParams };
+    // Empty marker: the user chose "all languages" (see searchLoader).
+    if (Array.isArray(updates.language) && updates.language.length === 0) updates.language = [''];
     // Filters and the query keep the reader where they are; only a page change scrolls to the top.
-    setSearchParams(params, { state: { keepScroll: true } });
+    setParams(updates, { state: { keepScroll: true } });
   };
 
   // Filter state as one string, so a single debounced effect can commit it to the URL.
   // adult is stored as 'default' while it matches the account default, so the
   // profile-driven realign above does not count as a user change.
-  const makeFilterKey = (f: {
-    tag: string[]; exclude_tag: string[]; author: string[]; status: string;
-    language: string[]; min_rating: number | null; sort_by: string; sort_order: string; adult: AdultFilter;
-  }) => JSON.stringify({ ...f, adult: f.adult === defaultAdult ? 'default' : f.adult });
+  const makeFilterKey = (f: FilterState) => JSON.stringify({ ...f, adult: f.adult === defaultAdult ? 'default' : f.adult });
 
   const filterKey = makeFilterKey({
     tag: selectedTags, exclude_tag: excludedTags, author: selectedAuthors, status: selectedStatus,
@@ -238,20 +178,8 @@ const SearchPage: React.FC = () => {
   // The same key, read from the URL. Matches the state initializers above, so the
   // key already in the URL (or the stored defaults on first arrival) counts as applied.
   const keyFromParams = (sp: URLSearchParams) => {
-    const sortByParam = sp.get('sort_by') || 'popularity';
-    return makeFilterKey({
-      tag: sp.getAll('tag'),
-      exclude_tag: sp.getAll('exclude_tag'),
-      author: sp.getAll('author'),
-      status: sp.get('status') || '',
-      language: sp.has('language')
-        ? sp.getAll('language').filter(Boolean)
-        : (languageFilterEnabled ? contentLanguages : []),
-      min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : null,
-      sort_by: sortByParam,
-      sort_order: sp.get('sort_order') || defaultSortOrder(sortByParam),
-      adult: (sp.get('adult') as AdultFilter) || defaultAdult,
-    });
+    const filters = parseSearchFilters(sp, languageFilterEnabled ? contentLanguages : []);
+    return makeFilterKey({ ...filters, adult: (filters.adult as AdultFilter) || defaultAdult });
   };
   const debouncedFilterKey = useDebounce(filterKey, 400);
 
@@ -260,10 +188,7 @@ const SearchPage: React.FC = () => {
   const urlFilterKey = keyFromParams(searchParams);
   useEffect(() => {
     if (urlFilterKey === filterKey) return;
-    const f = JSON.parse(urlFilterKey) as {
-      tag: string[]; exclude_tag: string[]; author: string[]; status: string;
-      language: string[]; min_rating: number | null; sort_by: string; sort_order: string; adult: string;
-    };
+    const f = JSON.parse(urlFilterKey) as FilterState;
     setSelectedTags(f.tag);
     setExcludedTags(f.exclude_tag);
     setSelectedAuthors(f.author);
@@ -281,10 +206,7 @@ const SearchPage: React.FC = () => {
   // The URL is the reference for what is applied, so equal keys are a no-op.
   useEffect(() => {
     if (debouncedFilterKey === keyFromParams(searchParams)) return;
-    const f = JSON.parse(debouncedFilterKey) as {
-      tag: string[]; exclude_tag: string[]; author: string[]; status: string;
-      language: string[]; min_rating: number | null; sort_by: string; sort_order: string; adult: string;
-    };
+    const f = JSON.parse(debouncedFilterKey) as FilterState;
     updateSearchParams({
       query: searchParams.get('query'),
       tag: f.tag,
@@ -315,7 +237,7 @@ const SearchPage: React.FC = () => {
   };
   
   // Handle page change
-  const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
+  const handlePageChange = (page: number) => {
     const params = new URLSearchParams(searchParams);
     params.set('page', page.toString());
     setSearchParams(params);
@@ -967,17 +889,13 @@ const SearchPage: React.FC = () => {
           )}
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <Stack spacing={2} sx={{ mt: 4, display: 'flex', alignItems: 'center' }}>
-              <Pagination
-                count={totalPages}
-                page={currentPage}
-                onChange={handlePageChange}
-                color="primary"
-                size="large"
-              />
-            </Stack>
-          )}
+          <PageNav
+            page={currentPage}
+            totalPages={totalPages}
+            onChange={handlePageChange}
+            size="large"
+            sx={{ mt: 4 }}
+          />
         </>
       )}
     </Container>

@@ -24,6 +24,7 @@ from ..models import (
     ScheduledTask,
 )
 from ..services import audiobook_cover, audiobook_m4b, audiobook_media, audiobook_service
+from .actions import update_action
 
 MB = 1024 * 1024
 GB = 1024 * MB
@@ -225,30 +226,21 @@ class AudiobookAdmin(admin.ModelAdmin):
         updated = queryset.update(published=True)
         self.message_user(request, f"{updated} audiobook(s) published.")
 
-    @admin.action(description="Unpublish selected audiobooks")
-    def unpublish(self, request, queryset):
-        updated = queryset.update(published=False)
-        self.message_user(request, f"{updated} audiobook(s) unpublished.")
-
-    @admin.action(description="Feature selected audiobooks")
-    def feature(self, request, queryset):
-        updated = queryset.update(featured=True)
-        self.message_user(request, f"{updated} audiobook(s) featured.")
-
-    @admin.action(description="Unfeature selected audiobooks")
-    def unfeature(self, request, queryset):
-        updated = queryset.update(featured=False)
-        self.message_user(request, f"{updated} audiobook(s) unfeatured.")
-
-    @admin.action(description="Pause selected audiobooks")
-    def pause(self, request, queryset):
-        updated = queryset.update(status='paused')
-        self.message_user(request, f"{updated} audiobook(s) paused.")
-
-    @admin.action(description="Resume selected audiobooks")
-    def resume(self, request, queryset):
-        updated = queryset.update(status='active')
-        self.message_user(request, f"{updated} audiobook(s) resumed.")
+    unpublish = update_action(
+        "Unpublish selected audiobooks", "{} audiobook(s) unpublished.", published=False,
+    )
+    feature = update_action(
+        "Feature selected audiobooks", "{} audiobook(s) featured.", featured=True,
+    )
+    unfeature = update_action(
+        "Unfeature selected audiobooks", "{} audiobook(s) unfeatured.", featured=False,
+    )
+    pause = update_action(
+        "Pause selected audiobooks", "{} audiobook(s) paused.", status='paused',
+    )
+    resume = update_action(
+        "Resume selected audiobooks", "{} audiobook(s) resumed.", status='active',
+    )
 
     @admin.action(description="Enqueue next part")
     def enqueue_next(self, request, queryset):
@@ -298,10 +290,9 @@ class AudiobookAdmin(admin.ModelAdmin):
         self.message_user(request, f"Audio files deleted, {freed / MB:.1f} MB freed.")
         return None
 
-    @admin.action(description="Unpin worker (any worker may claim the next part)")
-    def unpin_worker(self, request, queryset):
-        updated = queryset.update(worker_id='')
-        self.message_user(request, f"{updated} audiobook(s) unpinned.")
+    unpin_worker = update_action(
+        "Unpin worker (any worker may claim the next part)", "{} audiobook(s) unpinned.", worker_id='',
+    )
 
     # -- Dashboard page --------------------------------------------------------
 
@@ -508,10 +499,9 @@ class AudiobookPartAdmin(admin.ModelAdmin):
             count += 1
         self.message_user(request, f"{count} part(s) queued for regeneration.")
 
-    @admin.action(description="Approve selected parts despite QA")
-    def approve(self, request, queryset):
-        updated = queryset.update(approved=True)
-        self.message_user(request, f"{updated} part(s) approved.")
+    approve = update_action(
+        "Approve selected parts despite QA", "{} part(s) approved.", approved=True,
+    )
 
 
 @admin.register(AudiobookWorker)

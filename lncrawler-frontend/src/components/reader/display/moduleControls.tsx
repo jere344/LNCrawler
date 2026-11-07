@@ -10,8 +10,6 @@ import { updateReaderSetting } from '../readerSettingsStore';
 import { type ReaderSettings } from '../readerSettingsSchema';
 import { READER_THEMES, findReaderTheme, fontOptions } from '../readerOptions';
 import { useSiteTheme } from '../theme/siteTheme';
-import Stepper from './Stepper';
-import { STEPPER_SPECS } from './stepperSpecs';
 
 // Keeps the slider thumb from being taken over by a touch scroll
 const SLIDER_SX = { '& .MuiSlider-thumb': { touchAction: 'none' } };
@@ -41,52 +39,6 @@ const LabelledSlider = ({ label, value, min, max, onChange }: {
     <Typography variant="body2" component="output" sx={{ minWidth: '3em', textAlign: 'end' }}>{value}%</Typography>
   </>
 );
-
-export const SizeModule = () => {
-  const { t } = useTranslation();
-  return (
-    <Stepper
-      settingKey="fontSize"
-      {...STEPPER_SPECS.fontSize}
-      label={t('readerDisplay.modules.size.label')}
-      decreaseLabel={<Typography component="span" sx={{ fontSize: '0.85rem', lineHeight: 1 }}>A</Typography>}
-      increaseLabel={<Typography component="span" sx={{ fontSize: '1.4rem', lineHeight: 1 }}>A</Typography>}
-    />
-  );
-};
-
-export const LineModule = () => {
-  const { t } = useTranslation();
-  return (
-    <Stepper
-      settingKey="lineSpacing"
-      {...STEPPER_SPECS.lineSpacing}
-      label={t('readerDisplay.modules.line.label')}
-    />
-  );
-};
-
-export const ParagraphModule = () => {
-  const { t } = useTranslation();
-  return (
-    <Stepper
-      settingKey="paragraphSpacing"
-      {...STEPPER_SPECS.paragraphSpacing}
-      label={t('readerDisplay.modules.para.label')}
-    />
-  );
-};
-
-export const MarginModule = () => {
-  const { t } = useTranslation();
-  return (
-    <Stepper
-      settingKey="margin"
-      {...STEPPER_SPECS.margin}
-      label={t('readerDisplay.modules.margin.label')}
-    />
-  );
-};
 
 export const IndentModule = () => {
   const { t } = useTranslation();

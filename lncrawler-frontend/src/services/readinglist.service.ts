@@ -5,22 +5,17 @@ import { User } from '@models/user_types';
 const readingListService = {
   // Get all reading lists with pagination and search
   getAllReadingLists: async (page = 1, pageSize = 20, search = ''): Promise<ReadingListResponse> => {
-    const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('page_size', pageSize.toString());
-    if (search) params.append('search', search);
-
-    const response = await api.get(`/reading-lists/?${params.toString()}`);
+    const response = await api.get('/reading-lists/', {
+      params: { page, page_size: pageSize, search: search || undefined },
+    });
     return response.data;
   },
 
   // Get reading lists for a specific user
   getUserReadingLists: async (page = 1, pageSize = 20): Promise<ReadingListResponse> => {
-    const params = new URLSearchParams();
-    params.append('page', page.toString());
-    params.append('page_size', pageSize.toString());
-
-    const response = await api.get(`/users/reading-lists/?${params.toString()}`);
+    const response = await api.get('/users/reading-lists/', {
+      params: { page, page_size: pageSize },
+    });
     return response.data;
   },
 

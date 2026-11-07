@@ -15,7 +15,8 @@ interface LibraryQuery {
   languages?: string[];
 }
 
-const buildLibraryParams = (query: LibraryQuery = {}) => ({
+// Shared by the own and the public library lists. `sort` is a plain string so the public tab can pass its state as is.
+export const buildLibraryParams = (query: Pick<LibraryQuery, 'page' | 'pageSize' | 'search' | 'folder'> & { sort?: string } = {}) => ({
   page: query.page ?? 1,
   page_size: query.pageSize ?? 24,
   search: query.search || undefined,
@@ -38,13 +39,8 @@ const userService = {
 
   // List bookmarked novels (library) with search/folder/sort
   listBookmarkedNovels: async (query: LibraryQuery = {}): Promise<NovelListResponse> => {
-    // Repeated `languages=xx` params, built like novel.service does (the api
-    // wrapper's params only take scalars).
-    const languageQuery = new URLSearchParams();
-    (query.languages ?? []).forEach(language => languageQuery.append('languages', language));
-    const languageQs = languageQuery.toString();
-    const response = await api.get(`/users/bookmarks/novels/${languageQs ? `?${languageQs}` : ''}`, {
-      params: buildLibraryParams(query),
+    const response = await api.get('/users/bookmarks/novels/', {
+      params: { languages: query.languages, ...buildLibraryParams(query) },
     });
     return response.data;
   },

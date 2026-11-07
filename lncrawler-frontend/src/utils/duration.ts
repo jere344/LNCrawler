@@ -20,19 +20,3 @@ export function formatHours(seconds: number, t: TFunction): string {
     ? t('audioPlayer.durationHoursMinutes', { hours, minutes })
     : t('audioPlayer.durationMinutes', { count: minutes });
 }
-
-/** Localized size with the unit picked by magnitude, "512 kB", "1.2 MB". */
-export function formatBytes(bytes: number): string {
-  const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte'] as const;
-  let value = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
-  let index = 0;
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024;
-    index += 1;
-  }
-  return new Intl.NumberFormat(undefined, {
-    style: 'unit',
-    unit: units[index],
-    maximumFractionDigits: index === 0 ? 0 : 1,
-  }).format(value);
-}

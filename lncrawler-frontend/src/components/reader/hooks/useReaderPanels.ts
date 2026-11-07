@@ -17,6 +17,10 @@ import {
 
 export type { ReaderPanel } from '../readerLayers';
 
+// The comment opened in place of the composer: the composer's entry is dropped, so Back never returns to it
+const threadInPlaceOfComposer = (current: ReaderLayers, id: string): ReaderLayers =>
+  addThread({ ...current, composing: false, depth: current.depth - 1 }, id);
+
 interface ReaderPanelsOptions {
   // Desktop shows its settings pages side by side, so a page there is not a level of its own
   isDesktop: boolean;
@@ -39,7 +43,6 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
   const write = (next: ReaderLayers, replace = false) => {
     navigate(location, { state: writeLayers(location.state, next), replace });
   };
-  const push = (next: ReaderLayers) => write(next);
 
   // Up one level, the same as Back
   const popPage = () => {
@@ -91,7 +94,7 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
   // Opens `target`, or closes it when it is already open. Another panel closes first, so only one is ever in the history.
   const togglePanel = (target: 'display' | 'chapters' | 'comments') => {
     if (panel === target) closePanel();
-    else if (panel === 'none') push(openLayer(layers, target));
+    else if (panel === 'none') write(openLayer(layers, target));
     else {
       pendingPush.current = openLayer(CLOSED_LAYERS, target);
       closePanel();
@@ -104,7 +107,7 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
   // Opens the comments panel, with the composer above it when `compose`. On an open panel only the composer is added.
   const openComments = ({ compose = false }: { compose?: boolean } = {}) => {
     if (panel === 'comments') {
-      if (compose && !composing) push(addComposing(layers));
+      if (compose && !composing) write(addComposing(layers));
       return;
     }
     if (panel !== 'none') {
@@ -116,53 +119,53 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
     const comments = openLayer(layers, 'comments');
     // The composer is the entry above the panel, pushed once the panel's entry is shown
     if (compose) pendingPush.current = addComposing(comments);
-    push(comments);
+    write(comments);
   };
 
   // Opens a comment on its own. From the composer, the composer's entry is dropped first, so Back never returns to it.
   const pushThread = (id: string) => {
     const current = latest.current;
     if (current.composing) {
-      pendingPush.current = addThread({ ...current, composing: false, depth: current.depth - 1 }, id);
+      pendingPush.current = threadInPlaceOfComposer(current, id);
       navigate(-1);
     } else {
-      push(addThread(current, id));
+      write(addThread(current, id));
     }
   };
 
   // The composer opens over the current layers, one entry more
   const startComposing = () => {
     const current = latest.current;
-    if (!current.composing) push(addComposing(current));
+    if (!current.composing) write(addComposing(current));
   };
 
   // Closes the composer with Back. With `thenThread`, that comment opens on its own in its place.
   const stopComposing = ({ thenThread }: { thenThread?: string } = {}) => {
     const current = latest.current;
     if (!current.composing) return;
-    if (thenThread) pendingPush.current = addThread({ ...current, composing: false, depth: current.depth - 1 }, thenThread);
+    if (thenThread) pendingPush.current = threadInPlaceOfComposer(current, thenThread);
     navigate(-1);
   };
 
   // The TTS tune button opens a page: on stack layouts it sits above the home, on desktop it is the nav's page
   const openSettings = ({ page }: { page?: SettingsPageId } = {}) => {
     if (!page) {
-      push(openLayer(layers, 'settings'));
+      write(openLayer(layers, 'settings'));
     } else if (isDesktop) {
-      push(openLayer(layers, 'settings', [page]));
+      write(openLayer(layers, 'settings', [page]));
     } else {
       // Stack layouts: the home is an entry of its own, so Back from the page returns to it
       const home = openLayer(layers, 'settings');
       pendingPush.current = addPage(home, page);
-      push(home);
+      write(home);
     }
   };
   // Customize is a level above the display sheet, so going back returns there
   const openCustomize = () => {
-    push(openLayer(layers, 'customize', ['custom']));
+    write(openLayer(layers, 'customize', ['custom']));
   };
   const pushPage = (page: SettingsPageId) => {
-    push(addPage(layers, page));
+    write(addPage(layers, page));
   };
   // Replaces the current entry: a desktop nav choice, or a search result. Null is the home.
   // On desktop a search is an entry of its own: it is dropped and the entry below is replaced, so Back closes.
@@ -175,7 +178,7 @@ export function useReaderPanels({ isDesktop }: ReaderPanelsOptions) {
     write(replacePages(layers, page), true);
   };
   const startSearch = () => {
-    push(addSearch(layers));
+    write(addSearch(layers));
   };
 
   return {

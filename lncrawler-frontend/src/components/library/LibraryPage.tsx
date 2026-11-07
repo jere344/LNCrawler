@@ -3,16 +3,12 @@ import {
   Box,
   Typography,
   Grid as Grid,
-  Pagination,
   Alert,
   CircularProgress,
   Paper,
   Divider,
   TextField,
   InputAdornment,
-  FormControl,
-  InputLabel,
-  Select,
   MenuItem,
   Button,
   Dialog,
@@ -61,6 +57,8 @@ import { userService, LibrarySort, LIBRARY_SORTS } from '@services/user.service'
 import { novelService } from '@services/novel.service';
 import LibraryNovelCard from '@components/library/LibraryNovelCard';
 import LibraryFolderBar from '@components/library/LibraryFolderBar';
+import LibrarySortSelect from '@components/common/LibrarySortSelect';
+import PageNav from '@components/common/PageNav';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import { useLanguage } from '@context/LanguageContext';
@@ -217,7 +215,7 @@ const LibraryPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [items]);
 
-  const handlePageChange = (_: React.ChangeEvent<unknown>, value: number) => {
+  const handlePageChange = (value: number) => {
     setPage(value);
     fetchLibrary(value);
     window.scrollTo(0, 0);
@@ -530,15 +528,7 @@ const LibraryPage: React.FC = () => {
             },
           }}
         />
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>{t('library.sortBy')}</InputLabel>
-          <Select label={t('library.sortBy')} value={sort} onChange={(e) => setSort(e.target.value as LibrarySort)}>
-            <MenuItem value="custom">{t('library.sort.custom')}</MenuItem>
-            <MenuItem value="title">{t('library.sort.title')}</MenuItem>
-            <MenuItem value="date_added">{t('library.sort.date_added')}</MenuItem>
-            <MenuItem value="rating">{t('library.sort.rating')}</MenuItem>
-          </Select>
-        </FormControl>
+        <LibrarySortSelect value={sort} onChange={setSort} />
         <Button
           variant={selectMode ? 'contained' : 'outlined'}
           startIcon={<DoneAllIcon />}
@@ -604,17 +594,13 @@ const LibraryPage: React.FC = () => {
           grid
         )}
 
-        {totalPages > 1 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-            <Pagination
-              count={totalPages}
-              page={page}
-              onChange={handlePageChange}
-              color="primary"
-              size="small"
-            />
-          </Box>
-        )}
+        <PageNav
+          page={page}
+          totalPages={totalPages}
+          onChange={handlePageChange}
+          size="small"
+          sx={{ my: 4 }}
+        />
 
         <DragOverlay dropAnimation={null}>
           {activeNovel && (

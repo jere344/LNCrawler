@@ -2,20 +2,27 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDebounce } from '@utils/useDebounce';
 
-type UrlParamUpdates = Record<string, string | null | undefined>;
+type UrlParamUpdates = Record<string, string | number | string[] | null | undefined>;
 
 // Reads and writes list state (filters, sort, search, page) in the URL, so
 // back/forward and shared links restore the same view.
-// Empty, null or undefined values remove the param.
+// Empty, null or undefined values remove the param. An array replaces every
+// value of the param, for repeated params such as tag=a&tag=b.
 export function useUrlListState() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const setParams = useCallback(
-    (updates: UrlParamUpdates, options?: { replace?: boolean }) => {
+    (updates: UrlParamUpdates, options?: { replace?: boolean; state?: unknown }) => {
       const next = new URLSearchParams(searchParams);
       for (const [key, value] of Object.entries(updates)) {
-        if (value) next.set(key, value);
-        else next.delete(key);
+        if (Array.isArray(value)) {
+          next.delete(key);
+          value.forEach((item) => next.append(key, item));
+        } else if (value === null || value === undefined || value === '') {
+          next.delete(key);
+        } else {
+          next.set(key, String(value));
+        }
       }
       setSearchParams(next, options);
     },

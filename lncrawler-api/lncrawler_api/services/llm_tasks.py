@@ -194,13 +194,6 @@ def settle(task, candidate, judgement, decided_by=Candidate.DECIDED_LLM):
     return status
 
 
-def _retry_after_seconds(value):
-    try:
-        return max(int(value), 1)
-    except (TypeError, ValueError):
-        return DEFAULT_RETRY_AFTER
-
-
 def _reset_stuck(task_name, now):
     """Clear claims whose worker died, so the candidates are claimed again."""
     Candidate.objects.filter(
@@ -382,7 +375,9 @@ def _settle_two_phase(task, pk, token, judgement, call, counts, stdout):
 def _rate_limited(task, kept, token, exc):
     """Give the batch back after a 429. Not the candidates' fault: no attempt is counted and the run stops."""
     reason = f"no provider available: {exc.reason}"[:2000] if getattr(exc, "reason", "") else ""
-    not_before = timezone.now() + timedelta(seconds=_retry_after_seconds(exc.retry_after))
+    not_before = timezone.now() + timedelta(
+        seconds=llm_service.retry_after_seconds(exc.retry_after, DEFAULT_RETRY_AFTER)
+    )
     for candidate in kept:
         _release(task, candidate.pk, token, reason=reason, attempt=False, not_before=not_before)
     return "rate_limited"
@@ -564,13 +559,7 @@ class TagR18Task(LLMTask):
         ]
 
     def parse(self, kept, context, content):
-        start, end = content.find("{"), content.rfind("}")
-        if start == -1 or end <= start:
-            raise LLMParseError("no JSON object in reply")
-        try:
-            data = json.loads(content[start:end + 1])
-        except ValueError as exc:
-            raise LLMParseError(f"invalid JSON: {exc}") from exc
+        data = llm_service.parse_json_object(content)
         items = data.get("tags") if isinstance(data, dict) else None
         if not isinstance(items, list):
             raise LLMParseError("missing tags list")
@@ -835,13 +824,7 @@ class AuthorMergeTask(LLMTask):
         ]
 
     def parse(self, kept, context, content):
-        start, end = content.find("{"), content.rfind("}")
-        if start == -1 or end <= start:
-            raise LLMParseError("no JSON object in reply")
-        try:
-            data = json.loads(content[start:end + 1])
-        except ValueError as exc:
-            raise LLMParseError(f"invalid JSON: {exc}") from exc
+        data = llm_service.parse_json_object(content)
         items = data.get("results") if isinstance(data, dict) else None
         if not isinstance(items, list):
             raise LLMParseError("missing results list")
@@ -1013,13 +996,7 @@ class TagMergeTask(LLMTask):
         return tms.build_judge_messages(groups)
 
     def parse(self, kept, context, content):
-        start, end = content.find("{"), content.rfind("}")
-        if start == -1 or end <= start:
-            raise LLMParseError("no JSON object in reply")
-        try:
-            data = json.loads(content[start:end + 1])
-        except ValueError as exc:
-            raise LLMParseError(f"invalid JSON: {exc}") from exc
+        data = llm_service.parse_json_object(content)
         if not isinstance(data, dict):
             raise LLMParseError("reply is not a JSON object")
 

@@ -143,7 +143,13 @@ class Command(BaseCommand):
         )
         chapters_url = f'/novels/{novel.slug}/{source.source_slug}/chapters/'
         tag = source.tags.order_by('name').values_list('name', flat=True).first()
-        audiobook = Audiobook.objects.select_related('novel').filter(language='en').first()
+        # Unpublished or retired audiobooks 404 and would time nothing.
+        audiobook = (
+            Audiobook.objects.select_related('novel')
+            .filter(language='en', published=True)
+            .exclude(status='retired')
+            .first()
+        )
 
         # The full read surface: home/rankings, list+search variants, the novel
         # and source pages, and the social reads. The more endpoints, the more
@@ -211,10 +217,10 @@ class Command(BaseCommand):
         # Pass 1 runs the public surface anonymously. Pass 2 logs in the seeded
         # throwaway user (or the chosen one) and re-runs the same pages prefixed
         # "auth" plus the user-only ones, so both paths are always profiled.
-        anonymous_client = Client(SERVER_NAME='localhost')
+        anonymous_client = Client(SERVER_NAME='localhost', raise_request_exception=False)
         temp_user = None
         auth_user = None
-        authed_client = Client(SERVER_NAME='localhost')
+        authed_client = Client(SERVER_NAME='localhost', raise_request_exception=False)
         if options['username']:
             if authed_client.login(username=options['username'], password=options['password']):
                 auth_user = get_user_model().objects.get(username=options['username'])
@@ -325,7 +331,8 @@ class Command(BaseCommand):
             novel_from_source=OuterRef('pk'), has_content=True
         )
         candidate_ids = list(
-            NovelFromSource.objects.filter(Exists(has_content))
+            # DMCA novels answer 451 on chapter content.
+            NovelFromSource.objects.filter(Exists(has_content), novel__is_dmca=False)
             .order_by('-total_views')
             .values_list('pk', flat=True)[:200]
         )
@@ -415,6 +422,9 @@ class Command(BaseCommand):
             best = None
             cold_ms = None
             for index in range(runs):
+                # The query log is a 9000-entry deque: once full, the capture
+                # counts 0 queries, so start every request from an empty log.
+                connection.queries_log.clear()
                 with CaptureQueriesContext(connection) as captured:
                     start = time.perf_counter()
                     response = client.get(url)

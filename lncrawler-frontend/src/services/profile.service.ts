@@ -3,6 +3,7 @@ import { LibraryFolder, Novel } from '@models/novels_types';
 import { User, PublicProfile } from '@models/user_types';
 import { ReadingListResponse } from '@models/readinglist_types';
 import { Review } from './review.service';
+import { buildLibraryParams } from './user.service';
 import type { Comment } from '@models/comments_types';
 
 interface PublicLibraryQuery {
@@ -23,13 +24,7 @@ const profileService = {
   // A user's public library (bookmarks), read-only mirror
   getUserLibrary: async (username: string, query: PublicLibraryQuery = {}) => {
     const response = await api.get(`/users/profile/${encodeURIComponent(username)}/library/`, {
-      params: {
-        page: query.page ?? 1,
-        page_size: query.pageSize ?? 24,
-        search: query.search || undefined,
-        folder: query.folder || undefined,
-        sort: query.sort || undefined,
-      },
+      params: buildLibraryParams(query),
     });
     return response.data as {
       count: number;

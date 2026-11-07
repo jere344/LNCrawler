@@ -1,10 +1,10 @@
 import type { LoaderFunctionArgs } from 'react-router-dom';
 import { novelService } from '@services/api';
-import { defaultSortOrder } from '@services/novel.service';
 import { chatService } from '@services/chat.service';
 import { readingListService } from '@services/readinglist.service';
 import { getInitialContentLanguages, getInitialLanguageFilterEnabled } from '@context/LanguageContext';
 import { getNovelSourcePath } from '@utils/Misc';
+import { parseSearchFilters } from '@utils/searchFilters';
 import type { Novel, NovelFromSource, NovelChaptersResponse } from '@models/novels_types';
 import type { Review } from '@services/review.service';
 import type { ChatPageResponse } from '@models/chat_types';
@@ -207,27 +207,23 @@ export type SearchLoaderData = { ok: true; data: SearchData } | { ok: false };
 export const searchLoader = ({ request }: LoaderFunctionArgs): AsyncData<SearchLoaderData> => {
   const sp = new URL(request.url).searchParams;
   const page = sp.get('page') ? parseInt(sp.get('page')!) : 1;
-  // An empty `language=` marker means the user explicitly chose "all languages";
-  // no language key at all means first arrival, so the stored defaults apply.
-  const selectedLanguages = sp.has('language')
-    ? sp.getAll('language').filter(Boolean)
-    : (getInitialLanguageFilterEnabled() ? getInitialContentLanguages() : []);
-  const sortBy = (sp.get('sort_by') as NovelSort) || 'popularity';
+  // No language key at all means first arrival, so the stored defaults apply.
+  const filters = parseSearchFilters(sp, getInitialLanguageFilterEnabled() ? getInitialContentLanguages() : []);
   return {
-    data: reuseOnHistory(request, `${request.url}|${selectedLanguages.join(',')}`, () =>
+    data: reuseOnHistory(request, `${request.url}|${filters.language.join(',')}`, () =>
       settle<SearchData>(novelService.searchNovels({
         query: sp.get('query') || undefined,
         page,
         page_size: 24,
-        tag: sp.getAll('tag'),
-        exclude_tag: sp.getAll('exclude_tag'),
-        author: sp.getAll('author'),
-        status: sp.get('status') || undefined,
-        languages: selectedLanguages.length > 0 ? selectedLanguages : undefined,
-        min_rating: sp.get('min_rating') ? Number(sp.get('min_rating')) : undefined,
-        sort_by: sortBy,
-        sort_order: (sp.get('sort_order') as 'asc' | 'desc') || defaultSortOrder(sortBy),
-        adult: (sp.get('adult') as 'hide' | 'show' | 'only') || undefined,
+        tag: filters.tag,
+        exclude_tag: filters.exclude_tag,
+        author: filters.author,
+        status: filters.status || undefined,
+        languages: filters.language.length > 0 ? filters.language : undefined,
+        min_rating: filters.min_rating ?? undefined,
+        sort_by: filters.sort_by as NovelSort,
+        sort_order: filters.sort_order as 'asc' | 'desc',
+        adult: (filters.adult as 'hide' | 'show' | 'only') || undefined,
       })),
     ),
   };

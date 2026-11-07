@@ -1,18 +1,13 @@
-import { AppBar, Badge, Box, ButtonBase, Divider, IconButton, type IconButtonProps, Toolbar, Tooltip, Typography } from '@mui/material';
+import { AppBar, Box, ButtonBase, Divider, IconButton, type IconButtonProps, Toolbar, Tooltip, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ListIcon from '@mui/icons-material/List';
-import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
-import DoneIcon from '@mui/icons-material/Done';
-import HeadphonesIcon from '@mui/icons-material/Headphones';
-import CommentIcon from '@mui/icons-material/Comment';
-import SettingsIcon from '@mui/icons-material/Settings';
-import FullscreenIcon from '@mui/icons-material/Fullscreen';
-import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import DirectionalIcon from '../DirectionalIcon';
 import { ChapterStepButton } from './ChapterStepButtons';
 import ChapterProgress from './ChapterProgress';
 import type { ReaderBarProps } from './readerBarTypes';
+import { useBarActions } from './barActions';
+import { FullscreenButton, MarkReadButton } from './BarButtons';
 import { reservedMargin } from '../panels/panelLayout';
 
 // Height of the MUI Toolbar at sm and up (the desktop layout)
@@ -58,8 +53,7 @@ const ReaderDesktopToolbar = ({
   onSettings,
 }: ReaderBarProps) => {
   const { t } = useTranslation();
-  const displayLabel = t('readerControls.display');
-  const commentsLabel = t('readerControls.comments');
+  const barActions = useBarActions({ displayOpen, commentsOpen, commentCount, shortcuts, onDisplay, onListen, onComments, onSettings });
 
   // Hidden: slid above the viewport, out of the tab order, and no longer taking up space
   return (
@@ -115,56 +109,28 @@ const ReaderDesktopToolbar = ({
 
         <Divider orientation="vertical" flexItem />
 
-        <ToolbarAction
-          label={displayLabel}
-          title={shortcuts.display ? `${displayLabel} (${shortcuts.display})` : displayLabel}
-          onClick={onDisplay}
-          aria-expanded={displayOpen}
-          aria-keyshortcuts={shortcuts.display}
-        >
-          <Typography component="span" sx={{ fontWeight: 600, lineHeight: 1 }}>Aa</Typography>
-        </ToolbarAction>
-        <ToolbarAction label={t('reader.listen')} onClick={onListen}>
-          <HeadphonesIcon />
-        </ToolbarAction>
-        <ToolbarAction
-          label={t('readerControls.commentsCount', { count: commentCount })}
-          title={shortcuts.comments ? `${commentsLabel} (${shortcuts.comments})` : commentsLabel}
-          onClick={onComments}
-          aria-expanded={commentsOpen}
-          aria-keyshortcuts={shortcuts.comments}
-        >
-          <Badge badgeContent={commentCount} max={999} color="primary" invisible={commentCount === 0}>
-            <CommentIcon />
-          </Badge>
-        </ToolbarAction>
-        <ToolbarAction label={t('readerControls.settings')} onClick={onSettings}>
-          <SettingsIcon />
-        </ToolbarAction>
+        {barActions.map((action) => (
+          <ToolbarAction
+            key={action.label}
+            label={action.ariaLabel ?? action.label}
+            title={action.keyShortcut ? `${action.label} (${action.keyShortcut})` : action.label}
+            onClick={action.onClick}
+            aria-expanded={action.expanded}
+            aria-keyshortcuts={action.keyShortcut}
+          >
+            {action.icon}
+          </ToolbarAction>
+        ))}
 
         {showMarkRead && (
           <Tooltip title={t('markAsRead.tooltip')}>
             <span>
-              <IconButton
-                color="primary"
-                onClick={onMarkAsRead}
-                disabled={markingAsRead || markReadSuccess}
-                aria-label={markReadSuccess ? t('readerControls.markedAsRead') : t('readerControls.markAsRead')}
-              >
-                {markReadSuccess ? <DoneIcon /> : <BookmarkAddIcon />}
-              </IconButton>
+              <MarkReadButton markReadSuccess={markReadSuccess} markingAsRead={markingAsRead} onMarkAsRead={onMarkAsRead} />
             </span>
           </Tooltip>
         )}
         {fullscreen.supported && (
-          <ToolbarAction
-            label={fullscreenLabel}
-            title={fullscreenTitle}
-            onClick={fullscreen.onToggle}
-            aria-pressed={fullscreen.active}
-          >
-            {fullscreen.active ? <FullscreenExitIcon /> : <FullscreenIcon />}
-          </ToolbarAction>
+          <FullscreenButton active={fullscreen.active} label={fullscreenLabel} title={fullscreenTitle} onToggle={fullscreen.onToggle} />
         )}
       </Toolbar>
     </AppBar>

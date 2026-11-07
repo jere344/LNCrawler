@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
+from functools import wraps
 
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.exceptions import AuthenticationFailed
@@ -34,8 +35,20 @@ def _current_user(request):
     return user if user.is_authenticated else None
 
 
+def _json_errors(view):
+    """Answer any unexpected exception with the JSON 500 these endpoints return."""
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        try:
+            return view(request, *args, **kwargs)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    return wrapper
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
+@_json_errors
 def start_search(request):
     """Start a novel search"""
     try:
@@ -50,7 +63,7 @@ def start_search(request):
                 },
                 status=400,
             )
-        
+
         job = DownloaderService.start_search(query, user=_current_user(request))
 
         return JsonResponse(
@@ -60,32 +73,27 @@ def start_search(request):
         return JsonResponse(
             {"status": "error", "message": "Invalid JSON in request body"}, status=400
         )
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 @require_http_methods(["GET"])
+@_json_errors
 def get_search_status(request, job_id):
     """Get the status of a search job"""
-    try:
-        status = DownloaderService.get_search_status(job_id)
-        return JsonResponse(status)
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    status = DownloaderService.get_search_status(job_id)
+    return JsonResponse(status)
 
 
 @require_http_methods(["GET"])
+@_json_errors
 def get_search_results(request, job_id):
     """Get the results of a search job"""
-    try:
-        results = DownloaderService.get_search_results(job_id)
-        return JsonResponse(results)
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    results = DownloaderService.get_search_results(job_id)
+    return JsonResponse(results)
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@_json_errors
 def start_download(request, job_id):
     """Start downloading a novel"""
     try:
@@ -108,62 +116,53 @@ def start_download(request, job_id):
         return JsonResponse(
             {"status": "error", "message": "Invalid JSON in request body"}, status=400
         )
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 @require_http_methods(["GET"])
+@_json_errors
 def get_download_status(request, job_id):
     """Get the status of a download job"""
-    try:
-        status = DownloaderService.get_download_status(job_id)
-        return JsonResponse(status)
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    status = DownloaderService.get_download_status(job_id)
+    return JsonResponse(status)
 
 
 @require_http_methods(["GET"])
+@_json_errors
 def get_download_results(request, job_id):
     """Get the results of a download job"""
-    try:
-        results = DownloaderService.get_download_results(job_id)
-        return JsonResponse(results)
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    results = DownloaderService.get_download_results(job_id)
+    return JsonResponse(results)
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@_json_errors
 def cancel_job(request, job_id):
     """Cancel a running job"""
-    try:
-        result = DownloaderService.cancel_job(job_id)
-        return JsonResponse(result)
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    result = DownloaderService.cancel_job(job_id)
+    return JsonResponse(result)
 
 
 @require_http_methods(["GET"])
+@_json_errors
 def list_jobs(request):
     """List jobs. Pass ?active=1 to only get queued/running jobs, ?job_type=download to only get downloads."""
-    try:
-        # EPUB and .m4b builds are polled per book by the frontend, not listed here.
-        jobs = Job.objects.exclude(job_type__in=[Job.JOB_TYPE_EPUB, Job.JOB_TYPE_M4B])
-        if request.GET.get("job_type"):
-            jobs = jobs.filter(job_type=request.GET["job_type"])
-        if request.GET.get("active"):
-            jobs = jobs.filter(status__in=[
-                Job.STATUS_CREATED, Job.STATUS_SEARCHING, Job.STATUS_DOWNLOADING,
-            ])
-        jobs = jobs.order_by("-created_at")
-        return JsonResponse(
-            {"status": "success", "jobs": [job.to_dict() for job in jobs]}
-        )
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    # EPUB and .m4b builds are polled per book by the frontend, not listed here.
+    jobs = Job.objects.exclude(job_type__in=[Job.JOB_TYPE_EPUB, Job.JOB_TYPE_M4B])
+    if request.GET.get("job_type"):
+        jobs = jobs.filter(job_type=request.GET["job_type"])
+    if request.GET.get("active"):
+        jobs = jobs.filter(status__in=[
+            Job.STATUS_CREATED, Job.STATUS_SEARCHING, Job.STATUS_DOWNLOADING,
+        ])
+    jobs = jobs.order_by("-created_at")
+    return JsonResponse(
+        {"status": "success", "jobs": [job.to_dict() for job in jobs]}
+    )
 
 
 @require_http_methods(["GET"])
+@_json_errors
 def job_details(request, job_id):
     """Get details of a specific job"""
     try:
@@ -174,12 +173,11 @@ def job_details(request, job_id):
             {"status": "error", "message": f"Job with ID {job_id} not found"},
             status=404,
         )
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
+@_json_errors
 def start_direct_download(request):
     """Start downloading a novel directly from URL"""
     try:
@@ -194,16 +192,14 @@ def start_direct_download(request):
                 },
                 status=400,
             )
-        
+
         # Use the existing direct download method from the service
         result = DownloaderService.start_direct_download(
             novel_url, user=_current_user(request)
         )
         return JsonResponse(result)
-    
+
     except json.JSONDecodeError:
         return JsonResponse(
             {"status": "error", "message": "Invalid JSON in request body"}, status=400
         )
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)

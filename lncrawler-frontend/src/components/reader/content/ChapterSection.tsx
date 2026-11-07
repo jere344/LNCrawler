@@ -143,12 +143,7 @@ const ChapterSection = ({
         <ReaderViewport
           centerLongPress={settings.centerLongPress}
           tapProps={tapProps}
-          dimLevel={settings.dimLevel}
-          nightMode={settings.nightMode}
-          nightModeStrength={settings.nightModeStrength}
-          nightModeScheduleEnabled={settings.nightModeScheduleEnabled}
-          nightModeStartTime={settings.nightModeStartTime}
-          nightModeEndTime={settings.nightModeEndTime}
+          settings={settings}
         >
           {chapterContent}
         </ReaderViewport>

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChapterContent as IChapterContent, UnavailableChapterInfo } from '@models/novels_types';
-import { isChapterOfNovel, useChapterCache } from './useChapterCache';
-import { classifyChapterError } from './chapterErrors';
+import { useChapterCache } from './useChapterCache';
+import { isChapterOfNovel, withCommentAdded } from './chapterComments';
+import { handleChapterFailure } from './chapterErrors';
 
 interface ChapterLoaderOptions {
   novelSlug?: string;
@@ -72,17 +73,16 @@ export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadS
       } catch (err) {
         if (requestId !== loadRequestIdRef.current) return;
         console.error('Error fetching chapter content:', err);
-        const failure = classifyChapterError(err);
-        if (failure.kind === 'dmca') {
-          setError(t('reader.dmcaUnavailable'));
-        } else if (failure.kind === 'unavailable') {
+        handleChapterFailure(err, {
+          dmca: () => setError(t('reader.dmcaUnavailable')),
           // The chapter exists but has no content: show the unavailable page
           // instead of a generic error, with working next/prev navigation.
-          setChapter(null);
-          setUnavailableChapter(failure.info);
-        } else {
-          setError(t('reader.loadFailed'));
-        }
+          unavailable: (info) => {
+            setChapter(null);
+            setUnavailableChapter(info);
+          },
+          other: () => setError(t('reader.loadFailed')),
+        });
       } finally {
         if (requestId === loadRequestIdRef.current) {
           setLoading(false);
@@ -99,7 +99,7 @@ export function useChapterLoader({ novelSlug, sourceSlug, chapterNumber, onLoadS
     if (!novelSlug) return;
     bumpCachedCommentCount(novelSlug, chapterNumber);
     setChapter((current) => (current && isChapterOfNovel(current, novelSlug, chapterNumber)
-      ? { ...current, comment_count: (current.comment_count ?? 0) + 1 }
+      ? withCommentAdded(current)
       : current));
   }, [novelSlug, bumpCachedCommentCount]);
 

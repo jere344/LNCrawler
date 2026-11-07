@@ -8,7 +8,6 @@ import {
   Rating,
   Button,
   Divider,
-  Pagination,
   Alert,
   CircularProgress,
   IconButton,
@@ -28,6 +27,7 @@ import { Review, ReviewsResponse } from '@services/review.service';
 import ReviewReactions from '../common/reviews/ReviewReactions';
 import ReviewForm from '../common/reviews/ReviewForm';
 import UserLink from '@components/profile/UserLink';
+import PageNav from '@components/common/PageNav';
 import { useAuth } from '@context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import ReadOnlyMDXEditor from '../common/reviews/ReadOnlyMDXEditor';
@@ -86,10 +86,6 @@ const Reviews: React.FC<ReviewsProps> = ({ novelSlug }) => {
       setTotalReviews(totalReviews + 1);
     }
     setShowReviewForm(false);
-  };
-
-  const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
-    loadReviews(page);
   };
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, review: Review) => {
@@ -276,17 +272,13 @@ const Reviews: React.FC<ReviewsProps> = ({ novelSlug }) => {
           ))}
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-              <Pagination
-                count={totalPages}
-                page={currentPage}
-                onChange={handlePageChange}
-                color="primary"
-                size="large"
-              />
-            </Box>
-          )}
+          <PageNav
+            page={currentPage}
+            totalPages={totalPages}
+            onChange={loadReviews}
+            size="large"
+            sx={{ mt: 3 }}
+          />
         </Box>
       )}
 

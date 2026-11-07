@@ -52,6 +52,15 @@ def _folder_count_annotation(allow_adult):
         distinct=True,
     )
 
+
+def _delete_owned(model, removed_message, not_found_message, **lookup):
+    """Delete the ``model`` row matching ``lookup``, or answer 404 with ``not_found_message``."""
+    try:
+        model.objects.get(**lookup).delete()
+    except model.DoesNotExist:
+        return Response({"error": not_found_message}, status=status.HTTP_404_NOT_FOUND)
+    return Response({"status": removed_message}, status=status.HTTP_204_NO_CONTENT)
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def add_novel_bookmark(request, novel_slug):
@@ -85,12 +94,9 @@ def remove_novel_bookmark(request, novel_slug):
     Remove a novel bookmark for the authenticated user.
     """
     novel = resolve_novel_slug(novel_slug)
-    try:
-        bookmark = NovelBookmark.objects.get(user=request.user, novel=novel)
-        bookmark.delete()
-        return Response({"status": "bookmark removed"}, status=status.HTTP_204_NO_CONTENT)
-    except NovelBookmark.DoesNotExist:
-        return Response({"error": "Bookmark not found"}, status=status.HTTP_404_NOT_FOUND)
+    return _delete_owned(
+        NovelBookmark, "bookmark removed", "Bookmark not found", user=request.user, novel=novel,
+    )
 
 
 @api_view(["GET"])
@@ -112,6 +118,21 @@ def _folder_data(folder):
         "name": folder.name,
         "count": getattr(folder, "count", 0),
     }
+
+
+def _folder_name_error(user, name, exclude_pk=None):
+    """The 400 response for a blank or already taken folder name, or None when usable."""
+    if not name:
+        return Response({"error": "Folder name is required."}, status=status.HTTP_400_BAD_REQUEST)
+    taken = LibraryFolder.objects.filter(user=user, name=name)
+    if exclude_pk is not None:
+        taken = taken.exclude(pk=exclude_pk)
+    if taken.exists():
+        return Response(
+            {"error": "A folder with this name already exists."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
 
 
 def _library_response(owner, viewer, request, show_notes, show_ratings, include_recommendations=False):
@@ -239,13 +260,9 @@ def library_folders(request):
     """List or create the authenticated user's library folders."""
     if request.method == "POST":
         name = (request.data.get("name") or "").strip()
-        if not name:
-            return Response({"error": "Folder name is required."}, status=status.HTTP_400_BAD_REQUEST)
-        if LibraryFolder.objects.filter(user=request.user, name=name).exists():
-            return Response(
-                {"error": "A folder with this name already exists."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        error = _folder_name_error(request.user, name)
+        if error is not None:
+            return error
         folder = LibraryFolder.objects.create(user=request.user, name=name)
         return Response(_folder_data(folder), status=status.HTTP_201_CREATED)
 
@@ -266,13 +283,9 @@ def library_folder_detail(request, folder_id):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     name = (request.data.get("name") or "").strip()
-    if not name:
-        return Response({"error": "Folder name is required."}, status=status.HTTP_400_BAD_REQUEST)
-    if LibraryFolder.objects.filter(user=request.user, name=name).exclude(pk=folder.pk).exists():
-        return Response(
-            {"error": "A folder with this name already exists."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    error = _folder_name_error(request.user, name, exclude_pk=folder.pk)
+    if error is not None:
+        return error
     folder.name = name
     folder.save(update_fields=["name"])
     folder = LibraryFolder.objects.filter(pk=folder.pk).annotate(
@@ -533,12 +546,10 @@ def delete_reading_history(request, history_id):
     """
     Delete a reading history entry for the authenticated user.
     """
-    try:
-        history = ReadingHistory.objects.get(id=history_id, user=request.user)
-        history.delete()
-        return Response({"status": "history entry removed"}, status=status.HTTP_204_NO_CONTENT)
-    except ReadingHistory.DoesNotExist:
-        return Response({"error": "Reading history entry not found"}, status=status.HTTP_404_NOT_FOUND)
+    return _delete_owned(
+        ReadingHistory, "history entry removed", "Reading history entry not found",
+        id=history_id, user=request.user,
+    )
 
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
@@ -546,12 +557,10 @@ def delete_listening_history(request, progress_id):
     """
     Delete a listening entry (the listening position of an audiobook) of the authenticated user.
     """
-    try:
-        progress = ListeningProgress.objects.get(id=progress_id, user=request.user)
-        progress.delete()
-        return Response({"status": "listening entry removed"}, status=status.HTTP_204_NO_CONTENT)
-    except ListeningProgress.DoesNotExist:
-        return Response({"error": "Listening history entry not found"}, status=status.HTTP_404_NOT_FOUND)
+    return _delete_owned(
+        ListeningProgress, "listening entry removed", "Listening history entry not found",
+        id=progress_id, user=request.user,
+    )
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

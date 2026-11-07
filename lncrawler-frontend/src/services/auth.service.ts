@@ -85,9 +85,10 @@ export const authService = {
     show_r18?: 'yes' | 'no' | 'blur';
   }) => {
     // Use FormData if there's an image upload (profile_pic or banner)
+    let response;
     if (profileData.profile_pic || profileData.banner) {
       const formData = new FormData();
-      
+
       Object.entries(profileData).forEach(([key, value]) => {
         if (value === undefined) return;
         if (value instanceof File) {
@@ -98,29 +99,22 @@ export const authService = {
           formData.append(key, String(value));
         }
       });
-      
-      const response = await api.patch('/auth/profile/', formData, {
+
+      response = await api.patch('/auth/profile/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
-      // Update stored user info
-      if (response.data) {
-        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.data));
-      }
-      
-      return response.data;
     } else {
-      const response = await api.patch('/auth/profile/', profileData);
-      
-      // Update stored user info
-      if (response.data) {
-        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.data));
-      }
-      
-      return response.data;
+      response = await api.patch('/auth/profile/', profileData);
     }
+
+    // Update stored user info
+    if (response.data) {
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(response.data));
+    }
+
+    return response.data;
   },
   
   // Check if a username or email already exists

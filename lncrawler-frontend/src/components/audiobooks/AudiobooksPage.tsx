@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,7 +11,6 @@ import {
   Grid,
   Menu,
   MenuItem,
-  Pagination,
   Stack,
   Switch,
   TextField,
@@ -24,11 +23,12 @@ import { useAuth } from '@context/AuthContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { useNotification } from '@context/NotificationContext';
 import { audiobookService } from '@services/audiobook.service';
-import { novelService } from '@services/novel.service';
 import type { AudiobookCard as AudiobookCardData, AudiobookListResponse, AudiobookSort } from '@models/audiobook_types';
 import { languageCodeToName, languageFlagUrl } from '@utils/Misc';
 import { useDebounce } from '@utils/useDebounce';
 import { useUrlListState, useUrlSearch } from '@utils/useUrlListState';
+import { useAutocomplete } from '@utils/useAutocomplete';
+import PageNav from '@components/common/PageNav';
 import SeoMeta from '../common/SeoMeta';
 import AudiobookCard from './AudiobookCard';
 import PodcastAppHelpDialog from './PodcastAppHelpDialog';
@@ -67,7 +67,8 @@ const AudiobooksPage = () => {
 
   const [tagInput, setTagInput] = useState('');
   const debouncedTagInput = useDebounce(tagInput);
-  const [tagOptions, setTagOptions] = useState<string[]>([]);
+  const { options: tagSuggestions } = useAutocomplete('tag', debouncedTagInput);
+  const tagOptions = useMemo(() => tagSuggestions.map(s => s.name), [tagSuggestions]);
 
   // Fetch the page whenever the list state in the URL changes.
   const listKey = searchParams.toString();
@@ -91,20 +92,6 @@ const AudiobooksPage = () => {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the serialized URL state
   }, [listKey]);
-
-  // Tag suggestions, from the same endpoint as the search page.
-  useEffect(() => {
-    if (debouncedTagInput.length < 1) {
-      setTagOptions([]);
-      return;
-    }
-    let cancelled = false;
-    novelService
-      .getAutocompleteSuggestions('tag', debouncedTagInput)
-      .then((suggestions) => { if (!cancelled) setTagOptions(suggestions.map(s => s.name)); })
-      .catch(() => { if (!cancelled) setTagOptions([]); });
-    return () => { cancelled = true; };
-  }, [debouncedTagInput]);
 
   // Arrays go straight to the URL: useUrlListState only writes single values.
   const setTags = (next: string[]) => {
@@ -265,15 +252,13 @@ const AudiobooksPage = () => {
               </Grid>
             ))}
           </Grid>
-          {result && result.total_pages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-              <Pagination
-                count={result.total_pages}
-                page={result.current_page}
-                color="primary"
-                onChange={(_, value) => setParams({ page: value > 1 ? String(value) : null })}
-              />
-            </Box>
+          {result && (
+            <PageNav
+              page={result.current_page}
+              totalPages={result.total_pages}
+              onChange={(value) => setParams({ page: value > 1 ? String(value) : null })}
+              sx={{ mt: 4 }}
+            />
           )}
         </>
       )}

@@ -101,15 +101,17 @@ export const SettingSelect = ({ settingKey, title, options, sub, settingId, disa
 
 type StepperProps = ComponentProps<typeof Stepper>;
 
-interface SettingStepperProps extends StepperProps {
+interface SettingStepperProps extends Omit<StepperProps, 'label'> {
   title: string;
+  // The accessible name of the stepper; the title when not given
+  label?: string;
   sub?: string;
   settingId?: string;
 }
 
 // A stepper setting: the Stepper sits in a row with its title
-export const SettingStepper = ({ title, sub, settingId, ...stepper }: SettingStepperProps) => (
-  <SettingRow title={title} sub={sub} settingId={settingId} control={<Box sx={{ width: 180 }}><Stepper {...stepper} /></Box>} />
+export const SettingStepper = ({ title, label = title, sub, settingId, ...stepper }: SettingStepperProps) => (
+  <SettingRow title={title} sub={sub} settingId={settingId} control={<Box sx={{ width: 180 }}><Stepper label={label} {...stepper} /></Box>} />
 );
 
 export const SettingGroupHeading = ({ children }: { children: ReactNode }) => (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { ChapterContent } from '@models/novels_types';
-import { classifyChapterError } from './chapterErrors';
+import { handleChapterFailure } from './chapterErrors';
 import { sectionKeyOf } from './chapterRange';
 import { chapterStreamReducer, initialStreamState, nextStep, type ChapterStreamAction } from './chapterStream';
 
@@ -79,14 +79,11 @@ export function useChapterStream({ enabled, anchor, loadId, fetchChapterContent 
     } catch (err) {
       if (generation !== generationRef.current) return;
       console.error('Error fetching chapter content:', err);
-      const failure = classifyChapterError(err);
-      if (failure.kind === 'dmca') {
-        dispatchAction({ type: 'end', reason: 'dmca', chapter: step.chapter });
-      } else if (failure.kind === 'unavailable') {
-        dispatchAction({ type: 'end', reason: 'unavailable', chapter: step.chapter, unavailable: failure.info });
-      } else {
-        dispatchAction({ type: 'end', reason: 'error', chapter: step.chapter });
-      }
+      handleChapterFailure(err, {
+        dmca: () => dispatchAction({ type: 'end', reason: 'dmca', chapter: step.chapter }),
+        unavailable: () => dispatchAction({ type: 'end', reason: 'unavailable', chapter: step.chapter }),
+        other: () => dispatchAction({ type: 'end', reason: 'error', chapter: step.chapter }),
+      });
     }
   }, [enabled, fetchChapterContent, dispatchAction]);
 
@@ -117,7 +114,6 @@ export function useChapterStream({ enabled, anchor, loadId, fetchChapterContent 
     loading: view.loading,
     end: view.end,
     endChapter: view.endChapter,
-    unavailable: view.unavailable,
     loadMore,
     retry,
     trimTop,

@@ -6,18 +6,16 @@ import {
   CircularProgress,
   TextField,
   InputAdornment,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Divider,
-  Pagination,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { DndContext } from '@dnd-kit/core';
 import { profileService } from '@services/profile.service';
+import type { LibrarySort } from '@services/user.service';
 import LibraryNovelCard from '@components/library/LibraryNovelCard';
 import LibraryFolderBar from '@components/library/LibraryFolderBar';
+import LibrarySortSelect from '@components/common/LibrarySortSelect';
+import PageNav from '@components/common/PageNav';
 import { LibraryFolder, Novel } from '@models/novels_types';
 import { useDebounce } from '@utils/useDebounce';
 import { useTranslation } from 'react-i18next';
@@ -38,7 +36,7 @@ const PublicLibraryTab: React.FC<PublicLibraryTabProps> = ({ username, showNotes
   const [totalPages, setTotalPages] = useState(1);
   const [allCount, setAllCount] = useState(0);
   const [folder, setFolder] = useState('all');
-  const [sort, setSort] = useState('custom');
+  const [sort, setSort] = useState<LibrarySort>('custom');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search);
 
@@ -97,15 +95,7 @@ const PublicLibraryTab: React.FC<PublicLibraryTabProps> = ({ username, showNotes
             },
           }}
         />
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>{t('library.sortBy')}</InputLabel>
-          <Select label={t('library.sortBy')} value={sort} onChange={(e) => setSort(e.target.value)}>
-            <MenuItem value="custom">{t('library.sort.custom')}</MenuItem>
-            <MenuItem value="title">{t('library.sort.title')}</MenuItem>
-            <MenuItem value="date_added">{t('library.sort.date_added')}</MenuItem>
-            {showRatings && <MenuItem value="rating">{t('library.sort.rating')}</MenuItem>}
-          </Select>
-        </FormControl>
+        <LibrarySortSelect value={sort} onChange={setSort} showRating={showRatings} />
       </Box>
 
       <DndContext>
@@ -140,17 +130,13 @@ const PublicLibraryTab: React.FC<PublicLibraryTabProps> = ({ username, showNotes
         </Grid>
       )}
 
-      {totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <Pagination
-            count={totalPages}
-            page={page}
-            onChange={(_, value) => fetchLibrary(value)}
-            color="primary"
-            size="small"
-          />
-        </Box>
-      )}
+      <PageNav
+        page={page}
+        totalPages={totalPages}
+        onChange={(value) => fetchLibrary(value)}
+        size="small"
+        sx={{ my: 4 }}
+      />
     </Box>
   );
 };

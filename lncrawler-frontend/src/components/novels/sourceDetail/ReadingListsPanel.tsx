@@ -1,7 +1,8 @@
-import { Box, Grid, Pagination } from '@mui/material';
+import { Grid } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SectionContainer from '@components/common/SectionContainer.tsx';
+import PageNav from '@components/common/PageNav';
 import ReadingListCard from '../../readinglist/ReadingListCard';
 import { NovelDetail } from '@models/novels_types';
 
@@ -32,16 +33,12 @@ const ReadingListsPanel = ({
           </Grid>
         ))}
       </Grid>
-      {readingListsPageCount > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-          <Pagination
-            count={readingListsPageCount}
-            page={currentReadingListPage}
-            onChange={(_, page) => onPageChange(page)}
-            color="primary"
-          />
-        </Box>
-      )}
+      <PageNav
+        page={currentReadingListPage}
+        totalPages={readingListsPageCount}
+        onChange={onPageChange}
+        sx={{ mt: 2 }}
+      />
     </SectionContainer>
   );
 };

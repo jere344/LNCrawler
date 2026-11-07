@@ -16,11 +16,11 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     ``detail`` is everything the current source's page needs.
     """
 
-    authors = serializers.SerializerMethodField()
-    editors = serializers.SerializerMethodField()
-    translators = serializers.SerializerMethodField()
-    tags = serializers.SerializerMethodField()
-    alternative_titles = serializers.SerializerMethodField()
+    authors = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
+    editors = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
+    translators = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
+    tags = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
+    alternative_titles = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
     user_vote = serializers.SerializerMethodField()
     novel_id = serializers.SerializerMethodField()
     novel_slug = serializers.SerializerMethodField()
@@ -110,25 +110,10 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     def get_overview_url(self, obj: NovelFromSource):
         return build_media_url(obj.overview_picture_path)
 
-    def get_authors(self, obj: NovelFromSource):
-        return [author.name for author in obj.authors.all()]
-
-    def get_editors(self, obj: NovelFromSource):
-        return [editor.name for editor in obj.editors.all()]
-
-    def get_translators(self, obj: NovelFromSource):
-        return [translator.name for translator in obj.translators.all()]
-
-    def get_tags(self, obj: NovelFromSource):
-        return [tag.name for tag in obj.tags.all()]
-
     def get_adult_tags(self, obj: NovelFromSource):
         # This source's R18 tags, so the source page can say why it is adult.
         # Filtered in Python to reuse the tags prefetch.
         return [tag.name for tag in obj.tags.all() if tag.is_adult]
-
-    def get_alternative_titles(self, obj: NovelFromSource):
-        return [title.name for title in obj.alternative_titles.all()]
 
     def get_user_vote(self, obj: NovelFromSource):
         # Only detail and summary views show the current user's vote; skipping

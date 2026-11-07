@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from ..models import Comment, Review, Friendship, ProfilePinnedNovel
+from .display import comment_target, truncate
 from django.contrib.auth import get_user_model
 CustomUser = get_user_model()
 
@@ -24,16 +25,11 @@ class UserCommentInline(admin.TabularInline):
     admin_link.short_description = "Edit"
 
     def target_display(self, obj):
-        if obj.novel:
-            return f"Novel: {obj.novel.title}"
-        elif obj.chapter:
-            return f"Chapter: {obj.chapter.title}"
-        return "Unknown"
+        return comment_target(obj)
     target_display.short_description = "Target"
 
     def message_preview(self, obj):
-        preview = obj.message[:30] + "..." if len(obj.message) > 30 else obj.message
-        return preview
+        return truncate(obj.message, 30)
     message_preview.short_description = "Message"
 
     def vote_score(self, obj):
@@ -59,8 +55,7 @@ class UserReviewInline(admin.TabularInline):
     admin_link.short_description = "Edit"
 
     def content_preview(self, obj):
-        preview = obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
-        return preview
+        return truncate(obj.content, 50)
     content_preview.short_description = "Content"
 
 

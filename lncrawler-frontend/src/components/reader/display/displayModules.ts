@@ -1,17 +1,8 @@
 import type { ComponentType } from 'react';
 import type { DisplayModule } from '../readerSettingsSchema';
-import {
-  AlignModule,
-  DimModule,
-  FontModule,
-  IndentModule,
-  LineModule,
-  MarginModule,
-  ParagraphModule,
-  SizeModule,
-  ThemeModule,
-  WarmModule,
-} from './moduleControls';
+import { STEPPER_SPECS } from './stepperSpecs';
+import { AlignModule, DimModule, FontModule, IndentModule, ThemeModule, WarmModule } from './moduleControls';
+import { SIZE_BUTTONS, stepperModule } from './stepperModule';
 
 interface DisplayModuleDef {
   labelKey: string;
@@ -19,12 +10,20 @@ interface DisplayModuleDef {
   Component: ComponentType;
 }
 
+// A stepped number setting as a display module: its name, what it does, and the stepper that sets it
+const steppedModule = (
+  labelKey: string,
+  descKey: string,
+  specKey: keyof typeof STEPPER_SPECS,
+  buttons?: Parameters<typeof stepperModule>[2],
+): DisplayModuleDef => ({ labelKey, descKey, Component: stepperModule(specKey, labelKey, buttons) });
+
 // Each module in the display sheet: its name, what it does, and the control it renders
 export const DISPLAY_MODULE_DEFS: Record<DisplayModule, DisplayModuleDef> = {
-  size: { labelKey: 'readerDisplay.modules.size.label', descKey: 'readerDisplay.modules.size.desc', Component: SizeModule },
-  line: { labelKey: 'readerDisplay.modules.line.label', descKey: 'readerDisplay.modules.line.desc', Component: LineModule },
-  para: { labelKey: 'readerDisplay.modules.para.label', descKey: 'readerDisplay.modules.para.desc', Component: ParagraphModule },
-  margin: { labelKey: 'readerDisplay.modules.margin.label', descKey: 'readerDisplay.modules.margin.desc', Component: MarginModule },
+  size: steppedModule('readerDisplay.modules.size.label', 'readerDisplay.modules.size.desc', 'fontSize', SIZE_BUTTONS),
+  line: steppedModule('readerDisplay.modules.line.label', 'readerDisplay.modules.line.desc', 'lineSpacing'),
+  para: steppedModule('readerDisplay.modules.para.label', 'readerDisplay.modules.para.desc', 'paragraphSpacing'),
+  margin: steppedModule('readerDisplay.modules.margin.label', 'readerDisplay.modules.margin.desc', 'margin'),
   indent: { labelKey: 'readerDisplay.modules.indent.label', descKey: 'readerDisplay.modules.indent.desc', Component: IndentModule },
   align: { labelKey: 'readerDisplay.modules.align.label', descKey: 'readerDisplay.modules.align.desc', Component: AlignModule },
   theme: { labelKey: 'readerDisplay.modules.theme.label', descKey: 'readerDisplay.modules.theme.desc', Component: ThemeModule },

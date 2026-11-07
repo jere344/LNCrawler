@@ -11,6 +11,9 @@ export const progressIn = (range: ScrollRange, scrollY: number): number => {
 export const scrollYFor = (range: ScrollRange, progress: number): number =>
   range.start + progress * Math.max(0, range.length);
 
+// How far the window is through the range, as a percentage 0..100
+export const percentIn = (range: ScrollRange, scrollY: number): number => progressIn(range, scrollY) * 100;
+
 // The screen of the range the window is on, and how many screens it takes
 export const pagesIn = (range: ScrollRange, viewport: number, scrollY: number): { page: number; pages: number } => {
   // Guarded so a document not laid out yet (no viewport) does not divide by zero
@@ -26,9 +29,13 @@ export const documentRange = (): ScrollRange => {
   return { start: 0, length: doc.scrollHeight - doc.clientHeight, height: doc.scrollHeight };
 };
 
+// The section of the infinite-scroll page with that data-chapter-key; null when it is not on the page
+export const sectionElement = (key: string): HTMLElement | null =>
+  document.querySelector<HTMLElement>(`[data-chapter-key="${CSS.escape(key)}"]`);
+
 // One section of the infinite-scroll page, by its data-chapter-key; null when it is not on the page
 export const sectionRange = (key: string): ScrollRange | null => {
-  const el = document.querySelector<HTMLElement>(`[data-chapter-key="${CSS.escape(key)}"]`);
+  const el = sectionElement(key);
   if (!el) return null;
   const rect = el.getBoundingClientRect();
   const top = rect.top + window.scrollY;

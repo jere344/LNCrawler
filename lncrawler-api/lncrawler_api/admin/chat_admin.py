@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from ..models.chat_models import ChatMessage
+from .display import parent_link, truncate
 
 
 class ChatReplyInline(admin.TabularInline):
@@ -19,8 +20,7 @@ class ChatReplyInline(admin.TabularInline):
         return format_html('<a href="{}">{}</a>', url, obj.author_name)
 
     def message_preview(self, obj):
-        preview = obj.message[:50] + "..." if len(obj.message) > 50 else obj.message
-        return preview
+        return truncate(obj.message, 50)
 
 
 @admin.register(ChatMessage)
@@ -33,14 +33,11 @@ class ChatMessageAdmin(admin.ModelAdmin):
     inlines = [ChatReplyInline]
 
     def message_preview(self, obj):
-        return obj.message[:60] + "..." if len(obj.message) > 60 else obj.message
+        return truncate(obj.message, 60)
 
     message_preview.short_description = "Message"
 
     def parent_message(self, obj):
-        if obj.parent:
-            url = reverse("admin:lncrawler_api_chatmessage_change", args=[obj.parent.id])
-            return format_html('<a href="{}">{}</a>', url, f"Reply to: {obj.parent.author_name}")
-        return "Top-level message"
+        return parent_link(obj, "admin:lncrawler_api_chatmessage_change", "Top-level message")
 
     parent_message.short_description = "Parent Message"

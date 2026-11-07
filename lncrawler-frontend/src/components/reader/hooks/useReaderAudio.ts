@@ -9,7 +9,7 @@ import { ReaderSettings as IReaderSettings } from '../readerSettingsSchema';
 import { updateReaderSetting } from '../readerSettingsStore';
 import { useTtsPlayer } from '../tts/useTtsPlayer';
 import { TTS_BAR_HEIGHT, type TtsPrefs } from '../tts/ttsTypes';
-import { sectionKeyOf } from './chapterRange';
+import { sectionElement, sectionKeyOf } from './chapterRange';
 import { findStreamChapter } from './chapterStream';
 import { ttsNextStep } from './ttsChapter';
 
@@ -86,7 +86,7 @@ export function useReaderAudio({
   ttsKeyRef.current = loading ? null : ttsKey;
   const getTtsRoot = useCallback(() => {
     const key = ttsKeyRef.current;
-    return key ? document.querySelector<HTMLElement>(`[data-chapter-key="${CSS.escape(key)}"] .reader-content`) : null;
+    return key ? sectionElement(key)?.querySelector<HTMLElement>('.reader-content') ?? null : null;
   }, []);
 
   // Infinite mode: the next chapter is read from the page, loaded onto it, or opened when it cannot be
@@ -165,7 +165,7 @@ export function useReaderAudio({
   // If the player fails it has already shown a toast, so client TTS takes over.
   const handleListen = async () => {
     if (chapter?.audio_url && settings.ttsPreferAudiobook && await startNarration(chapter)) return;
-    tts.start();
+    tts.play();
   };
 
   return { tts, novelLanguage, barHeight, startNarration, handleListen, ttsChapter };

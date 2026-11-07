@@ -6,13 +6,12 @@ import { useAdultContent } from '@context/AdultContentContext';
 /**
  * Small "R18" chip shown over a blurred adult cover. Clicking it (or the
  * cover) reveals that one cover for the session. Renders nothing unless the
- * cover is still hidden. `forceAdult` extends the blur to 'no' mode for the
- * viewer's own content.
+ * cover is still hidden.
  */
-export const AdultBadge: React.FC<{ isAdult?: boolean; novelId?: string; forceAdult?: boolean }> = ({ isAdult, novelId, forceAdult }) => {
+export const AdultBadge: React.FC<{ isAdult?: boolean; novelId?: string }> = ({ isAdult, novelId }) => {
     const { t } = useTranslation();
     const { isBlurred, revealHandler } = useAdultContent();
-    if (!isBlurred(isAdult, novelId, forceAdult)) return null;
+    if (!isBlurred(isAdult, novelId)) return null;
     return (
         <Chip
             label={t('common.r18')}

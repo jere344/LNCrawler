@@ -9,14 +9,12 @@ import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import NovelActionsMenu from '@components/common/NovelActionsMenu';
-import { useAdultContent } from '@context/AdultContentContext';
-import { AdultBadge } from '@components/common/AdultBadge';
-import { AudiobookBadge } from '@components/audiobooks/AudiobookBadge';
+import { NovelCover } from '@components/common/NovelCover';
+import CoverRowSkeleton from '@components/common/CoverRowSkeleton';
 import { compactNumberFormatter, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 
 interface CompactNovelCardProps {
   novel: Novel;
-  onClick?: () => void;
   isLoading?: boolean;
   showClicks?: boolean;
   showTrends?: boolean;
@@ -25,9 +23,12 @@ interface CompactNovelCardProps {
   state?: unknown;
 }
 
-const CompactNovelCard: React.FC<CompactNovelCardProps> = ({ 
-  novel, 
-  onClick, 
+// Fixed dimensions for 2:3 ratio
+const coverHeight = 90;
+const coverWidth = coverHeight * 2/3;
+
+const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
+  novel,
   isLoading = false,
   showClicks = false,
   showTrends = false,
@@ -36,45 +37,34 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
   state
 }) => {
   const { t, i18n } = useTranslation();
-  const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(novel.is_adult, novel.id);
-  const coverHeight = 90; 
-  const coverWidth = coverHeight * 2/3;
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-start', height: coverHeight + 'px', width: '100%' }}>
-        <Skeleton variant="rectangular" sx={{ width: coverWidth, minWidth: coverWidth, height: '100%', borderRadius: 1.5, flexShrink: 0, boxShadow: 2 }} />
-        <Box sx={{ flexGrow: 1, flexShrink: 1, overflow: 'hidden', p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
-          <Skeleton variant="text" height={24} width="80%" sx={{ mb: 0.5 }} />
-          {showRating && (
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-              <Skeleton variant="rectangular" width={80} height={16} /> {/* Rating stars */}
-              <Skeleton variant="text" width={30} height={16} sx={{ ml: 1 }} /> {/* Rating count */}
-            </Box>
-          )}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 'auto' }}>
+      <CoverRowSkeleton coverHeight={coverHeight}>
+        <Skeleton variant="text" height={24} width="80%" sx={{ mb: 0.5 }} />
+        {showRating && (
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+            <Skeleton variant="rectangular" width={80} height={16} /> {/* Rating stars */}
+            <Skeleton variant="text" width={30} height={16} sx={{ ml: 1 }} /> {/* Rating count */}
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 'auto' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Skeleton variant="circular" width={14} height={14} />
+            <Skeleton variant="text" width="70%" height={18} />
+          </Box>
+          {(showClicks || showTrends) && ( // Assuming one of these implies a second line of stats
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Skeleton variant="circular" width={14} height={14} />
-              <Skeleton variant="text" width="70%" height={18} />
+              <Skeleton variant="text" width="60%" height={18} />
             </Box>
-            {(showClicks || showTrends) && ( // Assuming one of these implies a second line of stats
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Skeleton variant="circular" width={14} height={14} />
-                <Skeleton variant="text" width="60%" height={18} />
-              </Box>
-            )}
-          </Box>
+          )}
         </Box>
-      </Box>
+      </CoverRowSkeleton>
     );
   }
 
   const formatter = compactNumberFormatter(i18n.language);
-
-  // Fixed dimensions for 2:3 ratio
-  const coverHeightFixed = 90; 
-  const coverWidthFixed = coverHeightFixed * 2/3;
 
   return (
     <Box sx={{ position: 'relative', width: '100%' }}>
@@ -87,24 +77,23 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
       customSx={{ position: 'absolute', top: 4, right: 4, zIndex: 2 }}
       buttonSize={26}
     />
-    <ButtonBase 
-      onClick={onClick}
+    <ButtonBase
       component={to ? Link : 'button'}
       to={to}
       state={to ? state : undefined}
       sx={{
-        display: 'flex', 
-        justifyContent: 'flex-start', 
-        alignItems: 'flex-start', 
-        height: coverHeightFixed + 'px',
+        display: 'flex',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+        height: coverHeight + 'px',
         width: '100%',
         textAlign: 'left',
       }}
     >
       <Card
         sx={{
-          width: coverWidthFixed,
-          minWidth: coverWidthFixed,
+          width: coverWidth,
+          minWidth: coverWidth,
           height: '100%',
           borderRadius: 1.5,
           overflow: 'hidden',
@@ -112,18 +101,13 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
           flexShrink: 0,
         }}
       >
-        <Box
-          component="img"
+        <NovelCover
           src={novelCoverUrl(novel.reading_source ?? novel.prefered_source)}
           alt={getNovelDisplayTitle(novel)}
-          onClick={blurred ? revealHandler(novel.id) : undefined}
-          sx={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            cursor: blurred ? 'pointer' : undefined,
-            filter: blurred ? 'blur(16px)' : 'none',
-          }}
+          novelId={novel.id}
+          isAdult={novel.is_adult}
+          hasAudiobook={novel.has_audiobook}
+          sx={{ width: '100%', height: '100%' }}
         />
       </Card>
       
@@ -210,8 +194,6 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
         </Box>
       </Box>
     </ButtonBase>
-    <AdultBadge isAdult={novel.is_adult} novelId={novel.id} />
-    {novel.has_audiobook && <AudiobookBadge />}
     </Box>
   );
 };

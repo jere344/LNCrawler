@@ -88,7 +88,6 @@ const VoicePage = () => {
           settingKey="ttsVolume"
           settingId="ttsVolume"
           title={t('ttsSettings.volume')}
-          label={t('ttsSettings.volume')}
           step={0.1}
           min={0}
           max={1}
@@ -99,7 +98,6 @@ const VoicePage = () => {
           settingKey="ttsPitch"
           settingId="ttsPitch"
           title={t('ttsSettings.pitch')}
-          label={t('ttsSettings.pitch')}
           step={0.1}
           min={0.5}
           max={2}
@@ -110,7 +108,6 @@ const VoicePage = () => {
         settingKey="ttsParagraphPause"
         settingId="ttsParagraphPause"
         title={t('ttsSettings.paragraphPause')}
-        label={t('ttsSettings.paragraphPause')}
         step={50}
         min={0}
         max={2000}

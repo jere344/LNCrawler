@@ -28,7 +28,7 @@ import BedtimeIcon from '@mui/icons-material/Bedtime';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import { useTranslation } from 'react-i18next';
-import { useAudioPlayer, useAudioPlayerTime, type SleepOption } from '@context/AudioPlayerContext';
+import { SEEK_BACK_S, SEEK_FORWARD_S, useAudioPlayer, useAudioPlayerTime, type SleepOption } from '@context/AudioPlayerContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
 import { audiobookPath, audiobookRevealKey, audioChapterLabel } from '@utils/audiobook';
@@ -144,7 +144,7 @@ const FullPlayer: React.FC = () => {
         <IconButton aria-label={t('audioPlayer.previous')} onClick={player.prev}>
           <SkipPreviousIcon />
         </IconButton>
-        <IconButton aria-label={t('audioPlayer.rewind')} onClick={() => player.skip(-15)}>
+        <IconButton aria-label={t('audioPlayer.rewind')} onClick={() => player.skip(-SEEK_BACK_S)}>
           <ReplayIcon />
         </IconButton>
         <IconButton
@@ -156,7 +156,7 @@ const FullPlayer: React.FC = () => {
         >
           {playing ? <PauseIcon fontSize="large" /> : <PlayArrowIcon fontSize="large" />}
         </IconButton>
-        <IconButton aria-label={t('audioPlayer.forward')} onClick={() => player.skip(30)}>
+        <IconButton aria-label={t('audioPlayer.forward')} onClick={() => player.skip(SEEK_FORWARD_S)}>
           <Forward30Icon />
         </IconButton>
         <IconButton aria-label={t('audioPlayer.next')} onClick={player.next}>

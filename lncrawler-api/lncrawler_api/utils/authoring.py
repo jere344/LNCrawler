@@ -36,3 +36,13 @@ def resolve_author(request, author_name):
         )
 
     return user, author_name
+
+
+def validate_message(message):
+    """Return the stripped message text, or raise ``ValidationError`` when it is blank or too long."""
+    if not isinstance(message, str) or not message.strip():
+        raise ValidationError('Message is required')
+    message = message.strip()
+    if len(message) > MAX_MESSAGE_LENGTH:
+        raise ValidationError(f'Message must be at most {MAX_MESSAGE_LENGTH} characters')
+    return message

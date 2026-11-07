@@ -15,7 +15,6 @@ the folder moves together.
 import logging
 import os
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 from typing import Optional
 
 from django.db import IntegrityError, transaction
@@ -518,38 +517,38 @@ def apply_rename(tag, new_name):
     return {"type": "tag_rename", "target_id": tag.pk, "target_name": new_name, "renamed_from": old_name}
 
 
-def _undo_merge(merge):
-    target = merge.target
-    key = normalize_tag(merge.source_name)
+def _undo_merge(target, source_name, moved_alias_ids, all_source_ids, added_source_ids,
+                source_was_adult, target_was_adult):
+    key = normalize_tag(source_name)
     if key == target.normalized:
         # Same key as the target: a separate row cannot coexist with it, and the
         # alias already resolves the old name to the target.
         raise MergeError(
-            f"'{merge.source_name}' has the same key as '{target.name}' and cannot "
+            f"'{source_name}' has the same key as '{target.name}' and cannot "
             "be restored as a separate tag."
         )
 
     # Reuse a tag that already carries the key (created since the merge), else
     # recreate the merged-away one.
     try:
-        source, _ = Tag.objects.get_or_create(normalized=key, defaults={"name": merge.source_name})
+        source, _ = Tag.objects.get_or_create(normalized=key, defaults={"name": source_name})
     except IntegrityError as exc:
-        raise MergeError(f"'{merge.source_name}' could not be restored: {exc}") from exc
+        raise MergeError(f"'{source_name}' could not be restored: {exc}") from exc
 
     # Aliases first, then drop the alias the merge itself created for the old name
     # (an alias that was moved back to the source keeps its row).
-    TagAlias.objects.filter(pk__in=merge.moved_alias_ids, tag=target).update(tag=source)
-    TagAlias.objects.filter(name=merge.source_name, tag=target).delete()
+    TagAlias.objects.filter(pk__in=moved_alias_ids, tag=target).update(tag=source)
+    TagAlias.objects.filter(name=source_name, tag=target).delete()
 
     restored = list(
-        NovelFromSource.objects.filter(pk__in=merge.all_source_ids).values_list("pk", flat=True)
+        NovelFromSource.objects.filter(pk__in=all_source_ids).values_list("pk", flat=True)
     )
     source.novels.add(*restored)
-    target.novels.remove(*merge.added_source_ids)
+    target.novels.remove(*added_source_ids)
 
     # Put the R18 flags back as they were before the merge, then re-derive the
     # adult flag of every source either tag touches (both directions).
-    for tag, was_adult in ((source, merge.source_was_adult), (target, merge.target_was_adult)):
+    for tag, was_adult in ((source, source_was_adult), (target, target_was_adult)):
         if was_adult is not None and tag.is_adult != was_adult:
             tag.is_adult = was_adult
             tag.save(update_fields=["is_adult"])
@@ -557,14 +556,12 @@ def _undo_merge(merge):
     return source
 
 
-def _undo_rename(merge):
-    tag = merge.target
-    old_name = merge.renamed_from
+def _undo_rename(tag, old_name, target_name):
     key = normalize_tag(old_name)
     if Tag.objects.filter(normalized=key).exclude(pk=tag.pk).exists():
         raise MergeError(f"Cannot restore '{old_name}': another tag already uses that name.")
 
-    if key != normalize_tag(merge.target_name):
+    if key != normalize_tag(target_name):
         TagAlias.objects.filter(name=old_name, tag=tag).delete()
     tag.name = old_name
     tag.embedding = None
@@ -595,20 +592,16 @@ def undo_tag_entry(entry):
             raise MergeError("The target tag was merged away or deleted; reload and try again.")
 
         if entry["type"] == "tag_rename":
-            _undo_rename(SimpleNamespace(
-                target=target,
-                renamed_from=entry["renamed_from"],
-                target_name=entry["target_name"],
-            ))
+            _undo_rename(target, entry["renamed_from"], entry["target_name"])
             return {"target_id": target.pk}
-        source = _undo_merge(SimpleNamespace(
-            target=target,
-            source_name=entry["source_name"],
-            moved_alias_ids=entry["moved_alias_ids"],
-            all_source_ids=entry["all_source_ids"],
-            added_source_ids=entry["added_source_ids"],
-            source_was_adult=entry["source_was_adult"],
-            target_was_adult=entry["target_was_adult"],
-        ))
+        source = _undo_merge(
+            target,
+            entry["source_name"],
+            entry["moved_alias_ids"],
+            entry["all_source_ids"],
+            entry["added_source_ids"],
+            entry["source_was_adult"],
+            entry["target_was_adult"],
+        )
     logger.info("Undid tag entry %s", entry)
     return {"source_id": source.pk, "target_id": target.pk}

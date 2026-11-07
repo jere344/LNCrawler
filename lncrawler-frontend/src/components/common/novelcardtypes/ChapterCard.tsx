@@ -6,45 +6,38 @@ import { formatTimeAgoOrUnknown, getChapterLabel, novelCoverUrl } from '@utils/M
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAdultContent } from '@context/AdultContentContext';
-import { AdultBadge } from '@components/common/AdultBadge';
+import { NovelCover } from '@components/common/NovelCover';
+import CoverRowSkeleton from '@components/common/CoverRowSkeleton';
 
 interface ChapterCardProps {
   source: NovelFromSource;
-  onClick?: () => void;
   isLoading?: boolean;
   to?: To;
   state?: unknown;
 }
 
-const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = false, to, state }) => {
+const ChapterCard: React.FC<ChapterCardProps> = ({ source, isLoading = false, to, state }) => {
   const { t } = useTranslation();
-  const { isBlurred, revealHandler } = useAdultContent();
-  const blurred = isBlurred(source.is_adult, source.id);
   const coverHeight = 90;
   const coverWidth = coverHeight * 2/3;
 
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-start', height: coverHeight + 'px', width: '100%' }}>
-        <Skeleton variant="rectangular" sx={{ width: coverWidth, minWidth: coverWidth, height: '100%', borderRadius: 1.5, flexShrink: 0, boxShadow: 2 }} />
-        <Box sx={{ flexGrow: 1, flexShrink: 1, overflow: 'hidden', p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
-          <Box>
-            <Skeleton variant="text" height={24} width="90%" sx={{ mb: 0.25 }} />
-            <Skeleton variant="text" height={18} width="70%" sx={{ mb: 0.5 }} />
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 'auto' }}>
-            <Skeleton variant="circular" width={14} height={14} />
-            <Skeleton variant="text" width="60%" height={18} />
-          </Box>
+      <CoverRowSkeleton coverHeight={coverHeight}>
+        <Box>
+          <Skeleton variant="text" height={24} width="90%" sx={{ mb: 0.25 }} />
+          <Skeleton variant="text" height={18} width="70%" sx={{ mb: 0.5 }} />
         </Box>
-      </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 'auto' }}>
+          <Skeleton variant="circular" width={14} height={14} />
+          <Skeleton variant="text" width="60%" height={18} />
+        </Box>
+      </CoverRowSkeleton>
     );
   }
 
   return (
-    <ButtonBase 
-      onClick={onClick}
+    <ButtonBase
       component={to ? Link : 'button'}
       to={to}
       state={to ? state : undefined}
@@ -70,20 +63,13 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, onClick, isLoading = 
         boxShadow: 2, 
         position: 'relative',
       }}>
-        <Box
-          component="img"
+        <NovelCover
           src={novelCoverUrl(source)}
           alt={source.title}
-          onClick={blurred ? revealHandler(source.id) : undefined}
-          sx={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            cursor: blurred ? 'pointer' : undefined,
-            filter: blurred ? 'blur(16px)' : 'none',
-          }}
+          novelId={source.id}
+          isAdult={source.is_adult}
+          sx={{ width: '100%', height: '100%' }}
         />
-        <AdultBadge isAdult={source.is_adult} novelId={source.id} />
       </Card>
       
       <Box sx={{ 

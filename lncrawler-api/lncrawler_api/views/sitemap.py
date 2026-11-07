@@ -65,87 +65,52 @@ class NovelSitemap(BaseSitemap):
     def location(self, obj):
         return f'/novels/{obj.slug}/'
 
-class SourceSitemap(BaseSitemap):
-    priority = 0.8
+class BaseSourceSitemap(BaseSitemap):
     changefreq = 'daily'
+    page_suffix = ''
+    # Per-URL lastmod. It is annotated as _lastmod so the sitemap index uses the same column.
+    lastmod_expression = F('updated_at')
+    only_fields = ('source_slug', 'updated_at', 'novel__slug')
 
-    def items(self):
+    def source_queryset(self):
         return public_sources(NovelFromSource.objects.all()).exclude(
             models.Q(source_slug__isnull=True) | models.Q(source_slug='')
-        ).select_related('novel').only(
-            'source_slug', 'updated_at', 'novel__slug'
-        ).order_by('novel__slug', 'source_slug')
-
-    def lastmod(self, obj):
-        return obj.updated_at
-
-    def get_latest_lastmod(self):
-        return (
-            public_sources(NovelFromSource.objects.all()).exclude(
-                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
-            ).order_by('-updated_at')
-            .values_list('updated_at', flat=True)
-            .first()
         )
 
-    def location(self, obj):
-        return f'/novels/{obj.novel.slug}/{obj.source_slug}/'
-
-class ChapterListSitemap(BaseSitemap):
-    priority = 0.7
-    changefreq = 'daily'
-
     def items(self):
-        return public_sources(NovelFromSource.objects.all()).exclude(
-            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
-        ).select_related('novel').only(
-            'source_slug', 'updated_at', 'last_chapter_update', 'novel__slug'
+        return self.source_queryset().annotate(_lastmod=self.lastmod_expression).select_related('novel').only(
+            *self.only_fields
         ).order_by('novel__slug', 'source_slug')
 
     def lastmod(self, obj):
-        return obj.last_chapter_update or obj.updated_at
+        return obj._lastmod
 
     def get_latest_lastmod(self):
         return (
-            public_sources(NovelFromSource.objects.all()).exclude(
-                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
-            ).annotate(_lastmod=Coalesce('last_chapter_update', 'updated_at'))
+            self.source_queryset().annotate(_lastmod=self.lastmod_expression)
             .order_by('-_lastmod')
             .values_list('_lastmod', flat=True)
             .first()
         )
 
     def location(self, obj):
-        return f'/novels/{obj.novel.slug}/{obj.source_slug}/chapterlist/'
+        return f'/novels/{obj.novel.slug}/{obj.source_slug}/{self.page_suffix}'
+
+class SourceSitemap(BaseSourceSitemap):
+    priority = 0.8
+
+class ChapterListSitemap(BaseSourceSitemap):
+    priority = 0.7
+    page_suffix = 'chapterlist/'
+    lastmod_expression = Coalesce('last_chapter_update', 'updated_at')
+    only_fields = ('source_slug', 'updated_at', 'last_chapter_update', 'novel__slug')
 
 
-class ImageGallerySitemap(BaseSitemap):
+class ImageGallerySitemap(BaseSourceSitemap):
     priority = 0.5
     changefreq = 'monthly'
-
-    def items(self):
-        # Consider only sources that actually have images (e.g., cover or chapter images)
-        # For simplicity, linking all sources; frontend can handle empty galleries.
-        return public_sources(NovelFromSource.objects.all()).exclude(
-            models.Q(source_slug__isnull=True) | models.Q(source_slug='')
-        ).select_related('novel').only(
-            'source_slug', 'updated_at', 'novel__slug'
-        ).order_by('novel__slug', 'source_slug')
-
-    def lastmod(self, obj):
-        return obj.updated_at
-
-    def get_latest_lastmod(self):
-        return (
-            public_sources(NovelFromSource.objects.all()).exclude(
-                models.Q(source_slug__isnull=True) | models.Q(source_slug='')
-            ).order_by('-updated_at')
-            .values_list('updated_at', flat=True)
-            .first()
-        )
-
-    def location(self, obj):
-        return f'/novels/{obj.novel.slug}/{obj.source_slug}/gallery/'
+    # Linking all sources; frontend can handle empty galleries.
+    page_suffix = 'gallery/'
 
 
 class AudiobookSitemap(BaseSitemap):
