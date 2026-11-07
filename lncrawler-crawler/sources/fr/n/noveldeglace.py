@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """noveldeglace.com — French fan translations (WordPress, "tempera" theme).
 
-Novels are WordPress categories; chapters are posts inside a category. The
-public ``/wp-json/wp/v2`` API is used for listing, search and the chapter table.
-
-The site publishes no author, cover, synopsis or status, so only the title and
-the chapter list are filled. Volumes come from the "Tome N" part of the chapter
-titles.
+Novels are the "roman" custom post type, served at ``/roman/<slug>/``. That page
+carries the title, author, cover, volumes and the chapter list. The WordPress
+category with the same slug holds posts from other novels too, so it is not
+used for the novel data. The public ``/wp-json/wp/v2`` API is still used for
+search and browse, which work because category slugs equal roman slugs.
 
 Each post's API ``link`` points to an announcement note, not to the chapter
 text. The chapter text is served at ``/chapitre/<slug>/``, so that URL is used
@@ -25,15 +24,7 @@ from lncrawl.models import Chapter, SearchResult, Volume
 
 logger = logging.getLogger(__name__)
 
-# Only real chapter posts. Announcements, annexes and one-off posts are skipped.
-# Prologues and epilogues of a tome are story text, so they are kept.
-CHAPTER_RE = re.compile(
-    r"Chapitre\s*\d+|(?:^|[,–-]\s*)(?:Prologue|Épilogue)\b", re.IGNORECASE
-)
 TOME_RE = re.compile(r"Tome\s*(\d+)", re.IGNORECASE)
-# Post titles read "<novel>, Tome N, Chapitre M" or "<novel> – Tome N – ...";
-# the novel name and the tome are dropped (the tome is the volume).
-TOME_PREFIX_RE = re.compile(r"^.*?\bTome\s*\d+\s*[,–-]\s*", re.IGNORECASE)
 # Meta categories ("Publication", "Special"...) that are not novels.
 META_CATEGORIES = {"publication", "special", "test", "annonce"}
 
@@ -53,7 +44,7 @@ class NoveldeglaceCrawler(Crawler):
     # -- helpers ------------------------------------------------------- #
 
     def _novel_url(self, slug: str) -> str:
-        return f"{self.home_url}category/{slug}/"
+        return f"{self.home_url}roman/{slug}/"
 
     def _fetch_categories(self, ids: List[int]) -> Dict[int, dict]:
         if not ids:
@@ -64,23 +55,6 @@ class NoveldeglaceCrawler(Crawler):
             "&per_page=100&_fields=id,name,slug,count"
         )
         return {c["id"]: c for c in data}
-
-    def _fetch_chapter_posts(self, category_id: int) -> List[dict]:
-        posts: List[dict] = []
-        page = 1
-        while True:
-            resp = self.get_response(
-                f"{self.home_url}wp-json/wp/v2/posts"
-                f"?categories={category_id}&per_page=100&page={page}"
-                "&orderby=date&order=asc&_fields=id,slug,title,date"
-            )
-            batch = resp.json()
-            posts.extend(batch)
-            total_pages = int(resp.headers.get("X-WP-TotalPages") or 1)
-            if not batch or page >= total_pages:
-                break
-            page += 1
-        return posts
 
     # -- search / browse ----------------------------------------------- #
 
@@ -144,36 +118,63 @@ class NoveldeglaceCrawler(Crawler):
 
     def read_novel_info(self) -> None:
         slug = unquote(urlparse(self.novel_url).path.rstrip("/").split("/")[-1])
-        cats = self.get_json(
-            f"{self.home_url}wp-json/wp/v2/categories"
-            f"?slug={quote_plus(slug)}&_fields=id,name,slug,count"
-        )
-        if not cats:
-            raise LNException(f"No novel category found for slug '{slug}'")
+        soup = self.get_soup(f"{self.home_url}roman/{slug}/")
 
-        category = cats[0]
-        self.novel_title = unescape(category["name"]).strip()
+        title = soup.select_one("h1.entry-title")
+        if title is None:
+            raise LNException(f"No novel page found for slug '{slug}'")
+        self.novel_title = unescape(title.get_text()).strip()
+
+        self.novel_author = ""
+        for line in soup.select("div.line_roman"):
+            label = line.find("strong")
+            if label is not None and label.get_text(strip=True).startswith("Auteur"):
+                text = line.get_text(" ", strip=True)
+                self.novel_author = text[len(label.get_text(" ", strip=True)) :].strip()
+                break
+
+        og_image = soup.find("meta", property="og:image")
+        if og_image is not None and og_image.get("content"):
+            self.novel_cover = self.absolute_url(og_image["content"])
 
         volume_ids = set()
-        for post in self._fetch_chapter_posts(category["id"]):
-            title = unescape(post["title"]["rendered"]).strip()
-            if not CHAPTER_RE.search(title):
-                continue
-
-            tome = TOME_RE.search(title)
-            volume_id = int(tome.group(1)) if tome else None
+        for heading in soup.select("h4.title-roman-single"):
+            volume_id = None
+            volume_link = heading.find("a", href=True)
+            tome = (
+                re.search(r"tome-(\d+)", volume_link["href"])
+                if volume_link is not None
+                else None
+            ) or TOME_RE.search(heading.get_text(" ", strip=True))
+            if tome is not None:
+                volume_id = int(tome.group(1))
             if volume_id is not None and volume_id not in volume_ids:
                 volume_ids.add(volume_id)
                 self.volumes.append(Volume(id=volume_id, title=f"Tome {volume_id}"))
 
-            self.chapters.append(
-                Chapter(
-                    id=len(self.chapters) + 1,
-                    title=TOME_PREFIX_RE.sub("", title, count=1),
-                    url=self.absolute_url(f"/chapitre/{post['slug']}/"),
-                    volume=volume_id,
-                )
-            )
+            # Only the list directly after this heading belongs to its volume.
+            chapter_list = heading.find_next_sibling()
+            if chapter_list is None or chapter_list.name != "ul":
+                continue
+            for item in chapter_list.select("li.chpt"):
+                link = item.find("a", href=True)
+                if link is None:
+                    continue
+                chapter_title = unescape(link.get_text()).strip()
+                entries = [(chapter_title, link["href"])]
+                # Multi-part chapters link each part as its own chapter page.
+                for part in item.select("span.partie-chapitre a[href]"):
+                    part_title = part.get_text(strip=True)
+                    entries.append((f"{chapter_title} – {part_title}", part["href"]))
+                for entry_title, href in entries:
+                    self.chapters.append(
+                        Chapter(
+                            id=len(self.chapters) + 1,
+                            title=entry_title,
+                            url=self.absolute_url(href),
+                            volume=volume_id,
+                        )
+                    )
 
         if not self.chapters:
             logger.warning("No chapters found for %s", self.novel_url)

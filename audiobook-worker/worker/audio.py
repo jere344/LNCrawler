@@ -31,11 +31,12 @@ TRIM = (
     "areverse,"
     "silenceremove=stop_periods=-1:stop_duration=2.5:stop_threshold=-50dB"
 )
-# Retune for the second attempt: tighter internal pauses, one dB more headroom on the peak.
+# Retune for the later attempts: tighter internal pauses, more headroom on the peak.
 TRIM_RETUNED = TRIM.replace("stop_duration=2.5", "stop_duration=2.0")
 ATTEMPTS: tuple[dict[str, object], ...] = (
     {"trim": TRIM, "target_tp": -2.0},
     {"trim": TRIM_RETUNED, "target_tp": -2.5},
+    {"trim": TRIM_RETUNED, "target_tp": -3.0},
 )
 
 
@@ -218,11 +219,18 @@ def validate(path: str) -> list[str]:
 
 
 def encode_checked(src: str, dst: str) -> None:
-    """Encode and validate. A failing file gets one retry with the retuned trim and loudnorm."""
+    """Encode and validate. A failing file is encoded again with the next ATTEMPTS entry."""
     failures: list[str] = []
     for attempt, params in enumerate(ATTEMPTS, 1):
         encode_chapter(src, dst, **params)  # type: ignore[arg-type]
-        failures = validate(dst)
+        try:
+            failures = validate(dst)
+        except AudioError as exc:
+            # The analysis tool crashed, which says nothing about the file: the next attempt gets a check too.
+            if not exc.retryable or attempt == len(ATTEMPTS):
+                raise
+            log.warning("encode attempt %d could not be checked: %s", attempt, "; ".join(exc.reasons))
+            continue
         if not failures:
             return
         log.warning("encode attempt %d failed validation: %s", attempt, "; ".join(failures))

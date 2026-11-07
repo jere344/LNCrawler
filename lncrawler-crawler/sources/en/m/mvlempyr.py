@@ -187,11 +187,7 @@ class MvlempyrIoCrawler(Crawler):
         synopsis_html = rec.get("synopsis") or rec.get("synopsis-text") or ""
         if synopsis_html:
             soup = BeautifulSoup(synopsis_html, "lxml")
-            paragraphs = [
-                p.get_text(" ", strip=True) for p in soup.find_all("p")
-                if p.get_text(strip=True)
-            ]
-            self.novel_synopsis = "\n".join(paragraphs) or soup.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(soup)
 
         posts = self._fetch_chapter_posts(code)
         numbered: Dict[int, dict] = {}

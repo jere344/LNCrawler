@@ -196,7 +196,7 @@ class NovelUpCrawler(Crawler):
 
         synopsis = soup.select_one(".novel_synopsis")
         if isinstance(synopsis, Tag):
-            self.novel_synopsis = synopsis.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
         # Genre / length / serialization from the state banner.
         genres = []

@@ -414,7 +414,7 @@ class NovelFromSource(models.Model):
         # Resolve the canonical novel. An alias (created when a duplicate was
         # merged) wins over the folder-derived slug, so crawling an old name
         # reattaches to the surviving novel instead of recreating a duplicate.
-        novel_slug = slugify(os.path.basename(novel_path))
+        novel_slug = slugify(os.path.basename(novel_path), max_length=255)
 
         # The folder is the real identity: resolve by path first so a change in
         # the slug algorithm cannot spawn a duplicate for an existing folder
@@ -438,7 +438,7 @@ class NovelFromSource(models.Model):
                 novel, created = Novel.objects.get_or_create(
                     slug=novel_slug,
                     defaults={
-                        'title': title,
+                        'title': truncate(title, 255),
                         'novel_path': novel_path,
                         'added_by': added_by,
                     }

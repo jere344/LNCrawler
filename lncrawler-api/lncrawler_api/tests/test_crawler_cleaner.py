@@ -1,5 +1,6 @@
 """Tests for the crawler's TextCleaner: line breaks inside text and whole-document input."""
 
+import threading
 import time
 
 from django.test import SimpleTestCase
@@ -75,6 +76,45 @@ class CleanTextNewlineTests(SimpleTestCase):
             self.cleaner.extract_contents(soup),
             "<p>Elise was uncharacteristically</p>",
         )
+
+
+class SubstitutionTests(SimpleTestCase):
+    def test_default_substitutions_escape_angle_brackets(self):
+        self.assertEqual(TextCleaner().clean_text("a<b>c"), "a&lt;b&gt;c")
+
+    def test_changed_substitutions_are_picked_up(self):
+        cleaner = TextCleaner()
+        self.assertEqual(cleaner.clean_text("a<b"), "a&lt;b")
+        cleaner.substitutions = {"~": "-"}
+        self.assertEqual(cleaner.clean_text("a~b<c"), "a-b<c")
+
+    def test_empty_substitutions_leave_text_alone(self):
+        cleaner = TextCleaner()
+        cleaner.substitutions = {}
+        self.assertEqual(cleaner.clean_text("a<b"), "a<b")
+
+    def test_threads_alternating_substitutions_do_not_raise(self):
+        cleaner = TextCleaner()
+        variants = [{"<": "&lt;"}, {"~": "-"}]
+        expected = {"a&lt;b~c", "a<b-c"}
+        results = set()
+        errors = []
+
+        def worker(offset):
+            try:
+                for i in range(2000):
+                    cleaner.substitutions = variants[(i + offset) % 2]
+                    results.add(cleaner.clean_text("a<b~c"))
+            except Exception as exc:  # noqa: BLE001 - any failure is the point
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(n,)) for n in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        self.assertTrue(results <= expected)
 
 
 class DocumentInputTests(SimpleTestCase):

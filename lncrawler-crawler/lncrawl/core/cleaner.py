@@ -64,8 +64,8 @@ class TextCleaner:
         self.image_src_attributes: List[str] = ["data-lazy-src", "data-src", "src"]
 
         # Compiled caches, each stored with the config it was built from.
-        self._subs_key: Optional[tuple] = None
-        self._subs_: Optional[re.Pattern] = None
+        # (substitutions snapshot, compiled pattern), replaced in one assignment.
+        self._subs_cache: Optional[tuple] = None
         self._tag_pattern_cache: Dict[str, tuple] = {}
         self._blacklist_key: Optional[frozenset] = None
         self._blacklist_: Optional[re.Pattern] = None
@@ -145,15 +145,23 @@ class TextCleaner:
 
     def clean_text(self, text) -> str:
         text = self._strip_nonprintable(str(text)).strip()
-        subs_key = tuple(self.substitutions.items())
-        if self._subs_key != subs_key:
-            self._subs_key = subs_key
-            self._subs_ = re.compile(
-                "|".join(f"({re.escape(x)})" for x in self.substitutions.keys()),
-                flags=re.IGNORECASE,
+        # One snapshot per call: the key, the pattern and the lookup all come from it,
+        # so a concurrent change to self.substitutions cannot split them.
+        subs = dict(self.substitutions)
+        if not subs:
+            return text
+        subs_key = tuple(subs.items())
+        cached = self._subs_cache
+        if cached is None or cached[0] != subs_key:
+            cached = (
+                subs_key,
+                re.compile(
+                    "|".join(f"({re.escape(x)})" for x in subs.keys()),
+                    flags=re.IGNORECASE,
+                ),
             )
-        text = self._subs_.sub(lambda m: self.substitutions[m.group(0).lower()], text)
-        return text
+            self._subs_cache = cached
+        return cached[1].sub(lambda m: subs[m.group(0).lower()], text)
 
     def extract_on_duplicate_sibling(self, tag: Tag) -> None:
         next_tag = tag.next_sibling

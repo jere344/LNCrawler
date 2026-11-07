@@ -222,7 +222,7 @@ class CyrisiaCrawler(EpubCrawler):
 
         desc = soup.select_one("p.synopsis-trunc")
         if isinstance(desc, Tag):
-            self.novel_synopsis = desc.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(desc)
         if not self.novel_synopsis:
             meta = soup.select_one('meta[property="og:description"]')
             if isinstance(meta, Tag) and meta.get("content"):

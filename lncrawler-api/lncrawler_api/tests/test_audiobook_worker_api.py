@@ -36,6 +36,7 @@ from ..models import (
     AudiobookWorker,
     Chapter,
     Novel,
+    Tag,
 )
 from ..services import audiobook_media
 from ..services import audiobook_scheduler as sched
@@ -301,7 +302,7 @@ class ClaimTests(WorkerBase):
             set(body),
             {'part_id', 'audiobook_id', 'series', 'part', 'chapters', 'epub_url', 'previous_cast', 'lease_until'},
         )
-        self.assertEqual(set(body['series']), {'title', 'authors', 'language', 'slug'})
+        self.assertEqual(set(body['series']), {'title', 'authors', 'language', 'slug', 'synopsis', 'tags'})
         self.assertEqual(set(body['part']), {'index', 'total_known', 'chapter_start', 'chapter_end', 'word_count'})
         self.assertEqual(body['part']['total_known'], 1)
         self.assertEqual(body['series']['slug'], 'foo')
@@ -314,6 +315,43 @@ class ClaimTests(WorkerBase):
         self.assertTrue(body['epub_url'].endswith(f'/api/audiobook-worker/parts/{self.part.pk}/epub'))
         self.assertEqual(body['previous_cast'], {'Old': {'engine': 'kokoro'}})
         self.assertTrue(body['lease_until'].endswith('Z'))
+
+    def claim_series(self):
+        response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+        self.assertEqual(response.status_code, 200)
+        return response.json()['series']
+
+    def test_claim_carries_the_synopsis_and_the_tag_names(self):
+        self.source.synopsis = '  A tale of a long road.  '
+        self.source.save()
+        for name in ('Zeta', 'Alpha', 'Mid'):
+            self.source.tags.add(Tag.objects.create(name=name))
+
+        series = self.claim_series()
+
+        self.assertEqual(series['synopsis'], 'A tale of a long road.')
+        self.assertEqual(series['tags'], ['Alpha', 'Mid', 'Zeta'])
+
+    def test_long_synopsis_is_cut_to_2000_characters(self):
+        self.source.synopsis = 'x' * 2500
+        self.source.save()
+
+        self.assertEqual(len(self.claim_series()['synopsis']), 2000)
+
+    def test_claim_carries_at_most_twenty_tags_in_name_order(self):
+        for number in range(25):
+            self.source.tags.add(Tag.objects.create(name=f'T{number:02}'))
+
+        self.assertEqual(self.claim_series()['tags'], [f'T{number:02}' for number in range(20)])
+
+    def test_source_without_synopsis_or_tags_gives_empty_values(self):
+        self.source.synopsis = None
+        self.source.save()
+
+        series = self.claim_series()
+
+        self.assertEqual(series['synopsis'], '')
+        self.assertEqual(series['tags'], [])
 
 
 class ClaimRaceTests(TransactionTestCase):

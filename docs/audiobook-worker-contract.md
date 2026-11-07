@@ -35,7 +35,7 @@ A part's **lease** is 15 minutes, and each heartbeat extends it. An expired leas
 {
   "part_id": "uuid",
   "audiobook_id": "uuid",
-  "series": {"title": "Novel title", "authors": ["…"], "language": "en", "slug": "novel-slug"},
+  "series": {"title": "Novel title", "authors": ["…"], "language": "en", "slug": "novel-slug", "synopsis": "…", "tags": ["…"]},
   "part": {"index": 3, "total_known": 8, "chapter_start": 51, "chapter_end": 75, "word_count": 74210},
   "chapters": [{"chapter_id": 1234, "number": 51, "title": "Chapter 51: …", "word_count": 2950}],
   "epub_url": "https://…/api/audiobook-worker/parts/<id>/epub",

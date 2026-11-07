@@ -7,7 +7,7 @@ import socket
 from functools import lru_cache
 from io import BytesIO
 from typing import Any, Callable, Dict, MutableMapping, Optional, Tuple, Union, get_args
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import ParseResult, quote, urlparse, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 from curl_cffi import requests as cffi
@@ -78,6 +78,38 @@ def _host_is_public(host: str) -> bool:
         ):
             return False
     return True
+
+
+_HEADER_URL_SAFE = ":/?#[]@!$&'()*+,;=%~"
+
+
+def _header_url(url: str) -> str:
+    """A URL for a header value: headers go out as Latin-1, so a non-ASCII URL is
+    encoded. ASCII URLs are returned unchanged.
+
+    The host is IDNA-encoded (userinfo and port are kept) and the path, query and
+    fragment are percent-encoded. When that fails, the whole URL is percent-encoded.
+    """
+    if url.isascii():
+        return url
+    try:
+        parts = urlsplit(url)
+        userinfo, at, hostport = parts.netloc.rpartition("@")
+        head, colon, tail = hostport.rpartition(":")
+        if colon and tail.isdigit() and "]" not in tail:
+            host, port = head, colon + tail
+        else:
+            host, port = hostport, ""
+        host = host.encode("idna").decode("ascii")
+        return urlunsplit((
+            parts.scheme,
+            f"{quote(userinfo, safe=_HEADER_URL_SAFE)}{at}{host}{port}",
+            quote(parts.path, safe=_HEADER_URL_SAFE),
+            quote(parts.query, safe=_HEADER_URL_SAFE),
+            quote(parts.fragment, safe=_HEADER_URL_SAFE),
+        ))
+    except ValueError:  # UnicodeError is a ValueError; covers urlsplit too
+        return quote(url, safe=_HEADER_URL_SAFE)
 
 
 def merge_headers(
@@ -230,8 +262,8 @@ class Scraper(TaskManager, SoupMaker):
             kwargs["proxies"] = proxies
 
         default_headers = {
-            "Origin": self.home_url.strip("/"),
-            "Referer": self.last_soup_url or self.home_url,
+            "Origin": _header_url(self.home_url.strip("/")),
+            "Referer": _header_url(self.last_soup_url or self.home_url),
         }
         if not self.impersonating:
             default_headers["User-Agent"] = self.user_agent

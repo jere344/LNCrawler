@@ -4,9 +4,16 @@ from typing import List
 
 from lncrawl.core.crawler import Crawler
 from lncrawl.core.exeptions import LNException
-from lncrawl.models import Chapter, SearchResult
+from lncrawl.models import Chapter, NovelStatus, SearchResult
 
 logger = logging.getLogger(__name__)
+
+_STATUS_MAP = {
+    "active": NovelStatus.ongoing,
+    "completed": NovelStatus.completed,
+    "complete": NovelStatus.completed,
+    "finished": NovelStatus.completed,
+}
 
 
 class LeafStudioCrawler(Crawler):
@@ -64,11 +71,21 @@ class LeafStudioCrawler(Crawler):
             raise LNException("Novel not found")
         self.novel_title = title.text.strip()
         self.novel_author = "LeafStudio"
-        synopsis = soup.select_one(".desc_div > p:nth-child(2)") or soup.select_one(".desc_div")
-        self.novel_synopsis = synopsis.text.strip() if synopsis else None
+        desc = soup.select_one(".desc_div")
+        if desc:
+            for p in desc.select(":scope > p, :scope > strong"):
+                if p.get_text(strip=True).lower() == "description":
+                    p.decompose()
+            self.novel_synopsis = self.cleaner.extract_contents(desc)
         self.novel_tags = [item.text for item in soup.select("a.novel_genre")] or None
         cover = soup.select_one("#novel_cover")
-        self.novel_cover = cover.get("src") if cover else None
+        if not cover:
+            logger.debug("Cover #novel_cover not found: %s", self.novel_url)
+        self.novel_cover = self.image_url(cover)
+        status = soup.select_one("#novel_status")
+        self.status = _STATUS_MAP.get(
+            status.text.strip().lower() if status else "", NovelStatus.unknown
+        )
         for item in soup.select("a.free_chap").__reversed__():
             self.chapters.append(
                 dict(id=len(self.chapters) + 1, title=item.text, url=item["href"])

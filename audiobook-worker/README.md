@@ -130,12 +130,6 @@ at runtime: it does not claim a part until Castwright and the LLM both answer (s
 - **A looping attribution reply.** A `sentence_attribution` reply that hits its token budget (4096) means the model
   looped. The chunk is split at its middle paragraph and each half is sent again; a single paragraph that still loops
   is left as narration, with a warning. The part goes on.
-- **A hot GPU.** The `thermal` service (`thermal/guard.py`) reads the GPU temperature every 10 s. At
-  `THERMAL_LIMIT_C` (80) it `docker pause`s Castwright and llama, and resumes them once the card is at
-  `THERMAL_RESUME_C` (68) and at least `THERMAL_MIN_PAUSE_S` (120 s) have passed. The worker is not paused, so its
-  heartbeats keep the lease. Windows gives containers no CPU sensor: run LibreHardwareMonitor with its web server on and
-  set `THERMAL_CPU_TEMP_URL=http://host.docker.internal:8085/data.json` to guard the CPU too. `docker logs
-  lncrawler-audiobook-worker-thermal-1` shows every pause and a status line every 10 minutes.
 - **Series file damaged.** A series file that is not valid JSON is moved aside as `*.corrupt-<time>`, and the series
   starts empty for that audiobook.
 
@@ -189,6 +183,13 @@ Cast entries for qwen voices carry the stored voice persona (`voiceStyle`) as `d
 Kokoro entries carry none. A male or female character whose persona names no gender gets "A {age} {gender} voice." in
 front, because the designer otherwise drifts (a soft-spoken male lead came out sounding female). A persona that says
 androgynous, gender-neutral, genderless or unisex is kept as written, and so are neutral characters and the narrator.
+
+The narrator's persona is chosen once per series, by one LLM call on the title, synopsis, tags and opening narration of the
+first part analysed (`worker/analysis/narrator.py`). A first-person book takes the protagonist's gender; a third-person book
+takes a fixed draw from the audiobook id (55% opposite the protagonist, 25% the same, 20% androgynous). If the call fails,
+the narrator gets the drawn gender with a plain delivery. A series whose narrator already has a voice keeps it. The persona
+is kept for the whole series; to redo it, clear the narrator's `voiceStyle` and `voice` in
+`DATA_DIR/series/<audiobook_id>.json`.
 
 ## Accuracy
 

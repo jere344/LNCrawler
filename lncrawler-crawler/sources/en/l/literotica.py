@@ -110,7 +110,7 @@ class LiteroticaCrawler(Crawler):
 
             synopsis = soup.select_one('div[class*="_widget__info_"]')
             if synopsis:
-                self.novel_synopsis = synopsis.get_text(" ", strip=True)
+                self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
             self.chapters.append(dict(id=1, title=self.novel_title, url=self.novel_url))
 

@@ -88,7 +88,7 @@ class NovelasLigerasCrawler(Crawler):
 
         synopsis = soup.select_one(".woocommerce-product-details__short-description")
         if synopsis:
-            self.novel_synopsis = synopsis.get_text(" ", strip=True)
+            self.novel_synopsis = self.cleaner.extract_contents(synopsis)
 
         host = urlparse(self.novel_url).hostname or ""
         pattern = re.escape(host) + r"/index.php/\d{4}/\d{2}/\d{2}/"

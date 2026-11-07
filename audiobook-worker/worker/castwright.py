@@ -24,6 +24,7 @@ NON_RETRYABLE_CODES = frozenset({"language_unset", "unsupported_language"})
 # Errors that clear up once the other job finishes, or on a re-run.
 TRANSIENT_CODES = frozenset({
     "book_busy", "stream_dropped", "chapters_restructuring", "design_in_progress", "not_rendered",
+    "sidecar_unavailable",  # the TTS sidecar recycles itself (exit 43) when the card runs out of memory
 })
 
 

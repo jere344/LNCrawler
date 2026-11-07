@@ -160,6 +160,9 @@ def json_schema(name: str, schema: dict[str, Any]) -> dict[str, Any]:
     return {"type": "json_schema", "json_schema": {"name": name, "schema": schema, "strict": False}}
 
 
+VOICE_STYLE_LIMIT = 300  # characters of a voice style the Castwright designer takes
+
+
 def clip(text: str, limit: int) -> str:
     """At most `limit` characters, cut on a word boundary when one is near. Still a verbatim substring of the text."""
     if len(text) <= limit:

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import copy
 import logging
 import re
 from urllib.parse import quote_plus
@@ -66,7 +67,7 @@ class XiaowazCrawler(Crawler):
                 elif label == "synopsis":
                     value = heading.find_next_sibling()
                     if value:
-                        self.novel_synopsis = value.get_text(" ", strip=True)
+                        self.novel_synopsis = self.cleaner.extract_contents(copy.copy(value))
 
             for strong in entry.select("strong"):
                 text = strong.get_text(strip=True)

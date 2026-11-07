@@ -29,6 +29,8 @@ from worker.analysis.attribution import (
     system_prompt,
 )
 from worker.analysis.cast import evidence_quotes
+from worker.analysis import narrator as narrator_module
+from worker.analysis.narrator import narrator_style
 from worker.analysis.protocol import AnalysisError, numbered_pieces, parse_reply, quote_runs, render_runs
 from worker.llm import LlmClient, LlmError, Usage
 from worker.series import Series
@@ -356,6 +358,26 @@ def test_a_single_paragraph_that_keeps_truncating_stays_narration():
     results = attribute_chapter([pieces], "en", ROSTER, llm)
     assert len(results) == 1
     assert results[0].labels == {} and results[0].weak is False
+    assert len(llm.calls) == 1
+
+
+def test_a_looping_cast_reply_splits_the_chunk_at_its_paragraphs(tmp_path):
+    llm = FakeLlm(
+        LlmError("cast_detection reply hit max_tokens=4096", retryable=False, truncated=True),  # both paragraphs
+        cast(char("anna", "Anna")),  # the first paragraph
+        cast(char("tom", "Tom", gender="male")),  # the second paragraph
+    )
+    pieces = numbered_pieces(EN_CHAPTER, "en")
+    found = run_module._detect_cast_or_split(pieces, "en", make_series(tmp_path), llm, window=50, cap=40, tag="t")
+    assert [entry.id for entry in found] == ["anna", "tom"]
+    assert len(llm.calls) == 3
+
+
+def test_a_single_paragraph_whose_cast_reply_keeps_looping_has_no_cast(tmp_path):
+    pieces = numbered_pieces('"Where are you going?" asked Anna.', "en")
+    llm = FakeLlm(LlmError("cast_detection reply hit max_tokens=4096", retryable=False, truncated=True))
+    found = run_module._detect_cast_or_split(pieces, "en", make_series(tmp_path), llm, window=50, cap=40, tag="t")
+    assert found == []
     assert len(llm.calls) == 1
 
 
@@ -751,3 +773,102 @@ def test_a_neutral_gender_and_the_narrator_keep_their_stored_voice_style(tmp_pat
     run_module._ensure_narrator(series)
     series.records[NARRATOR].voice_style = "warm, steady pace."
     assert run_module._voice_style(series.records[NARRATOR], "male") == "warm, steady pace."
+
+
+# -- narrator voice ----------------------------------------------------------
+
+THIRD_PERSON_REPLY = {
+    "pov": "third",
+    "protagonist_gender": "female",
+    "delivery": "Slow, low and intimate, with long pauses before the grim turns.",
+}
+# sha256("bk-1") % 100 is 31: below 55 is the opposite of a female protagonist, and below 45 is male with none known
+
+
+def _narrator_kwargs(**overrides) -> dict:
+    kwargs = {"title": "Tales", "synopsis": "", "tags": [], "sample": "I ran.", "seed_key": "bk-1", "lang": "en"}
+    return {**kwargs, **overrides}
+
+
+def _reply(pov="third", gender="unknown", delivery="Bright and quick.") -> dict:
+    return {"pov": pov, "protagonist_gender": gender, "delivery": delivery}
+
+
+def test_a_first_person_narrator_takes_the_protagonists_gender():
+    llm = FakeLlm(_reply("first", "female", "Brisk and wry, with quick asides."))
+    style = narrator_style(llm, **_narrator_kwargs())
+    assert style == "An adult female narrator voice. Brisk and wry, with quick asides."
+    assert llm.calls[0]["name"] == "narrator_style" and llm.calls[0]["kind"] == "narrator_style"
+    assert llm.calls[0]["max_tokens"] == 512
+
+
+def test_a_third_person_narrator_is_the_same_draw_every_time_for_a_series():
+    llm = FakeLlm(THIRD_PERSON_REPLY, THIRD_PERSON_REPLY)
+    first = narrator_style(llm, **_narrator_kwargs())
+    second = narrator_style(llm, **_narrator_kwargs())
+    assert first == second == (
+        "An adult male narrator voice. Slow, low and intimate, with long pauses before the grim turns."
+    )
+
+
+def test_a_delivery_that_names_a_gender_is_refused():
+    with pytest.raises(AnalysisError):
+        narrator_module._require_reply(_reply(delivery="A deep masculine growl."))
+    narrator_module._require_reply(_reply(delivery="A deep growl."))
+
+
+def test_a_failed_narrator_call_gives_a_plain_style_from_the_draw(tmp_path):
+    failure = LlmError("narrator_style call failed after 4 attempts: reply failed validation", retryable=True)
+    plain = "An adult male narrator voice. " + narrator_module.FALLBACK_DELIVERY
+    assert narrator_style(FakeLlm(failure), **_narrator_kwargs()) == plain
+
+    llm = FakeLlm(cast(char("anna", "Anna")), lines((1, "anna")), failure)
+    series = make_series(tmp_path)
+    result = analyse_part([(1, EN_CHAPTER)], "en", series, llm, audiobook_id="bk-1", title="Tales")
+    assert series.records[NARRATOR].voice_style == plain
+    assert result.cast_rows[0]["voiceStyle"] == plain
+
+
+def test_the_narrator_sample_leaves_out_unattributed_quotes(tmp_path):
+    llm = FakeLlm(cast(char("anna", "Anna")), lines(), _reply())
+    analyse_part([(1, EN_CHAPTER)], "en", make_series(tmp_path), llm, audiobook_id="bk-1", title="Tales")
+    sample = llm.user(2).split("## Opening narration")[1]
+    assert "asked Anna." in sample and "Where are you going?" not in sample
+
+
+def test_a_narrator_with_a_voice_style_makes_no_narrator_call(tmp_path):
+    series = make_series(tmp_path)
+    run_module._ensure_narrator(series)
+    series.records[NARRATOR].voice_style = "An adult male narrator voice. Stored."
+    llm = FakeLlm(cast(char("anna", "Anna")), lines((1, "anna")))
+    result = analyse_part([(1, EN_CHAPTER)], "en", series, llm, audiobook_id="bk-1", title="Tales")
+    assert [call["name"] for call in llm.calls] == ["cast_detection", "sentence_attribution"]
+    assert result.cast_rows[0]["voiceStyle"] == "An adult male narrator voice. Stored."
+
+
+def test_a_narrator_that_already_has_a_voice_keeps_it(tmp_path):
+    series = make_series(tmp_path)
+    run_module._ensure_narrator(series)
+    series.set_voice(NARRATOR, {"voiceUuid": "u1", "ttsEngine": "qwen", "overrideTtsVoices": {"qwen": {"name": "N"}}})
+    llm = FakeLlm(cast(char("anna", "Anna")), lines((1, "anna")))
+    analyse_part([(1, EN_CHAPTER)], "en", series, llm, audiobook_id="bk-1", title="Tales")
+    assert [call["name"] for call in llm.calls] == ["cast_detection", "sentence_attribution"]
+    assert series.records[NARRATOR].voice_style is None
+
+
+def test_a_seeded_default_narrator_style_is_replaced(tmp_path):
+    series = make_series(tmp_path)
+    run_module._ensure_narrator(series)
+    series.records[NARRATOR].voice_style = DEFAULT_NARRATOR_STYLE
+    llm = FakeLlm(cast(char("anna", "Anna")), lines((1, "anna")), _reply())
+    analyse_part([(1, EN_CHAPTER)], "en", series, llm, audiobook_id="bk-1", title="Tales")
+    assert series.records[NARRATOR].voice_style == "An adult male narrator voice. Bright and quick."
+
+
+def test_the_narrator_style_is_chosen_without_a_synopsis_or_tags(tmp_path):
+    series = make_series(tmp_path)
+    llm = FakeLlm(cast(char("anna", "Anna")), lines((1, "anna")), _reply())
+    result = analyse_part([(1, EN_CHAPTER)], "en", series, llm, title="Tales", audiobook_id="bk-1")
+    assert series.records[NARRATOR].voice_style == "An adult male narrator voice. Bright and quick."
+    assert result.cast_rows[0]["voiceStyle"] == "An adult male narrator voice. Bright and quick."
+    assert "## Synopsis" not in llm.user(2) and "## Tags" in llm.user(2)

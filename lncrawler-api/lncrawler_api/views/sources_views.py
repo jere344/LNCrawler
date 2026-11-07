@@ -266,7 +266,7 @@ def source_image_gallery(request, novel_slug, source_slug):
     # Paginate over the image count only; rows are streamed below, so a source
     # with tens of thousands of images never lands in memory all at once.
     paginator = Paginator(range(total_images), page_size)
-    page_obj = paginator.get_page(int(request.GET.get("page", 1)))
+    page_obj = paginator.get_page(_parse_int(request.GET.get("page", 1)))
     start = (page_obj.number - 1) * page_size
     end = start + page_size
 
@@ -286,7 +286,8 @@ def source_image_gallery(request, novel_slug, source_slug):
         index += 1
 
     # Add chapter images, expanding only the slice for this page.
-    image_dir = resolve_output_path(source.source_path, "images") or ""
+    # A source without a source_path has no folder on disk, so none of its images can be shown.
+    image_dir = resolve_output_path(source.source_path, "images") if source.source_path else None
     for chapter_id, chapter_title, images in chapters_with_images.iterator(chunk_size=500):
         for image_name in images:
             if index >= end:
@@ -294,7 +295,7 @@ def source_image_gallery(request, novel_slug, source_slug):
             # Skip files removed from disk so the gallery never links to a 404.
             # ponytail: total_images stays DB-derived, so a page can show gaps;
             # scan the directory if an exact count ever matters.
-            if index >= start and os.path.exists(os.path.join(image_dir, image_name)):
+            if index >= start and image_dir and os.path.exists(os.path.join(image_dir, image_name)):
                 image_data.append({
                     "chapter_id": chapter_id,
                     "chapter_title": chapter_title,
