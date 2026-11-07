@@ -15,6 +15,8 @@ import os
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared_constants.json'), encoding='utf-8') as _shared_file:
     _SHARED_CONSTANTS = json.load(_shared_file)
 
+SHARED_CONSTANTS = _SHARED_CONSTANTS
+
 SUPPORTED_LANGUAGES = list(_SHARED_CONSTANTS['languages'])
 
 SUPPORTED_LANGUAGES_SET = set(SUPPORTED_LANGUAGES)

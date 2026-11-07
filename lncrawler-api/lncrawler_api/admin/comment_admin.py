@@ -119,7 +119,7 @@ class CommentAdmin(admin.ModelAdmin):
             return format_html('<a href="{}">{}</a>', url, obj.novel.title)
         elif obj.chapter:
             url = reverse("admin:lncrawler_api_chapter_change", args=[obj.chapter.id])
-            return format_html('<a href="{}">{}</a>', url, obj.chapter.title)
+            return format_html('<a href="{}">{}</a>', url, obj.chapter.display_title)
         return "Unknown"
 
     target_link.short_description = "Target"

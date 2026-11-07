@@ -51,7 +51,7 @@ class Cancelled(Exception):
 
 
 class Stopped(Exception):
-    """The worker is shutting down. The state is kept and the lease expires."""
+    """The worker is shutting down. The state is kept: the part stays claimed and the next claim resumes it."""
 
 
 class PartFailed(Exception):
@@ -370,7 +370,6 @@ class PartPipeline:
             memory.chapters_seen = max(0, memory.chapters_seen - len(pairs))
         if not memory.records and index > 1:
             self._seed_series(memory, index)
-        self._compare_roster(memory)
 
         folder = state.part_folder(self.cfg.data_dir, self.part_id)
         os.makedirs(folder, exist_ok=True)
@@ -434,16 +433,6 @@ class PartPipeline:
         rows = _cast_rows(self.cw.book_state(previous["bookId"]) or {})
         series.seed_from_cast(rows, chapters_seen=(index - 1) * len(self.state["chapter_map"]))
         self._log("series memory seeded from %r: %d characters", title, len(rows))
-
-    def _compare_roster(self, series: Series) -> None:
-        """Logs the names that the previous cast and the series memory do not share. Never a failure."""
-        claimed = set((self.claim.previous_cast or {}).keys())
-        known = {record.name for record in series.records.values() if record.name}
-        if claimed != known:
-            self._log(
-                "roster differs from the previous part: only in claim %s, only in series %s",
-                sorted(claimed - known), sorted(known - claimed),
-            )
 
     # -- casting ---------------------------------------------------------
 
@@ -843,15 +832,6 @@ class PartPipeline:
             )
         return out
 
-    def _all_segments(self) -> list[dict[str, Any]]:
-        segments: list[dict[str, Any]] = []
-        for claim_ch in self.claim.chapters:
-            path = self._audio_json_path(int(claim_ch["chapter_id"]))
-            if os.path.exists(path):
-                with open(path, encoding="utf-8") as fh:
-                    segments.extend((json.load(fh).get("segments") or []))
-        return segments
-
     def _fallback_lines(self) -> dict[int, int | None] | None:
         """None for kokoro parts (the check does not apply). Otherwise per chapter, None when unchecked."""
         if self._profile() != "qwen-mixed":
@@ -889,31 +869,24 @@ class PartPipeline:
 
     def _complete(self) -> None:
         self._stage("upload", "completing part")
-        profile = self._profile()
-        rows = _cast_rows(self._book())
-        cast_notes: list[str] = []
-        cast = casting.build_contract_cast(
-            rows, profile, self._all_segments(), main_min_lines=self.cfg.qwen_main_min_lines, notes=cast_notes
-        )
-        notes = casting.compare_previous(self.claim.previous_cast, cast) + cast_notes + list(self.state["warnings"])
         qa_doc = qa.build_qa(
             self._chapter_qa(),
             expected_chapters=len(self.claim.chapters),
             validated_chapters=len(self.state["uploaded"]),
             design_failures=list(self.state["design_failures"]),
-            notes=notes,
+            notes=list(self.state["warnings"]),
             fallback_lines=self._fallback_lines(),
         )
         engine, engine_version = self._engine()
         try:
-            self.prod.complete(self.part_id, cast, qa_doc, engine, engine_version)
+            self.prod.complete(self.part_id, qa_doc, engine, engine_version)
         except CompleteRejected as exc:
             if not exc.missing:
                 raise PartFailed(str(exc), retryable=False)
             self._log("prod is missing chapters %s, re-uploading once", exc.missing)
             self._reupload(exc.missing)
             try:
-                self.prod.complete(self.part_id, cast, qa_doc, engine, engine_version)
+                self.prod.complete(self.part_id, qa_doc, engine, engine_version)
             except CompleteRejected as again:
                 raise PartFailed(f"complete rejected again, missing {again.missing}", retryable=False)
         self._log("completed passed=%s", qa_doc["passed"])

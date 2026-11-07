@@ -10,12 +10,7 @@ import MarkAsReadConfirmDialog from './MarkAsReadConfirmDialog';
 
 /** True when the novel has chapters the user has not read yet. */
 export const hasUnreadChapters = (novel: LibraryNovel): boolean => {
-  if (novel.reading_history) {
-    const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
-    const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
-    if (lastReadChapterId === undefined) return false;
-    return latestChapterId > lastReadChapterId;
-  }
+  if (novel.reading_history) return novel.reading_history.unread_chapters > 0;
   return Boolean(novel.is_bookmarked && novel.prefered_source?.latest_available_chapter);
 };
 
@@ -39,15 +34,20 @@ export const getUnreadChapterCount = (novel: LibraryNovel): number | null => {
 };
 
 /** Source slug and chapter number to mark as read, or null if none can be resolved. */
+export interface MarkAsReadTarget {
+  sourceSlug: string;
+  chapterNumber: number;
+}
+
 export const getMarkAsReadTarget = (
   novel: LibraryNovel
-): { sourceSlug: string; chapterNumber: number } | null => {
+): MarkAsReadTarget | null => {
   let sourceSlug: string;
   let chapterNumber: number;
   if (novel.reading_history) {
     sourceSlug = novel.reading_history.source_slug || novel.prefered_source?.source_slug || '';
     chapterNumber = novel.reading_history.source_latest_chapter?.chapter_id ||
-                    novel.reading_history.last_read_chapter?.chapter_id || 0;
+                    novel.reading_history.current_chapter?.chapter_id || 0;
   } else {
     sourceSlug = novel.prefered_source?.source_slug || '';
     chapterNumber = novel.prefered_source?.latest_available_chapter?.chapter_id || 0;
@@ -59,23 +59,31 @@ interface MarkAsReadButtonProps {
   novel: LibraryNovel;
   onMarkAsRead?: () => void;
   customSx?: SxProps;
+  // The place to mark, given by the page instead of the novel's reading row (null: nothing to mark).
+  // With it the button shows while there is a target, whether or not the row has unread chapters.
+  target?: MarkAsReadTarget | null;
 }
 
 const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
   novel,
   onMarkAsRead,
-  customSx = {}
+  customSx = {},
+  target: givenTarget,
 }) => {
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
+  const hasGivenTarget = givenTarget !== undefined;
+  const target = hasGivenTarget ? givenTarget : getMarkAsReadTarget(novel);
+  const canMarkAll = hasGivenTarget ? target !== null : hasUnreadChapters(novel);
+
   const handleMarkAsReadClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
-    if (!isAuthenticated || isLoading || !hasUnreadChapters(novel)) return;
+    if (!isAuthenticated || isLoading || !canMarkAll) return;
 
     setShowConfirmation(true);
   };
@@ -85,9 +93,9 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
       setIsLoading(true);
       setShowConfirmation(false);
 
-      const target = getMarkAsReadTarget(novel);
       if (target) {
-        await userService.markChapterAsRead(novel.slug, target.sourceSlug, target.chapterNumber);
+        // Marking all as read moves the position to the latest chapter
+        await userService.saveReadingPosition(novel.slug, target.sourceSlug, target.chapterNumber, 1);
         onMarkAsRead?.();
       }
     } catch (error) {
@@ -101,7 +109,7 @@ const MarkAsReadButton: React.FC<MarkAsReadButtonProps> = ({
     setShowConfirmation(false);
   };
 
-  if (!isAuthenticated || !hasUnreadChapters(novel)) return null;
+  if (!isAuthenticated || !canMarkAll) return null;
 
   return (
     <>

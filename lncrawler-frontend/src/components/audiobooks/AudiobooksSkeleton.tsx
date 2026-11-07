@@ -13,7 +13,7 @@ export const AudiobookGridSkeleton = ({ count = 12 }: { count?: number }) => (
   </Grid>
 );
 
-// Placeholder of the audiobook page: hero (cover, title, actions) above the parts.
+// Placeholder of the audiobook page: hero (cover, title, actions) above the chapters.
 export const AudiobookPageSkeleton = () => (
   <Container maxWidth="lg" sx={{ py: 3 }}>
     <Skeleton width="40%" />

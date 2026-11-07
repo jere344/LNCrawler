@@ -73,11 +73,9 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('dimGestureSide', 'readerSettingsPages.slideToDim', 'touch', ['dimGestureSide', 'dimGestureWidth'], 'right'),
 
   entry('readerHeaderBehavior', 'readerSettingsPages.siteHeader', 'reading', ['readerHeaderBehavior']),
-  entry('markReadBehavior', 'behaviorSettings.markAsReadBehavior', 'reading', ['markReadBehavior']),
   entry('textSelectable', 'behaviorSettings.allowSelection', 'reading', ['textSelectable']),
   entry('readingMode', 'behaviorSettings.readingMode', 'reading', ['readingMode']),
   entry('infiniteShowComments', 'behaviorSettings.infiniteShowComments', 'reading', ['infiniteShowComments']),
-  entry('savePosition', 'behaviorSettings.rememberPosition', 'reading', ['savePosition']),
   entry('hideScrollbar', 'layoutSettings.hideScrollbar', 'reading', ['hideScrollbar']),
 
   entry('overlayEnabled', 'readerSettingsPages.overlay.enable', 'overlay', ['overlayEnabled']),

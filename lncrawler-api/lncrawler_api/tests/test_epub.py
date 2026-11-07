@@ -99,6 +99,70 @@ class EpubJobTests(MergeTestCase):
         response = self.client.get(reverse("list_jobs"))
         self.assertEqual(response.json()["jobs"], [])
 
+    def test_epub_includes_cover_and_chapter_images(self):
+        import json
+
+        root = self.source.absolute_source_path
+        os.makedirs(os.path.join(root, "images"), exist_ok=True)
+        with open(os.path.join(root, "images", "abc.jpg"), "wb") as f:
+            f.write(b"img")
+        with open(os.path.join(self.tmp, "cover.png"), "wb") as f:
+            f.write(b"cover")
+        self.source.cover_path = "cover.png"
+        self.source.save(update_fields=["cover_path"])
+        chapter_file = os.path.join(root, "json", "00001.json")
+        with open(chapter_file, encoding="utf-8") as f:
+            data = json.load(f)
+        data["body"] = '<p>Hi</p><img src="images/abc.jpg"><img src="http://x/y.jpg">'
+        with open(chapter_file, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+        path, _ = enqueue_and_build(self.source)
+        with zipfile.ZipFile(path) as zf:
+            names = zf.namelist()
+            self.assertIn("OEBPS/images/cover.png", names)
+            self.assertIn("OEBPS/cover.xhtml", names)
+            self.assertIn("OEBPS/images/abc.jpg", names)
+            opf = zf.read("OEBPS/content.opf").decode()
+            chapter = zf.read("OEBPS/text/chapter_00001.xhtml").decode()
+        self.assertIn('properties="cover-image"', opf)
+        self.assertIn('media-type="image/png"', opf)
+        self.assertIn('<meta name="cover" content="cover-image"/>', opf)
+        self.assertIn('<itemref idref="cover"/>', opf)
+        self.assertIn('src="../images/abc.jpg"', chapter)
+        self.assertIn('src="http://x/y.jpg"', chapter)
+
+    def test_epub_metadata_title_page_landmarks_and_volumes(self):
+        import xml.dom.minidom as minidom
+
+        from ..models import Tag
+
+        self.source.synopsis = "Line one\nLine & two"
+        self.source.language = "ar"
+        self.source.save(update_fields=["synopsis", "language"])
+        self.source.tags.add(Tag.objects.create(name="Fantasy"))
+        self.source.chapters.filter(chapter_id=2).update(volume=1, volume_title="Second")
+
+        path, _ = enqueue_and_build(self.source)
+        with zipfile.ZipFile(path) as zf:
+            parsed = {
+                n: zf.read(n).decode()
+                for n in zf.namelist()
+                if n.endswith((".xhtml", ".opf"))
+            }
+        for name, text in parsed.items():
+            minidom.parseString(text.encode())  # well-formed XML
+        opf = parsed["OEBPS/content.opf"]
+        self.assertIn("<dc:description>Line one\nLine &amp; two</dc:description>", opf)
+        self.assertIn("<dc:subject>Fantasy</dc:subject>", opf)
+        self.assertIn('page-progression-direction="rtl"', opf)
+        self.assertIn("Line &amp; two", parsed["OEBPS/titlepage.xhtml"])
+        nav = parsed["OEBPS/nav.xhtml"]
+        self.assertIn('epub:type="landmarks"', nav)
+        self.assertIn("<ol><li><a href=\"text/chapter_00002.xhtml\">Chapter 2", nav)
+        self.assertIn("<h1>Chapter 1</h1>", parsed["OEBPS/text/chapter_00001.xhtml"])
+        self.assertIn('dir="rtl"', parsed["OEBPS/text/chapter_00001.xhtml"])
+
     def test_prune_removes_only_expired_files(self):
         from django.core.management import call_command
 

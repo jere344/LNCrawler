@@ -38,9 +38,6 @@ import NovelSynopsis from '../novels/common/NovelSynopsis';
 import AudiobookPartCard from './AudiobookPartCard';
 import { AudiobookPageSkeleton } from './AudiobooksSkeleton';
 
-// Cast is collapsed past this many members.
-const CAST_PREVIEW = 12;
-
 // The resume point of the button: the server's when logged in, this browser's saved position otherwise.
 const resumePointOf = (detail: AudiobookDetail, loggedIn: boolean): { chapter: number; position: number } | null => {
   if (loggedIn) {
@@ -70,7 +67,6 @@ const AudiobookPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [castOpen, setCastOpen] = useState(false);
   const [subscribeAnchor, setSubscribeAnchor] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -110,10 +106,6 @@ const AudiobookPage = () => {
   const resume = resumePointOf(detail, isAuthenticated);
   const feedWithoutScheme = detail.feed_url.replace(/^https?:\/\//, '');
   const sourceLink = `/novels/${encodeURIComponent(detail.novel_slug)}/${encodeURIComponent(detail.source_slug)}`;
-  const castMembers = detail.cast;
-  // The section only shows once some character has a description (see the worker contract).
-  const castShown = castMembers.some((member) => Boolean(member.description));
-  const visibleCast = castOpen ? castMembers : castMembers.slice(0, CAST_PREVIEW);
 
   const copyFeed = async () => {
     setSubscribeAnchor(null);
@@ -251,27 +243,6 @@ const AudiobookPage = () => {
           )}
         </Grid>
       </Grid>
-
-      {castShown && (
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>{t('audiobooks.castTitle')}</Typography>
-          <Box component="ul" sx={{ listStyle: 'none', p: 0, m: 0, mt: 1 }}>
-            {visibleCast.map((member, index) => (
-              <Box component="li" key={`${member.name}-${index}`} sx={{ py: 0.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>{member.name}</Typography>
-                {member.description && (
-                  <Typography variant="body2" color="text.secondary">{member.description}</Typography>
-                )}
-              </Box>
-            ))}
-          </Box>
-          {castMembers.length > CAST_PREVIEW && (
-            <Button size="small" onClick={() => setCastOpen(open => !open)} sx={{ mt: 1 }}>
-              {castOpen ? t('audiobooks.showLess') : t('audiobooks.showAll', { count: castMembers.length })}
-            </Button>
-          )}
-        </Box>
-      )}
 
       <Divider sx={{ my: 4 }} />
 

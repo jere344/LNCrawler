@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
@@ -16,7 +17,7 @@ from ..models import (
     SourceVote,
     Volume,
 )
-from ..models.sources_models import refresh_adult, refresh_adult_for_tags
+from ..models.sources_models import refresh_adult, refresh_adult_for_tags, refresh_novel_adult
 from ..services.chapter_stats import refresh_chapter_stats
 from ..services.author_block_service import block_authors, unblock_authors
 from ..services.author_merge_service import merge_authors, pick_target
@@ -161,28 +162,44 @@ class TagAdmin(admin.ModelAdmin):
             self.message_user(request, str(exc), messages.ERROR)
             return HttpResponseRedirect(request.path)
 
+    def delete_model(self, request, obj):
+        self._delete_tags([obj.pk])
+
+    def delete_queryset(self, request, queryset):
+        self._delete_tags(list(queryset.values_list("pk", flat=True)))
+
+    def _delete_tags(self, pks):
+        """Delete tags. Their sources lose the link (a cascade that bypasses the sources), so their adult
+        flags, and the novels of those sources, are re-derived in the same transaction."""
+        with transaction.atomic():
+            source_pks = list(
+                NovelFromSource.tags.through.objects.filter(tag_id__in=pks)
+                .values_list("novelfromsource_id", flat=True).distinct()
+            )
+            Tag.objects.filter(pk__in=pks).delete()
+            refresh_adult(NovelFromSource.objects.filter(pk__in=source_pks))
+
+    def _set_r18(self, request, queryset, is_adult):
+        pks = list(queryset.values_list("pk", flat=True))
+        with transaction.atomic():
+            Tag.objects.filter(pk__in=pks).update(is_adult=is_adult)
+            flagged, cleared = refresh_adult_for_tags(pks)
+        if is_adult:
+            message = f"Marked {len(pks)} tag(s) as R18; {flagged} novel source(s) flagged adult."
+        else:
+            message = (
+                f"Unmarked {len(pks)} tag(s); {cleared} novel source(s) no longer adult "
+                "(sources adult on their own or through another R18 tag stay adult)."
+            )
+        self.message_user(request, message, messages.SUCCESS)
+
     @admin.action(description="Mark selected tags as R18")
     def mark_r18(self, request, queryset):
-        pks = list(queryset.values_list("pk", flat=True))
-        Tag.objects.filter(pk__in=pks).update(is_adult=True)
-        flagged, _cleared = refresh_adult_for_tags(pks)
-        self.message_user(
-            request,
-            f"Marked {len(pks)} tag(s) as R18; {flagged} novel source(s) flagged adult.",
-            messages.SUCCESS,
-        )
+        self._set_r18(request, queryset, is_adult=True)
 
     @admin.action(description="Unmark selected tags as R18")
     def unmark_r18(self, request, queryset):
-        pks = list(queryset.values_list("pk", flat=True))
-        Tag.objects.filter(pk__in=pks).update(is_adult=False)
-        _flagged, cleared = refresh_adult_for_tags(pks)
-        self.message_user(
-            request,
-            f"Unmarked {len(pks)} tag(s); {cleared} novel source(s) no longer adult "
-            "(sources adult on their own or through another R18 tag stay adult).",
-            messages.SUCCESS,
-        )
+        self._set_r18(request, queryset, is_adult=False)
 
     def source_count(self, obj):
         return obj.novels.count()
@@ -327,9 +344,16 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
     show_full_result_count = False
 
     def save_model(self, request, obj, form, change):
+        # The novel field is editable: the novel the source leaves must be refreshed too.
+        previous_novel_id = (
+            NovelFromSource.objects.filter(pk=obj.pk).values_list("novel_id", flat=True).first()
+            if change else None
+        )
         super().save_model(request, obj, form, change)
-        # adult_from_source may have changed: re-derive the effective flag.
+        # adult_from_source may have changed: re-derive the effective flag, and its novels.
         refresh_adult(NovelFromSource.objects.filter(pk=obj.pk))
+        if previous_novel_id is not None:
+            refresh_novel_adult([previous_novel_id])
         # The full save wrote the chapter stats this form loaded back to the row: refresh them.
         refresh_chapter_stats([obj.pk])
 
@@ -344,13 +368,23 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
 
     vote_score_display.short_description = "Vote Score"
 
+    def delete_model(self, request, obj):
+        self._delete_source(obj)
+
     def delete_queryset(self, request, queryset):
         """
         Override the default delete_queryset method to call delete() on each object
         This ensures the model's delete method runs for bulk deletions from the list page
         """
         for obj in queryset:
+            self._delete_source(obj)
+
+    def _delete_source(self, obj):
+        """Delete one source, then re-derive its novel: the source may have been the majority's."""
+        novel_id = obj.novel_id
+        with transaction.atomic():
             obj.delete()
+            refresh_novel_adult([novel_id])
 
     def view_chapters_link(self, obj):
         if obj.pk:
@@ -386,3 +420,17 @@ class ExternalSourceAdmin(admin.ModelAdmin):
     list_display = ("source_name", "status")
     search_fields = ("source_name",)
     list_filter = ("status",)
+
+    # Deleting a site deletes its sources (CASCADE), in whichever novels they are: refresh those novels.
+    def delete_model(self, request, obj):
+        self._delete_with_sources(obj)
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            self._delete_with_sources(obj)
+
+    def _delete_with_sources(self, obj):
+        with transaction.atomic():
+            novel_ids = list(obj.novels.values_list("novel_id", flat=True).distinct())
+            obj.delete()
+            refresh_novel_adult(novel_ids)

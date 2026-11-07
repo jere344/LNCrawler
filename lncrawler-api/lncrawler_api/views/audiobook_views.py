@@ -34,7 +34,7 @@ from ..services.audiobook_public import (
     progress_by_audiobook,
     visible_audiobooks,
 )
-from ..services.reading_history import advance_reading_history
+from ..services.reading_history import set_reading_position
 from ..utils.pagination import paginate
 from ..utils.query_helpers import (
     _canonical_tag_names,
@@ -134,8 +134,8 @@ def list_audiobooks(request):
 
 @api_view(['GET'])
 def audiobook_detail_by_slug(request, slug):
-    """A playable audiobook with its parts, chapters, cast, credits and the viewer's progress. A DMCA or adult
-    audiobook keeps its detail: those only hide it from listings."""
+    """A playable audiobook with its chapters, the parts in production, the downloads, credits and the viewer's
+    progress. A DMCA or adult audiobook keeps its detail: those only hide it from listings."""
     audiobook = annotate_public_totals(
         Audiobook.objects.filter(pk=playable_audiobook_or_404(slug, _language(request)).pk)
         .select_related('novel', 'source').prefetch_related('source__authors'),
@@ -181,7 +181,7 @@ def audiobook_progress(request, slug):
     """
     audiobook = playable_audiobook_or_404(slug, _language(request))
     if request.method == 'GET':
-        return Response({'progress': progress_dict(_progress_of(request.user, audiobook))})
+        return Response({'progress': progress_dict(_progress_of(request.user, audiobook), audiobook.language)})
 
     data = _body_object(request)
     if data is None:
@@ -215,8 +215,10 @@ def audiobook_progress(request, slug):
         )
         # Listening does not count words read: only the reading position moves.
         if finished or (audio.duration_s > 0 and position >= 0.9 * audio.duration_s):
-            advance_reading_history(request.user, audiobook.novel, audiobook.source, audio.chapter)
-    return Response({'progress': progress_dict(progress)})
+            set_reading_position(
+                request.user, audiobook.novel, audiobook.source, audio.chapter, 1, forward_only=True,
+            )
+    return Response({'progress': progress_dict(progress, audiobook.language)})
 
 
 @api_view(['POST'])

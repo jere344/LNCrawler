@@ -23,7 +23,6 @@ interface ProfileData {
   social_links?: Record<string, string>;
   date_joined: string;
   last_login: string | null;
-  word_read?: number;
   chapters_read_count?: number;
   chapters_not_read_yet_count?: number;
   pinned_novels?: Novel[];

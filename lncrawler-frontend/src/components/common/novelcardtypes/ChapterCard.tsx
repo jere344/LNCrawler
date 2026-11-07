@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Card, Typography, ButtonBase, Skeleton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { NovelFromSource } from '@models/novels_types';
-import { formatTimeAgoOrUnknown, getChapterLabel, novelCoverUrl } from '@utils/Misc';
+import { formatTimeAgoOrUnknown, novelCoverUrl } from '@utils/Misc';
 import { Link } from 'react-router-dom';
 import type { To } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -112,7 +112,7 @@ const ChapterCard: React.FC<ChapterCardProps> = ({ source, isLoading = false, to
               mb: 0.5
             }}
           >
-            {getChapterLabel(t, source.latest_available_chapter?.title, source.latest_available_chapter?.chapter_id)}
+            {source.latest_available_chapter?.display_title}
           </Typography>
         </Box>
         

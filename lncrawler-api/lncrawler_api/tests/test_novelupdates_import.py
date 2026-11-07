@@ -142,7 +142,7 @@ class NovelUpdatesImportTests(TestCase):
         bookmark = NovelBookmark.objects.get(user=self.user, novel=self.novel)
         self.assertEqual(bookmark.folder.name, "Reading")
         history = ReadingHistory.objects.get(user=self.user, novel=self.novel)
-        self.assertEqual(history.last_read_chapter.chapter_id, 823)
+        self.assertEqual(history.current_chapter.chapter_id, 823)
 
         again = self._apply([{"novel_id": str(self.novel.id), "chapter": 823}])
         self.assertEqual(again.data["already_bookmarked"], 1)
@@ -155,7 +155,7 @@ class NovelUpdatesImportTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["progress_set"], 1)
         history = ReadingHistory.objects.get(user=self.user, novel=self.novel)
-        self.assertEqual(history.last_read_chapter.chapter_id, 1)
+        self.assertEqual(history.current_chapter.chapter_id, 1)
 
     def test_apply_requires_authentication(self):
         response = self.client.post(
@@ -182,7 +182,7 @@ class NovelUpdatesImportTests(TestCase):
             user=self.user,
             novel=self.novel,
             source=self.source,
-            last_read_chapter=Chapter.objects.get(
+            current_chapter=Chapter.objects.get(
                 novel_from_source=self.source, chapter_id=823
             ),
         )
@@ -190,7 +190,7 @@ class NovelUpdatesImportTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["progress_set"], 0)
         history = ReadingHistory.objects.get(user=self.user, novel=self.novel)
-        self.assertEqual(history.last_read_chapter.chapter_id, 823)
+        self.assertEqual(history.current_chapter.chapter_id, 823)
 
     def test_parse_ambiguous_when_titles_collide(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

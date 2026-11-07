@@ -8,13 +8,16 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
 from ..models import ExternalSource, Job, Novel, NovelFromSource
 from ..services import DownloaderService
+from .helpers import make_source, set_adult
 
 
 class DownloadAttributionTests(TestCase):
@@ -223,20 +226,51 @@ class HomeAddedSectionsTests(TestCase):
             ids, [str(self.plain.id), str(self.theirs.id), str(self.mine.id)]
         )
 
+    def test_novel_in_two_sections_keeps_each_section_order(self):
+        # The same three novels fill top_novels (by title) and recently_added (newest first). One card fetch
+        # feeds both sections, so each must still come out in its own order.
+        response = self.client.get(reverse("home_page"))
+        self.assertEqual(response.status_code, 200, response.data)
+        top = response.data["top_novels"]
+        added = response.data["recently_added"]
+        self.assertEqual(
+            [n["id"] for n in top],
+            [str(self.mine.id), str(self.plain.id), str(self.theirs.id)],
+        )
+        self.assertEqual(
+            [n["id"] for n in added],
+            [str(self.plain.id), str(self.theirs.id), str(self.mine.id)],
+        )
+        # A novel in both sections renders the same card in each.
+        top_by_id = {n["id"]: n for n in top}
+        for card in added:
+            self.assertEqual(card, top_by_id[card["id"]])
+
+    def test_anonymous_home_query_count(self):
+        # Cold cache, so the rankings are recomputed and every query of the page runs: 5 rankings, the shared
+        # card fetch of the four novel sections (novel, sources, authors, tags: 4 instead of 4 per section),
+        # 3 for recently_updated, 1 for reviews and 2 for the audiobook ids.
+        with self.assertNumQueries(15):
+            self.client.get(reverse("home_page"))
+
+    def test_warm_rankings_still_drop_dmca_and_adult_novels(self):
+        # The ranking ids are cached; the card fetch re-applies DMCA and adult so a takedown is immediate.
+        self.client.get(reverse("home_page"))
+        self.mine.is_dmca = True
+        self.mine.save(update_fields=["is_dmca"])
+        set_adult(NovelFromSource.objects.get(novel=self.theirs))
+        response = self.client.get(reverse("home_page"))
+        for section in ("top_novels", "trending_novels", "top_rated_novels", "recently_added"):
+            ids = [n["id"] for n in response.data[section]]
+            self.assertEqual(ids, [str(self.plain.id)], section)
+
     def test_recently_added_excludes_dmca_and_adult(self):
         self.mine.is_dmca = True
         self.mine.save(update_fields=["is_dmca"])
         adult = Novel.objects.create(
             title="Adult", slug="adult", novel_path="adult", added_by=self.user
         )
-        NovelFromSource.objects.create(
-            novel=adult,
-            external_source=ExternalSource.objects.create(source_name="adult-src"),
-            title="Adult",
-            source_url="http://adult/1",
-            language="en",
-            is_adult=True,
-        )
+        set_adult(make_source(adult, external=ExternalSource.objects.create(source_name="adult-src")))
 
         # A user who hides adult content (new accounts default to 'blur').
         self.user.show_r18 = "no"
@@ -248,9 +282,6 @@ class HomeAddedSectionsTests(TestCase):
         self.assertNotIn(str(adult.id), added_ids)
 
     def test_home_query_count_is_flat(self):
-        from django.db import connection
-        from django.test.utils import CaptureQueriesContext
-
         def measure(count):
             for index in range(count):
                 novel = Novel.objects.create(

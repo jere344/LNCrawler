@@ -1,7 +1,8 @@
-"""Scheduled audiobook tasks: topping up the part queue, reaping expired leases, and housekeeping.
+"""Audiobook parts cut for the workers when they claim, and the scheduled housekeeping.
 
-Every public function returns a small summary dict for logging. AUDIOBOOK_ENABLED=false only stops the
-enqueue: published audiobooks stay live, so leases are still reaped and housekeeping still runs.
+cut_work picks the part a worker gets when nothing is queued for it. audiobook_housekeeping returns a small summary
+dict for logging. AUDIOBOOK_ENABLED=false only stops the claims: published audiobooks stay live, so housekeeping
+still runs.
 """
 import logging
 import shutil
@@ -22,7 +23,6 @@ logger = logging.getLogger("lncrawler_api.audiobooks")
 
 GB = 1024 ** 3
 QUEUED_STATUSES = ['queued', 'claimed']
-SKIPPED_DISABLED = {'skipped': 'disabled'}
 NEW_BOOK_READ_LIMIT = 2000  # chapter files read per run by the new-book slot, before it gives up for the run
 NEW_BOOK_NOVEL_LIMIT = 500  # novels examined per run by the new-book slot, before it gives up for the run
 NEVER = datetime(1, 1, 1, tzinfo=dt_timezone.utc)  # waited-since date when there is no audiobook yet
@@ -34,23 +34,16 @@ class _NoPartCut(Exception):
     """A new audiobook has no part to cut yet, so its row is rolled back."""
 
 
-def _queued_words():
-    """Words of the parts that are queued or claimed: what the queue budget counts."""
-    return AudiobookPart.objects.filter(status__in=QUEUED_STATUSES).aggregate(words=Sum('word_count'))['words'] or 0
-
-
-def _budget_stop():
-    """Why the enqueue run must stop now, or None when the budgets allow one more part."""
-    if _queued_words() >= settings.AUDIOBOOK_QUEUE_WORDS:
-        return 'queue_full'
+def _disk_budget_reached():
+    """True when the audio files have reached AUDIOBOOK_DISK_BUDGET_GB. A warning is logged then."""
     used = audiobook_service.audio_disk_usage_bytes()
     if used >= settings.AUDIOBOOK_DISK_BUDGET_GB * GB:
         logger.warning(
-            "Audio disk budget reached: %.2f GB used of %s GB, no new parts enqueued",
+            "Audio disk budget reached: %.2f GB used of %s GB, no part cut",
             used / GB, settings.AUDIOBOOK_DISK_BUDGET_GB,
         )
-        return 'disk_budget'
-    return None
+        return True
+    return False
 
 
 def _pair_views(novel_ref, language_ref):
@@ -63,14 +56,16 @@ def _pair_views(novel_ref, language_ref):
     )
 
 
-def _started_rows(languages):
+def _started_rows(languages, worker_id):
     """Started books that can take a part now, as plain values: active, not DMCA, in one of the ``languages``,
-    with at least one part and nothing queued or claimed. ``waited_since`` is the last time one of their parts
-    was queued, and ``pair_views`` the popularity of their novel in their language."""
+    pinned to ``worker_id`` or unpinned, with nothing queued or claimed, so a book whose parts were all deleted is a
+    candidate again. ``waited_since`` is the last time one of their parts was queued, or the creation date when none
+    was, and ``pair_views`` the popularity of their novel in their language."""
     queued = AudiobookPart.objects.filter(audiobook=OuterRef('pk'), status__in=QUEUED_STATUSES)
     return list(
-        Audiobook.objects.filter(status='active', novel__is_dmca=False, language__in=languages)
-        .filter(Exists(AudiobookPart.objects.filter(audiobook=OuterRef('pk'))))
+        Audiobook.objects.filter(
+            status='active', novel__is_dmca=False, language__in=languages, worker_id__in=['', worker_id],
+        )
         .filter(~Exists(queued))
         .annotate(
             waited_since=Coalesce('last_enqueued_at', 'created_at'),
@@ -110,7 +105,7 @@ def _started_key(row):
 def _start_book(novel, language, counter):
     """Create the audiobook of a novel in a language with its first part, all or nothing.
 
-    Returns the audiobook, or None when no part can be cut yet, or when the book already exists
+    Returns the first part, or None when no part can be cut yet, or when the book already exists
     (created concurrently, so it is not counted as a new one). ``counter`` gets the chapter files read.
     """
     source = audiobook_service.pick_source(novel, language)
@@ -123,20 +118,22 @@ def _start_book(novel, language, counter):
             audiobook, created = audiobook_service.get_or_create_audiobook(novel, language, source=source)
             if not created:
                 return None
-            if audiobook_service.enqueue_next_part(audiobook, priority=0, exclusive=True, counter=counter) is None:
+            part = audiobook_service.enqueue_next_part(audiobook, priority=0, exclusive=True, counter=counter)
+            if part is None:
                 raise _NoPartCut()
     except _NoPartCut:
         return None
     except IntegrityError:
         logger.warning("Audiobook of %s (%s) was created at the same time, skipped", novel.title, language)
         return None
-    return audiobook
+    return part
 
 
 def _start_next_new_book(pairs, scan):
-    """Start the most popular novel-language pair without an audiobook. None when the scan gives up.
+    """Start the most popular novel-language pair without an audiobook, and return its first part. None when the
+    scan gives up.
 
-    ``scan`` counts, across the whole run, the pairs examined and the chapter files read. The scan
+    ``scan`` counts, across the whole cut, the pairs examined and the chapter files read. The scan
     gives up once either reaches its limit, so short novels already counted only cost a query.
     """
     for novel_id, language, _views in pairs:
@@ -144,97 +141,45 @@ def _start_next_new_book(pairs, scan):
             return None
         scan['novels'] += 1
         novel = Novel.objects.only('id', 'title', 'is_dmca').get(pk=novel_id)
-        audiobook = _start_book(novel, language, scan)
-        if audiobook is not None:
-            return audiobook
+        part = _start_book(novel, language, scan)
+        if part is not None:
+            return part
     return None
 
 
-def _round_robin():
-    """Serve the participants in turn until a budget stops the run or none is eligible.
+def cut_work(worker_id, languages):
+    """Cut the next part for a worker that has nothing queued for it, and return it. None when nothing can be cut
+    or the disk budget is reached.
 
-    Each step serves whoever has waited longest: a started book since its last part, the new-book
-    slot since the newest audiobook was created. Ties go to the more popular novel in its language, and the new-book
-    slot loses ties. A started book served here has a queued part now, so it is not picked again in this run.
-    Returns (parts for started books, new books, stop reason).
+    The round robin serves whoever has waited longest: a started book of this worker (pinned to it, or unpinned)
+    since its last part, or the new-book slot since the newest audiobook was created. Ties go to the more popular
+    novel in its language, and the new-book slot loses ties. A started book that cannot cut a part now is dropped
+    for this call. The cut runs outside the claim's transaction: it reads the chapter files.
     """
-    languages = audiobook_service.announced_languages()
-    books = _started_rows(languages)
+    if _disk_budget_reached():
+        return None
+    books = _started_rows(languages, worker_id)
     pairs = _unstarted_pairs(languages)
     scan = {'novels': 0, 'files_read': 0}
     slot_open = True
     slot_date = Audiobook.objects.aggregate(newest=Max('created_at'))['newest'] or NEVER
-    started = new = 0
     while True:
-        stopped = _budget_stop()
-        if stopped:
-            return started, new, stopped
         best = min(books, key=_started_key, default=None)
         slot_key = (slot_date, 1, 0, 0) if slot_open else None
         if best is None and slot_key is None:
-            return started, new, None
+            return None
         if slot_key is None or (best is not None and _started_key(best) < slot_key):
             books.remove(best)
             # enqueue_next_part reloads the audiobook under its lock, so the pk is enough here
-            if audiobook_service.enqueue_next_part(Audiobook(pk=best['id']), priority=0, exclusive=True) is not None:
-                started += 1
+            part = audiobook_service.enqueue_next_part(Audiobook(pk=best['id']), priority=0, exclusive=True)
+            if part is not None:
+                return part
             continue
-        audiobook = _start_next_new_book(pairs, scan)
-        if audiobook is None:
+        part = _start_next_new_book(pairs, scan)
+        if part is None:
             slot_open = False
             continue
-        slot_date = audiobook.created_at
-        new += 1
-
-
-def enqueue_audiobooks():
-    """Top the part queue up to AUDIOBOOK_QUEUE_WORDS, serving started books and new books in turn."""
-    if not settings.AUDIOBOOK_ENABLED:
-        return dict(SKIPPED_DISABLED)
-
-    started, new, stopped = _round_robin()
-    queued_words = _queued_words()
-    disk_gb = audiobook_service.audio_disk_usage_bytes() / GB
-    logger.info(
-        "Audiobook enqueue: %s part(s) for started books, %s new book(s), %s queued words, %.2f GB audio, stopped: %s",
-        started, new, queued_words, disk_gb, stopped,
-    )
-    return {
-        'started_parts': started,
-        'new_books': new,
-        'queued_words': queued_words,
-        'disk_gb': round(disk_gb, 2),
-        'stopped': stopped,
-    }
-
-
-def reap_expired_leases():
-    """Give back the parts whose worker stopped renewing its lease, or fail them after too many attempts."""
-    now = timezone.now()
-    requeued = failed = 0
-    with transaction.atomic():
-        expired = list(
-            AudiobookPart.objects.select_for_update(skip_locked=True)
-            .filter(status='claimed', lease_until__lt=now)
-        )
-        for part in expired:
-            part.attempts += 1
-            part.worker_id = ''
-            part.claimed_at = None
-            part.lease_until = None
-            part.progress = 0
-            part.stage = ''
-            if part.attempts >= audiobook_service.MAX_ATTEMPTS:
-                part.status = 'failed'
-                part.error_message = 'Lease expired: the worker stopped responding'
-                failed += 1
-            else:
-                part.status = 'queued'
-                requeued += 1
-            part.save()
-    if expired:
-        logger.info("Audiobook leases reaped: %s requeued, %s failed", requeued, failed)
-    return {'requeued': requeued, 'failed': failed}
+        return part
 
 
 def _follow_moved_sources(counts):

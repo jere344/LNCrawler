@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import requests
@@ -58,8 +58,6 @@ class Claim:
     part: dict
     chapters: list[dict]
     epub_url: str
-    previous_cast: dict = field(default_factory=dict)
-    lease_until: str = ""
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "Claim":
@@ -70,8 +68,6 @@ class Claim:
             part=dict(data.get("part") or {}),
             chapters=[dict(c) for c in data.get("chapters") or []],
             epub_url=str(data.get("epub_url", "")),
-            previous_cast=dict(data.get("previous_cast") or {}),
-            lease_until=str(data.get("lease_until", "")),
         )
 
 
@@ -204,7 +200,7 @@ class ProdClient:
         finally:
             resp.close()
 
-    def heartbeat(self, part_id: str, progress: float, stage: str, message: str) -> str:
+    def heartbeat(self, part_id: str, progress: float, stage: str, message: str) -> None:
         path = self._part_path(part_id, "heartbeat")
         body = {"progress": float(progress), "stage": stage, "message": message}
         resp = self._send("POST", path, json=body)
@@ -212,7 +208,6 @@ class ProdClient:
             raise PartGone(part_id)
         if resp.status_code != 200:
             raise self._unexpected("POST", path, resp)
-        return str(self._json("POST", path, resp).get("lease_until", ""))
 
     def upload_chapter(self, part_id: str, chapter_id: int, path: str) -> str:
         """Uploads one encoded chapter. Returns the sha256 hex that was sent."""
@@ -236,13 +231,12 @@ class ProdClient:
     def complete(
         self,
         part_id: str,
-        cast: dict,
         qa: dict,
         engine: str,
         engine_version: str,
     ) -> None:
         path = self._part_path(part_id, "complete")
-        body = {"cast": cast, "qa": qa, "engine": engine, "engine_version": engine_version}
+        body = {"qa": qa, "engine": engine, "engine_version": engine_version}
         resp, retried = self._send_tracked("POST", path, json=body)
         if resp.status_code == 200:
             return

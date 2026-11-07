@@ -241,7 +241,7 @@ class ChapterReimportTests(MergeTestCase):
         )
         user = get_user_model().objects.create_user(username="reader", password="x")
         history = ReadingHistory.objects.create(
-            user=user, novel=novel, source=source, last_read_chapter=removed
+            user=user, novel=novel, source=source, current_chapter=removed
         )
         # Chapter 2 is gone and the list renumbers down: chapter 3 becomes
         # chapter 2, reusing the removed row's slot.
@@ -272,7 +272,7 @@ class ChapterReimportTests(MergeTestCase):
         self.assertEqual(comment.chapter.chapter_id, 2)
         self.assertEqual(comment.chapter.url, "http://x/s/ch3")
         history.refresh_from_db()
-        self.assertEqual(history.last_read_chapter.chapter_id, 2)
+        self.assertEqual(history.current_chapter.chapter_id, 2)
 
 
 class MergeDuplicateSourceTests(MergeTestCase):
@@ -1148,7 +1148,7 @@ class DedupeChapterDataTests(MergeTestCase):
         )
         history = ReadingHistory.objects.create(
             user=self.user, novel=self.duplicate, source=self.loser,
-            last_read_chapter=loser_ch2,
+            current_chapter=loser_ch2,
         )
 
         dedupe_source(self.loser, self.winner, move_files=False, dest_novel=self.target)
@@ -1160,7 +1160,7 @@ class DedupeChapterDataTests(MergeTestCase):
 
         history.refresh_from_db()
         self.assertEqual(history.source_id, self.winner.pk)
-        self.assertEqual(history.last_read_chapter_id, winner_ch2.pk)
+        self.assertEqual(history.current_chapter_id, winner_ch2.pk)
 
         # No winner chapter matches: the comment survives as a novel comment.
         on_three.refresh_from_db()

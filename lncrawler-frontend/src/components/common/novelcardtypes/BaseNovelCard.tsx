@@ -7,7 +7,7 @@ import {
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import PersonIcon from '@mui/icons-material/Person';
 import { Novel } from '@models/novels_types';
-import { formatCount, getChapterName, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
+import { formatCount, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
 import { useAuth } from '@context/AuthContext';
 import { NovelCover } from '@components/common/NovelCover';
 import { NovelLanguageFlags } from '@components/common/NovelLanguageFlags';
@@ -48,8 +48,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   let tooltip = "";
   if (unreadChapters) {
     const unreadLabel = t('units.unreadChapters', { count: unreadChapters });
-    tooltip = novel.reading_history?.next_chapter
-      ? t('cards.unreadTooltip', { unread: unreadLabel, next: getChapterName(novel.reading_history.next_chapter.title) })
+    tooltip = novel.reading_history?.resume
+      ? t('cards.unreadTooltip', { unread: unreadLabel, next: novel.reading_history.resume.chapter.display_title })
       : unreadLabel;
   }
   

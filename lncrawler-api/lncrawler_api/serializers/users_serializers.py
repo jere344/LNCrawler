@@ -8,12 +8,12 @@ from auth_app.serializers import SOCIAL_LINK_KEYS, absolute_media_url
 from auth_app.models import PRIVACY_CHOICES, PRIVACY_SECTIONS
 
 from ..languages import is_supported_language, normalize_language, parse_languages
-from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel, ReaderSettingsSlot, ReadingHistory
+from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel, ReadingHistory
 from ..models.chapter_models import Chapter
-from ..models.novels_models import Novel, Tag
+from ..models.novels_models import Tag
 from ..models.sources_models import NovelFromSource
 from ..privacy import are_friends, can_view
-from ..utils.query_helpers import has_audiobook_subquery, novel_prefetch_objects
+from ..utils.query_helpers import novel_queryset
 from .mixins import ProfileFieldsMixin
 
 User = get_user_model()
@@ -41,7 +41,6 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     banner = serializers.ImageField(required=False, allow_null=True)
     date_joined = serializers.DateTimeField(read_only=True)
     last_login = serializers.DateTimeField(read_only=True)
-    word_read = serializers.IntegerField(read_only=True)
     chapters_read_count = serializers.SerializerMethodField()
     chapters_not_read_yet_count = serializers.SerializerMethodField()
     pinned_novels = serializers.SerializerMethodField()
@@ -58,7 +57,7 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         'me': [
             'id', 'username', 'email', 'profile_pic', 'banner', 'bio',
             'social_links', 'privacy_settings', 'date_joined', 'last_login',
-            'word_read', 'chapters_read_count', 'chapters_not_read_yet_count',
+            'chapters_read_count', 'chapters_not_read_yet_count',
             'preferred_ui_language', 'preferred_languages', 'language_filter_enabled',
             'discoverable', 'show_r18', 'pinned_novels',
         ],
@@ -73,7 +72,7 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = User
         read_only_fields = (
-            'id', 'date_joined', 'last_login', 'word_read',
+            'id', 'date_joined', 'last_login',
             'chapters_read_count', 'chapters_not_read_yet_count',
         )
 
@@ -148,11 +147,7 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             .prefetch_related(
                 Prefetch(
                     'novel',
-                    queryset=Novel.objects.annotate(
-                        annotated_has_audiobook=has_audiobook_subquery()
-                    ).prefetch_related(
-                        *novel_prefetch_objects(self._viewer())
-                    ),
+                    queryset=novel_queryset(user=self._viewer()),
                 )
             )
             .order_by('position', 'created_at')
@@ -169,15 +164,15 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         histories = ReadingHistory.objects.filter(
             user=obj,
             novel__in=NovelBookmark.objects.filter(user=obj).values('novel'),
-            last_read_chapter__isnull=False
-        ).select_related('source', 'last_read_chapter')
+            current_chapter__isnull=False
+        ).select_related('source', 'current_chapter')
 
         total = 0
         for history in histories:
             total += Chapter.objects.filter(
                 novel_from_source=history.source,
                 has_content=True,
-                chapter_id__lte=history.last_read_chapter.chapter_id
+                chapter_id__lte=history.current_chapter.chapter_id
             ).count()
 
         self._chapters_read_count = total
@@ -228,8 +223,8 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         bookmarked = NovelBookmark.objects.filter(user=obj).values('novel')
         chapters_read = (
             ReadingHistory.objects
-            .filter(user=obj, novel__in=bookmarked, last_read_chapter__isnull=False)
-            .annotate(last_chapter_id=F('last_read_chapter__chapter_id'))
+            .filter(user=obj, novel__in=bookmarked, current_chapter__isnull=False)
+            .annotate(last_chapter_id=F('current_chapter__chapter_id'))
             .annotate(read_count=Subquery(
                 Chapter.objects
                 .filter(
@@ -247,7 +242,6 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         ) or 0
         total_chapters = _available_chapters_of(bookmarked)
         return {
-            'word_read': obj.word_read,
             'chapters_read_count': chapters_read,
             'chapters_not_read_yet_count': max(0, total_chapters - chapters_read),
             'novels_count': NovelBookmark.objects.filter(user=obj).count(),
@@ -262,15 +256,11 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             history_qs = exclude_adult(history_qs, self._viewer(), 'novel__')
             cache = list(
                 history_qs
-                .select_related('source', 'last_read_chapter')
+                .select_related('source', 'current_chapter')
                 .prefetch_related(
                     Prefetch(
                         'novel',
-                        queryset=Novel.objects.annotate(
-                            annotated_has_audiobook=has_audiobook_subquery()
-                        ).prefetch_related(
-                            *novel_prefetch_objects(self._viewer())
-                        ),
+                        queryset=novel_queryset(user=self._viewer()),
                     )
                 )
                 .order_by('-last_read_at')[:RECENT_READS_LIMIT]
@@ -288,7 +278,8 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return {
             'novel': self._recent_novel(history.novel),
             'last_read_at': history.last_read_at,
-            'last_read_chapter': history.last_read_chapter.chapter_id if history.last_read_chapter else None,
+            'current_chapter': history.current_chapter.chapter_id if history.current_chapter else None,
+            'position': history.position,
             'source_slug': history.source.source_slug if history.source else None,
         }
 
@@ -312,7 +303,8 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             {
                 'novel': self._recent_novel(history.novel),
                 'last_read_at': history.last_read_at,
-                'last_read_chapter': history.last_read_chapter.chapter_id if history.last_read_chapter else None,
+                'current_chapter': history.current_chapter.chapter_id if history.current_chapter else None,
+                'position': history.position,
             }
             for history in histories
         ]

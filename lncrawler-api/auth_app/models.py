@@ -29,7 +29,6 @@ class CustomUser(AbstractUser):
     social_links = models.JSONField(default=dict, blank=True)
     # {section: public|friends|private}; missing sections fall back to DEFAULT_PRIVACY.
     privacy_settings = models.JSONField(default=dict, blank=True)
-    word_read = models.IntegerField(default=0)  # Total words read by the user
     # Interface language; empty means "detect from the browser".
     preferred_ui_language = models.CharField(max_length=10, blank=True, default='')
     # Content languages whose novels the user wants to see on the home page.

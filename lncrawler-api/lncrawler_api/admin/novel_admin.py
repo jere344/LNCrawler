@@ -24,6 +24,7 @@ from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Sum
+from ..models.sources_models import refresh_adult, refresh_novel_adult
 from django.shortcuts import redirect, render
 from django.utils.html import format_html
 from django.urls import path, reverse
@@ -255,6 +256,12 @@ class NovelAdmin(admin.ModelAdmin):
     inlines = [NovelFromSourceInline, NovelCommentInline, NovelReviewInline]
     change_list_template = "admin/lncrawler_api/novel/change_list.html"
     change_form_template = "admin/lncrawler_api/novel/change_form.html"
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        # The inline sources were saved whole, with the flags they loaded: re-derive them and the novel.
+        refresh_adult(NovelFromSource.objects.filter(novel=form.instance))
+        refresh_novel_adult([form.instance.pk])
 
     mark_dmca = update_action(
         "Mark selected novels as DMCA takedown", "{} novel(s) marked as DMCA.", is_dmca=True,

@@ -59,6 +59,8 @@ export default defineConfig({
   // Server options
   server: {
     host: true,
+    allowedHosts: true, // dev: reachable from any hostname (tunnels, LAN)
+    cors: true,
     port: 8185,
     // Same cross-origin isolation headers as production (nginx-proxy), so the
     // TTS models can use threads and anything incompatible shows up locally.

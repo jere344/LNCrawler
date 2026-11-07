@@ -13,9 +13,7 @@ from ..models import (
     NovelFromSource,
     ReadingHistory,
 )
-from .helpers import LanguageAwareSourceTestCase
-
-from .helpers import LanguageAwareSourceTestCase
+from .helpers import LanguageAwareSourceTestCase, set_adult
 
 
 class LanguageHelperTests(TestCase):
@@ -105,7 +103,7 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
             title="Chapter 1",
         )
         ReadingHistory.objects.create(
-            user=user, novel=self.novel, source=self.en_source, last_read_chapter=chapter
+            user=user, novel=self.novel, source=self.en_source, current_chapter=chapter
         )
 
         self.client.force_login(user)
@@ -119,9 +117,9 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
         response = self.client.get(reverse("home_page"))
         self.assertIsNone(self._novel(response)["reading_source"])
 
-    def test_deleted_last_read_chapter_yields_no_reading_history(self):
+    def test_deleted_current_chapter_yields_no_reading_history(self):
         # Deleting the chapter SET_NULLs the FK; the card must not advertise a
-        # history whose last_read_chapter is missing.
+        # history whose current_chapter is missing.
         user = get_user_model().objects.create_user(username="stale", password="x")
         chapter = Chapter.objects.create(
             novel_from_source=self.en_source,
@@ -130,7 +128,7 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
             title="Chapter 1",
         )
         ReadingHistory.objects.create(
-            user=user, novel=self.novel, source=self.en_source, last_read_chapter=chapter
+            user=user, novel=self.novel, source=self.en_source, current_chapter=chapter
         )
         chapter.delete()
 
@@ -163,8 +161,7 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
     def _flag_adult(self):
         # Bilingue has two sources: flag both so the novel is adult (2/2).
         for source in (self.en_source, self.fr_source):
-            source.is_adult = True
-            source.save(update_fields=["is_adult"])
+            set_adult(source)
 
     def test_anonymous_hides_adult_novels_on_home(self):
         self._flag_adult()
@@ -192,8 +189,7 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
 
     def test_search_ignores_novel_with_only_half_adult_sources(self):
         # 1 of 2 sources adult: not more than half, so the novel is not adult.
-        self.en_source.is_adult = True
-        self.en_source.save(update_fields=["is_adult"])
+        set_adult(self.en_source)
         only = self.client.get(reverse("search_novels"), {"adult": "only"})
         self.assertEqual(self._search_titles(only), [])
 

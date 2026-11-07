@@ -7,7 +7,7 @@ import { ChapterStepButton } from './ChapterStepButtons';
 import ChapterProgress from './ChapterProgress';
 import type { ReaderBarProps } from './readerBarTypes';
 import { useBarActions } from './barActions';
-import { FullscreenButton, MarkReadButton } from './BarButtons';
+import { FullscreenButton } from './BarButtons';
 import { reservedMargin } from '../panels/panelLayout';
 
 // Height of the MUI Toolbar at sm and up (the desktop layout)
@@ -39,7 +39,6 @@ const ReaderDesktopToolbar = ({
   reservedStart,
   reservedEnd,
   shortcuts,
-  markRead: { showMarkRead, markReadSuccess, markingAsRead, onMarkAsRead },
   fullscreen,
   fullscreenLabel,
   fullscreenTitle,
@@ -122,13 +121,6 @@ const ReaderDesktopToolbar = ({
           </ToolbarAction>
         ))}
 
-        {showMarkRead && (
-          <Tooltip title={t('markAsRead.tooltip')}>
-            <span>
-              <MarkReadButton markReadSuccess={markReadSuccess} markingAsRead={markingAsRead} onMarkAsRead={onMarkAsRead} />
-            </span>
-          </Tooltip>
-        )}
         {fullscreen.supported && (
           <FullscreenButton active={fullscreen.active} label={fullscreenLabel} title={fullscreenTitle} onToggle={fullscreen.onToggle} />
         )}

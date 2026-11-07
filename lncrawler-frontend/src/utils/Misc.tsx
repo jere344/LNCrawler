@@ -96,27 +96,6 @@ export function compactNumberFormatter(locale?: string): Intl.NumberFormat {
 export const novelCoverUrl = (source: { cover_min_url?: string | null } | null | undefined): string =>
     source?.cover_min_url || defaultCover;
 
-export const getChapterName = (title: string): string => {
-    const chapterMarkers = [
-        'chapter', 
-        'c', 
-        'ch', 
-        'chapitre', 
-        'chương', 
-        'capítulo', 
-    ]
-    const escaped = chapterMarkers.map(m => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const markerGroup = `(?:${escaped.join('|')})`;
-
-    const re = new RegExp(
-        `(^(?:${markerGroup})?\\s*\\d+[-:, ]+)|([-:, ]+(?:${markerGroup})\\s*\\d+)`,
-        'gi'
-    );
-
-    const latestChapterTitle = title.replace(re, "").trim();
-    return latestChapterTitle || "";
-};
-
 interface NovelSourceTarget {
     slug: string;
     prefered_source?: { source_slug?: string | null } | null;
@@ -153,14 +132,6 @@ export const getSourceLink = (source: NovelFromSource): SourceLinkProps =>
     source?.novel_slug && source?.source_slug
         ? { to: `/novels/${source.novel_slug}/${source.source_slug}`, state: { source } }
         : {};
-
-export const getChapterLabel = (t: TFunction, title?: string | null, chapterId?: number | null): string => {
-    const trimmed = title?.trim();
-    if (trimmed) {
-        return trimmed;
-    }
-    return chapterId != null ? t('units.chapter', { number: chapterId }) : "";
-}
 
 // A volume's heading: its title, else its number; none for an untitled volume 0
 export const getVolumeHeading = (t: TFunction, volume: number, volumeTitle?: string | null): string => {

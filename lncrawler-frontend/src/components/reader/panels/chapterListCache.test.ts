@@ -4,7 +4,7 @@ import { CHAPTER_LIST_TTL_MS, createChapterListCache, type ChapterPageRequest } 
 
 // A source of 35 chapters, 10 per page; `around` answers the page holding the chapter number
 const response = (page: number, search = ''): NovelChaptersResponse => ({
-  chapters: [{ id: `${search}${page}`, chapter_id: page, title: '', url: '', volume: 0, volume_title: null, has_content: true }],
+  chapters: [{ id: `${search}${page}`, chapter_id: page, title: '', display_title: '', url: '', volume: 0, volume_title: null, has_content: true }],
   count: search ? 7 : 35,
   total_pages: search ? 1 : 4,
   current_page: page,
@@ -105,6 +105,7 @@ describe('chapterListCache', () => {
         id: `${page}-${offset}`,
         chapter_id: (page - 1) * 10 + offset + 1,
         title: '',
+        display_title: '',
         url: '',
         volume: 0,
         volume_title: null,

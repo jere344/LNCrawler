@@ -1,5 +1,7 @@
 # Server audiobooks: lncrawler implementation plan
 
+This is the original design doc. It is outdated for leases, enqueue, publish/featured/approval and cast: the current worker protocol is in [audiobook-worker-contract.md](audiobook-worker-contract.md).
+
 Status: Phases 1–6 done. Phase 6 is not yet checked in a browser. The frontend audiobook page lives at `/audiobooks/<novel slug>/` (not `/novels/:n/:s/audiobook`), to match the SEO pages, sitemap and RSS links.
 
 **Scope.** This plan covers the lncrawler side: prod database, jobs, API, files, admin and frontend. The GPU worker that runs Castwright is owned by another agent. The two sides only share [audiobook-worker-contract.md](audiobook-worker-contract.md), which covers the endpoints, the claim payload and the audio format.
@@ -92,7 +94,7 @@ Tuning values are module constants in `services/audiobook_service.py` instead: `
 **Word counts:**
 - `Chapter.word_count` (nullable). Prod has ~10M chapters, so nothing ever scans them all. Counts come from three places:
   - **at download:** the crawler counts each chapter's body while it's in memory (`_save_chapter` / `_restore_chapter`) and writes `word_count` into the chapter entry. `meta.json` keeps it, and `from_meta_json` stores it on import. Crawler and API share one counting function;
-  - **lazily on use:** not set → count it from the body being read anyway and store it; set → read it. Used by the audiobook part cutting and by the "words read" counter in `users_views.py`, which loads the body already;
+  - **lazily on use:** not set → count it from the body being read anyway and store it; set → read it. Used by the audiobook part cutting;
   - no backfill command: existing chapters get counted over time as they're used.
 - A re-import clears it only when the chapter really changed (new URL, new number, or content that just arrived).
 - Prod has no word counts today. An earlier `Chapter.word_count` (migration 0037) was removed in 0042.
@@ -213,7 +215,7 @@ Logic lives in `services/audiobook_scheduler.py`. Every task does nothing while 
   - Open to everyone, not throttled. An uncached AAC build costs CPU, so builds are cached and run as jobs.
 - **`GET|PUT|POST audiobooks/<slug>/progress/`** reads and saves listening progress.
   - Throttled. POST is for `fetch(..., {keepalive: true})` on page hide, which can send the Token header (`sendBeacon` can't).
-  - When a chapter is ≥ 90 % listened, it also moves `ReadingHistory.last_read_chapter` forward (never back), so "continue reading" follows listening.
+  - When a chapter is ≥ 90 % listened, it also moves `ReadingHistory` to that chapter at position 1 (the end), forward only (never back), so "continue reading" follows listening.
 - **`POST audiobooks/<slug>/play/`** records one play per chapter per visitor (user or IP) per 12 h, plus listened seconds, feeding `AudiobookDailyStat`. nginx serves the audio, so Django can't count plays otherwise.
 - **`novels/home/`** gets the `featured` audiobook, the top 12 audiobooks and the user's "continue listening" list.
 - The chapter serializer gets `audio_url` and `audio_duration_s` when published.

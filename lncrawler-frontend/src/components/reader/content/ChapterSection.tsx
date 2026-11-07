@@ -1,4 +1,4 @@
-import { useMemo, type RefObject } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Typography,
@@ -9,7 +9,6 @@ import {
 import SettingsIcon from '@mui/icons-material/Settings';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
-import { getChapterLabel } from '@utils/Misc';
 import ReaderContent from './ReaderContent';
 import ReaderViewport from '../viewport/ReaderViewport';
 import type { ReaderTapProps } from '../hooks/useReaderTapInput';
@@ -23,8 +22,6 @@ interface ChapterSectionProps {
   chapter: IChapterContent;
   // id of the text element; the first section keeps 'reader-content', which TTS looks up
   contentId: string;
-  // Sentinel after the text, watched to detect the reader reaching the chapter's end
-  endRef?: RefObject<HTMLDivElement | null>;
   // Infinite mode: each chapter is a named region, so screen reader users can jump between them
   landmark?: boolean;
   tapProps: ReaderTapProps;
@@ -45,7 +42,7 @@ interface ChapterSectionHeaderProps {
 export const ChapterSectionHeader = ({ chapter, onListen, onOpenSettings }: ChapterSectionHeaderProps) => {
   const { t } = useTranslation();
   const settings = useReaderSettings();
-  const chapterLabel = getChapterLabel(t, chapter.title, chapter.chapter_id);
+  const chapterLabel = chapter.display_title;
 
   return (
     <>
@@ -93,7 +90,6 @@ export const ChapterSectionHeader = ({ chapter, onListen, onOpenSettings }: Chap
 const ChapterSection = ({
   chapter,
   contentId,
-  endRef,
   landmark = false,
   header = true,
   tapProps,
@@ -103,7 +99,7 @@ const ChapterSection = ({
 }: ChapterSectionProps) => {
   const { t } = useTranslation();
   const settings = useReaderSettings();
-  const chapterLabel = getChapterLabel(t, chapter.title, chapter.chapter_id);
+  const chapterLabel = chapter.display_title;
 
   // Reused across the parent's re-renders (TTS progress) so the text is not re-rendered; the settings object only changes when a setting is written
   const chapterContent = useMemo(
@@ -147,7 +143,6 @@ const ChapterSection = ({
         >
           {chapterContent}
         </ReaderViewport>
-        {endRef && <Box ref={endRef} aria-hidden="true" sx={{ height: 1 }} />}
       </Box>
     </Box>
   );

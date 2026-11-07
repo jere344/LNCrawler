@@ -17,6 +17,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 
+from ..models.sources_models import refresh_novel_adult
 from ..utils import lncrawler_paths
 from ..utils.slug import slugify
 from ..utils.title_signals import edition_label_from_title, same_work
@@ -182,6 +183,7 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
     if move_files and files is None:
         raise ValueError("move_files=True requires a FileJournal")
 
+    old_novel_id = source.novel_id
     source.novel = target_novel
     base_slug = source.source_slug
     # Only what this function changes: a full save would write back the loaded
@@ -195,6 +197,7 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
             target_novel, base_slug, exclude_pk=source.pk
         )
         source.save(update_fields=["novel", "source_slug", "updated_at"])
+        refresh_novel_adult([old_novel_id, target_novel.pk])
         follow_source(source)
         return
 
@@ -233,6 +236,7 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
         target_novel, base_slug, exclude_pk=source.pk
     )
     source.save(update_fields=changed)
+    refresh_novel_adult([old_novel_id, target_novel.pk])
     follow_source(source)
 
 
@@ -346,6 +350,7 @@ def dedupe_source(loser, winner, move_files, files=None, *, dest_novel):
 
     if move_files and files is None:
         raise ValueError("move_files=True requires a FileJournal")
+    loser_novel_id = loser.novel_id
 
     # Views belong to the story, not to one mirror: carry the loser's all-time
     # projection over and re-point its buckets so deleting it loses nothing.
@@ -406,6 +411,7 @@ def dedupe_source(loser, winner, move_files, files=None, *, dest_novel):
     )
     # The audiobook of the loser goes with it (CASCADE): its audio was deleted above.
     loser.delete()
+    refresh_novel_adult([loser_novel_id])
     if loser_dir:
         files.trash(loser_dir)
     recount_source_votes(winner)

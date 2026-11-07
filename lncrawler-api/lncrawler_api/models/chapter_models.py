@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.postgres.fields import ArrayField
 from ..utils import chapter_utils
+from ..utils.chapter_label import format_chapter_label
 
 
 class Volume(models.Model):
@@ -51,6 +52,12 @@ class Chapter(models.Model):
     def __str__(self):
         return f"{self.title} - {self.novel_from_source.title}"
     
+    @property
+    def display_title(self):
+        """How readers see the chapter: numbered, in the novel's language. Lists should call
+        get_labeler(language) once instead, this reads the source."""
+        return format_chapter_label(self.title, self.chapter_id, self.novel_from_source.language)
+
     @property
     def body(self):
         """Read the chapter body from the file"""

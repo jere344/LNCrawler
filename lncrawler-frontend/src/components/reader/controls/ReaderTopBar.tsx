@@ -5,7 +5,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import ListIcon from '@mui/icons-material/List';
 import type { ReaderBarProps } from './readerBarTypes';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
-import { FullscreenButton, MarkReadButton } from './BarButtons';
+import { FullscreenButton } from './BarButtons';
 
 // Touch layouts: slides in from the top when the bars are shown
 const ReaderTopBar = ({
@@ -14,7 +14,6 @@ const ReaderTopBar = ({
   novelTitle,
   reservedStart,
   reservedEnd,
-  markRead: { showMarkRead, markReadSuccess, markingAsRead, onMarkAsRead },
   fullscreen,
   fullscreenLabel,
   fullscreenTitle,
@@ -69,9 +68,6 @@ const ReaderTopBar = ({
             </Box>
           </ButtonBase>
 
-          {showMarkRead && (
-            <MarkReadButton markReadSuccess={markReadSuccess} markingAsRead={markingAsRead} onMarkAsRead={onMarkAsRead} />
-          )}
           {fullscreen.supported && (
             <FullscreenButton active={fullscreen.active} label={fullscreenLabel} title={fullscreenTitle} onToggle={fullscreen.onToggle} />
           )}

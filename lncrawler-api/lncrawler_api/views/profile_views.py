@@ -10,7 +10,6 @@ from ..models.novels_models import Novel
 from ..models.users_models import ProfilePinnedNovel
 from ..models.reviews_models import Review
 from ..models.comments_models import Comment
-from ..models.sources_models import adult_novel_ids
 from ..privacy import can_view
 from functools import partial
 
@@ -107,8 +106,7 @@ def user_comments(request, username):
     if not adult_allowed(request.user):
         # Comments can target a novel directly or a chapter of one.
         comments = comments.exclude(
-            Q(novel_id__in=adult_novel_ids())
-            | Q(chapter__novel_from_source__novel_id__in=adult_novel_ids())
+            Q(novel__is_adult=True) | Q(chapter__novel_from_source__novel__is_adult=True)
         )
     return _paginated_response(request, comments, partial(CommentSerializer, profile='profile'))
 
@@ -120,8 +118,8 @@ def user_reading_lists(request, username):
     is_owner = viewer.is_authenticated and viewer.id == owner.id
     if not is_owner and not can_view(viewer, owner, 'reading_lists'):
         return _forbidden("This user's reading lists are private.")
-    from .reading_lists_views import _reading_lists_query_set
-    query_set = _reading_lists_query_set(viewer, full=False).filter(user=owner)
+    from ..utils.query_helpers import reading_lists_queryset
+    query_set = reading_lists_queryset(viewer, full=False).filter(user=owner)
     if not is_owner:
         query_set = query_set.filter(is_public=True)
     return _paginated_response(request, query_set.order_by('-updated_at'), ReadingListSerializer)

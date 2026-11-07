@@ -136,3 +136,49 @@ class TagNormalizeMigrationTests(TransactionTestCase):
         finally:
             executor = MigrationExecutor(connection)
             executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+class ReadingPositionMigrationTests(TransactionTestCase):
+    """Exercise the 0115 rename: existing rows keep their chapter and count as finished (position 1)."""
+
+    def test_existing_rows_point_at_their_chapter_at_the_end(self):
+        migrate_from = [("lncrawler_api", "0114_name_novel_count")]
+        migrate_to = [("lncrawler_api", "0115_reading_position")]
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(migrate_from)
+        old_apps = executor.loader.project_state(migrate_from).apps
+        Novel = old_apps.get_model("lncrawler_api", "Novel")
+        ExternalSource = old_apps.get_model("lncrawler_api", "ExternalSource")
+        NovelFromSource = old_apps.get_model("lncrawler_api", "NovelFromSource")
+        Chapter = old_apps.get_model("lncrawler_api", "Chapter")
+        ReadingHistory = old_apps.get_model("lncrawler_api", "ReadingHistory")
+
+        user = get_user_model().objects.create_user(username="mig-position", password="pw")
+        novel = Novel.objects.create(title="P", slug="p-mig")
+        source = NovelFromSource.objects.create(
+            novel=novel,
+            external_source=ExternalSource.objects.create(source_name="mig-position-src"),
+            title="P",
+            source_url="http://m/position",
+        )
+        chapter = Chapter.objects.create(
+            novel_from_source=source, chapter_id=7, url="http://m/position/7", title="Seven",
+        )
+        history = ReadingHistory.objects.create(
+            user_id=user.pk, novel=novel, source=source, last_read_chapter=chapter,
+        )
+        history_pk = history.pk
+
+        try:
+            executor = MigrationExecutor(connection)
+            executor.migrate(migrate_to)
+            new_apps = executor.loader.project_state(migrate_to).apps
+            NewReadingHistory = new_apps.get_model("lncrawler_api", "ReadingHistory")
+
+            migrated = NewReadingHistory.objects.get(pk=history_pk)
+            self.assertEqual(migrated.current_chapter_id, chapter.pk)
+            self.assertEqual(migrated.position, 1)
+        finally:
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())

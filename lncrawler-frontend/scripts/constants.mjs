@@ -2,7 +2,7 @@
 // Shared constants for the lncrawler frontend.
 //
 // The backend owns lncrawler-api/lncrawler_api/shared_constants.json (language
-// codes, RTL languages, novel sort keys). This tool turns it into
+// codes, RTL languages, novel sort keys, chapter label strings). This tool turns it into
 // src/generated/sharedConstants.ts, which is committed so that the Docker build
 // (which only sees this directory) can compile it.
 //

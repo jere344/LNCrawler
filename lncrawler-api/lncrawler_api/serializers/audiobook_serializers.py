@@ -9,23 +9,22 @@ from django.db.models import Q
 from ..models import AudiobookChapter, Chapter
 from ..services import audiobook_m4b, audiobook_media
 from ..services.audiobook_public import LISTENABLE_PART_Q, chapter_audio_url, cover_urls
-
-CAST_ROLE_ORDER = {'narrator': 0, 'main': 1, 'minor': 2}
+from ..utils.chapter_label import get_labeler
 
 
 def _iso(value):
     return value.isoformat() if value else None
 
 
-def progress_dict(progress):
-    """The viewer's progress on an audiobook, None when they have none."""
+def progress_dict(progress, language):
+    """The viewer's progress on an audiobook, None when they have none. ``language`` labels the chapter title."""
     if progress is None:
         return None
     chapter = progress.chapter
     return {
         'chapter_id': chapter.pk if chapter else None,
         'chapter_number': chapter.chapter_id if chapter else None,
-        'chapter_title': chapter.title if chapter else None,
+        'chapter_title': get_labeler(language).label(chapter.title, chapter.chapter_id) if chapter else None,
         'position_s': progress.position_s,
         'speed': progress.speed,
         'finished': progress.finished,
@@ -45,42 +44,12 @@ def audiobook_card(audiobook, progress=None):
         'cover_url': cover_url,
         'cover_jpg_url': cover_jpg_url,
         'duration_s': audiobook.public_duration_s,
-        'parts': audiobook.public_parts,
         'chapters': audiobook.public_chapters,
         'first_published_at': _iso(audiobook.first_published_at),
         'last_part_at': _iso(last_part_at),
-        'featured': audiobook.featured,
         'is_adult': audiobook.is_adult,
-        'progress': progress_dict(progress),
+        'progress': progress_dict(progress, audiobook.language),
     }
-
-
-def _description(value):
-    """The description of a cast member, stripped and capped; None when there is none."""
-    if not isinstance(value, str):
-        return None
-    return value.strip()[:300] or None
-
-
-def cast_list(cast):
-    """The cast of an audiobook as a list, narrator first, then main, minor and the rest, by name.
-    Entries that are not objects are ignored."""
-    if not isinstance(cast, dict):
-        return []
-    entries = [
-        {
-            'name': name,
-            'role': entry.get('role'),
-            'engine': entry.get('engine'),
-            'voice': entry.get('voice'),
-            'gender': entry.get('gender'),
-            'description': _description(entry.get('description')),
-        }
-        for name, entry in cast.items()
-        if isinstance(entry, dict)
-    ]
-    entries.sort(key=lambda entry: (CAST_ROLE_ORDER.get(entry['role'], 3), entry['name']))
-    return entries
 
 
 def _part_downloads(part):
@@ -127,25 +96,26 @@ def _volumes_by_part(audiobook, parts):
 
 
 def audiobook_parts(audiobook):
-    """Listenable parts (available) and the queued or claimed ones (in_production), by index. Failed parts and
-    parts awaiting QA are left out. Two queries for the whole audiobook: the parts and their chapters, plus one for
-    the volumes of the chapters in their range."""
+    """The parts of the detail page, by index: the listenable parts (available) and the queued or claimed ones
+    (in_production). Failed parts are left out. Two queries for the whole audiobook: the parts and their chapters,
+    plus one for the volumes of the chapters in their range."""
     parts = list(
         audiobook.parts.filter(LISTENABLE_PART_Q | Q(status__in=['queued', 'claimed'])).order_by('index')
     )
-    available_parts = [part for part in parts if part.is_listenable()]
     volumes_by_part = _volumes_by_part(audiobook, parts)
+    available_parts = [part for part in parts if part.is_listenable()]
     chapters_by_part = {}
     rows = (
         AudiobookChapter.objects.filter(part__in=available_parts)
         .select_related('chapter', 'part')
         .order_by('part__index', 'chapter__chapter_id')
     )
+    labeler = get_labeler(audiobook.language)
     for row in rows:
         chapters_by_part.setdefault(row.part_id, []).append({
             'chapter_id': row.chapter_id,
             'number': row.chapter.chapter_id,
-            'title': row.chapter.title,
+            'title': labeler.label(row.chapter.title, row.chapter.chapter_id),
             'audio_url': chapter_audio_url(row),
             'duration_s': row.duration_s,
             'offset_s': row.offset_s,
@@ -166,7 +136,7 @@ def audiobook_parts(audiobook):
             'estimated_duration_s': part.estimated_duration_s,
             'engine': part.engine if available else None,
             'size_bytes': part.size_bytes,
-            'progress': None if available else part.progress,
+            'progress': part.progress if part.status == 'claimed' else None,
             'downloads': _part_downloads(part) if available else None,
             'chapters': chapters_by_part.get(part.pk, []) if available else None,
             'volumes': volumes_by_part.get(part.pk, []),
@@ -175,7 +145,7 @@ def audiobook_parts(audiobook):
 
 
 def audiobook_detail(audiobook, progress=None):
-    """The detail page: the card, plus the synopsis, links, credits, feed, cast and parts."""
+    """The detail page: the card, plus the synopsis, links, credits, feed, the parts and the volume flag."""
     narrator = audiobook_media.audiobook_metadata(audiobook)['narrator']
     return {
         **audiobook_card(audiobook, progress),
@@ -185,7 +155,6 @@ def audiobook_detail(audiobook, progress=None):
         'source_slug': audiobook.source.source_slug,
         'credits': {'narrator': narrator, **(audiobook.credits or {})},
         'feed_url': f"{settings.SITE_API_URL}/audiobooks/{audiobook.novel.slug}/feed.xml?lang={audiobook.language}",
-        'cast': cast_list(audiobook.cast),
         'parts': audiobook_parts(audiobook),
         'has_volumes': _has_volumes(audiobook),
     }

@@ -46,6 +46,13 @@ import { useFullscreen } from "./reader/hooks/useFullscreen";
 import logoLight from "@assets/logo-transparent.png";
 import logoDark from "@assets/logo-transparent-dark.png";
 
+// Width from which the tabs show their label next to the icon
+const DESKTOP_MIN_WIDTH = 1400;
+
+// Narrowest widths at which the tablet tabs can show their label next to the icon
+const TABLET_LABELS_MIN_WIDTH = 1060;
+const TABLET_LABELS_AUTH_MIN_WIDTH = 1280;
+
 // Custom hook to track scroll direction
 const useScrollDirection = () => {
     const [scrollDirection, setScrollDirection] = useState("up");
@@ -79,8 +86,12 @@ const Header = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const muiTheme = useMuiTheme();
-    const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
-    const isTablet = useMediaQuery(muiTheme.breakpoints.between("sm", "md"));
+    // Burger layout below md; icon-only tabs up to DESKTOP_MIN_WIDTH (full labels would overlap the actions before that)
+    const isMobile = useMediaQuery(muiTheme.breakpoints.down("md"));
+    const isTablet = useMediaQuery(`(min-width:${muiTheme.breakpoints.values.md}px) and (max-width:${DESKTOP_MIN_WIDTH - 0.05}px)`);
+    // Tablet tabs get their label back as soon as the toolbar has room (logged-in users have two more tabs)
+    const tabLabelsFit = useMediaQuery(`(min-width:${isAuthenticated ? TABLET_LABELS_AUTH_MIN_WIDTH : TABLET_LABELS_MIN_WIDTH}px)`);
+    const isSmallMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [themeMenuAnchor, setThemeMenuAnchor] = useState<null | HTMLElement>(null);
     const [accountMenuAnchor, setAccountMenuAnchor] = useState<null | HTMLElement>(null);
@@ -107,6 +118,20 @@ const Header = () => {
         if (location.pathname === "/") return "/";
         return "/";
     };
+
+    const navItems = [
+        { to: "/", label: t('header.home'), icon: <HomeIcon /> },
+        { to: "/audiobooks", label: t('audiobooks.title'), icon: <HeadphonesIcon /> },
+        ...(isAuthenticated
+            ? [
+                  { to: "/library", label: t('header.library'), icon: <LibraryBooksIcon /> },
+                  { to: "/history", label: t('header.history'), icon: <HistoryIcon /> },
+              ]
+            : []),
+        { to: "/reading-lists", label: t('header.lists'), icon: <FormatListBulletedIcon /> },
+        { to: "/chat", label: t('header.chat'), icon: <ForumIcon /> },
+        { to: "/novels/search", label: t('header.search'), icon: <SearchIcon /> },
+    ];
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
         setMenuAnchor(event.currentTarget);
@@ -159,10 +184,10 @@ const Header = () => {
     // The reader scrolls the site header away with the page: always on desktop, and on touch
     // only with the 'pageTop' setting. Elsewhere, on mobile/tablet the bar is fixed and hidden
     // with a transform, so it never changes the document flow. A spacer of the same height keeps content in place.
-    const touchLayout = isMobile || isTablet;
+    const touchLayout = isMobile;
     const staticHeader = onReaderRoute && (!touchLayout || readerHeaderBehavior === "pageTop");
     const hideOnScroll = touchLayout && !staticHeader;
-    const toolbarHeight = isTablet ? 56 : 64;
+    const toolbarHeight = isMobile && !isSmallMobile ? 56 : 64;
 
     // Fullscreen on the reader: the site header is left out entirely, so no gap is kept above the reader
     if (onReaderRoute && fullscreenActive) return null;
@@ -204,7 +229,7 @@ const Header = () => {
                             }}
                         />
                         {/* Title hidden on the narrowest screens so the toolbar fits in 320 px */}
-                        { !isTablet && (
+                        { (
                             <Typography variant="h6" component="div" sx={{ fontWeight: "bold", "@media (max-width:359px)": { display: "none" } }}>
                                 LNCrawler
                             </Typography>
@@ -212,7 +237,7 @@ const Header = () => {
                     </Box>
                 </Box>
 
-                {/* Navigation Links - Desktop and Tablet */}
+                {/* Navigation Links - Desktop (icon + label) and Tablet (icon only) */}
                 {!isMobile && (
                     <Tabs
                         value={getCurrentPath()}
@@ -222,38 +247,57 @@ const Header = () => {
                             flexGrow: 1,
                             ml: isTablet ? 1 : 2,
                             "& .MuiTab-root": {
-                                      minWidth: "auto",
-                                      px: isTablet ? 1 : 1.5,
-                                  },
+                                minWidth: "auto",
+                                px: isTablet ? 1.5 : 1.5,
+                            },
                         }}
                     >
-                        <Tab label={t('header.home')} value="/" component={RouterLink} to="/" />
-                        <Tab label={t('audiobooks.title')} value="/audiobooks" component={RouterLink} to="/audiobooks" />
-                        {isAuthenticated && <Tab label={t('header.library')} value="/library" component={RouterLink} to="/library" />}
-                        {isAuthenticated && <Tab label={t('header.history')} value="/history" component={RouterLink} to="/history" />}
-                        <Tab label={t('header.lists')} value="/reading-lists" component={RouterLink} to="/reading-lists" />
-                        <Tab label={t('header.chat')} value="/chat" component={RouterLink} to="/chat" />
-                        <Tab label={t('header.search')} value="/novels/search" component={RouterLink} to="/novels/search" />
+                        {navItems.map((item) => (
+                            <Tab
+                                key={item.to}
+                                value={item.to}
+                                component={RouterLink}
+                                to={item.to}
+                                icon={item.icon}
+                                iconPosition="start"
+                                label={isTablet && !tabLabelsFit ? undefined : item.label}
+                                aria-label={item.label}
+                                title={isTablet && !tabLabelsFit ? item.label : undefined}
+                            />
+                        ))}
                     </Tabs>
                 )}
 
                 {/* Actions section */}
                 <Box sx={{ display: "flex", alignItems: "center" }}>
-                    {/* Add Novel - Desktop only, on tablet it lives in the burger menu */}
+                    {/* Add Novel - Desktop with label, tablet icon only, mobile in the burger menu */}
                     {!isMobile && !isTablet && (
                         <Button
                             variant="outlined"
                             size="small"
                             component={RouterLink}
                             to="/download"
-                            sx={{ mr: 1, px: isTablet ? 1 : 2, whiteSpace: "nowrap" }}
+                            startIcon={<AddIcon />}
+                            sx={{ mr: 1, px: 2, whiteSpace: "nowrap" }}
                         >
                             {t('header.addNovel')}
                         </Button>
                     )}
+                    {isTablet && (
+                        <IconButton
+                            component={RouterLink}
+                            to="/download"
+                            color="inherit"
+                            aria-label={t('header.addNovel')}
+                            title={t('header.addNovel')}
+                            sx={{ padding: 0.5 }}
+                        >
+                            <AddIcon sx={{ fontSize: "1.5rem" }} />
+                        </IconButton>
+                    )}
 
-                    {/* GitHub Link - Hide on mobile and tablet (the footer has the link) */}
-                    {!isMobile && !isTablet && (
+                    {/* GitHub Link - Hide on mobile (the footer has the link) */}
+                    {!isMobile && (
                         <IconButton
                             component={Link}
                             href="https://github.com/jere344/LNCrawler"
@@ -451,41 +495,6 @@ const Header = () => {
                                         <SearchIcon fontSize="small" />
                                     </ListItemIcon>
                                     <ListItemText primary={t('header.search')} />
-                                </MenuItem>
-                            </Menu>
-                        </>
-                    )}
-
-                    {/* Tablet More Menu Button */}
-                    {isTablet && (
-                        <>
-                            <IconButton edge="end" color="inherit" aria-label={t('header.menu')} onClick={handleMenuOpen} sx={{ padding: 0.5 }}>
-                                <MenuIcon sx={{ fontSize: "1.25rem" }} />
-                            </IconButton>
-                            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
-                                <MenuItem component={RouterLink} to="/audiobooks" onClick={handleMenuClose}>
-                                    <ListItemIcon>
-                                        <HeadphonesIcon fontSize="small" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={t('audiobooks.title')} />
-                                </MenuItem>
-                                <MenuItem component={RouterLink} to="/download" onClick={handleMenuClose}>
-                                    <ListItemIcon>
-                                        <AddIcon fontSize="small" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={t('header.addNovel')} />
-                                </MenuItem>
-                                <MenuItem
-                                    component={Link}
-                                    href="https://github.com/jere344/LNCrawler"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={handleMenuClose}
-                                >
-                                    <ListItemIcon>
-                                        <GitHubIcon fontSize="small" />
-                                    </ListItemIcon>
-                                    <ListItemText primary={t('header.github')} />
                                 </MenuItem>
                             </Menu>
                         </>

@@ -1,7 +1,5 @@
 import { Box, ListItemButton, Skeleton, Typography } from '@mui/material';
-import { useTranslation } from 'react-i18next';
 import type { Chapter } from '@models/novels_types';
-import { getChapterLabel } from '@utils/Misc';
 
 // Every row is this tall, so the list can be sized and scrolled by count
 export const ROW_HEIGHT = 48;
@@ -33,7 +31,6 @@ interface ChapterRowProps {
 }
 
 export const ChapterRow = ({ chapter, index, tabIndex, isCurrent, volumeStart, onClick }: ChapterRowProps) => {
-  const { t } = useTranslation();
   return (
     <ListItemButton
       data-index={index}
@@ -56,7 +53,7 @@ export const ChapterRow = ({ chapter, index, tabIndex, isCurrent, volumeStart, o
         {chapter.chapter_id}
       </Typography>
       <Typography component="span" noWrap sx={{ flex: 1, minWidth: 0, color: 'inherit', fontWeight: 'inherit' }}>
-        {getChapterLabel(t, chapter.title, chapter.chapter_id)}
+        {chapter.display_title}
       </Typography>
     </ListItemButton>
   );

@@ -257,16 +257,19 @@ LIBRARY_SOURCE_KEYS = {
     "title", "source_slug", "novel_slug", "novel_id", "cover_min_url", "available_chapters_count",
     "latest_available_chapter", "is_adult",
 }
-LIBRARY_HISTORY_KEYS = {"source_slug", "last_read_chapter", "unread_chapters", "source_latest_chapter"}
+LIBRARY_HISTORY_KEYS = {
+    "source_slug", "source_name", "current_chapter", "position", "unread_chapters",
+    "source_latest_chapter", "resume",
+}
 
 
 class LibraryFixtures:
     """Bookmarked novels for the library tests. Needs ``self.owner`` and ``self.novel_count``."""
 
-    def _bookmarked_novel(self, last_read=None, without=(), reader=None):
+    def _bookmarked_novel(self, current=None, without=(), reader=None):
         """A novel bookmarked by the owner, with one source holding chapters 1-5, those in ``without`` having
-        no content, and a history for ``reader`` (the owner by default) whose last read chapter is
-        ``last_read`` (a chapter number) when given."""
+        no content, and a history for ``reader`` (the owner by default) whose current chapter is
+        ``current`` (a chapter number) when given."""
         self.novel_count += 1
         number = self.novel_count
         novel = Novel.objects.create(
@@ -295,10 +298,10 @@ class LibraryFixtures:
         }
         refresh_chapter_stats([source.pk])
         NovelBookmark.objects.create(user=self.owner, novel=novel)
-        if last_read is not None:
+        if current is not None:
             ReadingHistory.objects.create(
                 user=reader or self.owner, novel=novel, source=source,
-                last_read_chapter=chapters[last_read],
+                current_chapter=chapters[current],
             )
         return chapters
 
@@ -338,21 +341,21 @@ class LibraryReadingHistoryTests(LibraryFixtures, TestCase):
         self.novel_count = 0
 
     def test_latest_and_unread_chapters(self):
-        chapters = self._bookmarked_novel(last_read=1, without=(2,))
-        self._bookmarked_novel(last_read=5)
-        self._bookmarked_novel(last_read=1, without=(2, 3))
-        self._bookmarked_novel(last_read=2, without=(5,))
+        chapters = self._bookmarked_novel(current=1, without=(2,))
+        self._bookmarked_novel(current=5)
+        self._bookmarked_novel(current=1, without=(2, 3))
+        self._bookmarked_novel(current=2, without=(5,))
 
         histories = self._library_by_title()
 
-        # The library history carries no next chapter; the unread count only counts content chapters.
+        # The unread count only counts content chapters.
         self.assertEqual(
             histories["Novel 1"]["source_latest_chapter"], dict(ChapterSerializer(chapters[5]).data)
         )
         self.assertEqual(histories["Novel 1"]["unread_chapters"], 3)
-        self.assertNotIn("next_chapter", histories["Novel 1"])
+        self.assertIn("resume", histories["Novel 1"])
 
-        # Last read is the latest chapter: nothing is unread.
+        # The current chapter is the latest one: nothing is unread.
         self.assertEqual(histories["Novel 2"]["source_latest_chapter"]["chapter_id"], 5)
         self.assertEqual(histories["Novel 2"]["unread_chapters"], 0)
 
@@ -363,27 +366,28 @@ class LibraryReadingHistoryTests(LibraryFixtures, TestCase):
         self.assertEqual(histories["Novel 4"]["source_latest_chapter"]["chapter_id"], 4)
         self.assertEqual(histories["Novel 4"]["unread_chapters"], 2)
 
-    def test_next_chapter_skips_gaps_on_the_detail_history(self):
-        """The next chapter is no longer in the library payload; the detail profile (mark-as-read, reading
-        history) still skips chapters without content."""
-        chapters = self._bookmarked_novel(last_read=1, without=(2,))
+    def test_resume_skips_gaps_on_the_detail_history(self):
+        """Once the user has finished the current chapter, resume opens the next one with content, past the
+        gap; the detail profile carries it."""
+        chapters = self._bookmarked_novel(current=1, without=(2,))
+        ReadingHistory.objects.filter(user=self.owner).update(position=1)
         history = annotate_reading_history(
             ReadingHistory.objects.filter(user=self.owner).select_related(
-                "source__latest_available_chapter", "novel", "last_read_chapter"
+                "source__latest_available_chapter", "novel", "current_chapter"
             )
         ).get()
 
         data = ReadingHistorySerializer(history, profile="detail").data
 
-        self.assertEqual(data["next_chapter"], dict(ChapterSerializer(chapters[3]).data))
+        self.assertEqual(data["resume"], {"chapter": dict(ChapterSerializer(chapters[3]).data), "progress": 0})
 
     def test_query_count_does_not_grow_with_bookmarks(self):
-        self._bookmarked_novel(last_read=1, without=(2,))
-        self._bookmarked_novel(last_read=2)
+        self._bookmarked_novel(current=1, without=(2,))
+        self._bookmarked_novel(current=2)
         with_two = self._query_counts()
 
         for _ in range(4):
-            self._bookmarked_novel(last_read=3, without=(4,))
+            self._bookmarked_novel(current=3, without=(4,))
         with_six = self._query_counts()
 
         self.assertEqual(with_six, with_two)
@@ -423,7 +427,7 @@ class LibraryPayloadContractTests(LibraryFixtures, TestCase):
             self.assertIsNone(item["reading_history"])
 
     def test_owner_endpoints_emit_the_library_keys(self):
-        self._bookmarked_novel(last_read=2)
+        self._bookmarked_novel(current=2)
         self.client.force_login(self.owner)
 
         # Progress is on the private list only; the public mirror has none, even for its owner.
@@ -436,7 +440,7 @@ class LibraryPayloadContractTests(LibraryFixtures, TestCase):
                 self._assert_item_keys(item, with_history=with_history)
 
     def test_other_viewers_get_the_same_keys_without_progress(self):
-        self._bookmarked_novel(last_read=2)
+        self._bookmarked_novel(current=2)
 
         self.client.force_login(self.viewer)
         item = self.client.get(self._public_library_url()).data["results"][0]
@@ -462,11 +466,11 @@ class LibraryProgressVisibilityTests(LibraryFixtures, TestCase):
         self.novel_count = 0
 
     def test_owner_sees_own_progress_on_the_private_list_only(self):
-        self._bookmarked_novel(last_read=2)
+        self._bookmarked_novel(current=2)
         self.client.force_login(self.owner)
 
         private = self.client.get(reverse("list_bookmarked_novels")).data["results"][0]
-        self.assertEqual(private["reading_history"]["last_read_chapter"]["chapter_id"], 2)
+        self.assertEqual(private["reading_history"]["current_chapter"]["chapter_id"], 2)
         self.assertEqual(private["reading_source"]["source_slug"], "source-1")
 
         public = self.client.get(self._public_library_url()).data["results"][0]
@@ -474,11 +478,11 @@ class LibraryProgressVisibilityTests(LibraryFixtures, TestCase):
         self.assertIsNone(public["reading_source"])
 
     def test_other_user_sees_no_progress_even_with_own_history(self):
-        chapters = self._bookmarked_novel(last_read=2)
+        chapters = self._bookmarked_novel(current=2)
         source = chapters[1].novel_from_source
         NovelBookmark.objects.create(user=self.viewer, novel=source.novel)
         ReadingHistory.objects.create(
-            user=self.viewer, novel=source.novel, source=source, last_read_chapter=chapters[3],
+            user=self.viewer, novel=source.novel, source=source, current_chapter=chapters[3],
         )
 
         self.client.force_login(self.viewer)
@@ -491,7 +495,7 @@ class LibraryProgressVisibilityTests(LibraryFixtures, TestCase):
         self.assertEqual(item["prefered_source"]["source_slug"], "source-1")
 
     def test_anonymous_sees_no_progress(self):
-        self._bookmarked_novel(last_read=2)
+        self._bookmarked_novel(current=2)
 
         item = self.client.get(self._public_library_url()).data["results"][0]
 

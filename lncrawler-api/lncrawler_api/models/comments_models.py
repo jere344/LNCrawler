@@ -75,7 +75,7 @@ class Comment(models.Model):
         if self.novel:
             target = f"Novel: {self.novel.title}"
         elif self.chapter:
-            target = f"Chapter: {self.chapter.title}"
+            target = f"Chapter: {self.chapter.display_title}"
         else:
             target = "Unknown target"
         

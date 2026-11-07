@@ -82,16 +82,16 @@ class PortingMixin:
         ).update(source=keeper)
         SourceVote.objects.filter(source=loser).delete()
 
-        # Move the history row and repoint its progress marker: last_read_chapter
+        # Move the history row and repoint its progress marker: current_chapter
         # points at one of the loser's chapters, which is about to be deleted
         # (SET_NULL), so without this the user keeps the history but loses their
         # place.
         for history in ReadingHistory.objects.filter(source=loser).select_related(
-            "last_read_chapter"
+            "current_chapter"
         ):
             history.source = keeper
-            history.last_read_chapter = map_chapter(history.last_read_chapter)
-            history.save(update_fields=["source", "last_read_chapter"])
+            history.current_chapter = map_chapter(history.current_chapter)
+            history.save(update_fields=["source", "current_chapter"])
 
         # Comments load newest-first, so a reply can be reached before its parent.
         # save() would reject it (the parent is still on the loser chapter), so

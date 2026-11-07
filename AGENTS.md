@@ -11,6 +11,16 @@ The local containers (`lncrawler-api-1`, its Postgres) hold dev data, not a copy
 row counts or contents as what prod has. When the question is
 about prod, ask for the prod data (an admin page, an export) instead of drawing conclusions locally.
 
+## Local stack
+Everything runs in docker behind nginx: the site at `http://lncrawler.test:8181`, the API at
+`http://api.lncrawler.test:8181`. The API is not reachable on `localhost:8000`, so a bare Vite dev server cannot load data.
+- After a frontend change, rebuild the frontend container to see it: `docker compose up -d --build --no-deps frontend`.
+- After a migration, apply it in the API container: `docker exec lncrawler-api-1 python manage.py migrate`.
+
+## Testing in a browser
+Use the Claude in Chrome extension (the user's Chromium, `mcp__claude-in-chrome__*` tools), not the Claude desktop browser pane.
+The pane blocks cross-origin requests, so the site at `lncrawler.test` cannot reach `api.lncrawler.test` there.
+
 ## Running the backend tests
 Run them inside the running API container (Django test runner, Postgres):
 

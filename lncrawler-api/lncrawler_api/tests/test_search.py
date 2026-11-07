@@ -1,8 +1,11 @@
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from ..models import AlternativeTitle, ExternalSource, Novel, NovelFromSource
+from ..models.sources_models import refresh_novel_adult
+from ..models import AlternativeTitle, ExternalSource, Novel, NovelFromSource, Tag
+from ..utils.pagination import paginate
+from .helpers import make_source
 
 
 class FuzzyTitleSearchTests(TestCase):
@@ -44,6 +47,7 @@ class HiddenAdultCountTests(TestCase):
             language="en",
             is_adult=True,
         )
+        refresh_novel_adult()
 
     def _search(self, **params):
         response = self.client.get(reverse("search_novels"), params)
@@ -171,3 +175,80 @@ class MultiTitleSearchTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual([n["slug"] for n in response.data["results"]][:2], ["twin-b", "twin-a"])
+
+
+class HiddenAdultDistinctCountTests(TestCase):
+    """Counts with tag and language filters: a novel with several matching sources counts once."""
+
+    def setUp(self):
+        cache.clear()
+        action = Tag.objects.create(name="Action")
+        for title, slug, is_adult in (("Clean Dup", "clean-dup", False), ("Adult Dup", "adult-dup", True)):
+            novel = Novel.objects.create(title=title, slug=slug, novel_path=slug)
+            for index in range(2):
+                source = make_source(
+                    novel,
+                    external=ExternalSource.objects.create(source_name=f"{slug}-{index}"),
+                    source_url=f"http://{slug}/{index}",
+                    is_adult=is_adult,
+                )
+                source.tags.add(action)
+        refresh_novel_adult()
+
+    def _data(self, **params):
+        response = self.client.get(reverse("search_novels"), params)
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_tag_filter_counts_each_novel_once(self):
+        self.assertEqual(self._data(adult="show", tag="Action")["count"], 2)
+        only = self._data(adult="only", tag="Action")
+        self.assertEqual((only["count"], only["hidden_adult"]), (1, 0))
+        hide = self._data(adult="hide", tag="Action")
+        self.assertEqual((hide["count"], hide["hidden_adult"]), (1, 1))
+        self.assertEqual([n["title"] for n in hide["results"]], ["Clean Dup"])
+
+    def test_language_filter_counts_each_novel_once(self):
+        self.assertEqual(self._data(adult="show", languages="en")["count"], 2)
+        only = self._data(adult="only", languages="en")
+        self.assertEqual((only["count"], only["hidden_adult"]), (1, 0))
+        hide = self._data(adult="hide", languages="en")
+        self.assertEqual((hide["count"], hide["hidden_adult"]), (1, 1))
+
+    def test_tag_and_language_filters_together(self):
+        hide = self._data(adult="hide", tag="Action", languages="en")
+        self.assertEqual((hide["count"], hide["hidden_adult"]), (1, 1))
+        self.assertEqual(hide["total_pages"], 1)
+        show = self._data(adult="show", tag="Action", languages="en")
+        self.assertEqual((show["count"], show["hidden_adult"]), (2, 0))
+
+
+class PaginateCountParamTests(TestCase):
+    def setUp(self):
+        for index in range(5):
+            Novel.objects.create(title=f"Pag {index}", slug=f"pag-{index}", novel_path=f"pag-{index}")
+
+    def _paginate(self, **kwargs):
+        request = RequestFactory().get("/", {"page": "2", "page_size": "2"})
+        return paginate(request, Novel.objects.order_by("title"), 20, 50, **kwargs)
+
+    def test_count_sets_the_total_without_counting(self):
+        # Only the page SELECT runs: no COUNT.
+        with self.assertNumQueries(1):
+            paginator, page = self._paginate(count=42)
+            list(page)
+        self.assertEqual(paginator.count, 42)
+        self.assertEqual(paginator.num_pages, 21)
+        self.assertEqual(page.number, 2)
+
+    def test_zero_count_is_kept(self):
+        paginator, _ = self._paginate(count=0)
+        self.assertEqual(paginator.count, 0)
+
+    def test_count_queryset_is_still_counted(self):
+        paginator, _ = self._paginate(count_queryset=Novel.objects.values("pk"))
+        self.assertEqual(paginator.count, 5)
+
+    def test_count_and_count_queryset_are_exclusive(self):
+        with self.assertRaises(ValueError):
+            self._paginate(count=1, count_queryset=Novel.objects.values("pk"))

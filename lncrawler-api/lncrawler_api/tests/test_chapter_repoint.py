@@ -27,14 +27,14 @@ class RepointChapterDataTests(MergeTestCase):
         user = get_user_model().objects.create_user(username="reader", password="x")
         ReadingHistory.objects.create(
             user=user, novel=self.novel, source=self.loser,
-            last_read_chapter=self._chapter(self.loser, 2),
+            current_chapter=self._chapter(self.loser, 2),
         )
 
         _repoint_chapter_data(self.loser, self.winner, self.novel)
 
         self.assertEqual(self._chapter(self.winner, 1).comments.count(), 2)
         history = ReadingHistory.objects.get(user=user, novel=self.novel)
-        self.assertEqual(history.last_read_chapter, self._chapter(self.winner, 2))
+        self.assertEqual(history.current_chapter, self._chapter(self.winner, 2))
 
     def test_comment_on_an_unmatched_chapter_becomes_a_novel_comment(self):
         unmatched = Comment.objects.create(

@@ -16,7 +16,7 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from ..models import Audiobook, AudiobookChapter, AudiobookPart, AudiobookWorker, Chapter
+from ..models import Audiobook, AudiobookPart, Chapter
 from ..models.sources_models import bulk_update_chunked
 from ..utils import chapter_utils
 from ..utils.crawler_path import ensure_crawler_on_path
@@ -27,12 +27,10 @@ from lncrawl.utils.words import count_words  # noqa: E402
 
 logger = logging.getLogger("lncrawler_api.audiobooks")
 
-WORKER_LANGUAGE_DAYS = 7  # days since a worker's last ping or claim after which its languages are no longer announced
 WORDS_PER_MINUTE = 155  # narration speed used to estimate a part's duration
 CHARACTER_LANGUAGES = ('zh', 'ja')  # languages counted by character instead of by word
 CHARACTERS_PER_MINUTE = 250  # narration speed in characters, for the languages counted by character
-MAX_ATTEMPTS = 3  # lease expiries before a part is failed
-LEASE_SECONDS = 900  # how long a worker may hold a claimed part without renewing it
+MAX_ATTEMPTS = 3  # failed attempts before a part is failed
 MAX_BITRATE_KBPS = 40  # encoded audio bitrate ceiling
 TAIL_STABLE_DAYS = 14  # days without chapter updates before the last, short part of a finished source is cut
 
@@ -105,16 +103,6 @@ def store_word_counts(source, last_id=0, counter=None):
             total += ch.word_count
             if total > target:
                 return
-
-
-def announced_languages():
-    """Languages the workers seen in the last WORKER_LANGUAGE_DAYS announce they can narrate, sorted.
-    Empty when no worker is seen, so no new audiobook is started."""
-    since = timezone.now() - timedelta(days=WORKER_LANGUAGE_DAYS)
-    languages = set()
-    for worker_languages in AudiobookWorker.objects.filter(last_seen_at__gte=since).values_list('languages', flat=True):
-        languages.update(worker_languages or [])
-    return sorted(languages)
 
 
 def pick_source(novel, language='en'):
@@ -277,10 +265,11 @@ def is_inside_output_path(path):
 
 
 def delete_audio_files(audiobook):
-    """Delete the audio files of an audiobook and mark its done parts stale. Returns bytes freed.
+    """Delete the audio files of an audiobook and its done, stale and failed parts. Returns bytes freed.
 
-    Only the audio folder of the source is removed, and only when the source folder is inside
-    LNCRAWL_OUTPUT_PATH. Otherwise nothing is deleted and 0 is returned.
+    The queued and claimed parts stay, but the whole audio folder of the source is removed: the uploads of a claimed
+    part go too, and its worker sends them again at complete. The folder is removed only when the source folder is
+    inside LNCRAWL_OUTPUT_PATH. Otherwise nothing is deleted and 0 is returned.
     The folder is removed on commit: when the surrounding transaction rolls back, the audio stays.
     """
     source = audiobook.source
@@ -297,10 +286,9 @@ def delete_audio_files(audiobook):
     if directory.exists():
         freed = sum(f.stat().st_size for f in directory.rglob('*') if f.is_file())
         transaction.on_commit(partial(shutil.rmtree, directory))
-    AudiobookChapter.objects.filter(part__audiobook=audiobook).delete()
-    audiobook.parts.filter(status='done').update(status='stale', duration_s=0, size_bytes=0)
-    audiobook.published = False
-    audiobook.save(update_fields=['published', 'updated_at'])
+    # The chapter rows go with their parts. With no done part left, nothing is listenable and the next cut starts at
+    # chapter 1, unless a queued or claimed part is left: the next cut then follows it.
+    audiobook.parts.filter(status__in=['done', 'stale', 'failed']).delete()
     audiobook.refresh_totals()
     return freed
 
@@ -350,7 +338,6 @@ def follow_source(source):
 def _clear_claim(part):
     part.worker_id = ''
     part.claimed_at = None
-    part.lease_until = None
 
 
 def retry_part(part):
@@ -369,7 +356,6 @@ def regenerate_part(part, priority=100):
     _clear_claim(part)
     part.attempts = 0
     part.qa_passed = None
-    part.approved = False
     part.save()
 
 

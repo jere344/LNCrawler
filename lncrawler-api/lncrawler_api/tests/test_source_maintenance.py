@@ -64,7 +64,7 @@ class PruneLibraryPortTests(MergeTestCase):
         )
         ReadingHistory.objects.create(
             user=user, novel=self.novel, source=self.dead,
-            last_read_chapter=self.dead_chapter,
+            current_chapter=self.dead_chapter,
         )
         SourceVote.objects.create(source=self.dead, ip_address="1.1.1.1", vote_type="up")
         # Same voter already voted on the keeper: the duplicate must be dropped.
@@ -81,7 +81,7 @@ class PruneLibraryPortTests(MergeTestCase):
         history = ReadingHistory.objects.get(user=user)
         self.assertEqual(history.source, self.keeper)
         # Progress marker must follow the history, or the chapter deletion nulls it.
-        self.assertEqual(history.last_read_chapter, self.keeper_chapter)
+        self.assertEqual(history.current_chapter, self.keeper_chapter)
         self.assertEqual(self.keeper.votes.count(), 1)
         self.keeper.refresh_from_db()
         self.assertEqual((self.keeper.upvotes, self.keeper.downvotes), (0, 1))
@@ -101,7 +101,7 @@ class PruneLibraryPortTests(MergeTestCase):
         )
         ReadingHistory.objects.create(
             user=user, novel=self.novel, source=self.dead,
-            last_read_chapter=self.dead_chapter,
+            current_chapter=self.dead_chapter,
         )
 
         cmd = Command()
@@ -111,7 +111,7 @@ class PruneLibraryPortTests(MergeTestCase):
         comment.refresh_from_db()
         self.assertEqual(comment.chapter, keeper_second)
         self.assertEqual(
-            ReadingHistory.objects.get(user=user).last_read_chapter, keeper_second
+            ReadingHistory.objects.get(user=user).current_chapter, keeper_second
         )
 
     def test_sample_percent_uses_md5_bucket_subset(self):

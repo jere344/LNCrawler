@@ -10,7 +10,7 @@ def chapter_comment_context(request, chapter):
     source = chapter.novel_from_source
     return {
         'request': request,
-        'chapter_title': chapter.title,
+        'chapter_display_title': chapter.display_title,
         'chapter_id': chapter.chapter_id,
         'source_name': source.external_source.source_name,
         'source_slug': source.source_slug,
@@ -32,7 +32,7 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     user_vote = serializers.SerializerMethodField()
     type = serializers.SerializerMethodField()
     edited = serializers.BooleanField(read_only=True)
-    chapter_title = serializers.SerializerMethodField()
+    chapter_display_title = serializers.SerializerMethodField()
     chapter_id = serializers.SerializerMethodField()
     source_name = serializers.SerializerMethodField()
     source_slug = serializers.SerializerMethodField()
@@ -52,7 +52,7 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     field_profiles = {
         'novel': _base_fields + ['type', 'edited'],
         'chapter': _base_fields + [
-            'type', 'chapter_title', 'chapter_id', 'source_name', 'source_slug', 'edited',
+            'type', 'chapter_display_title', 'chapter_id', 'source_name', 'source_slug', 'edited',
         ],
         'profile': _base_fields + [
             'target_type', 'target_title', 'target_slug',
@@ -95,8 +95,8 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     def get_type(self, obj):
         return self.profile
 
-    def get_chapter_title(self, obj):
-        return self.context.get('chapter_title')
+    def get_chapter_display_title(self, obj):
+        return self.context.get('chapter_display_title')
 
     def get_chapter_id(self, obj):
         return self.context.get('chapter_id')
@@ -122,7 +122,7 @@ class CommentSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         if target is None:
             return None
         if kind == 'chapter':
-            return getattr(target, 'title', None) or f"Chapter {getattr(target, 'chapter_id', '')}"
+            return target.display_title
         # Novels: like the novel cards, the source the viewer reads, else the
         # preferred source (both prefetched by the profile comments view).
         from ..utils.query_helpers import preferred_source_key

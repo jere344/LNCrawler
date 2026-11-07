@@ -2,6 +2,7 @@ from rest_framework import serializers
 from ..models import NovelFromSource
 from ..utils import build_media_url, get_client_ip
 from ..utils.crawler_registry import has_crawler
+from ..utils.query_helpers import reading_history_queryset
 from .mixins import ProfileFieldsMixin
 from .reading_history_serializers import ReadingHistorySerializer
 from .chapter_serializers import ChapterSerializer
@@ -98,13 +99,9 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return has_crawler(obj.source_url or '') if self.profile == 'detail' else None
 
     def get_is_adult(self, obj: NovelFromSource):
-        # A novel is adult if more than half of its sources are; the source
-        # payload drives cover blurring, so report the novel-level flag when the
-        # queryset annotated it (sources_queryset) and fall back to this source's
-        # flag.
-        if hasattr(obj, 'novel_is_adult'):
-            return obj.novel_is_adult
-        return obj.is_adult
+        # The source payload drives cover blurring, so it reports its novel's flag
+        # (Novel.is_adult). The novel is select_related by sources_queryset.
+        return obj.novel.is_adult
 
     def get_cover_url(self, obj: NovelFromSource):
         return build_media_url(obj.cover_path)
@@ -154,36 +151,36 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     def get_vote_score(self, obj: NovelFromSource):
         return obj.upvotes - obj.downvotes
 
-    def _chapter_card(self, chapter):
+    def _chapter_card(self, chapter, source):
         if chapter is None:
             return None
+        chapter.novel_from_source = source  # its language labels the title; saves a query per card
         return self._child(ChapterSerializer).to_representation(chapter)
 
     def get_latest_available_chapter(self, obj: NovelFromSource):
         # The stored FK; sources_queryset selects it, so this costs no query.
-        return self._chapter_card(obj.latest_available_chapter)
+        return self._chapter_card(obj.latest_available_chapter, obj)
 
     def get_first_available_chapter(self, obj: NovelFromSource):
         # Only detail views render this; sources_queryset selects it there only.
         if self.profile != 'detail':
             return None
-        return self._chapter_card(obj.first_available_chapter)
+        return self._chapter_card(obj.first_available_chapter, obj)
 
     def get_reading_history(self, obj: NovelFromSource):
-        """Return the reading history for the current user"""
+        """Return the current user's reading position in this novel, whichever of its sources it was read from"""
         # Card views use the novel-level reading_source instead.
         if self.profile != 'detail':
             return None
-        if hasattr(obj, 'user_read_history'):
-            history = obj.user_read_history[0] if obj.user_read_history else None
-            if history and history.last_read_chapter:
-                return ReadingHistorySerializer(history).data
-            return None
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            history = obj.read_by_users.filter(user=request.user).first()
-            if history and history.last_read_chapter:
-                return ReadingHistorySerializer(history).data
+        if hasattr(obj.novel, 'user_novel_history'):
+            history = obj.novel.user_novel_history[0] if obj.novel.user_novel_history else None
+        else:
+            request = self.context.get('request')
+            history = None
+            if request and request.user.is_authenticated:
+                history = reading_history_queryset(request.user, 'detail').filter(novel=obj.novel).first()
+        if history and history.current_chapter:
+            return ReadingHistorySerializer(history, profile='detail', context=self.context).data
         return None
 
     def get_volumes(self, obj: NovelFromSource):
@@ -210,6 +207,6 @@ class GalleryImageSerializer(serializers.Serializer):
     Serializes image information for the gallery
     """
     chapter_id = serializers.IntegerField()
-    chapter_title = serializers.CharField()
+    chapter_display_title = serializers.CharField()
     image_url = serializers.CharField()
     image_name = serializers.CharField()

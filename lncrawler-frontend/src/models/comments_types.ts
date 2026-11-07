@@ -8,7 +8,7 @@ export interface Comment {
   created_at: string;
   source_name?: string;
   type?: 'novel' | 'chapter';
-  chapter_title?: string;
+  chapter_display_title?: string;
   chapter_id?: number;
   source_slug?: string;
   replies?: Comment[];

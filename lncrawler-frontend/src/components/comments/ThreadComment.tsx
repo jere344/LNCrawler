@@ -6,7 +6,6 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import type { Comment } from '@models/comments_types';
 import { useAuth } from '@context/AuthContext';
-import { getChapterLabel } from '@utils/Misc';
 import { usePrefersReducedMotion } from '@components/reader/hooks/usePrefersReducedMotion';
 import { TOUCH_MIN_HEIGHT, TOUCH_TARGET } from '@components/reader/touchTarget';
 import DirectionalIcon from '@components/reader/DirectionalIcon';
@@ -147,7 +146,7 @@ const ThreadComment = ({
                   size="small"
                   variant="outlined"
                   color="secondary"
-                  label={t('comments.postedAt', { chapter: getChapterLabel(t, comment.chapter_title, comment.chapter_id) })}
+                  label={t('comments.postedAt', { chapter: comment.chapter_display_title })}
                   sx={{ maxWidth: '100%', minWidth: 0 }}
                 />
               )}

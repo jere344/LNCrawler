@@ -3,13 +3,17 @@ import { ChapterContent as IChapterContent } from '@models/novels_types';
 import { findStreamChapter } from './chapterStream';
 import { READING_LINE } from './activeSection';
 import { sectionKeyOf } from './chapterRange';
+import type { NavigationTarget } from './readingPositionSync';
 
 interface ChapterNavigationOptions {
   novelSlug?: string;
   sourceSlug?: string;
   chapter: IChapterContent | null;
   saveScrollIfReady: (force?: boolean) => void;
-  markBeforeLeaving: () => Promise<void>;
+  // Records the position of the chapter the reader moves to, at its start
+  onNavigate: (target: NavigationTarget) => void;
+  // Records the position of the chapter being left, for the pages outside the reader
+  onLeave: () => void;
   // Closes the open layers first, so no stale layer sits in the history behind the chapter
   closeThen: (run: () => void) => void;
   // readingMode === 'infinite'
@@ -24,14 +28,15 @@ export function useChapterNavigation({
   sourceSlug,
   chapter,
   saveScrollIfReady,
-  markBeforeLeaving,
+  onNavigate,
+  onLeave,
   closeThen,
   infinite,
   streamChapters,
 }: ChapterNavigationOptions) {
   const navigate = useNavigate();
 
-  const handleChapterNavigation = async (direction: 'prev' | 'next') => {
+  const handleChapterNavigation = (direction: 'prev' | 'next') => {
     // Save current scroll position
     saveScrollIfReady(true);
 
@@ -61,7 +66,8 @@ export function useChapterNavigation({
       return;
     }
 
-    await markBeforeLeaving();
+    // Not for a gap: the unavailable chapter in between is where the reader lands
+    if (gapChapter == null && targetChapter) onNavigate({ novelSlug, sourceSlug, chapterNumber: targetChapter });
 
     // Navigate to the target (or to the unavailable chapter that sits in between)
     navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${gapChapter ?? targetChapter}`);
@@ -82,6 +88,7 @@ export function useChapterNavigation({
   const goToSource = () => {
     closeThen(() => {
       saveScrollIfReady(true);
+      onLeave();
       navigate(`/novels/${novelSlug}/${sourceSlug}`);
     });
   };
@@ -89,15 +96,16 @@ export function useChapterNavigation({
   const goToChapterList = () => {
     closeThen(() => {
       saveScrollIfReady(true);
+      onLeave();
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapterlist`);
     });
   };
 
-  // A chapter picked from the chapter list: saved and marked like moving on, then opened
+  // A chapter picked from the chapter list: its position is recorded, then it opens
   const goToChapter = (chapterNumber: number) => {
-    closeThen(async () => {
+    closeThen(() => {
       saveScrollIfReady(true);
-      await markBeforeLeaving();
+      onNavigate({ novelSlug, sourceSlug, chapterNumber });
       navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}`);
     });
   };

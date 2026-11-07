@@ -28,7 +28,7 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import TranslateIcon from '@mui/icons-material/Translate';
 import ImageIcon from '@mui/icons-material/Image';
-import { getChapterName, languageFlagUrl, languageCodeToName, formatDate, editionLabel } from '@utils/Misc';
+import { languageFlagUrl, languageCodeToName, formatDate, editionLabel } from '@utils/Misc';
 import { novelService } from '../../services/api';
 import { NovelDetail, NovelFromSource } from '@models/novels_types';
 
@@ -296,7 +296,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                                   {source.available_chapters_count ?? source.chapters_count ?? 0}
                                 </Typography>
                               </Box>
-                              {getChapterName(source.latest_available_chapter?.title || '') !== '' && (
+                              {source.latest_available_chapter?.display_title && (
                                 <Typography 
                                   variant="body2" 
                                   sx={{ 
@@ -308,7 +308,7 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
                                     fontSize: '0.75rem'
                                   }}
                                 >
-                                  {getChapterName(source.latest_available_chapter?.title || '')}
+                                  {source.latest_available_chapter.display_title}
                                 </Typography>
                               )}
                             </Box>

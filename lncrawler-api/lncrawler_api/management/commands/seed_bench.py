@@ -32,8 +32,9 @@ from lncrawler_api.models import (
     TagAlias,
     Translator,
 )
+from lncrawler_api.models.sources_models import refresh_novel_adult
 from lncrawler_api.services.chapter_stats import refresh_chapter_stats
-from lncrawler_api.services.novel_rankings import refresh_novel_rankings
+from lncrawler_api.services.novel_rankings import refresh_name_counts, refresh_novel_rankings
 from lncrawler_api.utils.author_names import normalize_author
 from lncrawler_api.utils.tag_utils import normalize_tag
 
@@ -391,14 +392,14 @@ class Command(BaseCommand):
         n = self.c['users']
         return f"""
 INSERT INTO auth_app_customuser (username, email, password, is_superuser, first_name, last_name,
-    is_staff, is_active, date_joined, word_read, preferred_ui_language, preferred_languages,
+    is_staff, is_active, date_joined, preferred_ui_language, preferred_languages,
     language_filter_enabled, bio, privacy_settings, social_links, discoverable, show_r18)
 SELECT {self._username('i')},
     {self._username('i')} || '@bench.invalid',
     '!' || md5(i::text) || md5('pw' || i::text),
     false, '', '', false, true,
     now() - (({self._h("i::text || 'joined'")}) % 1095) * interval '1 day',
-    0, '', '[]'::jsonb, true, '', '{{}}'::jsonb, '{{}}'::jsonb, true, 'blur'
+    '', '[]'::jsonb, true, '', '{{}}'::jsonb, '{{}}'::jsonb, true, 'blur'
 FROM generate_series(1, {n}) AS g(i)
 ORDER BY i
 """
@@ -846,8 +847,8 @@ LEFT JOIN tmp_f1 f ON f.user_id = uid.u
 ON CONFLICT DO NOTHING
 """, heavy=True)
         self._stage('reading history (heavy)', f"""
-INSERT INTO lncrawler_api_readinghistory (id, user_id, novel_id, source_id, last_read_chapter_id, last_read_at)
-SELECT gen_random_uuid(), 1, {self._novel_uuid('g.n')}, g.n, ch.id, now() - {self._u("g.n::text || 'hhts'")} * 60 * interval '1 day'
+INSERT INTO lncrawler_api_readinghistory (id, user_id, novel_id, source_id, current_chapter_id, position, last_read_at)
+SELECT gen_random_uuid(), 1, {self._novel_uuid('g.n')}, g.n, ch.id, {self._u("g.n::text || 'hhp'")}, now() - {self._u("g.n::text || 'hhts'")} * 60 * interval '1 day'
 FROM generate_series(1, {heavy_bookmarks}) AS g(n)
 JOIN tmp_src t ON t.source_id = g.n
 LEFT JOIN lncrawler_api_chapter ch ON ch.novel_from_source_id = g.n
@@ -856,8 +857,8 @@ LEFT JOIN lncrawler_api_chapter ch ON ch.novel_from_source_id = g.n
 ON CONFLICT DO NOTHING
 """)
         self._stage('reading history', f"""
-INSERT INTO lncrawler_api_readinghistory (id, user_id, novel_id, source_id, last_read_chapter_id, last_read_at)
-SELECT gen_random_uuid(), uid.u, {self._novel_uuid("p.n")}, p.sid, ch.id,
+INSERT INTO lncrawler_api_readinghistory (id, user_id, novel_id, source_id, current_chapter_id, position, last_read_at)
+SELECT gen_random_uuid(), uid.u, {self._novel_uuid("p.n")}, p.sid, ch.id, {self._u("g.k::text || 'htp'")},
        now() - {self._u("g.k::text || 'hts'")} * {self._u("g.k::text || 'htq'")} * 60 * interval '1 day'
 FROM generate_series(1, {c['history']}) AS g(k)
 CROSS JOIN LATERAL (SELECT {self._novel_pick("g.k::text || 'hn'")} AS n, {self._user_pick("g.k::text || 'hu'")} AS u) uid
@@ -970,12 +971,11 @@ FROM generate_series(1, {n_ab}) AS g(k)
 LEFT JOIN tmp_en en ON en.n = g.k
 """)
         self._stage('audiobooks', f"""
-INSERT INTO lncrawler_api_audiobook (id, novel_id, language, source_id, status, published, featured, worker_id,
-    cover_path, tags_hash, total_duration_s, total_size_bytes, parts_done, "cast", credits,
+INSERT INTO lncrawler_api_audiobook (id, novel_id, language, source_id, status, worker_id,
+    cover_path, tags_hash, total_duration_s, total_size_bytes, parts_done, credits,
     first_published_at, last_part_at, last_enqueued_at, created_at, updated_at)
-SELECT ab.abid, {self._novel_uuid("ab.n")}, 'en', ab.sid, 'active',
-       {self._h("ab.k::text || 'pub'")} % 10 < 9, {self._h("ab.k::text || 'feat'")} % 20 = 0, '', '', '',
-       0, 0, 0, '{{}}'::jsonb, '{{}}'::jsonb, now(), now(), now(), now(), now()
+SELECT ab.abid, {self._novel_uuid("ab.n")}, 'en', ab.sid, 'active', '', '', '',
+       0, 0, 0, '{{}}'::jsonb, now(), now(), now(), now(), now()
 FROM tmp_ab ab
 """)
         self._exec(f"""
@@ -989,10 +989,10 @@ CROSS JOIN generate_series(0, 9) AS g(k)
         self._stage('audiobook parts', f"""
 INSERT INTO lncrawler_api_audiobookpart (id, audiobook_id, "index", chapter_start, chapter_end, word_count,
     estimated_duration_s, status, priority, engine, engine_version, worker_id, progress, stage, attempts,
-    error_message, content_hash, chapter_ids, generation, uploads, "cast", qa, qa_passed, approved, duration_s,
+    error_message, content_hash, chapter_ids, generation, uploads, qa, qa_passed, duration_s,
     size_bytes, created_at, completed_at, checked_at)
 SELECT p.id, p.abid, p.idx, p.cs, p.ce, 0, 600, 'done', 0, 'bench', '1', '', 1.0, 'done', 1,
-       '', md5(p.id::text), '[]'::jsonb, 1, '{{}}'::jsonb, '{{}}'::jsonb, '{{}}'::jsonb, true, true,
+       '', md5(p.id::text), '[]'::jsonb, 1, '{{}}'::jsonb, '{{}}'::jsonb, true,
        600 + {self._h("p.id::text || 'dur'")} % 1200, 9600000, now(), now(), now()
 FROM tmp_parts p
 """)
@@ -1095,7 +1095,9 @@ SET is_adult = s.adult_from_source OR EXISTS (
     JOIN lncrawler_api_tag t ON t.id = st.tag_id
     WHERE st.novelfromsource_id = s.id AND t.is_adult)
 """)
+        self.stdout.write(f'Novel adult flags: {refresh_novel_adult()} rows updated')
         self.stdout.write(f'Novel rankings: {refresh_novel_rankings()} rows updated')
+        self.stdout.write(f'Name counts: {refresh_name_counts()} rows updated')
         self.stdout.write(f'Chapter stats: {refresh_chapter_stats()} rows updated')
 
         self.stdout.write('Analyzing ...')

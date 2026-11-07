@@ -31,5 +31,34 @@
         "popularity",
         "trending",
         "last_updated"
+    ],
+    "chapter_labels": {
+        "en": "Chapter {number}",
+        "fr": "Chapitre {number}",
+        "es": "Capítulo {number}",
+        "de": "Kapitel {number}",
+        "it": "Capitolo {number}",
+        "ja": "第{number}章",
+        "ko": "{number}화",
+        "zh": "第{number}章",
+        "pt": "Capítulo {number}",
+        "ru": "Глава {number}",
+        "ar": "الفصل {number}",
+        "hi": "अध्याय {number}",
+        "th": "บทที่ {number}",
+        "vi": "Chương {number}",
+        "id": "Bab {number}",
+        "tr": "Bölüm {number}",
+        "pl": "Rozdział {number}",
+        "nl": "Hoofdstuk {number}",
+        "sv": "Kapitel {number}",
+        "da": "Kapitel {number}"
+    },
+    "chapter_title_format": "{number}. {title}",
+    "chapter_number_patterns": [
+        "^\\s*(?:chapter|chap|ch|chapitre|capítulo|capitulo|cap|kapitel|kap|capitolo|kapitola|rozdział|rozdz|hoofdstuk|bölüm|bab|chương|глава|гл|الفصل|فصل|अध्याय|บทที่|episode|ep)\\.?\\s*[#№°]?\\s*[0-9]+(?:[.,][0-9]+)?",
+        "^\\s*[0-9]+(?:[.,][0-9]+)?\\s*(?:[-:–—)|]|\\.(?![0-9])|$)",
+        "^\\s*第\\s*[0-9〇零一二三四五六七八九十百千万两]+\\s*[章话話回节節卷巻]",
+        "^\\s*[0-9]+\\s*[화話话章]"
     ]
 }

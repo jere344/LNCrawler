@@ -6,6 +6,7 @@ const makeChapter = (n: number, overrides: Partial<ChapterContent> = {}): Chapte
   id: `id-${n}`,
   chapter_id: n,
   title: `Chapter ${n}`,
+  display_title: `Chapter ${n}`,
   novel_title: 'Novel',
   novel_id: 'novel-1',
   novel_slug: 'novel',

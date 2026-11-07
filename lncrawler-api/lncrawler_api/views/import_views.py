@@ -27,7 +27,8 @@ from ..services.novelupdates_import_service import (
     match_entries,
     parse_nu_export,
 )
-from ..utils.query_helpers import apply_novel_prefetches, has_audiobook_subquery
+from ..services.reading_history import set_reading_position
+from ..utils.query_helpers import novel_queryset
 
 
 @api_view(["POST"])
@@ -58,9 +59,8 @@ def parse_novelupdates_import(request):
             novel_ids.add(entry["novel"].id)
         novel_ids.update(candidate.id for candidate in entry["candidates"])
 
-    novels = apply_novel_prefetches(
-        Novel.objects.filter(id__in=novel_ids)
-        .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+    novels = novel_queryset(
+        Novel.objects.filter(id__in=novel_ids),
         request.user,
     )
     serialized = NovelSerializer(
@@ -209,26 +209,16 @@ def apply_novelupdates_import(request):
             if chapter_id or volume_id:
                 chapter = _resolve_chapter(novel, chapter_id, volume_id)
                 if chapter is not None:
-                    existing = (
+                    # Best-effort: never move a user's progress backwards. Only a row that changed counts.
+                    before = (
                         ReadingHistory.objects.filter(user=request.user, novel=novel)
-                        .select_related("last_read_chapter")
+                        .values_list("current_chapter_id", "position")
                         .first()
                     )
-                    current = (
-                        existing.last_read_chapter.chapter_id
-                        if existing and existing.last_read_chapter
-                        else None
+                    row = set_reading_position(
+                        request.user, novel, chapter.novel_from_source, chapter, 1, forward_only=True,
                     )
-                    # Best-effort: never move a user's progress backwards.
-                    if current is None or chapter.chapter_id > current:
-                        ReadingHistory.objects.update_or_create(
-                            user=request.user,
-                            novel=novel,
-                            defaults={
-                                "source": chapter.novel_from_source,
-                                "last_read_chapter": chapter,
-                            },
-                        )
+                    if (row.current_chapter_id, row.position) != before:
                         counters["progress_set"] += 1
 
     return Response(counters)

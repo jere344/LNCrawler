@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { SEEK_BACK_S, SEEK_FORWARD_S, useAudioPlayer, useAudioPlayerTime, type SleepOption } from '@context/AudioPlayerContext';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
-import { audiobookPath, audiobookRevealKey, audioChapterLabel } from '@utils/audiobook';
+import { audiobookPath, audiobookRevealKey } from '@utils/audiobook';
 import { formatClock } from '@utils/duration';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
@@ -109,7 +109,7 @@ const FullPlayer: React.FC = () => {
             {t('audioPlayer.generatedCaption')}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {audioChapterLabel(t, chapter.number, chapter.title)}
+            {chapter.title}
           </Typography>
         </Box>
         <IconButton aria-label={t('audioPlayer.close')} onClick={() => player.expand(false)}>
@@ -233,7 +233,7 @@ const FullPlayer: React.FC = () => {
             >
               {i < index && <CheckIcon fontSize="small" color="success" aria-label={t('audiobooks.chapterListened')} />}
               <ListItemText
-                primary={audioChapterLabel(t, item.number, item.title)}
+                primary={item.title}
                 secondary={formatClock(item.duration_s)}
               />
             </ListItemButton>

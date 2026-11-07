@@ -11,7 +11,7 @@ from unittest import mock
 
 import numpy as np
 from django.core.management import call_command
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -30,20 +30,23 @@ from django.contrib import messages as django_messages
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
 from django.db import IntegrityError
-from ..admin.source_admin import TagAdmin, TagAdminForm
+from ..admin.novel_admin import NovelAdmin
+from ..admin.source_admin import ExternalSourceAdmin, NovelFromSourceAdmin, TagAdmin, TagAdminForm
 from ..models import sources_models
 from ..models.source_links import TAG_IMPORT_ATTEMPTS, TagImportError
 from ..models.sources_models import (
     _set_source_tags,
-    adult_novel_ids,
-    is_majority_adult,
+    refresh_adult,
     refresh_adult_for_tags,
+    refresh_novel_adult,
 )
 from ..utils.query_helpers import exclude_adult, public_novels, public_sources
 from ..services import MergeError, llm_service, merge_tags, rename_tag
 from ..services import embedding_service, llm_tasks, merge_service
 from ..services import tag_merge_service as tms
 from ..services.candidate_blocks import blocked_pairs, pair_key
+from ..services.novel_operations import move_source_to_novel
+from ..services.novel_rankings import refresh_name_counts
 from ..services.candidate_service import (
     CandidateError,
     apply_candidate,
@@ -53,6 +56,7 @@ from ..services.candidate_service import (
 from ..services.merge_common import sorted_pk_signature
 from ..utils.tag_utils import normalize_tag
 
+from .helpers import make_source
 from .llm_helpers import llm_chain
 
 
@@ -135,6 +139,7 @@ class TagAutocompleteAliasTests(TestCase):
         )
         source.tags.add(self.canonical)
         TagAlias.objects.create(name="isekai", tag=self.canonical)
+        refresh_name_counts()
 
     def _suggest(self, query):
         response = self.client.get(
@@ -153,6 +158,59 @@ class TagAutocompleteAliasTests(TestCase):
     def test_canonical_and_alias_merge_into_one_entry(self):
         # "Isekai" (canonical) and "isekai" (alias) both match case-insensitively.
         self.assertEqual(len(self._suggest("sekai")), 1)
+
+
+class TagAutocompleteCountTests(TestCase):
+    """Autocomplete reads the stored Tag.novel_count: most used first, then by name."""
+
+    def setUp(self):
+        external = ExternalSource.objects.create(source_name="tag-count-site")
+        self.isekai = Tag.objects.create(name="Isekai")
+        self.harem = Tag.objects.create(name="Isekai Harem")
+        self.romance = Tag.objects.create(name="Isekai Romance")
+        TagAlias.objects.create(name="isekai lite", tag=self.harem)
+        links = {"n1": [self.isekai, self.harem], "n2": [self.isekai], "n3": [self.isekai, self.romance]}
+        for slug, tags in links.items():
+            novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+            make_source(novel, external=external).tags.add(*tags)
+        refresh_name_counts()
+
+    def _suggest(self, query, **params):
+        response = self.client.get(
+            reverse("autocomplete_suggestion"), {"type": "tag", "query": query, **params}
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_alias_ties_break_on_the_canonical_name(self):
+        # Equal counts: the limit keeps the canonical name first in order, whatever the alias names.
+        alpha = Tag.objects.create(name="Alpha")
+        beta = Tag.objects.create(name="Beta")
+        TagAlias.objects.create(name="xz", tag=alpha)
+        TagAlias.objects.create(name="xa", tag=beta)
+        self.assertEqual([s["name"] for s in self._suggest("x", limit=1)], ["Alpha"])
+
+    def test_orders_by_stored_count_then_name(self):
+        suggestions = self._suggest("isekai")
+        self.assertEqual(
+            [(s["name"], s["count"]) for s in suggestions],
+            [("Isekai", 3), ("Isekai Harem", 1), ("Isekai Romance", 1)],
+        )
+
+    def test_alias_only_match_reports_the_canonical_stored_count(self):
+        self.assertEqual(
+            self._suggest("lite"),
+            [{"name": "Isekai Harem", "count": 1, "alias": "isekai lite"}],
+        )
+
+    def test_reads_the_stored_count_not_a_live_join(self):
+        Tag.objects.filter(pk=self.isekai.pk).update(novel_count=42)
+
+        self.assertEqual(self._suggest("isekai")[0]["count"], 42)
+
+    def test_limit_applies_to_the_stored_order(self):
+        suggestions = self._suggest("isekai", limit="2")
+        self.assertEqual([s["name"] for s in suggestions], ["Isekai", "Isekai Harem"])
 
 
 class NormalizeTagTests(SimpleTestCase):
@@ -367,6 +425,15 @@ class TagAdultPropagationTests(TestCase):
         self.assertTrue(own_flag.is_adult)
         self.assertTrue(two_tags.is_adult)
 
+    def test_r18_tag_flip_flags_the_novel_of_its_sources(self):
+        tag = Tag.objects.create(name="Harem")
+        source = self._source("http://s/20")
+        _set_source_tags(source, ["Harem"])
+        self.assertFalse(Novel.objects.get(pk=self.novel.pk).is_adult)
+        Tag.objects.filter(pk=tag.pk).update(is_adult=True)
+        self.assertEqual(refresh_adult_for_tags([tag.pk]), (1, 0))
+        self.assertTrue(Novel.objects.get(pk=self.novel.pk).is_adult)
+
     def test_merge_into_r18_tag_flags_moved_sources(self):
         target = Tag.objects.create(name="Harem", is_adult=True)
         other = Tag.objects.create(name="Reverse Harem")
@@ -410,10 +477,9 @@ class NovelMajorityAdultTests(TestCase):
     def _novel(self, slug, adult_flags):
         novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
         for index, is_adult in enumerate(adult_flags):
-            NovelFromSource.objects.create(
-                novel=novel,
-                external_source=ExternalSource.objects.create(source_name=f"{slug}-{index}"),
-                title=slug,
+            make_source(
+                novel,
+                external=ExternalSource.objects.create(source_name=f"{slug}-{index}"),
                 source_url=f"http://{slug}/{index}",
                 is_adult=is_adult,
             )
@@ -424,9 +490,16 @@ class NovelMajorityAdultTests(TestCase):
         self.one_of_two = self._novel("one-of-two", [True, False])
         self.two_of_three = self._novel("two-of-three", [True, True, False])
         self.clean = self._novel("clean", [False])
+        refresh_novel_adult()
 
     def _adult_ids(self):
-        return set(adult_novel_ids().values_list("novel_id", flat=True))
+        return set(Novel.objects.filter(is_adult=True).values_list("pk", flat=True))
+
+    def test_refresh_writes_only_the_novels_that_change(self):
+        self.assertEqual(refresh_novel_adult(), 0)
+        NovelFromSource.objects.filter(novel=self.one_of_two).update(is_adult=True)
+        self.assertEqual(refresh_novel_adult([self.one_of_two.pk]), 1)
+        self.assertEqual(refresh_novel_adult(), 0)
 
     def _visible_ids(self, viewer=None):
         public = public_novels(Novel.objects.all())
@@ -437,17 +510,14 @@ class NovelMajorityAdultTests(TestCase):
 
     def test_one_of_one_is_adult(self):
         self.assertIn(self.one_of_one.pk, self._adult_ids())
-        self.assertTrue(is_majority_adult(self.one_of_one.sources.all()))
         self.assertNotIn(self.one_of_one.pk, self._visible_ids())
 
     def test_one_of_two_is_not_adult(self):
         self.assertNotIn(self.one_of_two.pk, self._adult_ids())
-        self.assertFalse(is_majority_adult(self.one_of_two.sources.all()))
         self.assertIn(self.one_of_two.pk, self._visible_ids())
 
     def test_two_of_three_is_adult(self):
         self.assertIn(self.two_of_three.pk, self._adult_ids())
-        self.assertTrue(is_majority_adult(self.two_of_three.sources.all()))
         self.assertNotIn(self.two_of_three.pk, self._visible_ids())
 
     def test_public_sources_follow_the_novel_rule(self):
@@ -457,10 +527,12 @@ class NovelMajorityAdultTests(TestCase):
 
     def test_novel_serializer_reports_the_same_rule(self):
         from ..serializers import NovelSerializer
+        from ..utils.query_helpers import novel_queryset
 
+        pks = [self.one_of_one.pk, self.one_of_two.pk, self.two_of_three.pk, self.clean.pk]
         flags = {
             novel.pk: NovelSerializer(novel, context={"request": None}).data["is_adult"]
-            for novel in (self.one_of_one, self.one_of_two, self.two_of_three, self.clean)
+            for novel in novel_queryset(Novel.objects.filter(pk__in=pks))
         }
         self.assertEqual(flags, {
             self.one_of_one.pk: True,
@@ -468,6 +540,141 @@ class NovelMajorityAdultTests(TestCase):
             self.two_of_three.pk: True,
             self.clean.pk: False,
         })
+
+
+class NovelAdultFollowsSourceTests(TestCase):
+    """Each write that changes a source's flag, novel or existence refreshes the novels it concerns."""
+
+    def setUp(self):
+        self.old = Novel.objects.create(title="Old", slug="old", novel_path="old")
+        self.new = Novel.objects.create(title="New", slug="new", novel_path="new")
+        self.external = ExternalSource.objects.create(source_name="s")
+        self.admin = NovelFromSourceAdmin(NovelFromSource, admin.site)
+        self.tag_admin = TagAdmin(Tag, admin.site)
+        self.external_admin = ExternalSourceAdmin(ExternalSource, admin.site)
+        self.novel_admin = NovelAdmin(Novel, admin.site)
+        self.request = RequestFactory().post("/")
+
+    def _source(self, novel, url, **kwargs):
+        return make_source(novel, external=self.external, source_url=url, **kwargs)
+
+    def _is_adult(self, novel):
+        return Novel.objects.get(pk=novel.pk).is_adult
+
+    def test_moving_a_source_refreshes_both_novels(self):
+        leaving = self._source(self.old, "http://old/1", is_adult=True)
+        self._source(self.new, "http://new/1")
+        self._source(self.new, "http://new/2", is_adult=True)
+        refresh_novel_adult()
+        self.assertTrue(self._is_adult(self.old))
+        self.assertFalse(self._is_adult(self.new))
+
+        move_source_to_novel(leaving, self.new, move_files=False)
+
+        self.assertFalse(self._is_adult(self.old))
+        self.assertTrue(self._is_adult(self.new))
+
+    def test_admin_save_of_adult_from_source_flips_the_novel(self):
+        source = self._source(self.old, "http://old/1")
+        refresh_novel_adult()
+        self.assertFalse(self._is_adult(self.old))
+
+        source.adult_from_source = True
+        self.admin.save_model(self.request, source, form=None, change=True)
+
+        self.assertTrue(self._is_adult(self.old))
+
+    def test_admin_save_moving_a_source_refreshes_both_novels(self):
+        source = self._source(self.old, "http://old/1", adult_from_source=True)
+        refresh_adult()
+        self.assertTrue(self._is_adult(self.old))
+
+        source.novel = self.new
+        self.admin.save_model(self.request, source, form=None, change=True)
+
+        self.assertFalse(self._is_adult(self.old))
+        self.assertTrue(self._is_adult(self.new))
+
+    def test_deleting_the_plain_source_of_a_half_adult_novel_makes_it_adult(self):
+        self._source(self.old, "http://old/1", is_adult=True)
+        plain = self._source(self.old, "http://old/2")
+        refresh_novel_adult()
+        self.assertFalse(self._is_adult(self.old))
+
+        self.admin.delete_model(self.request, plain)
+
+        self.assertTrue(self._is_adult(self.old))
+
+    def test_bulk_delete_refreshes_the_novel_of_the_deleted_sources(self):
+        self._source(self.old, "http://old/1", is_adult=True)
+        plain = self._source(self.old, "http://old/2")
+        refresh_novel_adult()
+
+        self.admin.delete_queryset(self.request, NovelFromSource.objects.filter(pk=plain.pk))
+
+        self.assertTrue(self._is_adult(self.old))
+
+    def test_deleting_an_r18_tag_in_admin_un_adults_its_source_and_novel(self):
+        tag = Tag.objects.create(name="Harem", is_adult=True)
+        source = self._source(self.old, "http://old/1")
+        _set_source_tags(source, ["Harem"])
+        self.assertTrue(self._is_adult(self.old))
+
+        self.tag_admin.delete_model(self.request, tag)
+
+        source.refresh_from_db()
+        self.assertFalse(source.is_adult)
+        self.assertFalse(self._is_adult(self.old))
+        self.assertFalse(Tag.objects.filter(pk=tag.pk).exists())
+
+    def test_deleting_an_external_source_refreshes_the_novels_of_its_sources(self):
+        site = ExternalSource.objects.create(source_name="gone-site")
+        make_source(self.old, external=site, source_url="http://gone/1", is_adult=True)
+        refresh_novel_adult()
+        self.assertTrue(self._is_adult(self.old))
+
+        self.external_admin.delete_model(self.request, site)
+
+        self.assertFalse(self._is_adult(self.old))
+
+    def test_novel_admin_save_does_not_overwrite_a_refreshed_flag(self):
+        self._source(self.old, "http://old/1", adult_from_source=True)
+        stale = Novel.objects.get(pk=self.old.pk)
+        refresh_adult()
+        self.assertTrue(self._is_adult(self.old))
+
+        stale.title = "Renamed"
+        form = SimpleNamespace(instance=stale, save_m2m=lambda: None)
+        self.novel_admin.save_model(self.request, stale, form=form, change=True)
+        self.novel_admin.save_related(self.request, form, formsets=[], change=True)
+
+        self.assertTrue(self._is_adult(self.old))
+
+    def test_hourly_reconcile_repairs_a_corrupted_source_flag(self):
+        from ..scheduler import reconcile_novel_adult_task
+
+        source = self._source(self.old, "http://old/1")
+        refresh_novel_adult()
+        NovelFromSource.objects.filter(pk=source.pk).update(is_adult=True)
+
+        with self.assertLogs("lncrawler_api", level="WARNING"):
+            reconcile_novel_adult_task()
+
+        source.refresh_from_db()
+        self.assertFalse(source.is_adult)
+        self.assertFalse(self._is_adult(self.old))
+
+    def test_hourly_reconcile_corrects_a_corrupted_flag(self):
+        from ..scheduler import reconcile_novel_adult_task
+
+        self._source(self.old, "http://old/1")
+        refresh_novel_adult()
+        Novel.objects.filter(pk=self.old.pk).update(is_adult=True)
+
+        with self.assertLogs("lncrawler_api", level="WARNING"):
+            reconcile_novel_adult_task()
+
+        self.assertFalse(self._is_adult(self.old))
 
 
 class BuildClustersTests(SimpleTestCase):

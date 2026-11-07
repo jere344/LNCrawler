@@ -232,7 +232,8 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
     if (!target) return;
     try {
       setMarkReadBusy(true);
-      await userService.markChapterAsRead(novel.slug, target.sourceSlug, target.chapterNumber);
+      // Marking all as read moves the position to the latest chapter
+      await userService.saveReadingPosition(novel.slug, target.sourceSlug, target.chapterNumber, 1);
       onMarkedAsRead?.(novel);
     } catch (error) {
       console.error('Error marking novel as read:', error);

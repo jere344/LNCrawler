@@ -1,4 +1,4 @@
-from django.db import models, transaction
+from django.db import connection, models, transaction
 from django.db.models import Case, Count, Exists, F, OuterRef, Q, Value, When
 import logging
 import os
@@ -66,6 +66,7 @@ def _set_source_tags(novel_from_source, names):
                 if is_adult != novel_from_source.is_adult:
                     novel_from_source.is_adult = is_adult
                     NovelFromSource.objects.filter(pk=novel_from_source.pk).update(is_adult=is_adult)
+                    refresh_novel_adult([novel_from_source.novel_id])
                 return
         except TagImportRetry:
             continue
@@ -79,11 +80,12 @@ def refresh_adult(queryset=None):
 
     A source is adult when its own flag (``adult_from_source``: meta.json or an
     admin) is set, or when it carries an R18 tag. Both directions are applied,
-    so unflagging a tag clears the sources it alone made adult. A novel is adult
-    when more than half of its sources are (see ``adult_novel_ids``). Returns
+    so unflagging a tag clears the sources it alone made adult. The novels of
+    the sources are then re-derived (see ``refresh_novel_adult``). Returns
     ``(flagged, cleared)``.
     """
     queryset = NovelFromSource.objects.all() if queryset is None else queryset
+    novel_ids = set(queryset.order_by().values_list("novel_id", flat=True).distinct())
     r18_tag = NovelFromSource.tags.through.objects.filter(
         novelfromsource_id=OuterRef("pk"), tag__is_adult=True
     )
@@ -101,6 +103,7 @@ def refresh_adult(queryset=None):
     cleared = NovelFromSource.objects.filter(
         pk__in=computed.filter(computed_adult=False, is_adult=True).values("pk")
     ).update(is_adult=False)
+    refresh_novel_adult(novel_ids)
     return flagged, cleared
 
 
@@ -112,21 +115,42 @@ def refresh_adult_for_tags(tag_pks):
     return refresh_adult(NovelFromSource.objects.filter(tags__pk__in=tag_pks))
 
 
-def adult_novel_ids():
-    """Subquery of the ids of adult novels: more than half of their sources are adult."""
+def _majority_adult_novels(novel_ids=None):
+    """Subquery of the ids of the novels more than half of whose sources are adult.
+
+    Restricted to ``novel_ids`` when given, so a refresh of a few novels does not
+    group every source of the library.
+    """
+    sources = NovelFromSource.objects.order_by()
+    if novel_ids is not None:
+        sources = sources.filter(novel_id__in=novel_ids)
     return (
-        NovelFromSource.objects.order_by()
-        .values("novel_id")
+        sources.values("novel_id")
         .annotate(adult=Count("pk", filter=Q(is_adult=True)), total=Count("pk"))
         .filter(total__lt=2 * F("adult"))
         .values("novel_id")
     )
 
 
-def is_majority_adult(sources):
-    """Python twin of ``adult_novel_ids`` for already-loaded sources."""
-    flags = [source.is_adult for source in sources]
-    return 2 * sum(flags) > len(flags)
+def refresh_novel_adult(novel_ids=None):
+    """Recompute ``Novel.is_adult`` of ``novel_ids`` (all novels when None).
+
+    The only place the adult rule of novels lives: a novel is adult when more
+    than half of its sources are adult (their ``is_adult``, see ``refresh_adult``).
+    Only the rows whose value changes are written. The writes that change a
+    source's ``is_adult``, its novel or its existence call this for the novels
+    they touch, synchronously; the hourly scheduler task (reconcile_novel_adult)
+    repairs any drift a write missed. Returns the number of novels updated.
+    """
+    if novel_ids is not None:
+        novel_ids = list(novel_ids)
+        if not novel_ids:
+            return 0
+    novels = Novel.objects.all() if novel_ids is None else Novel.objects.filter(pk__in=novel_ids)
+    adult = _majority_adult_novels(novel_ids)
+    flagged = novels.filter(is_adult=False, pk__in=adult).update(is_adult=True)
+    cleared = novels.filter(is_adult=True).exclude(pk__in=adult).update(is_adult=False)
+    return flagged + cleared
 
 
 def bulk_update_chunked(objects, fields, chunk_size=CHAPTER_BULK_CHUNK):
@@ -392,7 +416,7 @@ class NovelFromSource(models.Model):
         existing novel never rewrites its original contributor.
         """
         # Local: services.chapter_stats imports this module's models.
-        from ..services.chapter_stats import STAT_FIELDS, refresh_chapter_stats
+        from ..services.chapter_stats import STAT_FIELDS, refresh_chapter_stats_sql
 
         with open(meta_json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -548,6 +572,8 @@ class NovelFromSource(models.Model):
                 'novelupdates_url', 'meta_file_path', 'last_chapter_update', 'source_version',
                 'updated_at',
             ])
+        # The flag just saved decides the novel's: refresh it now, not only once the tags are linked below.
+        refresh_novel_adult([novel.pk])
 
         # Handle authors (list of strings)
         try:
@@ -588,7 +614,9 @@ class NovelFromSource(models.Model):
                 "Skipped tags for source %s: they kept changing during import",
                 novel_from_source.pk,
             )
-        
+        # The source's flag is final now; its duplicates, if any, were deleted from this novel above.
+        refresh_novel_adult([novel.pk])
+
         # Handle alternative titles (list of strings, tolerating a split string)
         alt_titles = novel_data.get('alternative_titles', [])
         if isinstance(alt_titles, str):
@@ -739,7 +767,7 @@ class NovelFromSource(models.Model):
                     # An incoming chapter took these rows' slot, so they must go.
                     # Repoint their user data onto the chapter now holding that
                     # slot first: Comment.chapter is CASCADE and
-                    # ReadingHistory.last_read_chapter is SET_NULL, so deleting
+                    # ReadingHistory.current_chapter is SET_NULL, so deleting
                     # first would silently drop comments and wipe user progress.
                     from .comments_models import Comment
                     from .users_models import ReadingHistory
@@ -750,13 +778,13 @@ class NovelFromSource(models.Model):
                         if target is None:
                             continue
                         Comment.objects.filter(chapter=old).update(chapter=target)
-                        ReadingHistory.objects.filter(last_read_chapter=old).update(
-                            last_read_chapter=target
+                        ReadingHistory.objects.filter(current_chapter=old).update(
+                            current_chapter=target
                         )
                     Chapter.objects.filter(pk__in=[ch.pk for ch in stale]).delete()
 
                 if orphans:
-                    # Comment.chapter is CASCADE and ReadingHistory.last_read_chapter
+                    # Comment.chapter is CASCADE and ReadingHistory.current_chapter
                     # is SET_NULL, so an orphan with user data is kept rather than
                     # silently losing comments or reading progress. One query per
                     # relation covers all orphans at once.
@@ -805,14 +833,17 @@ class NovelFromSource(models.Model):
                     fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content', 'word_count']
                     bulk_update_chunked(chapters_to_update, fields_to_update)
 
-                # Last write of the transaction: the stored stats commit with the chapters.
-                refresh_chapter_stats([novel_from_source.pk])
+                # Last write of the transaction: the stored stats commit with the chapters,
+                # or the import fails with them (the chapter list trusts chapters_count).
+                with connection.cursor() as cursor:
+                    refresh_chapter_stats_sql(cursor, [novel_from_source.pk])
 
             # Update last_chapter_update timestamp
             novel_from_source.last_chapter_update = timezone.now()
             novel_from_source.save(update_fields=['last_chapter_update'])
         else:
-            refresh_chapter_stats([novel_from_source.pk])
+            with connection.cursor() as cursor:
+                refresh_chapter_stats_sql(cursor, [novel_from_source.pk])
         # The overview image shows the chapter count: reload the stats the refresh wrote.
         novel_from_source.refresh_from_db(fields=STAT_FIELDS)
 

@@ -24,8 +24,9 @@ from ..services.llm_service import LLMParseError
 from ..services.llm_tasks import REGISTRY, settle
 from ..services.merge_common import sorted_pk_signature
 from ..services.merge_service import MergeError
+from ..services.novel_rankings import refresh_name_counts
 from ..utils.author_names import is_bracketed_original, normalize_author, romanization_fits
-from ..views.novels_views import _author_ids
+from ..utils.query_helpers import _author_ids
 
 
 def author_rows():
@@ -577,6 +578,55 @@ class ImportAuthorLockingTests(TestCase):
                 _set_source_authors(self.source, ["Cuttlefish That Loves Diving"])
         self.assertEqual(lock.call_count, AUTHOR_IMPORT_ATTEMPTS)
         self.assertEqual(list(self.source.authors.all()), [self.okina])
+
+
+class AuthorAutocompleteCountTests(TestCase):
+    """Autocomplete reads the stored Author.novel_count and never lists a blocked author."""
+
+    def setUp(self):
+        external = ExternalSource.objects.create(source_name="author-count-site")
+        self.tsukasa = Author.objects.create(name="Kiryu Tsukasa")
+        AuthorAlias.objects.create(name="Tsukasa K.", author=self.tsukasa)
+        self.kaito = Author.objects.create(name="Kiryu Kaito")
+        self.banned = Author.objects.create(name="Kiryu Banned")
+        Author.all_objects.filter(pk=self.banned.pk).update(is_blocked=True)
+        links = {
+            "n1": [self.tsukasa, self.kaito, self.banned],
+            "n2": [self.tsukasa, self.banned],
+            "n3": [self.banned],
+        }
+        for slug, authors in links.items():
+            novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+            source = NovelFromSource.objects.create(
+                novel=novel,
+                external_source=external,
+                title=slug,
+                source_url=f"http://authorcount/{slug}",
+            )
+            source.authors.add(*authors)
+        refresh_name_counts()
+
+    def _suggest(self, query):
+        response = self.client.get(
+            reverse("autocomplete_suggestion"), {"type": "author", "query": query}
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def test_orders_by_stored_count_and_hides_the_blocked_author(self):
+        self.assertEqual(
+            [(s["name"], s["count"]) for s in self._suggest("kiryu")],
+            [("Kiryu Tsukasa", 2), ("Kiryu Kaito", 1)],
+        )
+
+    def test_blocked_canonical_author_is_excluded(self):
+        self.assertEqual(self._suggest("banned"), [])
+
+    def test_alias_match_reports_the_canonical_stored_count(self):
+        self.assertEqual(
+            self._suggest("tsukasa k"),
+            [{"name": "Kiryu Tsukasa", "count": 2, "alias": "Tsukasa K."}],
+        )
 
 
 class BlockedAuthorTests(TestCase):

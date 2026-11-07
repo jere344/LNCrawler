@@ -375,16 +375,21 @@ def warm_catalogs_task():
         lambda: call_command_isolated('warm_catalogs'),
     )
 
-# Refresh the projected ranking columns that search sorts read. One set-based
-# UPDATE; only rows whose values changed are written, so frequent runs are cheap.
+# Refresh the projected ranking columns that search sorts read, and the tag/author novel counts
+# that autocomplete reads. Set-based UPDATEs; only rows whose values changed are written, so
+# frequent runs are cheap.
 @scheduler.register_task(interval=300, name="refresh_novel_rankings")  # 5 minutes
 def refresh_novel_rankings_task():
-    from .services.novel_rankings import refresh_novel_rankings
+    from .services.novel_rankings import refresh_name_counts, refresh_novel_rankings
 
     logger.info("Refreshing novel ranking projections...")
     try:
         updated = refresh_novel_rankings()
-        logger.info("Novel ranking refresh completed: %s row(s) updated", updated)
+        name_counts = refresh_name_counts()
+        logger.info(
+            "Novel ranking refresh completed: %s row(s) updated, %s name count row(s) updated",
+            updated, name_counts,
+        )
     except Exception as e:
         logger.error(f"Error refreshing novel rankings: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
@@ -404,29 +409,29 @@ def refresh_chapter_stats_task():
         logger.error(f"Error refreshing chapter stats: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
-# Top up the audiobook part queue to AUDIOBOOK_QUEUE_WORDS (about one night of work),
-# so the worker always finds a part when it starts. Does nothing while AUDIOBOOK_ENABLED is off.
-@scheduler.register_task(interval=HOUR, name="enqueue_audiobooks")  # hourly
-def enqueue_audiobooks_task():
-    from .services.audiobook_scheduler import enqueue_audiobooks
+# Hourly repair of the adult flags. The writes refresh what they touch synchronously; this repairs the drift
+# a write missed. Novels first (novel-only drift), then the sources (refresh_adult also refreshes the novels
+# it changes, which it does not report), then every novel once more for convergence. A non-zero count means
+# a write path skipped its refresh.
+@scheduler.register_task(interval=HOUR, name="reconcile_novel_adult")  # hourly
+def reconcile_novel_adult_task():
+    from .models.sources_models import refresh_adult, refresh_novel_adult
 
+    logger.info("Reconciling adult flags...")
     try:
-        summary = enqueue_audiobooks()
-        logger.info("Audiobook enqueue completed: %s", summary)
+        novels_before = refresh_novel_adult()
+        flagged, cleared = refresh_adult()
+        novels_after = refresh_novel_adult()
+        if novels_before or flagged or cleared or novels_after:
+            logger.warning(
+                "Adult flags reconciled: %s novel(s) corrected, %s source(s) flagged, %s cleared, "
+                "%s novel(s) corrected after the sources",
+                novels_before, flagged, cleared, novels_after,
+            )
+        else:
+            logger.info("Adult flags reconciled: nothing to correct")
     except Exception as e:
-        logger.error(f"Error enqueuing audiobooks: {str(e)}", exc_info=True)
-        raise  # Re-raise to mark task as failed
-
-# Give back the audiobook parts whose worker stopped renewing its lease.
-@scheduler.register_task(interval=300, name="reap_audiobook_leases")  # 5 minutes
-def reap_audiobook_leases_task():
-    from .services.audiobook_scheduler import reap_expired_leases
-
-    try:
-        summary = reap_expired_leases()
-        logger.info("Audiobook lease reap completed: %s", summary)
-    except Exception as e:
-        logger.error(f"Error reaping audiobook leases: {str(e)}", exc_info=True)
+        logger.error(f"Error reconciling novel adult flags: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
 # Daily audiobook housekeeping: audiobooks follow their moved sources, flag stale parts.

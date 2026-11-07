@@ -1,8 +1,8 @@
 from rest_framework import serializers
 from django.db.models import Subquery
-from ..models import AudiobookChapter, AudiobookPart, Chapter
+from ..models import Chapter
 from ..models.comments_models import Comment
-from ..services.audiobook_public import LISTENABLE_PART_Q, chapter_audio_hidden, chapter_audio_url
+from ..services.audiobook_public import chapter_audio_hidden, chapter_audio_url, public_audio_chapters
 from ..utils import build_media_url
 from .mixins import ProfileFieldsMixin
 
@@ -14,6 +14,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     ``card`` is the lightweight chapter row (default); ``content`` adds the
     chapter body, navigation and the comment summary of the chapter.
     """
+    display_title = serializers.SerializerMethodField()
     body = serializers.SerializerMethodField()
     prev_chapter = serializers.SerializerMethodField()
     next_chapter = serializers.SerializerMethodField()
@@ -37,22 +38,25 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     default_profile = 'card'
     field_profiles = {
         'card': [
-            'id', 'chapter_id', 'title', 'url', 'volume', 'volume_title', 'has_content', 'has_audio',
+            'id', 'chapter_id', 'title', 'display_title', 'url', 'volume', 'volume_title', 'has_content', 'has_audio',
         ],
         'content': [
-            'id', 'chapter_id', 'title', 'novel_title', 'novel_id', 'novel_slug',
+            'id', 'chapter_id', 'title', 'display_title', 'novel_title', 'novel_id', 'novel_slug',
             'source_id', 'source_name', 'source_slug', 'language', 'body', 'prev_chapter', 'next_chapter',
             'prev_chapter_id', 'next_chapter_id',
             'images_path', 'source_overview_image_url', 'audio_url', 'audio_duration_s',
             'comment_count', 'top_comment',
         ],
         'unavailable': [
-            'chapter_id', 'title', 'novel_title', 'prev_chapter', 'next_chapter',
+            'chapter_id', 'title', 'display_title', 'novel_title', 'prev_chapter', 'next_chapter',
         ],
     }
 
     class Meta:
         model = Chapter
+
+    def get_display_title(self, obj):
+        return obj.display_title
 
     def get_body(self, obj):
         return obj.body
@@ -141,18 +145,10 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         audio fields of the same chapter."""
         cache = self.__dict__.setdefault('_public_audio_cache', {})
         viewer = getattr(self.context.get('request'), 'user', None)
-        if obj.pk not in cache and chapter_audio_hidden(viewer, obj.novel_from_source):
-            cache[obj.pk] = None
         if obj.pk not in cache:
             cache[obj.pk] = (
-                AudiobookChapter.objects.select_related('part')
-                .filter(
-                    chapter=obj,
-                    part__in=AudiobookPart.objects.filter(LISTENABLE_PART_Q),
-                    part__audiobook__published=True,
-                )
-                .exclude(part__audiobook__status='retired')
-                .first()
+                None if chapter_audio_hidden(viewer, obj.novel_from_source)
+                else public_audio_chapters().select_related('part').filter(chapter=obj).first()
             )
         return cache[obj.pk]
 
@@ -165,8 +161,9 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return audio.duration_s if audio else None
 
     def get_has_audio(self, obj: Chapter):
-        # Set by the chapter list view (chapter_has_audio_subquery); a queryset without it reports False.
-        return bool(getattr(obj, 'annotated_has_audio', False))
+        # The chapter list view passes the ids of the chapters of its page that have public audio, in one query
+        # (context ``audio_chapter_ids``); a serializer without it reports False.
+        return obj.pk in self.context.get('audio_chapter_ids', ())
 
     def get_comment_count(self, obj: Chapter):
         # Every comment on this chapter number, across all sources, replies included.

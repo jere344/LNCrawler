@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, type MouseEvent, type RefObject } from 'react';
+import { Fragment, useEffect, useRef, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -12,7 +12,6 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 import type { CommentPreview } from '@models/comments_types';
-import { getChapterLabel } from '@utils/Misc';
 import BreadcrumbNav from '../../common/BreadcrumbNav';
 import ChapterSection, { ChapterSectionHeader } from './ChapterSection';
 import ChapterStreamEnd from './ChapterStreamEnd';
@@ -23,7 +22,6 @@ import type { ReaderTapProps } from '../hooks/useReaderTapInput';
 import { useReaderSettings } from '../hooks/useReaderSettings';
 import type { ChapterStream } from '../hooks/useChapterStream';
 import { sectionKeyOf } from '../hooks/chapterRange';
-import type { MarkReadProps } from '../controls/readerBarTypes';
 import { TTS_BAR_HEIGHT } from '../tts/ttsTypes';
 import type { SwipeableHandlers } from 'react-swipeable';
 
@@ -31,8 +29,6 @@ interface ChapterArticleProps {
   chapter: IChapterContent;
   novelSlug?: string;
   sourceSlug?: string;
-  // Sentinel placed after the chapter text, watched to detect the reader reaching its end
-  endOfChapterRef: RefObject<HTMLDivElement | null>;
   // Infinite mode: the chapters on the page, from the route's one down, and what stopped the list
   stream: ChapterStream;
   infinite: boolean;
@@ -42,17 +38,12 @@ interface ChapterArticleProps {
   onOpenSettings: () => void;
   onOpenChapterList: () => void;
   onNarrate: () => void;
-  markRead: MarkReadProps;
   onPrevious: () => void;
   onNext: () => void;
   // All comments on the chapter, the posted ones included
   commentCount: number;
   topComment: CommentPreview | null;
   onOpenComments: (opts?: { compose?: boolean }) => void;
-  // Infinite mode: the chapters marked as read this session, the ones with a mark request in flight, and marking one
-  markedChapters: ReadonlySet<number>;
-  markingChapters: ReadonlySet<number>;
-  onMarkChapter: (chapterNumber: number) => void;
   // Infinite mode: opens the comments of a section on the page, which may not be the route's chapter
   onOpenCommentsFor: (chapter: IChapterContent, opts?: { compose?: boolean }) => void;
   ttsOpen: boolean;
@@ -69,7 +60,6 @@ const ChapterArticle = ({
   chapter,
   novelSlug,
   sourceSlug,
-  endOfChapterRef,
   stream,
   infinite,
   tapProps,
@@ -78,15 +68,11 @@ const ChapterArticle = ({
   onOpenSettings,
   onOpenChapterList,
   onNarrate,
-  markRead: { showMarkRead, markReadSuccess, markingAsRead, onMarkAsRead },
   onPrevious,
   onNext,
   commentCount,
   topComment,
   onOpenComments,
-  markedChapters,
-  markingChapters,
-  onMarkChapter,
   onOpenCommentsFor,
   ttsOpen,
   barHeight,
@@ -95,7 +81,7 @@ const ChapterArticle = ({
 }: ChapterArticleProps) => {
   const { t } = useTranslation();
   const settings = useReaderSettings();
-  const chapterLabel = getChapterLabel(t, chapter.title, chapter.chapter_id);
+  const chapterLabel = chapter.display_title;
   const { chapters: streamChapters, end: streamEnd, loadMore } = stream;
   // Keyed on the last section, so a trim at the top does not re-observe
   const lastStreamKey = streamChapters.length ? sectionKeyOf(streamChapters[streamChapters.length - 1]) : null;
@@ -132,15 +118,11 @@ const ChapterArticle = ({
     onOpenChapterList();
   };
 
-  // The previous, mark-read and next controls, from the chapter's neighbours; the mark-read button only when asked for
-  const readerControls = (withMarkRead: boolean, neighbours: IChapterContent = chapter) => (
+  // The previous and next controls, from the chapter's neighbours
+  const readerControls = (neighbours: IChapterContent = chapter) => (
     <ReaderControls
       prevChapter={neighbours.prev_chapter}
       nextChapter={neighbours.next_chapter}
-      isAuthenticated={withMarkRead && showMarkRead}
-      markReadSuccess={markReadSuccess}
-      markingAsRead={markingAsRead}
-      onMarkAsRead={onMarkAsRead}
       onPrevious={onPrevious}
       onNext={onNext}
     />
@@ -204,7 +186,6 @@ const ChapterArticle = ({
                     <ChapterSection
                       chapter={streamChapter}
                       contentId={isActive ? 'reader-content' : `reader-content-${streamChapter.chapter_id}`}
-                      endRef={isActive ? endOfChapterRef : undefined}
                       landmark
                       header={false}
                       tapProps={tapProps}
@@ -218,38 +199,26 @@ const ChapterArticle = ({
                       <Box sx={{ mb: 4 }}>
                         <ChapterCommentsCard
                           count={isActive ? commentCount : (streamChapter.comment_count ?? 0)}
-                          chapterLabel={getChapterLabel(t, streamChapter.title, streamChapter.chapter_id)}
+                          chapterLabel={streamChapter.display_title}
                           topComment={streamChapter.top_comment ?? null}
                           onOpen={(opts) => onOpenCommentsFor(streamChapter, opts)}
                         />
                       </Box>
                     )}
 
-                    {/* Mark as read for this section; no previous or next here, the controls at the end of the stream keep them */}
-                    {showMarkRead && (
-                      <ReaderControls
-                        isAuthenticated
-                        markReadSuccess={markedChapters.has(streamChapter.chapter_id)}
-                        markingAsRead={markingChapters.has(streamChapter.chapter_id)}
-                        onMarkAsRead={() => onMarkChapter(streamChapter.chapter_id)}
-                        onPrevious={onPrevious}
-                        onNext={onNext}
-                      />
-                    )}
                   </Fragment>
                 );
               })}
               <ChapterStreamEnd stream={stream} novelSlug={novelSlug} sourceSlug={sourceSlug} />
               <Box ref={loadMoreRef} aria-hidden="true" sx={{ height: 1 }} />
-              {/* The last section has its own mark-read button, so only previous and next are kept here, from the last section's neighbours */}
-              {streamEnd && readerControls(false, streamChapters[streamChapters.length - 1] ?? chapter)}
+              {/* Previous and next, from the last section's neighbours */}
+              {streamEnd && readerControls(streamChapters[streamChapters.length - 1] ?? chapter)}
             </Paper>
           ) : (
             <Paper elevation={3} sx={paperSx(8)}>
               <ChapterSection
                 chapter={chapter}
                 contentId="reader-content"
-                endRef={endOfChapterRef}
                 tapProps={tapProps}
                 onListen={onListen}
                 onOpenSettings={onOpenSettings}
@@ -267,7 +236,7 @@ const ChapterArticle = ({
               </Box>
 
               {/* Reader Controls */}
-              {readerControls(true)}
+              {readerControls()}
             </Paper>
           )}
         </Container>

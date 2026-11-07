@@ -50,11 +50,6 @@
     </p>
     <p>
       Queued words: <strong>{{ queued_words }}</strong>
-      &middot; Est. nights to empty the queue:
-      <strong>{% if est_nights is not None %}{{ est_nights }}{% else %}&mdash;{% endif %}</strong>
-    </p>
-    <p>
-      Queue words (queued and claimed): <strong>{{ budget_queued_words }}</strong> / target <strong>{{ queue_target_words }}</strong>
       &middot; Started books in rotation: <strong>{{ started_books }}</strong>
     </p>
     <table>

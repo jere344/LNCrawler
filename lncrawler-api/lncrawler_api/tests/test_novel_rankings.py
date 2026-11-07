@@ -5,10 +5,11 @@ from datetime import date, timedelta
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from ..models import ExternalSource, Novel, NovelFromSource, NovelRating, WeeklySourceView
 from ..services.novel_rankings import refresh_novel_rankings
-from .helpers import make_novel
+from .helpers import make_novel, make_source
 
 
 class NovelRankingRefreshTests(TestCase):
@@ -146,3 +147,66 @@ class NovelRankingSearchTests(TestCase):
     def test_rating_sort_uses_refreshed_order(self):
         titles = self._titles(sort_by="rating", sort_order="desc")
         self.assertEqual(titles, ["Gamma", "Alpha", "Beta"])
+
+
+class LastUpdatedSortTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        now = timezone.now()
+        external = ExternalSource.objects.create(source_name="rank-updated-site")
+
+        def make(title, *updates):
+            slug = title.lower().replace(" ", "-")
+            novel = Novel.objects.create(title=title, slug=slug, novel_path=title)
+            for index, updated in enumerate(updates):
+                make_source(
+                    novel,
+                    external=external,
+                    source_url=f"http://updated/{slug}/{index}",
+                    source_slug=f"{slug}-{index}",
+                    last_chapter_update=updated,
+                )
+            return novel
+
+        self.now = now
+        # Fresh has a recent source and an old one: the novel's update is the recent one (max).
+        make("Fresh", now - timedelta(days=1), now - timedelta(days=20))
+        make("Middle", now - timedelta(days=5))
+        make("Old", now - timedelta(days=10))
+        # Never updated: a source with no update, and a novel with no source at all.
+        make("Unupdated", None)
+        make("Bare")
+        refresh_novel_rankings()
+
+    def _titles(self, **params):
+        response = self.client.get(reverse("search_novels"), {"adult": "show", **params})
+        self.assertEqual(response.status_code, 200)
+        return [n["title"] for n in response.data["results"]]
+
+    def test_desc_puts_most_recent_update_first_and_never_updated_last(self):
+        self.assertEqual(
+            self._titles(sort_by="last_updated", sort_order="desc"),
+            ["Fresh", "Middle", "Old", "Bare", "Unupdated"],
+        )
+
+    def test_asc_orders_by_most_recent_update_and_never_updated_last(self):
+        # Asc uses the same most recent update as desc (not the oldest source): Fresh sits after Middle.
+        self.assertEqual(
+            self._titles(sort_by="last_updated", sort_order="asc"),
+            ["Old", "Middle", "Fresh", "Bare", "Unupdated"],
+        )
+
+    def test_default_direction_is_ascending(self):
+        self.assertEqual(
+            self._titles(sort_by="last_updated"),
+            ["Old", "Middle", "Fresh", "Bare", "Unupdated"],
+        )
+
+    def test_projection_is_stale_until_next_refresh(self):
+        NovelFromSource.objects.filter(source_slug="old-0").update(last_chapter_update=self.now)
+        self.assertEqual(self._titles(sort_by="last_updated", sort_order="desc")[0], "Fresh")
+        refresh_novel_rankings()
+        self.assertEqual(self._titles(sort_by="last_updated", sort_order="desc")[0], "Old")
+
+    def test_refresh_writes_nothing_when_last_update_unchanged(self):
+        self.assertEqual(refresh_novel_rankings(), 0)

@@ -116,11 +116,11 @@ class SerializerProfileTests(TestCase):
         cases = {
             ChapterSerializer: {
                 "card": [
-                    "id", "chapter_id", "title", "url", "volume", "volume_title",
+                    "id", "chapter_id", "title", "display_title", "url", "volume", "volume_title",
                     "has_content", "has_audio",
                 ],
                 "content": [
-                    "id", "chapter_id", "title", "novel_title", "novel_id",
+                    "id", "chapter_id", "title", "display_title", "novel_title", "novel_id",
                     "novel_slug", "source_id", "source_name", "source_slug", "language", "body",
                     "prev_chapter", "next_chapter", "prev_chapter_id",
                     "next_chapter_id", "images_path",
@@ -128,19 +128,19 @@ class SerializerProfileTests(TestCase):
                     "comment_count", "top_comment",
                 ],
                 "unavailable": [
-                    "chapter_id", "title", "novel_title", "prev_chapter",
+                    "chapter_id", "title", "display_title", "novel_title", "prev_chapter",
                     "next_chapter",
                 ],
             },
             ReadingHistorySerializer: {
-                "card": ["id", "last_read_chapter", "last_read_at"],
+                "card": ["id", "current_chapter", "position", "last_read_at"],
                 "library": [
-                    "source_slug", "last_read_chapter", "unread_chapters",
-                    "source_latest_chapter",
+                    "source_slug", "source_name", "current_chapter", "position",
+                    "unread_chapters", "source_latest_chapter", "resume",
                 ],
                 "detail": [
-                    "id", "novel_slug", "source_slug", "last_read_chapter",
-                    "last_read_at", "next_chapter", "unread_chapters",
+                    "id", "novel_slug", "source_slug", "source_name", "current_chapter",
+                    "position", "last_read_at", "resume", "unread_chapters",
                     "source_latest_chapter",
                 ],
             },
@@ -158,7 +158,7 @@ class SerializerProfileTests(TestCase):
             CommentSerializer: {
                 "novel": base_comment + ["type", "edited"],
                 "chapter": base_comment + [
-                    "type", "chapter_title", "chapter_id", "source_name",
+                    "type", "chapter_display_title", "chapter_id", "source_name",
                     "source_slug", "edited",
                 ],
                 "profile": base_comment + [
@@ -182,7 +182,7 @@ class SerializerProfileTests(TestCase):
                 "me": [
                     "id", "username", "email", "profile_pic", "banner", "bio",
                     "social_links", "privacy_settings", "date_joined", "last_login",
-                    "word_read", "chapters_read_count", "chapters_not_read_yet_count",
+                    "chapters_read_count", "chapters_not_read_yet_count",
                     "preferred_ui_language", "preferred_languages",
                     "language_filter_enabled", "discoverable", "show_r18", "pinned_novels",
                 ],
@@ -322,11 +322,11 @@ class SerializerProfileTests(TestCase):
 
     def test_list_profile_query_count_is_flat(self):
         """Serializing 2 vs 4 novels must cost the same: any growth is an N+1."""
-        from ..utils.query_helpers import apply_novel_prefetches
+        from ..utils.query_helpers import novel_queryset
 
         for index in range(4):
             self._make_novel(index)
-        queryset = apply_novel_prefetches(Novel.objects.all().order_by("title"), None)
+        queryset = novel_queryset(Novel.objects.all().order_by("title"), None)
         self.assertEqual(
             self._list_queries(queryset[:2]),
             self._list_queries(queryset[:4]),
@@ -335,12 +335,12 @@ class SerializerProfileTests(TestCase):
     def test_unread_chapters_reads_prefetched_annotation(self):
         """A prefetched history must answer ``unread_chapters`` from the
         annotation, not one COUNT per row (the N+1 the prefetch removes).
-        Note ``next_chapter``/``source_latest_chapter`` remain per-row."""
+        Note ``resume``/``source_latest_chapter`` remain per-row."""
         from django.contrib.auth import get_user_model
         from django.test.utils import CaptureQueriesContext
 
         from ..serializers import ReadingHistorySerializer
-        from ..utils.query_helpers import apply_novel_prefetches
+        from ..utils.query_helpers import novel_queryset
 
         user = get_user_model().objects.create_user(username="reader", password="x")
         novel = self._make_novel(1)
@@ -356,10 +356,10 @@ class SerializerProfileTests(TestCase):
                 has_content=True,
             )
         ReadingHistory.objects.create(
-            user=user, novel=novel, source=source, last_read_chapter=read,
+            user=user, novel=novel, source=source, current_chapter=read,
         )
 
-        prefetched = apply_novel_prefetches(
+        prefetched = novel_queryset(
             Novel.objects.filter(pk=novel.pk), user
         ).get()
         history = prefetched.user_histories[0]
@@ -433,7 +433,10 @@ class SerializerProfileTests(TestCase):
         from ..services.novel_rankings import refresh_novel_rankings
         refresh_novel_rankings()
 
-        data = NovelSerializer(target, profile="detail", context={"request": None}).data
+        from ..utils.query_helpers import novel_queryset
+
+        detail = novel_queryset(Novel.objects.filter(pk=target.pk), profile="detail").get()
+        data = NovelSerializer(detail, profile="detail", context={"request": None}).data
         titles = [item["title"] for item in data["similar_novels"]]
         self.assertEqual(titles[-1], "No Source")
         self.assertTrue(
@@ -545,10 +548,14 @@ class SerializerProfileTests(TestCase):
                 has_content=True,
             )
 
-        data = NovelSerializer(novel, context={"request": None}).data
+        from ..utils.query_helpers import novel_queryset
+
+        data = NovelSerializer(
+            novel_queryset(Novel.objects.filter(pk=novel.pk)).get(), context={"request": None}
+        ).data
         self.assertEqual(data["prefered_source"]["source_slug"], "strong")
 
-    def test_unread_chapters_counts_only_content_after_last_read(self):
+    def test_unread_chapters_counts_only_content_after_current(self):
         from django.contrib.auth import get_user_model
 
         from ..serializers import ReadingHistorySerializer
@@ -564,14 +571,14 @@ class SerializerProfileTests(TestCase):
             )
         user = get_user_model().objects.create_user(username="reader", password="x")
         history = ReadingHistory.objects.create(
-            user=user, novel=novel, source=source, last_read_chapter=chapters[1],
+            user=user, novel=novel, source=source, current_chapter=chapters[1],
         )
 
         data = ReadingHistorySerializer(history, profile="detail").data
         # Only chapter 3 has content after chapter 1 (2 and 4 are gaps).
         self.assertEqual(data["unread_chapters"], 1)
 
-    def test_unread_chapters_is_none_without_last_read_chapter(self):
+    def test_unread_chapters_is_none_without_current_chapter(self):
         from django.contrib.auth import get_user_model
 
         from ..serializers import ReadingHistorySerializer
@@ -584,3 +591,75 @@ class SerializerProfileTests(TestCase):
 
         data = ReadingHistorySerializer(history, profile="detail").data
         self.assertIsNone(data["unread_chapters"])
+
+
+class NovelCardCountersTests(TestCase):
+    """The card counters are SQL annotations set by ``novel_queryset``: card and detail read the same numbers,
+    the views follow the selected languages, and a novel built without the annotations fails loudly."""
+
+    def _novel(self):
+        novel = Novel.objects.create(title="Counted", slug="counted", novel_path="counted")
+        for language, total_views, views in (("en", 100, 3), ("fr", 7, 5)):
+            source = NovelFromSource.objects.create(
+                novel=novel,
+                external_source=ExternalSource.objects.create(source_name=f"site-{language}"),
+                title=f"Source {language}",
+                source_url=f"http://site/{language}",
+                source_slug=f"site-{language}",
+                language=language,
+                total_views=total_views,
+            )
+            WeeklySourceView.objects.create(source=source, day=timezone.localdate(), views=views)
+        return novel
+
+    def _rate(self, novel, ratings):
+        for index, rating in enumerate(ratings):
+            NovelRating.objects.create(novel=novel, ip_address=f"10.0.0.{index}", rating=rating)
+
+    def test_card_and_detail_profiles_read_the_same_counters(self):
+        from ..serializers import NovelSerializer
+        from ..utils.query_helpers import novel_queryset
+
+        novel = self._novel()
+        # 20 ratings averaging 2.45: the card rounds it to 2.5, the same float round the Python average used.
+        self._rate(novel, [2] * 13 + [3] * 5 + [4] * 2)
+        for profile in ("card", "detail"):
+            loaded = novel_queryset(Novel.objects.filter(pk=novel.pk), profile=profile).get()
+            data = NovelSerializer(loaded, profile=profile, context={"request": None}).data
+            self.assertEqual(data["avg_rating"], 2.5, profile)
+            self.assertEqual(data["rating_count"], 20, profile)
+            self.assertEqual(data["total_views"], 107, profile)
+            self.assertEqual(data["weekly_views"], 8, profile)
+
+    def test_unrated_novel_reports_no_average(self):
+        from ..serializers import NovelSerializer
+        from ..utils.query_helpers import novel_queryset
+
+        novel = self._novel()
+        loaded = novel_queryset(Novel.objects.filter(pk=novel.pk)).get()
+        data = NovelSerializer(loaded, context={"request": None}).data
+        self.assertIsNone(data["avg_rating"])
+        self.assertEqual(data["rating_count"], 0)
+
+    def test_language_scopes_total_and_weekly_views(self):
+        from ..serializers import NovelSerializer
+        from ..utils.query_helpers import novel_queryset
+
+        novel = self._novel()
+        scoped = novel_queryset(Novel.objects.filter(pk=novel.pk), languages=["fr"]).get()
+        self.assertEqual(scoped.card_total_views, 7)
+        self.assertEqual(scoped.card_weekly_views, 5)
+        data = NovelSerializer(scoped, context={"request": None}).data
+        self.assertEqual(data["total_views"], 7)
+        self.assertEqual(data["weekly_views"], 5)
+
+        everything = novel_queryset(Novel.objects.filter(pk=novel.pk)).get()
+        self.assertEqual(everything.card_total_views, 107)
+        self.assertEqual(everything.card_weekly_views, 8)
+
+    def test_counters_fail_loudly_without_the_annotations(self):
+        from ..serializers import NovelSerializer
+
+        novel = self._novel()
+        with self.assertRaisesMessage(AttributeError, "card_"):
+            NovelSerializer(novel, context={"request": None}).data

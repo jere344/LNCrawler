@@ -10,14 +10,6 @@ export interface ReaderShortcuts {
   fullscreen?: string;
 }
 
-// The mark-as-read button: whether it shows, its state, and what it does
-export interface MarkReadProps {
-  showMarkRead: boolean;
-  markReadSuccess: boolean;
-  markingAsRead: boolean;
-  onMarkAsRead: () => void;
-}
-
 // The fullscreen button: hidden when unsupported, and shows the state it would leave
 export interface FullscreenProps {
   supported: boolean;
@@ -41,7 +33,6 @@ export interface ReaderBarProps {
   // Width in px kept clear at the end edge (the display panel, on phone landscape)
   reservedEnd: number;
   shortcuts: ReaderShortcuts;
-  markRead: MarkReadProps;
   fullscreen: FullscreenProps;
   // The fullscreen button's label, and its tooltip with the shortcut when one is bound
   fullscreenLabel: string;

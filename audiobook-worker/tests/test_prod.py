@@ -9,7 +9,6 @@ from worker.prod import CompleteRejected, PartGone, ProdClient, ProdUnavailable,
 
 TOKEN = "tok"
 WORKER = "worker-a"
-CAST = {"Narrator": {"engine": "qwen", "voice": "v", "model": "qwen3-tts-1.7b", "role": "narrator"}}
 QA = {"passed": True, "checks": {}, "notes": []}
 
 
@@ -81,8 +80,9 @@ def test_epub_download_writes_the_file(client, server, tmp_path):
 def test_heartbeat_ok_then_part_gone_after_cancel(client, server):
     client.claim()
     part_id = server.state.part.part_id
-    assert client.heartbeat(part_id, 0.25, "generation", "rendering") == "2026-11-02T03:30:00Z"
+    client.heartbeat(part_id, 0.25, "generation", "rendering")
     assert server.state.heartbeats[-1]["progress"] == 0.25
+    assert server.state.heartbeats[-1]["message"] == "rendering"
 
     server.state.cancel()
     with pytest.raises(PartGone):
@@ -132,7 +132,7 @@ def test_complete_reports_missing_chapters(client, server):
     part_id = server.state.part.part_id
     expected = [c.chapter_id for c in server.state.part.chapters]
     with pytest.raises(CompleteRejected) as info:
-        client.complete(part_id, CAST, QA, "castwright+qwen-hz+kokoro", "castwright@x")
+        client.complete(part_id, QA, "castwright+qwen-hz+kokoro", "castwright@x")
     assert info.value.missing == expected
 
 
@@ -142,8 +142,8 @@ def test_complete_succeeds_once_every_chapter_is_uploaded(client, server, tmp_pa
     ogg = make_ogg(str(tmp_path / "c.ogg"))
     for chapter in server.state.part.chapters:
         client.upload_chapter(part_id, chapter.chapter_id, ogg)
-    client.complete(part_id, CAST, QA, "castwright+qwen-hz+kokoro", "castwright@x")
-    assert server.state.completed["cast"] == CAST
+    client.complete(part_id, QA, "castwright+qwen-hz+kokoro", "castwright@x")
+    assert "cast" not in server.state.completed
     assert server.state.completed["qa"]["passed"] is True
 
 
@@ -247,6 +247,13 @@ def test_non_json_claim_body_is_unavailable_not_a_crash():
         client.claim()
 
 
+def test_heartbeat_does_not_read_the_response_body():
+    session = StubSession([StubResponse(200, body=None)])  # not JSON, and the heartbeat does not need it
+    client = ProdClient("http://x/", TOKEN, WORKER, ["en"], backoffs=(0, 0, 0), sleep=lambda s: None, session=session)
+    assert client.heartbeat("part-1", 0.5, "generation", "rendering") is None
+    assert session.calls == 1
+
+
 def test_oversize_upload_is_refused_before_sending(tmp_path):
     big = tmp_path / "big.ogg"
     with open(big, "wb") as fh:
@@ -279,20 +286,10 @@ def test_ping_and_claim_send_languages_not_engine_profiles():
         assert "engine_profile" not in body
 
 
-def test_complete_rejects_a_non_string_description(server):
-    client = ProdClient(server.api_base, TOKEN, WORKER, ["en"], backoffs=(0, 0, 0), sleep=lambda s: None)
-    client.claim()
-    part_id = server.state.part.part_id
-    bad_cast = {"Mara": {"engine": "qwen", "voice": "v", "role": "main", "description": 5}}
-    with pytest.raises(CompleteRejected):
-        client.complete(part_id, bad_cast, QA, "castwright+qwen-hz+kokoro", "castwright@x")
-    assert server.state.completed is None
-
-
 def test_complete_409_after_a_lost_connection_is_the_finished_part_not_a_cancel():
     session = StubSession([requests.exceptions.ConnectionError("cut"), StubResponse(409)])
     client = ProdClient("http://x/", TOKEN, WORKER, ["en"], backoffs=(0, 0, 0), sleep=lambda s: None, session=session)
-    client.complete("part-1", CAST, QA, "castwright+kokoro", "castwright@x")  # no PartGone
+    client.complete("part-1", QA, "castwright+kokoro", "castwright@x")  # no PartGone
     assert session.calls == 2
 
 
@@ -300,5 +297,5 @@ def test_complete_409_on_the_first_attempt_is_a_cancel():
     session = StubSession([StubResponse(409)])
     client = ProdClient("http://x/", TOKEN, WORKER, ["en"], backoffs=(0, 0, 0), sleep=lambda s: None, session=session)
     with pytest.raises(PartGone):
-        client.complete("part-1", CAST, QA, "castwright+kokoro", "castwright@x")
+        client.complete("part-1", QA, "castwright+kokoro", "castwright@x")
     assert session.calls == 1

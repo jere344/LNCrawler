@@ -1,4 +1,5 @@
-import api from './api';
+import api, { getCsrfToken } from './api';
+import { API_BASE_URL } from './config';
 import { LibraryFolder, LibraryListResponse, ReadingHistory } from '@models/novels_types';
 import type { HistoryKind } from '@models/audiobook_types';
 
@@ -75,16 +76,40 @@ const userService = {
     return response.data;
   },
 
-  // Mark a chapter as read
-  markChapterAsRead: async (
+  // Save the reading position: the chapter being read, and the progress through it (0..1).
+  // keepalive lets the request outlive the page, for saves sent as it is left.
+  saveReadingPosition: async (
     novelSlug: string,
     sourceSlug: string,
-    chapterNumber: number
+    chapterNumber: number,
+    progress: number,
+    options?: { keepalive?: boolean }
   ): Promise<ReadingHistory> => {
-    const response = await api.post(
-      `/users/reading-history/mark-read/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/`
-    );
-    return response.data;
+    const path = `/users/reading-history/position/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/`;
+    if (!options?.keepalive) {
+      const response = await api.post(path, { progress });
+      return response.data;
+    }
+    // The http client does not pass keepalive on, so this is a plain fetch with the same headers
+    const csrfToken = getCsrfToken();
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      keepalive: true,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...api.defaults.headers.common,
+        ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {}),
+      },
+      body: JSON.stringify({ progress }),
+    });
+    if (!response.ok) {
+      // Shaped like the http client's error, so the status can be read the same way
+      throw Object.assign(new Error(`Request failed with status code ${response.status}`), {
+        response: { status: response.status },
+      });
+    }
+    return response.json();
   },
 
   // List reading history: read entries, listening entries, or both merged by date (`kind`)

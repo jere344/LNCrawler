@@ -143,10 +143,10 @@ class Command(BaseCommand):
         )
         chapters_url = f'/novels/{novel.slug}/{source.source_slug}/chapters/'
         tag = source.tags.order_by('name').values_list('name', flat=True).first()
-        # Unpublished or retired audiobooks 404 and would time nothing.
+        # Retired or unlistenable audiobooks 404 and would time nothing.
         audiobook = (
             Audiobook.objects.select_related('novel')
-            .filter(language='en', published=True)
+            .filter(language='en')
             .exclude(status='retired')
             .first()
         )
@@ -378,7 +378,7 @@ class Command(BaseCommand):
         folder = LibraryFolder.objects.create(user=user, name='Perf folder')
         NovelBookmark.objects.create(user=user, novel=novel, folder=folder)
         ReadingHistory.objects.create(
-            user=user, novel=novel, source=source, last_read_chapter=chapter
+            user=user, novel=novel, source=source, current_chapter=chapter
         )
         # Pad history to five distinct novels so the home page's "recommended
         # for you" path is exercised by the authenticated profile. Distinct
@@ -396,7 +396,7 @@ class Command(BaseCommand):
                 user=user,
                 novel=extra_novel,
                 source=extra_source,
-                last_read_chapter=None,
+                current_chapter=None,
             )
         reading_list = ReadingList.objects.create(
             user=user, title='Perf list', is_public=True

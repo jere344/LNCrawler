@@ -17,6 +17,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
+from ..models.sources_models import refresh_novel_adult
 from ..models import (
     Audiobook,
     AudiobookChapter,
@@ -31,6 +32,7 @@ from ..models import (
     ReadingHistory,
 )
 from ..services import audiobook_m4b
+from .helpers import make_source, set_adult
 from .test_audiobooks import AudiobookBase
 from .test_seo import _ld
 
@@ -41,7 +43,7 @@ COVER_PATCHES = (
 
 
 class PublicAudiobookBase(AudiobookBase):
-    """The 'foo' audiobook: one published English audiobook with one listenable part of three chapters."""
+    """The 'foo' audiobook: one English audiobook with one listenable part of three chapters."""
 
     def setUp(self):
         super().setUp()
@@ -52,8 +54,6 @@ class PublicAudiobookBase(AudiobookBase):
         self.source = self.make_source()
         self.chapters = self.add_chapters(self.source, [100, 100, 100])
         self.audiobook = self.make_audiobook(self.source)
-        self.audiobook.published = True
-        self.audiobook.save()
         self.part = self.make_part(
             self.audiobook, status="done", qa_passed=True, duration_s=3600,
             size_bytes=1000, chapter_start=1, chapter_end=3,
@@ -65,8 +65,8 @@ class PublicAudiobookBase(AudiobookBase):
             )
         self.user = get_user_model().objects.create_user(username="listener", password="pw12345!")
 
-    def make_public(self, slug, duration_s=3600.0, language="en", published=True):
-        """Another novel with a published audiobook of one listenable part and one chapter."""
+    def make_public(self, slug, duration_s=3600.0, language="en", status="active"):
+        """Another novel with an audiobook of one listenable part and one chapter."""
         novel = Novel.objects.create(title=slug.title(), slug=slug, novel_path=slug)
         source_path = os.path.join(slug, "site")
         os.makedirs(os.path.join(self.tmp, source_path), exist_ok=True)
@@ -83,9 +83,7 @@ class PublicAudiobookBase(AudiobookBase):
         chapter = Chapter.objects.create(
             novel_from_source=source, chapter_id=1, url=f"http://{slug}/1/1", title="Chapter 1", has_content=True,
         )
-        audiobook = Audiobook.objects.create(
-            novel=novel, source=source, language=language, published=published,
-        )
+        audiobook = Audiobook.objects.create(novel=novel, source=source, language=language, status=status)
         part = self.make_part(
             audiobook, status="done", qa_passed=True, duration_s=duration_s, chapter_start=1, chapter_end=1,
         )
@@ -115,25 +113,32 @@ class AudiobookListTests(PublicAudiobookBase):
         self.assertEqual(response.json()["count"], 1)
         card = response.json()["results"][0]
         self.assertEqual(card["slug"], "foo")
-        self.assertEqual(card["parts"], 1)
         self.assertEqual(card["chapters"], 3)
         self.assertEqual(card["duration_s"], 3600)
         self.assertIsNone(card["progress"])
+        self.assertNotIn("parts", card)
+        self.assertNotIn("featured", card)
 
     def test_part_not_listenable_is_not_counted(self):
         self.make_part(self.audiobook, index=2, status="queued", chapter_start=4, chapter_end=6)
 
         card = self.client.get(reverse("list_audiobooks")).json()["results"][0]
 
-        self.assertEqual(card["parts"], 1)
         self.assertEqual(card["chapters"], 3)
 
-    def test_unpublished_retired_dmca_and_unlistenable_are_hidden(self):
-        self.audiobook.published = False
-        self.audiobook.save()
-        self.assertEqual(self.client.get(reverse("list_audiobooks")).json()["count"], 0)
+    def test_a_part_that_failed_qa_is_listed_and_playable(self):
+        AudiobookPart.objects.filter(pk=self.part.pk).update(qa_passed=False)
 
-        self.audiobook.published = True
+        results = self.client.get(reverse("list_audiobooks")).json()["results"]
+        play = self.client.post(
+            reverse("audiobook_play", kwargs={"slug": "foo"}),
+            json.dumps({"chapter_id": self.chapter_pk(1)}), content_type="application/json",
+        )
+
+        self.assertEqual([card["slug"] for card in results], ["foo"])
+        self.assertEqual(play.status_code, 204)
+
+    def test_retired_dmca_and_unlistenable_are_hidden(self):
         self.audiobook.status = "retired"
         self.audiobook.save()
         self.assertEqual(self.client.get(reverse("list_audiobooks")).json()["count"], 0)
@@ -146,7 +151,7 @@ class AudiobookListTests(PublicAudiobookBase):
 
         self.novel.is_dmca = False
         self.novel.save()
-        AudiobookPart.objects.filter(pk=self.part.pk).update(qa_passed=False, approved=False)
+        AudiobookPart.objects.filter(pk=self.part.pk).update(status="failed")
         self.assertEqual(self.client.get(reverse("list_audiobooks")).json()["count"], 0)
 
     def test_popular_sort_uses_recent_plays_and_downloads(self):
@@ -236,10 +241,39 @@ class AudiobookDetailTests(PublicAudiobookBase):
         body = response.json()
         self.assertEqual(body["slug"], "foo")
         self.assertIn("audiobooks/foo/feed.xml", body["feed_url"])
+        self.assertNotIn("cast", body)
+        self.assertEqual(len(body["parts"]), 1)
+        self.assertEqual(body["parts"][0]["index"], 1)
         self.assertEqual(body["parts"][0]["state"], "available")
+        self.assertEqual(body["parts"][0]["chapter_start"], 1)
+        self.assertEqual(body["parts"][0]["chapter_end"], 3)
         self.assertEqual(len(body["parts"][0]["chapters"]), 3)
         self.assertTrue(body["parts"][0]["chapters"][0]["audio_url"].endswith("?g=0"))
-        self.assertEqual(body["parts"][0]["downloads"]["opus"], {"cached": False})
+        self.assertEqual(body["parts"][0]["downloads"], {"opus": {"cached": False}, "aac": {"cached": False}})
+
+    def test_parts_follow_index_and_chapter_number(self):
+        second = self.add_chapters(self.source, [100], first_id=4, write_files=False)[-1]
+        self.make_part(
+            self.audiobook, index=2, status="done", qa_passed=True, duration_s=100, size_bytes=1,
+            chapter_start=4, chapter_end=4, chapter_ids=[second.pk],
+        )
+        AudiobookChapter.objects.create(
+            part=AudiobookPart.objects.get(audiobook=self.audiobook, index=2), chapter=second,
+            file_path="foo/site/audio/4.opus", duration_s=100, size_bytes=1, sha256="0" * 64,
+        )
+
+        body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
+
+        self.assertEqual([part["index"] for part in body["parts"]], [1, 2])
+        self.assertEqual([chapter["number"] for chapter in body["parts"][0]["chapters"]], [1, 2, 3])
+        self.assertEqual(
+            [chapter["number"] for chapter in body["parts"][1]["chapters"]],
+            [4],
+        )
+        self.assertEqual(
+            set(body["parts"][0]["chapters"][0]),
+            {"chapter_id", "number", "title", "audio_url", "duration_s", "offset_s", "volume", "volume_title"},
+        )
 
     def test_detail_reports_cached_downloads_without_touching_the_file(self):
         path = self.cached_path()
@@ -250,34 +284,46 @@ class AudiobookDetailTests(PublicAudiobookBase):
         self.assertTrue(body["parts"][0]["downloads"]["opus"]["cached"])
         self.assertEqual(os.path.getmtime(path), 1000)
 
-    def test_parts_carry_engine_and_estimated_duration(self):
-        self.part.engine = "kokoro-82m"
-        self.part.estimated_duration_s = 3500
-        self.part.save()
+    def test_queued_part_is_in_production_with_its_estimate(self):
         self.make_part(
-            self.audiobook, index=2, status="queued", chapter_start=4, chapter_end=6, estimated_duration_s=1800,
+            self.audiobook, index=2, status="queued", chapter_start=4, chapter_end=6, word_count=900,
+            estimated_duration_s=1800,
         )
+        self.make_part(self.audiobook, index=3, status="failed", chapter_start=7, chapter_end=7)
 
-        parts = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()["parts"]
+        body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
 
-        self.assertEqual(parts[0]["engine"], "kokoro-82m")
-        self.assertEqual(parts[0]["estimated_duration_s"], 3500)
-        self.assertIsNone(parts[1]["engine"])
-        self.assertEqual(parts[1]["estimated_duration_s"], 1800)
+        self.assertEqual([part["index"] for part in body["parts"]], [1, 2])
+        queued = body["parts"][1]
+        self.assertEqual(queued["state"], "in_production")
+        self.assertEqual(
+            set(queued),
+            {
+                "index", "state", "chapter_start", "chapter_end", "word_count", "duration_s", "estimated_duration_s",
+                "engine", "size_bytes", "progress", "downloads", "chapters", "volumes",
+            },
+        )
+        self.assertEqual(queued["chapter_start"], 4)
+        self.assertEqual(queued["estimated_duration_s"], 1800)
+        self.assertIsNone(queued["downloads"])
+        self.assertIsNone(queued["chapters"])
 
-    def test_cast_keeps_a_stripped_and_capped_description(self):
-        self.audiobook.cast = {
-            'Narrator': {'role': 'narrator', 'engine': 'kokoro', 'description': '  calm narrator  '},
-            'Mara': {'role': 'main', 'engine': 'kokoro'},
-            'Bob': {'role': 'minor', 'engine': 'kokoro', 'description': 'x' * 400},
-        }
-        self.audiobook.save()
+    def test_in_production_progress_is_null_while_queued_and_the_build_progress_once_claimed(self):
+        self.make_part(self.audiobook, index=2, status="queued", chapter_start=4, chapter_end=4)
+        self.make_part(self.audiobook, index=3, status="claimed", chapter_start=5, chapter_end=5, progress=0.4)
 
-        cast = {member["name"]: member for member in self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()["cast"]}
+        body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
 
-        self.assertEqual(cast["Narrator"]["description"], "calm narrator")
-        self.assertIsNone(cast["Mara"]["description"])
-        self.assertEqual(len(cast["Bob"]["description"]), 300)
+        self.assertEqual([part["progress"] for part in body["parts"]], [None, None, 0.4])
+
+    def test_qa_failed_part_is_available_with_its_chapters_and_downloads(self):
+        AudiobookPart.objects.filter(pk=self.part.pk).update(qa_passed=False)
+
+        body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
+
+        self.assertEqual(body["parts"][0]["state"], "available")
+        self.assertEqual(len(body["parts"][0]["chapters"]), 3)
+        self.assertIn("opus", body["parts"][0]["downloads"])
 
     def test_one_volume_is_not_has_volumes(self):
         for chapter in self.chapters:
@@ -287,9 +333,8 @@ class AudiobookDetailTests(PublicAudiobookBase):
         body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
 
         self.assertFalse(body["has_volumes"])
-        self.assertEqual(body["parts"][0]["volumes"], [{"number": 1, "title": None}])
 
-    def test_several_volumes_list_each_part_volumes_and_chapter_volume(self):
+    def test_several_volumes_list_each_chapter_volume_and_the_production_volumes(self):
         self.chapters[0].volume = 1
         self.chapters[0].volume_title = "Beginnings"
         self.chapters[0].save()
@@ -304,7 +349,6 @@ class AudiobookDetailTests(PublicAudiobookBase):
         body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
 
         self.assertTrue(body["has_volumes"])
-        self.assertEqual(body["parts"][0]["volumes"], [{"number": 1, "title": "Beginnings"}, {"number": 2, "title": None}])
         self.assertEqual(body["parts"][1]["volumes"], [{"number": 3, "title": None}])
         self.assertEqual(
             [(chapter["volume"], chapter["volume_title"]) for chapter in body["parts"][0]["chapters"]],
@@ -338,13 +382,16 @@ class AudiobookDetailTests(PublicAudiobookBase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_unpublished_is_404(self):
-        self.audiobook.published = False
+    def test_retired_or_unlistenable_is_404(self):
+        self.audiobook.status = "retired"
         self.audiobook.save()
+        self.assertEqual(self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).status_code, 404)
 
-        response = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"}))
-
-        self.assertEqual(response.status_code, 404)
+        self.audiobook.status = "active"
+        self.audiobook.save()
+        self.part.status = "failed"
+        self.part.save()
+        self.assertEqual(self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).status_code, 404)
 
     def test_dmca_detail_is_served_and_flagged_but_hidden_from_lists(self):
         self.novel.is_dmca = True
@@ -356,18 +403,16 @@ class AudiobookDetailTests(PublicAudiobookBase):
         self.assertTrue(response.json()["is_dmca"])
         self.assertEqual(self.client.get(reverse("list_audiobooks")).json()["count"], 0)
 
-    def make_edition(self, language, published=True, status="active"):
-        """An audiobook of the 'foo' novel in another language, with one listenable part."""
+    def make_edition(self, language, status="active", part_status="done"):
+        """An audiobook of the 'foo' novel in another language, with one part of ``part_status``."""
         source = self.make_source(name=f"site-{language}", language=language)
-        audiobook = Audiobook.objects.create(
-            novel=self.novel, source=source, language=language, published=published, status=status,
-        )
-        self.make_part(audiobook, status="done", qa_passed=True, duration_s=3600)
+        audiobook = Audiobook.objects.create(novel=self.novel, source=source, language=language, status=status)
+        self.make_part(audiobook, status=part_status, qa_passed=True, duration_s=3600)
         return audiobook
 
     def test_other_languages_lists_the_other_visible_editions(self):
         self.make_edition("fr")
-        self.make_edition("de", published=False)
+        self.make_edition("de", part_status="queued")
         self.make_edition("es", status="retired")
 
         body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
@@ -463,7 +508,7 @@ class AudiobookProgressTests(PublicAudiobookBase):
 
         self.put({"chapter_id": self.chapter_pk(1), "position_s": 1080})
         history = ReadingHistory.objects.get(user=self.user, novel=self.novel)
-        self.assertEqual(history.last_read_chapter.chapter_id, 1)
+        self.assertEqual(history.current_chapter.chapter_id, 1)
 
     def test_finished_moves_reading_history_forward_only(self):
         self.client.force_login(self.user)
@@ -472,7 +517,7 @@ class AudiobookProgressTests(PublicAudiobookBase):
         self.put({"chapter_id": self.chapter_pk(1), "position_s": 1200, "finished": True})
 
         history = ReadingHistory.objects.get(user=self.user, novel=self.novel)
-        self.assertEqual(history.last_read_chapter.chapter_id, 2)
+        self.assertEqual(history.current_chapter.chapter_id, 2)
 
     def test_zero_length_chapter_never_moves_reading_history(self):
         self.client.force_login(self.user)
@@ -655,7 +700,7 @@ class AudiobookInPagesTests(PublicAudiobookBase):
         self.assertEqual(body["audio_duration_s"], 1200)
 
     def test_chapter_audio_url_is_none_when_hidden(self):
-        self.audiobook.published = False
+        self.audiobook.status = "retired"
         self.audiobook.save()
 
         body = self.client.get(
@@ -673,9 +718,11 @@ class AudiobookInPagesTests(PublicAudiobookBase):
         self.assertEqual(body["audiobooks"], [{"language": "en", "duration_s": 3600.0}])
 
     def test_home_has_featured_popular_and_continue_listening(self):
-        self.audiobook.featured = True
-        self.audiobook.save()
         popular = self.make_public("popular-one")
+        self.audiobook.last_part_at = timezone.now()
+        self.audiobook.save()
+        popular.last_part_at = timezone.now() - timedelta(days=1)
+        popular.save()
         AudiobookDailyStat.bump(popular.pk, plays=3)
         self.client.force_login(self.user)
         ListeningProgress.objects.create(user=self.user, audiobook=popular, position_s=5)
@@ -686,11 +733,26 @@ class AudiobookInPagesTests(PublicAudiobookBase):
         self.assertEqual([card["slug"] for card in block["popular"]], ["popular-one"])
         self.assertEqual([card["slug"] for card in block["continue_listening"]], ["popular-one"])
 
+    def test_home_featured_is_the_visible_audiobook_with_the_latest_last_part(self):
+        newer = self.make_public("newer-one")
+        self.audiobook.last_part_at = timezone.now() - timedelta(days=2)
+        self.audiobook.save()
+        newer.last_part_at = timezone.now()
+        newer.save()
+        retired = self.make_public("retired-one", status="retired")
+        retired.last_part_at = timezone.now() + timedelta(days=1)
+        retired.save()
+
+        block = self.client.get(reverse("home_page")).json()["audiobooks"]
+
+        self.assertEqual(block["featured"]["slug"], "newer-one")
+        self.assertEqual([card["slug"] for card in block["popular"]], ["foo"])
+
     def test_home_anonymous_has_no_continue_listening(self):
         block = self.client.get(reverse("home_page")).json()["audiobooks"]
 
         self.assertEqual(block["continue_listening"], [])
-        self.assertIsNone(block["featured"])
+        self.assertEqual(block["featured"]["slug"], "foo")
 
     def test_home_has_no_novels_you_added(self):
         self.client.force_login(self.user)
@@ -699,8 +761,6 @@ class AudiobookInPagesTests(PublicAudiobookBase):
         self.assertNotIn("novels_you_added", body)
 
     def test_home_rechecks_takedowns_after_the_cache(self):
-        self.audiobook.featured = True
-        self.audiobook.save()
         self.client.get(reverse("home_page"))
 
         self.novel.is_dmca = True
@@ -723,12 +783,7 @@ class AudiobookFlagsInPagesTests(PublicAudiobookBase):
 
         self.assertEqual(cards, {"foo": True, "bar": True, "baz": False})
 
-    def test_unpublished_retired_or_unlistenable_does_not_flag_the_novel(self):
-        self.audiobook.published = False
-        self.audiobook.save()
-        self.assertFalse(self.novel_cards()["foo"])
-
-        self.audiobook.published = True
+    def test_retired_or_unlistenable_does_not_flag_the_novel(self):
         self.audiobook.status = "retired"
         self.audiobook.save()
         self.assertFalse(self.novel_cards()["foo"])
@@ -752,7 +807,7 @@ class AudiobookFlagsInPagesTests(PublicAudiobookBase):
         french_url = reverse("source_detail", kwargs={"novel_slug": "foo", "source_slug": "fr"})
         self.assertIsNone(self.client.get(french_url).json()["audiobook"])
 
-        self.audiobook.published = False
+        self.audiobook.status = "retired"
         self.audiobook.save()
         url = reverse("source_detail", kwargs={"novel_slug": "foo", "source_slug": "site"})
         self.assertIsNone(self.client.get(url).json()["audiobook"])
@@ -827,24 +882,28 @@ class PodcastFeedTests(PublicAudiobookBase):
         self.assertEqual(len(narrators), 1)
 
     def test_one_item_per_listenable_chapter_newest_first(self):
-        # A part awaiting QA is not in the feed.
-        self.make_part(
+        # A part that failed QA is still listenable, so it is in the feed too.
+        self.part.completed_at = timezone.now() - timedelta(days=1)
+        self.part.save()
+        second = self.make_part(
             self.audiobook, index=2, status="done", qa_passed=False, duration_s=10,
-            chapter_start=1, chapter_end=1,
+            chapter_start=1, chapter_end=1, completed_at=timezone.now(),
         )
         pending = Chapter.objects.create(
             novel_from_source=self.source, chapter_id=4, url="http://foo/1/4", title="Pending", has_content=True,
         )
         AudiobookChapter.objects.create(
-            part=AudiobookPart.objects.get(audiobook=self.audiobook, index=2), chapter=pending,
+            part=second, chapter=pending,
             file_path="foo/site/audio/pending.opus", duration_s=10, size_bytes=1, sha256="0" * 64,
         )
 
         items = ET.fromstring(self.feed().content).find("channel").findall("item")
 
-        self.assertEqual([item.findtext(f"{ITUNES}episode") for item in items], ["3", "2", "1"])
-        self.assertEqual({item.findtext(f"{ITUNES}season") for item in items}, {"1"})
-        self.assertEqual([item.findtext(f"{ITUNES}episodeType") for item in items], ["full"] * 3)
+        self.assertEqual(
+            {(item.findtext(f"{ITUNES}season"), item.findtext(f"{ITUNES}episode")) for item in items},
+            {("1", "1"), ("1", "2"), ("1", "3"), ("2", "4")},
+        )
+        self.assertEqual([item.findtext(f"{ITUNES}episodeType") for item in items], ["full"] * 4)
         dates = [parsedate_to_datetime(item.findtext("pubDate")) for item in items]
         self.assertEqual(dates, sorted(dates, reverse=True))
 
@@ -881,11 +940,11 @@ class PodcastFeedTests(PublicAudiobookBase):
         self.assertEqual((newest - middle).total_seconds(), 1200)
 
     def test_hidden_audiobooks_are_404(self):
-        self.audiobook.published = False
+        self.audiobook.status = "retired"
         self.audiobook.save()
         self.assertEqual(self.feed().status_code, 404)
 
-        self.audiobook.published = True
+        self.audiobook.status = "active"
         self.audiobook.save()
         self.source.is_adult = True
         self.source.save()
@@ -913,7 +972,7 @@ class AudiobookSitemapTests(PublicAudiobookBase):
 
     def test_lists_listings_and_visible_audiobooks_only(self):
         self.make_public("bar")
-        self.make_public("hidden-one", published=False)
+        self.make_public("hidden-one", status="retired")
         self.make_public("baz", language="fr")
 
         self.assertEqual(
@@ -946,11 +1005,11 @@ class SeoAudiobookTests(PublicAudiobookBase):
         self.assertIn("Not an official audiobook.", html)
 
     def test_detail_hidden_is_404_and_dmca_is_451(self):
-        self.audiobook.published = False
+        self.audiobook.status = "retired"
         self.audiobook.save()
         self.assertEqual(self.client.get(reverse("seo_audiobook", args=["foo"])).status_code, 404)
 
-        self.audiobook.published = True
+        self.audiobook.status = "active"
         self.audiobook.save()
         self.novel.is_dmca = True
         self.novel.save()
@@ -958,7 +1017,7 @@ class SeoAudiobookTests(PublicAudiobookBase):
 
     def test_list_shows_visible_audiobooks_only(self):
         self.make_public("bar")
-        self.make_public("hidden-one", published=False)
+        self.make_public("hidden-one", status="retired")
 
         html = self.client.get(reverse("seo_audiobooks")).content.decode()
 
@@ -978,8 +1037,7 @@ class AudiobookAdultTests(PublicAudiobookBase):
 
     def setUp(self):
         super().setUp()
-        self.source.is_adult = True
-        self.source.save()
+        set_adult(self.source)
 
     def listed(self):
         return [card["slug"] for card in self.client.get(reverse("list_audiobooks")).json()["results"]]
@@ -1024,11 +1082,12 @@ class AudiobookAdultTests(PublicAudiobookBase):
         self.source.is_adult = False
         self.source.save()
         for slug in ("adult-a", "adult-b"):
-            NovelFromSource.objects.create(
-                novel=self.novel, external_source=ExternalSource.objects.create(source_name=f"site-{slug}"),
+            make_source(
+                self.novel, language="de", external=ExternalSource.objects.create(source_name=f"site-{slug}"),
                 title="Foo", source_url=f"http://foo/{slug}", source_path=f"foo/{slug}", source_slug=slug,
-                language="de", status="Ongoing", is_adult=True,
+                status="Ongoing", is_adult=True,
             )
+        refresh_novel_adult([self.novel.pk])
         self.user.show_r18 = "no"
         self.user.save()
         self.client.force_login(self.user)
@@ -1101,10 +1160,10 @@ class CatalogFeedTests(PublicAudiobookBase):
 
         self.assertEqual(titles, ["Bar — Part 1 (Generated audiobook)"])
 
-    def test_dmca_unpublished_and_unlistenable_are_not_listed(self):
+    def test_dmca_retired_and_unlistenable_are_not_listed(self):
         self.novel.is_dmca = True
         self.novel.save()
-        self.make_public("hidden-one", published=False)
+        self.make_public("hidden-one", status="retired")
 
         self.assertEqual(self.items(self.feed("?adult=include")), [])
 

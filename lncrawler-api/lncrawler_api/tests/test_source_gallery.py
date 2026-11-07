@@ -48,7 +48,7 @@ class SourceGalleryTests(MergeTestCase):
             [image["image_name"] for image in response.data["images"]],
             ["a.jpg", "b.jpg", "c.jpg"],
         )
-        self.assertEqual(response.data["images"][0]["chapter_title"], "")
+        self.assertEqual(response.data["images"][0]["chapter_display_title"], "Chapter 1")
 
     def test_overview_picture_is_listed_first(self):
         self.source.overview_picture_path = "gallery/site/overview.png"

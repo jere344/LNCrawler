@@ -395,7 +395,7 @@ class M4bBuildTests(ListenableBase):
 
         path = audiobook_m4b.build_m4b(self.part, 'opus')
 
-        self.assertEqual(probe(path)['chapters'][0]['tags']['title'], 'a=b;c#d\\e "q" \'x\' line2')
+        self.assertEqual(probe(path)['chapters'][0]['tags']['title'], '1. a=b;c#d\\e "q" \'x\' line2')
 
     def test_concat_paths_quote_the_apostrophe(self):
         self.assertEqual(

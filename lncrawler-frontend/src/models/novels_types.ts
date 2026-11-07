@@ -15,7 +15,7 @@ export interface Novel {
   is_bookmarked?: boolean | null;
   comment_count: number;
   created_at?: string;
-  reading_history?: DetailedReadingHistory | null;
+  reading_history?: ReadingHistory | null;
   reading_source?: NovelFromSource | null;
   similar_novels?: SimilarNovel[];
   is_dmca?: boolean;
@@ -47,8 +47,8 @@ export type LibrarySource = Pick<
 >;
 
 export type LibraryReadingHistory = Pick<
-  DetailedReadingHistory,
-  'source_slug' | 'last_read_chapter' | 'unread_chapters' | 'source_latest_chapter'
+  ReadingHistory,
+  'source_slug' | 'source_name' | 'current_chapter' | 'position' | 'unread_chapters' | 'source_latest_chapter' | 'resume'
 >;
 
 export type LibraryNovel = Pick<Novel, 'id' | 'title' | 'slug' | 'is_adult' | 'is_dmca' | 'is_bookmarked'> & {
@@ -102,7 +102,7 @@ export interface NovelFromSource {
   overview_url: string | null;
   latest_available_chapter: Chapter | null;
   first_available_chapter: Chapter | null;
-  reading_history?: DetailedReadingHistory | null;
+  reading_history?: ReadingHistory | null;
   novelupdates_url: string | null;
   editors: string[];
   translators: string[];
@@ -134,7 +134,7 @@ export interface NovelDetail {
   prefered_source: NovelFromSource | null;
   is_bookmarked?: boolean | null;
   comment_count: number;
-  reading_history?: DetailedReadingHistory | null;
+  reading_history?: ReadingHistory | null;
   similar_novels?: SimilarNovel[];
   reading_lists?: ReadingList[];
   is_dmca?: boolean;
@@ -155,6 +155,8 @@ export interface ChapterContent {
   id: string;
   chapter_id: number;
   title: string;
+  // The title as readers see it, numbered and in the novel's language; use this instead of title
+  display_title: string;
   novel_title: string;
   novel_id: string;
   novel_slug: string;
@@ -179,6 +181,7 @@ export interface ChapterContent {
 export interface UnavailableChapterInfo {
   chapter_id: number;
   title: string;
+  display_title: string;
   novel_title: string;
   prev_chapter?: number | null;
   next_chapter?: number | null;
@@ -188,6 +191,7 @@ export interface Chapter {
   id: string;
   chapter_id: number;
   title: string;
+  display_title: string;
   url: string;
   volume: number;
   volume_title: string | null;
@@ -209,19 +213,26 @@ export interface NovelChaptersResponse {
   has_volumes: boolean;
 }
 
-export interface ReadingHistory {
-  id: string;
-  last_read_chapter : Chapter | null;
-  last_read_at: string;
+// Where the reader resumes: the chapter, and how far through it (0..1)
+export interface ReadingResume {
+  chapter: Chapter;
+  progress: number;
 }
 
-interface DetailedReadingHistory {
+// The user's reading position in one novel: the chapter being read, and where Continue resumes
+export interface ReadingHistory {
   id: string;
-  last_read_chapter : Chapter | null;
+  novel_slug: string;
+  source_slug: string;
+  // Display name of the source the row points at
+  source_name: string;
+  // The chapter being read, and how far through it (0..1)
+  current_chapter: Chapter | null;
+  position: number;
   last_read_at: string;
-  next_chapter?: Chapter | null;
-  unread_chapters?: number | null;
-  source_slug?: string;
-  novel_slug?: string;
-  source_latest_chapter?: Chapter | null;
+  // Null when up to date, or when there is no pointer
+  resume: ReadingResume | null;
+  // Content chapters after current_chapter
+  unread_chapters: number;
+  source_latest_chapter: Chapter | null;
 }

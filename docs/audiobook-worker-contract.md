@@ -21,13 +21,15 @@ Neither side relies on anything outside this file. Version: `v1`, sent by the wo
 |---|---|---|---|
 | `POST` | `claim` | `{worker_id, version, languages: [..]}` | `200` with a **Claim** (below), or `204` when there's nothing to do. Poll again after `Retry-After` seconds. |
 | `GET` | `parts/<part_id>/epub` | none | The part as EPUB 3. |
-| `POST` | `parts/<part_id>/heartbeat` | `{progress: 0..1, stage, message}` | `200 {lease_until}`. `409` means the part was cancelled or reassigned: stop and discard it. |
+| `POST` | `parts/<part_id>/heartbeat` | `{progress: 0..1, stage, message}` | `200 {"status": "ok"}`. It only records progress, stage and message for the admin. `409` means the part was cancelled or reassigned: stop and discard it. |
 | `PUT` | `parts/<part_id>/chapters/<chapter_id>` | Body: the audio file. Headers: `Content-Type: audio/ogg`, `X-Content-SHA256`, and a real `Content-Length` (no chunked transfer: prod reads a chunked body as empty). Max 64 MB. | `201`. Re-sending the same hash is `200` (idempotent). `400` means the file failed validation, with the reason in the body. `413` means it's too big. |
-| `POST` | `parts/<part_id>/complete` | `{cast, qa, engine, engine_version}` | `200`. `400` if a chapter is missing, with the missing ids in the body. |
+| `POST` | `parts/<part_id>/complete` | `{qa, engine, engine_version}` | `200`. `400` if a chapter is missing, with the missing ids in the body. A `cast` key sent by an older worker is ignored. |
 | `POST` | `parts/<part_id>/fail` | `{error, retryable: bool}` | `200` |
 | `POST` | `ping` | `{worker_id, version, languages, available: bool, message}` | `200`. Send it every 5 min while the worker runs, even when idle, so the admin can see the worker is online. |
 
-A part's **lease** is 15 minutes, and each heartbeat extends it. An expired lease sends the part back to the queue.
+A claimed part has no time limit: nothing takes it back on a timer. The worker keeps it until it completes or fails it, or until an admin unpins its audiobook.
+
+A worker that calls `claim` while it holds a part gets that same part back, with the same generation and the uploads it already sent. Work is cut at claim time: when nothing is queued for the worker, `claim` cuts the next part of its pinned book, or of a new book, from the chapters in the languages the worker sent. The cut happens only while the audio disk budget allows it; otherwise the answer is `204`.
 
 ## Claim
 
@@ -37,10 +39,8 @@ A part's **lease** is 15 minutes, and each heartbeat extends it. An expired leas
   "audiobook_id": "uuid",
   "series": {"title": "Novel title", "authors": ["…"], "language": "en", "slug": "novel-slug", "synopsis": "…", "tags": ["…"]},
   "part": {"index": 3, "total_known": 8, "chapter_start": 51, "chapter_end": 75, "word_count": 74210},
-  "chapters": [{"chapter_id": 1234, "number": 51, "title": "Chapter 51: …", "word_count": 2950}],
-  "epub_url": "https://…/api/audiobook-worker/parts/<id>/epub",
-  "previous_cast": {"Narrator": {"engine": "qwen", "voice": "…"}, "Mara": {"…": "…"}},
-  "lease_until": "2026-11-02T03:15:00Z"
+  "chapters": [{"chapter_id": 1234, "number": 51, "title": "51. …", "word_count": 2950}],
+  "epub_url": "https://…/api/audiobook-worker/parts/<id>/epub"
 }
 ```
 
@@ -48,11 +48,11 @@ In a claim, `chapters[].chapter_id` is the Chapter primary key (it is the `<chap
 
 A part is a run of whole chapters of about 75,000 words. Prod chooses the run and fixes it for good, so it can be anything from a single very long chapter up to many short ones.
 
-`claim` only offers parts whose audiobook language is in the worker's `languages`. `languages` is a list of language codes (`en`, `fr`, ...), lower-cased by prod, at most 20 entries; a bad value is `400`. A missing `languages` means `["en"]`, so an old worker keeps getting English books only. Prod only queues books in languages some worker announced in the last 7 days, and starts new books only in those languages. The worker alone decides which engines and voices it uses; prod records what it reports (`engine`, `engine_version`, the cast) and ignores an `engine_profiles` key sent by older workers.
+`claim` only offers parts whose audiobook language is in the worker's `languages`. `languages` is a list of language codes (`en`, `fr`, ...), lower-cased by prod, at most 20 entries; a bad value is `400`. A missing `languages` means `["en"]`, so an old worker keeps getting English books only. Prod starts new books only in the languages the claiming worker sends. The worker alone decides which engines and voices it uses; prod records what it reports (`engine`, `engine_version`, the QA result) and ignores the `cast` and `engine_profiles` keys sent by older workers.
 
-The EPUB carries `calibre:series` = series title, `calibre:series_index` = part index, `dc:creator` = authors, `dc:language`, one XHTML file per chapter, in the order of `chapters`.
+The EPUB carries `calibre:series` = series title, `calibre:series_index` = part index, `dc:creator` = authors, `dc:language`, one XHTML file per chapter, in the order of `chapters`. The heading of each chapter file equals the claim `title` (both come from `Chapter.display_title`'s labeler in the source's language), and the worker rejects the part when they differ.
 
-Prod pins each audiobook to the worker that claimed its first part, so all parts of a novel go through the same worker workspace and its series memory. A pin is released when the pinned worker has not sent `claim` or `ping` for 7 days; the next claim then takes the audiobook. Several workers may run at once, each with its own `worker_id`. `previous_cast` is a copy of the cast prod has on record, so the worker can check its series memory against it or rebuild it.
+Prod pins each audiobook to the worker that claimed its first part, so all parts of a novel go through the same worker workspace and its series memory. A pin is never released by time. A worker that dies keeps its audiobook pinned: an admin unpins it (the "Unpin worker" action), its claimed parts go back to the queue, and any worker may claim them. Several workers may run at once, each with its own `worker_id`.
 
 ## Audio format
 
@@ -83,7 +83,6 @@ That's about 10.8 MB per hour of audio. A 25-chapter part (~8 h) is ~90 MB.
 
 ## `complete` payload
 
-- **`cast`:** `{character: {engine, voice, model?, gender?, role: "narrator"|"main"|"minor", description?}}`. It covers every speaking character in this part. `description` is optional: a short plain-text description of the voice as heard (e.g. "young woman, calm, low pitch"), the prompt the engine was asked for (qwen voice design) or the preset's description (kokoro). Prod shows it on the audiobook page when present, and the characters section is only shown when at least one entry has one. Prod trims it and keeps at most 300 characters. Workers that do not send it stay compatible (`X-Worker-Contract: 1`). If present, it must be a string, else the complete call returns `400`. Prod passes the cast back as `previous_cast` on the next claim.
-- **`qa`:** `{passed: bool, checks: {name: {value, threshold, passed}}, notes}`, filled in by the worker's own checks. When `passed` is false, prod keeps the part unpublished until the admin listens to it.
+- **`qa`:** `{passed: bool, checks: {name: {value, threshold, passed}}, notes}`, filled in by the worker's own checks. Prod stores it for the admin to read. It does not hide the part: a part is listenable once it is done, whether or not `passed` is true.
 - **`engine`, `engine_version`:** required. For example `engine: "castwright+kokoro"`, `engine_version: "castwright@3a52b28 kokoro-v1.0"`. Prod stores them on the part and builds the narrator credits from them. This is how prod keeps track of which engine made each part as new engines are added.
-- **Per-character engine:** each `cast` entry carries the engine of that voice, because one part can mix engines (e.g. qwen for main characters, kokoro for minor ones).
+- **`cast`:** not used any more. Prod ignores it, so an older worker that still sends it keeps working. Do not send it.

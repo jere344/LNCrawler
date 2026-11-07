@@ -32,6 +32,11 @@ interface ActionButtonProps {
    * URL to navigate to when button is clicked (alternative to onClick)
    */
   to?: string;
+
+  /**
+   * Router state passed with the link (used with 'to')
+   */
+  state?: unknown;
   
   /**
    * Whether the button is disabled
@@ -76,6 +81,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   color = "primary",
   onClick,
   to,
+  state,
   disabled = false,
   tooltip,
   tooltipPlacement = "top",
@@ -143,7 +149,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   );
 
   const button = to ? (
-    <Button {...buttonProps} component={Link} to={to}>
+    <Button {...buttonProps} component={Link} to={to} state={state}>
       {buttonContent}
     </Button>
   ) : (

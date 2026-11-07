@@ -74,7 +74,7 @@ const FeaturedCard = ({ book }: { book: AudiobookCardData }) => {
         <Typography variant="body2" color="text.secondary">
           {t('audiobooks.cardMeta', {
             hours: formatHours(book.duration_s, t),
-            count: book.parts,
+            count: book.chapters,
           })}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.5 }}>

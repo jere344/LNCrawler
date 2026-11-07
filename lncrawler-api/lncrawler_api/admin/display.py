@@ -13,7 +13,7 @@ def comment_target(comment):
     if comment.novel:
         return f"Novel: {comment.novel.title}"
     elif comment.chapter:
-        return f"Chapter: {comment.chapter.title}"
+        return f"Chapter: {comment.chapter.display_title}"
     return "Unknown"
 
 

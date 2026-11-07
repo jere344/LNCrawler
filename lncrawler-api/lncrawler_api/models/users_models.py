@@ -45,13 +45,16 @@ class NovelBookmark(models.Model):
 
 class ReadingHistory(models.Model):
     """
-    Tracks user reading progress within a novel source
+    Tracks where a user is in a novel: one row per (user, novel), pointing at the chapter being read
+    and how far into it the user is.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reading_histories')
     novel = models.ForeignKey(Novel, on_delete=models.CASCADE, related_name='reading_histories')
     source = models.ForeignKey(NovelFromSource, on_delete=models.CASCADE, related_name='read_by_users')
-    last_read_chapter = models.ForeignKey(Chapter, on_delete=models.SET_NULL, null=True, blank=True, related_name='last_read_by_users')
+    current_chapter = models.ForeignKey(Chapter, on_delete=models.SET_NULL, null=True, blank=True, related_name='current_readers')
+    # How far into current_chapter the user is: 0 is the top, 1 is the end.
+    position = models.FloatField(default=0)
     last_read_at = models.DateTimeField(auto_now=True)
     
     class Meta:

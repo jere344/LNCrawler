@@ -2,18 +2,12 @@ import React from 'react';
 import { Box, Divider, Button, useMediaQuery, useTheme } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import DoneIcon from '@mui/icons-material/Done';
-import CircularProgress from '@mui/material/CircularProgress';
 import { useTranslation } from 'react-i18next';
 import DirectionalIcon from '../DirectionalIcon';
 
 interface ReaderControlsProps {
   prevChapter?: number | null;
   nextChapter?: number | null;
-  isAuthenticated: boolean;
-  markReadSuccess: boolean;
-  markingAsRead: boolean;
-  onMarkAsRead: () => void;
   onPrevious: () => void;
   onNext: () => void;
 }
@@ -25,10 +19,6 @@ interface ReaderControlsProps {
 const ReaderControls: React.FC<ReaderControlsProps> = ({
   prevChapter,
   nextChapter,
-  isAuthenticated,
-  markReadSuccess,
-  markingAsRead,
-  onMarkAsRead,
   onPrevious,
   onNext,
 }) => {
@@ -62,28 +52,6 @@ const ReaderControls: React.FC<ReaderControlsProps> = ({
               {t('readerControls.previousChapter')}
             </Button>
           ) : <div></div>}
-        </Box>
-
-        {/* Center - Mark as Read button */}
-        <Box sx={{
-          display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
-          width: isMobile ? '100%' : 'auto',
-          gap: 2,
-          justifyContent: 'center'
-        }}>
-          {isAuthenticated && (
-            <Button
-              variant="outlined"
-              color={markReadSuccess ? "success" : "primary"}
-              startIcon={markingAsRead ? <CircularProgress size={20} /> : <DoneIcon />}
-              onClick={onMarkAsRead}
-              disabled={markReadSuccess || markingAsRead}
-              {...buttonProps}
-            >
-              {markReadSuccess ? t('readerControls.markedAsRead') : t('readerControls.markAsRead')}
-            </Button>
-          )}
         </Box>
 
         {/* Right side - Next button */}

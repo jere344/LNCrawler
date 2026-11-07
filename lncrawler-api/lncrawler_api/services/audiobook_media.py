@@ -12,10 +12,12 @@ import subprocess
 import tempfile
 
 from django.conf import settings
-from django.db.models import Q, Sum
+from django.db.models import Sum
 from mutagen.oggopus import OggOpus
 
 from ..models import AudiobookChapter, AudiobookPart
+from ..models.audiobook_models import LISTENABLE_PART_Q
+from ..utils.chapter_label import get_labeler
 from . import audiobook_service as svc
 from .audiobook_service import MAX_BITRATE_KBPS
 from .epub_service import _build_lock
@@ -104,7 +106,7 @@ def audiobook_metadata(audiobook):
     """The metadata written into the tags of the chapter files and of the .m4b files."""
     source = audiobook.source
     latest = audiobook.parts.filter(status='done').order_by('-completed_at', '-index').first()
-    listenable = audiobook.parts.filter(status__in=['done', 'stale']).filter(Q(qa_passed=True) | Q(approved=True))
+    listenable = audiobook.parts.filter(LISTENABLE_PART_Q)
     return {
         'title': audiobook.display_title,
         'authors': [author.name for author in source.authors.order_by('name')],
@@ -121,15 +123,17 @@ def audiobook_metadata(audiobook):
 
 
 def compute_tags_hash(audiobook):
-    """sha256 of the metadata, the (index, engine) of each part and the (chapter_id, title) of each chapter row.
+    """sha256 of the metadata, the (index, engine) of each part and the (chapter_id, display title) of each chapter row.
     Only database reads: no file is opened."""
-    rows = list(
-        AudiobookChapter.objects.filter(part__audiobook=audiobook)
+    labeler = get_labeler(audiobook.language)
+    rows = [
+        [index, engine, number, labeler.label(title, number)]
+        for index, engine, number, title in AudiobookChapter.objects.filter(part__audiobook=audiobook)
         .order_by('part__index', 'chapter__chapter_id')
         .values_list('part__index', 'part__engine', 'chapter__chapter_id', 'chapter__title')
-    )
+    ]
     payload = json.dumps(
-        {'metadata': audiobook_metadata(audiobook), 'rows': [list(row) for row in rows]},
+        {'metadata': audiobook_metadata(audiobook), 'rows': rows},
         sort_keys=True, ensure_ascii=False,
     )
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
@@ -138,7 +142,7 @@ def compute_tags_hash(audiobook):
 def tag_chapter_file(path, metadata, part, chapter):
     """Write the Vorbis comments of a chapter file with mutagen, from the audiobook metadata."""
     audio = OggOpus(path)
-    audio['title'] = [chapter.title or f"Chapter {chapter.chapter_id}"]
+    audio['title'] = [get_labeler(metadata['language']).label(chapter.title, chapter.chapter_id)]
     audio['album'] = [f"{metadata['title']} (Generated audiobook) \u2014 Part {part.index}"]
     audio['artist'] = [", ".join(metadata['authors'])]
     audio['tracknumber'] = [str(chapter.chapter_id)]

@@ -24,14 +24,19 @@ class Novel(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     comment_count = models.PositiveIntegerField(default=0)
     is_dmca = models.BooleanField(default=False, db_index=True)
+    # Derived: adult when more than half of its sources are (see refresh_novel_adult).
+    # Never edit it directly; every read filters on this column.
+    is_adult = models.BooleanField(default=False, editable=False)
 
-    # Periodic projections of the sources' views and the ratings, used only for
-    # search ordering; refreshed by the refresh_novel_rankings scheduler task
-    # (cards still show live values). The rank_ prefix avoids clashing with the
-    # total_views/week_views/avg_rating annotations used across the code.
+    # Scheduler-refreshed projections of the sources' views, the ratings and the latest chapter update
+    # (rank_last_update). Search sorts and the popular/similar fallbacks read them; cards still show live
+    # values. The rank_ prefix avoids clashing with the total_views/week_views/avg_rating annotations used
+    # across the code.
     rank_total_views = models.BigIntegerField(default=0)
     rank_week_views = models.BigIntegerField(default=0)
     rank_avg_rating = models.FloatField(default=0.0)
+    # Most recent last_chapter_update over the novel's sources (NULL when none was ever updated).
+    rank_last_update = models.DateTimeField(null=True, editable=False)
 
     # The user whose download job first imported this novel (null for
     # anonymous submissions and for novels imported before this was tracked).
@@ -122,6 +127,8 @@ class Author(Person):
     normalized = models.CharField(max_length=255, db_index=True, blank=True, default="", editable=False)
     # Blocked authors are unlinked from their sources and never recreated by an import.
     is_blocked = models.BooleanField(default=False, db_index=True)
+    # Distinct novels with a source by this author, refreshed by refresh_name_counts.
+    novel_count = models.PositiveIntegerField(default=0, editable=False)
 
     objects = VisibleAuthorManager()
     all_objects = models.Manager()
@@ -208,6 +215,8 @@ class Tag(models.Model):
     embedding_model = models.CharField(max_length=100, blank=True, default="", editable=False)
     # R18 tag: any source carrying it is treated as adult (see refresh_adult).
     is_adult = models.BooleanField(default=False, db_index=True)
+    # Distinct novels with a source carrying this tag, refreshed by refresh_name_counts.
+    novel_count = models.PositiveIntegerField(default=0, editable=False)
 
     class Meta:
         indexes = [

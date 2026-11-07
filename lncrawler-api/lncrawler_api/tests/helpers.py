@@ -10,6 +10,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 
 from ..models import Chapter, ExternalSource, Novel, NovelFromSource
+from ..models.sources_models import refresh_novel_adult
 from ..services.chapter_stats import refresh_chapter_stats
 
 
@@ -31,15 +32,24 @@ def make_novel(title, slug, novel_path=None):
     return Novel.objects.create(title=title, slug=slug, novel_path=novel_path or slug)
 
 
-def make_source(novel, language="en"):
-    """An English (or ``language``) source of ``novel`` on its own external site."""
+def make_source(novel, language="en", external=None, **fields):
+    """An English (or ``language``) source of ``novel``, on ``external`` or else on its own external site.
+
+    ``fields`` override the defaults (title, source_url) and set any other source field.
+    """
+    if external is None:
+        external = ExternalSource.objects.create(source_name=f"src-{novel.slug}")
+    values = {"title": novel.title, "source_url": f"http://{novel.slug}/1", **fields}
     return NovelFromSource.objects.create(
-        novel=novel,
-        external_source=ExternalSource.objects.create(source_name=f"src-{novel.slug}"),
-        title=novel.title,
-        source_url=f"http://{novel.slug}/1",
-        language=language,
+        novel=novel, external_source=external, language=language, **values
     )
+
+
+def set_adult(source, value=True):
+    """Save the adult flag of ``source`` and re-derive its novel, as the write paths do."""
+    source.is_adult = value
+    source.save(update_fields=["is_adult"])
+    refresh_novel_adult([source.novel_id])
 
 
 class MergeTestCase(TestCase):

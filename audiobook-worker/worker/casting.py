@@ -1,4 +1,4 @@
-"""Profile -> cast decisions, and cast.json -> the contract `cast` payload.
+"""Profile -> cast decisions.
 
 Pure functions only. pipeline.py does the Castwright calls.
 """
@@ -6,18 +6,12 @@ Pure functions only. pipeline.py does the Castwright calls.
 from __future__ import annotations
 
 import copy
-import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-log = logging.getLogger("worker.casting")
 RUN_MODEL_KEYS = {"kokoro": "kokoro-v1", "qwen-mixed": "qwen3-tts-1.7b"}
-QWEN_MODEL = "qwen3-tts-1.7b"
-KOKORO_MODEL = "kokoro-v1"
 NARRATOR_IDS = frozenset({"narrator", "char-narrator"})
-GENDERS = frozenset({"male", "female", "neutral"})
 NON_ENGLISH_MIN_LINES = 3
-DESCRIPTION_MAX = 300
 NON_ENGLISH_CAP_FACTOR = 2
 
 Row = dict[str, Any]
@@ -149,119 +143,3 @@ def pick_donors(rows: list[Row], missing: list[str]) -> dict[str, str]:
         if pool:
             donors[cid] = str(min(pool, key=lambda r: (lines_of(r), str(r.get("id")))).get("id"))
     return donors
-
-
-def _segment_voice(segments: list[dict[str, Any]], character_id: str) -> str | None:
-    """A Kokoro preset name recorded on a segment, if any. Castwright does not store presets."""
-    for seg in segments:
-        if str(seg.get("characterId")) != character_id:
-            continue
-        for key in ("voice", "voiceName", "presetVoice"):
-            value = seg.get(key)
-            if isinstance(value, str) and value:
-                return value
-    return None
-
-
-def voice_description(row: Row) -> str:
-    """The voice-design persona Castwright stored on the cast row (`voiceStyle`), as plain text.
-
-    It is the prompt the qwen voice was designed from. Empty when absent or not a string.
-    """
-    text = row.get("voiceStyle")
-    if not isinstance(text, str):
-        return ""
-    return " ".join(text.split())[:DESCRIPTION_MAX]
-
-
-def _reused_voice_name(row: Row, notes: list[str] | None) -> str:
-    """A reused character's Qwen voice when cast.json has no name stored.
-
-    Castwright stores bespoke Qwen voices as `qwen-<voiceUuid>`. Without a voiceUuid the name is
-    unknown, so record the reference and a QA note instead of failing.
-    """
-    cid = str(row.get("id"))
-    name = str(row.get("name") or cid)
-    voice_uuid = row.get("voiceUuid")
-    if voice_uuid:
-        return f"qwen-{voice_uuid}"
-    matched = row.get("matchedFrom") or {}
-    source = str(matched.get("bookId") or matched.get("bookTitle") or "unknown")
-    voice = f"reused:{source}/{cid}"
-    if notes is not None:
-        notes.append(f"{name}: reused voice name not stored, recorded as {voice}")
-    return voice
-
-
-def build_contract_cast(
-    rows: list[Row],
-    profile: str,
-    segments_sample: list[dict[str, Any]],
-    *,
-    main_min_lines: int = 20,
-    notes: list[str] | None = None,
-) -> dict[str, dict[str, Any]]:
-    """cast.json rows -> {name: {engine, voice, model?, gender?, role}}. Zero-line characters are left out.
-
-    Never raises for a missing voice name. Gaps go into `notes` (when given) and the voice falls back to `auto`. Rows
-    with the same name do not overwrite each other: the later ones are keyed "<name> (2)", "<name> (3)", and so on.
-    """
-    cast: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        lines = lines_of(row)
-        if lines == 0:
-            continue
-        cid = str(row.get("id"))
-        name = str(row.get("name") or cid)
-        key, n = name, 2
-        while key in cast:
-            key = f"{name} ({n})"
-            n += 1
-        if key != name:
-            log.warning("two cast rows are named %r: the row %s is keyed %r", name, cid, key)
-        if is_narrator(row):
-            role = "narrator"
-        elif lines >= main_min_lines:
-            role = "main"
-        else:
-            role = "minor"
-
-        engine = row.get("ttsEngine") or ("kokoro" if profile == "kokoro" or not has_voice(row) else "qwen")
-        entry: dict[str, Any] = {"engine": engine, "role": role}
-        if engine == "qwen":
-            voice = qwen_voice_name(row)
-            if not voice and row.get("voiceState") == "reused" and row.get("matchedFrom"):
-                voice = _reused_voice_name(row, notes)
-            if not voice:
-                voice = "auto"
-                if notes is not None:
-                    notes.append(f"{name}: on qwen with no voice name")
-            entry.update(voice=voice, model=QWEN_MODEL)
-            description = voice_description(row)
-            if description:
-                entry["description"] = description
-        elif engine == "kokoro":
-            entry.update(voice=_segment_voice(segments_sample, cid) or "auto", model=KOKORO_MODEL)
-        else:
-            entry["voice"] = qwen_voice_name(row) or "auto"
-
-        gender = row.get("gender")
-        if gender in GENDERS:
-            entry["gender"] = gender
-        cast[key] = entry
-    return cast
-
-
-def compare_previous(previous_cast: dict[str, Any], cast: dict[str, Any]) -> list[str]:
-    """Notes for characters whose engine or voice changed since the last part. Never a failure."""
-    notes: list[str] = []
-    for name, now in cast.items():
-        before = previous_cast.get(name)
-        if not isinstance(before, dict):
-            continue
-        if before.get("engine") != now.get("engine") or before.get("voice") != now.get("voice"):
-            notes.append(
-                f"{name}: engine {before.get('engine')}->{now.get('engine')}, "
-                f"voice {before.get('voice')}->{now.get('voice')}"
-            )
-    return notes

@@ -512,12 +512,10 @@ class PartOperationTests(AudiobookBase):
         super().setUp()
         self.audiobook = self.make_audiobook(self.make_source())
 
-    def test_delete_audio_files(self):
+    def test_delete_audio_files_removes_the_done_parts_and_keeps_the_queued_one(self):
         audio = svc.audio_dir(self.audiobook.source)
         os.makedirs(audio / "part-001", exist_ok=True)
         (audio / "part-001" / "00001.ogg").write_bytes(b"x" * 10)
-        self.audiobook.published = True
-        self.audiobook.save()
         part = self.make_part(self.audiobook, status="done", duration_s=100, size_bytes=10)
         Chapter.objects.create(novel_from_source=self.audiobook.source, chapter_id=1, url="http://x/1", title="C1")
         AudiobookChapter.objects.create(
@@ -528,6 +526,8 @@ class PartOperationTests(AudiobookBase):
             size_bytes=10,
             sha256="0" * 64,
         )
+        self.make_part(self.audiobook, index=2, status="failed", chapter_start=2, chapter_end=2)
+        self.make_part(self.audiobook, index=3, status="queued", chapter_start=3, chapter_end=3)
 
         # The folder is removed on commit: run the post-commit callbacks explicitly.
         with self.captureOnCommitCallbacks(execute=True):
@@ -535,13 +535,24 @@ class PartOperationTests(AudiobookBase):
 
         self.assertEqual(freed, 10)
         self.assertFalse(audio.exists())
+        self.assertFalse(AudiobookPart.objects.filter(pk=part.pk).exists())
         self.assertFalse(AudiobookChapter.objects.exists())
-        part.refresh_from_db()
-        self.assertEqual((part.status, part.duration_s, part.size_bytes), ("stale", 0, 0))
+        self.assertEqual(list(self.audiobook.parts.values_list("status", flat=True)), ["queued"])
         self.audiobook.refresh_from_db()
-        self.assertFalse(self.audiobook.published)
         self.assertEqual(self.audiobook.total_size_bytes, 0)
-        self.assertEqual(self.audiobook.parts_done, 1)
+        self.assertEqual(self.audiobook.parts_done, 0)
+
+    @override_settings(AUDIOBOOK_PART_WORDS=500)
+    def test_next_cut_starts_at_chapter_one_once_the_done_parts_are_deleted(self):
+        self.add_chapters(self.audiobook.source, [400, 400, 300])
+        svc.enqueue_next_part(self.audiobook)
+        self.assertEqual(self.audiobook.parts.get().chapter_end, 1)
+        self.audiobook.parts.update(status="done")
+
+        svc.delete_audio_files(self.audiobook)
+        part = svc.enqueue_next_part(self.audiobook)
+
+        self.assertEqual((part.index, part.chapter_start, part.chapter_end), (1, 1, 1))
 
     def test_retry_part(self):
         part = self.make_part(
@@ -551,7 +562,6 @@ class PartOperationTests(AudiobookBase):
             error_message="boom",
             worker_id="w1",
             claimed_at=timezone.now(),
-            lease_until=timezone.now(),
         )
 
         svc.retry_part(part)
@@ -562,10 +572,9 @@ class PartOperationTests(AudiobookBase):
         self.assertEqual(part.error_message, "")
         self.assertEqual(part.worker_id, "")
         self.assertIsNone(part.claimed_at)
-        self.assertIsNone(part.lease_until)
 
     def test_regenerate_part(self):
-        part = self.make_part(self.audiobook, status="done", qa_passed=True, approved=True, attempts=2)
+        part = self.make_part(self.audiobook, status="done", qa_passed=True, attempts=2)
 
         svc.regenerate_part(part)
 
@@ -573,7 +582,6 @@ class PartOperationTests(AudiobookBase):
         self.assertEqual(part.status, "queued")
         self.assertEqual(part.priority, 100)
         self.assertIsNone(part.qa_passed)
-        self.assertFalse(part.approved)
         self.assertEqual(part.attempts, 0)
 
 
@@ -746,38 +754,7 @@ class AudiobookAdminTests(AudiobookBase):
         self.assertEqual(part.index, 1)
         self.assertEqual(part.priority, 100)
 
-    @override_settings(AUDIOBOOK_PART_WORDS=500)
-    def test_enqueue_next_is_not_exclusive(self):
-        url = reverse("admin:lncrawler_api_audiobook_changelist")
-        selected = {"action": "enqueue_next", "_selected_action": [self.audiobook.pk]}
-
-        self.client.post(url, selected)
-        self.client.post(url, selected)
-
-        self.assertEqual(self.audiobook.parts.filter(status="queued").count(), 2)
-        self.audiobook.refresh_from_db()
-        self.assertIsNotNone(self.audiobook.last_enqueued_at)
-
-    def test_enqueue_skips_dmca_and_inactive_audiobooks(self):
-        self.novel.is_dmca = True
-        self.novel.save()
-        url = reverse("admin:lncrawler_api_audiobook_changelist")
-        selected = {"action": "enqueue_next", "_selected_action": [self.audiobook.pk]}
-
-        self.client.post(url, selected)
-        self.assertFalse(self.audiobook.parts.exists())
-
-        self.novel.is_dmca = False
-        self.novel.save()
-        self.audiobook.status = "paused"
-        self.audiobook.save()
-        self.client.post(url, selected)
-        self.assertFalse(self.audiobook.parts.exists())
-
     def test_mark_dmca_leaves_existing_audiobooks_alone(self):
-        self.audiobook.published = True
-        self.audiobook.save()
-
         self.client.post(
             reverse("admin:lncrawler_api_novel_changelist"),
             {"action": "mark_dmca", "_selected_action": [self.novel.pk]},
@@ -786,7 +763,6 @@ class AudiobookAdminTests(AudiobookBase):
         self.novel.refresh_from_db()
         self.audiobook.refresh_from_db()
         self.assertTrue(self.novel.is_dmca)
-        self.assertTrue(self.audiobook.published)
         self.assertEqual(self.audiobook.status, "active")
 
     def test_delete_audio_files_confirmation_page_and_apply(self):

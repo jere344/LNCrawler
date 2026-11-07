@@ -18,7 +18,6 @@ from django.shortcuts import get_object_or_404, render
 
 from ..models import AudiobookChapter, AudiobookPart, Novel, NovelFromSource
 from ..models.source_helpers import resolve_output_path
-from ..models.sources_models import adult_novel_ids
 from ..services import audiobook_media
 from ..services.audiobook_public import (
     LISTENABLE_PART_Q,
@@ -31,6 +30,7 @@ from ..services.audiobook_public import (
     visible_audiobooks,
 )
 from ..utils import build_media_url, resolve_novel_slug
+from ..utils.chapter_label import get_labeler
 from ..utils.chapter_utils import get_chapter
 from ..utils.query_helpers import preferred_source_key, public_novels
 from ..utils.seo import _clean_text, _sanitize_body
@@ -81,14 +81,8 @@ def _novel_image(sources):
     return DEFAULT_OG_IMAGE
 
 
-def _chapter_label(chapter):
-    title = (chapter.title or "").strip()
-    return title or f"Chapter {chapter.chapter_id}"
-
-
-def _is_adult_novel(novel):
-    # Adult if more than half of its sources are; matches the sitemap filters.
-    return adult_novel_ids().filter(novel_id=novel.pk).exists()
+def _chapter_label(chapter, source):
+    return get_labeler(source.language).label(chapter.title, chapter.chapter_id)
 
 
 def _duration_label(seconds):
@@ -149,7 +143,7 @@ def _load_page(request, novel_slug, source_slug=None, source_queryset=None):
     if source_queryset is None:
         source_queryset = NovelFromSource.objects.select_related("novel", "external_source")
     source = get_object_or_404(source_queryset.filter(novel=novel), source_slug=source_slug)
-    if _is_adult_novel(novel):
+    if novel.is_adult:
         raise Http404("Source not available")
     return novel, source
 
@@ -207,7 +201,7 @@ def seo_novel(request, novel_slug):
         .prefetch_related("authors", "tags", "alternative_titles")
         .exclude(Q(source_slug__isnull=True) | Q(source_slug=""))
     )
-    if not sources or _is_adult_novel(novel):
+    if not sources or novel.is_adult:
         raise Http404("Novel not available")
 
     primary = _pick_default_source(sources)
@@ -413,9 +407,17 @@ def seo_chapterlist(request, novel_slug, source_slug):
         return loaded
     novel, source = loaded
 
-    chapters = (
-        source.chapters.only("chapter_id", "title", "has_content").order_by("chapter_id")
-    )
+    labeler = get_labeler(source.language)
+    chapters = [
+        {
+            "chapter_id": chapter_id,
+            "has_content": has_content,
+            "display_title": labeler.label(title, chapter_id),
+        }
+        for chapter_id, title, has_content in source.chapters.order_by("chapter_id").values_list(
+            "chapter_id", "title", "has_content"
+        )
+    ]
     count = source.chapters_count
     source_name = source.external_source.source_name
     image = _source_image(source)
@@ -487,7 +489,7 @@ def seo_chapter(request, novel_slug, source_slug, chapter_number):
     )
     body = _sanitize_body(body, images_path)
 
-    label = _chapter_label(chapter)
+    label = _chapter_label(chapter, source)
     source_name = source.external_source.source_name
     description = (
         f"Read {label} of the light novel {source.title}. "

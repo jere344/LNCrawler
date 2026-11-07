@@ -11,7 +11,6 @@ import math
 import os
 import shutil
 import tempfile
-from datetime import timedelta, timezone as dt_timezone
 from functools import partial
 
 from django.conf import settings
@@ -26,9 +25,10 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.response import Response
 
 from ..models import Audiobook, AudiobookChapter, AudiobookPart, AudiobookWorker, Chapter
-from ..services import audiobook_cover, audiobook_media, audiobook_service as svc, epub_service
+from ..services import audiobook_cover, audiobook_media, audiobook_scheduler, audiobook_service as svc, epub_service
 from ..services.audiobook_media import AudioRejected
 from ..services.audiobook_worker_auth import IsAudiobookWorker
+from ..utils.chapter_label import get_labeler
 
 logger = logging.getLogger("lncrawler_api.audiobooks")
 
@@ -38,16 +38,11 @@ CLAIM_RETRY_DISABLED = 600  # Retry-After seconds when the feature is off
 CLAIM_RETRY_IDLE = 300  # Retry-After seconds when no part can be claimed
 CONTRACT_VERSION = '1'
 LANGUAGES_MAX = 20  # most language codes a worker may announce in one request
-PIN_RELEASE_DAYS = 7  # days without contact after which a worker's audiobooks may be claimed by another worker
 SYNOPSIS_MAX = 2000  # characters of synopsis sent in a claim
 TAGS_MAX = 20  # most tag names sent in a claim
 WORKER_ID_MAX = 64
 WORKER_VERSION_MAX = 64
 STAGE_MAX = 64
-
-
-def _iso(moment):
-    return moment.astimezone(dt_timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def _contract_error(request):
@@ -122,11 +117,10 @@ def _languages(data):
     return list(dict.fromkeys(v.strip().lower() for v in value))
 
 
-def _pin_free(prefix, worker_id, now):
-    """Q of the audiobooks a worker may claim: not pinned, pinned to itself, or pinned to a worker not seen for
-    PIN_RELEASE_DAYS. ``prefix`` is the path to the audiobook from the queried model ('audiobook__' or '')."""
-    stale = AudiobookWorker.objects.filter(last_seen_at__lt=now - timedelta(days=PIN_RELEASE_DAYS)).values('worker_id')
-    return Q(**{f'{prefix}worker_id__in': ['', worker_id]}) | Q(**{f'{prefix}worker_id__in': stale})
+def _pin_free(prefix, worker_id):
+    """Q of the audiobooks a worker may claim: not pinned yet, or pinned to itself. A book stays pinned to its worker
+    until an admin unpins it. ``prefix`` is the path to the audiobook from the queried model ('audiobook__' or '')."""
+    return Q(**{f'{prefix}worker_id__in': ['', worker_id]})
 
 
 def _touch_worker(request, worker_id, **fields):
@@ -189,6 +183,8 @@ def _tags(source):
 def _claim_payload(request, part, audiobook):
     source = audiobook.source
     chapters = svc.part_chapters(part)
+    # The same labeler as the epub headings: the worker matches the two titles exactly.
+    labeler = get_labeler(source.language or 'en')
     return {
         'part_id': str(part.id),
         'audiobook_id': str(audiobook.id),
@@ -211,15 +207,68 @@ def _claim_payload(request, part, audiobook):
             {
                 'chapter_id': ch.pk,
                 'number': ch.chapter_id,
-                'title': ch.title or f"Chapter {ch.chapter_id}",
+                'title': labeler.label(ch.title, ch.chapter_id),
                 'word_count': ch.word_count or 0,
             }
             for ch in chapters
         ],
         'epub_url': request.build_absolute_uri(reverse('audiobook_worker_epub', args=[part.id])),
-        'previous_cast': audiobook.cast,
-        'lease_until': _iso(part.lease_until),
     }
+
+
+def _resumed_part(worker_id):
+    """The part this worker already claimed, while its book is still offered to it. The claim goes on as it is:
+    same generation, same uploads. Whatever languages the worker announces now."""
+    with transaction.atomic():
+        return (
+            AudiobookPart.objects.select_for_update(of=('self',))
+            .select_related('audiobook__source__novel')
+            .filter(
+                status='claimed',
+                worker_id=worker_id,
+                audiobook__status='active',
+                audiobook__novel__is_dmca=False,
+            )
+            .order_by('claimed_at')
+            .first()
+        )
+
+
+def _claim_queued(worker_id, languages):
+    """Claim the first queued part of a book pinned to the worker or unpinned, and pin its book to the worker.
+    None when there is no such part, or when another worker pinned the book first."""
+    with transaction.atomic():
+        part = (
+            AudiobookPart.objects.select_for_update(skip_locked=True, of=('self',))
+            .select_related('audiobook__source__novel')
+            .filter(
+                status='queued',
+                audiobook__status='active',
+                audiobook__novel__is_dmca=False,
+                audiobook__language__in=languages,
+            )
+            .filter(_pin_free('audiobook__', worker_id))
+            .order_by('-priority', 'created_at')
+            .first()
+        )
+        if part is None:
+            return None
+        audiobook = part.audiobook
+        part.status = 'claimed'
+        part.worker_id = worker_id
+        part.claimed_at = timezone.now()
+        part.generation += 1
+        part.uploads = {}
+        part.progress = 0
+        part.stage = ''
+        part.save()
+        # Conditional: another worker may have pinned the book since the filter above. Its part is then
+        # rolled back, so this worker never holds a part of a book pinned to someone else.
+        pinned = Audiobook.objects.filter(_pin_free('', worker_id), pk=audiobook.pk).update(worker_id=worker_id)
+        if not pinned:
+            transaction.set_rollback(True)
+            return None
+    return part
 
 
 @api_view(['POST'])
@@ -245,41 +294,15 @@ def claim(request):
     if not settings.AUDIOBOOK_ENABLED:
         return _no_work(CLAIM_RETRY_DISABLED)
 
-    now = timezone.now()
-    with transaction.atomic():
-        part = (
-            AudiobookPart.objects.select_for_update(skip_locked=True, of=('self',))
-            .select_related('audiobook__source__novel')
-            .filter(
-                status='queued',
-                audiobook__status='active',
-                audiobook__novel__is_dmca=False,
-                audiobook__language__in=languages,
-            )
-            .filter(_pin_free('audiobook__', worker_id, now))
-            .order_by('-priority', 'created_at')
-            .first()
-        )
-        if part is None:
-            return _no_work(CLAIM_RETRY_IDLE)
-        audiobook = part.audiobook
-        part.status = 'claimed'
-        part.worker_id = worker_id
-        part.claimed_at = now
-        part.lease_until = now + timedelta(seconds=svc.LEASE_SECONDS)
-        part.generation += 1
-        part.uploads = {}
-        part.progress = 0
-        part.stage = ''
-        part.save()
-        # Conditional: another worker may have pinned the book since the filter above. Its part is then
-        # rolled back, so this worker never holds a part of a book pinned to someone else.
-        pinned = Audiobook.objects.filter(_pin_free('', worker_id, now), pk=audiobook.pk).update(worker_id=worker_id)
-        if not pinned:
-            transaction.set_rollback(True)
-            return _no_work(CLAIM_RETRY_IDLE)
-
-    return Response(_claim_payload(request, part, audiobook))
+    part = _resumed_part(worker_id)
+    if part is None:
+        part = _claim_queued(worker_id, languages)
+    # Nothing is queued for this worker: the next part is cut now, and the retry claims it
+    if part is None and audiobook_scheduler.cut_work(worker_id, languages) is not None:
+        part = _claim_queued(worker_id, languages)
+    if part is None:
+        return _no_work(CLAIM_RETRY_IDLE)
+    return Response(_claim_payload(request, part, part.audiobook))
 
 
 @api_view(['GET'])
@@ -324,24 +347,22 @@ def heartbeat(request, part_id):
     worker_id, error = _header_worker_id(request)
     if error:
         return error
-    _touch_worker(request, worker_id)
 
     data, error = _json_body(request)
     if error:
         return error
+    _touch_worker(request, worker_id, message=str(data.get('message') or ''))
     number = _number(data.get('progress'), 0.0)
     if number is None:
         return Response({'detail': 'progress must be a number'}, status=status.HTTP_400_BAD_REQUEST)
     progress = min(1.0, max(0.0, number))
-    lease_until = timezone.now() + timedelta(seconds=svc.LEASE_SECONDS)
     updated = _owned_part_queryset(request, part_id, worker_id).update(
-        lease_until=lease_until,
         progress=progress,
         stage=str(data.get('stage') or '')[:STAGE_MAX],
     )
     if not updated:
         return _conflict()
-    return Response({'lease_until': _iso(lease_until)})
+    return Response({'status': 'ok'})
 
 
 def _discard(path):
@@ -499,17 +520,12 @@ def complete(request, part_id):
     data, error = _json_body(request)
     if error:
         return error
-    cast = data.get('cast')
+    # A cast sent by an older worker is ignored: prod no longer keeps one
     qa = data.get('qa')
     engine = data.get('engine')
     engine_version = data.get('engine_version')
-    if not isinstance(cast, dict) or not isinstance(qa, dict):
-        return Response({'detail': 'cast and qa must be objects'}, status=status.HTTP_400_BAD_REQUEST)
-    if any(
-        isinstance(entry, dict) and entry.get('description') is not None and not isinstance(entry['description'], str)
-        for entry in cast.values()
-    ):
-        return Response({'detail': 'cast descriptions must be strings'}, status=status.HTTP_400_BAD_REQUEST)
+    if not isinstance(qa, dict):
+        return Response({'detail': 'qa must be an object'}, status=status.HTTP_400_BAD_REQUEST)
     if not isinstance(engine, str) or not engine.strip():
         return Response({'detail': 'engine must be a non-empty string'}, status=status.HTTP_400_BAD_REQUEST)
     if not isinstance(engine_version, str):
@@ -565,20 +581,19 @@ def complete(request, part_id):
             size_bytes=total_size,
             engine=engine,
             engine_version=engine_version,
-            cast=cast,
             qa=qa,
             qa_passed=bool(qa.get('passed')),
             worker_id='',
             claimed_at=None,
-            lease_until=None,
             progress=1,
             attempts=0,
             error_message='',
         )
-        audiobook.cast = {**audiobook.cast, **cast}
         audiobook.credits = {'engine': engine, 'engine_version': engine_version}
         audiobook.last_part_at = now
-        audiobook.save(update_fields=['cast', 'credits', 'last_part_at', 'updated_at'])
+        if audiobook.first_published_at is None:
+            audiobook.first_published_at = now
+        audiobook.save(update_fields=['credits', 'last_part_at', 'first_published_at', 'updated_at'])
         audiobook.refresh_totals()
         audiobook.tags_hash = audiobook_media.compute_tags_hash(audiobook)
         audiobook.save(update_fields=['tags_hash', 'updated_at'])
@@ -614,13 +629,15 @@ def fail(request, part_id):
             return _conflict()
         attempts = part.attempts + 1
         new_status = 'queued' if retryable and attempts < svc.MAX_ATTEMPTS else 'failed'
+        # A queued part shows no build progress: the next claim starts it again from zero
+        restart = {'progress': 0, 'stage': ''} if new_status == 'queued' else {}
         AudiobookPart.objects.filter(pk=part.pk).update(
             status=new_status,
             attempts=attempts,
             error_message=message,
             worker_id='',
             claimed_at=None,
-            lease_until=None,
+            **restart,
         )
     return Response({'status': new_status})
 

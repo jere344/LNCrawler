@@ -19,6 +19,9 @@ services:
       - max_connections=40
       - -c
       - max_parallel_workers_per_gather=0
+      # Short OLTP queries: JIT compiling (30-40 ms) costs more than it saves.
+      - -c
+      - jit=off
     mem_limit: 1g
     volumes:
       - postgres_data:/var/lib/postgresql/data

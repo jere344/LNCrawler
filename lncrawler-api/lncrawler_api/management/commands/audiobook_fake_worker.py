@@ -125,11 +125,6 @@ class Command(BaseCommand):
                 json={'progress': number / len(chapters), 'stage': 'uploading', 'message': 'fake worker'},
             )
 
-        cast = {
-            'Narrator': {'engine': 'fake', 'voice': 'fake-narrator', 'role': 'narrator'},
-            'Fake Hero': {'engine': 'fake', 'voice': 'fake-hero', 'role': 'main'},
-            'Fake Villain': {'engine': 'fake', 'voice': 'fake-villain', 'role': 'minor'},
-        }
         qa = {
             'passed': not options['fail_qa'],
             'checks': {'fake': {'value': 1, 'threshold': 1, 'passed': not options['fail_qa']}},
@@ -139,7 +134,6 @@ class Command(BaseCommand):
             'POST', f'parts/{part_id}/complete', {200},
             "Completed part",
             json={
-                'cast': cast,
                 'qa': qa,
                 'engine': 'fake+sine',
                 'engine_version': 'audiobook_fake_worker 1',

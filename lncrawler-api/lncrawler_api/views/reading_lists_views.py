@@ -4,14 +4,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from django.db.models import F, Prefetch, Q
+from django.db.models import F, Q
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from ..utils.pagination import paginated_response as _paginated_response
-from ..utils.query_helpers import (
-    exclude_adult, has_audiobook_subquery, novel_prefetch_objects, source_prefetch,
-)
+from ..utils.query_helpers import novel_queryset, reading_lists_queryset
 from ..utils.responses import forbidden as _forbidden
 from ..models.users_models import ReadingList, ReadingListItem, ReadingListCollaborator
 from ..models.novels_models import Novel
@@ -23,38 +21,6 @@ from ..serializers import (
 )
 
 User = get_user_model()
-
-
-def _reading_lists_query_set(user=None, full=True):
-    """
-    Reading lists with their relations prefetched so serializing a page does
-    not issue per-list queries (owner, collaborators, items and their novels).
-
-    ``full`` (the detail profile) gives each item's novel the full card prefetch
-    set (sources, ratings, weekly views and, for a logged-in ``user``, their own
-    bookmark/history). List *cards* only render a title and a cover thumbnail,
-    so they pass ``full=False`` to prefetch just the source columns the preview
-    profile reads (no ratings/weekly/authors/tags).
-
-    Items are prefetched into ``visible_items`` with adult novels dropped when
-    the viewer may not see them, so the serializer renders only visible items
-    (counts, first_item, names) consistently.
-    """
-    items_qs = ReadingListItem.objects.all()
-    items_qs = exclude_adult(items_qs, user, 'novel__')
-    if full:
-        novel_prefetches = novel_prefetch_objects(user)
-    else:
-        novel_prefetches = [source_prefetch(profile='preview', user=user)]
-    items_qs = items_qs.prefetch_related(
-        Prefetch('novel', queryset=Novel.objects.annotate(
-            annotated_has_audiobook=has_audiobook_subquery()
-        ).prefetch_related(*novel_prefetches))
-    )
-    return ReadingList.objects.select_related('user').prefetch_related(
-        'collaborators__user',
-        Prefetch('items', queryset=items_qs, to_attr='visible_items'),
-    )
 
 
 def _load_list_for_role(request, list_id, roles, message, queryset=None):
@@ -78,7 +44,7 @@ def list_all_reading_lists(request):
     """
     search = request.GET.get("search", "")
 
-    query_set = _reading_lists_query_set(request.user, full=False).filter(is_public=True)
+    query_set = reading_lists_queryset(request.user, full=False).filter(is_public=True)
 
     if search:
         query_set = query_set.filter(
@@ -97,7 +63,7 @@ def get_user_reading_lists(request):
     Get all reading lists the current user can edit or read: their own lists
     plus lists shared with them as editor or reader.
     """
-    query_set = _reading_lists_query_set(request.user, full=False).filter(
+    query_set = reading_lists_queryset(request.user, full=False).filter(
         Q(user=request.user) | Q(collaborators__user=request.user)
     ).distinct().order_by('-updated_at')
 
@@ -110,7 +76,7 @@ def reading_list_detail(request, list_id):
     Get details of a specific reading list including all its items.
     Private lists are only visible to their owner and collaborators.
     """
-    reading_list = get_object_or_404(_reading_lists_query_set(request.user), id=list_id)
+    reading_list = get_object_or_404(reading_lists_queryset(request.user), id=list_id)
     if not reading_list.is_public and get_reading_list_role(reading_list, request.user) is None:
         return _forbidden("You do not have access to this reading list.")
 
@@ -156,7 +122,7 @@ def update_reading_list(request, list_id):
         serializer.save()
         # Re-fetch through the filtered queryset so the response never echoes
         # adult items the viewer is not allowed to see.
-        fresh = _reading_lists_query_set(request.user, full=False).get(id=reading_list.id)
+        fresh = reading_lists_queryset(request.user, full=False).get(id=reading_list.id)
         return Response(ReadingListSerializer(fresh, context={"request": request}).data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -226,7 +192,8 @@ def add_novel_to_list(request, list_id):
 
             ReadingList.objects.filter(pk=reading_list.pk).update(updated_at=timezone.now())
 
-            # Return the item with the novel details
+            # Return the item with the novel's card (its counters and flags are annotations, not lazy loads)
+            item.novel = novel_queryset(Novel.objects.filter(pk=item.novel_id), request.user).get()
             return_serializer = ReadingListItemSerializer(item)
             return Response(return_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -256,6 +223,7 @@ def update_list_item(request, list_id, item_id):
     serializer = ReadingListItemSerializer(item, data=data, partial=True)
     if serializer.is_valid():
         serializer.save()
+        item.novel = novel_queryset(Novel.objects.filter(pk=item.novel_id), request.user).get()
         return Response(serializer.data)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -360,7 +328,7 @@ def reorder_list_items(request, list_id):
         ReadingList.objects.filter(pk=reading_list.pk).update(updated_at=timezone.now())
 
     # Return updated list
-    updated_list = get_object_or_404(_reading_lists_query_set(request.user), id=list_id)
+    updated_list = get_object_or_404(reading_lists_queryset(request.user), id=list_id)
     serializer = ReadingListSerializer(updated_list, context={"request": request}, profile='detail')
     return Response(serializer.data)
 

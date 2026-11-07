@@ -3,8 +3,11 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
+
+LISTENABLE_STATUSES = ('done', 'stale')  # part statuses whose audio can be played and downloaded
+LISTENABLE_PART_Q = Q(status__in=LISTENABLE_STATUSES)
 
 
 class Audiobook(models.Model):
@@ -22,15 +25,12 @@ class Audiobook(models.Model):
     language = models.CharField(max_length=10, default='en')
     source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='audiobooks')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
-    published = models.BooleanField(default=False)
-    featured = models.BooleanField(default=False)
     worker_id = models.CharField(max_length=64, blank=True, default='')
     cover_path = models.CharField(max_length=500, blank=True, default='')
     tags_hash = models.CharField(max_length=64, blank=True, default='')  # compute_tags_hash at the last retag
     total_duration_s = models.FloatField(default=0)
     total_size_bytes = models.BigIntegerField(default=0)
     parts_done = models.PositiveIntegerField(default=0)
-    cast = models.JSONField(default=dict, blank=True)
     credits = models.JSONField(default=dict, blank=True)
     first_published_at = models.DateTimeField(null=True, blank=True)
     last_part_at = models.DateTimeField(null=True, blank=True)
@@ -89,7 +89,6 @@ class AudiobookPart(models.Model):
     engine_version = models.CharField(max_length=255, blank=True, default='')
     worker_id = models.CharField(max_length=64, blank=True, default='')
     claimed_at = models.DateTimeField(null=True, blank=True)
-    lease_until = models.DateTimeField(null=True, blank=True)
     progress = models.FloatField(default=0)
     stage = models.CharField(max_length=64, blank=True, default='')
     attempts = models.PositiveIntegerField(default=0)
@@ -98,10 +97,8 @@ class AudiobookPart(models.Model):
     chapter_ids = models.JSONField(default=list, blank=True)  # Chapter pks of the cut, in order, frozen at enqueue
     generation = models.PositiveIntegerField(default=0)  # incremented on each claim; uploads go to its own folder
     uploads = models.JSONField(default=dict, blank=True)  # {str(chapter pk): file, sha256, duration, size} of this generation
-    cast = models.JSONField(default=dict, blank=True)
     qa = models.JSONField(default=dict, blank=True)
     qa_passed = models.BooleanField(null=True)
-    approved = models.BooleanField(default=False)
     duration_s = models.FloatField(default=0)
     size_bytes = models.BigIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -114,15 +111,15 @@ class AudiobookPart(models.Model):
             models.UniqueConstraint(fields=['audiobook', 'index'], name='audiobook_part_index_uniq'),
         ]
         indexes = [
-            models.Index(fields=['status', '-priority', 'lease_until'], name='audiobook_part_claim_idx'),
+            models.Index(fields=['status', '-priority'], name='audiobook_part_claim_idx'),
         ]
 
     def __str__(self):
         return f"{self.audiobook} — part {self.index}"
 
     def is_listenable(self):
-        """Done or stale, and either passed QA or approved by the admin"""
-        return self.status in ('done', 'stale') and bool(self.qa_passed or self.approved)
+        """Done or stale. QA is recorded for the admin, it does not hide the part"""
+        return self.status in LISTENABLE_STATUSES
 
 
 class AudiobookChapter(models.Model):

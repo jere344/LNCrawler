@@ -1,4 +1,3 @@
-import type { TFunction } from 'i18next';
 import type { AudiobookCard } from '@models/audiobook_types';
 import { readLocalStorage } from './storage';
 
@@ -33,11 +32,3 @@ export const progressRatio = (book: AudiobookCard): number => {
   return Math.min(1, done / Math.max(1, book.chapters));
 };
 
-// "Chapter 12", "Ch. 12 -", "c12:" or "12." at the start of a crawled title (a bare number needs a separator: "12 Days" stays)
-const LEADING_CHAPTER_NUMBER = /^\s*(?:(?:chapter|chapitre|capítulo|chương|ch\.?|c)\s*\d+\s*[-:,.–—]?|\d+\s*[-:,.–—])\s*/i;
-
-// "Chapter 3: The Fool", or just "Chapter 3" when the title is only that number (most crawled titles repeat it).
-export const audioChapterLabel = (t: TFunction, number: number, title: string) => {
-  const name = (title || '').replace(LEADING_CHAPTER_NUMBER, '').trim();
-  return name ? t('audioPlayer.chapterLabel', { number, title: name }) : t('units.chapter', { number });
-};

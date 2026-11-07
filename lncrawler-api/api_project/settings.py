@@ -76,7 +76,12 @@ else:
     SECURE_PROXY_SSL_HEADER = None
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
-    CSRF_COOKIE_DOMAIN = SITE_DOMAIN
+    # Dev only: work from any URL (LAN IP, tunnel, other port). Never in prod.
+    ALLOWED_HOSTS = ['*']
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGIN_REGEXES = [r"^.*$"]  # reflects the Origin, so credentials still work
+    CORS_ALLOW_CREDENTIALS = True
+    CSRF_COOKIE_DOMAIN = None  # host-only cookie, whatever host serves the page
 
 
 # Application definition
@@ -102,7 +107,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    "api_project.dev_csrf.DevCsrfViewMiddleware" if DEBUG else "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -202,12 +207,10 @@ LNCRAWL_URL = "lightnovels/"
 EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
 
 # Audiobooks: parts are cut by word count (see services/audiobook_service.py).
-# AUDIOBOOK_ENABLED=False stops the scheduled enqueue and worker claims. Published audiobooks stay live and keep their upkeep.
+# AUDIOBOOK_ENABLED=False stops worker claims. Published audiobooks stay live and keep their upkeep.
 AUDIOBOOK_ENABLED = os.environ.get("AUDIOBOOK_ENABLED", "False") == "True"
 # Target words per part; a chapter is never split, so a part can run over
 AUDIOBOOK_PART_WORDS = int(os.environ.get("AUDIOBOOK_PART_WORDS", 75000))
-# Words of queued parts the hourly task keeps ready for the worker (about one night of work)
-AUDIOBOOK_QUEUE_WORDS = int(os.environ.get("AUDIOBOOK_QUEUE_WORDS", 600000))
 # Disk budget for the audio files, in GB
 AUDIOBOOK_DISK_BUDGET_GB = float(os.environ.get("AUDIOBOOK_DISK_BUDGET_GB", 50))
 # Size cap of the .m4b download cache, in GB

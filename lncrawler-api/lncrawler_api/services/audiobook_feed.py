@@ -11,6 +11,7 @@ from django.utils.feedgenerator import Enclosure, Rss201rev2Feed
 from django.utils.text import Truncator
 
 from ..models import AudiobookChapter, AudiobookPart
+from ..utils.chapter_label import get_labeler
 from ..utils.text import strip_html
 from . import audiobook_media
 from .audiobook_public import (
@@ -86,10 +87,11 @@ def podcast_feed_xml(audiobook):
         .select_related('part', 'chapter')
         .order_by('-part__index', '-chapter__chapter_id')
     )
+    labeler = get_labeler(audiobook.language)
     for row in rows:
         part = row.part
         feed.add_item(
-            title=row.chapter.title or f"Chapter {row.chapter.chapter_id}",
+            title=labeler.label(row.chapter.title, row.chapter.chapter_id),
             link=page_url,
             description=None,
             unique_id=f"{row.chapter_id}-g{part.generation}",

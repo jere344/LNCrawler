@@ -177,7 +177,7 @@ class CommentThreadTests(TestCase):
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data["type"], "chapter")
         self.assertEqual(response.data["source_slug"], "site")
-        self.assertEqual(response.data["chapter_title"], "Chapter 1")
+        self.assertEqual(response.data["chapter_display_title"], "Chapter 1")
         self.assertEqual(Comment.objects.get(pk=response.data["id"]).parent_id, root.id)
 
     def test_reply_on_chapter_route_to_another_chapter_is_not_found(self):

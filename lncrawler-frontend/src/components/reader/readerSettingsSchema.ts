@@ -4,7 +4,6 @@ import { TTS_NUMERIC_RANGES, TTS_ENUM_VALUES, TTS_RECORD_KEYS, isValidTtsPref, t
 import { defaultSettings } from './readerDefaults';
 
 export type EdgeTapBehavior = 'none' | 'scrollUp' | 'scrollDown' | 'chapter';
-export type MarkReadBehavior = 'none' | 'button' | 'automatic' | 'buttonAutomatic';
 export type SwipeGesture = 'none' | 'prevChapter' | 'nextChapter' | 'chapterList' | 'comments';
 export type KeyAction = 'none' | 'scrollUp' | 'scrollDown' | 'prevChapter' | 'nextChapter' | 'toggleControls' | 'displaySheet' | 'fullscreen' | 'comments';
 export type CenterAction = 'none' | 'controls' | 'fullscreen';
@@ -32,10 +31,8 @@ export interface ReaderSettings extends TtsPrefs {
   leftEdgeTapBehavior: EdgeTapBehavior;
   rightEdgeTapBehavior: EdgeTapBehavior;
   textSelectable: boolean;
-  savePosition: boolean;
   readingMode: ReadingMode;
   infiniteShowComments: boolean;
-  markReadBehavior: MarkReadBehavior;
   keyboardNavigation: boolean;
   keyArrowLeft: KeyAction;
   keyArrowRight: KeyAction;
@@ -93,7 +90,6 @@ const ENUM_VALUES: Partial<Record<keyof ReaderSettings, readonly string[]>> = {
   textAlign: ['left', 'center', 'justify', 'right'],
   leftEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
   rightEdgeTapBehavior: ['none', 'scrollUp', 'scrollDown', 'chapter'],
-  markReadBehavior: ['none', 'button', 'automatic', 'buttonAutomatic'],
   readingMode: ['chapter', 'infinite'],
   swipeLeftGesture: ['none', 'prevChapter', 'nextChapter', 'chapterList', 'comments'],
   swipeRightGesture: ['none', 'prevChapter', 'nextChapter', 'chapterList', 'comments'],

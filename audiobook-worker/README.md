@@ -21,11 +21,12 @@ Then on each GPU machine, clone this repository and follow sections 1 to 5, with
 Things to know when running several machines:
 
 - **Prod pins each audiobook to the worker that claimed its first part**, because the series memory and voices live on
-  that machine. A pin is released after 7 days without a claim or ping from that worker.
+  that machine. A pin is never released on its own: an admin unpins the audiobook (`unpin_worker` action), which also
+  puts its claimed part back in the queue.
 - **Keep `WORKER_ID` stable and unique.** An id belongs to the token that first used it. A new id is a new worker, which
   no longer gets its pinned audiobooks.
 - **`WORKER_LANGUAGES` defaults to `en`.** Set it to `en,fr` to claim French parts too.
-- **To retire a machine**, revoke its token on prod. Its parts go back to the queue when their 15-minute lease expires.
+- **To retire a machine**, revoke its token on prod and unpin its audiobooks in the admin, so another worker can take them.
 
 ## 1. Prerequisites
 
@@ -115,8 +116,8 @@ at runtime: it does not claim a part until Castwright and the LLM both answer (s
 - **State.** A part's work is kept in `DATA_DIR/parts/<part_id>/`: `state.json`, `part.epub`, the analysis checkpoint,
   and the encoded chapters until they are uploaded. A part's profile is stored at its first run and reused on resume.
   `state.prune()` deletes the state of parts older than seven days when the worker starts.
-- **Stop.** `docker compose stop worker` stops the worker within 10 s and keeps the state, saved per chapter. The part's lease then expires
-  on lncrawler. The next start resumes the part at the stage it stopped in. Analysis resumes at the next chapter, and
+- **Stop.** `docker compose stop worker` stops the worker within 10 s and keeps the state, saved per chapter. The part stays claimed by this worker
+  on lncrawler, and the next claim returns it. The next start resumes the part at the stage it stopped in. Analysis resumes at the next chapter, and
   generation resumes at the chapters still missing.
 - **A failed part.** A retryable failure is reported as such and the worker waits `IDLE_RETRY_S` before it claims
   again. A failure that is not retryable is reported too, and its state is kept: an admin retry on lncrawler reuses
@@ -179,9 +180,7 @@ retryable) only when there is no voice to lend.
 Defaults: `QWEN_MAIN_MIN_LINES=8`, `QWEN_MAX_DESIGNED=14`. Kokoro voices only 1–2% of the lines of a part, and a design
 costs about 67 s, so only the smallest roles stay on Kokoro.
 
-Cast entries for qwen voices carry the stored voice persona (`voiceStyle`) as `description`, trimmed to 300 characters.
-Kokoro entries carry none. A male or female character whose persona names no gender gets "A {age} {gender} voice." in
-front, because the designer otherwise drifts (a soft-spoken male lead came out sounding female). A persona that says
+A male or female character whose voice persona (`voiceStyle`) names no gender gets "A {age} {gender} voice." in front, because the designer otherwise drifts (a soft-spoken male lead came out sounding female). A persona that says
 androgynous, gender-neutral, genderless or unisex is kept as written, and so are neutral characters and the narrator.
 
 The narrator's persona is chosen once per series, by one LLM call on the title, synopsis, tags and opening narration of the
@@ -211,7 +210,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/src" -w /src lncrawler-audiobook-wo
 python tests/fake_prod.py --chapters-dir <novel-source> --count 3 --port 8765 --token t --profile qwen-mixed
 ```
 
-It prints state changes and, on complete, writes the received cast and QA to `fake_prod_out/complete.json`.
+It prints state changes and, on complete, writes the received QA to `fake_prod_out/complete.json`.
 
 ## Layout
 

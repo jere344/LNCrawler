@@ -1,7 +1,6 @@
 import type { ChapterContent } from '@models/novels_types';
 import { useTranslation } from 'react-i18next';
-import { getChapterLabel } from '@utils/Misc';
-import type { FullscreenProps, MarkReadProps, ReaderBarProps, ReaderShortcuts } from '../controls/readerBarTypes';
+import type { FullscreenProps, ReaderBarProps, ReaderShortcuts } from '../controls/readerBarTypes';
 import type { ReaderPanel } from './useReaderPanels';
 
 interface UseReaderBarPropsOptions {
@@ -14,7 +13,6 @@ interface UseReaderBarPropsOptions {
   reservedEnd: number;
   shortcuts: ReaderShortcuts;
   setControlsVisible: (visible: boolean) => void;
-  markRead: MarkReadProps;
   fullscreen: FullscreenProps;
   navigation: {
     goPrev: () => void;
@@ -40,7 +38,6 @@ export function useReaderBarProps({
   reservedEnd,
   shortcuts,
   setControlsVisible,
-  markRead,
   fullscreen,
   navigation,
   onToggleChapters,
@@ -52,7 +49,7 @@ export function useReaderBarProps({
   onListen,
 }: UseReaderBarPropsOptions) {
   const { t } = useTranslation();
-  const chapterLabel = chapter ? getChapterLabel(t, chapter.title, chapter.chapter_id) : '';
+  const chapterLabel = chapter ? chapter.display_title : '';
   const fullscreenLabel = t(fullscreen.active ? 'readerControls.exitFullscreen' : 'readerControls.enterFullscreen');
   const fullscreenTitle = shortcuts.fullscreen ? `${fullscreenLabel} (${shortcuts.fullscreen})` : fullscreenLabel;
 
@@ -73,7 +70,6 @@ export function useReaderBarProps({
     reservedStart,
     reservedEnd,
     shortcuts,
-    markRead,
     fullscreen,
     fullscreenLabel,
     fullscreenTitle,

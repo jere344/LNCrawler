@@ -20,6 +20,7 @@ from django.conf import settings
 from mutagen.mp4 import MP4, MP4Cover
 
 from ..models import Audiobook, AudiobookPart
+from ..utils.chapter_label import get_labeler
 from . import audiobook_cover, audiobook_media, audiobook_service as svc
 from .epub_service import _build_lock, enqueue_job
 
@@ -90,15 +91,12 @@ def _escape_meta(value):
     return re.sub(r'([=;#\\])', r'\\\1', value.replace('\r', ' ').replace('\n', ' '))
 
 
-def _chapter_title(chapter):
-    return chapter.title or f"Chapter {chapter.chapter_id}"
-
-
 def _write_ffmpeg_inputs(list_path, meta_path, part, rows):
     """Write the concat list of the chapter files and the ffmetadata with one [CHAPTER] per chapter row."""
     with open(list_path, 'w', encoding='utf-8') as out:
         for row in rows:
             out.write(_escape_concat(os.path.join(settings.LNCRAWL_OUTPUT_PATH, row.file_path)) + '\n')
+    labeler = get_labeler(part.audiobook.language)
     with open(meta_path, 'w', encoding='utf-8') as out:
         out.write(';FFMETADATA1\n')
         for row in rows:
@@ -107,7 +105,7 @@ def _write_ffmpeg_inputs(list_path, meta_path, part, rows):
             out.write(
                 '[CHAPTER]\nTIMEBASE=1/1000\n'
                 f'START={start}\nEND={end}\n'
-                f'title={_escape_meta(_chapter_title(row.chapter))}\n'
+                f'title={_escape_meta(labeler.label(row.chapter.title, row.chapter.chapter_id))}\n'
             )
 
 
@@ -180,7 +178,7 @@ def _tag_m4b(path, part, metadata):
 def build_m4b(part, fmt, progress=None):
     """Build the .m4b of a part in a format, store it in the cache and return its path.
 
-    The part must be done or stale, passed QA or be approved, and have chapter rows. The tags are made current
+    The part must be done or stale, and have chapter rows. The tags are made current
     first. The chapter files are read under the retag lock, so a retag cannot rewrite them mid-build. A file built
     by another request while this one waited for the lock is returned as is.
     """

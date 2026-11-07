@@ -26,7 +26,6 @@ import BreadcrumbNav from '../common/BreadcrumbNav';
 import LanguageIcon from '@mui/icons-material/Language';
 import BookIcon from '@mui/icons-material/Book';
 import ImageIcon from '@mui/icons-material/Image';
-import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 import PageNav from '@components/common/PageNav';
 import type { AsyncData, GalleryLoaderData, GalleryImage } from '../../router/loaders';
@@ -263,7 +262,7 @@ const ImageGallery = () => {
                 >
                   <img
                     src={image.image_url}
-                    alt={t('gallery.imageAlt', { chapter: getChapterLabel(t, image.chapter_title, image.chapter_id), name: image.image_name })}
+                    alt={t('gallery.imageAlt', { chapter: image.chapter_display_title, name: image.image_name })}
                     loading="lazy"
                     decoding="async"
                     onLoad={(e) => handleImageLoad(image.image_url, e)}
@@ -283,7 +282,7 @@ const ImageGallery = () => {
                     }}
                   >
                     <Typography variant="caption">
-                      {getChapterLabel(t, image.chapter_title, image.chapter_id)}
+                      {image.chapter_display_title}
                     </Typography>
                   </Box>
                 </ImageListItem>
@@ -350,7 +349,7 @@ const ImageGallery = () => {
         {selectedImage && (
           <Box sx={{ textAlign: 'center', p: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="subtitle1" sx={{ color: 'white', mb: 2 }}>
-              {getChapterLabel(t, selectedImage.chapter_title, selectedImage.chapter_id)}
+              {selectedImage.chapter_display_title}
             </Typography>
 
             <Box sx={{ 

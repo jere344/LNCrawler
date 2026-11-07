@@ -1,6 +1,4 @@
-import { useTranslation } from 'react-i18next';
 import { ChapterContent } from '@models/novels_types';
-import { getChapterLabel } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '@components/common/SeoMeta';
 
 interface ChapterSEOProps {
@@ -8,10 +6,9 @@ interface ChapterSEOProps {
 }
 
 const ChapterSEO = ({ chapter }: ChapterSEOProps) => {
-  const { t } = useTranslation();
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
-  const chapterLabel = chapter ? getChapterLabel(t, chapter.title, chapter.chapter_id) : "";
+  const chapterLabel = chapter ? chapter.display_title : "";
 
   // i18n-missing: no catalog keys for chapter SEO meta strings
   const metaTitle = chapter 

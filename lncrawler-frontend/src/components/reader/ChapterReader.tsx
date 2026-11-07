@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { useMediaQuery } from '@mui/material';
 import { useAuth } from '@context/AuthContext';
 import type { ChapterContent as IChapterContent } from '@models/novels_types';
-import { getChapterLabel } from '@utils/Misc';
 import { updateReaderSetting } from './readerSettingsStore';
 import ReaderDesktopToolbar from './controls/ReaderDesktopToolbar';
 import ReaderTopBar from './controls/ReaderTopBar';
@@ -31,7 +29,8 @@ import { useStreamTrim } from './hooks/useStreamTrim';
 import { findStreamChapter } from './hooks/chapterStream';
 import { sectionKeyOf } from './hooks/chapterRange';
 import { useReaderScrollSaving } from './hooks/useReaderScrollSaving';
-import { useChapterReadTracking } from './hooks/useChapterReadTracking';
+import { useReadingPositionSync } from './hooks/useReadingPositionSync';
+import { resumeProgressFrom, withoutResumeProgress } from './hooks/readingPositionSync';
 import { useChapterNavigation } from './hooks/useChapterNavigation';
 import { useActiveChapter } from './hooks/useActiveChapter';
 import { useReaderAudio } from './hooks/useReaderAudio';
@@ -46,7 +45,6 @@ import { chapterListCache } from './panels/chapterList';
 const CHAPTER_LIST_PREFETCH_MS = 1500;
 
 const ChapterReader = () => {
-  const { t } = useTranslation();
   const { novelSlug, sourceSlug, chapterNumber } = useParams<{
     novelSlug: string;
     sourceSlug: string;
@@ -92,8 +90,6 @@ const ChapterReader = () => {
     setControlsVisible(isDesktop);
   }, [isDesktop]);
 
-  // Sentinel placed after the chapter text, watched to detect the reader reaching its end
-  const endOfChapterRef = useRef<HTMLDivElement>(null);
   // Key of the chapter whose text is currently on screen (null while loading)
   const loadedChapterKeyRef = useRef<string | null>(null);
   // Whether the TTS bar covers the bottom of the viewport (set once tts exists)
@@ -137,53 +133,35 @@ const ChapterReader = () => {
   // Infinite mode: the section of the active chapter is what the position and progress are measured in
   const sectionKey = infinite && chapter ? sectionKeyOf(chapter) : null;
 
+  // The position of a signed-in user goes to the server; the scroll saving below reports its save points to it
+  const positionSync = useReadingPositionSync({ enabled: isAuthenticated, chapter, loading, loadId, infinite });
+
+  // A Continue link opens the chapter at the position it resumes from
+  const resumeProgress = resumeProgressFrom(location.state);
   const { saveScrollIfReady } = useReaderScrollSaving({
     currentChapterKey,
     sectionKey,
     loadId,
     chapter,
     loading,
-    savePosition: readerSettings.savePosition,
     loadedChapterKeyRef,
+    onPositionSaved: positionSync.onPositionSaved,
+    resumeProgress,
   });
 
-  const {
-    markingAsRead,
-    markReadSuccess,
-    showMarkReadButton,
-    handleMarkAsRead,
-    markBeforeLeaving,
-    markedChapters,
-    markingChapters,
-    markChapter,
-  } = useChapterReadTracking({
-    novelSlug,
-    sourceSlug,
-    chapterNumber,
-    currentChapterKey,
-    chapter,
-    loading,
-    isAuthenticated,
-    isNarrow,
-    markReadBehavior: readerSettings.markReadBehavior,
-    endOfChapterRef,
-    loadedChapterKeyRef,
-    ttsOpenRef,
-  });
-
-  const markRead = {
-    showMarkRead: showMarkReadButton,
-    markReadSuccess,
-    markingAsRead,
-    onMarkAsRead: handleMarkAsRead,
-  };
+  // The Continue progress is applied by the first restore of the chapter; then it leaves the history state, so a refresh restores from this device
+  useEffect(() => {
+    if (resumeProgress === null || loading || !chapter) return;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: withoutResumeProgress(location.state) });
+  }, [resumeProgress, loading, chapter, location, navigate]);
 
   const { goNext, goPrev, goToSource, goToChapterList, goToChapter } = useChapterNavigation({
     novelSlug,
     sourceSlug,
     chapter,
     saveScrollIfReady,
-    markBeforeLeaving,
+    onNavigate: positionSync.onNavigate,
+    onLeave: positionSync.onLeave,
     closeThen,
     infinite,
     streamChapters: stream.chapters,
@@ -195,8 +173,9 @@ const ChapterReader = () => {
     const activeNumber = parseInt(activeId);
     const currentNumber = parseInt(chapterNumber ?? '');
     if (activeNumber === currentNumber) return;
-    // Scrolling on past a chapter leaves it read; scrolling back up marks nothing
-    if (infinite && activeNumber > currentNumber) void markBeforeLeaving();
+    // The section the reading line moved into is recorded at its progress, in either direction
+    const section = findStreamChapter(stream.chapters, novelSlug, sourceSlug, activeNumber);
+    if (section) positionSync.onSectionActive(section);
     // The open panels live in the history state, so it is carried over; keepScroll stops the app scrolling to the top
     syncedChapterRef.current = activeNumber;
     const state = { ...(location.state && typeof location.state === 'object' ? location.state : {}), keepScroll: true };
@@ -217,7 +196,11 @@ const ChapterReader = () => {
     streamEnded: stream.end !== null,
     loadMore: () => { void stream.loadMore(); },
     loadId,
-    onOpenChapter: (n) => navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${n}`),
+    onOpenChapter: (n) => {
+      // Listening moves on to a chapter, which is recorded like Next
+      positionSync.onNavigate({ novelSlug, sourceSlug, chapterNumber: n });
+      navigate(`/novels/${novelSlug}/${sourceSlug}/chapter/${n}`);
+    },
   });
 
   // Infinite mode: the sections the trim keeps on the page, the active chapter, the one TTS reads and the one the comments are open on
@@ -312,7 +295,6 @@ const ChapterReader = () => {
     reservedEnd,
     shortcuts,
     setControlsVisible,
-    markRead,
     fullscreen: { supported: fullscreen.supported, active: fullscreen.active, onToggle: fullscreen.toggle },
     navigation: { goPrev, goNext, goToSource },
     onToggleChapters: toggleChapters,
@@ -331,7 +313,7 @@ const ChapterReader = () => {
     : null;
   // The comments panel's caption and count follow the chapter it is about; the route chapter's count includes comments posted here
   const commentsLabel = commentsSection
-    ? getChapterLabel(t, commentsSection.title, commentsSection.chapter_id)
+    ? commentsSection.display_title
     : chapterLabel;
   const commentsTotal = commentsOnOtherChapter ? (commentsSection?.comment_count ?? 0) : commentCount;
 
@@ -354,6 +336,7 @@ const ChapterReader = () => {
         unavailableChapter={unavailableChapter}
         novelSlug={novelSlug}
         sourceSlug={sourceSlug}
+        onNavigate={positionSync.onNavigate}
       />
     );
   }
@@ -441,7 +424,6 @@ const ChapterReader = () => {
         chapter={chapter}
         novelSlug={novelSlug}
         sourceSlug={sourceSlug}
-        endOfChapterRef={endOfChapterRef}
         stream={stream}
         infinite={infinite}
         tapProps={tapProps}
@@ -450,15 +432,11 @@ const ChapterReader = () => {
         onOpenSettings={() => openSettings()}
         onOpenChapterList={goToChapterList}
         onNarrate={() => { void startNarration(chapter); }}
-        markRead={markRead}
         onPrevious={goPrev}
         onNext={goNext}
         commentCount={commentCount}
         topComment={chapter.top_comment ?? null}
         onOpenComments={openComments}
-        markedChapters={markedChapters}
-        markingChapters={markingChapters}
-        onMarkChapter={markChapter}
         onOpenCommentsFor={onOpenCommentsFor}
         ttsOpen={tts.open}
         barHeight={barHeight}
@@ -509,7 +487,7 @@ const ChapterReader = () => {
         onRateChange={rate => updateReaderSetting('ttsRate', rate)}
         onOpenSettings={() => openSettings({ page: 'listen' })}
         // In infinite mode the TTS can be reading another chapter than the one on screen
-        chapterTitle={ttsChapter ? getChapterLabel(t, ttsChapter.title, ttsChapter.chapter_id) : chapterLabel}
+        chapterTitle={ttsChapter ? ttsChapter.display_title : chapterLabel}
         reservedStart={reservedStart}
       />
     </>

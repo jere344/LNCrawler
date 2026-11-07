@@ -4,7 +4,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import { useTranslation } from 'react-i18next';
-import { getChapterLabel } from '@utils/Misc';
 import { UnavailableChapterInfo } from '@models/novels_types';
 
 interface UnavailableChapterProps {
@@ -34,7 +33,7 @@ const UnavailableChapter: React.FC<UnavailableChapterProps> = ({
           {t('reader.unavailableTitle', { chapter: info.chapter_id })}
         </Typography>
         <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-          {getChapterLabel(t, info.title, info.chapter_id)}
+          {info.display_title}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
           {t('reader.unavailableMessage')}

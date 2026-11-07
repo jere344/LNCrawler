@@ -20,11 +20,9 @@ export interface AudiobookCard {
   cover_url: string | null;
   cover_jpg_url: string | null;
   duration_s: number;
-  parts: number;
   chapters: number;
   first_published_at: string | null;
   last_part_at: string | null;
-  featured: boolean;
   // Adult source or novel. Guests and 'blur'/'yes' viewers see it blurred; 'no' viewers never get it.
   is_adult: boolean;
   progress: ListeningProgress | null;
@@ -65,19 +63,9 @@ export interface AudiobookPart {
   volumes: AudiobookVolume[];
 }
 
-export interface AudiobookCastMember {
-  name: string;
-  role: string | null;
-  engine: string | null;
-  voice: string | null;
-  gender: string | null;
-  // Short plain-text description of the voice, when the worker sent one.
-  description: string | null;
-}
-
-// The detail page: the card plus the synopsis, links, credits, feed, cast and parts.
+// The detail page: the card plus the synopsis, links, credits, feed and parts.
 // The narrator is in `credits.narrator` (the backend does not expose a top-level `narrator`).
-export interface AudiobookDetail extends Omit<AudiobookCard, 'parts'> {
+export interface AudiobookDetail extends AudiobookCard {
   synopsis: string;
   // The novel is DMCA-removed from the site; the audiobook page stays reachable with a notice.
   is_dmca: boolean;
@@ -85,7 +73,6 @@ export interface AudiobookDetail extends Omit<AudiobookCard, 'parts'> {
   source_slug: string;
   credits: { narrator: string | null } & Record<string, string | null | undefined>;
   feed_url: string;
-  cast: AudiobookCastMember[];
   parts: AudiobookPart[];
   // The source's chapters span more than one volume.
   has_volumes: boolean;

@@ -157,7 +157,7 @@ export const chapterListLoader = ({ params, request }: LoaderFunctionArgs): Asyn
 
 export interface GalleryImage {
   chapter_id: number;
-  chapter_title: string;
+  chapter_display_title: string;
   image_url: string;
   image_name: string;
 }

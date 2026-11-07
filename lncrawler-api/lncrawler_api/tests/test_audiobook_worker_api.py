@@ -128,7 +128,6 @@ class WorkerBase(AudiobookBase):
         self.part.status = 'claimed'
         self.part.worker_id = WORKER
         self.part.claimed_at = now
-        self.part.lease_until = now + timedelta(seconds=svc.LEASE_SECONDS)
         self.part.generation = 1
         self.part.uploads = {}
         self.part.save()
@@ -146,7 +145,6 @@ class WorkerBase(AudiobookBase):
 
     def complete_body(self, qa_passed=True):
         return {
-            'cast': {'Narrator': {'engine': 'kokoro', 'voice': 'af', 'role': 'narrator'}},
             'qa': {'passed': qa_passed, 'checks': {}, 'notes': ''},
             'engine': 'castwright+kokoro',
             'engine_version': 'castwright@test kokoro-v1',
@@ -196,7 +194,8 @@ class ClaimTests(WorkerBase):
 
     def test_nothing_to_claim_returns_204_with_retry_after_300(self):
         self.claim_part()
-        response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+        body = {'worker_id': OTHER_WORKER, 'version': '1.0'}
+        response = self.call('post', self.claim_url(), data=body, worker_id=None)
         self.assertEqual(response.status_code, 204)
         self.assertEqual(response['Retry-After'], '300')
 
@@ -220,25 +219,18 @@ class ClaimTests(WorkerBase):
         )
         Audiobook.objects.filter(pk=self.audiobook.pk).update(worker_id=OTHER_WORKER)
 
-    def test_pin_is_kept_while_the_pinned_worker_was_seen_within_seven_days(self):
-        self.pin_to_other(6)
+    def test_pin_is_kept_however_long_the_pinned_worker_is_away(self):
+        self.pin_to_other(30)
 
         response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
 
         self.assertEqual(response.status_code, 204)
         self.part.refresh_from_db()
         self.assertEqual(self.part.status, 'queued')
-
-    def test_pin_is_released_after_seven_days_without_contact(self):
-        self.pin_to_other(8)
-
-        response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
-
-        self.assertEqual(response.status_code, 200)
         self.audiobook.refresh_from_db()
-        self.assertEqual(self.audiobook.worker_id, WORKER)
+        self.assertEqual(self.audiobook.worker_id, OTHER_WORKER)
 
-    def test_claim_offers_only_the_announced_languages(self):
+    def test_claim_offers_only_the_languages_it_sends(self):
         Audiobook.objects.filter(pk=self.audiobook.pk).update(language='fr')
         body = {**self.claim_body(), 'languages': ['en']}
 
@@ -283,6 +275,32 @@ class ClaimTests(WorkerBase):
         self.assertEqual(self.part.generation, 4)
         self.assertEqual(self.part.uploads, {})
 
+    def test_claim_again_resumes_the_same_part_with_its_generation_and_uploads(self):
+        self.claim_part()
+        chapter = self.chapters[0]
+        self.part.generation = 2
+        self.part.uploads = {str(chapter.pk): {'file_path': 'x', 'sha256': 'x', 'duration_s': 1, 'size_bytes': 1}}
+        self.part.save()
+
+        response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['part_id'], str(self.part.pk))
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.generation, 2)
+        self.assertEqual(list(self.part.uploads), [str(chapter.pk)])
+
+    def test_claim_again_in_other_languages_resumes_the_same_part(self):
+        Audiobook.objects.filter(pk=self.audiobook.pk).update(language='fr')
+        first = self.call('post', self.claim_url(), data={**self.claim_body(), 'languages': ['fr']}, worker_id=None)
+        self.assertEqual(first.json()['part_id'], str(self.part.pk))
+
+        body = {**self.claim_body(), 'languages': ['en']}
+        response = self.call('post', self.claim_url(), data=body, worker_id=None)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['part_id'], str(self.part.pk))
+
     def test_dmca_is_not_offered(self):
         Novel.objects.filter(pk=self.novel.pk).update(is_dmca=True)
         response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
@@ -294,13 +312,11 @@ class ClaimTests(WorkerBase):
         self.assertEqual(response.status_code, 204)
 
     def test_response_matches_the_contract(self):
-        self.audiobook.cast = {'Old': {'engine': 'kokoro'}}
-        self.audiobook.save()
         response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
         body = response.json()
         self.assertEqual(
             set(body),
-            {'part_id', 'audiobook_id', 'series', 'part', 'chapters', 'epub_url', 'previous_cast', 'lease_until'},
+            {'part_id', 'audiobook_id', 'series', 'part', 'chapters', 'epub_url'},
         )
         self.assertEqual(set(body['series']), {'title', 'authors', 'language', 'slug', 'synopsis', 'tags'})
         self.assertEqual(set(body['part']), {'index', 'total_known', 'chapter_start', 'chapter_end', 'word_count'})
@@ -313,8 +329,6 @@ class ClaimTests(WorkerBase):
         self.assertEqual(set(body['chapters'][0]), {'chapter_id', 'number', 'title', 'word_count'})
         self.assertTrue(body['epub_url'].startswith('http'))
         self.assertTrue(body['epub_url'].endswith(f'/api/audiobook-worker/parts/{self.part.pk}/epub'))
-        self.assertEqual(body['previous_cast'], {'Old': {'engine': 'kokoro'}})
-        self.assertTrue(body['lease_until'].endswith('Z'))
 
     def claim_series(self):
         response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
@@ -400,6 +414,131 @@ class ClaimRaceTests(TransactionTestCase):
         self.assertEqual(response.json()['part_id'], str(free.pk))
 
 
+@override_settings(AUDIOBOOK_ENABLED=True, AUDIOBOOK_PART_WORDS=500)
+class CutOnClaimTests(WorkerBase):
+    """With nothing queued for the worker, a claim cuts the next part. Two chapters of 300 words make a part of
+    300 words at PART_WORDS 500, so each cut takes one chapter."""
+
+    def finish_the_part_and_add_chapters(self):
+        """The one queued part is done, and chapters 3 and 4 wait to be cut."""
+        self.add_chapters(self.source, [300, 300], first_id=3)
+        self.part.status = 'done'
+        self.part.completed_at = timezone.now()
+        self.part.save()
+
+    def add_novel(self, slug):
+        """A novel of its own, with an English source of two 300-word chapters."""
+        novel = make_novel(slug.title(), slug)
+        source = make_source_row(novel)
+        source.source_path = os.path.join(slug, 'site')
+        source.save()
+        for number in (1, 2):
+            write_chapter(source.absolute_source_path, number, body_size=1500)
+            Chapter.objects.create(
+                novel_from_source=source, chapter_id=number, url=f'http://{slug}/{number}',
+                title=f'Chapter {number}', has_content=True,
+            )
+        return novel
+
+    def test_claim_with_an_empty_queue_cuts_the_next_part_of_the_pinned_book(self):
+        self.finish_the_part_and_add_chapters()
+        Audiobook.objects.filter(pk=self.audiobook.pk).update(worker_id=WORKER)
+
+        response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['part']['index'], 2)
+        self.assertEqual(response.json()['part']['chapter_start'], 3)
+        self.assertEqual(self.audiobook.parts.count(), 2)
+
+    def test_claim_with_an_empty_queue_starts_a_new_book(self):
+        self.add_novel('bar')
+        self.finish_the_part_and_add_chapters()
+        Audiobook.objects.filter(pk=self.audiobook.pk).update(worker_id=OTHER_WORKER)
+
+        response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['series']['slug'], 'bar')
+        self.assertTrue(Audiobook.objects.filter(novel__slug='bar', worker_id=WORKER).exists())
+
+    def test_disk_budget_reached_cuts_nothing_and_answers_204(self):
+        self.finish_the_part_and_add_chapters()
+        Audiobook.objects.filter(pk=self.audiobook.pk).update(worker_id=WORKER, total_size_bytes=2 * 1024 ** 3)
+
+        with override_settings(AUDIOBOOK_DISK_BUDGET_GB=1):
+            response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(self.audiobook.parts.count(), 1)
+
+    def test_disabled_claims_cut_nothing(self):
+        self.finish_the_part_and_add_chapters()
+        Audiobook.objects.filter(pk=self.audiobook.pk).update(worker_id=WORKER)
+
+        with override_settings(AUDIOBOOK_ENABLED=False):
+            response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(self.audiobook.parts.count(), 1)
+
+    def test_claim_after_the_audio_was_deleted_cuts_chapter_one_again(self):
+        self.part.status = 'done'
+        self.part.completed_at = timezone.now()
+        self.part.save()
+        svc.delete_audio_files(self.audiobook)
+
+        response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['part']['index'], 1)
+        self.assertEqual(response.json()['part']['chapter_start'], 1)
+
+    def test_two_claims_after_completes_alternate_between_the_started_book_and_a_new_book(self):
+        self.add_novel('bar')
+        self.finish_the_part_and_add_chapters()
+        Audiobook.objects.filter(pk=self.audiobook.pk).update(worker_id=WORKER)
+        served = []
+        for _ in range(2):
+            response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
+            self.assertEqual(response.status_code, 200)
+            served.append(response.json()['series']['slug'])
+            AudiobookPart.objects.filter(pk=response.json()['part_id']).update(
+                status='done', completed_at=timezone.now(), worker_id='',
+            )
+
+        self.assertEqual(served, ['foo', 'bar'])
+
+
+@override_settings(AUDIOBOOK_ENABLED=True)
+class UnpinTests(WorkerBase):
+    """The admin unpins the book of a dead worker: its claimed part goes back to the queue, and another worker claims it."""
+
+    def test_unpin_requeues_the_claimed_part_and_another_worker_claims_it(self):
+        self.claim_part()
+        AudiobookPart.objects.filter(pk=self.part.pk).update(attempts=1, progress=0.5, stage='rendering')
+        Audiobook.objects.filter(pk=self.audiobook.pk).update(worker_id=WORKER)
+        admin_user = get_user_model().objects.create_superuser('unpin-admin', 'unpin@example.com', 'pw')
+        self.client.force_login(admin_user)
+
+        response = self.client.post(
+            reverse('admin:lncrawler_api_audiobook_changelist'),
+            {'action': 'unpin_worker', '_selected_action': [self.audiobook.pk]},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.part.refresh_from_db()
+        self.audiobook.refresh_from_db()
+        self.assertEqual((self.part.status, self.part.worker_id, self.part.claimed_at), ('queued', '', None))
+        self.assertEqual((self.part.progress, self.part.stage, self.part.attempts), (0, '', 1))
+        self.assertEqual(self.audiobook.worker_id, '')
+
+        body = {'worker_id': OTHER_WORKER, 'version': '1.0'}
+        response = self.call('post', self.claim_url(), data=body, worker_id=None)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['part_id'], str(self.part.pk))
+
+
 @override_settings(AUDIOBOOK_ENABLED=True)
 class EpubTests(WorkerBase):
     def test_epub_has_series_meta_and_chapters_in_order(self):
@@ -424,23 +563,22 @@ class EpubTests(WorkerBase):
 
 @override_settings(AUDIOBOOK_ENABLED=True)
 class HeartbeatTests(WorkerBase):
-    def test_extends_the_lease_and_clamps_progress(self):
+    def test_records_progress_stage_and_message_and_answers_ok(self):
         self.claim_part()
-        AudiobookPart.objects.filter(pk=self.part.pk).update(lease_until=timezone.now() + timedelta(minutes=1))
         response = self.call(
             'post', self.part_url('heartbeat'),
             data={'progress': 2, 'stage': 'x' * 100, 'message': 'busy'},
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'status': 'ok'})
         self.part.refresh_from_db()
-        self.assertGreater(self.part.lease_until, timezone.now() + timedelta(minutes=10))
         self.assertEqual(self.part.progress, 1.0)
         self.assertEqual(len(self.part.stage), 64)
+        self.assertEqual(AudiobookWorker.objects.get(worker_id=WORKER).message, 'busy')
 
-    def test_reaped_part_gives_409_and_stays_queued(self):
+    def test_part_given_back_gives_409_and_stays_queued(self):
         self.claim_part()
-        AudiobookPart.objects.filter(pk=self.part.pk).update(lease_until=timezone.now() - timedelta(minutes=1))
-        self.assertEqual(sched.reap_expired_leases()['requeued'], 1)
+        AudiobookPart.objects.filter(pk=self.part.pk).update(status='queued', worker_id='')
         response = self.call('post', self.part_url('heartbeat'), data={'progress': 0.5})
         self.assertEqual(response.status_code, 409)
         self.part.refresh_from_db()
@@ -543,21 +681,22 @@ class CompleteTests(WorkerBase):
 
     def test_bad_payload_is_400(self):
         body = self.complete_body()
-        body['cast'] = []
-        response = self.call('post', self.part_url('complete'), data=body)
-        self.assertEqual(response.status_code, 400)
-
-    def test_non_string_cast_description_is_400(self):
-        body = self.complete_body()
-        body['cast']['Narrator']['description'] = ['calm']
+        body['qa'] = []
         response = self.call('post', self.part_url('complete'), data=body)
         self.assertEqual(response.status_code, 400)
         self.part.refresh_from_db()
         self.assertEqual(self.part.status, 'claimed')
 
-    def test_success_records_chapters_totals_cast_and_credits(self):
-        self.audiobook.cast = {'Old': {'engine': 'kokoro'}}
-        self.audiobook.save()
+    def test_cast_sent_by_an_older_worker_is_ignored(self):
+        self.upload_all()
+        body = self.complete_body()
+        body['cast'] = [1, 'not a cast']
+        response = self.call('post', self.part_url('complete'), data=body)
+        self.assertEqual(response.status_code, 200)
+        self.part.refresh_from_db()
+        self.assertEqual(self.part.status, 'done')
+
+    def test_success_records_chapters_totals_and_credits(self):
         self.upload_all()
         response = self.call('post', self.part_url('complete'), data=self.complete_body())
         self.assertEqual(response.status_code, 200)
@@ -579,18 +718,28 @@ class CompleteTests(WorkerBase):
         self.assertTrue(self.part.is_listenable())
 
         self.audiobook.refresh_from_db()
-        self.assertEqual(set(self.audiobook.cast), {'Old', 'Narrator'})
         self.assertEqual(self.audiobook.credits, {'engine': 'castwright+kokoro', 'engine_version': 'castwright@test kokoro-v1'})
         self.assertEqual(self.audiobook.parts_done, 1)
         self.assertAlmostEqual(self.audiobook.total_duration_s, self.part.duration_s)
 
-    def test_is_listenable_follows_qa_and_approval(self):
+    def test_first_published_at_is_set_once_by_the_first_done_part(self):
+        self.upload_all()
+        self.call('post', self.part_url('complete'), data=self.complete_body())
+        self.audiobook.refresh_from_db()
+        first = self.audiobook.first_published_at
+        self.assertIsNotNone(first)
+
+        self.claim_part()
+        self.upload_all()
+        self.call('post', self.part_url('complete'), data=self.complete_body())
+        self.audiobook.refresh_from_db()
+        self.assertEqual(self.audiobook.first_published_at, first)
+
+    def test_qa_failed_part_is_still_listenable(self):
         self.upload_all()
         self.call('post', self.part_url('complete'), data=self.complete_body(qa_passed=False))
         self.part.refresh_from_db()
-        self.assertFalse(self.part.is_listenable())
-        self.part.approved = True
-        self.part.save()
+        self.assertFalse(self.part.qa_passed)
         self.assertTrue(self.part.is_listenable())
 
     def test_regenerate_removes_the_old_generation_on_commit(self):
@@ -636,6 +785,14 @@ class FailTests(WorkerBase):
         self.part.refresh_from_db()
         self.assertEqual((self.part.status, self.part.attempts, self.part.error_message), ('queued', 1, 'boom'))
         self.assertEqual(self.part.worker_id, '')
+
+    def test_requeued_part_loses_its_progress_and_stage(self):
+        self.part.progress = 0.6
+        self.part.stage = 'narrating'
+        self.part.save()
+        self.fail(True)
+        self.part.refresh_from_db()
+        self.assertEqual((self.part.status, self.part.progress, self.part.stage), ('queued', 0, ''))
 
     def test_at_max_attempts_it_fails(self):
         self.part.attempts = svc.MAX_ATTEMPTS - 1

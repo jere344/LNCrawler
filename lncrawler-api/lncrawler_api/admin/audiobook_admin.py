@@ -5,6 +5,7 @@ from urllib.parse import quote
 from django.conf import settings
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncDate
 from django.http import FileResponse, Http404
@@ -40,11 +41,6 @@ def _dashboard_context(request):
         for row in AudiobookPart.objects.values('status').annotate(n=Count('id'))
     }
     queued_words = AudiobookPart.objects.filter(status='queued').aggregate(words=Sum('word_count'))['words'] or 0
-    budget_queued_words = AudiobookPart.objects.filter(
-        status__in=['queued', 'claimed'],
-    ).aggregate(words=Sum('word_count'))['words'] or 0
-    words_week = done_week.aggregate(words=Sum('word_count'))['words'] or 0
-    est_nights = round(queued_words / (words_week / 7), 1) if words_week else None
 
     per_day = [
         {
@@ -74,13 +70,8 @@ def _dashboard_context(request):
         'workers': AudiobookWorker.objects.order_by('-last_seen_at'),
         'queue': [(status, label, queue_counts.get(status, 0)) for status, label in AudiobookPart.STATUS_CHOICES],
         'queued_words': queued_words,
-        'budget_queued_words': budget_queued_words,
-        'queue_target_words': settings.AUDIOBOOK_QUEUE_WORDS,
         'started_books': Audiobook.objects.filter(status='active', parts__isnull=False).distinct().count(),
-        'scheduled_tasks': ScheduledTask.objects.filter(
-            name__in=['enqueue_audiobooks', 'reap_audiobook_leases', 'audiobook_housekeeping'],
-        ).order_by('name'),
-        'est_nights': est_nights,
+        'scheduled_tasks': ScheduledTask.objects.filter(name__in=['audiobook_housekeeping']).order_by('name'),
         'per_day': per_day,
         'failed_parts': AudiobookPart.objects.filter(status='failed').select_related('audiobook__novel', 'audiobook__source').order_by(
             F('claimed_at').desc(nulls_last=True), '-created_at'
@@ -126,20 +117,17 @@ class AudiobookAdmin(admin.ModelAdmin):
         'novel',
         'source',
         'status',
-        'published',
-        'featured',
         'parts_summary',
         'hours',
         'size_mb',
         'worker_id',
         'last_part_at',
     )
-    list_filter = ('status', 'published', 'featured')
+    list_filter = ('status',)
     search_fields = ('novel__title', 'source__title')
     raw_id_fields = ('novel', 'source')
     readonly_fields = (
         'cover_thumb',
-        'cast',
         'credits',
         'total_duration_s',
         'total_size_bytes',
@@ -152,14 +140,8 @@ class AudiobookAdmin(admin.ModelAdmin):
     inlines = [AudiobookPartInline]
     change_list_template = "admin/lncrawler_api/audiobook/change_list.html"
     actions = [
-        'publish',
-        'unpublish',
-        'feature',
-        'unfeature',
         'pause',
         'resume',
-        'enqueue_next',
-        'enqueue_tail',
         'delete_audio_files',
         'unpin_worker',
         'rebuild_cover',
@@ -219,55 +201,12 @@ class AudiobookAdmin(admin.ModelAdmin):
                 self.message_user(request, f"{audiobook}: files not retagged ({exc}).", level=messages.ERROR)
         self.message_user(request, f"{files} file(s) retagged.")
 
-    @admin.action(description="Publish selected audiobooks")
-    def publish(self, request, queryset):
-        now = timezone.now()
-        queryset.filter(first_published_at__isnull=True).update(first_published_at=now)
-        updated = queryset.update(published=True)
-        self.message_user(request, f"{updated} audiobook(s) published.")
-
-    unpublish = update_action(
-        "Unpublish selected audiobooks", "{} audiobook(s) unpublished.", published=False,
-    )
-    feature = update_action(
-        "Feature selected audiobooks", "{} audiobook(s) featured.", featured=True,
-    )
-    unfeature = update_action(
-        "Unfeature selected audiobooks", "{} audiobook(s) unfeatured.", featured=False,
-    )
     pause = update_action(
         "Pause selected audiobooks", "{} audiobook(s) paused.", status='paused',
     )
     resume = update_action(
         "Resume selected audiobooks", "{} audiobook(s) resumed.", status='active',
     )
-
-    @admin.action(description="Enqueue next part")
-    def enqueue_next(self, request, queryset):
-        self._enqueue(request, queryset, allow_tail=False)
-
-    @admin.action(description="Enqueue tail now (even if the source is not finished)")
-    def enqueue_tail(self, request, queryset):
-        self._enqueue(request, queryset, allow_tail=True)
-
-    def _enqueue(self, request, queryset, allow_tail):
-        created = 0
-        skipped = []
-        for audiobook in queryset:
-            if audiobook.novel.is_dmca:
-                skipped.append(f"{audiobook} (DMCA takedown)")
-                continue
-            if audiobook.status != 'active':
-                skipped.append(f"{audiobook} (status: {audiobook.status})")
-                continue
-            if audiobook_service.enqueue_next_part(audiobook, allow_tail=allow_tail) is not None:
-                created += 1
-        if skipped:
-            self.message_user(request, "Skipped: " + ", ".join(skipped), level=messages.WARNING)
-        if created:
-            self.message_user(request, f"{created} part(s) queued.")
-        elif not skipped:
-            self.message_user(request, "Nothing to cut: no part is ready.", level=messages.WARNING)
 
     @admin.action(description="Delete audio files of selected audiobooks")
     def delete_audio_files(self, request, queryset):
@@ -290,9 +229,16 @@ class AudiobookAdmin(admin.ModelAdmin):
         self.message_user(request, f"Audio files deleted, {freed / MB:.1f} MB freed.")
         return None
 
-    unpin_worker = update_action(
-        "Unpin worker (any worker may claim the next part)", "{} audiobook(s) unpinned.", worker_id='',
-    )
+    @admin.action(description="Unpin worker (its claimed parts go back to the queue, any worker may claim them)")
+    def unpin_worker(self, request, queryset):
+        # The recovery path for a dead worker: its claimed parts are queued again, and the next claim of any worker takes them
+        with transaction.atomic():
+            audiobook_ids = list(queryset.values_list('pk', flat=True))
+            requeued = AudiobookPart.objects.filter(audiobook_id__in=audiobook_ids, status='claimed').update(
+                status='queued', worker_id='', claimed_at=None, progress=0, stage='',
+            )
+            unpinned = queryset.update(worker_id='')
+        self.message_user(request, f"{unpinned} audiobook(s) unpinned, {requeued} claimed part(s) queued again.")
 
     # -- Dashboard page --------------------------------------------------------
 
@@ -335,7 +281,7 @@ class AudiobookChapterInline(admin.TabularInline):
     chapter_number.short_description = 'Chapter'
 
     def chapter_title(self, obj):
-        return obj.chapter.title
+        return obj.chapter.display_title
     chapter_title.short_description = 'Title'
 
     def duration(self, obj):
@@ -362,7 +308,6 @@ class AudiobookPartAdmin(admin.ModelAdmin):
         'priority',
         'engine',
         'qa_passed',
-        'approved',
         'attempts',
         'worker_id',
         'progress_percent',
@@ -383,13 +328,11 @@ class AudiobookPartAdmin(admin.ModelAdmin):
         'engine_version',
         'worker_id',
         'claimed_at',
-        'lease_until',
         'progress',
         'stage',
         'attempts',
         'error_message',
         'content_hash',
-        'cast',
         'qa',
         'qa_passed',
         'qa_table',
@@ -400,7 +343,7 @@ class AudiobookPartAdmin(admin.ModelAdmin):
         'm4b_links',
     )
     inlines = [AudiobookChapterInline]
-    actions = ['retry', 'regenerate', 'approve']
+    actions = ['retry', 'regenerate']
 
     def get_urls(self):
         custom = [
@@ -444,7 +387,7 @@ class AudiobookPartAdmin(admin.ModelAdmin):
 
     def m4b_links(self, obj):
         if obj.pk is None or not obj.is_listenable():
-            return "Available once the part is done and has passed QA or been approved."
+            return "Available once the part is done or stale."
         return format_html(
             '<a href="{}">Download .m4b (Opus)</a> &middot; <a href="{}">Download .m4b (AAC)</a>',
             reverse('admin:lncrawler_api_audiobookpart_m4b', args=[obj.pk, 'opus']),
@@ -498,10 +441,6 @@ class AudiobookPartAdmin(admin.ModelAdmin):
             audiobook_service.regenerate_part(part)
             count += 1
         self.message_user(request, f"{count} part(s) queued for regeneration.")
-
-    approve = update_action(
-        "Approve selected parts despite QA", "{} part(s) approved.", approved=True,
-    )
 
 
 @admin.register(AudiobookWorker)

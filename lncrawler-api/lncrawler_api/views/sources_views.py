@@ -10,12 +10,13 @@ from ..models.source_helpers import resolve_output_path
 from ..serializers import NovelSerializer, NovelSourceSerializer, ChapterSerializer
 from ..serializers.sources_serializers import GalleryImageSerializer
 from ..services.audiobook_public import (
-    annotate_public_totals, chapter_audio_hidden, chapter_has_audio_subquery, visible_audiobooks,
+    annotate_public_totals, chapter_audio_hidden, public_audio_chapters, visible_audiobooks,
 )
-from django.db.models import Count, Q, Sum, Func, IntegerField
+from django.db.models import Count, Max, Min, Q, Sum, Func, IntegerField
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
-from ..utils.query_helpers import apply_novel_prefetches, sources_queryset
+from ..utils.chapter_label import get_labeler
+from ..utils.query_helpers import novel_queryset, sources_queryset
 from ..utils.novel_resolution import get_chapter_or_404, get_source_or_404
 from ..utils.pagination import parse_page_size
 from ..services.epub_service import (
@@ -42,10 +43,12 @@ def _parse_int(raw):
 
 def _has_volumes(source):
     """Whether the chapters span more than one volume or name one: the volume headings of the chapter list."""
-    volumes = source.chapters.order_by().values('volume').distinct()
-    return len(volumes[:2]) > 1 or source.chapters.exclude(
-        Q(volume_title__isnull=True) | Q(volume_title='')
-    ).exists()
+    # Two volumes differ exactly when the lowest and the highest volume differ. One query for both checks.
+    counts = source.chapters.aggregate(
+        first_volume=Min('volume'), last_volume=Max('volume'),
+        named=Count('pk', filter=Q(volume_title__isnull=False) & ~Q(volume_title='')),
+    )
+    return counts['first_volume'] != counts['last_volume'] or counts['named'] > 0
 
 
 @api_view(["GET"])
@@ -91,7 +94,7 @@ def source_detail(request, novel_slug, source_slug):
     # (rating, bookmark, similar novels, reading lists, other sources) from
     # this one response instead of a second request. Nested sources use the
     # lightweight summary profile.
-    novel = apply_novel_prefetches(
+    novel = novel_queryset(
         Novel.objects.filter(pk=novel.pk), request.user,
         profile='detail', ip=get_client_ip(request),
     ).get()
@@ -152,8 +155,6 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     source = get_source_or_404(novel, source_slug)
 
     chapters = source.chapters.order_by("chapter_id")
-    if not chapter_audio_hidden(request.user, source):
-        chapters = chapters.annotate(annotated_has_audio=chapter_has_audio_subquery())
 
     search = request.GET.get("search", "").strip()
     if search:
@@ -166,20 +167,29 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     page_size = parse_page_size(request, 100, 500)  # Higher default for chapters
 
     paginator = Paginator(chapters, page_size)
+    if not search:
+        # The stored count of all the source's chapters (services/chapter_stats), not a COUNT over the list.
+        paginator.count = source.chapters_count
     around = _parse_int(request.GET.get("around"))
     # Chapter numbers are positive and fit a bigint: anything else is ignored, like input that is not a number
     if around is not None and not 1 <= around <= 2**63 - 1:
         around = None
     if "page" not in request.GET and around is not None and not search:
-        # One query counts the chapters and those up to `around`; the page is the one holding the last of them.
-        counts = source.chapters.aggregate(
-            total=Count("pk"), upto=Count("pk", filter=Q(chapter_id__lte=around)),
-        )
-        paginator.count = counts["total"]
-        page_number = max(1, -(-counts["upto"] // page_size))
+        # One indexed count of the chapters up to `around`; the page is the one holding the last of them.
+        upto = source.chapters.filter(chapter_id__lte=around).count()
+        page_number = max(1, -(-upto // page_size))
     page_obj = paginator.get_page(page_number)
 
-    serializer = ChapterSerializer(page_obj, many=True)
+    # The chapters of this page that have public audio, in one query. Hidden audio reports none.
+    audio_chapter_ids = set()
+    if not chapter_audio_hidden(request.user, source):
+        audio_chapter_ids = set(
+            public_audio_chapters()
+            .filter(chapter_id__in=[chapter.pk for chapter in page_obj])
+            .values_list("chapter_id", flat=True)
+        )
+
+    serializer = ChapterSerializer(page_obj, many=True, context={"audio_chapter_ids": audio_chapter_ids})
 
     return Response(
         {
@@ -212,7 +222,7 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
     Get content for a specific chapter by its number
     """
     novel = resolve_novel_slug(novel_slug)
-    source = get_object_or_404(novel.sources.select_related('external_source'), source_slug=source_slug)
+    source = get_source_or_404(novel, source_slug)
     chapter = get_chapter_or_404(source, chapter_number)
     # Attach the already-loaded parents so the serializer does not re-query them
     source.novel = novel
@@ -279,7 +289,7 @@ def source_image_gallery(request, novel_slug, source_slug):
         if start <= index < end:
             image_data.append({
                 "chapter_id": 0,  # Special ID for overview
-                "chapter_title": "Novel Overview",
+                "chapter_display_title": "Novel Overview",
                 "image_url": build_media_url(source.overview_picture_path),
                 "image_name": "overview.png"
             })
@@ -288,6 +298,7 @@ def source_image_gallery(request, novel_slug, source_slug):
     # Add chapter images, expanding only the slice for this page.
     # A source without a source_path has no folder on disk, so none of its images can be shown.
     image_dir = resolve_output_path(source.source_path, "images") if source.source_path else None
+    labeler = get_labeler(source.language)
     for chapter_id, chapter_title, images in chapters_with_images.iterator(chunk_size=500):
         for image_name in images:
             if index >= end:
@@ -298,7 +309,7 @@ def source_image_gallery(request, novel_slug, source_slug):
             if index >= start and image_dir and os.path.exists(os.path.join(image_dir, image_name)):
                 image_data.append({
                     "chapter_id": chapter_id,
-                    "chapter_title": chapter_title,
+                    "chapter_display_title": labeler.label(chapter_title, chapter_id),
                     "image_url": build_media_url(f"{source.source_path}/images/{image_name}"),
                     "image_name": image_name
                 })

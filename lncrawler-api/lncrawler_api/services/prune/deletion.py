@@ -4,6 +4,8 @@ import time
 
 from django.db import transaction
 
+from lncrawler_api.models.sources_models import refresh_novel_adult
+
 from .common import _UnmappedComments, logger
 
 
@@ -20,6 +22,7 @@ class DeletionMixin:
         title = source.title
         source_name = source.external_source.source_name
         source_id = source.id
+        novel_id = source.novel_id
         port = " and port user data" if keeper is not None else ""
         if not self.apply:
             if keeper is not None:
@@ -47,6 +50,7 @@ class DeletionMixin:
                     source.source_path = None
                     source.save(update_fields=["source_path"])
                     source.delete()
+                    refresh_novel_adult([novel_id])
             except _UnmappedComments as exc:
                 self.stdout.write(
                     f"  KEEP source {source_id} {title!r}: {exc} (--force would drop them)"

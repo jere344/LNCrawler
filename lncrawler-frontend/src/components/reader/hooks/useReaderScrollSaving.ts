@@ -19,9 +19,12 @@ interface ReaderScrollSavingOptions {
   loadId: number;
   chapter: IChapterContent | null;
   loading: boolean;
-  savePosition: boolean;
   // Key of the chapter whose text is currently on screen (null while loading), owned by the reader
   loadedChapterKeyRef: MutableRefObject<string | null>;
+  // Called at a save point of the scroll, not counting forced saves
+  onPositionSaved: () => void;
+  // Progress (0..1) the chapter is restored to on its first load, from a Continue link; null for the saved one
+  resumeProgress: number | null;
 }
 
 // Scroll position save/restore for the current chapter
@@ -31,8 +34,9 @@ export function useReaderScrollSaving({
   loadId,
   chapter,
   loading,
-  savePosition,
   loadedChapterKeyRef,
+  onPositionSaved,
+  resumeProgress,
 }: ReaderScrollSavingOptions) {
   // Mirror of scroll positions for use inside callbacks/cleanups
   const scrollPositionsRef = useRef<ScrollPositions>({});
@@ -71,7 +75,7 @@ export function useReaderScrollSaving({
   // them or rotating the device restores the same place in the text.
   // sectionKey is the section the chapter's text is on screen as, null for the whole document
   const saveScrollPosition = (sectionKey: string | null, force = false) => {
-    if (!currentChapterKey || !savePosition) return;
+    if (!currentChapterKey) return;
     
     const now = Date.now();
     // Throttle saves to avoid excessive writes (page turns and unmounts force)
@@ -81,6 +85,7 @@ export function useReaderScrollSaving({
     lastScrollSaveRef.current = now;
 
     const percentage = calculateScrollPercentage(sectionKey);
+    if (!force) onPositionSaved();
 
     // Re-insert the current key last so it is the most recently used; pruning
     // below then evicts the genuinely least-recently-read chapter, not merely
@@ -125,9 +130,12 @@ export function useReaderScrollSaving({
 
   // Restore the text-mode window scroll from the saved percentage, in the section of the chapter being restored (null for the whole document).
   const restoreScrollPosition = (sectionKey: string | null, attempt = 0) => {
-    if (!currentChapterKey || !savePosition) return;
+    if (!currentChapterKey) return;
     
-    const savedPercentage = scrollPositionsRef.current[currentChapterKey];
+    // A Continue link's progress wins over the one saved on this device
+    const savedPercentage = resumeProgress !== null
+      ? resumeProgress * 100
+      : scrollPositionsRef.current[currentChapterKey];
     if (savedPercentage === undefined) return;
 
     // Use requestAnimationFrame to avoid layout thrashing
@@ -193,15 +201,16 @@ export function useReaderScrollSaving({
   useEffect(() => {
     // Save position periodically while reading
     const saveInterval = setInterval(() => {
-      if (chapter && !loading && savePosition) {
+      if (chapter && !loading) {
         saveScrollIfReady();
       }
     }, 60000); // Save every minute
 
     // Save on page visibility change (tab switching, etc.)
     const handleVisibilityChange = () => {
+      // Forced: leaving is not a save point of the position, which useReadingPositionSync sends on hide
       if (document.visibilityState === 'hidden') {
-        saveScrollIfReady();
+        saveScrollIfReady(true);
       }
     };
 
@@ -229,7 +238,7 @@ export function useReaderScrollSaving({
       window.removeEventListener('scroll', handleScroll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-subscribe only when the listed save inputs change
-  }, [chapter, loading, savePosition, currentChapterKey]);
+  }, [chapter, loading, currentChapterKey]);
 
   return { saveScrollIfReady };
 }

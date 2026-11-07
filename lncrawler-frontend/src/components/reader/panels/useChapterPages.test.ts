@@ -20,7 +20,7 @@ let roots: Root[] = [];
 
 // A page of 35 chapters, or a search that finds 7; a chapter number asked with `around` is on page 3
 const response = (page: number, search: string): NovelChaptersResponse => ({
-  chapters: [{ id: `${search}-${page}`, chapter_id: page, title: '', url: '', volume: 0, volume_title: null, has_content: true }],
+  chapters: [{ id: `${search}-${page}`, chapter_id: page, title: '', display_title: '', url: '', volume: 0, volume_title: null, has_content: true }],
   count: search ? 7 : 35,
   total_pages: search ? 1 : 4,
   current_page: page,

@@ -33,7 +33,7 @@ import BookIcon from '@mui/icons-material/Book';
 import LanguageIcon from '@mui/icons-material/Language';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import HeadphonesIcon from '@mui/icons-material/Headphones';
-import { getChapterLabel, getVolumeHeading } from '@utils/Misc';
+import { getVolumeHeading } from '@utils/Misc';
 import SeoMeta, { DEFAULT_OG_IMAGE } from '../common/SeoMeta';
 import type { AsyncData, ChapterListLoaderData } from '../../router/loaders';
 
@@ -250,7 +250,7 @@ const ChapterList = () => {
                         }}
                       >
                         <ListItemText 
-                          primary={getChapterLabel(t, chapter.title, chapter.chapter_id)}
+                          primary={chapter.display_title}
                           secondary={!chapter.has_content ? t('chapterList.contentUnavailable') : null}
                         />
                         {chapter.has_audio && (

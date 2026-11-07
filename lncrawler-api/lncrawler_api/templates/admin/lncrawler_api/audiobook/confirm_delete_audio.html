@@ -13,8 +13,8 @@
 {% block content %}
 <div id="content-main">
   <p>
-    The audio files of these {{ rows|length }} audiobook(s) will be deleted, and their done parts marked as stale.
-    The audiobooks are unpublished. This cannot be undone.
+    The audio files of these {{ rows|length }} audiobook(s) will be deleted, with their done, stale and failed parts.
+    Nothing is listenable until a new part is done. This cannot be undone.
   </p>
   <ul>
     {% for audiobook, size_mb in rows %}

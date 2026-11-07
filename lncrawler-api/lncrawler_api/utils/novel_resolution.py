@@ -28,8 +28,8 @@ def resolve_novel_slug(novel_slug):
 
 
 def get_source_or_404(novel, source_slug):
-    """The source of ``novel`` with this slug, or ``Http404``."""
-    return get_object_or_404(novel.sources, source_slug=source_slug)
+    """The source of ``novel`` with this slug, or ``Http404``. Its external source is loaded with it."""
+    return get_object_or_404(novel.sources.select_related('external_source'), source_slug=source_slug)
 
 
 def get_chapter_or_404(source, chapter_number):

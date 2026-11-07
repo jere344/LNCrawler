@@ -16,7 +16,7 @@ import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, formatDate, getChapterName, getNovelSourceLink, getNovelDisplayTitle } from '@utils/Misc';
+import { formatTimeAgo, formatDate, getNovelSourceLink, getNovelDisplayTitle } from '@utils/Misc';
 import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
@@ -31,8 +31,10 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
   const { t, i18n } = useTranslation();
   const { isBlurred, revealHandler } = useAdultContent();
   const blurred = isBlurred(novel.is_adult, novel.id);
-  const continue_chapter = novel.reading_history?.next_chapter || novel.reading_history?.last_read_chapter;
-  const lastReadChapter = novel.reading_history?.last_read_chapter;
+  const resume = novel.reading_history?.resume ?? null;
+  const currentChapter = novel.reading_history?.current_chapter ?? null;
+  // Continue resumes at the saved position; when up to date, the chapter being read is offered to reread
+  const continue_chapter = resume ? resume.chapter : currentChapter;
   const displaySource = novel.reading_source ?? novel.prefered_source;
   const sourceLink = getNovelSourceLink(novel);
 
@@ -116,7 +118,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             {getNovelDisplayTitle(novel)}
           </Typography>
           
-          {novel.reading_history && lastReadChapter && (
+          {novel.reading_history && currentChapter && (
             <Box sx={{ mt: 1 }}>
               <Stack
                 direction="row"
@@ -139,14 +141,17 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
               </Stack>
               
               <Typography variant="body2" gutterBottom>
-                <strong>{t('cards.chapterLabel')}</strong> {lastReadChapter.chapter_id} 
-                {getChapterName(lastReadChapter.title) != '' ? ' - ' : ''}
-                {getChapterName(lastReadChapter.title)}
+                <strong>{t('cards.chapterLabel')}</strong> {currentChapter.display_title}
+                {novel.reading_history.position > 0 && (
+                  <Box component="span" sx={{ color: 'text.secondary' }}>
+                    {` · ${t('readerControls.progress', { percent: Math.round(novel.reading_history.position * 100) })}`}
+                  </Box>
+                )}
               </Typography>
               
-              {lastReadChapter.volume_title && (
+              {currentChapter.volume_title && (
                 <Typography variant="body2" gutterBottom>
-                  <strong>{t('cards.volumeLabel')}</strong> {lastReadChapter.volume_title}
+                  <strong>{t('cards.volumeLabel')}</strong> {currentChapter.volume_title}
                 </Typography>
               )}
               
@@ -169,12 +174,13 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
             color="primary" 
             variant="contained"
             startIcon={<MenuBookIcon />}
-            disabled={!novel.reading_history || novel.is_dmca}
+            disabled={!novel.reading_history || !continue_chapter || novel.is_dmca}
             sx={{ mr: 1 }}
             component={Link}
             to={novel.reading_history && continue_chapter ? `/novels/${novel.reading_history.novel_slug}/${novel.reading_history.source_slug}/chapter/${continue_chapter.chapter_id}` : ''}
+            state={resume ? { resumeProgress: resume.progress } : undefined}
           >
-            {t('cards.continue')}
+            {resume ? t('cards.continue') : t('cards.reread')}
           </Button>
           <Button
             size="small"

@@ -208,6 +208,20 @@ describe('narrated engine saved before the audiobook preference', () => {
   });
 });
 
+describe('settings removed since they were saved', () => {
+  it('drops the mark-as-read and save-position values and keeps the rest', () => {
+    localStorage.setItem(READER_SETTINGS_KEY, JSON.stringify({
+      version: 1,
+      settings: { markReadBehavior: 'button', savePosition: false, fontSize: 20 },
+    }));
+
+    const settings = store.getReaderSettings();
+    expect(settings.fontSize).toBe(20);
+    expect(settings).not.toHaveProperty('markReadBehavior');
+    expect(settings).not.toHaveProperty('savePosition');
+  });
+});
+
 describe('reset', () => {
   it('returns every setting to its default', () => {
     store.updateReaderSetting('fontSize', 30);

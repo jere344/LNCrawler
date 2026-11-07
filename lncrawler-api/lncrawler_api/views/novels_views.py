@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
-from django.db.models import F, Avg, Q, Count, Sum, Value, Max, Min, Case, When, FloatField
+from django.db.models import F, Avg, Q, Count, Sum, Value, Case, When, FloatField
 from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce
 from ..models import (
@@ -19,19 +19,15 @@ from ..models import (
 )
 from ..languages import parse_languages
 from ..models.reviews_models import Review
-from ..models.sources_models import adult_novel_ids
 from ..utils import get_client_ip, resolve_novel_slug
 from ..utils.query_helpers import (
-    _author_ids,
     _canonical_tag_names,
     adult_allowed,
-    annotate_card_aggregates,
-    apply_novel_prefetches,
     exclude_adult,
     filter_authors,
     filter_novel_ids,
     filter_tags,
-    has_audiobook_subquery,
+    novel_queryset,
     sources_queryset,
     text_match_ids,
 )
@@ -52,15 +48,11 @@ def list_novels(request):
     """
     List all novels with pagination
     """
-    novels = annotate_card_aggregates(
-        exclude_adult(Novel.objects.all(), request.user)
-    )
-    # Count a bare id queryset so the paginator doesn't recompute the four card
+    novels = exclude_adult(Novel.objects.all(), request.user)
+    # Count a bare id queryset so the paginator doesn't recompute the card
     # subqueries for every row just to get a total.
     count_queryset = novels.order_by().values("pk")
-    novels = apply_novel_prefetches(
-        novels, request.user, card_aggregates=True
-    ).order_by("title")
+    novels = novel_queryset(novels, request.user).order_by("title")
     return paginated_response(
         request, novels, NovelSerializer, max_size=50, count_queryset=count_queryset
     )
@@ -72,7 +64,7 @@ def novel_detail_by_slug(request, novel_slug):
     Get details for a specific novel using its slug
     """
     novel = resolve_novel_slug(novel_slug)
-    novel = apply_novel_prefetches(
+    novel = novel_queryset(
         Novel.objects.filter(pk=novel.pk), request.user,
         profile='detail', ip=get_client_ip(request),
     ).get()
@@ -170,7 +162,7 @@ def search_novels(request):
 
     # "hide" is applied after the other filters, once the hidden count is known.
     if adult == "only":
-        novels_query = novels_query.filter(pk__in=adult_novel_ids())
+        novels_query = novels_query.filter(is_adult=True)
 
     # Apply search query if provided
     if query:
@@ -214,7 +206,8 @@ def search_novels(request):
             novels_query = novels_query.filter(rank_avg_rating__gte=max(min_rating_val, 1))
 
     # Apply sorting
-    # The popularity, trending and rating sorts read scheduler-refreshed projections (up to ~5 min stale).
+    # The popularity, trending, rating and last_updated sorts read scheduler-refreshed projections
+    # (up to ~5 min stale).
     if sort_by == "rating":
         order_field = "-rank_avg_rating" if sort_order == "desc" else "rank_avg_rating"
         novels_query = novels_query.order_by(order_field, "title")
@@ -233,22 +226,15 @@ def search_novels(request):
         order_field = "-rank_week_views" if sort_order == "desc" else "rank_week_views"
         novels_query = novels_query.order_by(order_field, "title")
     elif sort_by == "last_updated":
-        # Annotate with the most recent last_updated date among all sources.
-        # Never-updated sources (NULL) sort last in both directions.
+        # The novel's most recent chapter update over its sources, from the
+        # rank_last_update projection (no join, so the count skips sources).
+        # Never-updated novels (NULL) sort last in both directions.
+        # Up to one rankings refresh stale, and not scoped to the language filter.
         if sort_order == "desc":
-            novels_query = novels_query.annotate(
-                last_update=Max('sources__last_chapter_update')
-            )
-            novels_query = novels_query.order_by(
-                F("last_update").desc(nulls_last=True), "title"
-            )
+            last_update = F("rank_last_update").desc(nulls_last=True)
         else:
-            novels_query = novels_query.annotate(
-                last_update=Min('sources__last_chapter_update')
-            )
-            novels_query = novels_query.order_by(
-                F("last_update").asc(nulls_last=True), "title"
-            )
+            last_update = F("rank_last_update").asc(nulls_last=True)
+        novels_query = novels_query.order_by(last_update, "title")
     else:
         # Default sorting by title
         novels_query = novels_query.order_by("title")
@@ -266,25 +252,31 @@ def search_novels(request):
     # SELECT would evaluate it for every match just to page 20 rows.
     count_queryset = novels_query.order_by().values("pk")
 
-    # Hidden adult matches: the ones the filters found that "hide" drops. Counted
-    # on the same filtered set, so the UI can say how many results were left out.
+    # Hidden adult matches: the ones the filters found that "hide" drops. Both
+    # figures come from one aggregate over the same filtered set (before the hide
+    # filter), so the UI can say how many results were left out. The pk__in wrap
+    # is needed because the values('pk') set can't carry is_adult.
+    count = None
     hidden_adult = 0
     if adult == "hide":
-        hidden_adult = count_queryset.filter(pk__in=adult_novel_ids()).count()
-        novels_query = novels_query.exclude(pk__in=adult_novel_ids())
-        count_queryset = novels_query.order_by().values("pk")
+        totals = Novel.objects.filter(pk__in=count_queryset).aggregate(
+            visible=Count("pk", filter=Q(is_adult=False)),
+            hidden=Count("pk", filter=Q(is_adult=True)),
+        )
+        count = totals["visible"]
+        hidden_adult = totals["hidden"]
+        novels_query = novels_query.filter(is_adult=False)
+        count_queryset = None
 
     # Resolve everything the serializer needs up front, then paginate.
-    novels_query = apply_novel_prefetches(
-        novels_query.annotate(annotated_has_audiobook=has_audiobook_subquery()),
-        request.user,
-    )
+    novels_query = novel_queryset(novels_query, request.user, languages=languages)
 
     return paginated_response(
         request, novels_query, NovelSerializer,
         max_size=50,
         context={"languages": languages},
         count_queryset=count_queryset,
+        count=count,
         extra={
             "hidden_adult": hidden_adult,
             "filters": {
@@ -292,6 +284,29 @@ def search_novels(request):
             },
         },
     )
+
+
+def _name_suggestions(names, aliases, canonical_of, key, limit):
+    """Autocomplete entries for the canonical ``names`` matching a query, merged with the canonical
+    entries of the matching ``aliases`` (display-only: the canonical name stays the selected value and
+    the alias that matched is reported as ``alias``). ``canonical_of`` maps an alias to its canonical
+    row and ``key`` identifies a canonical row in the merge. Sorted by novel count, then name."""
+    suggestions = {
+        key(row): {"name": row.name, "count": row.novel_count}
+        for row in names[:limit]
+    }
+    for alias in aliases[:limit]:
+        canonical = canonical_of(alias)
+        entry = suggestions.get(key(canonical))
+        if entry is None:
+            suggestions[key(canonical)] = {
+                "name": canonical.name,
+                "count": canonical.novel_count,
+                "alias": alias.name,
+            }
+        else:
+            entry.setdefault("alias", alias.name)
+    return sorted(suggestions.values(), key=lambda s: (-s["count"], s["name"]))[:limit]
 
 
 @api_view(["GET"])
@@ -310,74 +325,28 @@ def autocomplete_suggestion(request):
         return Response([])
 
     if search_type == "tag":
-        # Canonical tags matching the query.
-        tag_counts = (
-            Tag.objects.filter(name__icontains=query)
-            .annotate(novel_count=Count("novels__novel", distinct=True))
-            .order_by("-novel_count")[:limit]
-        )
-        suggestions = {
-            tag.name: {"name": tag.name, "count": tag.novel_count}
-            for tag in tag_counts
-        }
-
-        # Merged-away names: surface their canonical tag so old searches still
-        # find it. Display-only, the canonical name stays the selected value.
-        alias_matches = (
+        # Merged-away names surface their canonical tag, so old searches still find it.
+        suggestions = _name_suggestions(
+            Tag.objects.filter(name__icontains=query).order_by("-novel_count", "name"),
             TagAlias.objects.filter(name__icontains=query)
             .select_related("tag")
-            .annotate(novel_count=Count("tag__novels__novel", distinct=True))
-            .order_by("-novel_count")[:limit]
+            .order_by("-tag__novel_count", "tag__name", "name"),
+            canonical_of=lambda alias: alias.tag,
+            key=lambda tag: tag.name,
+            limit=limit,
         )
-        for alias in alias_matches:
-            entry = suggestions.get(alias.tag.name)
-            if entry is None:
-                suggestions[alias.tag.name] = {
-                    "name": alias.tag.name,
-                    "count": alias.novel_count,
-                    "alias": alias.name,
-                }
-            else:
-                entry.setdefault("alias", alias.name)
-
-        suggestions = sorted(
-            suggestions.values(), key=lambda s: (-s["count"], s["name"])
-        )[:limit]
 
     elif search_type == "author":
-        # Count novels for each author
-        author_counts = (
-            Author.objects.filter(name__icontains=query)
-            .annotate(novel_count=Count("novels__novel", distinct=True))
-            .order_by("-novel_count")[:limit]
-        )
-        suggestions = {
-            author.pk: {"name": author.name, "count": author.novel_count}
-            for author in author_counts
-        }
-
-        # Merged-away names: surface their author so old searches still find it.
-        # Display-only, the canonical name stays the selected value.
-        alias_matches = (
+        # Merged-away names surface their author, so old searches still find it.
+        suggestions = _name_suggestions(
+            Author.objects.filter(name__icontains=query).order_by("-novel_count", "name"),
             AuthorAlias.objects.filter(name__icontains=query, author__is_blocked=False)
             .select_related("author")
-            .annotate(novel_count=Count("author__novels__novel", distinct=True))
-            .order_by("-novel_count")[:limit]
+            .order_by("-author__novel_count", "author__name", "name"),
+            canonical_of=lambda alias: alias.author,
+            key=lambda author: author.pk,
+            limit=limit,
         )
-        for alias in alias_matches:
-            entry = suggestions.get(alias.author_id)
-            if entry is None:
-                suggestions[alias.author_id] = {
-                    "name": alias.author.name,
-                    "count": alias.novel_count,
-                    "alias": alias.name,
-                }
-            else:
-                entry.setdefault("alias", alias.name)
-
-        suggestions = sorted(
-            suggestions.values(), key=lambda s: (-s["count"], s["name"])
-        )[:limit]
 
     else:
         return Response(
@@ -392,7 +361,7 @@ HOME_RANKING_CACHE_SECONDS = 120
 
 
 def _in_order(queryset, ids):
-    """Evaluate ``queryset`` and return its objects in the order of ``ids``."""
+    """Return the objects of ``queryset`` (a queryset or a list) in the order of ``ids``."""
     by_pk = {obj.pk: obj for obj in queryset}
     return [by_pk[pk] for pk in ids if pk in by_pk]
 
@@ -401,17 +370,17 @@ HOME_AUDIOBOOK_LIMIT = 12
 
 
 def _home_audiobooks(user):
-    """The audiobook block of the home page: one featured audiobook, the popular ones (without the featured
-    one) and, for authenticated viewers, the unfinished ones they listened to most recently. The featured and
-    popular ids are cached per adult setting like the rankings; the cards are re-checked and re-fetched per
-    request so takedowns and the viewer's progress stay current."""
+    """The audiobook block of the home page: the featured audiobook, the visible one with the latest last part, the
+    popular ones (without the featured one) and, for authenticated viewers, the unfinished ones they listened to
+    most recently. The featured and popular ids are cached per adult setting like the rankings; the cards are
+    re-checked and re-fetched per request so takedowns and the viewer's progress stay current."""
     visible = visible_audiobooks(user)
     cache_key = f"home:audiobooks:v2:{int(hides_adult_audiobooks(user))}"
     ids = cache.get(cache_key)
     if ids is None:
         ids = {
             'featured': list(
-                visible.filter(featured=True).order_by('-last_part_at', 'pk').values_list('pk', flat=True)[:1]
+                visible.order_by(F('last_part_at').desc(nulls_last=True), 'pk').values_list('pk', flat=True)[:1]
             ),
             'popular': list(
                 annotate_public_totals(visible)
@@ -466,9 +435,8 @@ def home_page(request):
 
     # Base queryset, optionally restricted to novels with a source in the
     # selected languages.
-    base_queryset = apply_novel_prefetches(
-        exclude_adult(Novel.objects.filter(is_dmca=False), request.user), request.user
-    )
+    # Only the filters: the rankings read ids, and the cards are built in the card fetch below.
+    base_queryset = exclude_adult(Novel.objects.filter(is_dmca=False), request.user)
     if languages:
         # Match novels having a source in the selected languages without
         # joining sources: a join forces DISTINCT, so every ranking subquery
@@ -554,22 +522,26 @@ def home_page(request):
         }
         cache.set(rank_key, rankings, HOME_RANKING_CACHE_SECONDS)
 
-    def novels_in_order(ids):
-        # DMCA and adult filters are re-applied so a takedown or a newly adult
-        # novel drops off immediately instead of lingering for the cache TTL.
-        return _in_order(
-            apply_novel_prefetches(
-                exclude_adult(Novel.objects.filter(pk__in=ids, is_dmca=False), request.user)
-                .annotate(annotated_has_audiobook=has_audiobook_subquery()),
-                request.user,
-            ),
-            ids,
+    # The four novel sections share one card fetch: their rankings overlap, so a single query (and its
+    # source, author and tag prefetches) serves them all. Each section is still rebuilt in its own cached
+    # order. DMCA and adult filters are re-applied so a takedown or a newly adult novel drops off
+    # immediately instead of lingering for the cache TTL.
+    card_ids = {
+        pk
+        for ids in (
+            rankings['top_novels'], rankings['trending_novels'],
+            rankings['top_rated_novels'], rankings['recently_added'],
         )
-
-    top_novels = novels_in_order(rankings['top_novels'])
-    trending_novels = novels_in_order(rankings['trending_novels'])
-    top_rated_novels = novels_in_order(rankings['top_rated_novels'])
-    recently_added = novels_in_order(rankings['recently_added'])
+        for pk in ids
+    }
+    cards = list(novel_queryset(
+        exclude_adult(Novel.objects.filter(pk__in=card_ids, is_dmca=False), request.user),
+        request.user, languages=languages,
+    ))
+    top_novels = _in_order(cards, rankings['top_novels'])
+    trending_novels = _in_order(cards, rankings['trending_novels'])
+    top_rated_novels = _in_order(cards, rankings['top_rated_novels'])
+    recently_added = _in_order(cards, rankings['recently_added'])
     recently_updated_fresh = sources_queryset().filter(
         pk__in=rankings['recently_updated'], novel__is_dmca=False
     )

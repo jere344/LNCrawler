@@ -107,7 +107,7 @@ const AudiobookCard = ({ book }: AudiobookCardProps) => {
       <Typography variant="caption" color="text.secondary" component="p" sx={{ mb: 0 }}>
         {t('audiobooks.cardMeta', {
           hours: formatHours(book.duration_s, t),
-          count: book.parts,
+          count: book.chapters,
         })}
       </Typography>
     </Box>

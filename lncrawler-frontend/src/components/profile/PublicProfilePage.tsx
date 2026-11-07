@@ -26,7 +26,7 @@ import { useAsync } from '@utils/useAsync';
 import FriendButton from './FriendButton';
 import FriendsTab from './FriendsTab';
 import { BaseNovelCard } from '@components/common/novelcardtypes/BaseNovelCard';
-import { getNovelSourceLink, getNovelDisplayTitle, formatDate, formatDateTime, formatNumber } from '@utils/Misc';
+import { getNovelSourceLink, getNovelDisplayTitle, formatDate, formatDateTime } from '@utils/Misc';
 import ReadingListCard from '@components/readinglist/ReadingListCard';
 import OverviewReviewsSection from '@components/common/reviews/OverviewReviewsSection';
 import CommentMessage from '@components/comments/CommentMessage';
@@ -205,10 +205,6 @@ const OverviewTab: React.FC<{
                         {t('profile.about')}
                     </Typography>
                     <Grid container spacing={2}>
-                        <Grid size={{ xs: 6, md: 3 }}>
-                            <Typography variant="h5">{formatNumber(profile.stats.word_read, i18n.language)}</Typography>
-                            <Typography variant="body2" color="text.secondary">{t('profile.wordsRead')}</Typography>
-                        </Grid>
                         <Grid size={{ xs: 6, md: 3 }}>
                             <Typography variant="h5">{profile.stats.chapters_read_count}</Typography>
                             <Typography variant="body2" color="text.secondary">{t('profile.chaptersRead')}</Typography>

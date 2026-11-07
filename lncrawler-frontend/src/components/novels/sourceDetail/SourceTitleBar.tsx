@@ -33,6 +33,10 @@ const SourceTitleBar = ({
   const theme = useTheme();
   const full = isFullSource(source) ? source : null;
   const adultTags = full?.adult_tags ?? [];
+  // The row may point at another source of the novel: mark-all then goes to this page's source, from its own latest chapter
+  const rowOnOtherSource = !!full?.reading_history && full.reading_history.source_slug !== full.source_slug;
+  const pageLatest = full?.latest_available_chapter ?? null;
+  const pageTarget = pageLatest && full ? { sourceSlug: full.source_slug, chapterNumber: pageLatest.chapter_id } : null;
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
       <Typography 
@@ -95,6 +99,7 @@ const SourceTitleBar = ({
                 reading_history: full.reading_history,
                 prefered_source: full,
               }}
+              target={rowOnOtherSource ? pageTarget : undefined}
               onMarkAsRead={() =>
                 setSource(prev =>
                   isFullSource(prev) && prev.reading_history
@@ -102,7 +107,12 @@ const SourceTitleBar = ({
                         ...prev,
                         reading_history: {
                           ...prev.reading_history,
-                          last_read_chapter: prev.reading_history.source_latest_chapter ?? prev.reading_history.last_read_chapter,
+                          source_slug: prev.source_slug,
+                          source_name: prev.source_name,
+                          current_chapter: prev.latest_available_chapter ?? prev.reading_history.source_latest_chapter ?? prev.reading_history.current_chapter,
+                          position: 1,
+                          resume: null,
+                          unread_chapters: 0,
                         },
                       }
                     : prev

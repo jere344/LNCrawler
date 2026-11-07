@@ -12,21 +12,36 @@ def parse_page_size(request, default=20, max_size=50):
     return max(1, min(value, max_size))
 
 
-def paginate(request, queryset, default_size, max_size, count_queryset=None):
+def paginate(request, queryset, default_size, max_size, count_queryset=None, count=None):
+    """Return ``(paginator, page)``.
+
+    The total comes from one of two places, never both:
+    ``count_queryset`` is COUNTed here (a pre-trimmed queryset, e.g. distinct ids
+    with no display-only annotations, is much cheaper than the full SELECT);
+    ``count`` is an int the caller already computed, e.g. from one aggregate that
+    also yields other figures, so no COUNT runs here.
+    """
+    if count is not None and count_queryset is not None:
+        raise ValueError("Pass either count or count_queryset, not both.")
     paginator = Paginator(queryset, parse_page_size(request, default_size, max_size))
-    if count_queryset is not None:
-        # A pre-trimmed queryset (e.g. distinct ids, no display-only
-        # annotations) is much cheaper to COUNT(*) than the full SELECT.
+    if count is not None:
+        paginator.count = count
+    elif count_queryset is not None:
         paginator.count = count_queryset.count()
     return paginator, paginator.get_page(request.GET.get("page", 1))
 
 
 def paginated_response(
     request, queryset, serializer_class, *,
-    default_size=20, max_size=100, context=None, extra=None, count_queryset=None,
+    default_size=20, max_size=100, context=None, extra=None, count_queryset=None, count=None,
 ):
-    """Standard list envelope: {count, total_pages, current_page, results}."""
-    paginator, page_obj = paginate(request, queryset, default_size, max_size, count_queryset)
+    """Standard list envelope: {count, total_pages, current_page, results}.
+
+    ``count`` and ``count_queryset`` are mutually exclusive, see ``paginate``.
+    """
+    paginator, page_obj = paginate(
+        request, queryset, default_size, max_size, count_queryset=count_queryset, count=count,
+    )
     serializer_context = {"request": request}
     if context:
         serializer_context.update(context)

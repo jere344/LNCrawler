@@ -4,7 +4,7 @@ import { chapterIndex, pageRange } from './chapterList';
 
 // A page of the unfiltered list with the given chapter numbers
 const page = (current_page: number, chapterIds: number[]): NovelChaptersResponse => ({
-  chapters: chapterIds.map((chapter_id) => ({ id: `${chapter_id}`, chapter_id, title: '', url: '', volume: 0, volume_title: null, has_content: true })),
+  chapters: chapterIds.map((chapter_id) => ({ id: `${chapter_id}`, chapter_id, title: '', display_title: '', url: '', volume: 0, volume_title: null, has_content: true })),
   count: 350,
   total_pages: 4,
   current_page,

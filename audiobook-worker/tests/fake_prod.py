@@ -5,7 +5,7 @@
 
 Serves one part built from the first --count chapters of a lncrawler JSON folder (or synthetic
 chapters when --chapters-dir is omitted). Prints state changes. On complete it writes the
-received cast and qa to <out>/complete.json and keeps each uploaded ogg in <out>/.
+received qa to <out>/complete.json and keeps each uploaded ogg in <out>/.
 
 The EPUB writer below is copied from a former bench script (removed with the bench).
 """
@@ -185,8 +185,6 @@ class FakePart:
                 for c in self.chapters
             ],
             "epub_url": f"{API}parts/{self.part_id}/epub",
-            "previous_cast": {},
-            "lease_until": "2026-11-02T03:15:00Z",
         }
 
 
@@ -506,7 +504,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(400, "progress must be a number; stage and message strings")
         self.fake.heartbeats.append(body)
         self.fake.log(f"heartbeat: {body['stage']} {body['progress']:.3f} {body['message']}")
-        self._json(200, {"lease_until": "2026-11-02T03:30:00Z"})
+        self._json(200, {"status": "ok"})
 
     def _upload(self, part_id: str, chapter_id: int) -> None:
         if not self._part_guard(part_id):
@@ -557,15 +555,10 @@ class Handler(BaseHTTPRequestHandler):
         body = self._json_body()
         if body is None:
             return
-        if not isinstance(body.get("cast"), dict) or not isinstance(body.get("qa"), dict):
-            return self._error(400, "cast and qa must be objects")
+        if not isinstance(body.get("qa"), dict):
+            return self._error(400, "qa must be an object")
         if not isinstance(body.get("engine"), str) or not isinstance(body.get("engine_version"), str):
             return self._error(400, "engine and engine_version must be strings")
-        for code, entry in body["cast"].items():
-            if not isinstance(entry, dict):
-                return self._error(400, f"cast entry {code} must be an object")
-            if "description" in entry and not isinstance(entry["description"], str):
-                return self._error(400, f"cast entry {code} description must be a string")
         if not isinstance(body["qa"].get("passed"), bool):
             return self._error(400, "qa.passed must be a boolean")
         expected = [c.chapter_id for c in self.fake.part.chapters]
@@ -575,7 +568,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(400, {"error": "missing_chapters", "missing": missing})
         with self.fake.lock:
             self.fake.completed = body
-        self.fake.log(f"complete: qa passed={body['qa']['passed']}, {len(body['cast'])} cast entries")
+        self.fake.log(f"complete: qa passed={body['qa']['passed']}")
         if self.fake.out_dir:
             os.makedirs(self.fake.out_dir, exist_ok=True)
             with open(os.path.join(self.fake.out_dir, "complete.json"), "w", encoding="utf-8") as fh:

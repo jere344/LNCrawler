@@ -84,8 +84,8 @@ urlpatterns = [
     path('users/reading-history/', users_views.list_reading_history, name='list_reading_history'),
     path('users/reading-history/<uuid:history_id>/delete/', users_views.delete_reading_history, name='delete_reading_history'),
     path('users/listening-history/<int:progress_id>/delete/', users_views.delete_listening_history, name='delete_listening_history'),
-    path('users/reading-history/mark-read/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/', 
-         users_views.mark_chapter_as_read, name='mark_chapter_as_read'),
+    path('users/reading-history/position/<slug:novel_slug>/<slug:source_slug>/chapter/<int:chapter_number>/',
+         users_views.save_reading_position, name='save_reading_position'),
 
     
     # Review endpoints

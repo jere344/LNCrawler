@@ -1,22 +1,29 @@
 from rest_framework import serializers
 from ..models import (
     Novel,
-    WeeklySourceView,
     NovelBookmark
 )
-from django.db.models import Avg, Prefetch, Sum
-from ..models.sources_models import is_majority_adult
+from django.core.cache import cache
+from django.db.models import Prefetch, Q
 from .mixins import ProfileFieldsMixin
 from .sources_serializers import NovelSourceSerializer
 from .reading_history_serializers import ReadingHistorySerializer
 from ..utils import get_client_ip
+from ..utils.query_helpers import (
+    adult_allowed,
+    exclude_adult,
+    most_viewed_novel_ids,
+    novel_queryset,
+    preferred_source_key,
+    reading_lists_queryset,
+)
 
 
 class NovelAggregatesMixin:
-    """Computes the read-only counters shared by the novel profiles. When the
-    queryset was built with `apply_novel_prefetches` everything is served from
-    the prefetch cache (zero extra queries); otherwise it falls back to the
-    original per-object queries."""
+    """Computes the read-only counters shared by the novel profiles. They are
+    read from the ``card_*`` annotations that ``novel_queryset`` puts on every
+    queryset a novel payload is built from, so a novel rendered without them
+    fails loudly instead of paying a query per row."""
 
     @property
     def source_profile(self):
@@ -32,15 +39,14 @@ class NovelAggregatesMixin:
             return 'library'
         return 'card'
 
-    def _prefetched(self, obj, name):
-        return name in getattr(obj, '_prefetched_objects_cache', {})
-
     def _context_sources(self, obj):
         # Restrict to the languages the request was filtered by (when any) so
-        # counters, language badges and the preferred source agree with the
-        # filter; fall back to all sources if none match. Memoized because the
-        # list serializer instance is reused for every novel and reads this
-        # from total_views/weekly_views/prefered_source/languages.
+        # language badges and the preferred source agree with the filter; fall
+        # back to all sources if none match. Memoized because the list serializer
+        # instance is reused for every novel and reads this from prefered_source/languages.
+        # (The view counters come from the card_* annotations, scoped to the same languages
+        # but without the fall-back: callers only pass languages for lists already
+        # filtered to novels with a matching source.)
         cache = getattr(self, '_context_sources_cache', None)
         if cache is None:
             cache = self._context_sources_cache = {}
@@ -65,8 +71,6 @@ class NovelAggregatesMixin:
         )
 
     def get_prefered_source(self, obj):
-        from ..utils.query_helpers import preferred_source_key
-
         sources = self._context_sources(obj)
 
         if not sources:
@@ -78,46 +82,19 @@ class NovelAggregatesMixin:
         return self._source_serializer(self.source_profile).to_representation(prefered)
 
     def get_avg_rating(self, obj):
-        # Querysets built with annotate_card_aggregates carry the average. It
-        # arrives as a SQL numeric, whose round() is half-even on the decimal
-        # (2.45 -> 2.4); the float round matches the Python average below.
-        if 'card_avg_rating' in obj.__dict__:
-            avg = obj.card_avg_rating
-            return round(float(avg), 1) if avg is not None else None
-        if self._prefetched(obj, 'ratings'):
-            ratings = [rating.rating for rating in obj.ratings.all()]
-            return round(sum(ratings) / len(ratings), 1) if ratings else None
-        avg = obj.ratings.all().aggregate(Avg('rating'))['rating__avg']
-        return round(avg, 1) if avg else None
+        # The average arrives as a SQL numeric, whose round() is half-even on the
+        # decimal (2.45 -> 2.4); the float round matches the Python average it replaced.
+        avg = obj.card_avg_rating
+        return round(float(avg), 1) if avg is not None else None
 
     def get_rating_count(self, obj):
-        if 'card_rating_count' in obj.__dict__:
-            return obj.card_rating_count or 0
-        if self._prefetched(obj, 'ratings'):
-            return len(obj.ratings.all())
-        return obj.ratings.count()
+        return obj.card_rating_count or 0
 
     def get_total_views(self, obj):
-        if 'card_total_views' in obj.__dict__:
-            return obj.card_total_views or 0
-        return sum(source.total_views for source in self._context_sources(obj))
+        return obj.card_total_views or 0
 
     def get_weekly_views(self, obj):
-        if 'card_weekly_views' in obj.__dict__:
-            return obj.card_weekly_views or 0
-        sources = self._context_sources(obj)
-        if self._prefetched(obj, 'sources') and all(
-            self._prefetched(source, 'weekly_views') for source in sources
-        ):
-            return sum(
-                view.views for source in sources for view in source.weekly_views.all()
-            )
-        total = WeeklySourceView.objects.filter(
-            source_id__in=[source.pk for source in sources],
-            granularity=WeeklySourceView.DAY,
-            day__gte=WeeklySourceView.window_start(),
-        ).aggregate(total=Sum('views'))['total']
-        return total or 0
+        return obj.card_weekly_views or 0
 
     def get_is_bookmarked(self, obj):
         if hasattr(obj, 'user_bookmarks'):
@@ -143,7 +120,7 @@ class NovelAggregatesMixin:
                 from ..utils.query_helpers import annotate_reading_history
                 history = annotate_reading_history(
                     obj.reading_histories
-                    .select_related('source__latest_available_chapter', 'last_read_chapter')
+                    .select_related('source__latest_available_chapter', 'source__external_source', 'current_chapter')
                     .filter(user=request.user)
                 ).first()
             cache[obj.pk] = history
@@ -151,7 +128,7 @@ class NovelAggregatesMixin:
 
     def get_reading_history(self, obj):
         history = self._get_reading_history(obj)
-        if not history or not history.last_read_chapter:
+        if not history or not history.current_chapter:
             return None
         return self._history_serializer().to_representation(history)
 
@@ -240,9 +217,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         return list(languages)
 
     def get_is_adult(self, obj):
-        # Novel-level flag: adult if more than half of its sources are. Reads the
-        # prefetched sources, so no extra query.
-        return is_majority_adult(obj.sources.all())
+        return obj.is_adult
 
     def get_audiobooks(self, obj):
         """The public audiobooks of the novel: language and total duration, for the detail page."""
@@ -256,8 +231,8 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         ]
 
     def get_has_audiobook(self, obj):
-        # Set by annotate_card_aggregates; a queryset without it reports False.
-        return bool(getattr(obj, 'annotated_has_audiobook', False))
+        # Set by novel_queryset for the profiles that render it.
+        return bool(obj.annotated_has_audiobook)
 
     def get_sources(self, obj):
         return NovelSourceSerializer(
@@ -287,17 +262,12 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
         return rating.rating if rating else None
 
     def get_similar_novels(self, obj):
-        from django.core.cache import cache
-        from ..utils.query_helpers import (
-            adult_allowed, apply_novel_prefetches, exclude_adult,
-            has_audiobook_subquery, novel_prefetch_objects,
-        )
-
-        # Get the top 12 similar novels (list() so len() is accurate; a sliced
-        # queryset's .count() caps at the slice and made the fallback always fire).
+        # Up to 12 similar novels. Evaluated as a list so len() is the row count: a sliced queryset's
+        # count() is capped at the slice.
         # Pass the requesting user so bookmark/history lookups are prefetched
         # instead of firing a query per similar novel.
         user = getattr(self.context.get('request'), 'user', None)
+        languages = self.context.get('languages')
         similar_qs = obj.similar_to.filter(
             to_novel__is_dmca=False, similarity__gt=0,
         )
@@ -306,9 +276,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             similar_qs
             .prefetch_related(Prefetch(
                 'to_novel',
-                queryset=Novel.objects.annotate(
-                    annotated_has_audiobook=has_audiobook_subquery()
-                ).prefetch_related(*novel_prefetch_objects(user)),
+                queryset=novel_queryset(user=user, languages=languages),
             ))
             .order_by('-similarity')[:12]
         )
@@ -324,11 +292,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             most_viewed_key = f"similar:most_viewed:v3:{int(adult_allowed(user))}"
             most_viewed_ids = cache.get(most_viewed_key)
             if most_viewed_ids is None:
-                most_viewed_ids = list(
-                    exclude_adult(Novel.objects.filter(is_dmca=False), user)
-                    .order_by('-rank_total_views', 'title')
-                    .values_list('pk', flat=True)[:40]
-                )
+                most_viewed_ids = most_viewed_novel_ids(user, 40)
                 cache.set(most_viewed_key, most_viewed_ids, 600)
 
             # Pick the most viewed novels not already in our list, keeping the cached order
@@ -338,10 +302,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             ][:needed_count]
             fetched = {
                 novel.pk: novel
-                for novel in apply_novel_prefetches(
-                    exclude_adult(Novel.objects.filter(pk__in=picked_ids), user)
-                    .annotate(annotated_has_audiobook=has_audiobook_subquery()),
-                    user,
+                for novel in novel_queryset(
+                    exclude_adult(Novel.objects.filter(pk__in=picked_ids), user),
+                    user, languages=languages,
                 )
             }
             most_viewed = [fetched[pk] for pk in picked_ids if pk in fetched]
@@ -371,8 +334,6 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
 
     def get_reading_lists(self, obj):
         from .reading_lists_serializers import ReadingListSerializer
-        from ..views.reading_lists_views import _reading_lists_query_set
-        from django.db.models import Q
 
         # Only expose public lists, plus private ones the caller owns or helps on.
         request = self.context.get('request')
@@ -382,10 +343,11 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             visibility |= Q(user=user) | Q(collaborators__user=user)
 
         reading_lists = obj.in_reading_lists.values_list('reading_list', flat=True)
-        # Reuse the reading-lists view queryset so each list's items (and their
+        # Reuse the reading-lists queryset so each list's items (and their
         # nested novels) are prefetched instead of firing per-list/per-item.
+        # The card only renders the preview profile of each item, so full=False.
         lists = (
-            _reading_lists_query_set(user)
+            reading_lists_queryset(user, full=False)
             .filter(id__in=reading_lists)
             .filter(visibility)
             .distinct()

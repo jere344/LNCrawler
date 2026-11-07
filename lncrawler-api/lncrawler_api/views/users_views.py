@@ -5,50 +5,47 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.db import IntegrityError, transaction
-from django.db.models import CharField, Count, F, IntegerField, Max, OuterRef, Q, Subquery, Value
+from django.db.models import Case, CharField, Count, F, IntegerField, Max, OuterRef, Q, Subquery, Value, When
 from django.db.models.functions import Cast
 
+import math
 import uuid
 
 from ..languages import parse_languages
-from ..models.chapter_models import Chapter
 from ..models.audiobook_models import ListeningProgress
 from ..models.users_models import LibraryFolder, NovelBookmark, ReaderSettingsSlot, ReadingHistory
 from ..models.novels_models import Novel, NovelRating, NovelSimilarity
-from ..models.sources_models import NovelFromSource, adult_novel_ids
+from ..models.sources_models import NovelFromSource
 from ..serializers.audiobook_serializers import audiobook_card
 from ..serializers.novels_serializers import NovelSerializer
 from ..serializers.reading_history_serializers import ReadingHistorySerializer
 from ..serializers.users_serializers import ReaderSettingsWriteSerializer, UserSerializer, reader_settings_slot_data
 from ..services.audiobook_public import annotate_public_totals, visible_audiobooks
-from ..services.reading_history import advance_reading_history
+from ..services.reading_history import set_reading_position
 from ..utils import resolve_novel_slug
 from ..utils.crawler_path import ensure_crawler_on_path
 from ..utils.novel_resolution import get_chapter_or_404, get_source_or_404
 from ..utils.pagination import paginate
 from ..utils.query_helpers import (
     adult_allowed,
-    apply_novel_prefetches,
     exclude_adult,
-    has_audiobook_subquery,
+    most_viewed_novel_ids,
+    novel_queryset,
 )
 
 ensure_crawler_on_path()
-from lncrawl.utils.words import count_words  # noqa: E402
 
 
 def _folder_count_annotation(allow_adult):
     """Count a folder's bookmarks, hiding adult novels unless allowed.
 
-    A novel is adult if more than half of its sources are, so this uses a
-    subquery rather than a per-source-row filter (which would count mixed-source
-    novels).
+    Counts on the stored ``Novel.is_adult``, one novel per bookmark.
     """
     if allow_adult:
         return Count("bookmarks")
     return Count(
         "bookmarks",
-        filter=~Q(bookmarks__novel_id__in=adult_novel_ids()),
+        filter=Q(bookmarks__novel__is_adult=False),
         distinct=True,
     )
 
@@ -204,7 +201,7 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, with_pro
 
     novels_by_id = {
         novel.id: novel
-        for novel in apply_novel_prefetches(
+        for novel in novel_queryset(
             Novel.objects.filter(id__in=[bookmark.novel_id for bookmark in page_items]),
             viewer if with_progress else None,
             profile='library',
@@ -237,21 +234,19 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, with_pro
         # bookmark). The full list is passed; get_novel_recommendations caps it.
         bookmark_seeds = (
             NovelBookmark.objects.filter(user=owner)
-            .annotate(last_read=Subquery(
+            .annotate(read_at=Subquery(
                 ReadingHistory.objects.filter(user=owner, novel=OuterRef("novel"))
                 .values("last_read_at")[:1]
             ))
-            .order_by(F("last_read").desc(nulls_last=True), "-created_at")
+            .order_by(F("read_at").desc(nulls_last=True), "-created_at")
             .values_list("novel_id", flat=True)
         )
+        languages = parse_languages(request.GET.getlist("languages"))
         recommendations = get_novel_recommendations(
-            owner,
-            list(bookmark_seeds),
-            viewer,
-            languages=parse_languages(request.GET.getlist("languages")),
+            owner, list(bookmark_seeds), viewer, languages=languages,
         )
         payload["recommendations"] = NovelSerializer(
-            recommendations, many=True, context={"request": request}
+            recommendations, many=True, context={"request": request, "languages": languages}
         ).data
     return Response(payload)
 
@@ -415,32 +410,26 @@ def get_novel_recommendations(
         needed = max_recommendations - len(recommended_ids)
         excluded_ids = list(excluded) + recommended_ids
         
-        # Get popular novels IDs in a single query, from the rank_total_views projection
-        popular_qs = Novel.objects.exclude(id__in=excluded_ids).filter(is_dmca=False)
+        # Popular novels in a single query, from the rank_total_views projection
+        popular_novels = Novel.objects.all()
         if languages:
-            popular_qs = popular_qs.filter(
+            popular_novels = popular_novels.filter(
                 id__in=NovelFromSource.objects.filter(language__in=languages).values("novel")
             )
-        popular_qs = exclude_adult(popular_qs, viewer)
-        popular_ids = (popular_qs
-            .order_by('-rank_total_views', 'title')
-            .values_list('id', flat=True)[:needed]
-        )
-        
-        recommended_ids.extend(popular_ids)
+        recommended_ids.extend(most_viewed_novel_ids(
+            viewer, needed, exclude_ids=excluded_ids, novels=popular_novels,
+        ))
     
     # Now fetch all novels in a single query, preserving order efficiently
-    from django.db.models import Case, When, IntegerField
     preserved_order = Case(
         *[When(pk=pk, then=pos) for pos, pk in enumerate(recommended_ids)],
         output_field=IntegerField()
     )
     
-    recommendations = apply_novel_prefetches(
-        Novel.objects.filter(pk__in=recommended_ids)
-        .order_by(preserved_order)
-        .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+    recommendations = novel_queryset(
+        Novel.objects.filter(pk__in=recommended_ids).order_by(preserved_order),
         viewer,
+        languages=languages,
     )
     
     return recommendations
@@ -484,9 +473,8 @@ def _history_items(request, rows):
     listen_rows = [row for row in rows if row['kind'] == 'listen']
     novels = {
         str(novel.pk): novel
-        for novel in apply_novel_prefetches(
-            Novel.objects.filter(pk__in=[row['ref'] for row in read_rows])
-            .annotate(annotated_has_audiobook=has_audiobook_subquery()),
+        for novel in novel_queryset(
+            Novel.objects.filter(pk__in=[row['ref'] for row in read_rows]),
             user,
         )
     }
@@ -564,47 +552,41 @@ def delete_listening_history(request, progress_id):
         id=progress_id, user=request.user,
     )
 
+
+def _finite_number(value):
+    """``value`` as a finite float, or None when it is not a number. Booleans are not numbers here."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        value = float(value)
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def mark_chapter_as_read(request, novel_slug, source_slug, chapter_number):
+def save_reading_position(request, novel_slug, source_slug, chapter_number):
     """
-    Mark a chapter as read for the authenticated user. Progress only moves
-    forward: a chapter at or before the current one leaves the history (and
-    word count) unchanged.
+    Save where the authenticated user is in a chapter: ``{"progress": 0 to 1}``, 0 the top and 1 the end.
+    Unlike the listening progress, this can move back, so a reader may return to an earlier chapter.
+    A chapter without content is 409.
     """
-    # Get the novel, source, and chapter
+    data = request.data if isinstance(request.data, dict) else {}
+    progress = _finite_number(data.get("progress"))
+    if progress is None:
+        return Response({"error": "progress must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+    progress = min(max(progress, 0), 1)
+
     novel = resolve_novel_slug(novel_slug)
     source = get_source_or_404(novel, source_slug)
     chapter = get_chapter_or_404(source, chapter_number)
+    if not chapter.has_content:
+        return Response({"error": "This chapter has no content to read."}, status=status.HTTP_409_CONFLICT)
 
-    # Progress only moves forward: re-reading or navigating from an older
-    # chapter must not rewind it, nor count its words again.
-    with transaction.atomic():
-        reading_history, created, moved = advance_reading_history(request.user, novel, source, chapter)
-        if not moved:
-            serializer = ReadingHistorySerializer(reading_history, profile='detail')
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        # The body is only read when no count is stored yet; the count is then kept on the
-        # chapter, so the next read skips the file. An unreadable file is not stored.
-        word_count = chapter.word_count
-        if word_count is None:
-            body = chapter.body
-            if body is not None:
-                word_count = count_words(body)
-                Chapter.objects.filter(pk=chapter.pk).update(word_count=word_count)
-        # F() avoids lost updates under concurrency.
-        if word_count:
-            get_user_model().objects.filter(pk=request.user.pk).update(
-                word_read=F('word_read') + word_count
-            )
-
-    serializer = ReadingHistorySerializer(reading_history, profile='detail')
-    
-    if created:
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    else:
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    reading_history = set_reading_position(request.user, novel, source, chapter, progress)
+    serializer = ReadingHistorySerializer(reading_history, profile='detail', context={'request': request})
+    return Response(serializer.data)
 
 
 @api_view(["GET"])

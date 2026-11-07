@@ -30,7 +30,6 @@ export type PrivacySection =
 export type FriendshipStatus = 'self' | 'friends' | 'request_sent' | 'request_received' | 'none';
 
 interface ProfileStats {
-    word_read: number;
     chapters_read_count: number;
     chapters_not_read_yet_count: number;
     novels_count: number;
@@ -39,7 +38,9 @@ interface ProfileStats {
 interface ReadingProgress {
     novel: Novel;
     last_read_at: string;
-    last_read_chapter: number | null;
+    // Chapter id of the chapter being read, and how far through it (0..1)
+    current_chapter: number | null;
+    position: number;
     source_slug?: string | null;
 }
 

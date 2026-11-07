@@ -7,9 +7,9 @@
 {% for chapter in chapters %}
   <li>
     {% if chapter.has_content %}
-      <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/chapter/{{ chapter.chapter_id }}/">{{ chapter.chapter_id }}. {{ chapter.title }}</a>
+      <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/chapter/{{ chapter.chapter_id }}/">{{ chapter.display_title }}</a>
     {% else %}
-      {{ chapter.chapter_id }}. {{ chapter.title }}
+      {{ chapter.display_title }}
     {% endif %}
   </li>
 {% endfor %}

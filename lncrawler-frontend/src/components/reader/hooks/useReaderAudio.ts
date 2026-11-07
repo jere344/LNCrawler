@@ -4,7 +4,6 @@ import { useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { ChapterContent as IChapterContent } from '@models/novels_types';
 import { useAudioPlayer } from '@context/AudioPlayerContext';
-import { getChapterLabel } from '@utils/Misc';
 import { ReaderSettings as IReaderSettings } from '../readerSettingsSchema';
 import { updateReaderSetting } from '../readerSettingsStore';
 import { useTtsPlayer } from '../tts/useTtsPlayer';
@@ -60,7 +59,7 @@ export function useReaderAudio({
   loadId,
   onOpenChapter,
 }: ReaderAudioOptions) {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const theme = useTheme();
 
   // Sources store ISO codes, but tolerate regional forms like 'zh-CN'.
@@ -110,7 +109,7 @@ export function useReaderAudio({
     chapterKey: infinite
       ? (loading ? null : ttsKey)
       : (!loading && chapter ? currentChapterKey : null),
-    chapterTitle: ttsChapter ? getChapterLabel(t, ttsChapter.title, ttsChapter.chapter_id) : '',
+    chapterTitle: ttsChapter ? ttsChapter.display_title : '',
     novelTitle: ttsChapter?.novel_title ?? '',
     artwork: ttsChapter?.source_overview_image_url,
     hasNextChapter: !!ttsChapter?.next_chapter,
