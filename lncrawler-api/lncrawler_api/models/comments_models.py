@@ -8,9 +8,15 @@ class CommentQuerySet(models.QuerySet):
 
     def for_novel(self, novel):
         """Comments on the novel itself and on any of its chapters, whatever the source."""
-        return self.filter(
-            models.Q(novel=novel) | models.Q(chapter__novel_from_source__novel=novel)
-        )
+        # An OR across the chapter join cannot use an index: Postgres joins every
+        # comment to its chapter first (seconds on a large table). A UNION ALL of
+        # the two index-driven halves (they never overlap: a comment has either a
+        # novel or a chapter) keeps it to two index lookups.
+        on_novel = Comment.objects.filter(novel=novel).values('pk')
+        on_chapters = Comment.objects.filter(
+            chapter__novel_from_source__novel=novel
+        ).values('pk')
+        return self.filter(pk__in=on_novel.union(on_chapters, all=True))
 
     def for_chapter_number(self, novel_id, chapter_number):
         """Comments on this chapter number of the novel, across all of its sources."""

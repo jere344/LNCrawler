@@ -945,6 +945,8 @@
         "left": "Left pill",
         "right": "Right pill"
       },
+      "edgeOffset": "Distance from the edge",
+      "edgeOffsetHint": "Move the strip away from the top or bottom edge, for example under a notch.",
       "content": "Content",
       "contentHint": "Tap to add or remove. Items show in the order you add them. Battery only shows on browsers that expose it.",
       "items": {

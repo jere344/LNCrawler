@@ -1,6 +1,6 @@
 import { Box, Chip, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
-import { SettingGroupHeading, SettingRow, SettingSelect, SettingSwitch, PageFootReset } from '../SettingRows';
+import { SettingGroupHeading, SettingRow, SettingSelect, SettingStepper, SettingSwitch, PageFootReset } from '../SettingRows';
 import { useReaderSettings } from '../../hooks/useReaderSettings';
 import { updateReaderSetting } from '../../readerSettingsStore';
 import { OVERLAY_ITEMS, type OverlayItem, type OverlayPosition, type OverlaySize } from '../../readerSettingsSchema';
@@ -16,7 +16,7 @@ const isItemAvailable = (item: OverlayItem) => item !== 'battery' || BATTERY_SUP
 // A small strip of reading info over the text: where it sits, how wide it is and what it shows
 const OverlayPage = () => {
   const { t } = useTranslation();
-  const { overlayEnabled, overlaySize, overlayItems } = useReaderSettings();
+  const { overlayEnabled, overlaySize, overlayEdgeOffset, overlayItems } = useReaderSettings();
 
   // Items keep the order they were turned on in, which is the order the overlay shows them
   const toggleItem = (item: OverlayItem) => {
@@ -64,6 +64,18 @@ const OverlayPage = () => {
         ))}
       </ToggleButtonGroup>
 
+      <SettingStepper
+        title={t('readerSettingsPages.overlay.edgeOffset')}
+        sub={t('readerSettingsPages.overlay.edgeOffsetHint')}
+        settingKey="overlayEdgeOffset"
+        value={overlayEdgeOffset}
+        step={2}
+        min={0}
+        max={80}
+        disabled={!overlayEnabled}
+        format={(value) => `${value}px`}
+      />
+
       <SettingGroupHeading>{t('readerSettingsPages.overlay.content')}</SettingGroupHeading>
       <Box data-setting-id="overlayItems" sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, pb: 1 }}>
         {OVERLAY_ITEMS.filter(isItemAvailable).map((item) => {
@@ -84,7 +96,7 @@ const OverlayPage = () => {
       </Box>
       <Typography variant="body2" color="text.secondary">{t('readerSettingsPages.overlay.contentHint')}</Typography>
 
-      <PageFootReset keys={['overlayEnabled', 'overlayPosition', 'overlaySize', 'overlayItems']} />
+      <PageFootReset keys={['overlayEnabled', 'overlayPosition', 'overlaySize', 'overlayEdgeOffset', 'overlayItems']} />
     </Box>
   );
 };

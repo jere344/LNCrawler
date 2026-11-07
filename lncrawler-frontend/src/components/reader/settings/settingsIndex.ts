@@ -83,6 +83,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   entry('overlayEnabled', 'readerSettingsPages.overlay.enable', 'overlay', ['overlayEnabled']),
   entry('overlayPosition', 'readerSettingsPages.overlay.position', 'overlay', ['overlayPosition']),
   entry('overlaySize', 'readerSettingsPages.overlay.size', 'overlay', ['overlaySize']),
+  entry('overlayEdgeOffset', 'readerSettingsPages.overlay.edgeOffset', 'overlay', ['overlayEdgeOffset']),
   entry('overlayItems', 'readerSettingsPages.overlay.content', 'overlay', ['overlayItems']),
 
   entry('ttsPreferAudiobook', 'ttsSettings.whatReads', 'listen', ['ttsPreferAudiobook']),

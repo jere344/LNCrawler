@@ -22,7 +22,6 @@ from collections import defaultdict
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
-from django.db.models import Count
 from django.utils import timezone
 
 from lncrawler_api.models import Candidate, Novel, NovelFromSource, NovelSimilarity
@@ -181,9 +180,9 @@ class Command(BaseCommand):
         # One aggregate for every novel instead of a COUNT per novel. A novel's
         # length is its longest source: the others are often partial copies.
         chapters = defaultdict(int)
-        totals = NovelFromSource.objects.filter(novel_id__in=allowed).annotate(
-            chapter_total=Count("chapters")
-        ).values_list("novel_id", "chapter_total")
+        totals = NovelFromSource.objects.filter(novel_id__in=allowed).values_list(
+            "novel_id", "chapters_count"
+        )
         for novel_id, total in totals:
             chapters[novel_id] = max(chapters[novel_id], total)
 

@@ -16,7 +16,7 @@ import LibraryNovelCard from '@components/library/LibraryNovelCard';
 import LibraryFolderBar from '@components/library/LibraryFolderBar';
 import LibrarySortSelect from '@components/common/LibrarySortSelect';
 import PageNav from '@components/common/PageNav';
-import { LibraryFolder, Novel } from '@models/novels_types';
+import { LibraryFolder, LibraryNovel } from '@models/novels_types';
 import { useDebounce } from '@utils/useDebounce';
 import { useTranslation } from 'react-i18next';
 
@@ -29,7 +29,7 @@ interface PublicLibraryTabProps {
 const PublicLibraryTab: React.FC<PublicLibraryTabProps> = ({ username, showNotes, showRatings }) => {
   const { t } = useTranslation();
 
-  const [items, setItems] = useState<Novel[]>([]);
+  const [items, setItems] = useState<LibraryNovel[]>([]);
   const [folders, setFolders] = useState<LibraryFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);

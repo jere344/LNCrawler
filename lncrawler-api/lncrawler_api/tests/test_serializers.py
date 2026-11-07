@@ -40,11 +40,9 @@ class SerializerProfileTests(TestCase):
             "reading_lists", "is_dmca", "audiobooks",
         ],
         "library": [
-            "id", "title", "slug", "avg_rating", "rating_count", "total_views",
-            "weekly_views", "prefered_source", "languages", "is_adult",
-            "is_bookmarked", "comment_count", "reading_history", "reading_source",
-            "is_dmca", "has_audiobook", "bookmark_id", "note", "folder", "folder_name", "position",
-            "user_rating",
+            "id", "title", "slug", "is_adult", "is_dmca", "is_bookmarked",
+            "bookmark_id", "note", "folder", "folder_name", "user_rating",
+            "prefered_source", "reading_source", "reading_history",
         ],
     }
 
@@ -71,6 +69,10 @@ class SerializerProfileTests(TestCase):
             "language", "chapters_count", "available_chapters_count",
             "latest_available_chapter",
             "last_chapter_update", "vote_score", "user_vote",
+        ],
+        "library": [
+            "title", "source_slug", "novel_slug", "novel_id", "cover_min_url",
+            "available_chapters_count", "latest_available_chapter", "is_adult",
         ],
     }
 
@@ -132,6 +134,10 @@ class SerializerProfileTests(TestCase):
             },
             ReadingHistorySerializer: {
                 "card": ["id", "last_read_chapter", "last_read_at"],
+                "library": [
+                    "source_slug", "last_read_chapter", "unread_chapters",
+                    "source_latest_chapter",
+                ],
                 "detail": [
                     "id", "novel_slug", "source_slug", "last_read_chapter",
                     "last_read_at", "next_chapter", "unread_chapters",
@@ -261,6 +267,32 @@ class SerializerProfileTests(TestCase):
         )
         self.assertIsNone(hidden.get_user_rating(novel))
 
+    def test_library_progress_fails_closed_without_a_prefetch(self):
+        """Without the view's progress prefetch a library item shows no progress, and its serializer never
+        queries the request user's history (a per-row query that would leak or cost)."""
+        from types import SimpleNamespace
+
+        from django.contrib.auth import get_user_model
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from ..models import ReadingHistory
+        from ..serializers import NovelSerializer
+
+        user = get_user_model().objects.create_user(username="failclosed", password="x")
+        novel = self._make_novel(1)
+
+        with CaptureQueriesContext(connection) as captured:
+            data = NovelSerializer(
+                novel, profile="library",
+                context={"request": SimpleNamespace(user=user)},
+            ).data
+
+        self.assertIsNone(data["reading_history"])
+        self.assertIsNone(data["reading_source"])
+        history_table = ReadingHistory._meta.db_table
+        self.assertFalse(any(history_table in query["sql"] for query in captured))
+
     def _make_novel(self, index):
         novel = Novel.objects.create(
             title=f"Novel {index}", slug=f"novel-{index}", novel_path=f"n{index}"
@@ -347,7 +379,7 @@ class SerializerProfileTests(TestCase):
         from ..utils.query_helpers import sources_queryset
 
         self._make_novel(1)
-        source = sources_queryset(detailed=False).first()
+        source = sources_queryset().first()
         with CaptureQueriesContext(connection) as captured:
             NovelSourceSerializer(source, profile="card").data
         self.assertEqual(len(captured), 0)
@@ -355,8 +387,9 @@ class SerializerProfileTests(TestCase):
     def test_available_chapters_count_only_counts_content(self):
         """``available_chapters_count`` must exclude chapters without content
         while ``chapters_count`` keeps the total (the source page shows 25/500),
-        both from the annotation and the per-object fallback."""
+        both on the stored source row and on a queryset-loaded one."""
         from ..serializers import NovelSourceSerializer
+        from ..services.chapter_stats import refresh_chapter_stats
         from ..utils.query_helpers import sources_queryset
 
         source = self._make_novel(1).sources.first()
@@ -366,16 +399,18 @@ class SerializerProfileTests(TestCase):
                 url=f"http://site/{chapter_id}", title=f"C{chapter_id}",
                 has_content=has_content,
             )
+        refresh_chapter_stats([source.pk])
+        source.refresh_from_db()
 
         plain = NovelSourceSerializer(source, profile="card").data
         self.assertEqual(plain["chapters_count"], 3)
         self.assertEqual(plain["available_chapters_count"], 2)
 
-        annotated = NovelSourceSerializer(
-            sources_queryset(detailed=False).get(pk=source.pk), profile="card"
+        loaded = NovelSourceSerializer(
+            sources_queryset().get(pk=source.pk), profile="card"
         ).data
-        self.assertEqual(annotated["chapters_count"], 3)
-        self.assertEqual(annotated["available_chapters_count"], 2)
+        self.assertEqual(loaded["chapters_count"], 3)
+        self.assertEqual(loaded["available_chapters_count"], 2)
 
     def test_novel_detail_endpoint_serializes_nested_sources(self):
         novel = self._make_novel(1)
@@ -461,7 +496,7 @@ class SerializerProfileTests(TestCase):
                 source_slug=f"extra-{index}",
                 language="en",
             )
-        queryset = sources_queryset(summary=True, ip="127.0.0.1").filter(novel=novel)
+        queryset = sources_queryset('summary', ip="127.0.0.1").filter(novel=novel)
 
         # The summary profile's user_vote must come from the prefetch, not a
         # per-source query. With a bare request context a dropped prefetch

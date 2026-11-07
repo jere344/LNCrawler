@@ -108,7 +108,7 @@ def list_bookmarked_novels(request):
     """
     return _library_response(
         request.user, request.user, request,
-        show_notes=True, show_ratings=True, include_recommendations=True,
+        show_notes=True, show_ratings=True, with_progress=True, include_recommendations=True,
     )
 
 
@@ -135,7 +135,7 @@ def _folder_name_error(user, name, exclude_pk=None):
     return None
 
 
-def _library_response(owner, viewer, request, show_notes, show_ratings, include_recommendations=False):
+def _library_response(owner, viewer, request, show_notes, show_ratings, with_progress, include_recommendations=False):
     """
     Build the shared library payload for both the owner's library and the
     public profile mirror. `owner` owns the bookmarks; `viewer` is who is
@@ -186,9 +186,9 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     folders = [_folder_data(folder) for folder in folder_qs]
 
     # Resolve the viewer's own bookmark status up front so the serializer's
-    # `is_bookmarked` never runs a query per row.
+    # `is_bookmarked` never runs a query per row. The private list skips it: every item is bookmarked.
     viewer_bookmarked_ids = set()
-    if getattr(viewer, "is_authenticated", False):
+    if not with_progress and getattr(viewer, "is_authenticated", False):
         viewer_bookmarked_ids = set(
             NovelBookmark.objects.filter(user=viewer).values_list("novel_id", flat=True)
         )
@@ -205,16 +205,18 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, include_
     novels_by_id = {
         novel.id: novel
         for novel in apply_novel_prefetches(
-            Novel.objects.filter(id__in=[bookmark.novel_id for bookmark in page_items])
-            .annotate(annotated_has_audiobook=has_audiobook_subquery()),
-            viewer,
+            Novel.objects.filter(id__in=[bookmark.novel_id for bookmark in page_items]),
+            viewer if with_progress else None,
+            profile='library',
         )
     }
     novels = []
     for bookmark in page_items:
         novel = novels_by_id[bookmark.novel_id]
         novel.library_bookmark = bookmark
-        novel.user_bookmarks = [True] if novel.id in viewer_bookmarked_ids else []
+        # The private list is the owner's own bookmarks, so each item is bookmarked; the public
+        # mirror shows the viewer's bookmark state.
+        novel.user_bookmarks = [True] if with_progress or novel.id in viewer_bookmarked_ids else []
         novels.append(novel)
 
     serializer = NovelSerializer(

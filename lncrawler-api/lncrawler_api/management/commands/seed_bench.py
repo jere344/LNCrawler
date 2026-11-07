@@ -32,6 +32,7 @@ from lncrawler_api.models import (
     TagAlias,
     Translator,
 )
+from lncrawler_api.services.chapter_stats import refresh_chapter_stats
 from lncrawler_api.services.novel_rankings import refresh_novel_rankings
 from lncrawler_api.utils.author_names import normalize_author
 from lncrawler_api.utils.tag_utils import normalize_tag
@@ -1095,6 +1096,7 @@ SET is_adult = s.adult_from_source OR EXISTS (
     WHERE st.novelfromsource_id = s.id AND t.is_adult)
 """)
         self.stdout.write(f'Novel rankings: {refresh_novel_rankings()} rows updated')
+        self.stdout.write(f'Chapter stats: {refresh_chapter_stats()} rows updated')
 
         self.stdout.write('Analyzing ...')
         started = time.perf_counter()

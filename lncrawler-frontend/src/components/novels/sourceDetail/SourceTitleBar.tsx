@@ -5,7 +5,8 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import MarkAsReadButton from '../../common/MarkAsReadButton';
-import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail, Novel as INovel } from '@models/novels_types';
+import { SourceView, NovelDetail as INovelDetail } from '@models/novels_types';
+import { isFullSource } from './sourceView';
 
 const SourceTitleBar = ({
   source,
@@ -18,7 +19,7 @@ const SourceTitleBar = ({
   onAddToList,
   setSource,
 }: {
-  source: ISourceDetail;
+  source: SourceView;
   novel: INovelDetail | null;
   novelSlug: string | undefined;
   isAuthenticated: boolean;
@@ -26,10 +27,12 @@ const SourceTitleBar = ({
   bookmarking: boolean;
   onToggleBookmark: () => void;
   onAddToList: () => void;
-  setSource: Dispatch<SetStateAction<ISourceDetail | null>>;
+  setSource: Dispatch<SetStateAction<SourceView | null>>;
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const full = isFullSource(source) ? source : null;
+  const adultTags = full?.adult_tags ?? [];
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
       <Typography 
@@ -45,7 +48,7 @@ const SourceTitleBar = ({
         {source.is_adult && (
           // Always shown (unlike the cover badge, which only shows while blurred).
           <Tooltip
-            title={source.adult_tags?.length ? t('sourceDetail.adultTagsReason', { tags: source.adult_tags.join(', ') }) : ''}
+            title={adultTags.length ? t('sourceDetail.adultTagsReason', { tags: adultTags.join(', ') }) : ''}
           >
             <Chip
               label={t('sourceDetail.adultNote')}
@@ -74,7 +77,7 @@ const SourceTitleBar = ({
           <Tooltip title={t('novelActions.addToReadingList')}>
             <IconButton
               onClick={onAddToList}
-              disabled={!source?.novel_id}
+              disabled={!source.novel_id}
               sx={{
                 color: 'common.white',
                 bgcolor: alpha(theme.palette.common.black, 0.3),
@@ -84,17 +87,17 @@ const SourceTitleBar = ({
               <PlaylistAddIcon />
             </IconButton>
           </Tooltip>
-          {novel && (
+          {novel && full && (
             <MarkAsReadButton
               novel={{
                 ...novel,
                 slug: novelSlug ?? novel.slug,
-                reading_history: source.reading_history,
-                prefered_source: source,
-              } as unknown as INovel}
+                reading_history: full.reading_history,
+                prefered_source: full,
+              }}
               onMarkAsRead={() =>
                 setSource(prev =>
-                  prev?.reading_history
+                  isFullSource(prev) && prev.reading_history
                     ? {
                         ...prev,
                         reading_history: {

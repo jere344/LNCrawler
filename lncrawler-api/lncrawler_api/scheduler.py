@@ -389,6 +389,21 @@ def refresh_novel_rankings_task():
         logger.error(f"Error refreshing novel rankings: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
 
+# Safety net for the stored chapter stats (services/chapter_stats.py): the writers
+# refresh the sources they change, this catches a write path that does not. Batched
+# and skip_locked, so it never waits on an import that is refreshing its own source.
+@scheduler.register_task(interval=HOUR, name="refresh_chapter_stats")  # hourly
+def refresh_chapter_stats_task():
+    from .services.chapter_stats import refresh_chapter_stats
+
+    logger.info("Refreshing chapter stats...")
+    try:
+        updated = refresh_chapter_stats(skip_locked=True)
+        logger.info("Chapter stats refresh completed: %s row(s) updated", updated)
+    except Exception as e:
+        logger.error(f"Error refreshing chapter stats: {str(e)}", exc_info=True)
+        raise  # Re-raise to mark task as failed
+
 # Top up the audiobook part queue to AUDIOBOOK_QUEUE_WORDS (about one night of work),
 # so the worker always finds a part when it starts. Does nothing while AUDIOBOOK_ENABLED is off.
 @scheduler.register_task(interval=HOUR, name="enqueue_audiobooks")  # hourly

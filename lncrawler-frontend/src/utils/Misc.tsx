@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { Novel, NovelFromSource } from '@models/novels_types';
+import type { LibraryNovel, NovelFromSource } from '@models/novels_types';
 import defaultCover from '@assets/default-cover.jpg';
 import { LANGUAGE_CODES, type LanguageCode } from '../generated/sharedConstants';
 
@@ -143,7 +143,7 @@ interface SourceLinkProps {
     state?: unknown;
 }
 
-export const getNovelSourceLink = (novel: Novel): SourceLinkProps => {
+export const getNovelSourceLink = (novel: LibraryNovel): SourceLinkProps => {
     const to = getNovelSourcePath(novel);
     if (!to) return {};
     return { to, state: { novel, source: novel.reading_source ?? novel.prefered_source ?? null } };

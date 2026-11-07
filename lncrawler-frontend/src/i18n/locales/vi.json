@@ -945,6 +945,8 @@
         "left": "Viên bên trái",
         "right": "Viên bên phải"
       },
+      "edgeOffset": "Khoảng cách tới mép",
+      "edgeOffsetHint": "Đẩy thanh ra xa mép trên hoặc dưới, ví dụ dưới tai thỏ.",
       "content": "Nội dung",
       "contentHint": "Chạm để thêm hoặc xóa. Các mục hiển thị theo thứ tự bạn thêm. Pin chỉ hiển thị trên trình duyệt hỗ trợ điều này.",
       "items": {

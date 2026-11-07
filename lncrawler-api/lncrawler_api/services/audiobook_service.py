@@ -13,7 +13,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, OuterRef, Subquery, Sum
+from django.db.models import Sum
 from django.utils import timezone
 
 from ..models import Audiobook, AudiobookChapter, AudiobookPart, AudiobookWorker, Chapter
@@ -122,13 +122,7 @@ def pick_source(novel, language='en'):
 
     Same choice as the site (preferred_source_key), so the audiobook is made from the version readers see.
     """
-    chapters_with_content = Chapter.objects.filter(
-        novel_from_source=OuterRef('pk'), has_content=True,
-    ).values('novel_from_source').annotate(total=Count('*')).values('total')[:1]
-    sources = list(
-        novel.sources.filter(language=language)
-        .annotate(annotated_available_chapters_count=Subquery(chapters_with_content))
-    )
+    sources = list(novel.sources.filter(language=language))
     if not sources:
         return None
     return min(sources, key=preferred_source_key)

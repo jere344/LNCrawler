@@ -220,6 +220,17 @@ class NovelFromSource(models.Model):
     upvotes = models.IntegerField(default=0)
     downvotes = models.IntegerField(default=0)
     
+    # Chapter stats, written only by services/chapter_stats.py: readers use these
+    # instead of counting chapters per request. Never set them directly.
+    chapters_count = models.PositiveIntegerField(default=0)
+    available_chapters_count = models.PositiveIntegerField(default=0)
+    first_available_chapter = models.ForeignKey(
+        'lncrawler_api.Chapter', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    latest_available_chapter = models.ForeignKey(
+        'lncrawler_api.Chapter', null=True, blank=True, on_delete=models.SET_NULL, related_name='+',
+    )
+    
     class Meta:
         unique_together = ('novel', 'source_url')
         constraints = [
@@ -242,10 +253,6 @@ class NovelFromSource(models.Model):
     def __str__(self):
         return f"{self.title} ({self.external_source.source_name})"
 
-    @property
-    def chapters_count(self):
-        return self.chapters.count()
-    
     @property
     def absolute_source_path(self):
         """
@@ -384,6 +391,9 @@ class NovelFromSource(models.Model):
         ``added_by`` is recorded on a newly created Novel only; an update of an
         existing novel never rewrites its original contributor.
         """
+        # Local: services.chapter_stats imports this module's models.
+        from ..services.chapter_stats import STAT_FIELDS, refresh_chapter_stats
+
         with open(meta_json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -526,8 +536,19 @@ class NovelFromSource(models.Model):
         novel_from_source.meta_file_path = meta_json_path
         novel_from_source.last_chapter_update = timezone.now()
         novel_from_source.source_version = novel_data.get('source_version') or 1
-        novel_from_source.save()
-        
+        if novel_from_source.pk is None:
+            novel_from_source.save()
+        else:
+            # Not the chapter stats: this row was loaded before the chapters below
+            # change, so a full save would write their old values back.
+            novel_from_source.save(update_fields=[
+                'novel', 'source_url', 'external_source', 'title', 'edition', 'source_slug',
+                'source_path', 'cover_path', 'cover_url', 'language', 'status', 'synopsis',
+                'adult_from_source', 'is_adult', 'original_publisher', 'english_publisher',
+                'novelupdates_url', 'meta_file_path', 'last_chapter_update', 'source_version',
+                'updated_at',
+            ])
+
         # Handle authors (list of strings)
         try:
             _set_source_authors(novel_from_source, novel_data.get('authors', []))
@@ -712,6 +733,8 @@ class NovelFromSource(models.Model):
                 ]
 
             with transaction.atomic():
+                # Lock the row first: the hourly refresh skips it (SKIP LOCKED) rather than deadlocking on the chapter FKs.
+                list(NovelFromSource.objects.select_for_update().filter(pk=novel_from_source.pk).values_list('pk', flat=True))
                 if stale:
                     # An incoming chapter took these rows' slot, so they must go.
                     # Repoint their user data onto the chapter now holding that
@@ -781,11 +804,18 @@ class NovelFromSource(models.Model):
                         chapter.chapter_id = final_id
                     fields_to_update = ['chapter_id', 'url', 'title', 'volume', 'volume_title', 'images', 'has_content', 'word_count']
                     bulk_update_chunked(chapters_to_update, fields_to_update)
-            
+
+                # Last write of the transaction: the stored stats commit with the chapters.
+                refresh_chapter_stats([novel_from_source.pk])
+
             # Update last_chapter_update timestamp
             novel_from_source.last_chapter_update = timezone.now()
             novel_from_source.save(update_fields=['last_chapter_update'])
-        
+        else:
+            refresh_chapter_stats([novel_from_source.pk])
+        # The overview image shows the chapter count: reload the stats the refresh wrote.
+        novel_from_source.refresh_from_db(fields=STAT_FIELDS)
+
         # Generate overview image
         novel_from_source.generate_overview_image()
         # Generate miniature cover image

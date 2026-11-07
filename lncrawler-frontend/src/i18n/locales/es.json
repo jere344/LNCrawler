@@ -945,6 +945,8 @@
         "left": "Píldora izquierda",
         "right": "Píldora derecha"
       },
+      "edgeOffset": "Distancia al borde",
+      "edgeOffsetHint": "Aleja la franja del borde superior o inferior, por ejemplo bajo una muesca.",
       "content": "Contenido",
       "contentHint": "Toca para añadir o quitar. Los elementos se muestran en el orden en que los añades. La batería solo se muestra en navegadores que la expongan.",
       "items": {

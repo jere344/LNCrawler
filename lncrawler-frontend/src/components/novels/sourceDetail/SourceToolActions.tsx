@@ -5,7 +5,8 @@ import CollectionsIcon from '@mui/icons-material/Collections';
 import DownloadIcon from '@mui/icons-material/Download';
 import ActionButton from '../../common/ActionButton';
 import { useEpubDownload } from '@utils/useEpubDownload';
-import { NovelFromSource as ISourceDetail } from '@models/novels_types';
+import { SourceView } from '@models/novels_types';
+import { isFullSource } from './sourceView';
 
 const SourceToolActions = ({
   source,
@@ -17,7 +18,7 @@ const SourceToolActions = ({
   preparingKey,
   startDownload,
 }: {
-  source: ISourceDetail;
+  source: SourceView;
   novelSlug: string | undefined;
   sourceSlug: string | undefined;
   isDmca: boolean;
@@ -27,6 +28,7 @@ const SourceToolActions = ({
   startDownload: ReturnType<typeof useEpubDownload>['startDownload'];
 }) => {
   const { t } = useTranslation();
+  const full = isFullSource(source) ? source : null;
   return (
     <>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -58,7 +60,7 @@ const SourceToolActions = ({
           startIcon={<DownloadIcon />}
           color="info"
           onClick={(e) => setDownloadAnchor(e.currentTarget)}
-          disabled={isDmca || !source?.chapters_count}
+          disabled={isDmca || !full?.chapters_count}
           tooltip={isDmca ? t('sourceDetail.dmcaNotice') : t('sourceDetail.downloadTooltip')}
         />
       </Box>
@@ -78,7 +80,7 @@ const SourceToolActions = ({
           {preparingKey === 'full' && <CircularProgress size={16} sx={{ mr: 1 }} />}
           {t('sourceDetail.downloadFull')}
         </MenuItem>
-        {source?.volumes && source.volumes.length > 1 && source.volumes.map((v) => (
+        {full?.volumes && full.volumes.length > 1 && full.volumes.map((v) => (
           <MenuItem
             key={v.volume_id}
             disabled={preparingKey !== null}

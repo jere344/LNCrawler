@@ -11,6 +11,7 @@ from ..languages import is_supported_language, normalize_language, parse_languag
 from ..models.users_models import Friendship, NovelBookmark, ProfilePinnedNovel, ReaderSettingsSlot, ReadingHistory
 from ..models.chapter_models import Chapter
 from ..models.novels_models import Novel, Tag
+from ..models.sources_models import NovelFromSource
 from ..privacy import are_friends, can_view
 from ..utils.query_helpers import has_audiobook_subquery, novel_prefetch_objects
 from .mixins import ProfileFieldsMixin
@@ -18,6 +19,13 @@ from .mixins import ProfileFieldsMixin
 User = get_user_model()
 
 RECENT_READS_LIMIT = 6
+
+
+def _available_chapters_of(novel_ids):
+    """Chapters with content over every source of ``novel_ids``: the sum of the stored per-source counts."""
+    return NovelFromSource.objects.filter(novel__in=novel_ids).aggregate(
+        total=Sum('available_chapters_count')
+    )['total'] or 0
 
 
 class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
@@ -176,12 +184,8 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return self._chapters_read_count
 
     def get_chapters_not_read_yet_count(self, obj):
-        # Get the total chapters count for bookmarked novels
         bookmarked_novels = NovelBookmark.objects.filter(user=obj).values('novel')
-        total_chapters = Chapter.objects.filter(
-            novel_from_source__novel__in=bookmarked_novels,
-            has_content=True
-        ).count()
+        total_chapters = _available_chapters_of(bookmarked_novels)
 
         # Subtract the chapters already read
         chapters_read = self.get_chapters_read_count(obj)
@@ -241,9 +245,7 @@ class UserSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             ))
             .aggregate(total=Sum('read_count'))['total']
         ) or 0
-        total_chapters = Chapter.objects.filter(
-            novel_from_source__novel__in=bookmarked, has_content=True
-        ).count()
+        total_chapters = _available_chapters_of(bookmarked)
         return {
             'word_read': obj.word_read,
             'chapters_read_count': chapters_read,

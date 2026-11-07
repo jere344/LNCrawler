@@ -4,19 +4,21 @@ import { useTranslation } from 'react-i18next';
 import defaultCover from '@assets/default-cover.jpg';
 import { AdultBadge } from '@components/common/AdultBadge';
 import { languageFlagUrl, languageCodeToName } from '@utils/Misc.tsx';
-import { NovelFromSource as ISourceDetail } from '@models/novels_types';
+import { SourceView } from '@models/novels_types';
+import { isFullSource } from './sourceView';
 
 const SourceCover = ({
   source,
   coverBlurred,
   onCoverClick,
 }: {
-  source: ISourceDetail;
+  source: SourceView;
   coverBlurred: boolean;
   onCoverClick?: (event: MouseEvent) => void;
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  const full = isFullSource(source) ? source : null;
   return (
     <Zoom in={true} timeout={500}>
       <Box
@@ -32,7 +34,7 @@ const SourceCover = ({
       >
         <CardMedia
           component="img"
-          image={source.cover_url || source.cover_min_url || defaultCover}
+          image={full?.cover_url || source.cover_min_url || defaultCover}
           alt={source.title}
           onClick={onCoverClick}
           sx={{
@@ -52,37 +54,39 @@ const SourceCover = ({
         />
         <AdultBadge isAdult={source.is_adult} novelId={source.novel_id} />
                     
-        {/* Language indicator */}
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            bgcolor: 'rgba(0,0,0,0.7)',
-            color: 'white',
-            px: 1,
-            py: 0.3,
-            borderRadius: 1,
-            fontSize: '0.75rem',
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-            textTransform: 'uppercase',
-          }}
-        >
-          <img 
-            src={languageFlagUrl(source.language)} 
-            alt={languageCodeToName(t, source.language)}
-            style={{ 
-              width: '20px',
-              height: '15px',
-              objectFit: 'cover',
-              borderRadius: '2px',
+        {/* Language indicator: only once the full source is loaded */}
+        {full && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              bgcolor: 'rgba(0,0,0,0.7)',
+              color: 'white',
+              px: 1,
+              py: 0.3,
+              borderRadius: 1,
+              fontSize: '0.75rem',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              textTransform: 'uppercase',
             }}
-          />
-          {source.language}
-        </Box>
+          >
+            <img 
+              src={languageFlagUrl(full.language)} 
+              alt={languageCodeToName(t, full.language)}
+              style={{ 
+                width: '20px',
+                height: '15px',
+                objectFit: 'cover',
+                borderRadius: '2px',
+              }}
+            />
+            {full.language}
+          </Box>
+        )}
       </Box>
     </Zoom>
   );

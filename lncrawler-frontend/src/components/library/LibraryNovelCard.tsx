@@ -27,7 +27,7 @@ import DoneAllIcon from '@mui/icons-material/DoneAll';
 import FolderIcon from '@mui/icons-material/Folder';
 import FolderOffIcon from '@mui/icons-material/FolderOff';
 import { getNovelSourceLink, getNovelDisplayTitle, novelCoverUrl } from '@utils/Misc';
-import { LibraryFolder, Novel } from '@models/novels_types';
+import { LibraryFolder, LibraryNovel } from '@models/novels_types';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
@@ -43,23 +43,23 @@ import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
 
 interface LibraryNovelCardProps {
-  novel: Novel;
+  novel: LibraryNovel;
   editable?: boolean;
   selectable?: boolean;
   selected?: boolean;
   selectionActive?: boolean;
-  onToggleSelect?: (novel: Novel, opts: { shiftKey: boolean }) => void;
+  onToggleSelect?: (novel: LibraryNovel, opts: { shiftKey: boolean }) => void;
   sortable?: boolean;
   draggable?: boolean;
   showRating?: boolean;
   showNote?: boolean;
   folders?: LibraryFolder[];
-  onRate?: (novel: Novel, value: number | null) => void;
-  onEditNote?: (novel: Novel) => void;
-  onMove?: (novel: Novel, folderId: string | null) => void;
-  onRemove?: (novel: Novel) => void;
-  onMarkedAsRead?: (novel: Novel) => void;
-  onLongPress?: (novel: Novel) => void;
+  onRate?: (novel: LibraryNovel, value: number | null) => void;
+  onEditNote?: (novel: LibraryNovel) => void;
+  onMove?: (novel: LibraryNovel, folderId: string | null) => void;
+  onRemove?: (novel: LibraryNovel) => void;
+  onMarkedAsRead?: (novel: LibraryNovel) => void;
+  onLongPress?: (novel: LibraryNovel) => void;
 }
 
 const LONG_PRESS_MS = 500;
@@ -74,8 +74,7 @@ interface DndHandle {
   isDragging: boolean;
 }
 
-const CoverOverlays: React.FC<{ novel: Novel }> = ({ novel }) => {
-  const unread = useMemo(() => getUnreadChapterCount(novel), [novel]);
+const CoverOverlays: React.FC<{ novel: LibraryNovel; unread: number | null }> = ({ novel, unread }) => {
 
   return (
     <>
@@ -134,7 +133,10 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [markReadOpen, setMarkReadOpen] = useState(false);
   const [markReadBusy, setMarkReadBusy] = useState(false);
-  const canMarkRead = Boolean(isAuthenticated && hasUnreadChapters(novel));
+  // Marking as read changes the owner's progress, so only the owner's own list offers it.
+  // Progress is the owner's: on a public library the unread badge and mark-as-read stay off.
+  const unread = useMemo(() => (editable ? getUnreadChapterCount(novel) : null), [novel, editable]);
+  const canMarkRead = Boolean(editable && isAuthenticated && hasUnreadChapters(novel));
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const cover = novelCoverUrl(preferredSource);
   const linkProps = getNovelSourceLink(novel);
@@ -391,7 +393,7 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
             >
               {getNovelDisplayTitle(novel)}
             </Typography>
-            <CoverOverlays novel={novel} />
+            <CoverOverlays novel={novel} unread={unread} />
           </Box>
         </CardActionArea>
 

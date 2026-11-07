@@ -4,12 +4,12 @@ import type { SxProps } from '@mui/material';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { userService } from '@services/user.service';
 import { useAuth } from '@context/AuthContext';
-import { Novel } from '@models/novels_types';
+import { LibraryNovel } from '@models/novels_types';
 import { useTranslation } from 'react-i18next';
 import MarkAsReadConfirmDialog from './MarkAsReadConfirmDialog';
 
 /** True when the novel has chapters the user has not read yet. */
-export const hasUnreadChapters = (novel: Novel): boolean => {
+export const hasUnreadChapters = (novel: LibraryNovel): boolean => {
   if (novel.reading_history) {
     const latestChapterId = novel.reading_history.source_latest_chapter?.chapter_id || 0;
     const lastReadChapterId = novel.reading_history.last_read_chapter?.chapter_id;
@@ -20,7 +20,7 @@ export const hasUnreadChapters = (novel: Novel): boolean => {
 };
 
 /** Unread chapter count shown on the cover, or null when there is none. */
-export const getUnreadChapterCount = (novel: Novel): number | null => {
+export const getUnreadChapterCount = (novel: LibraryNovel): number | null => {
   if (novel.reading_history) {
     // Only chapters with content count (backend supplies the count), so
     // gaps left by failed downloads don't inflate the badge.
@@ -40,7 +40,7 @@ export const getUnreadChapterCount = (novel: Novel): number | null => {
 
 /** Source slug and chapter number to mark as read, or null if none can be resolved. */
 export const getMarkAsReadTarget = (
-  novel: Novel
+  novel: LibraryNovel
 ): { sourceSlug: string; chapterNumber: number } | null => {
   let sourceSlug: string;
   let chapterNumber: number;
@@ -56,7 +56,7 @@ export const getMarkAsReadTarget = (
 };
 
 interface MarkAsReadButtonProps {
-  novel: Novel;
+  novel: LibraryNovel;
   onMarkAsRead?: () => void;
   customSx?: SxProps;
 }

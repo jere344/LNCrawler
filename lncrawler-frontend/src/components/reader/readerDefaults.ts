@@ -46,6 +46,7 @@ export const defaultSettings: ReaderSettings = {
     overlayEnabled: false,
     overlayPosition: 'bottom',
     overlaySize: 'center',
+    overlayEdgeOffset: 0,
     overlayItems: ['time24', 'chapterPercent'],
     nightMode: false,
     nightModeStrength: 50,

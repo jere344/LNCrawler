@@ -10,10 +10,11 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     """Serializes a novel source through one of four profiles.
 
     ``card`` is the trimmed payload novel cards read (default), which lets
-    ``sources_queryset(detailed=False)`` skip the matching prefetches and
-    annotations; ``summary`` is the lighter per-source payload the source
-    page's "other sources" list and the novel detail's nested sources read;
-    ``detail`` is everything the current source's page needs.
+    ``sources_queryset('card')`` skip the matching prefetches and
+    annotations; ``library`` is the few columns a library item shows (and the
+    source page's preview of it); ``summary`` is the lighter per-source payload
+    the source page's "other sources" list and the novel detail's nested sources
+    read; ``detail`` is everything the current source's page needs.
     """
 
     authors = serializers.SlugRelatedField(many=True, read_only=True, slug_field='name')
@@ -32,8 +33,6 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     latest_available_chapter = serializers.SerializerMethodField()
     first_available_chapter = serializers.SerializerMethodField()
     reading_history = serializers.SerializerMethodField()
-    chapters_count = serializers.SerializerMethodField()
-    available_chapters_count = serializers.SerializerMethodField()
     volumes = serializers.SerializerMethodField()
     source_name = serializers.CharField(source='external_source.source_name', read_only=True)
     edition = serializers.SerializerMethodField()
@@ -52,6 +51,12 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         # Cover thumbnail for reading-list cards: only the blurred/first-item
         # cover the list card needs.
         'preview': ['id', 'title', 'cover_min_url'],
+        # Library cards and their source page preview: no authors/tags/counters.
+        # is_adult drives the cover blur before the source page's own fetch lands.
+        'library': [
+            'title', 'source_slug', 'novel_slug', 'novel_id', 'cover_min_url',
+            'available_chapters_count', 'latest_available_chapter', 'is_adult',
+        ],
         'detail': [
             'id', 'title', 'source_url', 'source_name', 'source_slug', 'edition',
             'authors', 'tags', 'language', 'synopsis', 'has_crawler',
@@ -149,50 +154,20 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     def get_vote_score(self, obj: NovelFromSource):
         return obj.upvotes - obj.downvotes
 
+    def _chapter_card(self, chapter):
+        if chapter is None:
+            return None
+        return self._child(ChapterSerializer).to_representation(chapter)
+
     def get_latest_available_chapter(self, obj: NovelFromSource):
-        """Return the latest available chapter with content"""
-        # List querysets annotate this so the whole page resolves in one query.
-        if 'latest_chapter_id' in obj.__dict__:
-            chapter_id = obj.latest_chapter_id
-            if chapter_id is None:
-                return None
-            return {
-                'id': None,
-                'chapter_id': chapter_id,
-                'title': obj.latest_chapter_title,
-                'url': obj.latest_chapter_url,
-                'volume': 0,
-                'volume_title': None,
-                'has_content': True,
-            }
-        latest_chapter = obj.chapters.filter(has_content=True).order_by('-chapter_id').first()
-        if latest_chapter:
-            return ChapterSerializer(latest_chapter).data
-        return None
+        # The stored FK; sources_queryset selects it, so this costs no query.
+        return self._chapter_card(obj.latest_available_chapter)
 
     def get_first_available_chapter(self, obj: NovelFromSource):
-        """Return the first available chapter with content"""
-        # Detail querysets annotate this (see sources_queryset detailed mode).
-        if 'first_chapter_id' in obj.__dict__:
-            chapter_id = obj.first_chapter_id
-            if chapter_id is None:
-                return None
-            return {
-                'id': None,
-                'chapter_id': chapter_id,
-                'title': obj.first_chapter_title,
-                'url': obj.first_chapter_url,
-                'volume': 0,
-                'volume_title': None,
-                'has_content': True,
-            }
-        # Only detail views render this; lists skip the extra query.
+        # Only detail views render this; sources_queryset selects it there only.
         if self.profile != 'detail':
             return None
-        first_chapter = obj.chapters.filter(has_content=True).order_by('chapter_id').first()
-        if first_chapter:
-            return ChapterSerializer(first_chapter).data
-        return None
+        return self._chapter_card(obj.first_available_chapter)
 
     def get_reading_history(self, obj: NovelFromSource):
         """Return the reading history for the current user"""
@@ -210,16 +185,6 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             if history and history.last_read_chapter:
                 return ReadingHistorySerializer(history).data
         return None
-
-    def get_chapters_count(self, obj: NovelFromSource):
-        if 'annotated_chapters_count' in obj.__dict__:
-            return obj.annotated_chapters_count or 0
-        return obj.chapters_count
-
-    def get_available_chapters_count(self, obj: NovelFromSource):
-        if 'annotated_available_chapters_count' in obj.__dict__:
-            return obj.annotated_available_chapters_count or 0
-        return obj.chapters.filter(has_content=True).count()
 
     def get_volumes(self, obj: NovelFromSource):
         # Volume listing (id/title) is only needed for the download menu on the

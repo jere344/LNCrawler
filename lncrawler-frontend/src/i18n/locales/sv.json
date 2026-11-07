@@ -945,6 +945,8 @@
         "left": "Vänsterkapsel",
         "right": "Högerkapsel"
       },
+      "edgeOffset": "Avstånd från kanten",
+      "edgeOffsetHint": "Flyttar remsan bort från övre eller nedre kanten, till exempel under ett hack.",
       "content": "Innehåll",
       "contentHint": "Tryck för att lägga till eller ta bort. Objekt visas i den ordning du lägger till dem. Batteri visas bara i webbläsare som stöder det.",
       "items": {

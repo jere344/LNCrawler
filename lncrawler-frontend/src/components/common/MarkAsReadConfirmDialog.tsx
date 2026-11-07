@@ -2,11 +2,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ConfirmDialog from '@components/common/ConfirmDialog';
 import { getNovelDisplayTitle } from '@utils/Misc';
-import { Novel } from '@models/novels_types';
+import { LibraryNovel } from '@models/novels_types';
 
 interface MarkAsReadConfirmDialogProps {
   open: boolean;
-  novel: Novel;
+  novel: LibraryNovel;
   loading?: boolean;
   onConfirm: () => void;
   onClose: () => void;

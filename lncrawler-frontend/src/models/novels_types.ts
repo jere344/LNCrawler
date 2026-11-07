@@ -21,13 +21,6 @@ export interface Novel {
   is_dmca?: boolean;
   is_adult?: boolean;
   has_audiobook?: boolean;
-  // Library-only fields (present when serialized as a library item)
-  bookmark_id?: string;
-  note?: string | null;
-  folder?: string | null;
-  folder_name?: string | null;
-  position?: number;
-  user_rating?: number | null;
 }
 
 export interface LibraryFolder {
@@ -45,6 +38,37 @@ export interface NovelListResponse {
   folders?: LibraryFolder[];
   sort?: string;
 }
+
+// The library payload (the API's 'library' profiles): only what a library card reads.
+// Novel is assignable to these types, so the card helpers accept both.
+export type LibrarySource = Pick<
+  NovelFromSource,
+  'title' | 'source_slug' | 'novel_slug' | 'novel_id' | 'cover_min_url' | 'available_chapters_count' | 'latest_available_chapter' | 'is_adult'
+>;
+
+export type LibraryReadingHistory = Pick<
+  DetailedReadingHistory,
+  'source_slug' | 'last_read_chapter' | 'unread_chapters' | 'source_latest_chapter'
+>;
+
+export type LibraryNovel = Pick<Novel, 'id' | 'title' | 'slug' | 'is_adult' | 'is_dmca' | 'is_bookmarked'> & {
+  prefered_source: LibrarySource | null;
+  reading_source?: LibrarySource | null;
+  reading_history?: LibraryReadingHistory | null;
+  // The bookmark's own columns, and the owner's rating of the novel.
+  bookmark_id?: string;
+  note?: string | null;
+  folder?: string | null;
+  folder_name?: string | null;
+  user_rating?: number | null;
+};
+
+export interface LibraryListResponse extends Omit<NovelListResponse, 'results'> {
+  results: LibraryNovel[];
+}
+
+// What the source page can render: the full source, or the library card's preview of it (see isFullSource).
+export type SourceView = NovelFromSource | LibrarySource;
 
 export interface NovelFromSource {
   audiobook?: { slug: string; language: string; duration_s: number; is_adult?: boolean } | null;

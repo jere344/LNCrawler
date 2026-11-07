@@ -59,7 +59,7 @@ import LibraryNovelCard from '@components/library/LibraryNovelCard';
 import LibraryFolderBar from '@components/library/LibraryFolderBar';
 import LibrarySortSelect from '@components/common/LibrarySortSelect';
 import PageNav from '@components/common/PageNav';
-import { LibraryFolder, Novel } from '@models/novels_types';
+import { LibraryFolder, LibraryNovel, Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
 import { useLanguage } from '@context/LanguageContext';
 import { useUrlListState, useUrlSearch } from '@utils/useUrlListState';
@@ -71,7 +71,7 @@ import ConfirmDialog from '@components/common/ConfirmDialog';
 import LoginRequiredPanel from '@components/common/LoginRequiredPanel';
 import { useTranslation } from 'react-i18next';
 
-const bookmarkId = (novel: Novel) => novel.bookmark_id || novel.id;
+const bookmarkId = (novel: LibraryNovel) => novel.bookmark_id || novel.id;
 
 const LibraryPage: React.FC = () => {
   const { t } = useTranslation();
@@ -79,7 +79,7 @@ const LibraryPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const { contentLanguages, languageFilterEnabled } = useLanguage();
 
-  const [items, setItems] = useState<Novel[]>([]);
+  const [items, setItems] = useState<LibraryNovel[]>([]);
   const [folders, setFolders] = useState<LibraryFolder[]>([]);
   const [recommendations, setRecommendations] = useState<Novel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,7 +104,7 @@ const LibraryPage: React.FC = () => {
   const [bulkMenuAnchor, setBulkMenuAnchor] = useState<null | HTMLElement>(null);
   const [headerMenuAnchor, setHeaderMenuAnchor] = useState<null | HTMLElement>(null);
 
-  const [noteDialog, setNoteDialog] = useState<{ open: boolean; novel: Novel | null; value: string }>({
+  const [noteDialog, setNoteDialog] = useState<{ open: boolean; novel: LibraryNovel | null; value: string }>({
     open: false,
     novel: null,
     value: '',
@@ -221,7 +221,7 @@ const LibraryPage: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const handleRate = async (novel: Novel, value: number | null) => {
+  const handleRate = async (novel: LibraryNovel, value: number | null) => {
     if (!value) return;
     try {
       const response = await novelService.rateNovel(novel.slug, value);
@@ -236,7 +236,7 @@ const LibraryPage: React.FC = () => {
   };
 
   const toggleSelect = useCallback(
-    (novel: Novel, { shiftKey }: { shiftKey: boolean }) => {
+    (novel: LibraryNovel, { shiftKey }: { shiftKey: boolean }) => {
       const id = bookmarkId(novel);
       const index = items.findIndex((n) => bookmarkId(n) === id);
       setSelectedIds((prev) => {

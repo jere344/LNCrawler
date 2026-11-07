@@ -1,4 +1,4 @@
-import { Box } from '@mui/material';
+import { Box, Skeleton, alpha, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
@@ -7,18 +7,23 @@ import ActionButton from '../../common/ActionButton';
 import { getChapterLabel } from '@utils/Misc.tsx';
 import { NovelFromSource as ISourceDetail } from '@models/novels_types';
 
+// `source` is null while the page only has a library preview: the actions wait for the full source.
 const SourceReadActions = ({
   source,
   novelSlug,
   sourceSlug,
   isDmca,
 }: {
-  source: ISourceDetail;
+  source: ISourceDetail | null;
   novelSlug: string | undefined;
   sourceSlug: string | undefined;
   isDmca: boolean;
 }) => {
   const { t } = useTranslation();
+  const theme = useTheme();
+  if (!source) {
+    return <Skeleton variant="rounded" height={56} sx={{ mb: 1.5, bgcolor: alpha(theme.palette.common.white, 0.2) }} />;
+  }
   const continue_chapter = source.reading_history?.next_chapter || source.reading_history?.last_read_chapter;
   return (
     <Box

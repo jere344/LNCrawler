@@ -945,6 +945,8 @@
         "left": "Pil links",
         "right": "Pil rechts"
       },
+      "edgeOffset": "Afstand tot de rand",
+      "edgeOffsetHint": "Verplaatst de balk weg van de boven- of onderrand, bijvoorbeeld onder een notch.",
       "content": "Inhoud",
       "contentHint": "Tik om toe te voegen of te verwijderen. Items worden getoond in de volgorde waarin je ze toevoegt. Batterij wordt alleen getoond in browsers die dit ondersteunen.",
       "items": {

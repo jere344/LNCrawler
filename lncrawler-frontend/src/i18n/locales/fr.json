@@ -945,6 +945,8 @@
         "left": "Pastille à gauche",
         "right": "Pastille à droite"
       },
+      "edgeOffset": "Distance du bord",
+      "edgeOffsetHint": "Éloigne la bande du bord haut ou bas, par exemple sous une encoche.",
       "content": "Contenu",
       "contentHint": "Touchez pour ajouter ou retirer. Les éléments s'affichent dans l'ordre où vous les ajoutez. La batterie n'apparaît que dans les navigateurs qui la fournissent.",
       "items": {

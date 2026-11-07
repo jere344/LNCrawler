@@ -22,11 +22,14 @@ class NovelAggregatesMixin:
     def source_profile(self):
         # Which NovelSourceSerializer profile the preferred/reading source uses.
         # detail = the source page is separate; nested sources only need the
-        # lightweight summary; preview = thumbnail; anything else = card.
+        # lightweight summary; preview = thumbnail; library = the library card's
+        # few columns; anything else = card.
         if self.profile == 'detail':
             return 'summary'
         if self.profile == 'preview':
             return 'preview'
+        if self.profile == 'library':
+            return 'library'
         return 'card'
 
     def _prefetched(self, obj, name):
@@ -51,6 +54,16 @@ class NovelAggregatesMixin:
             cache[obj.pk] = sources
         return cache[obj.pk]
 
+    def _source_serializer(self, profile):
+        # Per-object state is keyed by obj.pk, so one serializer serves every novel.
+        return self._child(NovelSourceSerializer, profile=profile)
+
+    def _history_serializer(self):
+        return self._child(
+            ReadingHistorySerializer,
+            profile='library' if self.profile == 'library' else 'detail',
+        )
+
     def get_prefered_source(self, obj):
         from ..utils.query_helpers import preferred_source_key
 
@@ -62,15 +75,15 @@ class NovelAggregatesMixin:
         # Highest vote score, then most upvotes, then most chapters with
         # content, then title (see preferred_source_key).
         prefered = min(sources, key=preferred_source_key)
-        return NovelSourceSerializer(
-            prefered, context=self.context, profile=self.source_profile
-        ).data
+        return self._source_serializer(self.source_profile).to_representation(prefered)
 
     def get_avg_rating(self, obj):
-        # Querysets built with annotate_card_aggregates carry the average.
+        # Querysets built with annotate_card_aggregates carry the average. It
+        # arrives as a SQL numeric, whose round() is half-even on the decimal
+        # (2.45 -> 2.4); the float round matches the Python average below.
         if 'card_avg_rating' in obj.__dict__:
             avg = obj.card_avg_rating
-            return round(avg, 1) if avg is not None else None
+            return round(float(avg), 1) if avg is not None else None
         if self._prefetched(obj, 'ratings'):
             ratings = [rating.rating for rating in obj.ratings.all()]
             return round(sum(ratings) / len(ratings), 1) if ratings else None
@@ -117,6 +130,9 @@ class NovelAggregatesMixin:
     def _get_reading_history(self, obj):
         if hasattr(obj, 'user_histories'):
             return obj.user_histories[0] if obj.user_histories else None
+        # Library items never query progress themselves: without the prefetch there is none to show.
+        if self.profile == 'library':
+            return None
         cache = getattr(self, '_history_cache', None)
         if cache is None:
             cache = self._history_cache = {}
@@ -124,14 +140,12 @@ class NovelAggregatesMixin:
             request = self.context.get('request')
             history = None
             if request and request.user.is_authenticated:
-                from ..utils.query_helpers import unread_chapters_subquery
-                history = (
+                from ..utils.query_helpers import annotate_reading_history
+                history = annotate_reading_history(
                     obj.reading_histories
-                    .select_related('source', 'last_read_chapter')
+                    .select_related('source__latest_available_chapter', 'last_read_chapter')
                     .filter(user=request.user)
-                    .annotate(annotated_unread_chapters=unread_chapters_subquery())
-                    .first()
-                )
+                ).first()
             cache[obj.pk] = history
         return cache[obj.pk]
 
@@ -139,7 +153,7 @@ class NovelAggregatesMixin:
         history = self._get_reading_history(obj)
         if not history or not history.last_read_chapter:
             return None
-        return ReadingHistorySerializer(history, profile='detail').data
+        return self._history_serializer().to_representation(history)
 
     def _source_by_pk(self, obj, pk):
         # The reader's source is already in the prefetched ``sources`` list
@@ -154,9 +168,7 @@ class NovelAggregatesMixin:
         history = self._get_reading_history(obj)
         if history and history.source:
             source = self._source_by_pk(obj, history.source_id) or history.source
-            return NovelSourceSerializer(
-                source, context=self.context, profile=self.source_profile
-            ).data
+            return self._source_serializer(self.source_profile).to_representation(source)
         return None
 
 
@@ -165,9 +177,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
 
     ``card`` is the lightweight card (default), ``detail`` adds the nested
     sources / viewer rating / similar novels / reading lists, and ``library``
-    is the card payload plus the bookmark owner's folder, note, position and
-    rating. Only the fields a profile emits are built, so detail-only work
-    never runs for card rows.
+    is the bookmark row a library item shows: the bookmark's folder, note and
+    rating plus the progress the viewer may see. Only the fields a profile
+    emits are built, so detail-only work never runs for card rows.
     """
 
     sources = serializers.SerializerMethodField()
@@ -188,7 +200,6 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     note = serializers.SerializerMethodField()
     folder = serializers.SerializerMethodField()
     folder_name = serializers.SerializerMethodField()
-    position = serializers.SerializerMethodField()
     audiobooks = serializers.SerializerMethodField()
     has_audiobook = serializers.SerializerMethodField()
 
@@ -207,11 +218,9 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
             'reading_source', 'similar_novels', 'reading_lists', 'is_dmca', 'audiobooks',
         ],
         'library': [
-            'id', 'title', 'slug',
-            'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
-            'reading_history', 'reading_source', 'is_dmca', 'has_audiobook',
-            'bookmark_id', 'note', 'folder', 'folder_name', 'position', 'user_rating',
+            'id', 'title', 'slug', 'is_adult', 'is_dmca', 'is_bookmarked',
+            'bookmark_id', 'note', 'folder', 'folder_name', 'user_rating',
+            'prefered_source', 'reading_source', 'reading_history',
         ],
         # Cover thumbnail for reading-list cards (first_item): only what the
         # card renders, so a list page doesn't serialize a full card per list.
@@ -405,7 +414,3 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     def get_folder_name(self, obj):
         bookmark = self._bookmark(obj)
         return bookmark.folder.name if bookmark and bookmark.folder_id else None
-
-    def get_position(self, obj):
-        bookmark = self._bookmark(obj)
-        return bookmark.position if bookmark else 0

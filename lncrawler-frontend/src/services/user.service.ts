@@ -1,5 +1,5 @@
 import api from './api';
-import { LibraryFolder, NovelListResponse, ReadingHistory } from '@models/novels_types';
+import { LibraryFolder, LibraryListResponse, ReadingHistory } from '@models/novels_types';
 import type { HistoryKind } from '@models/audiobook_types';
 
 export type LibrarySort = 'custom' | 'title' | 'date_added' | 'rating';
@@ -38,7 +38,7 @@ const userService = {
   },
 
   // List bookmarked novels (library) with search/folder/sort
-  listBookmarkedNovels: async (query: LibraryQuery = {}): Promise<NovelListResponse> => {
+  listBookmarkedNovels: async (query: LibraryQuery = {}): Promise<LibraryListResponse> => {
     const response = await api.get('/users/bookmarks/novels/', {
       params: { languages: query.languages, ...buildLibraryParams(query) },
     });

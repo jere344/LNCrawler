@@ -63,6 +63,7 @@ export interface ReaderSettings extends TtsPrefs {
   overlayEnabled: boolean;
   overlayPosition: OverlayPosition;
   overlaySize: OverlaySize;
+  overlayEdgeOffset: number;
   overlayItems: OverlayItem[];
   nightMode: boolean;
   nightModeStrength: number;
@@ -81,6 +82,7 @@ const NUMERIC_RANGES: Partial<Record<keyof ReaderSettings, [number, number]>> = 
   paragraphSpacing: [1, 3],
   dimLevel: [0, 90],
   dimGestureWidth: [5, 30],
+  overlayEdgeOffset: [0, 80],
   nightModeStrength: [10, 90],
 };
 

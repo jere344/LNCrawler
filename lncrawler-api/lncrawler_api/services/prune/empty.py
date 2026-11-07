@@ -11,6 +11,7 @@ from lncrawler_api.models import (
     ReadingHistory,
     SourceVote,
 )
+from lncrawler_api.services.chapter_stats import refresh_chapter_stats
 from lncrawler_api.utils import chapter_utils
 
 
@@ -52,6 +53,7 @@ class EmptySourcesMixin:
         ]
         if repaired and self.apply:
             Chapter.objects.filter(pk__in=repaired).update(has_content=True)
+            refresh_chapter_stats([source.pk])
         return bool(repaired)
 
     def _keep_reason(self, source):

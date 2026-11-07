@@ -945,6 +945,8 @@
         "left": "Linke Kapsel",
         "right": "Rechte Kapsel"
       },
+      "edgeOffset": "Abstand zum Rand",
+      "edgeOffsetHint": "Verschiebt den Streifen vom oberen oder unteren Rand weg, z. B. unter eine Notch.",
       "content": "Inhalt",
       "contentHint": "Tippen zum Hinzufügen oder Entfernen. Elemente werden in der Reihenfolge angezeigt, in der du sie hinzufügst. Akku wird nur in Browsern angezeigt, die ihn unterstützen.",
       "items": {

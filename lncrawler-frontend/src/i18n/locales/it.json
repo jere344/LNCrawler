@@ -945,6 +945,8 @@
         "left": "Pillola a sinistra",
         "right": "Pillola a destra"
       },
+      "edgeOffset": "Distanza dal bordo",
+      "edgeOffsetHint": "Allontana la barra dal bordo superiore o inferiore, ad esempio sotto un notch.",
       "content": "Contenuto",
       "contentHint": "Tocca per aggiungere o rimuovere. Gli elementi appaiono nell'ordine in cui li aggiungi. La batteria appare solo nei browser che la supportano.",
       "items": {

@@ -2,8 +2,6 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db.models import Count, IntegerField, OuterRef, Subquery
-from django.db.models.functions import Coalesce
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
@@ -17,9 +15,9 @@ from ..models import (
     ExternalSource,
     SourceVote,
     Volume,
-    Chapter,
 )
 from ..models.sources_models import refresh_adult, refresh_adult_for_tags
+from ..services.chapter_stats import refresh_chapter_stats
 from ..services.author_block_service import block_authors, unblock_authors
 from ..services.author_merge_service import merge_authors, pick_target
 from ..services.merge_service import MergeError, merge_tags, rename_tag
@@ -311,6 +309,9 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
         "chapters_count",
+        "available_chapters_count",
+        "first_available_chapter",
+        "latest_available_chapter",
         "link_to_novel",
         "upvotes",
         "downvotes",
@@ -329,30 +330,8 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         # adult_from_source may have changed: re-derive the effective flag.
         refresh_adult(NovelFromSource.objects.filter(pk=obj.pk))
-
-    def get_queryset(self, request):
-        # A correlated subquery counts chapters per row instead of a
-        # ``Count("chapters")`` join+GROUP BY, which forced a full scan and
-        # aggregation of the whole chapter table on every changelist load.
-        # The paginator's COUNT(*) prunes this unused subquery, so it stays cheap.
-        chapter_counts = (
-            Chapter.objects.filter(novel_from_source=OuterRef("pk"))
-            .order_by()
-            .values("novel_from_source")
-            .annotate(total=Count("pk"))
-            .values("total")
-        )
-        return super().get_queryset(request).annotate(
-            _chapters_count=Coalesce(
-                Subquery(chapter_counts, output_field=IntegerField()), 0
-            )
-        )
-
-    def chapters_count(self, obj):
-        return obj._chapters_count
-
-    chapters_count.short_description = "Chapters"
-    chapters_count.admin_order_field = "_chapters_count"
+        # The full save wrote the chapter stats this form loaded back to the row: refresh them.
+        refresh_chapter_stats([obj.pk])
 
     def link_to_novel(self, obj):
         url = reverse("admin:lncrawler_api_novel_change", args=[obj.novel.id])
@@ -376,7 +355,7 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
     def view_chapters_link(self, obj):
         if obj.pk:
             url = f"/admin/lncrawler_api/chapter/?novel_from_source__id__exact={obj.pk}"
-            return format_html('<a href="{}" target="_blank">View Chapters ({})</a>', url, obj._chapters_count)
+            return format_html('<a href="{}" target="_blank">View Chapters ({})</a>', url, obj.chapters_count)
         return "Save first to view chapters"
 
     view_chapters_link.short_description = "Chapters"

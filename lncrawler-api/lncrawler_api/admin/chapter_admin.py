@@ -1,5 +1,6 @@
 from django.contrib import admin
 from ..models import Chapter, Comment
+from ..services.chapter_stats import refresh_chapter_stats
 from django.utils.html import format_html
 from django.urls import reverse
 from .display import truncate
@@ -57,3 +58,22 @@ class ChapterAdmin(admin.ModelAdmin):
     def comment_count(self, obj):
         return obj.comments.count()
     comment_count.short_description = "Comments"
+
+    # The chapter stats live on the source row: refresh every source a chapter
+    # leaves or joins (ModelAdmin has no hook for this, so these wrap the save/delete).
+    def save_model(self, request, obj, form, change):
+        old_source_id = None
+        if obj.pk is not None:
+            old_source_id = Chapter.objects.filter(pk=obj.pk).values_list('novel_from_source_id', flat=True).first()
+        super().save_model(request, obj, form, change)
+        refresh_chapter_stats({old_source_id, obj.novel_from_source_id} - {None})
+
+    def delete_model(self, request, obj):
+        source_id = obj.novel_from_source_id
+        super().delete_model(request, obj)
+        refresh_chapter_stats([source_id])
+
+    def delete_queryset(self, request, queryset):
+        source_ids = set(queryset.values_list('novel_from_source_id', flat=True))
+        super().delete_queryset(request, queryset)
+        refresh_chapter_stats(source_ids)

@@ -15,6 +15,15 @@ class ProfileFieldsMixin:
     default_profile = None
     field_profiles = {}
 
+    def _child(self, serializer_class, **kwargs):
+        # Built once per parent instance and reused for every object of a list: building a
+        # serializer costs DRF field setup, which a list would otherwise pay per row.
+        cache = self.__dict__.setdefault('_child_serializers', {})
+        key = (serializer_class, tuple(sorted(kwargs.items())))
+        if key not in cache:
+            cache[key] = serializer_class(context=self.context, **kwargs)
+        return cache[key]
+
     def __init__(self, *args, profile=None, **kwargs):
         self.profile = profile or self.default_profile
         if self.profile not in self.field_profiles:

@@ -160,7 +160,6 @@ class DownloaderService:
         Returns the matched ``NovelFromSource`` (or ``None``) so the caller can
         keep writing to the directory that source already lives in.
         """
-        from django.db.models import Count
         from ..models import NovelFromSource
 
         def _most_complete(url):
@@ -168,8 +167,7 @@ class DownloaderService:
             # most chapters, then the lowest pk, so the choice is stable.
             return (
                 NovelFromSource.objects.filter(source_url=url)
-                .annotate(chapter_total=Count('chapters'))
-                .order_by('-chapter_total', 'pk')
+                .order_by('-chapters_count', 'pk')
                 .first()
             )
 

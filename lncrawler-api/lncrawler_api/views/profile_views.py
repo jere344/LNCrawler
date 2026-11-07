@@ -35,19 +35,13 @@ def _target(username):
 
 def _comment_title_prefetches(viewer):
     """What CommentSerializer.get_target_title needs for novel comments, in
-    bulk: the novel's sources ranked without per-source COUNTs, and the
+    bulk: the novel's sources (ranked on their stored chapter counts) and the
     viewer's reading history (its source title wins, like on novel cards)."""
-    from ..models import Chapter, NovelFromSource, ReadingHistory
-    from ..utils.query_helpers import _related_count
+    from ..models import ReadingHistory
 
     prefetches = [
         'replies',
-        Prefetch(
-            'novel__sources',
-            queryset=NovelFromSource.objects.annotate(
-                annotated_available_chapters_count=_related_count(Chapter, has_content=True),
-            ),
-        ),
+        'novel__sources',
     ]
     if viewer.is_authenticated:
         prefetches.append(Prefetch(
@@ -74,10 +68,12 @@ def user_library(request, username):
     if not can_view(viewer, owner, 'library'):
         return _forbidden("This user's library is private.")
     from .users_views import _library_response
+    # The public mirror never carries reading progress, not even for its owner.
     return _library_response(
         owner, viewer, request,
         show_notes=can_view(viewer, owner, 'library_notes'),
         show_ratings=can_view(viewer, owner, 'library_ratings'),
+        with_progress=False,
     )
 
 

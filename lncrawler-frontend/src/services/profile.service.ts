@@ -1,5 +1,5 @@
 import api from './api';
-import { LibraryFolder, Novel } from '@models/novels_types';
+import { LibraryFolder, LibraryNovel } from '@models/novels_types';
 import { User, PublicProfile } from '@models/user_types';
 import { ReadingListResponse } from '@models/readinglist_types';
 import { Review } from './review.service';
@@ -30,7 +30,7 @@ const profileService = {
       count: number;
       total_pages: number;
       current_page: number;
-      results: Novel[];
+      results: LibraryNovel[];
       folders?: LibraryFolder[];
       sort?: string;
     };

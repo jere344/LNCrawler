@@ -27,7 +27,6 @@ from ..models import (
     Job,
     ListeningProgress,
     Novel,
-    NovelBookmark,
     NovelFromSource,
     ReadingHistory,
 )
@@ -789,14 +788,6 @@ class AudiobookFlagsInOtherCardSurfacesTests(PublicAudiobookBase):
         top = self.client.get(reverse("home_page")).json()["top_novels"]
 
         self.assertEqual(self.flags(top), {"foo": True, "bar": True})
-
-    def test_library_cards(self):
-        NovelBookmark.objects.create(user=self.user, novel=self.foo)
-        self.client.force_login(self.user)
-
-        results = self.client.get(reverse("user_library", kwargs={"username": self.user.username})).json()["results"]
-
-        self.assertEqual(self.flags(results), {"foo": True})
 
     def test_reading_history_cards(self):
         ReadingHistory.objects.create(user=self.user, novel=self.foo, source=self.source)

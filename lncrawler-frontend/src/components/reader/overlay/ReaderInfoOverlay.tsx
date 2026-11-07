@@ -19,6 +19,10 @@ interface ReaderInfoOverlayProps {
   reservedStart: number;
   reservedEnd: number;
   bottomOffset: number;
+  // Extra distance from the top or bottom edge, in px
+  edgeOffset: number;
+  // In fullscreen the browser reports a stale safe-area inset, which would leave a gap above the strip
+  fullscreen: boolean;
 }
 
 const SIZE_SX = {
@@ -30,7 +34,7 @@ const SIZE_SX = {
 
 // A small always-on strip of reading info. It never takes pointer events, so taps and swipes go through to the text.
 const ReaderInfoOverlay = ({
-  items, position, size, dimLevel, novelSlug, sourceSlug, chapterId, sectionKey, reservedStart, reservedEnd, bottomOffset,
+  items, position, size, dimLevel, novelSlug, sourceSlug, chapterId, sectionKey, reservedStart, reservedEnd, bottomOffset, edgeOffset, fullscreen,
 }: ReaderInfoOverlayProps) => {
   const { i18n, t } = useTranslation();
   const has = (item: OverlayItem) => items.includes(item);
@@ -81,10 +85,12 @@ const ReaderInfoOverlay = ({
   if (cells.length === 0) return null;
 
   // Full width sits flush on its edge; a pill floats a little inside it
-  const gap = size === 'full' ? '0px' : '6px';
+  const gap = `${(size === 'full' ? 0 : 6) + edgeOffset}px`;
+  const safeTop = fullscreen ? '0px' : 'env(safe-area-inset-top)';
+  const safeBottom = fullscreen ? '0px' : 'env(safe-area-inset-bottom)';
   const edge = position === 'top'
-    ? { top: `calc(env(safe-area-inset-top) + ${gap})` }
-    : { bottom: bottomOffset === 0 ? `calc(env(safe-area-inset-bottom) + ${gap})` : `calc(${bottomOffset}px + ${gap})` };
+    ? { top: `calc(${safeTop} + ${gap})` }
+    : { bottom: bottomOffset === 0 ? `calc(${safeBottom} + ${gap})` : `calc(${bottomOffset}px + ${gap})` };
   const side = size === 'full' ? { insetInlineStart: reservedStart, insetInlineEnd: reservedEnd } : SIZE_SX[size];
 
   return (

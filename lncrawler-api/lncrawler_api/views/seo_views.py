@@ -12,7 +12,7 @@ import json
 import os
 
 from django.conf import settings
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 
@@ -206,13 +206,6 @@ def seo_novel(request, novel_slug):
         novel.sources.select_related("external_source")
         .prefetch_related("authors", "tags", "alternative_titles")
         .exclude(Q(source_slug__isnull=True) | Q(source_slug=""))
-        .annotate(
-            chapter_total=Count("chapters"),
-            # Read by preferred_source_key so it doesn't COUNT per source.
-            annotated_available_chapters_count=Count(
-                "chapters", filter=Q(chapters__has_content=True)
-            ),
-        )
     )
     if not sources or _is_adult_novel(novel):
         raise Http404("Novel not available")
@@ -301,7 +294,7 @@ def seo_novel(request, novel_slug):
             "sources": sources,
             "synopsis": synopsis,
             "languages": sorted({s.language for s in sources if s.language}),
-            "chapter_total": sum(getattr(s, "chapter_total", 0) or 0 for s in sources),
+            "chapter_total": sum(s.chapters_count for s in sources),
             "tags": tags,
             "audiobook_links": audiobook_links,
             "lang": primary.language or "en",
@@ -423,7 +416,7 @@ def seo_chapterlist(request, novel_slug, source_slug):
     chapters = (
         source.chapters.only("chapter_id", "title", "has_content").order_by("chapter_id")
     )
-    count = chapters.count()
+    count = source.chapters_count
     source_name = source.external_source.source_name
     image = _source_image(source)
     canonical = f"{SITE_URL}/novels/{novel.slug}/{source.source_slug}/chapterlist/"

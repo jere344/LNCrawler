@@ -29,7 +29,7 @@
 {% for source in sources %}
   <li>
     <a href="{{ site_url }}/novels/{{ novel.slug }}/{{ source.source_slug }}/">{{ source.title }} &mdash; {{ source.external_source.source_name }}</a>
-    <div class="meta">{{ source.get_status_display }} &middot; {{ source.language }} &middot; {{ source.chapter_total }} chapters</div>
+    <div class="meta">{{ source.get_status_display }} &middot; {{ source.language }} &middot; {{ source.chapters_count }} chapters</div>
   </li>
 {% endfor %}
 </ul>

@@ -58,7 +58,7 @@ def source_detail(request, novel_slug, source_slug):
     # and reading history) in the initial queryset instead of one fallback
     # query per field.
     source = get_object_or_404(
-        sources_queryset(detailed=True, ip=get_client_ip(request), user=request.user)
+        sources_queryset('detail', ip=get_client_ip(request), user=request.user)
         .filter(novel=novel),
         source_slug=source_slug,
     )
@@ -93,7 +93,7 @@ def source_detail(request, novel_slug, source_slug):
     # lightweight summary profile.
     novel = apply_novel_prefetches(
         Novel.objects.filter(pk=novel.pk), request.user,
-        summary=True, ip=get_client_ip(request),
+        profile='detail', ip=get_client_ip(request),
     ).get()
     data["novel"] = NovelSerializer(
         novel, context={"request": request}, profile='detail'

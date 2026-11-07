@@ -9,8 +9,9 @@ class ReadingHistorySerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     """
     Serializes the ReadingHistory model.
 
-    ``card`` is the plain history row (default); ``detail`` adds the novel /
-    source slugs and the next / latest chapter.
+    ``card`` is the plain history row (default); ``library`` is the progress a
+    library item shows (source slug, last read, unread count, latest chapter);
+    ``detail`` adds the novel / source slugs and the next chapter.
     """
     last_read_chapter = ChapterSerializer(read_only=True)
     next_chapter = serializers.SerializerMethodField()
@@ -22,6 +23,7 @@ class ReadingHistorySerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     default_profile = 'card'
     field_profiles = {
         'card': ['id', 'last_read_chapter', 'last_read_at'],
+        'library': ['source_slug', 'last_read_chapter', 'unread_chapters', 'source_latest_chapter'],
         'detail': [
             'id', 'novel_slug', 'source_slug', 'last_read_chapter', 'last_read_at',
             'next_chapter', 'unread_chapters', 'source_latest_chapter',
@@ -41,6 +43,13 @@ class ReadingHistorySerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     def get_next_chapter(self, obj):
         if not obj.last_read_chapter:
             return None
+        # Prefetched histories carry the next chapter's card columns (see annotate_reading_history);
+        # an unsaved Chapter built from them serializes exactly like a fetched one (has_audio is False).
+        if 'annotated_next_chapter' in obj.__dict__:
+            annotated = obj.annotated_next_chapter
+            if annotated is None:
+                return None
+            return self._child(ChapterSerializer).to_representation(Chapter(**annotated))
         next_chapter = Chapter.objects.filter(
             novel_from_source=obj.source,
             chapter_id__gt=obj.last_read_chapter.chapter_id,
@@ -68,8 +77,8 @@ class ReadingHistorySerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         ).count()
 
     def get_source_latest_chapter(self, obj):
-        latest_chapter = Chapter.objects.filter(
-            novel_from_source=obj.source,
-            has_content=True
-        ).order_by('-chapter_id').first()
-        return ChapterSerializer(latest_chapter).data if latest_chapter else None
+        # The source's stored latest chapter: history querysets select it with the source.
+        latest_chapter = obj.source.latest_available_chapter
+        if latest_chapter is None:
+            return None
+        return self._child(ChapterSerializer).to_representation(latest_chapter)

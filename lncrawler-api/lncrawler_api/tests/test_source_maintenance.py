@@ -32,6 +32,7 @@ from ..models import (
     WeeklySourceView,
 )
 from ..management.commands.prune_library import Command
+from ..services.chapter_stats import refresh_chapter_stats
 from ..services.prune.common import normalize_source_name
 from ..utils import chapter_utils
 from .helpers import MergeTestCase
@@ -464,6 +465,17 @@ class PruneFindKeepersTests(MergeTestCase):
 
         self.assertEqual(keepers, [])
 
+    def test_stale_stored_count_does_not_reject_a_real_keeper(self):
+        novel = Novel.objects.create(title="Stale", slug="stale", novel_path="stale")
+        dead = self.make_source(novel, ExternalSource.objects.create(source_name="deadsite"), "S", "http://dead/st", "stale", "deadsite", 2)
+        live = self.make_source(novel, ExternalSource.objects.create(source_name="livesite"), "S", "http://live/st", "stale", "livesite", 2)
+        # The stored count is stale (0) while the chapters exist: the keeper is judged on them.
+        NovelFromSource.objects.filter(pk=live.pk).update(chapters_count=0)
+
+        keepers = Command()._find_keepers(dead, {"livesite"}, self._ext_names())
+
+        self.assertEqual(keepers, [live])
+
 
 def _fake_7z_extract(members):
     """Stand-in for ``subprocess.run`` that writes the requested members.
@@ -620,6 +632,8 @@ class Phase3Base(MergeTestCase):
                 url=f"{source.source_url}/ch{number}",
                 title=f"Chapter {number}",
             )
+        refresh_chapter_stats([source.pk])
+        source.refresh_from_db()
         if archived:
             open(os.path.join(abs_dir, "json.7z"), "wb").close()
             shutil.rmtree(json_dir)
@@ -773,6 +787,7 @@ class VerdictCacheTests(VerdictFixture):
                 novel_from_source=self.keeper, chapter_id=4,
                 url=f"{self.keeper.source_url}/ch4", title="Chapter 4",
             )
+            refresh_chapter_stats([self.keeper.pk])
             self._consider(cmd)
             self.assertGreater(spy.call_count, first)
 
@@ -850,6 +865,9 @@ class PhaseTwoRepairTests(Phase3Base):
         self.assertEqual(source.chapters.filter(has_content=True).count(), 2)
         self.assertFalse(os.path.exists(os.path.join(self.tmp, source.source_path, "json")))
         self.assertTrue(NovelFromSource.objects.filter(pk=source.pk).exists())
+        # The repair flipped has_content, so the stored available count follows it.
+        source.refresh_from_db()
+        self.assertEqual(source.available_chapters_count, 2)
 
     def test_unreadable_archive_keeps_source(self):
         source = self._archived_source("unreadable", {1: _words("r", 1)})

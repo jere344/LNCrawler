@@ -945,6 +945,8 @@
         "left": "Pílula à esquerda",
         "right": "Pílula à direita"
       },
+      "edgeOffset": "Distância da borda",
+      "edgeOffsetHint": "Afasta a faixa da borda superior ou inferior, por exemplo abaixo de um notch.",
       "content": "Conteúdo",
       "contentHint": "Toque para adicionar ou remover. Os itens aparecem na ordem em que você os adiciona. A bateria só aparece em navegadores que a expõem.",
       "items": {

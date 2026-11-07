@@ -498,6 +498,8 @@ const ChapterReader = () => {
           reservedStart={reservedStart}
           reservedEnd={reservedEnd}
           bottomOffset={bottomOffset}
+          edgeOffset={readerSettings.overlayEdgeOffset}
+          fullscreen={fullscreen.active}
         />
       )}
 

@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { novelService } from '../../../services/api';
 import { userService } from '@services/user.service';
 import { useNotification } from '@context/NotificationContext';
-import { NovelFromSource as ISourceDetail, NovelDetail as INovelDetail, Novel as INovel } from '@models/novels_types';
+import { SourceView, NovelDetail as INovelDetail, Novel as INovel } from '@models/novels_types';
+import { isFullSource } from './sourceView';
 
 export type NovelRatingState = { avg_rating: number | null, rating_count: number, user_rating: number | null };
 
-type CachedSourceDetail = { source: ISourceDetail; novel: INovelDetail; novelRating: NovelRatingState; isBookmarked: boolean };
+type CachedSourceDetail = { source: SourceView; novel: INovelDetail; novelRating: NovelRatingState; isBookmarked: boolean };
 
 // Last source page shown for each "novelSlug/sourceSlug", so back/forward shows it
 // as it was left instead of refetching it (same idea as the loaders' history cache).
@@ -21,7 +22,11 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
   const { notify } = useNotification();
   const location = useLocation();
   const navigationType = useNavigationType();
-  const linkState = location.state as { novel?: INovel; source?: ISourceDetail | null } | null;
+  // Router state from the card that navigated here: any part of the novel, and the source (a library
+  // card sends only its preview, see SourceView).
+  const linkState = location.state as { novel?: Partial<INovel>; source?: SourceView | null } | null;
+  // The card's novel, when it is the one this URL shows: its bookmark and DMCA state show before the fetch.
+  const linkNovel = linkState?.novel && linkState.novel.slug === novelSlug ? linkState.novel : null;
   const cacheKey = novelSlug && sourceSlug ? `${novelSlug}/${sourceSlug}` : null;
   const [cached] = useState<CachedSourceDetail | undefined>(() =>
     navigationType === 'POP' && cacheKey ? lastSourceDetails.get(cacheKey) : undefined
@@ -30,7 +35,7 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
   // Metadata already fetched by the list card that navigated here. Only trust
   // it when it matches the URL, since the card link may point to the source the
   // user has a reading history on rather than the preferred source.
-  const getPrefetchedSource = useCallback((): ISourceDetail | null => {
+  const getPrefetchedSource = useCallback((): SourceView | null => {
     if (!novelSlug || !sourceSlug) return null;
     const s = linkState?.source;
     if (s && s.source_slug === sourceSlug && s.novel_slug === novelSlug) return s;
@@ -43,7 +48,7 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
     return null;
   }, [linkState, novelSlug, sourceSlug]);
 
-  const [source, setSource] = useState<ISourceDetail | null>(() => cached?.source ?? getPrefetchedSource());
+  const [source, setSource] = useState<SourceView | null>(() => cached?.source ?? getPrefetchedSource());
   const [novel, setNovel] = useState<INovelDetail | null>(cached?.novel ?? null);
   const [loading, setLoading] = useState<boolean>(!cached);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +57,7 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
     rating_count: linkState?.novel?.rating_count ?? 0,
     user_rating: null
   });
-  const [isBookmarked, setIsBookmarked] = useState(cached?.isBookmarked ?? false);
+  const [isBookmarked, setIsBookmarked] = useState(cached?.isBookmarked ?? Boolean(linkNovel?.is_bookmarked));
   const [bookmarking, setBookmarking] = useState(false);
 
   useEffect(() => {
@@ -94,7 +99,9 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
         });
       } catch (err) {
         console.error('Error fetching source details:', err);
-        if (!prefetched) {
+        if (!isFullSource(prefetched)) {
+          // Only a preview was shown: drop it, so the error replaces it.
+          setSource(null);
           setError(t('sourceDetail.loadFailed'));
         }
       }
@@ -136,5 +143,7 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
     }
   };
 
-  return { source, setSource, novel, loading, error, novelRating, isBookmarked, bookmarking, handleToggleBookmark, handleShare };
+  const isDmca = Boolean(novel ? novel.is_dmca : linkNovel?.is_dmca);
+
+  return { source, setSource, novel, loading, error, novelRating, isBookmarked, isDmca, bookmarking, handleToggleBookmark, handleShare };
 }

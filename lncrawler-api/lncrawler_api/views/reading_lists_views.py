@@ -45,7 +45,7 @@ def _reading_lists_query_set(user=None, full=True):
     if full:
         novel_prefetches = novel_prefetch_objects(user)
     else:
-        novel_prefetches = [source_prefetch(user=user, associations=False)]
+        novel_prefetches = [source_prefetch(profile='preview', user=user)]
     items_qs = items_qs.prefetch_related(
         Prefetch('novel', queryset=Novel.objects.annotate(
             annotated_has_audiobook=has_audiobook_subquery()

@@ -50,6 +50,7 @@ import SourceHeroStats from './sourceDetail/SourceHeroStats';
 import SourceReadActions from './sourceDetail/SourceReadActions';
 import SourceToolActions from './sourceDetail/SourceToolActions';
 import { useSourceDetail } from './sourceDetail/useSourceDetail';
+import { isFullSource } from './sourceDetail/sourceView';
 
 const SourceDetail = () => {
   const { t, i18n } = useTranslation();
@@ -59,32 +60,36 @@ const SourceDetail = () => {
   const { startDownload, preparingKey } = useEpubDownload(novelSlug!, sourceSlug!);
   const { isAuthenticated } = useAuth();
   const { isBlurred, revealHandler } = useAdultContent();
-  const { source, setSource, novel, loading, error, novelRating, isBookmarked, bookmarking, handleToggleBookmark, handleShare } = useSourceDetail(novelSlug, sourceSlug);
+  const { source, setSource, novel, loading, error, novelRating, isBookmarked, isDmca, bookmarking, handleToggleBookmark, handleShare } = useSourceDetail(novelSlug, sourceSlug);
+  // The full source (detail fetch, or a card's state); a library card's preview has none of its
+  // authors, tags, counters or chapter stats, so the sections that need them wait for the fetch.
+  const full = isFullSource(source) ? source : null;
+  const authors = full?.authors ?? [];
+  const tags = full?.tags ?? [];
   const coverBlurred = isBlurred(source?.is_adult, source?.novel_id);
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [readingListPage, setReadingListPage] = useState(1);
 
 
-  const isDmca = Boolean(novel?.is_dmca);
 
   const pageUrl = window.location.href;
   const siteName = "LNCrawler";
 
-  const metaTitle = source 
-    ? t('sourceDetail.metaTitle', { title: source.title, source: source.source_name })
+  const metaTitle = full
+    ? t('sourceDetail.metaTitle', { title: full.title, source: full.source_name })
     : t('sourceDetail.metaLoadingTitle');
-  const metaSynopsis = source?.synopsis
-    ? source.synopsis.substring(0, 120).replace(/<[^>]+>/g, '') + '...'
+  const metaSynopsis = full?.synopsis
+    ? full.synopsis.substring(0, 120).replace(/<[^>]+>/g, '') + '...'
     : `Discover this light novel on ${siteName}.`; // i18n-missing: no catalog key for the synopsis fallback
-  const metaDescription = source
-    ? t('sourceDetail.metaDescription', { title: source.title, source: source.source_name, synopsis: metaSynopsis })
+  const metaDescription = full
+    ? t('sourceDetail.metaDescription', { title: full.title, source: full.source_name, synopsis: metaSynopsis })
     : t('sourceDetail.metaLoadingDescription');
   // i18n-missing: no catalog key for the source-detail generic meta keywords
-  const metaKeywordsList = source
-    ? [source.title, source.source_name, ...source.tags, ...source.authors, "read light novel", "web novel"]
+  const metaKeywordsList = full
+    ? [full.title, full.source_name, ...full.tags, ...full.authors, "read light novel", "web novel"]
     : ["light novel", "web novel", "source details"];
   const metaKeywords = [...new Set(metaKeywordsList.filter(Boolean))].join(', '); // Unique keywords
-  const ogImage = source?.overview_url || source?.cover_url || source?.cover_min_url || DEFAULT_OG_IMAGE;
+  const ogImage = full?.overview_url || full?.cover_url || source?.cover_min_url || DEFAULT_OG_IMAGE;
 
   if (!source && !error) {
     return <SourceDetailSkeleton />;
@@ -133,22 +138,24 @@ const SourceDetail = () => {
           type="book"
           canonical={pageUrl}
         >
-          {source?.authors?.length > 0 && <meta property="book:author" content={source.authors.join(', ')} />}
-          {source?.tags?.length > 0 && source.tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
+          {authors.length > 0 && <meta property="book:author" content={authors.join(', ')} />}
+          {tags.length > 0 && tags.map(tag => <meta property="book:tag" content={tag} key={tag} />)}
         </SeoMeta>
 
-        <BreadcrumbNav
-          items={[
-            {
-              label: source.novel_title,
-              icon: <BookIcon fontSize="inherit" />
-            },
-            {
-              label: source.source_name,
-              icon: <LanguageIcon fontSize="inherit" />
-            }
-          ]}
-        />
+        {full && (
+          <BreadcrumbNav
+            items={[
+              {
+                label: full.novel_title,
+                icon: <BookIcon fontSize="inherit" />
+              },
+              {
+                label: full.source_name,
+                icon: <LanguageIcon fontSize="inherit" />
+              }
+            ]}
+          />
+        )}
         
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, mb: 4 }}>
           <Button 
@@ -201,7 +208,7 @@ const SourceDetail = () => {
               width: '100%',
               height: '100%',
               opacity: 0.35,
-              backgroundImage: `url(${source.cover_url || source.cover_min_url || defaultCover})`,
+              backgroundImage: `url(${full?.cover_url || source.cover_min_url || defaultCover})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               filter: 'blur(20px)',
@@ -231,16 +238,16 @@ const SourceDetail = () => {
                   onAddToList={() => setAddToListOpen(true)}
                   setSource={setSource}
                 />
-                <SourceHeroDetails source={source} novelSlug={novelSlug} novelRating={novelRating} />
-                <SourceHeroStats source={source} language={i18n.language} />
+                <SourceHeroDetails source={full} novelSlug={novelSlug} novelRating={novelRating} />
+                <SourceHeroStats source={full} language={i18n.language} />
                 {/* Tags */}
-                {source.tags.length > 0 && (
+                {tags.length > 0 && (
                   <Box sx={{ mb: 3 }}>
-                    <NovelTags tags={source.tags} chipSize="small" />
+                    <NovelTags tags={tags} chipSize="small" />
                   </Box>
                 )}
 
-                <SourceReadActions source={source} novelSlug={novelSlug} sourceSlug={sourceSlug} isDmca={isDmca} />
+                <SourceReadActions source={full} novelSlug={novelSlug} sourceSlug={sourceSlug} isDmca={isDmca} />
                 <SourceToolActions
                   source={source}
                   novelSlug={novelSlug}
@@ -251,14 +258,14 @@ const SourceDetail = () => {
                   preparingKey={preparingKey}
                   startDownload={startDownload}
                 />
-                {source.audiobook && <SourceAudiobookBanner audiobook={source.audiobook} isAdult={source.audiobook.is_adult} />}
+                {full?.audiobook && <SourceAudiobookBanner audiobook={full.audiobook} isAdult={full.audiobook.is_adult} />}
               </Grid>
             </Grid>
           </Box>
         </Paper>
         
         {/* Update Button Section */}
-        {source && source.source_url && source.source_url.startsWith('http') && (
+        {full && full.source_url && full.source_url.startsWith('http') && (
           <Paper 
             sx={{ 
               p: { xs: 2, md: 3 }, 
@@ -267,17 +274,17 @@ const SourceDetail = () => {
             }}
           >
             <NovelUpdateButton 
-              sourceUrl={source.source_url} 
+              sourceUrl={full.source_url} 
               novelTitle={source.title} 
-              sourceName={source.source_name}
-              disabled={isDmca || source.has_crawler === false}
+              sourceName={full.source_name}
+              disabled={isDmca || full.has_crawler === false}
             />
           </Paper>
         )}
 
-        {source.synopsis ? (
+        {full?.synopsis ? (
           <SectionContainer title={t('sourceDetail.synopsis')} icon={<BookmarkIcon />}>
-            <NovelSynopsis synopsis={source.synopsis} />
+            <NovelSynopsis synopsis={full.synopsis} />
           </SectionContainer>
         ) : loading ? (
           <SectionContainer title={t('sourceDetail.synopsis')} icon={<BookmarkIcon />}>
@@ -287,37 +294,37 @@ const SourceDetail = () => {
           </SectionContainer>
         ) : null}
 
-        {((source.status && source.status !== 'Unknown') || source.edition || source.original_publisher || source.english_publisher || source.editors?.length > 0 || source.translators?.length > 0) && (
+        {full && ((full.status && full.status !== 'Unknown') || full.edition || full.original_publisher || full.english_publisher || full.editors?.length > 0 || full.translators?.length > 0) && (
           <SectionContainer title={t('sourceDetail.details')} icon={<InfoIcon />}>
             <Grid container spacing={2}>
-              {source.status && source.status !== 'Unknown' && (
+              {full.status && full.status !== 'Unknown' && (
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <DetailRow label={t('sourceDetail.status')} value={source.status} />
+                  <DetailRow label={t('sourceDetail.status')} value={full.status} />
                 </Grid>
               )}
-              {source.edition && (
+              {full.edition && (
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <DetailRow label={t('sourceDetail.editionLabel')} value={editionLabel(source.edition, t)} />
+                  <DetailRow label={t('sourceDetail.editionLabel')} value={editionLabel(full.edition, t)} />
                 </Grid>
               )}
-              {source.original_publisher && (
+              {full.original_publisher && (
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <DetailRow label={t('sourceDetail.originalPublisher')} value={source.original_publisher} />
+                  <DetailRow label={t('sourceDetail.originalPublisher')} value={full.original_publisher} />
                 </Grid>
               )}
-              {source.english_publisher && (
+              {full.english_publisher && (
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <DetailRow label={t('sourceDetail.englishPublisher')} value={source.english_publisher} />
+                  <DetailRow label={t('sourceDetail.englishPublisher')} value={full.english_publisher} />
                 </Grid>
               )}
-              {source.editors?.length > 0 && (
+              {full.editors?.length > 0 && (
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <DetailRow label={t('sourceDetail.editors')} value={source.editors.join(', ')} />
+                  <DetailRow label={t('sourceDetail.editors')} value={full.editors.join(', ')} />
                 </Grid>
               )}
-              {source.translators?.length > 0 && (
+              {full.translators?.length > 0 && (
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <DetailRow label={t('sourceDetail.translators')} value={source.translators.join(', ')} />
+                  <DetailRow label={t('sourceDetail.translators')} value={full.translators.join(', ')} />
                 </Grid>
               )}
             </Grid>
@@ -364,7 +371,7 @@ const SourceDetail = () => {
         <AddToListDialog
           open={addToListOpen}
           onClose={() => setAddToListOpen(false)}
-          novelId={source?.novel_id}
+          novelId={source.novel_id}
           novelTitle={novel?.title || source?.title}
           displayTitle={source?.title || novel?.title || ''}
         />

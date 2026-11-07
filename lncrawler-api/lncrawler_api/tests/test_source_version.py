@@ -203,11 +203,13 @@ class FromMetaJsonSourceVersionTests(TestCase):
         override.enable()
         self.addCleanup(override.disable)
 
-    def _write_meta(self, **novel_extra):
+    def _write_meta(self, chapters=None, **novel_extra):
         directory = os.path.join(self.tmp, "mynovel", "src")
         os.makedirs(directory, exist_ok=True)
         path = os.path.join(directory, "meta.json")
         novel = {"title": "My Novel", "url": "http://s/1", "chapters": []}
+        if chapters is not None:
+            novel["chapters"] = chapters
         novel.update(novel_extra)
         with open(path, "w", encoding="utf-8") as handle:
             json.dump({"novel": novel}, handle)
@@ -222,3 +224,43 @@ class FromMetaJsonSourceVersionTests(TestCase):
         source = NovelFromSource.from_meta_json(self._write_meta())
         source.refresh_from_db()
         self.assertEqual(source.source_version, 1)
+
+    def test_import_without_a_chapter_list_still_refreshes_the_stats(self):
+        path = self._write_meta()
+        source = NovelFromSource.from_meta_json(path)
+        # A chapter written outside the importer leaves the stored count stale.
+        ChapterRow.objects.create(
+            novel_from_source=source, chapter_id=1, url="http://s/1", title="One", has_content=True,
+        )
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+        del data["novel"]["chapters"]
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle)
+
+        NovelFromSource.from_meta_json(path)
+
+        source.refresh_from_db()
+        self.assertEqual(source.chapters_count, 1)
+        self.assertEqual(source.available_chapters_count, 1)
+
+    def test_reimport_refreshes_the_stored_chapter_stats(self):
+        # Chapter 2 has no content: every chapter is counted, only the readable ones are available.
+        chapters = [
+            {"id": 1, "url": "http://s/1", "title": "One", "success": True},
+            {"id": 2, "url": "http://s/2", "title": "Two", "success": False},
+            {"id": 3, "url": "http://s/3", "title": "Three", "success": True},
+        ]
+        NovelFromSource.from_meta_json(self._write_meta(chapters=chapters))
+        source = NovelFromSource.objects.get()
+        self.assertEqual(source.chapters_count, 3)
+        self.assertEqual(source.available_chapters_count, 2)
+        self.assertEqual(source.first_available_chapter.chapter_id, 1)
+        self.assertEqual(source.latest_available_chapter.chapter_id, 3)
+
+        # The re-crawl drops chapters 2 and 3 (no user data on them): the stats follow the rows.
+        NovelFromSource.from_meta_json(self._write_meta(chapters=chapters[:1]))
+        source.refresh_from_db()
+        self.assertEqual(source.chapters_count, 1)
+        self.assertEqual(source.available_chapters_count, 1)
+        self.assertEqual(source.latest_available_chapter.chapter_id, 1)

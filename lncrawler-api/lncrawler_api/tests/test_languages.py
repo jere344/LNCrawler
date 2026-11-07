@@ -238,7 +238,7 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
             language="en",
         )
         self._flag_adult()
-        clean_source = sources_queryset(detailed=False).get(pk=clean.pk)
+        clean_source = sources_queryset().get(pk=clean.pk)
         data = NovelSourceSerializer(clean_source, profile="card").data
         self.assertTrue(data["is_adult"])
 

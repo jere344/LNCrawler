@@ -1,5 +1,6 @@
 from django.db.models import Avg, Count, Exists, OuterRef, Prefetch, Q, Subquery, Sum
 from django.db.models.expressions import RawSQL
+from django.db.models.functions import JSONObject
 
 from ..models import (
     Audiobook,
@@ -55,22 +56,6 @@ def exclude_adult(queryset, user=None, path=''):
     return queryset.exclude(**{f'{path}pk__in': adult_novel_ids()})
 
 
-def _content_chapter(ordering):
-    return Chapter.objects.filter(
-        novel_from_source=OuterRef('pk'), has_content=True
-    ).order_by(ordering)
-
-
-def available_chapters_count(source):
-    """Chapters with content for a source, preferring the queryset annotation
-    (``annotated_available_chapters_count``) over a per-source COUNT. The
-    annotation is NULL (not absent) when a source has no chapters, so detect
-    it via ``__dict__`` like the serializer does."""
-    if 'annotated_available_chapters_count' in source.__dict__:
-        return source.annotated_available_chapters_count or 0
-    return source.chapters.filter(has_content=True).count()
-
-
 def preferred_source_key(source):
     """Rank a novel's sources the same everywhere: best vote score, then
     upvotes, then the most chapters with content, then title. Empty chapters
@@ -78,17 +63,8 @@ def preferred_source_key(source):
     return (
         -(source.upvotes - source.downvotes),
         -source.upvotes,
-        -available_chapters_count(source),
+        -source.available_chapters_count,
         source.title or '',
-    )
-
-
-def _related_count(model, **filters):
-    return Subquery(
-        model.objects.filter(novel_from_source=OuterRef('pk'), **filters)
-        .values('novel_from_source')
-        .annotate(total=Count('*'))
-        .values('total')[:1]
     )
 
 
@@ -106,6 +82,33 @@ def unread_chapters_subquery():
         .annotate(total=Count('*'))
         .values('total')[:1]
     )
+
+
+# The DB columns behind ChapterSerializer's card fields (``has_audio`` is not one).
+CHAPTER_CARD_COLUMNS = ('id', 'chapter_id', 'title', 'url', 'volume', 'volume_title', 'has_content')
+
+
+def next_chapter_subquery():
+    """The content chapter after a history row's last-read chapter, as one JSON object of the card columns.
+    Correlated, so listing histories costs no per-row Chapter query (see
+    ``ReadingHistorySerializer.get_next_chapter``). The latest chapter is not here: it is the source's
+    stored ``latest_available_chapter``."""
+    chapters = Chapter.objects.filter(
+        novel_from_source=OuterRef('source_id'),
+        chapter_id__gt=OuterRef('last_read_chapter__chapter_id'),
+        has_content=True,
+    ).order_by('chapter_id')
+    card = JSONObject(**{column: column for column in CHAPTER_CARD_COLUMNS})
+    return Subquery(chapters.annotate(card=card).values('card')[:1])
+
+
+def annotate_reading_history(queryset, next_chapter=True):
+    """Annotate the history rows ``ReadingHistorySerializer`` reads, so a list of histories resolves its
+    unread count (and, unless ``next_chapter=False``, its next chapter) in one query each."""
+    annotations = {'annotated_unread_chapters': unread_chapters_subquery()}
+    if next_chapter:
+        annotations['annotated_next_chapter'] = next_chapter_subquery()
+    return queryset.annotate(**annotations)
 
 
 def sources_total_views_subquery(languages=None):
@@ -204,28 +207,26 @@ def annotate_card_aggregates(queryset, languages=None):
     )
 
 
-def sources_queryset(
-    detailed=False, ip=None, user=None, associations=True, summary=False
-):
-    """Sources with everything the serializers read: external source and
-    parent novel joined, authors/tags prefetched, and the latest available
-    chapter annotated (avoids a per-source chapter query).
+# The NovelSourceSerializer profiles a source query can be shaped for.
+SOURCE_PROFILES = ('card', 'library', 'preview', 'summary', 'detail')
 
-    ``detailed`` additionally annotates the first available chapter and
-    prefetches volumes and (when an ``ip``/``user`` is given) the viewer's own
-    vote/reading history, so detail views resolve the whole payload without a
-    query per source. Lists only need authors/tags (the card serializer drops
-    the rest), so they leave these off to keep their SQL smaller.
 
-    ``summary`` is the middle ground the source page's "other sources" list and
-    the novel detail's nested sources use: scalar columns plus the viewer's own
-    vote, but no authors/tags/volumes/first-chapter and the big text columns
-    deferred. ``associations=False`` drops the authors/tags prefetches too, for
-    profiles that only read scalar source columns (e.g. the reading-list preview
-    thumbnail)."""
-    latest = _content_chapter('-chapter_id')
-    if summary:
-        associations = False
+def sources_queryset(profile='card', ip=None, user=None):
+    """Sources with what the source serializer's ``profile`` reads (see
+    ``NovelSourceSerializer.field_profiles``). Every profile joins the parent
+    novel and the stored latest available chapter.
+
+    ``card`` prefetches authors/tags, the list payload. ``detail`` adds the
+    first available chapter, volumes, editors/translators and, when an ``ip``
+    or ``user`` is given, the viewer's own vote and reading history, so detail
+    views resolve the whole payload without a query per source. ``summary``
+    prefetches no associations, defers the big text columns and, given ``ip``,
+    the viewer's vote. ``library`` and ``preview`` prefetch no associations and
+    skip the external source, which their payloads never read."""
+    if profile not in SOURCE_PROFILES:
+        raise ValueError(f"unknown source profile {profile!r}; expected one of {SOURCE_PROFILES}")
+    detailed = profile == 'detail'
+    associations = profile in ('card', 'detail')
     if not associations:
         prefetch = []
     else:
@@ -234,16 +235,13 @@ def sources_queryset(
             if detailed
             else ['authors', 'tags']
         )
+    related = ['novel', 'latest_available_chapter']
+    if profile not in ('library', 'preview'):
+        related.insert(0, 'external_source')
     qs = (
-        NovelFromSource.objects.select_related('external_source', 'novel')
+        NovelFromSource.objects.select_related(*related)
         .prefetch_related(*prefetch)
         .annotate(
-            latest_chapter_id=Subquery(latest.values('chapter_id')[:1]),
-            latest_chapter_title=Subquery(latest.values('title')[:1]),
-            latest_chapter_url=Subquery(latest.values('url')[:1]),
-            # Counted here so the serializer never runs per-source COUNT queries.
-            annotated_chapters_count=_related_count(Chapter),
-            annotated_available_chapters_count=_related_count(Chapter, has_content=True),
             # Novel-level adult flag: a novel is adult if more than half of its
             # sources are, so source cards blur when the *novel* is adult.
             # Correlated, so it reads only this novel's sources (novel_id index).
@@ -261,7 +259,7 @@ def sources_queryset(
             'synopsis',
         ]
         qs = qs.defer(*deferred)
-        if summary and ip:
+        if profile == 'summary' and ip:
             # The summary profile reports the viewer's own vote; prefetch it for
             # the whole page so it doesn't query once per source.
             qs = qs.prefetch_related(
@@ -273,12 +271,7 @@ def sources_queryset(
             )
         return qs
 
-    first = _content_chapter('chapter_id')
-    qs = qs.annotate(
-        first_chapter_id=Subquery(first.values('chapter_id')[:1]),
-        first_chapter_title=Subquery(first.values('title')[:1]),
-        first_chapter_url=Subquery(first.values('url')[:1]),
-    ).prefetch_related('volumes')
+    qs = qs.select_related('first_available_chapter').prefetch_related('volumes')
     if ip:
         qs = qs.prefetch_related(
             Prefetch(
@@ -298,17 +291,11 @@ def sources_queryset(
     return qs
 
 
-def source_prefetch(
-    prefix='', detailed=False, ip=None, user=None, associations=True,
-    summary=False,
-):
+def source_prefetch(prefix='', profile='card', ip=None, user=None):
     """Prefetch a novel's sources (see `sources_queryset`)."""
     return Prefetch(
         prefix + 'sources',
-        queryset=sources_queryset(
-            detailed=detailed, ip=ip, user=user,
-            associations=associations, summary=summary,
-        ),
+        queryset=sources_queryset(profile, ip=ip, user=user),
     )
 
 
@@ -323,61 +310,76 @@ def weekly_views_prefetch(prefix=''):
     )
 
 
-def novel_prefetch_objects(
-    user=None, prefix='', detailed=False, ip=None,
-    card_aggregates=False, associations=True, summary=False,
-):
+# The prefetch set of each novel payload, keyed by the NovelSerializer profile that reads it.
+#   sources:   the NovelSourceSerializer profile of the nested sources (see sources_queryset)
+#   counters:  rating and weekly-view prefetches (the card aggregates)
+#   bookmarks: the viewer's own bookmark rows, when a user is given
+#   history:   the ReadingHistorySerializer profile of the viewer's progress rows, when a user is given
+NOVEL_PREFETCH_PROFILES = {
+    # Cards on home, search and lists: authors/tags, counters, the viewer's bookmark and progress.
+    'card': {'sources': 'card', 'counters': True, 'bookmarks': True, 'history': 'detail'},
+    # Library items: no authors/tags or counters. The view sets the bookmark state; progress is
+    # passed only for the owner's private list.
+    'library': {'sources': 'library', 'counters': False, 'bookmarks': False, 'history': 'library'},
+    # Reading-list thumbnails: the sources only.
+    'preview': {'sources': 'preview', 'counters': False, 'bookmarks': False, 'history': None},
+    # Novel and source detail pages: nested source summaries, counters, bookmark and progress.
+    'detail': {'sources': 'summary', 'counters': True, 'bookmarks': True, 'history': 'detail'},
+}
+
+
+def novel_prefetch_objects(user=None, prefix='', profile='card', ip=None, card_aggregates=False):
     """The prefetch list for a novel queryset, optionally addressed through a
-    relation (e.g. prefix='to_novel__' for NovelSimilarity rows).
+    relation (e.g. prefix='to_novel__' for NovelSimilarity rows). ``profile``
+    picks the set from ``NOVEL_PREFETCH_PROFILES``.
 
     ``card_aggregates`` drops the ratings/weekly-views prefetches because the
     queryset already carries the matching annotations
     (``annotate_card_aggregates``); only set it when that is true, otherwise the
     serializer falls back to a query per novel.
     """
-    prefetches = [
-        source_prefetch(
-            prefix, detailed=detailed, ip=ip, user=user,
-            associations=associations, summary=summary,
-        ),
-    ]
-    if not card_aggregates:
+    flags = NOVEL_PREFETCH_PROFILES[profile]
+    prefetches = [source_prefetch(prefix, profile=flags['sources'], ip=ip, user=user)]
+    if flags['counters'] and not card_aggregates:
         prefetches += [
             prefix + 'ratings',
             weekly_views_prefetch(prefix),
         ]
     if user is not None and user.is_authenticated:
-        prefetches += [
-            Prefetch(
+        if flags['bookmarks']:
+            prefetches.append(Prefetch(
                 prefix + 'bookmarked_by_users',
                 queryset=NovelBookmark.objects.filter(user=user),
                 to_attr='user_bookmarks',
-            ),
-            Prefetch(
+            ))
+        if flags['history']:
+            prefetches.append(Prefetch(
                 prefix + 'reading_histories',
-                queryset=ReadingHistory.objects.filter(user=user)
-                .select_related('source', 'novel', 'last_read_chapter')
-                .annotate(annotated_unread_chapters=unread_chapters_subquery()),
+                queryset=reading_history_queryset(user, flags['history']),
                 to_attr='user_histories',
-            ),
-        ]
+            ))
     return prefetches
 
 
-def apply_novel_prefetches(
-    queryset, user=None, detailed=False, ip=None, card_aggregates=False,
-    summary=False,
-):
-    """Attach the relations the novel serializers read. Pass the request user
-    so per-user bookmark/history lookups are collapsed into one query each;
-    ``detailed`` adds the first-chapter/volumes/vote prefetches detail views
-    need, while ``summary`` loads the lighter nested-source payload (see
-    ``sources_queryset``). ``card_aggregates`` is passed through to
-    ``novel_prefetch_objects``."""
+def reading_history_queryset(user, history_profile):
+    """The viewer's history rows, shaped for ``ReadingHistorySerializer``'s ``history_profile``: 'detail'
+    adds the novel and the next chapter, 'library' reads neither."""
+    histories = ReadingHistory.objects.filter(user=user).select_related(
+        'source__latest_available_chapter', 'last_read_chapter',
+    )
+    if history_profile == 'library':
+        return annotate_reading_history(histories, next_chapter=False)
+    return annotate_reading_history(histories.select_related('novel'))
+
+
+def apply_novel_prefetches(queryset, user=None, profile='card', ip=None, card_aggregates=False):
+    """Attach the relations the novel serializers read for ``profile`` (see
+    ``NOVEL_PREFETCH_PROFILES``). Pass the request user so per-user bookmark and
+    progress lookups are collapsed into one query each; ``card_aggregates`` is
+    passed through to ``novel_prefetch_objects``."""
     return queryset.prefetch_related(
         *novel_prefetch_objects(
-            user, detailed=detailed, ip=ip,
-            card_aggregates=card_aggregates, summary=summary,
+            user, profile=profile, ip=ip, card_aggregates=card_aggregates,
         )
     )
 

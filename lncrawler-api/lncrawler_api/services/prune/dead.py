@@ -105,6 +105,7 @@ class DeadDuplicatesMixin:
         used to justify deleting one of this novel's sources.
         """
         count = self._chapter_count(dead)
+        # Live counts, one aggregate: a stored chapters_count must never justify deleting a source.
         siblings = (
             dead.novel.sources.exclude(pk=dead.pk)
             .select_related("external_source")
@@ -119,9 +120,9 @@ class DeadDuplicatesMixin:
 
     @staticmethod
     def _chapter_count(source) -> int:
-        """Chapter count from the query annotation when present (no N+1)."""
+        """Live chapter count (annotation when present); never the stored column."""
         count = getattr(source, "_chapters", None)
-        return count if count is not None else source.chapters_count
+        return count if count is not None else source.chapters.count()
 
     @staticmethod
     def _updated_key(source):

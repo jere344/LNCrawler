@@ -1,13 +1,17 @@
-import { Box, Grid, Typography, alpha, useTheme } from '@mui/material';
+import { Box, Grid, Skeleton, Typography, alpha, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { formatDate } from '@utils/Misc.tsx';
 import { NovelFromSource as ISourceDetail } from '@models/novels_types';
 
-const SourceHeroStats = ({ source, language }: { source: ISourceDetail; language: string }) => {
+// `source` is null while the page only has a library preview: the counts and the last update wait for it.
+const SourceHeroStats = ({ source, language }: { source: ISourceDetail | null; language: string }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  if (!source) {
+    return <Skeleton variant="rounded" height={64} sx={{ mb: 3, bgcolor: alpha(theme.palette.common.white, 0.2) }} />;
+  }
   return (
     <>
       {/* Source stats */}

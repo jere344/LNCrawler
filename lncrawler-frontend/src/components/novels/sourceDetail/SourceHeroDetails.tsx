@@ -1,4 +1,4 @@
-import { Box, Button, Chip, IconButton, Tooltip, Typography, alpha, useTheme } from '@mui/material';
+import { Box, Button, Chip, IconButton, Skeleton, Tooltip, Typography, alpha, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import PersonIcon from '@mui/icons-material/Person';
@@ -9,17 +9,27 @@ import { NovelFromSource as ISourceDetail } from '@models/novels_types';
 import NovelRating from '../common/NovelRating';
 import { NovelRatingState } from './useSourceDetail';
 
+// `source` is null while the page only has a library preview. The rating is mounted only once the
+// full source is there: NovelRating keeps its first props, so a placeholder value would stick.
 const SourceHeroDetails = ({
   source,
   novelSlug,
   novelRating,
 }: {
-  source: ISourceDetail;
+  source: ISourceDetail | null;
   novelSlug: string | undefined;
   novelRating: NovelRatingState;
 }) => {
   const { t } = useTranslation();
   const theme = useTheme();
+  if (!source) {
+    return (
+      <Box sx={{ mb: 3 }}>
+        <Skeleton variant="text" width="60%" sx={{ bgcolor: alpha(theme.palette.common.white, 0.2) }} />
+        <Skeleton variant="text" width="35%" sx={{ bgcolor: alpha(theme.palette.common.white, 0.2) }} />
+      </Box>
+    );
+  }
   return (
     <>
       {source.alternative_titles?.length > 0 && (

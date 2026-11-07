@@ -10,6 +10,7 @@ from django.core.cache import cache
 from django.test import TestCase, override_settings
 
 from ..models import Chapter, ExternalSource, Novel, NovelFromSource
+from ..services.chapter_stats import refresh_chapter_stats
 
 
 def write_chapter(source_dir, number, body_size=3000):
@@ -82,6 +83,9 @@ class MergeTestCase(TestCase):
                 url=f"{url}/ch{number}",
                 title=f"Chapter {number}",
             )
+        # Reload: the stored stats were written after the instance was created.
+        refresh_chapter_stats([source.pk])
+        source.refresh_from_db()
         return source
 
 

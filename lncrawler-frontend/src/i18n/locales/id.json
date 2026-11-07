@@ -945,6 +945,8 @@
         "left": "Pil kiri",
         "right": "Pil kanan"
       },
+      "edgeOffset": "Jarak dari tepi",
+      "edgeOffsetHint": "Menjauhkan bilah dari tepi atas atau bawah, misalnya di bawah notch.",
       "content": "Konten",
       "contentHint": "Ketuk untuk menambah atau menghapus. Item ditampilkan sesuai urutan penambahannya. Baterai hanya ditampilkan di browser yang mendukungnya.",
       "items": {

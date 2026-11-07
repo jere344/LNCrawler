@@ -945,6 +945,8 @@
         "left": "Pastylka z lewej",
         "right": "Pastylka z prawej"
       },
+      "edgeOffset": "Odległość od krawędzi",
+      "edgeOffsetHint": "Odsuwa pasek od górnej lub dolnej krawędzi, np. pod wycięciem.",
       "content": "Zawartość",
       "contentHint": "Dotknij, aby dodać lub usunąć. Elementy są wyświetlane w kolejności dodawania. Bateria jest widoczna tylko w przeglądarkach, które ją udostępniają.",
       "items": {

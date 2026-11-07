@@ -945,6 +945,8 @@
         "left": "Venstre pille",
         "right": "Højre pille"
       },
+      "edgeOffset": "Afstand til kanten",
+      "edgeOffsetHint": "Flytter striben væk fra øvre eller nedre kant, f.eks. under et hak.",
       "content": "Indhold",
       "contentHint": "Tryk for at tilføje eller fjerne. Elementer vises i den rækkefølge, du tilføjer dem. Batteri vises kun i browsere, der understøtter det.",
       "items": {

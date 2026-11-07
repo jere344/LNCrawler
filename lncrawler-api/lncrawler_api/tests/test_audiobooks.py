@@ -24,6 +24,7 @@ from ..models import (
     NovelFromSource,
 )
 from ..services import audiobook_media, audiobook_service as svc
+from ..services.chapter_stats import refresh_chapter_stats
 from ..services.novel_operations import file_journal, move_source_to_novel
 from .helpers import MergeTestCase
 
@@ -71,6 +72,7 @@ class AudiobookBase(MergeTestCase):
                 title=f"Chapter {number}",
                 has_content=has_content,
             )
+        refresh_chapter_stats([source.pk])
         return list(source.chapters.order_by("chapter_id"))
 
     def make_audiobook(self, source):

@@ -184,6 +184,9 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
 
     source.novel = target_novel
     base_slug = source.source_slug
+    # Only what this function changes: a full save would write back the loaded
+    # chapter stats, which an import may have moved since.
+    changed = ["novel", "source_slug", "updated_at"]
 
     if not move_files:
         # Views look sources up by (novel, source_slug), so a slug already used
@@ -215,19 +218,21 @@ def move_source_to_novel(source, target_novel, move_files=True, files=None):
                 return lncrawler_paths.rebase_path(path, old_folder, new_folder)
             return lncrawler_paths.rebase_path(path, old_prefix, target_dir)
 
-        for attr in (
+        path_attrs = (
             "source_path",
             "cover_path",
             "cover_min_path",
             "overview_picture_path",
-        ):
+        )
+        for attr in path_attrs:
             setattr(source, attr, rebase(getattr(source, attr)))
+        changed += path_attrs
         base_slug = slugify(folder)
 
     source.source_slug = NovelFromSource.unique_source_slug(
         target_novel, base_slug, exclude_pk=source.pk
     )
-    source.save()
+    source.save(update_fields=changed)
     follow_source(source)
 
 
@@ -238,8 +243,8 @@ def source_completeness(source):
     compare chapters that actually have content first, then the total, then how
     recently the source was updated.
     """
-    with_content = source.chapters.filter(has_content=True).count()
-    total = source.chapters.count()
+    with_content = source.available_chapters_count
+    total = source.chapters_count
     updated = source.last_chapter_update or source.created_at
     return (with_content, total, updated)
 

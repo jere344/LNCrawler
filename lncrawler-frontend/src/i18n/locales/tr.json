@@ -945,6 +945,8 @@
         "left": "Solda kapsül",
         "right": "Sağda kapsül"
       },
+      "edgeOffset": "Kenara uzaklık",
+      "edgeOffsetHint": "Şeridi üst veya alt kenardan uzaklaştırır, örneğin çentiğin altına.",
       "content": "İçerik",
       "contentHint": "Eklemek veya kaldırmak için dokunun. Öğeler eklediğiniz sırayla görünür. Pil yalnızca bunu destekleyen tarayıcılarda görünür.",
       "items": {
