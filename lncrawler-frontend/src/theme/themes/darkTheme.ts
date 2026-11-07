@@ -46,7 +46,7 @@ const darkTokens: ThemeTokens = {
         },
     },
     typography: {
-        fontFamily: '"Inter", "Noto Sans JP", sans-serif',
+        fontFamily: '"Inter Variable", "Inter Fallback", "Noto Sans JP", sans-serif',
         fontSize: 14,
         h1: {
             fontFamily: '"Source Serif Pro", serif',
@@ -145,7 +145,7 @@ export const darkTheme: ThemeOption = {
     hidden: false,
     password: undefined,
     font: {
-        family: '"Inter", "Noto Sans JP", sans-serif',
-        url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+Pro:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap",
+        family: '"Inter Variable", "Inter Fallback", "Noto Sans JP", sans-serif',
+        url: "https://fonts.googleapis.com/css2?family=Source+Serif+Pro:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap",
     },
 };

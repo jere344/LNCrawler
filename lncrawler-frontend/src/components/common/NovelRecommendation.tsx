@@ -10,11 +10,14 @@ import { useTranslation } from 'react-i18next';
 interface NovelRecommendationProps {
   similarNovels?: SimilarNovel[];
   loading?: boolean;
+  // Number of first covers loaded with high priority (above the fold).
+  priorityCount?: number;
 }
 
-const NovelRecommendation: React.FC<NovelRecommendationProps> = ({ 
-  similarNovels = [], 
-  loading = false 
+const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
+  similarNovels = [],
+  loading = false,
+  priorityCount = 0
 }) => {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -132,7 +135,7 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
           '&::-webkit-scrollbar': { display: 'none' },
         }}
       >
-        {similarNovels.map((novel) => (
+        {similarNovels.map((novel, index) => (
           <Box
             key={novel.id}
             sx={{
@@ -142,8 +145,9 @@ const NovelRecommendation: React.FC<NovelRecommendationProps> = ({
               marginTop: 1,
             }}
           >
-            <BaseNovelCard 
+            <BaseNovelCard
               novel={novel}
+              priority={index < priorityCount}
               {...getNovelSourceLink(novel)}
             />
           </Box>

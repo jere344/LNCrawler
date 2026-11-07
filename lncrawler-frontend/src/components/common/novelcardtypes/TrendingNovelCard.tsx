@@ -19,14 +19,16 @@ interface TrendingNovelCardProps {
   rank?: number;
   to?: To;
   state?: unknown;
+  priority?: boolean;
 }
 
-const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({ 
+const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
   novel,
   rank,
   isLoading = false,
   to,
-  state
+  state,
+  priority = false
 }) => {
   const { t } = useTranslation();
   if (isLoading) {
@@ -153,6 +155,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
             novelId={novel.id}
             isAdult={novel.is_adult}
             hasAudiobook={novel.has_audiobook}
+            priority={priority}
             sx={{ width: '100%', aspectRatio: '2/3', display: 'block' }}
           />
         </Box>

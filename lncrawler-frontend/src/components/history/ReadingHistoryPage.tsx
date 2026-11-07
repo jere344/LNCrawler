@@ -7,7 +7,6 @@ import {
   CircularProgress,
   useMediaQuery,
   Paper,
-  Stack,
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
@@ -20,7 +19,6 @@ import { useUrlListState } from '@utils/useUrlListState';
 import BreadcrumbNav from '../common/BreadcrumbNav';
 import PageNav from '@components/common/PageNav';
 import HistoryIcon from '@mui/icons-material/History';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
 import ReadingHistoryCard from '../common/novelcardtypes/ReadingHistoryCard';
 import ListeningHistoryCard from './ListeningHistoryCard';
 import LoginRequiredPanel from '@components/common/LoginRequiredPanel';
@@ -220,12 +218,6 @@ const ReadingHistoryPage: React.FC = () => {
                   </Grid>
                 ) : (
                   <Grid key={`read-${item.id}`} size={12}>
-                    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mb: 0.5, color: 'text.secondary' }}>
-                      <Box role="img" aria-label={t('history.kindRead')} sx={{ display: 'flex' }}>
-                        <MenuBookIcon fontSize="small" />
-                      </Box>
-                      <Typography variant="caption">{t('history.kindRead')}</Typography>
-                    </Stack>
                     <ReadingHistoryCard
                       novel={item}
                       onDelete={() => openDeleteDialog(item)}

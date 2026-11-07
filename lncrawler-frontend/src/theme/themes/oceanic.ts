@@ -49,27 +49,27 @@ const oceanicTokens: ThemeTokens = {
         fontFamily: '"JetBrains Mono", "Roboto Mono", monospace',
         fontSize: 14,
         h1: {
-            fontFamily: '"Inter", sans-serif',
+            fontFamily: '"Inter Variable", "Inter Fallback", sans-serif',
             fontWeight: 700,
             color: "#64b5f6",
             letterSpacing: "-0.01em",
             fontSize: "2.2rem",
         },
         h2: {
-            fontFamily: '"Inter", sans-serif',
+            fontFamily: '"Inter Variable", "Inter Fallback", sans-serif',
             fontWeight: 700,
             color: "#64b5f6",
             letterSpacing: "-0.01em",
             fontSize: "1.9rem",
         },
         h3: {
-            fontFamily: '"Inter", sans-serif',
+            fontFamily: '"Inter Variable", "Inter Fallback", sans-serif',
             fontWeight: 600,
             letterSpacing: "-0.005em",
             fontSize: "1.6rem",
         },
         h4: {
-            fontFamily: '"Inter", sans-serif',
+            fontFamily: '"Inter Variable", "Inter Fallback", sans-serif',
             fontWeight: 600,
             letterSpacing: "-0.005em",
             fontSize: "1.4rem",
@@ -136,6 +136,6 @@ export const oceanicTheme: ThemeOption = {
     password: undefined,
     font: {
         family: '"JetBrains Mono", "Roboto Mono", monospace',
-        url: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Inter:wght@400;600;700&display=swap",
+        url: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap",
     },
 };

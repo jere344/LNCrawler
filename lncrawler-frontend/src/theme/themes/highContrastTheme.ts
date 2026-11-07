@@ -51,7 +51,7 @@ export const getHighContrastTheme = () =>
             },
         },
         typography: {
-            fontFamily: '"Inter", "Noto Sans JP", sans-serif',
+            fontFamily: '"Inter Variable", "Inter Fallback", "Noto Sans JP", sans-serif',
             fontSize: 16, // Slightly larger base font size
             h1: {
                 fontFamily: '"Source Serif Pro", serif',
@@ -282,7 +282,7 @@ export const highContrastTheme: ThemeOption = {
     hidden: false,
     password: undefined,
     font: {
-        family: '"Inter", "Noto Sans JP", sans-serif',
-        url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+Pro:wght@600;700&display=swap",
+        family: '"Inter Variable", "Inter Fallback", "Noto Sans JP", sans-serif',
+        url: "https://fonts.googleapis.com/css2?family=Source+Serif+Pro:wght@600;700&display=swap",
     },
 };

@@ -47,8 +47,9 @@ const ListeningHistoryCard: React.FC<ListeningHistoryCardProps> = ({ entry, onDe
       sx={{
         display: 'flex',
         position: 'relative',
-        overflow: 'visible',
+        overflow: 'hidden',
         height: '100%',
+        minHeight: 180,
         '&:hover': {
           boxShadow: 6
         }
@@ -73,7 +74,7 @@ const ListeningHistoryCard: React.FC<ListeningHistoryCardProps> = ({ entry, onDe
             alt=""
             loading="lazy"
             onClick={blurred ? revealHandler(revealKey) : undefined}
-            sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: blurred ? 'blur(16px)' : 'none', cursor: blurred ? 'pointer' : undefined }}
+            sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: blurred ? 'blur(16px)' : 'none', cursor: blurred ? 'pointer' : undefined }}
           />
         ) : (
           <Box sx={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center' }}>

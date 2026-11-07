@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
+import '@fontsource-variable/inter/wght.css'
 import { router } from './router'
 import { AuthProvider } from './context/AuthContext'
 import { AdultContentProvider } from './context/AdultContentContext'

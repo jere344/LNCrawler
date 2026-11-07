@@ -223,6 +223,8 @@ const Header = () => {
                             component="img"
                             src={logoSrc}
                             alt={t('header.logoAlt')}
+                            width={63}
+                            height={40}
                             sx={{
                                 height: 40,
                                 mr: 1,

@@ -15,8 +15,7 @@ import { Link } from 'react-router-dom';
 import { Novel } from '@models/novels_types';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import InfoIcon from '@mui/icons-material/Info';
-import { formatTimeAgo, formatDate, getNovelSourceLink, getNovelDisplayTitle } from '@utils/Misc';
+import InfoIcon from '@mui/icons-material/Info';import { formatTimeAgo, formatDate, getNovelSourceLink, getNovelDisplayTitle } from '@utils/Misc';
 import { useTranslation } from 'react-i18next';
 import { useAdultContent } from '@context/AdultContentContext';
 import { AdultBadge } from '@components/common/AdultBadge';
@@ -44,8 +43,9 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
       sx={{ 
         display: 'flex', 
         position: 'relative', 
-        overflow: 'visible',
+        overflow: 'hidden',
         height: '100%',
+        minHeight: 180,
         '&:hover': {
           boxShadow: 6
         }
@@ -72,7 +72,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
         sx={{
           width: 120,
           minWidth: 120,
-          height: '100%',
+          alignSelf: 'stretch',
           backgroundImage: displaySource?.cover_min_url 
             ? `url(${displaySource.cover_min_url})` 
             : 'linear-gradient(to bottom right, #6a11cb, #2575fc)',
@@ -99,24 +99,27 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
       {/* Content area */}
       <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minWidth: 0, width: '100%' }}>
         <CardContent sx={{ pb: 1, flexGrow: 1 }}>
-          <Typography
-            variant="h6"
-            component={Link}
-            to={sourceLink.to ?? ''} state={sourceLink.state}
-            sx={{
-              // Keeps the title clear of the delete button in the top right
-              display: 'block',
-              pr: 5,
-              overflowWrap: 'break-word',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              '&:hover': { color: 'primary.main' },
-              color: 'text.primary',
-              textDecoration: 'none',
-            }}
-          >
-            {getNovelDisplayTitle(novel)}
-          </Typography>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', pr: 5 }}>
+            <Box role="img" aria-label={t('history.kindRead')} sx={{ display: 'flex', color: 'primary.main', flexShrink: 0 }}>
+              <MenuBookIcon fontSize="small" />
+            </Box>
+            <Typography
+              variant="h6"
+              component={Link}
+              to={sourceLink.to ?? ''} state={sourceLink.state}
+              sx={{
+                minWidth: 0,
+                overflowWrap: 'anywhere',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                '&:hover': { color: 'primary.main' },
+                color: 'text.primary',
+                textDecoration: 'none',
+              }}
+            >
+              {getNovelDisplayTitle(novel)}
+            </Typography>
+          </Stack>
           
           {novel.reading_history && currentChapter && (
             <Box sx={{ mt: 1 }}>

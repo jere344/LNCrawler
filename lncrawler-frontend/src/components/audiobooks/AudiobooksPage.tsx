@@ -193,6 +193,8 @@ const AudiobooksPage = () => {
                   component="img"
                   src={languageFlagUrl(code)}
                   alt=""
+                  loading="lazy"
+                  decoding="async"
                   sx={{ width: 20, height: 15, objectFit: 'cover', borderRadius: '2px', flexShrink: 0 }}
                 />
                 {languageCodeToName(t, code)}

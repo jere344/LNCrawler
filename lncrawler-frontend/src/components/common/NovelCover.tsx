@@ -14,6 +14,8 @@ interface NovelCoverProps {
   isDmca?: boolean;
   dmcaBadgeProps?: React.ComponentProps<typeof DmcaBadge>;
   hasAudiobook?: boolean;
+  // Cover above the fold: loaded eagerly with high fetch priority.
+  priority?: boolean;
   // Shown in place of the image when there is no cover.
   fallback?: React.ReactNode;
   // Size and position of the image, set by the card.
@@ -34,6 +36,7 @@ export const NovelCover: React.FC<NovelCoverProps> = ({
   isDmca = false,
   dmcaBadgeProps = { bottom: 8 },
   hasAudiobook = false,
+  priority = false,
   fallback,
   sx,
   children,
@@ -48,6 +51,9 @@ export const NovelCover: React.FC<NovelCoverProps> = ({
           component="img"
           image={src}
           alt={alt}
+          fetchPriority={priority ? 'high' : undefined}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding={priority ? undefined : 'async'}
           onClick={blurred ? revealHandler(novelId) : undefined}
           sx={[
             {

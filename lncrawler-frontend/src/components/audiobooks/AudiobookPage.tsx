@@ -152,6 +152,8 @@ const AudiobookPage = () => {
                 component="img"
                 src={languageFlagUrl(detail.language)}
                 alt={languageName}
+                loading="lazy"
+                decoding="async"
                 sx={{ width: 20, height: 15, objectFit: 'cover', borderRadius: '2px' }}
               />
               {detail.language}
@@ -189,6 +191,8 @@ const AudiobookPage = () => {
                       component="img"
                       src={languageFlagUrl(code)}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                       sx={{ display: 'block', width: 30, height: 20, objectFit: 'cover', borderRadius: '2px' }}
                     />
                   </Box>

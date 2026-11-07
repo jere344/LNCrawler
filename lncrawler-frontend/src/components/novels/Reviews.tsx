@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -10,6 +10,7 @@ import {
   Divider,
   Alert,
   CircularProgress,
+  Skeleton,
   IconButton,
   Menu,
   MenuItem,
@@ -25,12 +26,14 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { reviewService } from '@services/api';
 import { Review, ReviewsResponse } from '@services/review.service';
 import ReviewReactions from '../common/reviews/ReviewReactions';
-import ReviewForm from '../common/reviews/ReviewForm';
 import UserLink from '@components/profile/UserLink';
 import PageNav from '@components/common/PageNav';
 import { useAuth } from '@context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-import ReadOnlyMDXEditor from '../common/reviews/ReadOnlyMDXEditor';
+import ReviewContent from '../common/reviews/ReviewContent';
+
+// Lazy so the MDXEditor chunk only loads when the form is opened.
+const ReviewForm = lazy(() => import('../common/reviews/ReviewForm'));
 
 interface ReviewsProps {
   novelSlug: string;
@@ -120,7 +123,7 @@ const Reviews: React.FC<ReviewsProps> = ({ novelSlug }) => {
   };
 
   const renderReviewContent = (content: string) => {
-    return <ReadOnlyMDXEditor content={content} uniqueKey={`review-content-${content.substring(0, 50)}`} />;
+    return <ReviewContent content={content} uniqueKey={`review-content-${content.substring(0, 50)}`} />;
   };
 
   if (loading && !reviews.length) {
@@ -158,15 +161,17 @@ const Reviews: React.FC<ReviewsProps> = ({ novelSlug }) => {
 
       {/* Review Form */}
       {showReviewForm && user && (
-        <ReviewForm
-          novelSlug={novelSlug}
-          onReviewAdded={handleReviewAdded}
-          onCancel={() => {
-            setShowReviewForm(false);
-            setEditingReview(null);
-          }}
-          editingReview={editingReview}
-        />
+        <Suspense fallback={<Skeleton variant="rectangular" height={300} sx={{ mb: 3, borderRadius: 2 }} />}>
+          <ReviewForm
+            novelSlug={novelSlug}
+            onReviewAdded={handleReviewAdded}
+            onCancel={() => {
+              setShowReviewForm(false);
+              setEditingReview(null);
+            }}
+            editingReview={editingReview}
+          />
+        </Suspense>
       )}
 
       {/* Reviews Header */}

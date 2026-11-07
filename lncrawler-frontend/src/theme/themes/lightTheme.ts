@@ -46,7 +46,7 @@ const lightTokens: ThemeTokens = {
         },
     },
     typography: {
-        fontFamily: '"Inter", "Noto Sans JP", sans-serif',
+        fontFamily: '"Inter Variable", "Inter Fallback", "Noto Sans JP", sans-serif',
         fontSize: 14,
         h1: {
             fontFamily: '"Source Serif Pro", serif',

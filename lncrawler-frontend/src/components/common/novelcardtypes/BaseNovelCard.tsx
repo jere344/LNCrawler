@@ -25,6 +25,7 @@ export interface BaseNovelCardProps {
   to?: To;
   state?: unknown;
   hideUserState?: boolean;
+  priority?: boolean;
 }
 
 export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
@@ -32,7 +33,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   isLoading = false,
   to,
   state,
-  hideUserState = false
+  hideUserState = false,
+  priority = false
 }) => {
   const preferredSource = novel.reading_source ?? novel.prefered_source;
   const { isAuthenticated } = useAuth();
@@ -178,6 +180,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             isAdult={novel.is_adult}
             isDmca={novel.is_dmca}
             hasAudiobook={novel.has_audiobook}
+            priority={priority}
             sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
           >
             {/* Language flags */}

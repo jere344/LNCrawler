@@ -50,6 +50,8 @@ const HomePage: React.FC = () => {
   // Cold load and navigation are covered by the route's HydrateFallback/Suspense
   // skeleton; this only spins on a language-change revalidation.
   const loading = navigation.state === 'loading' || revalidator.state === 'loading';
+  // Recommendations render above the trending section when shown, so they take the first priority covers
+  const recommendationsFirst = isAuthenticated && (homeData?.recommended_novels?.length ?? 0) > 0;
 
   // Rankings tab state
   const [rankingTab, setRankingTab] = useState<number>(1);
@@ -141,6 +143,7 @@ const HomePage: React.FC = () => {
           <NovelRecommendation
             similarNovels={(homeData?.recommended_novels ?? []).map((novel) => ({ ...novel, similarity: 0 }))}
             loading={loading}
+            priorityCount={recommendationsFirst ? 2 : 0}
           />
         </Box>
       )}
@@ -169,6 +172,7 @@ const HomePage: React.FC = () => {
                   novel={novel} 
                   {...getNovelSourceLink(novel)}
                   rank={index + 1}
+                  priority={!recommendationsFirst && index < 2}
                 />
               </Grid>
             )) || []}

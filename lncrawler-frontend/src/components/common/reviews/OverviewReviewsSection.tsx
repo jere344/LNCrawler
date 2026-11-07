@@ -15,7 +15,7 @@ import {
 import { Link } from 'react-router-dom';
 import UserLink from '@components/profile/UserLink';
 import { Review } from '@services/review.service';
-import ReadOnlyMDXEditor from '@components/common/reviews/ReadOnlyMDXEditor';
+import ReviewContent from '@components/common/reviews/ReviewContent';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { formatTimeAgo } from '@utils/Misc';
@@ -148,15 +148,13 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                   position: 'relative',
                   mb: 1,
                   lineHeight: dense ? 1.4 : undefined,
-                  // Dense: drop the editor's top padding and the first block's margin,
-                  // which otherwise leave a big gap under the rating.
+                  // Dense: drop the first block's margin, which otherwise leaves a big gap under the rating.
                   ...(dense && {
                     '& > .MuiBox-root': { mt: 0.5 },
-                    '& [contenteditable]': { pt: 0 },
-                    '& [contenteditable] > :first-child': { mt: 0 },
+                    '& > .MuiBox-root > :first-child': { mt: 0 },
                   }),
                 }}>
-                  <ReadOnlyMDXEditor 
+                  <ReviewContent
                     content={review.content} 
                     uniqueKey={`overview-review-${review.id}`} 
                   />
