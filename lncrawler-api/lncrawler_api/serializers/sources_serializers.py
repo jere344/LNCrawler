@@ -39,6 +39,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     edition = serializers.SerializerMethodField()
     synopsis = serializers.SerializerMethodField()
     has_crawler = serializers.SerializerMethodField()
+    is_disabled = serializers.SerializerMethodField()
     is_adult = serializers.SerializerMethodField()
     adult_tags = serializers.SerializerMethodField()
 
@@ -77,7 +78,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             'id', 'title', 'source_slug', 'novel_slug', 'source_name', 'edition', 'cover_min_url',
             'language', 'chapters_count', 'available_chapters_count',
             'latest_available_chapter',
-            'last_chapter_update', 'vote_score', 'user_vote',
+            'last_chapter_update', 'vote_score', 'user_vote', 'is_disabled',
         ],
     }
 
@@ -97,6 +98,10 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         # Only detail views show the update button; skip the registry import in
         # list contexts (which don't render it).
         return has_crawler(obj.source_url or '') if self.profile == 'detail' else None
+
+    def get_is_disabled(self, obj: NovelFromSource):
+        # A source whose website is flagged dead (ExternalSource.status); the other-sources list dims it.
+        return obj.external_source.status == 'dead'
 
     def get_is_adult(self, obj: NovelFromSource):
         # The source payload drives cover blurring, so it reports its novel's flag

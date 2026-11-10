@@ -332,7 +332,12 @@ const SourceDetail = () => {
         )}
 
         {novel && novel.sources.length > 1 && (
-          <SectionContainer title={t('sourceDetail.otherSources')} icon={<LanguageIcon />}>
+          <SectionContainer
+            title={t('sourceDetail.otherSources')}
+            icon={<LanguageIcon />}
+            collapsible
+            badge={novel.sources.length - 1}
+          >
             <NovelSources
               novel={{ ...novel, slug: novelSlug ?? novel.slug }}
               currentSourceSlug={sourceSlug}

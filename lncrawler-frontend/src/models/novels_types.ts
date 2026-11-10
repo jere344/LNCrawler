@@ -80,6 +80,8 @@ export interface NovelFromSource {
   edition?: string | null;
   source_slug: string;
   has_crawler: boolean | null;
+  // The source's website is flagged dead (ExternalSource); only the novel detail's summary sources carry it.
+  is_disabled?: boolean;
   cover_path: string | null;
   authors: string[];
   tags: string[];

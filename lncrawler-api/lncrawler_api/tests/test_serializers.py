@@ -68,7 +68,7 @@ class SerializerProfileTests(TestCase):
             "id", "title", "source_slug", "novel_slug", "source_name", "edition", "cover_min_url",
             "language", "chapters_count", "available_chapters_count",
             "latest_available_chapter",
-            "last_chapter_update", "vote_score", "user_vote",
+            "last_chapter_update", "vote_score", "user_vote", "is_disabled",
         ],
         "library": [
             "title", "source_slug", "novel_slug", "novel_id", "cover_min_url",

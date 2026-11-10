@@ -6,7 +6,6 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "any",
   "dir": "ltr",
   "lang": "en",
   "categories": ["books", "entertainment"],
