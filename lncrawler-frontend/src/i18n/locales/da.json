@@ -777,6 +777,7 @@
     "progress": "{percent} % læst",
     "readProgress": "Læsefremskridt",
     "enterFullscreen": "Fuld skærm",
+    "readOnSource": "Læs på kildesiden",
     "exitFullscreen": "Afslut fuld skærm",
     "commentsCount": "{count, plural, =0 {Kommentarer} one {Kommentarer, # kommentar} other {Kommentarer, # kommentarer}}"
   },

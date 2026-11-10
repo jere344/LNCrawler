@@ -777,6 +777,7 @@
     "progress": "{percent} % läst",
     "readProgress": "Läsframsteg",
     "enterFullscreen": "Helskärm",
+    "readOnSource": "Läs på källsidan",
     "exitFullscreen": "Avsluta helskärm",
     "commentsCount": "{count, plural, =0 {Kommentarer} one {Kommentarer, # kommentar} other {Kommentarer, # kommentarer}}"
   },

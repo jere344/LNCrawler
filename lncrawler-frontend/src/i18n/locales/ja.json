@@ -777,6 +777,7 @@
     "progress": "{percent}% 読了",
     "readProgress": "読書の進捗",
     "enterFullscreen": "全画面表示",
+    "readOnSource": "ソースページで読む",
     "exitFullscreen": "全画面表示を終了",
     "commentsCount": "{count, plural, =0 {コメント} other {コメント、#件}}"
   },

@@ -777,6 +777,7 @@
     "progress": "{percent}% lido",
     "readProgress": "Progresso de leitura",
     "enterFullscreen": "Tela cheia",
+    "readOnSource": "Ler na página de origem",
     "exitFullscreen": "Sair da tela cheia",
     "commentsCount": "{count, plural, =0 {Comentários} one {Comentários, # comentário} other {Comentários, # comentários}}"
   },

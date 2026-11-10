@@ -41,7 +41,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             'id', 'chapter_id', 'title', 'display_title', 'url', 'volume', 'volume_title', 'has_content', 'has_audio',
         ],
         'content': [
-            'id', 'chapter_id', 'title', 'display_title', 'novel_title', 'novel_id', 'novel_slug',
+            'id', 'chapter_id', 'title', 'display_title', 'url', 'novel_title', 'novel_id', 'novel_slug',
             'source_id', 'source_name', 'source_slug', 'language', 'body', 'prev_chapter', 'next_chapter',
             'prev_chapter_id', 'next_chapter_id',
             'images_path', 'source_overview_image_url', 'audio_url', 'audio_duration_s',

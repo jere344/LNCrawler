@@ -777,6 +777,7 @@
     "progress": "{percent}% dibaca",
     "readProgress": "Progres membaca",
     "enterFullscreen": "Layar penuh",
+    "readOnSource": "Baca di halaman sumber",
     "exitFullscreen": "Keluar dari layar penuh",
     "commentsCount": "{count, plural, =0 {Komentar} one {Komentar, # komentar} other {Komentar, # komentar}}"
   },

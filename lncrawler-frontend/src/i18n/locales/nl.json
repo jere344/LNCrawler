@@ -777,6 +777,7 @@
     "progress": "{percent}% gelezen",
     "readProgress": "Leesvoortgang",
     "enterFullscreen": "Volledig scherm",
+    "readOnSource": "Lees op de bronpagina",
     "exitFullscreen": "Volledig scherm verlaten",
     "commentsCount": "{count, plural, =0 {Reacties} one {Reacties, # reactie} other {Reacties, # reacties}}"
   },

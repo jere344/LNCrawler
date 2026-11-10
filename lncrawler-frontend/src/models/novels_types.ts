@@ -159,6 +159,8 @@ export interface ChapterContent {
   title: string;
   // The title as readers see it, numbered and in the novel's language; use this instead of title
   display_title: string;
+  // The chapter's page on the source site, when it has one
+  url?: string;
   novel_title: string;
   novel_id: string;
   novel_slug: string;

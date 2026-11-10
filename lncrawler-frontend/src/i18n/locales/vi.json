@@ -777,6 +777,7 @@
     "progress": "Đã đọc {percent}%",
     "readProgress": "Tiến độ đọc",
     "enterFullscreen": "Toàn màn hình",
+    "readOnSource": "Đọc trên trang nguồn",
     "exitFullscreen": "Thoát toàn màn hình",
     "commentsCount": "{count, plural, =0 {Bình luận} other {Bình luận, # bình luận}}"
   },

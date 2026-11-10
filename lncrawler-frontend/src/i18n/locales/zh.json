@@ -777,6 +777,7 @@
     "progress": "已读 {percent}%",
     "readProgress": "阅读进度",
     "enterFullscreen": "全屏",
+    "readOnSource": "在来源页面阅读",
     "exitFullscreen": "退出全屏",
     "commentsCount": "{count, plural, =0 {评论} other {评论，# 条}}"
   },

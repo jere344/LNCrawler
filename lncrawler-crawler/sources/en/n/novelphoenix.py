@@ -3,6 +3,7 @@ import logging
 import re
 from urllib.parse import quote_plus
 
+from lncrawl.core import body_migrations
 from lncrawl.core.crawler import Crawler
 from lncrawl.models import SearchResult
 
@@ -35,6 +36,9 @@ _WATERMARK_RE = re.compile(
 class NovelPhoenixCrawler(Crawler):
     base_url = ["https://novelphoenix.com/"]
     language = "en"
+    # v2: drop the injected watermark paragraphs.
+    version = 2
+    body_migrations = {2: "_migrate_v2"}
 
     def initialize(self) -> None:
         self.cleaner.bad_css.update(
@@ -155,3 +159,6 @@ class NovelPhoenixCrawler(Crawler):
                 if len(text) < 160 and _WATERMARK_RE.search(text):
                     node.extract()
         return self.cleaner.extract_contents(contents)
+
+    def _migrate_v2(self, body, chapter):
+        return body_migrations.drop_matching(body, _WATERMARK_RE, max_length=159)

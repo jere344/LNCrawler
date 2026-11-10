@@ -777,6 +777,7 @@
     "progress": "Przeczytano {percent}%",
     "readProgress": "Postęp czytania",
     "enterFullscreen": "Pełny ekran",
+    "readOnSource": "Czytaj na stronie źródłowej",
     "exitFullscreen": "Wyjdź z trybu pełnego ekranu",
     "commentsCount": "{count, plural, =0 {Komentarze} one {Komentarze, # komentarz} few {Komentarze, # komentarze} many {Komentarze, # komentarzy} other {Komentarze, # komentarza}}"
   },

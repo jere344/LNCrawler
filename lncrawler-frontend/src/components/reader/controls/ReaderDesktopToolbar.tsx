@@ -7,7 +7,7 @@ import { ChapterStepButton } from './ChapterStepButtons';
 import ChapterProgress from './ChapterProgress';
 import type { ReaderBarProps } from './readerBarTypes';
 import { useBarActions } from './barActions';
-import { FullscreenButton } from './BarButtons';
+import { FullscreenButton, SourceLinkButton } from './BarButtons';
 import { reservedMargin } from '../panels/panelLayout';
 
 // Height of the MUI Toolbar at sm and up (the desktop layout)
@@ -42,6 +42,8 @@ const ReaderDesktopToolbar = ({
   fullscreen,
   fullscreenLabel,
   fullscreenTitle,
+  sourceUrl,
+  sourceLabel,
   onHome,
   onChapterList,
   onPrevious,
@@ -120,6 +122,8 @@ const ReaderDesktopToolbar = ({
             {action.icon}
           </ToolbarAction>
         ))}
+
+        {sourceUrl?.startsWith('http') && <SourceLinkButton href={sourceUrl} label={sourceLabel} />}
 
         {fullscreen.supported && (
           <FullscreenButton active={fullscreen.active} label={fullscreenLabel} title={fullscreenTitle} onToggle={fullscreen.onToggle} />

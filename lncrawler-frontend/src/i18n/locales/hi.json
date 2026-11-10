@@ -777,6 +777,7 @@
     "progress": "{percent}% पढ़ा गया",
     "readProgress": "पढ़ने की प्रगति",
     "enterFullscreen": "पूर्ण स्क्रीन",
+    "readOnSource": "स्रोत पेज पर पढ़ें",
     "exitFullscreen": "पूर्ण स्क्रीन से बाहर निकलें",
     "commentsCount": "{count, plural, =0 {टिप्पणियाँ} one {टिप्पणियाँ, # टिप्पणी} other {टिप्पणियाँ, # टिप्पणियाँ}}"
   },

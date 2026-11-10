@@ -73,6 +73,8 @@ export function useReaderBarProps({
     fullscreen,
     fullscreenLabel,
     fullscreenTitle,
+    sourceUrl: chapter?.url,
+    sourceLabel: t('readerControls.readOnSource'),
     onHome: navigation.goToSource,
     onChapterList: onToggleChapters,
     onPrevious: navigation.goPrev,

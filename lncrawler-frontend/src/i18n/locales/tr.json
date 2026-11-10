@@ -777,6 +777,7 @@
     "progress": "{percent}% okundu",
     "readProgress": "Okuma ilerlemesi",
     "enterFullscreen": "Tam ekran",
+    "readOnSource": "Kaynak sayfada oku",
     "exitFullscreen": "Tam ekrandan çık",
     "commentsCount": "{count, plural, =0 {Yorumlar} one {Yorumlar, # yorum} other {Yorumlar, # yorum}}"
   },

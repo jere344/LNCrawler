@@ -37,6 +37,9 @@ export interface ReaderBarProps {
   // The fullscreen button's label, and its tooltip with the shortcut when one is bound
   fullscreenLabel: string;
   fullscreenTitle: string;
+  // The chapter's page on the source site (the link is hidden without one), and the link's label
+  sourceUrl?: string;
+  sourceLabel: string;
   onHome: () => void;
   onChapterList: () => void;
   onPrevious: () => void;

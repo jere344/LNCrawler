@@ -777,6 +777,7 @@
     "progress": "{percent}% مقروء",
     "readProgress": "تقدم القراءة",
     "enterFullscreen": "ملء الشاشة",
+    "readOnSource": "القراءة على صفحة المصدر",
     "exitFullscreen": "إنهاء ملء الشاشة",
     "commentsCount": "{count, plural, =0 {التعليقات} one {التعليقات، تعليق واحد} two {التعليقات، تعليقان} few {التعليقات، # تعليقات} many {التعليقات، # تعليقًا} other {التعليقات، # تعليق}}"
   },

@@ -162,7 +162,8 @@ const ChapterArticle = ({
                   icon: <ListAltIcon fontSize="inherit" />
                 },
                 {
-                  label: chapterLabel,
+                  // Infinite mode: tied to the first section like the header, not the active chapter. A title of another length would wrap this row differently, shift the page and move the reading line across a boundary in a loop
+                  label: infinite && streamChapters[0] ? streamChapters[0].display_title : chapterLabel,
                   icon: <MenuBookIcon fontSize="inherit" />
                 }
               ]}
