@@ -4,7 +4,6 @@ Make each novel's slug and folder follow its canonical source (services/novel_na
 The scheduled task does this every 5 minutes, at most 5 folder renames per run. This command runs
 the same sync by hand, e.g. to drain a backlog with ``--limit``. ``--dry-run`` lists the planned
 canonical changes, renames and collisions without changing anything (it does not apply ``--limit``).
-The command runs whether or not NOVEL_NAMING_SYNC_ENABLED is set.
 """
 
 from django.core.management.base import BaseCommand, CommandError

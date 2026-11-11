@@ -395,22 +395,6 @@ class StabilityMarginTests(SyncTestCase):
         self.assertTrue(self.on_disk("bar", "site"))
 
 
-class SchedulerGateTests(TestCase):
-    def test_task_does_nothing_while_disabled(self):
-        with override_settings(NOVEL_NAMING_SYNC_ENABLED=False), mock.patch(
-            "lncrawler_api.services.novel_naming.sync_novel_naming"
-        ) as sync:
-            sync_novel_naming_task()
-        sync.assert_not_called()
-
-    def test_task_runs_the_sync_when_enabled(self):
-        with override_settings(NOVEL_NAMING_SYNC_ENABLED=True), mock.patch(
-            "lncrawler_api.services.novel_naming.sync_novel_naming"
-        ) as sync:
-            sync_novel_naming_task()
-        sync.assert_called_once_with(limit=5)
-
-
 class CrawlFolderOfAnotherWorkTests(MergeTestCase):
     """Section 7: a crawl whose default folder names another work does not attach to that novel."""
 

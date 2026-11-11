@@ -401,12 +401,9 @@ def refresh_novel_rankings_task():
         raise  # Re-raise to mark task as failed
 
 # Make each novel's slug and folder follow its canonical source (services/novel_naming.py). At most 5
-# folder renames per run. Off unless NOVEL_NAMING_SYNC_ENABLED is set in the environment; the value is
-# read when the scheduler starts, so changing it needs a scheduler restart.
+# folder renames per run. 
 @scheduler.register_task(interval=300, name="sync_novel_naming")  # 5 minutes
 def sync_novel_naming_task():
-    if not settings.NOVEL_NAMING_SYNC_ENABLED:
-        return
     from .services.novel_naming import DEFAULT_RENAME_LIMIT, sync_novel_naming
 
     _run_job(
