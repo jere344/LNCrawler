@@ -317,8 +317,9 @@ def sync_novel_naming(limit=DEFAULT_RENAME_LIMIT, dry_run=False, stdout=None):
        (a change made meanwhile is kept and the next run decides).
     2. Folders, only when some novel's folder differs from its desired one (otherwise the folders are not
        listed): a folder a crashed rename left under its new name is adopted (rows only), then at most
-       ``limit`` folders are renamed (a busy novel does not count), each with its slug, alias and canonical
-       source, through the folder guard.
+       ``limit`` folders are renamed (a busy novel does not count; a novel whose desired folder is still taken
+       and that already sits in its suffixed folder is left as it is, counted as blocked), each with its slug,
+       alias and canonical source, through the folder guard.
 
     ``dry_run`` changes nothing and lists what a run would do; it does not apply ``limit``.
     ``stdout`` receives the same lines as the log when a command runs the sync.
@@ -409,6 +410,10 @@ def sync_novel_naming(limit=DEFAULT_RENAME_LIMIT, dry_run=False, stdout=None):
             if not dry_run and attempted >= limit:
                 break
             folder = names.pick(item.desired, item.novel.pk, own_folder=item.novel.novel_path)
+            if folder == item.novel.novel_path:
+                counts['blocked'] += 1
+                say(f"blocked {item.novel.slug}: '{item.desired}' is taken, stays in '{folder}'")
+                continue
             if folder != item.desired:
                 counts['collision'] += 1
                 say(f"collision {item.novel.slug}: '{item.desired}' is taken, using '{folder}'")

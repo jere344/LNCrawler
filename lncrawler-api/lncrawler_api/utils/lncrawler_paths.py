@@ -73,15 +73,15 @@ def sanitize(text: str) -> str:
     
     # Remove characters that are invalid for filenames
     text = re.sub(r'[\\/:*?"<>|]', '', text)
-    
+
+    # Control characters are invalid on Windows
+    text = re.sub(r'[\x00-\x1f\x7f]', ' ', text)
+
     # Collapse multiple spaces into one
     text = re.sub(r'\s+', ' ', text).strip()
 
-    # remove trailing . (windows delete silently the trailing . when renaming)
-    text = text.rstrip(".")
-
-    # Remove leading and trailing spaces
-    text = text.strip()
+    # Windows drops trailing dots and spaces when creating a folder
+    text = text.strip().rstrip(". ")
 
     return text
 
@@ -98,12 +98,22 @@ def truncate_component(text: str, max_bytes: int = 180) -> str:
     return cut.strip() or text[: max_bytes // 4]
 
 
+WINDOWS_RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
+
+
+def windows_safe(name: str) -> str:
+    """A folder name Windows accepts: no trailing dot or space, no reserved device name."""
+    name = name.rstrip(". ")
+    stem, dot, rest = name.partition(".")
+    if stem.rstrip().lower() in WINDOWS_RESERVED:
+        name = f"{stem}_{dot}{rest}"
+    return name
+
+
 def novel_folder_name(title: str) -> str:
-    """The novel folder name for a title: sanitized, lowercased, truncated, then the naming rules."""
-    name = truncate_component(sanitize(title).lower())
-    if not name:
-        name = "unknown_novel"
-    return novel_naming_rules(name)
+    """The novel folder name for a title: sanitized, lowercased, truncated, then the naming rules, then made Windows-safe."""
+    name = windows_safe(novel_naming_rules(truncate_component(sanitize(title).lower())))
+    return name or "unknown_novel"
 
 
 def get_novel_output_path(source, novel) -> str:
@@ -115,7 +125,7 @@ def get_novel_output_path(source, novel) -> str:
     BASE_DIR = settings.LNCRAWL_OUTPUT_PATH
 
     # Normalize the source name
-    source = truncate_component(sanitize(source).lower())
+    source = windows_safe(truncate_component(sanitize(source).lower()))
     
     # Default name if empty after sanitization
     if not source:

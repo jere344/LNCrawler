@@ -42,7 +42,7 @@ services:
     volumes: &api-volumes
       - ./lncrawler-api:/app/lncrawler-api
       - ${LIGHTNOVELS_PATH:-./Lightnovels}:/app/Lightnovels
-      - ./imports:/app/imports
+      - ${IMPORT_PATH:-./imports}:/app/imports
       - ./lncrawler-api/logs:/app/lncrawler-api/logs
       - ./lncrawler-crawler:/app/lncrawler-crawler
     environment: &api-env

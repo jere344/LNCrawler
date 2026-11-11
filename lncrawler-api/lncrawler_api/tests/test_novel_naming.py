@@ -290,6 +290,16 @@ class NovelNamingRulesTests(SimpleTestCase):
         self.assertEqual(novel_folder_name(""), "unknown_novel")
         self.assertLessEqual(len(novel_folder_name("a" * 300).encode("utf-8")), 180)
 
+    def test_folder_name_is_windows_safe(self):
+        self.assertEqual(novel_folder_name("Foo. ."), "foo")
+        self.assertEqual(novel_folder_name("Foo. Manga"), "foo")
+        self.assertEqual(novel_folder_name("Foo\x07Bar"), "foo bar")
+        self.assertEqual(novel_folder_name("Aux"), "aux_")
+        self.assertEqual(novel_folder_name("Con.Story"), "con_.story")
+        self.assertEqual(novel_folder_name("Console"), "console")
+        self.assertEqual(novel_folder_name("Wow!"), "wow!")
+        self.assertEqual(novel_folder_name("..."), "unknown_novel")
+
 
 class ExternalSourceDeleteNamingTests(TestCase):
     def test_deleting_an_external_source_moves_the_canonical_to_the_rest(self):

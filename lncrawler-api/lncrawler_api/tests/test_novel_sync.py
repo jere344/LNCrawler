@@ -319,6 +319,25 @@ class RenameTests(SyncTestCase):
         self.assertTrue(self.on_disk(expected, "site"))
 
 
+class ParkedNovelTests(SyncTestCase):
+    def test_parked_novel_in_its_suffixed_folder_is_blocked_and_does_not_use_up_the_limit(self):
+        # "foo 2" wants "foo", which is taken on disk by a folder no novel holds: it stays put.
+        os.makedirs(os.path.join(self.tmp, "foo"))
+        parked, _ = self.make_novel("foo 2", "Foo")
+        second, _ = self.make_novel("zed", "Gamma")  # sorts after "foo-2" by slug
+
+        result = self.run_sync(limit=1)
+
+        parked.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(parked.novel_path, "foo 2")
+        self.assertTrue(self.on_disk("foo 2", "site"))
+        self.assertEqual(second.novel_path, "gamma")
+        self.assertEqual(result.get("blocked"), 1)
+        self.assertEqual(result.get("renamed"), 1)
+        self.assertNotIn("collision", result)
+
+
 class SteadyStateTests(SyncTestCase):
     def test_nothing_to_do_does_not_list_the_folders(self):
         self.make_novel("foo", "Foo")
