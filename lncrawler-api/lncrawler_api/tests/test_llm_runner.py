@@ -364,6 +364,23 @@ class DropTargetGoneTests(MergeTestCase):
         self.assertEqual(candidate.status, Candidate.STATUS_APPLIED)
         self.assertEqual(candidate.undo[0]["type"], "novel_merge")
 
+    def test_a_crash_after_a_lost_claim_is_not_retried_in_the_same_run(self):
+        alpha, beta = make_novel("Alpha", "alpha"), make_novel("Beta", "beta")
+        candidate = make_candidate("novel_merge", [str(alpha.pk), str(beta.pk)], ["Alpha", "Beta"])
+        self.chat.return_value = reply({"same": True, "confidence": 0.99, "reason": "same work"})
+        calls = []
+
+        def crashing_merge(task, cand, judgement):
+            # A stuck reset takes the claim, then the merge crashes: the failure cannot be recorded.
+            calls.append(cand.pk)
+            Candidate.objects.filter(pk=cand.pk).update(claimed_at=None)
+            raise RuntimeError("boom")
+
+        with mock.patch.object(llm_tasks.NovelMergeTask, "apply_change", crashing_merge):
+            llm_tasks.run_queue(task_names=["novel_merge"])
+
+        self.assertEqual(calls, [candidate.pk])
+
     def test_novel_pair_with_a_missing_novel_is_deleted(self):
         alpha, beta = make_novel("Alpha", "alpha"), make_novel("Beta", "beta")
         candidate = make_candidate(

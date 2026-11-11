@@ -5,7 +5,8 @@ from importlib import import_module
 from django.apps import apps
 from django.test import TestCase
 
-from ..models import ExternalSource, Novel, NovelFromSource
+from ..models import ExternalSource, NovelFromSource
+from .helpers import make_novel
 
 backfill = import_module(
     "..migrations.0076_backfill_novelfromsource_edition", package=__package__
@@ -14,7 +15,7 @@ backfill = import_module(
 
 class EditionBackfillTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = make_novel(title="Foo", slug="foo", novel_path="foo")
         self.external = ExternalSource.objects.create(source_name="site")
 
     def _row(self, title, url):

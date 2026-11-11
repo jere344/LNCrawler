@@ -15,13 +15,11 @@ interface AddToListDialogProps {
   open: boolean;
   onClose: () => void;
   novelId: string;
-  // Match key: compared against ReadingList.items_names (Novel.title).
-  novelTitle: string;
   // Heading only: the source-facing title shown to the user.
   displayTitle: string;
 }
 
-const AddToListDialog: React.FC<AddToListDialogProps> = ({ open, onClose, novelId, novelTitle, displayTitle }) => {
+const AddToListDialog: React.FC<AddToListDialogProps> = ({ open, onClose, novelId, displayTitle }) => {
   const { t } = useTranslation();
   const [userLists, setUserLists] = useState<ReadingList[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,7 +118,7 @@ const AddToListDialog: React.FC<AddToListDialogProps> = ({ open, onClose, novelI
   };
 
   const isNovelInList = (list: ReadingList) => {
-    return list.items_names?.includes(novelTitle);
+    return list.items_ids?.includes(novelId) ?? false;
   };
 
   return (
@@ -202,9 +200,9 @@ const AddToListDialog: React.FC<AddToListDialogProps> = ({ open, onClose, novelI
                       disabled={alreadyInList}
                     >
                       <ListItemAvatar>
-                        {list.first_item?.novel.prefered_source?.cover_min_url ? (
+                        {list.first_item?.novel.suggested_source?.cover_min_url ? (
                           <Avatar
-                            src={list.first_item.novel.prefered_source.cover_min_url}
+                            src={list.first_item.novel.suggested_source.cover_min_url}
                             alt={list.title}
                             variant="rounded"
                           />

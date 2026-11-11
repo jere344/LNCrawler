@@ -4,25 +4,25 @@ import os
 
 from PIL import Image
 
-from ..models import ExternalSource, Novel
+from ..models import ExternalSource
 from ..services.covers.hashing import dhash_file
 from ..services.covers.overview import OverviewGenerator
 from ..services.covers.resize import generate_cover_min
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, make_novel
 
 
 class CoverServiceTests(MergeTestCase):
     def _make_covered_source(self):
-        novel = Novel.objects.create(title="Covered", slug="covered", novel_path="covered")
+        novel = make_novel(title="Covered", slug="covered", novel_path="covered")
         external = ExternalSource.objects.create(source_name="cover-site")
         source = self.make_source(novel, external, "Covered", "http://x/1", "covered", "site")
         cover_rel = os.path.join(source.source_path, "cover.jpg")
         Image.new("RGB", (400, 600), (10, 60, 120)).save(
             os.path.join(self.tmp, cover_rel), "JPEG"
         )
-        source.cover_path = cover_rel
+        source.cover_file = "cover.jpg"
         source.cover_url = ""
-        source.save(update_fields=["cover_path", "cover_url"])
+        source.save(update_fields=["cover_file", "cover_url"])
         return source
 
     def test_cover_min_hash_matches_backfill(self):

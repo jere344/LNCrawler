@@ -23,7 +23,7 @@ class ReviewSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     """
     user = UserSerializer(read_only=True, profile='compact')
     reactions = ReactionSerializer(many=True, read_only=True)
-    novel_title = serializers.CharField(source='novel.title', read_only=True)
+    novel_title = serializers.SerializerMethodField()
     novel_slug = serializers.CharField(source='novel.slug', read_only=True)
     reaction_count = serializers.IntegerField(source='get_reaction_count', read_only=True)
     current_user_reaction = serializers.SerializerMethodField()
@@ -44,6 +44,9 @@ class ReviewSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = Review
         read_only_fields = ['id', 'created_at', 'updated_at', 'reaction_count']
+
+    def get_novel_title(self, obj):
+        return obj.novel.canonical_source.title if obj.novel.canonical_source_id else None
 
     def get_current_user_reaction(self, obj):
         """Get the current user's reaction to this review, if any"""

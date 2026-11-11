@@ -5,7 +5,8 @@ import shutil
 
 from django.conf import settings
 
-from lncrawler_api.models import Novel, NovelAlias, NovelFromSource
+from lncrawler_api.models import Job, Novel, NovelAlias
+from lncrawler_api.services.folder_guard import ACTIVE_CRAWL_STATUSES
 from lncrawler_api.utils.lncrawler_paths import move_and_merge_directory
 from lncrawler_api.utils.slug import slugify
 
@@ -30,12 +31,17 @@ class UnregisteredFoldersMixin:
             return
 
         known = self._known_top_level_folders()
+        crawling = self._crawling_folders()
         moved = 0
         for name in sorted(os.listdir(self.root)):
             src = os.path.join(self.root, name)
             if name.startswith(".") or not os.path.isdir(src):
                 continue
             if name in known or slugify(name) in known:
+                continue
+            if name in crawling:
+                # A crawl of a new novel writes here before its novel row exists.
+                self.stdout.write(f"  skipped {name!r}: a crawl is writing into it")
                 continue
 
             target = os.path.join(import_folder, name)
@@ -57,13 +63,23 @@ class UnregisteredFoldersMixin:
             ))
 
     @staticmethod
+    def _crawling_folders() -> set:
+        """Top-level folder names an active crawl writes into (recorded in its selected_novel)."""
+        folders = set()
+        for selected in Job.objects.filter(status__in=ACTIVE_CRAWL_STATUSES).values_list("selected_novel", flat=True):
+            folder = (selected or {}).get("folder")
+            if folder:
+                folders.add(folder)
+        return folders
+
+    @staticmethod
     def _known_top_level_folders() -> set:
-        """Top-level folder names any DB row points at (novel_path/source_path/alias)."""
+        """Top-level folder names any DB row points at (novel_path/alias).
+
+        A source folder lives inside its novel folder, so its top-level name is the novel's.
+        """
         known = set()
-        paths = list(Novel.objects.exclude(
-            novel_path__isnull=True).values_list("novel_path", flat=True))
-        paths += list(NovelFromSource.objects.exclude(
-            source_path__isnull=True).values_list("source_path", flat=True))
+        paths = list(Novel.objects.values_list("novel_path", flat=True))
         for path in paths:
             if path:
                 known.add(path.split(os.sep, 1)[0])

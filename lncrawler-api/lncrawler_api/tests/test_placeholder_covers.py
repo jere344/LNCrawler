@@ -8,11 +8,11 @@ from django.contrib.messages import get_messages
 from django.urls import reverse
 from PIL import Image
 
-from ..models import ExternalSource, Novel, NovelFromSource, PlaceholderCover
+from ..models import ExternalSource, NovelFromSource, PlaceholderCover
 from ..services.covers.duplicates import duplicate_cover_groups
 from ..services.covers.placeholders import mark_placeholder
 from ..services.covers.resize import generate_cover_min
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, make_novel
 
 
 class PlaceholderCoverTests(MergeTestCase):
@@ -22,7 +22,7 @@ class PlaceholderCoverTests(MergeTestCase):
 
     def _novel(self, title):
         slug = title.lower()
-        return Novel.objects.create(title=title, slug=slug, novel_path=slug)
+        return make_novel(title=title, slug=slug, novel_path=slug)
 
     def _image(self, seed):
         # Seeded noise: each seed gives a different dHash, the same seed the same one.
@@ -31,12 +31,12 @@ class PlaceholderCoverTests(MergeTestCase):
 
     def _covered_source(self, novel, folder, seed):
         source = self.make_source(
-            novel, self.external, novel.title, f"http://site/{folder}", novel.novel_path, folder
+            novel, self.external, novel.canonical_source.title, f"http://site/{folder}", novel.novel_path, folder
         )
         cover_rel = os.path.join(source.source_path, "cover.jpg")
         self._image(seed).save(os.path.join(self.tmp, cover_rel), "JPEG")
-        source.cover_path = cover_rel
-        source.save(update_fields=["cover_path"])
+        source.cover_file = "cover.jpg"
+        source.save(update_fields=["cover_file"])
         self.assertTrue(generate_cover_min(source))
         source.refresh_from_db()
         return source
@@ -109,9 +109,9 @@ class PlaceholderCoverTests(MergeTestCase):
         source = self.make_source(novel, self.external, "Zeta", "http://site/z1", novel.novel_path, "z1")
         cover_rel = os.path.join(source.source_path, "cover.jpg")
         self._image(5).save(os.path.join(self.tmp, cover_rel), "JPEG")
-        source.cover_path = cover_rel
+        source.cover_file = "cover.jpg"
         source.cover_url = "http://remote/cover.jpg"
-        source.save(update_fields=["cover_path", "cover_url"])
+        source.save(update_fields=["cover_file", "cover_url"])
 
         self.assertFalse(generate_cover_min(source))
 

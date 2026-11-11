@@ -11,11 +11,11 @@ import os
 
 from django.test import SimpleTestCase
 
-from ..models import ExternalSource, Novel, NovelAlias, NovelFromSource
+from ..models import ExternalSource, NovelAlias, NovelFromSource
 from ..models.sources_models import SourceFolderConflict
 from ..services.downloader_helpers import choose_crawl_output_path
 from ..utils import lncrawler_paths
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, bare_novel
 
 
 def write_marker(folder, text):
@@ -37,7 +37,7 @@ class CrawlFolderChoiceTests(MergeTestCase):
         self.external = ExternalSource.objects.create(source_name="site")
         # The web novel of "site" already lives in foo/site.
         self.wn = self.make_source(
-            Novel.objects.create(title="Foo", slug="foo", novel_path="foo"),
+            bare_novel("foo", "foo"),
             self.external, "Foo (WN)", "http://site/wn", "foo", "site", 0,
         )
         self.novel_dir = os.path.join(self.tmp, "foo")
@@ -52,7 +52,7 @@ class CrawlFolderChoiceTests(MergeTestCase):
         # A row holds "site [2]" in the database only; nothing is on disk.
         NovelFromSource.objects.create(
             novel=self.wn.novel, external_source=self.external, title="Foo (RAW)",
-            source_url="http://site/raw", source_path=os.path.join("foo", "site [2]"),
+            source_url="http://site/raw", source_folder="site [2]",
         )
         path = choose_crawl_output_path("site", "Foo")
         self.assertEqual(path, os.path.join(self.novel_dir, "site [3]"))
@@ -79,7 +79,7 @@ class ImportedFolderNameTests(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = bare_novel("foo", "foo")
         self.external = ExternalSource.objects.create(source_name="site")
 
     def _crawl(self, parts, title, url):
@@ -154,7 +154,7 @@ class ConsolidateOwnershipTests(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = bare_novel("foo", "foo")
         self.external = ExternalSource.objects.create(source_name="site")
         self.wn = self.make_source(
             self.novel, self.external, "Foo (WN)", "http://site/wn", "foo", "site", 0,
@@ -165,12 +165,12 @@ class ConsolidateOwnershipTests(MergeTestCase):
         write_marker(os.path.join(self.tmp, "foo", "site"), "wn")
         ln = NovelFromSource.objects.create(
             novel=self.novel, external_source=self.external, title="Foo (LN)",
-            source_url="http://site/ln", source_path=os.path.join("foo", "site"),
+            source_url="http://site/ln", source_folder="site",
         )
         source_dir = os.path.join(self.tmp, "lnfoo", "site")
         write_marker(source_dir, "ln")
 
-        _, source_path, _, _ = NovelFromSource._consolidate_source_directory(
+        _, source_folder = NovelFromSource._consolidate_source_directory(
             source_dir=source_dir,
             output_path=self.tmp,
             novel=self.novel,
@@ -178,7 +178,7 @@ class ConsolidateOwnershipTests(MergeTestCase):
             title="Foo (LN)",
         )
 
-        self.assertEqual(source_path, os.path.join("foo", "site [light-novel]"))
+        self.assertEqual(source_folder, "site [light-novel]")
         self.assertEqual(read_marker(os.path.join(self.tmp, "foo", "site")), "wn")
         self.assertEqual(read_marker(os.path.join(self.tmp, "foo", "site [light-novel]")), "ln")
         self.assertFalse(os.path.exists(source_dir))
@@ -207,7 +207,7 @@ class ImportedEditionTests(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = bare_novel("foo", "foo")
 
     def _crawl(self, parts, title, url, edition=_NO_EDITION):
         source_dir = os.path.join(self.tmp, *parts)
@@ -278,7 +278,7 @@ class CrawlFolderByUrlTests(MergeTestCase):
     def setUp(self):
         super().setUp()
         self.external = ExternalSource.objects.create(source_name="site")
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = bare_novel("foo", "foo")
         # Row A (URL Y) owns foo/site and names the same work as the crawl.
         self.make_source(self.novel, self.external, "Foo", "http://site/y", "foo", "site", 0)
         self.novel_dir = os.path.join(self.tmp, "foo")
@@ -287,7 +287,7 @@ class CrawlFolderByUrlTests(MergeTestCase):
         # Row B (URL X) recorded foo/site [2]; that folder was deleted from disk.
         NovelFromSource.objects.create(
             novel=self.novel, external_source=self.external, title="Foo",
-            source_url="http://site/x", source_path=os.path.join("foo", "site [2]"),
+            source_url="http://site/x", source_folder="site [2]",
         )
         path = choose_crawl_output_path("site", "Foo", source_url="http://site/x")
         self.assertEqual(path, os.path.join(self.tmp, "foo", "site [2]"))
@@ -295,7 +295,7 @@ class CrawlFolderByUrlTests(MergeTestCase):
     def test_crawl_url_row_without_a_path_never_reuses_another_rows_folder(self):
         NovelFromSource.objects.create(
             novel=self.novel, external_source=self.external, title="Foo",
-            source_url="http://site/x", source_path="",
+            source_url="http://site/x", source_folder="",
         )
         path = choose_crawl_output_path("site", "Foo", source_url="http://site/x")
         self.assertEqual(path, os.path.join(self.novel_dir, "site [2]"))
@@ -321,7 +321,7 @@ class LegacyEditionImportTests(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = bare_novel("foo", "foo")
         self.external = ExternalSource.objects.create(source_name="site")
 
     def _crawl(self, parts, title, url, edition=None):
@@ -339,7 +339,7 @@ class LegacyEditionImportTests(MergeTestCase):
         row = NovelFromSource.objects.create(
             novel=self.novel, external_source=self.external, title="Foo",
             edition="Official translation", source_url="http://site/a",
-            source_path=os.path.join("foo", "site [official-translation]"),
+            source_folder="site [official-translation]",
         )
         # An old meta.json (no edition key) for a mirror URL, from that same folder.
         meta = self._crawl(["foo", "site [official-translation]"], "Foo", "http://site/b")

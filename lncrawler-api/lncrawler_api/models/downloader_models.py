@@ -84,6 +84,16 @@ class Job(models.Model):
 
     # Number of times a crashed/stale job has been requeued for another attempt
     retry_count = models.PositiveIntegerField(default=0)
+
+    # The novel this crawl writes into, set as soon as the crawl knows it. The folder
+    # guard reads it: a novel with an active crawl cannot have its folder moved.
+    novel = models.ForeignKey(
+        'lncrawler_api.Novel',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='crawl_jobs',
+    )
     
     class Meta:
         # The crawler supervisor claims the oldest queued job on every poll;

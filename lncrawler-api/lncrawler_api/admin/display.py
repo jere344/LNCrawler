@@ -11,7 +11,7 @@ def truncate(text, limit):
 def comment_target(comment):
     """The novel or chapter a comment is on, as a label."""
     if comment.novel:
-        return f"Novel: {comment.novel.title}"
+        return f"Novel: {comment.novel}"
     elif comment.chapter:
         return f"Chapter: {comment.chapter.display_title}"
     return "Unknown"

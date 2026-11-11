@@ -158,7 +158,7 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, with_pro
 
     if search:
         bookmarks = bookmarks.filter(
-            Q(novel__title__icontains=search)
+            Q(novel__sources__title__icontains=search)
             | Q(novel__sources__authors__name__icontains=search)
         ).distinct()
 
@@ -169,11 +169,11 @@ def _library_response(owner, viewer, request, show_notes, show_ratings, with_pro
     bookmarks = bookmarks.select_related("folder").annotate(owner_rating=owner_rating)
 
     if sort == "title":
-        bookmarks = bookmarks.order_by("novel__title")
+        bookmarks = bookmarks.order_by("novel__slug")
     elif sort == "date_added":
         bookmarks = bookmarks.order_by("-created_at")
     elif sort == "rating" and show_ratings:
-        bookmarks = bookmarks.order_by(F("owner_rating").desc(nulls_last=True), "novel__title")
+        bookmarks = bookmarks.order_by(F("owner_rating").desc(nulls_last=True), "novel__slug")
     else:
         sort = "custom"
         bookmarks = bookmarks.order_by("position", "-created_at")

@@ -384,7 +384,7 @@ class CandidateAdmin(admin.ModelAdmin):
         )
         return {
             "id": novel.pk,
-            "title": novel.title,
+            "title": str(novel),
             "slug": novel.slug,
             "admin_url": reverse("admin:lncrawler_api_novel_change", args=[novel.pk]),
             "source_count": novel.sources.count(),
@@ -416,7 +416,7 @@ class CandidateAdmin(admin.ModelAdmin):
             "novel_count": novels.count(),
             "novels": [
                 {
-                    "title": novel.title,
+                    "title": str(novel),
                     "admin_url": reverse("admin:lncrawler_api_novel_change", args=[novel.pk]),
                     "cover": next(
                         (
@@ -440,7 +440,7 @@ class CandidateAdmin(admin.ModelAdmin):
                 "admin_url": reverse("admin:lncrawler_api_author_change", args=[author.pk]),
                 "aliases": [alias.name for alias in author.aliases.all()],
                 "novel_count": novels.count(),
-                "titles": list(novels.values_list("title", flat=True)[:5]),
+                "titles": list(novels.values_list("canonical_source__title", flat=True)[:5]),
             })
         return {"authors": authors}
 

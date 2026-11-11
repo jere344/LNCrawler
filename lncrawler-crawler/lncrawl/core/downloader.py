@@ -60,6 +60,19 @@ IMG_TAG_RE = re.compile(r"<img\b", re.IGNORECASE)
 SOURCE_LOCK_FILE = ".lncrawl.lock"
 
 
+def _make_subfolder(folder: Path) -> None:
+    """Create one subfolder (``json``, ``images``) of an existing source folder.
+
+    The source folder itself is never created here: a missing one means the path
+    is stale (the novel was moved or the source deleted), and the write must fail
+    instead of recreating it. ``FileNotFoundError`` is raised in that case.
+    """
+    try:
+        os.mkdir(folder)
+    except FileExistsError:
+        pass
+
+
 def _write_chapter_json(output_path, file_name: Path, data: dict) -> None:
     """Write a chapter JSON, invalidating any stale solid archive.
 
@@ -84,7 +97,7 @@ def _write_chapter_json(output_path, file_name: Path, data: dict) -> None:
             json_dir = source_dir / "json"
             if json_dir.exists() or _restore_archive(source_dir, archive):
                 archive.unlink()
-        file_name.parent.mkdir(parents=True, exist_ok=True)
+        _make_subfolder(file_name.parent)
         with file_name.open("w", encoding="utf-8") as fp:
             json.dump(data, fp, ensure_ascii=False)
     finally:
@@ -449,7 +462,6 @@ def _fetch_content_image(app, url: str, image_file: Path, force: bool = False) -
                 raise ValueError(
                     f"Image too large: {img.width}x{img.height} ({url})"
                 )
-            image_file.parent.mkdir(parents=True, exist_ok=True)
             oversized = img.width * img.height > MAX_IMAGE_PIXELS
             gate = _LARGE_DECODE_GATE if oversized else contextlib.nullcontext()
             with gate:
@@ -563,6 +575,8 @@ def fetch_chapter_images(app) -> None:
         for chapter in app.chapters
         for filename, url in chapter.get("images", {}).items()
     )
+    if images_to_download:
+        _make_subfolder(image_folder)
     app.progress = 0
     app.progress_unit = "images"
     # One tick per resolved future (cover + each image), whether it was

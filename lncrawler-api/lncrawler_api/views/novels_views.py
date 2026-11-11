@@ -52,7 +52,7 @@ def list_novels(request):
     # Count a bare id queryset so the paginator doesn't recompute the card
     # subqueries for every row just to get a total.
     count_queryset = novels.order_by().values("pk")
-    novels = novel_queryset(novels, request.user).order_by("title")
+    novels = novel_queryset(novels, request.user).order_by("slug")
     return paginated_response(
         request, novels, NovelSerializer, max_size=50, count_queryset=count_queryset
     )
@@ -210,9 +210,10 @@ def search_novels(request):
     # (up to ~5 min stale).
     if sort_by == "rating":
         order_field = "-rank_avg_rating" if sort_order == "desc" else "rank_avg_rating"
-        novels_query = novels_query.order_by(order_field, "title")
+        novels_query = novels_query.order_by(order_field, "slug")
     elif sort_by == "title":
-        order_field = "-title" if sort_order == "desc" else "title"
+        # The slug is the slugified canonical title: same order, and indexed.
+        order_field = "-slug" if sort_order == "desc" else "slug"
         novels_query = novels_query.order_by(order_field)
     elif sort_by == "date_added":
         order_field = "-created_at" if sort_order == "desc" else "created_at"
@@ -220,11 +221,11 @@ def search_novels(request):
     elif sort_by == "popularity":
         # Total view count for popularity, from the rank_total_views projection
         order_field = "-rank_total_views" if sort_order == "desc" else "rank_total_views"
-        novels_query = novels_query.order_by(order_field, "title")
+        novels_query = novels_query.order_by(order_field, "slug")
     elif sort_by == "trending":
         # Rolling 7-day view count for trending, from the rank_week_views projection
         order_field = "-rank_week_views" if sort_order == "desc" else "rank_week_views"
-        novels_query = novels_query.order_by(order_field, "title")
+        novels_query = novels_query.order_by(order_field, "slug")
     elif sort_by == "last_updated":
         # The novel's most recent chapter update over its sources, from the
         # rank_last_update projection (no join, so the count skips sources).
@@ -234,10 +235,10 @@ def search_novels(request):
             last_update = F("rank_last_update").desc(nulls_last=True)
         else:
             last_update = F("rank_last_update").asc(nulls_last=True)
-        novels_query = novels_query.order_by(last_update, "title")
+        novels_query = novels_query.order_by(last_update, "slug")
     else:
         # Default sorting by title
-        novels_query = novels_query.order_by("title")
+        novels_query = novels_query.order_by("slug")
 
     # With a text query, exact/near title matches outrank the chosen sort; the
     # chosen sort still breaks ties between equally close matches.
@@ -384,7 +385,7 @@ def _home_audiobooks(user):
             ),
             'popular': list(
                 annotate_public_totals(visible)
-                .order_by('-popularity', '-novel__rank_total_views', 'novel__title', 'pk')
+                .order_by('-popularity', '-novel__rank_total_views', 'novel__slug', 'pk')
                 .values_list('pk', flat=True)[:HOME_AUDIOBOOK_LIMIT + 1]
             ),
         }
@@ -464,7 +465,7 @@ def home_page(request):
                 Sum('sources__total_views', filter=language_filter), Value(0)
             )
         )
-        .order_by('-total_views', 'title')[:12]
+        .order_by('-total_views', 'slug')[:12]
     )
 
     # Trending novels (rolling 7-day views).
@@ -478,7 +479,7 @@ def home_page(request):
                 Value(0),
             )
         )
-        .order_by('-week_views', 'title')[:12]
+        .order_by('-week_views', 'slug')[:12]
     )
     
     # Top rated novels
@@ -486,7 +487,7 @@ def home_page(request):
         base_queryset.annotate(
             avg_rating=Coalesce(Avg("ratings__rating"), Value(0.0))
         )
-        .order_by('-avg_rating', 'title')[:12]
+        .order_by('-avg_rating', 'slug')[:12]
     )
     
     # Recently added novels, one entry per novel (by creation time). Distinct
@@ -549,7 +550,7 @@ def home_page(request):
     recently_updated = _in_order(recently_updated_fresh, rankings['recently_updated'])
 
     # Get recent reviews (restricted to novels in the selected languages)
-    recent_reviews_qs = Review.objects.select_related('user', 'novel').filter(
+    recent_reviews_qs = Review.objects.select_related('user', 'novel__canonical_source').filter(
         novel__is_dmca=False
     )
     recent_reviews_qs = exclude_adult(recent_reviews_qs, request.user, 'novel__')

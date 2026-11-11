@@ -34,16 +34,15 @@ from ..models import (
 from ..management.commands.prune_library import Command
 from ..services.chapter_stats import refresh_chapter_stats
 from ..services.prune.common import normalize_source_name
+from ..services.novel_operations import FileJournal
 from ..utils import chapter_utils
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, bare_novel
 
 
 class PruneLibraryPortTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(
-            title="Story", slug="story", novel_path="story"
-        )
+        self.novel = bare_novel("story", "story")
         dead_ext = ExternalSource.objects.create(source_name="deadsite")
         live_ext = ExternalSource.objects.create(source_name="livesite")
         self.dead = self.make_source(
@@ -121,9 +120,9 @@ class PruneLibraryPortTests(MergeTestCase):
         from ..management.commands.prune_library import Command
 
         for _ in range(30):
-            Novel.objects.create(
-                title="Sample", slug=uuidlib.uuid4().hex, novel_path="sample"
-            )
+            bare_novel(uuidlib.uuid4().hex,
+        novel_path="sample",
+    )
 
         cmd = Command()
         cmd.percent = 50
@@ -175,9 +174,9 @@ class PruneLibraryPortTests(MergeTestCase):
         from ..management.commands.prune_library import Command
 
         for _ in range(4):
-            Novel.objects.create(
-                title="Paged", slug=uuidlib.uuid4().hex, novel_path="paged"
-            )
+            bare_novel(uuidlib.uuid4().hex,
+        novel_path="paged",
+    )
 
         cmd = Command()
         cmd.limit = 2
@@ -216,16 +215,14 @@ class PruneUnregisteredTests(TestCase):
             override.enable()
             self.addCleanup(override.disable)
 
-        self.registered = Novel.objects.create(
-            title="Kept", slug="kept", novel_path="kept"
-        )
+        self.registered = bare_novel("kept", "kept")
         os.makedirs(os.path.join(self.tmp, "kept", "site"))
         NovelFromSource.objects.create(
             novel=self.registered,
             external_source=ExternalSource.objects.create(source_name="site"),
             title="Kept",
             source_url="http://x/kept",
-            source_path=os.path.join("kept", "site"),
+            source_folder="site",
         )
         os.makedirs(os.path.join(self.tmp, "orphan"))
 
@@ -236,6 +233,20 @@ class PruneUnregisteredTests(TestCase):
         self.assertTrue(os.path.isdir(os.path.join(self.imports, "orphan")))
         self.assertTrue(os.path.isdir(os.path.join(self.tmp, "kept", "site")))
 
+    def test_folder_of_an_active_crawl_is_not_swept(self):
+        # A crawl of a new novel writes into its folder before the novel row exists.
+        job = Job.objects.create(
+            job_type=Job.JOB_TYPE_DOWNLOAD, status=Job.STATUS_DOWNLOADING,
+            selected_novel={"title": "Orphan", "folder": "orphan"},
+        )
+        call_command("prune_library", "--apply", "--sweep-unregistered", verbosity=0)
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "orphan")))
+
+        Job.objects.filter(pk=job.pk).update(status=Job.STATUS_FAILED)
+        call_command("prune_library", "--apply", "--sweep-unregistered", verbosity=0)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "orphan")))
+        self.assertTrue(os.path.isdir(os.path.join(self.imports, "orphan")))
+
     def test_dry_run_changes_nothing(self):
         call_command("prune_library", "--sweep-unregistered", verbosity=0)
 
@@ -245,7 +256,7 @@ class PruneUnregisteredTests(TestCase):
 
 class ConsolidateSourceViewsTests(TestCase):
     def setUp(self):
-        novel = Novel.objects.create(title="Old", slug="old", novel_path="old")
+        novel = bare_novel("old", "old")
         ext = ExternalSource.objects.create(source_name="site")
         self.source = NovelFromSource.objects.create(
             novel=novel, external_source=ext, title="Old", source_url="http://x/old"
@@ -302,14 +313,14 @@ class ConsolidateSourceViewsTests(TestCase):
 
 class UpdatePopularSourcesTests(TestCase):
     def _make_source(self, novel_title, slug, source_name, url, views, updated=None):
-        novel = Novel.objects.create(title=novel_title, slug=slug, novel_path=slug)
+        novel = bare_novel(slug, slug)
         external = ExternalSource.objects.create(source_name=source_name)
         return NovelFromSource.objects.create(
             novel=novel,
             external_source=external,
             title=novel_title,
             source_url=url,
-            source_path=f"{slug}/{source_name}",
+            source_folder=source_name,
             source_slug=source_name,
             total_views=views,
             last_chapter_update=updated,
@@ -444,7 +455,7 @@ class PruneFindKeepersTests(MergeTestCase):
         }
 
     def test_keeper_with_equal_chapter_count_is_accepted(self):
-        novel = Novel.objects.create(title="Equal", slug="equal", novel_path="equal")
+        novel = bare_novel("equal", "equal")
         dead_ext = ExternalSource.objects.create(source_name="deadsite")
         live_ext = ExternalSource.objects.create(source_name="livesite")
         dead = self.make_source(novel, dead_ext, "E", "http://dead/e", "equal", "deadsite", 2)
@@ -455,7 +466,7 @@ class PruneFindKeepersTests(MergeTestCase):
         self.assertEqual(keepers, [live])
 
     def test_keeper_with_fewer_chapters_is_rejected(self):
-        novel = Novel.objects.create(title="Short", slug="short", novel_path="short")
+        novel = bare_novel("short", "short")
         dead_ext = ExternalSource.objects.create(source_name="deadsite")
         live_ext = ExternalSource.objects.create(source_name="livesite")
         dead = self.make_source(novel, dead_ext, "S", "http://dead/s", "short", "deadsite", 2)
@@ -466,7 +477,7 @@ class PruneFindKeepersTests(MergeTestCase):
         self.assertEqual(keepers, [])
 
     def test_stale_stored_count_does_not_reject_a_real_keeper(self):
-        novel = Novel.objects.create(title="Stale", slug="stale", novel_path="stale")
+        novel = bare_novel("stale", "stale")
         dead = self.make_source(novel, ExternalSource.objects.create(source_name="deadsite"), "S", "http://dead/st", "stale", "deadsite", 2)
         live = self.make_source(novel, ExternalSource.objects.create(source_name="livesite"), "S", "http://live/st", "stale", "livesite", 2)
         # The stored count is stale (0) while the chapters exist: the keeper is judged on them.
@@ -600,7 +611,7 @@ def _words(prefix, chapter, count=300):
 
 class Phase3Base(MergeTestCase):
     def _novel(self, slug, age_days=8):
-        novel = Novel.objects.create(title=slug.title(), slug=slug, novel_path=slug)
+        novel = bare_novel(slug, slug)
         Novel.objects.filter(pk=novel.pk).update(
             created_at=timezone.now() - timedelta(days=age_days)
         )
@@ -612,12 +623,15 @@ class Phase3Base(MergeTestCase):
         abs_dir = os.path.join(self.tmp, source_path)
         json_dir = os.path.join(abs_dir, "json")
         os.makedirs(json_dir, exist_ok=True)
+        if novel.novel_path != folder:
+            novel.novel_path = folder
+            novel.save(update_fields=["novel_path"])
         source = NovelFromSource.objects.create(
             novel=novel,
             external_source=ext,
-            title=novel.title,
+            title=folder.title(),
             source_url=f"http://{ext.source_name}/{folder}",
-            source_path=source_path,
+            source_folder=ext.source_name,
             source_slug=ext.source_name,
             language="en",
             status="Ongoing",
@@ -677,11 +691,11 @@ class PhaseThreeSimilarityTests(Phase3Base):
         novel = self._novel(slug)
         dead = self._text_source(
             novel, ExternalSource.objects.create(source_name=f"{slug}-dead"),
-            "dead", dead_bodies,
+            slug, dead_bodies,
         )
         keeper = self._text_source(
             novel, ExternalSource.objects.create(source_name=f"{slug}-live"),
-            "live", keeper_bodies,
+            slug, keeper_bodies,
         )
         return dead, keeper
 
@@ -901,10 +915,10 @@ class PhaseThreeAlignmentTests(Phase3Base):
     def _keeper_pair(self, dead_bodies, keeper_bodies, slug):
         novel = self._novel(slug)
         dead = self._text_source(
-            novel, ExternalSource.objects.create(source_name=f"{slug}-dead"), "dead", dead_bodies,
+            novel, ExternalSource.objects.create(source_name=f"{slug}-dead"), slug, dead_bodies,
         )
         keeper = self._text_source(
-            novel, ExternalSource.objects.create(source_name=f"{slug}-live"), "live", keeper_bodies,
+            novel, ExternalSource.objects.create(source_name=f"{slug}-live"), slug, keeper_bodies,
         )
         return dead, keeper
 
@@ -1080,10 +1094,10 @@ class VoteAndFallbackTests(Phase3Base):
     def _keeper_pair(self, dead_bodies, keeper_bodies, slug):
         novel = self._novel(slug)
         dead = self._text_source(
-            novel, ExternalSource.objects.create(source_name=f"{slug}-dead"), "dead", dead_bodies,
+            novel, ExternalSource.objects.create(source_name=f"{slug}-dead"), slug, dead_bodies,
         )
         keeper = self._text_source(
-            novel, ExternalSource.objects.create(source_name=f"{slug}-live"), "live", keeper_bodies,
+            novel, ExternalSource.objects.create(source_name=f"{slug}-live"), slug, keeper_bodies,
         )
         return dead, keeper
 
@@ -1135,15 +1149,15 @@ class VoteAndFallbackTests(Phase3Base):
     def test_second_keeper_tried_after_refused_comments(self):
         novel = self._novel("two-keepers")
         dead = self._text_source(
-            novel, ExternalSource.objects.create(source_name="dead-x"), "tk-dead",
+            novel, ExternalSource.objects.create(source_name="dead-x"), "two-keepers",
             {1: _words("c", 1), 2: _words("c", 2)},
         )
         keeper_a = self._text_source(
-            novel, ExternalSource.objects.create(source_name="aaa-live"), "tk-a",
+            novel, ExternalSource.objects.create(source_name="aaa-live"), "two-keepers",
             {1: _words("a", 1), 2: _words("a", 2)},
         )
         keeper_b = self._text_source(
-            novel, ExternalSource.objects.create(source_name="bbb-live"), "tk-b",
+            novel, ExternalSource.objects.create(source_name="bbb-live"), "two-keepers",
             {1: _words("c", 1), 2: _words("c", 2)},
         )
         Comment.objects.create(
@@ -1177,7 +1191,7 @@ class VoteAndFallbackTests(Phase3Base):
         cmd.apply = True
 
         rel = os.path.relpath(outside, self.tmp)
-        self.assertIsNone(cmd._move_to_trash(rel))
-        self.assertIsNone(cmd._move_to_trash("../x"))
-        self.assertIsNone(cmd._move_to_trash("."))
+        self.assertIsNone(cmd._move_to_trash(rel, FileJournal()))
+        self.assertIsNone(cmd._move_to_trash("../x", FileJournal()))
+        self.assertIsNone(cmd._move_to_trash(".", FileJournal()))
         self.assertTrue(os.path.isdir(outside))

@@ -5,7 +5,7 @@ import zipfile
 
 from django.urls import reverse
 
-from ..models import ExternalSource, Job, Novel
+from ..models import ExternalSource, Job
 from ..services.epub_service import (
     cached_epub,
     enqueue_epub_job,
@@ -13,13 +13,13 @@ from ..services.epub_service import (
     parse_epub_job_key,
     run_epub_job,
 )
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, make_novel
 
 
 class EpubJobTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(title="Book", slug="book", novel_path="book")
+        self.novel = make_novel(title="Book", slug="book", novel_path="book")
         self.source = self.make_source(
             self.novel,
             ExternalSource.objects.create(source_name="site"),
@@ -106,10 +106,10 @@ class EpubJobTests(MergeTestCase):
         os.makedirs(os.path.join(root, "images"), exist_ok=True)
         with open(os.path.join(root, "images", "abc.jpg"), "wb") as f:
             f.write(b"img")
-        with open(os.path.join(self.tmp, "cover.png"), "wb") as f:
+        with open(os.path.join(root, "cover.png"), "wb") as f:
             f.write(b"cover")
-        self.source.cover_path = "cover.png"
-        self.source.save(update_fields=["cover_path"])
+        self.source.cover_file = "cover.png"
+        self.source.save(update_fields=["cover_file"])
         chapter_file = os.path.join(root, "json", "00001.json")
         with open(chapter_file, encoding="utf-8") as f:
             data = json.load(f)

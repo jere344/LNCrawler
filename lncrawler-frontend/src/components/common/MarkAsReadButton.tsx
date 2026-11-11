@@ -11,7 +11,7 @@ import MarkAsReadConfirmDialog from './MarkAsReadConfirmDialog';
 /** True when the novel has chapters the user has not read yet. */
 export const hasUnreadChapters = (novel: LibraryNovel): boolean => {
   if (novel.reading_history) return novel.reading_history.unread_chapters > 0;
-  return Boolean(novel.is_bookmarked && novel.prefered_source?.latest_available_chapter);
+  return Boolean(novel.is_bookmarked && novel.suggested_source?.latest_available_chapter);
 };
 
 /** Unread chapter count shown on the cover, or null when there is none. */
@@ -25,9 +25,9 @@ export const getUnreadChapterCount = (novel: LibraryNovel): number | null => {
     }
     return unread > 0 ? unread : null;
   }
-  if (novel.is_bookmarked && novel.prefered_source) {
-    const available = novel.prefered_source.available_chapters_count
-      ?? novel.prefered_source.latest_available_chapter?.chapter_id;
+  if (novel.is_bookmarked && novel.suggested_source) {
+    const available = novel.suggested_source.available_chapters_count
+      ?? novel.suggested_source.latest_available_chapter?.chapter_id;
     return available && available > 0 ? available : null;
   }
   return null;
@@ -45,12 +45,12 @@ export const getMarkAsReadTarget = (
   let sourceSlug: string;
   let chapterNumber: number;
   if (novel.reading_history) {
-    sourceSlug = novel.reading_history.source_slug || novel.prefered_source?.source_slug || '';
+    sourceSlug = novel.reading_history.source_slug || novel.suggested_source?.source_slug || '';
     chapterNumber = novel.reading_history.source_latest_chapter?.chapter_id ||
                     novel.reading_history.current_chapter?.chapter_id || 0;
   } else {
-    sourceSlug = novel.prefered_source?.source_slug || '';
-    chapterNumber = novel.prefered_source?.latest_available_chapter?.chapter_id || 0;
+    sourceSlug = novel.suggested_source?.source_slug || '';
+    chapterNumber = novel.suggested_source?.latest_available_chapter?.chapter_id || 0;
   }
   return sourceSlug && chapterNumber > 0 ? { sourceSlug, chapterNumber } : null;
 };

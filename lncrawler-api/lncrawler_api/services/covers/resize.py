@@ -1,4 +1,3 @@
-import os
 import logging
 from pathlib import Path
 
@@ -25,8 +24,8 @@ def generate_cover_min(source, width=200, height=300, quality=80) -> bool:
             logger.warning("Cover image not found at: %s", cover_full_path)
             return False
 
+        # The source folder must exist (folder guard, rule 1): no mkdir here.
         output_dir = Path(settings.LNCRAWL_OUTPUT_PATH) / source.source_path
-        output_dir.mkdir(parents=True, exist_ok=True)
 
         cover_min_filename = 'cover.min.webp'
         cover_min_path = output_dir / cover_min_filename
@@ -52,17 +51,16 @@ def generate_cover_min(source, width=200, height=300, quality=80) -> bool:
         # backfill hashes are identical and therefore comparable.
         cover_phash = dhash_file(cover_min_path)
 
-        relative_min_path = os.path.join(source.source_path, cover_min_filename)
         if is_placeholder_hash(cover_phash):
             logger.info("Dropping placeholder cover for: %s (hash %s)", source.title, cover_phash)
             # Point the source at the file just written so remove_cover deletes it too.
-            source.cover_min_path = relative_min_path
+            source.cover_min_file = cover_min_filename
             remove_cover(source)
             return False
 
-        source.cover_min_path = relative_min_path
+        source.cover_min_file = cover_min_filename
         source.cover_phash = cover_phash
-        source.save(update_fields=['cover_min_path', 'cover_phash'])
+        source.save(update_fields=['cover_min_file', 'cover_phash'])
 
         logger.info("Generated miniature cover for: %s", source.title)
         return True
@@ -85,12 +83,12 @@ def remove_cover(source) -> None:
         except OSError as e:
             logger.warning("Could not delete %s: %s", rel, e)
     # cover_url is cleared too: seo_views would fall back to the remote image.
-    source.cover_path = None
-    source.cover_min_path = None
+    source.cover_file = None
+    source.cover_min_file = None
     source.cover_phash = None
     source.cover_url = None
-    source.overview_picture_path = None
+    source.overview_picture_file = None
     source.save(update_fields=[
-        'cover_path', 'cover_min_path', 'cover_phash', 'cover_url', 'overview_picture_path',
+        'cover_file', 'cover_min_file', 'cover_phash', 'cover_url', 'overview_picture_file',
     ])
     generate_overview(source)

@@ -22,7 +22,7 @@ import TuneIcon from '@mui/icons-material/Tune';
 import { editionLabel, languageCodeToName } from '@utils/Misc';
 import { novelService } from '../../services/api';
 import { NovelDetail, NovelFromSource } from '@models/novels_types';
-import SourceRow, { SOURCE_COLUMNS, SourceCover } from './novelSources/SourceRow';
+import SourceRow, { SOURCE_COLUMNS, SourceCover, Votes } from './novelSources/SourceRow';
 import {
   ALL,
   DEFAULT_SORT,
@@ -249,6 +249,12 @@ const NovelSources: React.FC<NovelSourcesProps> = ({ novel, currentSourceSlug })
             <Box component="b" sx={{ color: theme.palette.primary.main }}>{sourceChapterCount(current)}</Box>{' '}
             {t('novelSources.chapters')}
           </Typography>
+          <Votes
+            source={current}
+            voting={!!votingInProgress[current.source_slug]}
+            onVote={handleVote}
+            size={mobile ? 44 : 32}
+          />
         </Box>
       )}
 

@@ -116,6 +116,9 @@ class App:
             self.output_path = os.path.join(
                 DEFAULT_OUTPUT_PATH, self.good_file_name, slugify(source)
             )
+            # Standalone use chose this folder itself, so it creates it (crawl start). A folder
+            # given by the caller (the API) is never created here.
+            os.makedirs(self.output_path, exist_ok=True)
 
     # -- download ------------------------------------------------------ #
 

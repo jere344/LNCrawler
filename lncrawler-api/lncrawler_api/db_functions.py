@@ -10,7 +10,7 @@ class ImmutableUnaccent(Func):
 
 def search_norm(expression):
     """Accent- and case-folded form of a text column, used for the search_title / search_name
-    generated columns and their trigram indexes (novel_search_title_trgm_idx, nfs_search_title_trgm_idx,
+    generated columns and their trigram indexes (nfs_search_title_trgm_idx,
     alttitle_search_name_trgm_idx). Changing the unaccent rules requires recomputing those stored columns.
     """
     return ImmutableUnaccent(Upper(expression))

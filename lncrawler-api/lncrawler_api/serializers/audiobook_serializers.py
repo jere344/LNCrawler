@@ -107,7 +107,7 @@ def audiobook_parts(audiobook):
     chapters_by_part = {}
     rows = (
         AudiobookChapter.objects.filter(part__in=available_parts)
-        .select_related('chapter', 'part')
+        .select_related('chapter', 'part__audiobook__source__novel')
         .order_by('part__index', 'chapter__chapter_id')
     )
     labeler = get_labeler(audiobook.language)

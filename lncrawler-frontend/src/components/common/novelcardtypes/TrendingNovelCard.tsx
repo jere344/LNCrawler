@@ -63,7 +63,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
     );
   }
 
-  const preferredSource = novel.reading_source ?? novel.prefered_source;
+  const displaySource = novel.reading_source ?? novel.suggested_source;
   
   return (
     <Card 
@@ -108,7 +108,6 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
 
       <NovelActionsMenu
         novelId={novel.id}
-        novelTitle={novel.title}
         displayTitle={getNovelDisplayTitle(novel)}
         slug={novel.slug}
         isBookmarked={novel.is_bookmarked}
@@ -150,7 +149,7 @@ const TrendingNovelCard: React.FC<TrendingNovelCardProps> = ({
             </Typography>
           </Box>
           <NovelCover
-            src={novelCoverUrl(preferredSource)}
+            src={novelCoverUrl(displaySource)}
             alt={getNovelDisplayTitle(novel)}
             novelId={novel.id}
             isAdult={novel.is_adult}

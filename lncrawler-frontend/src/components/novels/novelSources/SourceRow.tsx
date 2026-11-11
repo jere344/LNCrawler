@@ -84,7 +84,7 @@ interface VotesProps {
   size: number;
 }
 
-const Votes: React.FC<VotesProps> = ({ source, voting, onVote, size }) => {
+export const Votes: React.FC<VotesProps> = ({ source, voting, onVote, size }) => {
   const { t } = useTranslation();
   const theme = useTheme();
   const score = source.vote_score;

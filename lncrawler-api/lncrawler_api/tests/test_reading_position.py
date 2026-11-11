@@ -11,18 +11,18 @@ from django.urls import reverse
 from ..models import (
     Chapter,
     ExternalSource,
-    Novel,
     NovelFromSource,
     ReadingHistory,
 )
 from ..serializers import ReadingHistorySerializer
 from ..services.reading_history import set_reading_position
 from ..utils.query_helpers import annotate_reading_history
+from .helpers import make_novel
 
 
 def make_novel_with_sources(test, slug="reading-position", chapters_by_source=None):
     """A novel with one source per ``chapters_by_source`` entry: ``{source_slug: {chapter_id: has_content}}``."""
-    novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+    novel = make_novel(title=slug, slug=slug, novel_path=slug)
     sources = {}
     for source_slug, chapters in (chapters_by_source or {}).items():
         source = NovelFromSource.objects.create(

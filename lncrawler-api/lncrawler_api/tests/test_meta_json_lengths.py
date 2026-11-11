@@ -32,7 +32,8 @@ class LongMetaTests(TestCase):
     def test_title_of_400_characters_does_not_raise(self):
         title = "T" * 400
         source = NovelFromSource.from_meta_json(self._write_meta(title=title))
-        self.assertEqual(len(source.novel.title), 255)
+        # The source keeps the whole title (its own limit is 500); the novel has no title of its own.
+        self.assertEqual(len(source.title), 400)
         self.assertLessEqual(len(source.novel.slug), 255)
 
     def test_long_folder_name_slug_is_capped(self):

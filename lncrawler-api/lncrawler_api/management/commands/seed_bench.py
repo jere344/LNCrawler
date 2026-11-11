@@ -39,6 +39,9 @@ from lncrawler_api.utils.author_names import normalize_author
 from lncrawler_api.utils.tag_utils import normalize_tag
 
 SOURCE_PATH = '_bench/shared-source'
+# Every bench source shares one folder, so every bench novel sits in its parent.
+BENCH_NOVEL_PATH = os.path.dirname(SOURCE_PATH)
+SOURCE_FOLDER = os.path.basename(SOURCE_PATH)
 FILE_COUNT = 12000
 EXTERNAL_COUNT = 60
 FORCED_SOURCES = 5
@@ -314,6 +317,7 @@ class Command(BaseCommand):
         self._python_small_tables(rng)
         self._stage('novels', self._sql_novels(), heavy=True)
         self._sql_plan_and_sources()
+        self._sql_canonical_sources()
         self._sql_source_links()
         self._stage('weekly source views', self._sql_weekly_views(), heavy=True)
         self._stage('novel similarities', self._sql_similarities())
@@ -431,9 +435,9 @@ FROM (
 ) titled
 """)
         return f"""
-INSERT INTO lncrawler_api_novel (id, title, slug, created_at, updated_at, novel_path, comment_count,
+INSERT INTO lncrawler_api_novel (id, slug, created_at, updated_at, novel_path, comment_count,
     is_dmca, rank_total_views, rank_week_views, rank_avg_rating, added_by_id)
-SELECT nid, title, slug, created_at, created_at, 'bench/' || slug, 0,
+SELECT nid, slug, created_at, created_at, '{BENCH_NOVEL_PATH}', 0,
        {self._u("n::text || 'dmca'")} < 0.01, 0, 0, 0,
        CASE WHEN {self._h("n::text || 'added'")} % 10 < 7 THEN {self._user_pick("n::text || 'addby'")} END
 FROM tmp_nov
@@ -478,9 +482,9 @@ SELECT n, j, {n_novels} + row_number() OVER (ORDER BY k) FROM tmp_extra
         return f"""
 INSERT INTO lncrawler_api_novelfromsource (novel_id, title, source_url, external_source_id, source_slug,
     language, status, synopsis, is_adult, adult_from_source, created_at, updated_at, last_chapter_update,
-    source_version, total_views, upvotes, downvotes, edition, cover_url, source_path, cover_path,
-    cover_min_path, overview_picture_path, original_publisher, english_publisher, novelupdates_url,
-    meta_file_path, cover_phash)
+    source_version, total_views, upvotes, downvotes, edition, cover_url, source_folder, cover_file,
+    cover_min_file, overview_picture_file, original_publisher, english_publisher, novelupdates_url,
+    cover_phash)
 SELECT nv.nid, nv.title,
     'https://' || e.source_name || '.example/novel/' || nv.slug,
     e.id, e.source_name,
@@ -498,7 +502,7 @@ SELECT nv.nid, nv.title,
     now() - (({self._h("p.sid::text || 'cr'")}) % 1000) * interval '1 day',
     now() - (730 * sqrt(p.n::float8 / {self.c['novels']}) * {self._u("p.sid::text || 'lcu'")}) * interval '1 day',
     1 + {self._h("p.sid::text || 'ver'")} % 5, 0, 0, 0, '',
-    NULL, '{SOURCE_PATH}', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, '{SOURCE_FOLDER}', NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM tmp_plan p
 JOIN tmp_nov_i nv ON nv.n = p.n
 JOIN tmp_ext e ON e.idx = (p.n + 7 * p.j) % {EXTERNAL_COUNT}
@@ -541,6 +545,19 @@ SELECT s.id, ({self.alt_ids_sql})[1 + {self._h("s.id::text || 'alt'")} % {self.c
 FROM lncrawler_api_novelfromsource s
 WHERE {self._u("s.id::text || 'alth'")} < 0.95
 ON CONFLICT DO NOTHING
+""")
+
+    def _sql_canonical_sources(self):
+        # Same order as rank_sources with the naming language first (services/novel_naming.py).
+        self._stage('canonical sources', f"""
+UPDATE lncrawler_api_novel AS n SET canonical_source_id = c.id
+FROM (
+    SELECT DISTINCT ON (novel_id) id, novel_id
+    FROM lncrawler_api_novelfromsource
+    ORDER BY novel_id, language <> '{settings.NAMING_LANGUAGE}', -(upvotes - downvotes), -upvotes,
+             -available_chapters_count, title
+) AS c
+WHERE c.novel_id = n.id
 """)
 
     def _sql_weekly_views(self):
@@ -972,7 +989,7 @@ LEFT JOIN tmp_en en ON en.n = g.k
 """)
         self._stage('audiobooks', f"""
 INSERT INTO lncrawler_api_audiobook (id, novel_id, language, source_id, status, worker_id,
-    cover_path, tags_hash, total_duration_s, total_size_bytes, parts_done, credits,
+    cover_file, tags_hash, total_duration_s, total_size_bytes, parts_done, credits,
     first_published_at, last_part_at, last_enqueued_at, created_at, updated_at)
 SELECT ab.abid, {self._novel_uuid("ab.n")}, 'en', ab.sid, 'active', '', '', '',
        0, 0, 0, '{{}}'::jsonb, now(), now(), now(), now(), now()
@@ -997,7 +1014,7 @@ SELECT p.id, p.abid, p.idx, p.cs, p.ce, 0, 600, 'done', 0, 'bench', '1', '', 1.0
 FROM tmp_parts p
 """)
         self._stage('audiobook chapters', f"""
-INSERT INTO lncrawler_api_audiobookchapter (part_id, chapter_id, file_path, duration_s, size_bytes, sha256, offset_s)
+INSERT INTO lncrawler_api_audiobookchapter (part_id, chapter_id, file_in_source, duration_s, size_bytes, sha256, offset_s)
 SELECT p.id, ch.id, 'audio/bench/' || p.abid::text || '/' || ch.chapter_id || '.ogg',
        5 + {self._h("ch.id::text || 'ad'")} % 60, 80000 + {self._h("ch.id::text || 'as'")} % 40000,
        encode(sha256(convert_to(ch.id::text, 'UTF8')), 'hex'), 0

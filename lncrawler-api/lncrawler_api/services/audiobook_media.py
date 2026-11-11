@@ -175,7 +175,9 @@ def retag_audiobook(audiobook):
     A missing file is logged and skipped."""
     metadata = audiobook_metadata(audiobook)
     count = 0
-    rows = AudiobookChapter.objects.filter(part__audiobook=audiobook).select_related('part', 'chapter')
+    rows = AudiobookChapter.objects.filter(part__audiobook=audiobook).select_related(
+        'part__audiobook__source__novel', 'chapter',
+    )
     for row in rows:
         path = os.path.join(settings.LNCRAWL_OUTPUT_PATH, row.file_path)
         if not os.path.isfile(path):

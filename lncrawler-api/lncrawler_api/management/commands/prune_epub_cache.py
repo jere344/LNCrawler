@@ -6,12 +6,10 @@ Nothing else removes them once they expire, so this command does it:
 
 - ``*.epub`` older than ``MAX_CACHE_AGE`` are deleted (they would be rebuilt).
 - ``*.tmp`` older than one hour are leftovers from an interrupted build.
-- ``*.lock`` older than one hour whose EPUB is gone are unused build locks.
-  A lock is only removed when it can be acquired, so a running build is never
-  disturbed.
+- ``*.lock`` files are never deleted. Removing a lock file while another process
+  waits on its flock lets two builds run at once, so the lock stays in place.
 """
 
-import fcntl
 import logging
 import os
 import time
@@ -56,12 +54,14 @@ class Command(BaseCommand):
         # Visit only each source's epub_cache folder; walking the whole library
         # would stat every chapter file of every novel.
         source_paths = (
-            NovelFromSource.objects.exclude(source_path__isnull=True)
-            .exclude(source_path="")
-            .values_list("source_path", flat=True)
+            NovelFromSource.objects.exclude(source_folder__isnull=True)
+            .exclude(source_folder="")
+            .exclude(novel__novel_path="")
+            .values_list("novel__novel_path", "source_folder")
             .iterator()
         )
-        for source_path in source_paths:
+        for novel_path, source_folder in source_paths:
+            source_path = os.path.join(novel_path, source_folder)
             cache_dir = os.path.join(resolve_output_path(source_path), CACHE_DIRNAME)
             try:
                 names = os.listdir(cache_dir)
@@ -87,10 +87,7 @@ class Command(BaseCommand):
         elif name.endswith(".tmp"):
             expired = age > STALE_PARTIAL_AGE
         elif name.endswith(LOCK_SUFFIX):
-            epub_path = path[: -len(LOCK_SUFFIX)]
-            if os.path.exists(epub_path) or age <= STALE_PARTIAL_AGE:
-                return
-            self._remove_lock(path)
+            # Lock files stay (see the module docstring).
             return
         else:
             return
@@ -104,23 +101,3 @@ class Command(BaseCommand):
         self.count += 1
         self.bytes += size
 
-    def _remove_lock(self, path):
-        """
-        Remove a lock file only if nobody holds it. A build that is still
-        running keeps its flock, so the non-blocking attempt fails and the
-        lock stays in place.
-        """
-        size = os.path.getsize(path)
-        try:
-            fd = os.open(path, os.O_RDWR)
-        except FileNotFoundError:
-            return
-        try:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
-                return
-            self._remove(path, size)
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        finally:
-            os.close(fd)

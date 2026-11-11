@@ -5,8 +5,9 @@ from ..models import Review, ReviewReaction
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):
     list_display = ("title", "novel", "user", "rating_display", "created_at", "reaction_count_display")
+    list_select_related = ("novel__canonical_source", "user")
     list_filter = ("rating", "created_at", "updated_at")
-    search_fields = ("title", "novel__title", "user__username", "content")
+    search_fields = ("title", "novel__canonical_source__title", "user__username", "content")
     readonly_fields = ("id", "created_at", "updated_at", "reaction_count_display")
     raw_id_fields = ("novel", "user")
 
@@ -32,7 +33,7 @@ class ReviewAdmin(admin.ModelAdmin):
 class ReviewReactionAdmin(admin.ModelAdmin):
     list_display = ("review", "user_or_ip", "reaction_display", "created_at")
     list_filter = ("reaction", "created_at")
-    search_fields = ("review__title", "user__username", "ip_address", "review__novel__title")
+    search_fields = ("review__title", "user__username", "ip_address", "review__novel__canonical_source__title")
     readonly_fields = ("id", "created_at")
     raw_id_fields = ("review", "user")
 

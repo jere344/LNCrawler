@@ -96,7 +96,7 @@ export const homeLoader = ({ request }: LoaderFunctionArgs): AsyncData<HomeLoade
 
 export type NovelRedirectLoaderData = { ok: true; target: string } | { ok: false };
 
-// Resolves to the novel's preferred source page. Un-awaited like the other
+// Resolves to the novel's suggested source page. Un-awaited like the other
 // loaders, so the redirect page's skeleton shows while the lookup runs instead
 // of the previous page staying on screen.
 export const novelRedirectLoader = ({ params }: LoaderFunctionArgs): AsyncData<NovelRedirectLoaderData> => {

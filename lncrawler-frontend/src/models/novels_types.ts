@@ -3,14 +3,13 @@ import type { CommentPreview } from './comments_types';
 
 export interface Novel {
   id: string;
-  title: string;
   slug: string;
   sources_count: number;
   avg_rating: number | null;
   rating_count: number;
   total_views?: number;
   weekly_views?: number;
-  prefered_source: NovelFromSource | null;
+  suggested_source: NovelFromSource | null;
   languages: string[];
   is_bookmarked?: boolean | null;
   comment_count: number;
@@ -51,8 +50,8 @@ export type LibraryReadingHistory = Pick<
   'source_slug' | 'source_name' | 'current_chapter' | 'position' | 'unread_chapters' | 'source_latest_chapter' | 'resume'
 >;
 
-export type LibraryNovel = Pick<Novel, 'id' | 'title' | 'slug' | 'is_adult' | 'is_dmca' | 'is_bookmarked'> & {
-  prefered_source: LibrarySource | null;
+export type LibraryNovel = Pick<Novel, 'id' | 'slug' | 'is_adult' | 'is_dmca' | 'is_bookmarked'> & {
+  suggested_source: LibrarySource | null;
   reading_source?: LibrarySource | null;
   reading_history?: LibraryReadingHistory | null;
   // The bookmark's own columns, and the owner's rating of the novel.
@@ -125,7 +124,6 @@ interface NovelVolume {
 
 export interface NovelDetail {
   id: string;
-  title: string;
   slug: string;
   sources: NovelFromSource[];
   avg_rating: number | null;
@@ -133,7 +131,7 @@ export interface NovelDetail {
   user_rating: number | null;
   total_views: number;
   weekly_views: number;
-  prefered_source: NovelFromSource | null;
+  suggested_source: NovelFromSource | null;
   is_bookmarked?: boolean | null;
   comment_count: number;
   reading_history?: ReadingHistory | null;

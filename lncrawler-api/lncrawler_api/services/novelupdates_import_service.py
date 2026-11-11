@@ -106,8 +106,7 @@ def parse_nu_export(data):
 
 def _title_query(value):
     return (
-        Q(title__icontains=value)
-        | Q(sources__title__icontains=value)
+        Q(sources__title__icontains=value)
         | Q(sources__alternative_titles__name__icontains=value)
     )
 
@@ -120,8 +119,7 @@ def _find_match(title):
     """
     exact = list(
         Novel.objects.filter(
-            Q(title__iexact=title)
-            | Q(sources__title__iexact=title)
+            Q(sources__title__iexact=title)
             | Q(sources__alternative_titles__name__iexact=title)
         )
         .distinct()

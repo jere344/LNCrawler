@@ -34,7 +34,7 @@ const ReadingHistoryCard: React.FC<ReadingHistoryCardProps> = ({ novel, onDelete
   const currentChapter = novel.reading_history?.current_chapter ?? null;
   // Continue resumes at the saved position; when up to date, the chapter being read is offered to reread
   const continue_chapter = resume ? resume.chapter : currentChapter;
-  const displaySource = novel.reading_source ?? novel.prefered_source;
+  const displaySource = novel.reading_source ?? novel.suggested_source;
   const sourceLink = getNovelSourceLink(novel);
 
   return (

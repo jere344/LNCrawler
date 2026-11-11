@@ -1,10 +1,12 @@
 """Deleting a source row and moving its folder to the trash."""
 
 import time
-
-from django.db import transaction
+from functools import partial
 
 from lncrawler_api.models.sources_models import refresh_novel_adult
+from lncrawler_api.services.folder_guard import FolderBusy, locked_move
+from lncrawler_api.services.novel_deletion import after_source_deleted
+from lncrawler_api.services.novel_operations import file_journal
 
 from .common import _UnmappedComments, logger
 
@@ -14,10 +16,9 @@ class DeletionMixin:
         """Delete one source, porting its user data to ``keeper`` first.
 
         Returns True when the source is (or in a dry run would be) deleted. The
-        row goes first, inside a transaction. The folder is moved to the trash
-        only after the commit, so a failed delete never leaves a folder moved for
-        a row that still exists. If the move itself fails the row is already
-        gone and the folder stays where it is, for the opt-in unregistered sweep.
+        row and the folder move to the trash happen in one locked transaction: a
+        failure of either undoes both, so a folder is never moved for a row that
+        still exists. A novel with an active crawl is skipped (FolderBusy).
         """
         title = source.title
         source_name = source.external_source.source_name
@@ -40,17 +41,32 @@ class DeletionMixin:
                 f"({source_name}){port}: {reason}"
             )
         else:
-            rel = source.source_path
             dropped = 0
+            trash_path = None
+            novel_deletion = None
             try:
-                with transaction.atomic():
-                    if keeper is not None:
-                        dropped = self._port_user_data(source, keeper, shift)
-                    # Unlink the folder first: delete() would rmtree it otherwise.
-                    source.source_path = None
-                    source.save(update_fields=["source_path"])
-                    source.delete()
-                    refresh_novel_adult([novel_id])
+                with file_journal() as files:
+                    with locked_move(source.novel):
+                        # Under the lock: the folder name may have changed since the scan.
+                        source.novel.refresh_from_db(fields=["novel_path"])
+                        rel = source.source_path
+                        if keeper is not None:
+                            dropped = self._port_user_data(source, keeper, shift)
+                        # Unlink the folder first: delete() would rmtree it otherwise.
+                        source.source_folder = None
+                        source.save(update_fields=["source_folder"])
+                        source.delete(files=files)
+                        refresh_novel_adult([novel_id])
+                        trash_path = self._move_to_trash(rel, files) if rel else None
+                        # Last source of its novel: the novel goes too, its folder to the trash.
+                        novel_deletion = after_source_deleted(
+                            novel_id, trash=partial(self._move_to_trash, files=files), files=files,
+                        )
+            except FolderBusy:
+                self.stdout.write(
+                    f"  busy, source {source_id} {title!r} kept for a later run"
+                )
+                return False
             except _UnmappedComments as exc:
                 self.stdout.write(
                     f"  KEEP source {source_id} {title!r}: {exc} (--force would drop them)"
@@ -60,14 +76,6 @@ class DeletionMixin:
                 logger.error("prune_library: failed deleting source %s: %s", source_id, exc)
                 return False
 
-            trash_path = None
-            try:
-                trash_path = self._move_to_trash(rel)
-            except Exception as exc:
-                logger.error(
-                    "prune_library: deleted source %s but could not move %s to trash: %s",
-                    source_id, rel, exc,
-                )
             self._audit({
                 "kind": "source",
                 "id": source_id,
@@ -78,6 +86,13 @@ class DeletionMixin:
                 "dropped_comments": dropped,
                 "trash_path": trash_path,
             })
+            if novel_deletion is not None:
+                self._audit({
+                    "kind": "novel",
+                    "id": novel_id,
+                    "reason": "last source deleted",
+                    "trash_path": novel_deletion.trash_path,
+                })
             self.stdout.write(
                 self.style.SUCCESS(f"  deleted source {source_id} {title!r} ({source_name}): {reason}")
             )

@@ -2,15 +2,15 @@
 
 from django.contrib.auth import get_user_model
 
-from ..models import Comment, ExternalSource, Novel, ReadingHistory
+from ..models import Comment, ExternalSource, ReadingHistory
 from ..services.novel_operations import _repoint_chapter_data
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, make_novel
 
 
 class RepointChapterDataTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = make_novel(title="Foo", slug="foo", novel_path="foo")
         external = ExternalSource.objects.create(source_name="site")
         # Different URLs, so chapters match by number. The winner has chapters
         # 1-2 only; loser chapter 3 has no counterpart.

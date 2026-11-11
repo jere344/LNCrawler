@@ -45,7 +45,7 @@ from ..services import MergeError, llm_service, merge_tags, rename_tag
 from ..services import embedding_service, llm_tasks, merge_service
 from ..services import tag_merge_service as tms
 from ..services.candidate_blocks import blocked_pairs, pair_key
-from ..services.novel_operations import move_source_to_novel
+from ..services.novel_operations import file_journal, move_source_to_novel
 from ..services.novel_rankings import refresh_name_counts
 from ..services.candidate_service import (
     CandidateError,
@@ -56,7 +56,7 @@ from ..services.candidate_service import (
 from ..services.merge_common import sorted_pk_signature
 from ..utils.tag_utils import normalize_tag
 
-from .helpers import make_source
+from .helpers import bare_novel, make_source
 from .llm_helpers import llm_chain
 
 
@@ -129,7 +129,7 @@ class TagAutocompleteAliasTests(TestCase):
     """A merged-away tag name must still surface its canonical tag."""
 
     def setUp(self):
-        self.novel = Novel.objects.create(title="Isekai Tale", slug="it", novel_path="it")
+        self.novel = bare_novel("it", "it")
         self.canonical = Tag.objects.create(name="Isekai")
         source = NovelFromSource.objects.create(
             novel=self.novel,
@@ -171,7 +171,7 @@ class TagAutocompleteCountTests(TestCase):
         TagAlias.objects.create(name="isekai lite", tag=self.harem)
         links = {"n1": [self.isekai, self.harem], "n2": [self.isekai], "n3": [self.isekai, self.romance]}
         for slug, tags in links.items():
-            novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+            novel = bare_novel(slug, slug)
             make_source(novel, external=external).tags.add(*tags)
         refresh_name_counts()
 
@@ -283,7 +283,7 @@ class TagResolveTests(TestCase):
 
 class TagMergeUndoTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.novel = bare_novel("n", "n")
         self.external = ExternalSource.objects.create(source_name="s")
         self.s1 = self._source("http://s/1")
         self.s2 = self._source("http://s/2")
@@ -374,7 +374,7 @@ class TagMergeUndoTests(TestCase):
 
 class TagAdultPropagationTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.novel = bare_novel("n", "n")
         self.external = ExternalSource.objects.create(source_name="s")
 
     def _source(self, url, **kwargs):
@@ -475,7 +475,7 @@ class NovelMajorityAdultTests(TestCase):
     """A novel is adult when strictly more than half of its sources are."""
 
     def _novel(self, slug, adult_flags):
-        novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+        novel = bare_novel(slug, slug)
         for index, is_adult in enumerate(adult_flags):
             make_source(
                 novel,
@@ -546,8 +546,8 @@ class NovelAdultFollowsSourceTests(TestCase):
     """Each write that changes a source's flag, novel or existence refreshes the novels it concerns."""
 
     def setUp(self):
-        self.old = Novel.objects.create(title="Old", slug="old", novel_path="old")
-        self.new = Novel.objects.create(title="New", slug="new", novel_path="new")
+        self.old = bare_novel("old", "old")
+        self.new = bare_novel("new", "new")
         self.external = ExternalSource.objects.create(source_name="s")
         self.admin = NovelFromSourceAdmin(NovelFromSource, admin.site)
         self.tag_admin = TagAdmin(Tag, admin.site)
@@ -562,14 +562,21 @@ class NovelAdultFollowsSourceTests(TestCase):
         return Novel.objects.get(pk=novel.pk).is_adult
 
     def test_moving_a_source_refreshes_both_novels(self):
-        leaving = self._source(self.old, "http://old/1", is_adult=True)
+        output = tempfile.mkdtemp(prefix="lncrawl-tags-")
+        self.addCleanup(shutil.rmtree, output, True)
+        override = override_settings(LNCRAWL_OUTPUT_PATH=output)
+        override.enable()
+        self.addCleanup(override.disable)
+        leaving = self._source(self.old, "http://old/1", is_adult=True, source_folder="leaving")
+        os.makedirs(leaving.absolute_source_path)
         self._source(self.new, "http://new/1")
         self._source(self.new, "http://new/2", is_adult=True)
         refresh_novel_adult()
         self.assertTrue(self._is_adult(self.old))
         self.assertFalse(self._is_adult(self.new))
 
-        move_source_to_novel(leaving, self.new, move_files=False)
+        with file_journal() as files:
+            move_source_to_novel(leaving, self.new, files=files)
 
         self.assertFalse(self._is_adult(self.old))
         self.assertTrue(self._is_adult(self.new))
@@ -630,6 +637,12 @@ class NovelAdultFollowsSourceTests(TestCase):
     def test_deleting_an_external_source_refreshes_the_novels_of_its_sources(self):
         site = ExternalSource.objects.create(source_name="gone-site")
         make_source(self.old, external=site, source_url="http://gone/1", is_adult=True)
+        # Sources left behind keep the novel alive (a novel left without sources is deleted):
+        # 2 adult of 3 makes it adult; without the deleted one, 1 of 2 is not a majority.
+        make_source(self.old, external=ExternalSource.objects.create(source_name="kept-adult"),
+                    source_url="http://kept/1", is_adult=True)
+        make_source(self.old, external=ExternalSource.objects.create(source_name="kept-clean"),
+                    source_url="http://kept/2")
         refresh_novel_adult()
         self.assertTrue(self._is_adult(self.old))
 
@@ -719,7 +732,7 @@ class EdgeSignalTests(SimpleTestCase):
 
 class JudgeTagMergeTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.novel = bare_novel("n", "n")
         self.external = ExternalSource.objects.create(source_name="s")
         self.isekai = Tag.objects.create(name="Isekai")
         self.another = Tag.objects.create(name="Another World")
@@ -1015,8 +1028,8 @@ class JudgeTagMergeTests(TestCase):
 
 class FindTagMergeCandidatesTests(TestCase):
     def test_cooccurring_tags_become_one_pending_candidate_once(self):
-        novel_a = Novel.objects.create(title="A", slug="a", novel_path="a")
-        novel_b = Novel.objects.create(title="B", slug="b", novel_path="b")
+        novel_a = bare_novel("a", "a")
+        novel_b = bare_novel("b", "b")
         external = ExternalSource.objects.create(source_name="s")
         isekai = Tag.objects.create(name="Isekai")
         another = Tag.objects.create(name="Another World")
@@ -1086,7 +1099,7 @@ class SafeguardSurvivorTests(TestCase):
     """A set whose canonical name resolves outside the group is held for a human."""
 
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="sg", novel_path="sg")
+        self.novel = bare_novel("sg", "sg")
         self.external = ExternalSource.objects.create(source_name="sg")
         self.isekai = Tag.objects.create(name="Isekai")
         self.another = Tag.objects.create(name="Another World")
@@ -1135,7 +1148,7 @@ class SafeguardSurvivorTests(TestCase):
 
 class RenameAliasClashTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="rc", novel_path="rc")
+        self.novel = bare_novel("rc", "rc")
         self.external = ExternalSource.objects.create(source_name="rc")
         self.isekai = Tag.objects.create(name="Isekai")
         self.other = Tag.objects.create(name="Other Tag")
@@ -1152,7 +1165,7 @@ class ChainedUndoTests(TestCase):
     """A merge whose target was later merged away is undone only after the later merge."""
 
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="ch", novel_path="ch")
+        self.novel = bare_novel("ch", "ch")
         self.external = ExternalSource.objects.create(source_name="ch")
         self.s1 = self._source("http://ch/1")
         self.s2 = self._source("http://ch/2")
@@ -1232,7 +1245,7 @@ class TagAdminRenameTests(TestCase):
 
 class ImportTagLockingTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="imp", novel_path="imp")
+        self.novel = bare_novel("imp", "imp")
         self.external = ExternalSource.objects.create(source_name="imp")
         self.source = NovelFromSource.objects.create(
             novel=self.novel, external_source=self.external, title="N", source_url="http://imp/1"
@@ -1286,7 +1299,7 @@ class NoMergePairMoveTests(TestCase):
         self.source = Tag.objects.create(name="Source Tag")
         self.target = Tag.objects.create(name="Target Tag")
         self.other = Tag.objects.create(name="Other")
-        self.novel = Novel.objects.create(title="N", slug="nm", novel_path="nm")
+        self.novel = bare_novel("nm", "nm")
         self.external = ExternalSource.objects.create(source_name="nm")
 
     def test_rejected_pairs_follow_the_target_and_duplicates_collapse(self):
@@ -1358,7 +1371,7 @@ class EmbedChunkingTests(SimpleTestCase):
 
 class ClusterAtomicityTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="at", novel_path="at")
+        self.novel = bare_novel("at", "at")
         self.external = ExternalSource.objects.create(source_name="at")
         self.tags = {name: Tag.objects.create(name=name) for name in
                      ["Isekai", "Another World", "Foo Bar", "Foo Baz"]}
@@ -1497,7 +1510,7 @@ class ImportContinuesTests(TestCase):
 
 class UndoSameKeyTagTests(TestCase):
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="sk", novel_path="sk")
+        self.novel = bare_novel("sk", "sk")
         self.external = ExternalSource.objects.create(source_name="sk")
         self.source = NovelFromSource.objects.create(
             novel=self.novel, external_source=self.external, title="N", source_url="http://sk/1"
@@ -1532,7 +1545,7 @@ class TagR18ThresholdTests(TestCase):
     """An explicit rating on a tag that many novels use waits for a human, whatever the confidence."""
 
     def setUp(self):
-        self.novel = Novel.objects.create(title="N", slug="r18", novel_path="r18")
+        self.novel = bare_novel("r18", "r18")
         self.external = ExternalSource.objects.create(source_name="r18")
         self.tag = Tag.objects.create(name="Smut")
         for i in range(2):

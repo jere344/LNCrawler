@@ -97,7 +97,7 @@ const SourceTitleBar = ({
                 ...novel,
                 slug: novelSlug ?? novel.slug,
                 reading_history: full.reading_history,
-                prefered_source: full,
+                suggested_source: full,
               }}
               target={rowOnOtherSource ? pageTarget : undefined}
               onMarkAsRead={() =>

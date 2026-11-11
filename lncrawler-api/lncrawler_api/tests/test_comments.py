@@ -34,7 +34,7 @@ class CommentThreadTests(TestCase):
         return NovelFromSource.objects.create(
             novel=novel,
             external_source=ExternalSource.objects.create(source_name=f"{slug}-site"),
-            title=novel.title, source_url=f"http://{slug}/1", source_slug=slug, language="en",
+            title=novel.canonical_source.title, source_url=f"http://{slug}/1", source_slug=slug, language="en",
         )
 
     def chapter_comment(self, message, chapter=None, parent=None, **kwargs):

@@ -2,9 +2,11 @@ import os
 import glob
 import shutil
 import logging
+import uuid
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
-from lncrawler_api.models import NovelFromSource
+from lncrawler_api.models import Novel, NovelFromSource
+from lncrawler_api.services.folder_guard import locked_move
 
 logger = logging.getLogger('lncrawler_api')
 
@@ -93,11 +95,29 @@ class Command(BaseCommand):
                                 'reason': 'Target already exists'
                             })
                         else:
+                            # The copy or move is slow, so it runs outside any lock, into a staging
+                            # folder beside the target. Only the final rename into place is a move of
+                            # the novel folder, under its lock. A folder with no novel row yet cannot
+                            # be locked, and no crawl can have registered on it.
+                            target_novel = Novel.objects.filter(novel_path=novel_folder_name).order_by('pk').first()
+                            staging = os.path.join(library_novel_path, f".importing-{uuid.uuid4().hex}")
                             if import_action == 'copy':
-                                shutil.copytree(source_folder, target_source_path)
+                                shutil.copytree(source_folder, staging)
+                            else:  # move
+                                shutil.move(source_folder, staging)
+                            try:
+                                with locked_move(target_novel):
+                                    os.rename(staging, target_source_path)
+                            except BaseException:
+                                if import_action == 'copy':
+                                    shutil.rmtree(staging, ignore_errors=True)
+                                else:
+                                    # Give the folder back to the import folder.
+                                    shutil.move(staging, source_folder)
+                                raise
+                            if import_action == 'copy':
                                 self.stdout.write(f"Copied {source_folder} to {target_source_path}")
                             else:  # move
-                                shutil.move(source_folder, target_source_path)
                                 self.stdout.write(f"Moved {source_folder} to {target_source_path}")
                                 # delete the parent folder if it's empty mow
                                 if not os.listdir(os.path.dirname(source_folder)):

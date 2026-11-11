@@ -20,13 +20,13 @@ from ..models import (
     AudiobookWorker,
     Chapter,
     ExternalSource,
-    Novel,
     NovelFromSource,
 )
 from ..services import audiobook_media, audiobook_service as svc
 from ..services.chapter_stats import refresh_chapter_stats
 from ..services.novel_operations import file_journal, move_source_to_novel
-from .helpers import MergeTestCase
+from ..services.novel_naming import refresh_naming
+from .helpers import MergeTestCase, bare_novel, make_novel
 
 
 def body_of(words):
@@ -39,22 +39,24 @@ class AudiobookBase(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(title="Foo", slug="foo", novel_path="foo")
+        self.novel = bare_novel("foo", "foo")
 
     def make_source(self, name="site", language="en", status="Ongoing", last_update=None):
         source_path = os.path.join("foo", name)
         os.makedirs(os.path.join(self.tmp, source_path), exist_ok=True)
-        return NovelFromSource.objects.create(
+        source = NovelFromSource.objects.create(
             novel=self.novel,
             external_source=ExternalSource.objects.create(source_name=name),
             title="Foo",
             source_url=f"http://{name}/1",
-            source_path=source_path,
+            source_folder=name,
             source_slug=name,
             language=language,
             status=status,
             last_chapter_update=last_update,
         )
+        refresh_naming(self.novel)
+        return source
 
     def add_chapters(self, source, words, first_id=1, has_content=True, write_files=True):
         """One chapter per entry of ``words``: a body file of that many words, and a row."""
@@ -288,8 +290,6 @@ class AudiobookUniquenessTests(AudiobookBase):
 
 class DisplayTitleTests(AudiobookBase):
     def test_the_title_is_the_source_title_not_the_novel_title(self):
-        self.novel.title = "سيد الغوامض"
-        self.novel.save(update_fields=['title'])
         source = self.make_source()
         source.title = "Lord Of The Mysteries"
         source.save(update_fields=['title'])
@@ -298,11 +298,11 @@ class DisplayTitleTests(AudiobookBase):
         self.assertEqual(str(audiobook), "Lord Of The Mysteries")
         self.assertEqual(audiobook_media.audiobook_metadata(audiobook)['title'], "Lord Of The Mysteries")
 
-    def test_a_source_without_title_falls_back_on_the_novel(self):
+    def test_a_source_without_title_has_no_novel_fallback(self):
         source = self.make_source()
         source.title = ""
         source.save(update_fields=['title'])
-        self.assertEqual(self.make_audiobook(source).display_title, self.novel.title)
+        self.assertEqual(self.make_audiobook(source).display_title, "")
 
 
 class ContentHashTests(AudiobookBase):
@@ -521,7 +521,7 @@ class PartOperationTests(AudiobookBase):
         AudiobookChapter.objects.create(
             part=part,
             chapter=Chapter.objects.get(chapter_id=1),
-            file_path="foo/site/audio/part-001/00001.ogg",
+            file_in_source="audio/part-001/00001.ogg",
             duration_s=100,
             size_bytes=10,
             sha256="0" * 64,
@@ -595,7 +595,7 @@ class DeleteAudioFilesSafetyTests(AudiobookBase):
         (self.audio / "part-001" / "00001.ogg").write_bytes(b"x" * 10)
 
     def test_empty_source_path_returns_zero_and_deletes_nothing(self):
-        NovelFromSource.objects.filter(pk=self.source.pk).update(source_path="")
+        NovelFromSource.objects.filter(pk=self.source.pk).update(source_folder="")
         self.audiobook.source.refresh_from_db()
 
         self.assertEqual(svc.delete_audio_files(self.audiobook), 0)
@@ -618,7 +618,7 @@ class DeleteAudioFilesSafetyTests(AudiobookBase):
 class FollowSourceTests(AudiobookBase):
     def setUp(self):
         super().setUp()
-        self.moved = Novel.objects.create(title="Moved", slug="moved", novel_path="moved")
+        self.moved = make_novel(title="Moved", slug="moved", novel_path="moved")
         self.source = self.make_source()
         self.audiobook = self.make_audiobook(self.source)
 
@@ -647,6 +647,7 @@ class FollowSourceTests(AudiobookBase):
     def test_longer_audiobook_is_kept_and_the_other_is_deleted_with_its_files(self):
         other_source = self.make_source("other")
         NovelFromSource.objects.filter(pk=other_source.pk).update(novel=self.moved)
+        other_source.refresh_from_db()  # its folder now lies in the moved novel
         existing = Audiobook.objects.create(novel=self.moved, source=other_source)
         audio_existing = self.add_audio(existing, 100)
         self.add_audio(self.audiobook, 500)
@@ -663,10 +664,11 @@ class FollowSourceTests(AudiobookBase):
     def test_longer_existing_audiobook_wins_and_the_moving_one_is_deleted(self):
         other_source = self.make_source("other")
         NovelFromSource.objects.filter(pk=other_source.pk).update(novel=self.moved)
+        other_source.refresh_from_db()  # its folder now lies in the moved novel
         existing = Audiobook.objects.create(novel=self.moved, source=other_source)
         self.add_audio(existing, 500)
+        self.move_source()  # the audio of the moving book is written where its source now lives
         audio_moving = self.add_audio(self.audiobook, 100)
-        self.move_source()
 
         with self.captureOnCommitCallbacks(execute=True):
             self.assertEqual(svc.follow_source(self.source), 0)
@@ -678,6 +680,7 @@ class FollowSourceTests(AudiobookBase):
     def test_audio_of_the_deleted_loser_stays_when_the_transaction_rolls_back(self):
         other_source = self.make_source("other")
         NovelFromSource.objects.filter(pk=other_source.pk).update(novel=self.moved)
+        other_source.refresh_from_db()  # its folder now lies in the moved novel
         existing = Audiobook.objects.create(novel=self.moved, source=other_source)
         audio_existing = self.add_audio(existing, 100)
         self.add_audio(self.audiobook, 500)
@@ -694,7 +697,8 @@ class FollowSourceTests(AudiobookBase):
         self.assertTrue(audio_existing.exists())
 
     def test_move_source_to_novel_carries_the_audiobook(self):
-        move_source_to_novel(self.source, self.moved, move_files=False)
+        with file_journal() as files:
+            move_source_to_novel(self.source, self.moved, files=files)
 
         self.audiobook.refresh_from_db()
         self.assertEqual(self.audiobook.novel, self.moved)
@@ -704,7 +708,7 @@ class FollowSourceTests(AudiobookBase):
 
         with self.captureOnCommitCallbacks(execute=True):
             with file_journal() as files:
-                move_source_to_novel(self.source, self.moved, move_files=True, files=files)
+                move_source_to_novel(self.source, self.moved, files=files)
 
         self.audiobook.refresh_from_db()
         self.source.refresh_from_db()

@@ -32,7 +32,7 @@ from ..models import (
     ReadingHistory,
 )
 from ..services import audiobook_m4b
-from .helpers import make_source, set_adult
+from .helpers import make_novel, make_source, set_adult
 from .test_audiobooks import AudiobookBase
 from .test_seo import _ld
 
@@ -60,14 +60,14 @@ class PublicAudiobookBase(AudiobookBase):
         )
         for offset, chapter in enumerate(self.chapters):
             AudiobookChapter.objects.create(
-                part=self.part, chapter=chapter, file_path=f"foo/site/audio/{chapter.chapter_id}.opus",
+                part=self.part, chapter=chapter, file_in_source=f"audio/{chapter.chapter_id}.opus",
                 duration_s=1200, size_bytes=10, sha256="0" * 64, offset_s=offset * 1200,
             )
         self.user = get_user_model().objects.create_user(username="listener", password="pw12345!")
 
     def make_public(self, slug, duration_s=3600.0, language="en", status="active"):
         """Another novel with an audiobook of one listenable part and one chapter."""
-        novel = Novel.objects.create(title=slug.title(), slug=slug, novel_path=slug)
+        novel = make_novel(title=slug.title(), slug=slug, novel_path=slug)
         source_path = os.path.join(slug, "site")
         os.makedirs(os.path.join(self.tmp, source_path), exist_ok=True)
         source = NovelFromSource.objects.create(
@@ -75,7 +75,7 @@ class PublicAudiobookBase(AudiobookBase):
             external_source=ExternalSource.objects.create(source_name=f"site-{slug}"),
             title=slug.title(),
             source_url=f"http://{slug}/1",
-            source_path=source_path,
+            source_folder="site",
             source_slug="site",
             language=language,
             status="Ongoing",
@@ -88,7 +88,7 @@ class PublicAudiobookBase(AudiobookBase):
             audiobook, status="done", qa_passed=True, duration_s=duration_s, chapter_start=1, chapter_end=1,
         )
         AudiobookChapter.objects.create(
-            part=part, chapter=chapter, file_path=f"{slug}/audio/1.opus",
+            part=part, chapter=chapter, file_in_source="audio/1.opus",
             duration_s=duration_s, size_bytes=1, sha256="0" * 64,
         )
         return audiobook
@@ -259,7 +259,7 @@ class AudiobookDetailTests(PublicAudiobookBase):
         )
         AudiobookChapter.objects.create(
             part=AudiobookPart.objects.get(audiobook=self.audiobook, index=2), chapter=second,
-            file_path="foo/site/audio/4.opus", duration_s=100, size_bytes=1, sha256="0" * 64,
+            file_in_source="audio/4.opus", duration_s=100, size_bytes=1, sha256="0" * 64,
         )
 
         body = self.client.get(reverse("audiobook_detail", kwargs={"slug": "foo"})).json()
@@ -369,7 +369,7 @@ class AudiobookDetailTests(PublicAudiobookBase):
                 chapter_start=chapter.chapter_id, chapter_end=chapter.chapter_id, chapter_ids=[chapter.pk],
             )
             AudiobookChapter.objects.create(
-                part=part, chapter=chapter, file_path=f"foo/site/audio/{chapter.chapter_id}.opus",
+                part=part, chapter=chapter, file_in_source=f"audio/{chapter.chapter_id}.opus",
                 duration_s=1200, size_bytes=10, sha256="0" * 64, offset_s=0,
             )
         with CaptureQueriesContext(connection) as after:
@@ -776,7 +776,7 @@ class AudiobookFlagsInPagesTests(PublicAudiobookBase):
         return {card["slug"]: card["has_audiobook"] for card in self.client.get(reverse("list_novels")).json()["results"]}
 
     def test_novel_cards_flag_novels_with_a_public_audiobook(self):
-        Novel.objects.create(title="Baz", slug="baz", novel_path="baz")
+        make_novel(title="Baz", slug="baz", novel_path="baz")
         self.make_public("bar")
 
         cards = self.novel_cards()
@@ -833,7 +833,7 @@ class AudiobookFlagsInOtherCardSurfacesTests(PublicAudiobookBase):
         return {card["slug"]: card["has_audiobook"] for card in results}
 
     def test_search_cards(self):
-        Novel.objects.create(title="Baz", slug="baz", novel_path="baz")
+        make_novel(title="Baz", slug="baz", novel_path="baz")
 
         results = self.client.get(reverse("search_novels")).json()["results"]
 
@@ -894,7 +894,7 @@ class PodcastFeedTests(PublicAudiobookBase):
         )
         AudiobookChapter.objects.create(
             part=second, chapter=pending,
-            file_path="foo/site/audio/pending.opus", duration_s=10, size_bytes=1, sha256="0" * 64,
+            file_in_source="audio/pending.opus", duration_s=10, size_bytes=1, sha256="0" * 64,
         )
 
         items = ET.fromstring(self.feed().content).find("channel").findall("item")
@@ -1084,7 +1084,7 @@ class AudiobookAdultTests(PublicAudiobookBase):
         for slug in ("adult-a", "adult-b"):
             make_source(
                 self.novel, language="de", external=ExternalSource.objects.create(source_name=f"site-{slug}"),
-                title="Foo", source_url=f"http://foo/{slug}", source_path=f"foo/{slug}", source_slug=slug,
+                title="Foo", source_url=f"http://foo/{slug}", source_folder=slug, source_slug=slug,
                 status="Ongoing", is_adult=True,
             )
         refresh_novel_adult([self.novel.pk])

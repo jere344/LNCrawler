@@ -16,7 +16,7 @@ from ..utils import resolve_novel_slug
 def novel_reviews(request, novel_slug):
     """Get all reviews for a novel with pagination"""
     novel = resolve_novel_slug(novel_slug)
-    reviews = Review.objects.filter(novel=novel).select_related('user', 'novel').prefetch_related('reactions__user')
+    reviews = Review.objects.filter(novel=novel).select_related('user', 'novel__canonical_source').prefetch_related('reactions__user')
     return paginated_reviews_response(
         request, reviews, ReviewSerializer, default_size=4
     )

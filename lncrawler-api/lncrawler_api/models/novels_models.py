@@ -15,11 +15,8 @@ class Novel(models.Model):
     Main novel model that groups together different sources of the same novel
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    title = models.CharField(max_length=255)
-    # Accent/case-folded title for search (see utils/search.py).
-    search_title = models.GeneratedField(expression=search_norm('title'), output_field=models.TextField(), db_persist=True)
     slug = models.SlugField(max_length=255, unique=True)
-    novel_path = models.CharField(max_length=500, null=True, blank=True)  # Path relative to settings.LNCRAWL_OUTPUT_PATH
+    novel_path = models.CharField(max_length=500, db_index=True)  # Novel folder name, relative to settings.LNCRAWL_OUTPUT_PATH
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     comment_count = models.PositiveIntegerField(default=0)
@@ -48,21 +45,20 @@ class Novel(models.Model):
         on_delete=models.SET_NULL,
         related_name='added_novels',
     )
+    # The source whose title names this novel: its slug and folder follow it (see services/novel_naming.py).
+    canonical_source = models.ForeignKey('NovelFromSource', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     
     class Meta:
         indexes = [
-            models.Index(fields=['title'], name='novel_title_idx'),
             models.Index(fields=['-created_at'], name='novel_created_at_idx'),
             models.Index(fields=['added_by', '-created_at'], name='novel_added_by_idx'),
-            GinIndex(OpClass(Upper('title'), name='gin_trgm_ops'), name='novel_title_trgm_idx'),
-            GinIndex(fields=['search_title'], opclasses=['gin_trgm_ops'], name='novel_search_title_trgm_idx'),
-            models.Index(fields=['-rank_total_views', 'title'], name='novel_rank_views_idx'),
-            models.Index(fields=['-rank_week_views', 'title'], name='novel_rank_week_idx'),
-            models.Index(fields=['-rank_avg_rating', 'title'], name='novel_rank_rating_idx'),
+            models.Index(fields=['-rank_total_views', 'slug'], name='novel_rank_views_idx'),
+            models.Index(fields=['-rank_week_views', 'slug'], name='novel_rank_week_idx'),
+            models.Index(fields=['-rank_avg_rating', 'slug'], name='novel_rank_rating_idx'),
         ]
     
     def __str__(self):
-        return self.title
+        return self.canonical_source.title if self.canonical_source_id else self.slug
     
     @property
     def sources_count(self):
@@ -377,7 +373,7 @@ class NovelRating(models.Model):
         
     def __str__(self):
         who = self.user.username if self.user_id else self.ip_address
-        return f"Rating {self.rating} for {self.novel.title} by {who}"
+        return f"Rating {self.rating} for {self.novel} by {who}"
 
 
 class WeeklySourceView(models.Model):
@@ -474,4 +470,4 @@ class NovelSimilarity(models.Model):
         verbose_name_plural = "Novel Similarities"
     
     def __str__(self):
-        return f"{self.from_novel.title} → {self.to_novel.title}: {self.similarity}"
+        return f"{self.from_novel} → {self.to_novel}: {self.similarity}"

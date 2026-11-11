@@ -73,7 +73,7 @@ def source_detail(request, novel_slug, source_slug):
         {
             "novel_id": str(novel.id),
             "novel_slug": novel.slug,
-            "novel_title": novel.title,
+            "novel_title": source.title,
         }
     )
     # The visible audiobook of the novel in this source's language, for the banner of the source page.
@@ -194,7 +194,7 @@ def novel_chapters_by_source(request, novel_slug, source_slug):
     return Response(
         {
             "novel_id": str(novel.id),
-            "novel_title": novel.title,
+            "novel_title": source.title,
             "novel_slug": novel.slug,
             "source_id": str(source.id),
             "source_name": source.external_source.source_name,
@@ -321,7 +321,7 @@ def source_image_gallery(request, novel_slug, source_slug):
 
     return Response({
         "novel_id": str(novel.id),
-        "novel_title": novel.title,
+        "novel_title": source.title,
         "novel_slug": novel.slug,
         "source_id": str(source.id),
         "source_name": source.external_source.source_name,

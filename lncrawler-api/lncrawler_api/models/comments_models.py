@@ -73,7 +73,7 @@ class Comment(models.Model):
     
     def __str__(self):
         if self.novel:
-            target = f"Novel: {self.novel.title}"
+            target = f"Novel: {self.novel}"
         elif self.chapter:
             target = f"Chapter: {self.chapter.display_title}"
         else:

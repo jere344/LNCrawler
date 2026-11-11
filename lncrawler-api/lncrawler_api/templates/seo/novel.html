@@ -1,6 +1,6 @@
 {% extends "seo/base.html" %}
 {% block content %}
-<h1>{{ novel.title }}</h1>
+<h1>{{ novel }}</h1>
 {% if synopsis %}<p>{{ synopsis }}</p>{% endif %}
 
 {% if primary %}
@@ -12,7 +12,7 @@
 {% endfor %}
 
 {% if primary %}
-<h2>About {{ novel.title }}</h2>
+<h2>About {{ novel }}</h2>
 <ul class="sources">
 {% with author_list=primary.authors.all %}
 {% if author_list %}<li><strong>Author{{ author_list|pluralize }}:</strong> {% for a in author_list %}{{ a.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>{% endif %}

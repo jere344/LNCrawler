@@ -8,12 +8,12 @@ import io
 import logging
 import os
 import tempfile
-import textwrap
 
 from django.conf import settings
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps, UnidentifiedImageError
 
 from . import audiobook_service as svc
+from ..utils.folders import make_subfolders
 
 logger = logging.getLogger("lncrawler_api.audiobooks")
 
@@ -254,7 +254,7 @@ def cover_key(audiobook):
 def build_cover(audiobook):
     """Write audio/cover.jpg, audio/cover-600.webp and the stamp, set audiobook.cover_path and return it."""
     directory = svc.audio_dir(audiobook.source)
-    os.makedirs(directory, exist_ok=True)
+    make_subfolders(audiobook.source.absolute_source_path, 'audio')
     stamp = _source_stamp(audiobook)
     art = _compose(audiobook).convert('RGB')
     jpg = os.path.join(directory, COVER_NAME)
@@ -268,8 +268,8 @@ def build_cover(audiobook):
         with open(tmp, 'w', encoding='utf-8') as handle:
             handle.write(stamp)
     _replace_atomically(_stamp_path(audiobook), write_stamp)
-    audiobook.cover_path = os.path.relpath(jpg, settings.LNCRAWL_OUTPUT_PATH)
-    audiobook.save(update_fields=['cover_path', 'updated_at'])
+    audiobook.cover_file = os.path.relpath(jpg, audiobook.source.absolute_source_path)
+    audiobook.save(update_fields=['cover_file', 'updated_at'])
     return audiobook.cover_path
 
 

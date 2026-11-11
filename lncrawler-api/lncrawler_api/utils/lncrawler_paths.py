@@ -1,10 +1,17 @@
 from django.conf import settings
+import logging
 import os
 import shutil
 import unicodedata
 import re
+import uuid
 
 from .slug import slugify
+
+logger = logging.getLogger('lncrawler_api')
+
+# Prefix of a folder renamed aside to be deleted. Dot-prefixed: no crawl or sweep reads it as a novel.
+DELETING_PREFIX = ".deleting-"
 
 # A trailing " [..]" on a source folder name marks a second source of the same
 # site inside one novel, e.g. "foo [ln]" or "foo [2]".
@@ -12,6 +19,18 @@ _SOURCE_SUFFIX_RE = re.compile(r"\s+\[[^\[\]]*\]$")
 
 # Longest edition slug kept in a "<site> [<slug>]" folder name.
 EDITION_SLUG_MAX_BYTES = 60
+
+
+def _cut_suffix(text: str, word: str, replacement: str = "") -> str:
+    """Replace ``word`` or ``(word)`` at the end of ``text`` with ``replacement``, as whole words only."""
+    for suffix in (word, "(" + word + ")"):
+        start = len(text) - len(suffix)
+        if start >= 0 and text[start:].lower() == suffix and (
+            suffix.startswith("(") or start == 0 or not text[start - 1].isalnum()
+        ):
+            text = text[:start].strip() + replacement
+    return text
+
 
 def novel_naming_rules(text: str) -> str:
     # Will be removed if they are at the end of the string
@@ -22,10 +41,7 @@ def novel_naming_rules(text: str) -> str:
         "ongoing",
     ]
     for word in end_remove:
-        if text.lower().endswith(word):
-            text = text[: -len(word)].strip()
-        if text.lower().endswith("(" + word + ")"):
-            text = text[: -len(word) - 2].strip()
+        text = _cut_suffix(text, word)
 
     # will be replaced if they are at the end of the string
     end_replace = {
@@ -35,10 +51,7 @@ def novel_naming_rules(text: str) -> str:
         "ln": "lightnovel",
     }
     for word, replacement in end_replace.items():
-        if text.lower().endswith(word):
-            text = text[: -len(word)].strip() + replacement 
-        if text.lower().endswith("(" + word + ")"):
-            text = text[: -len(word) - 2].strip() + replacement
+        text = _cut_suffix(text, word, replacement)
 
     return text
    
@@ -85,6 +98,14 @@ def truncate_component(text: str, max_bytes: int = 180) -> str:
     return cut.strip() or text[: max_bytes // 4]
 
 
+def novel_folder_name(title: str) -> str:
+    """The novel folder name for a title: sanitized, lowercased, truncated, then the naming rules."""
+    name = truncate_component(sanitize(title).lower())
+    if not name:
+        name = "unknown_novel"
+    return novel_naming_rules(name)
+
+
 def get_novel_output_path(source, novel) -> str:
     """
     Get the output path for a novel based on its source and name.
@@ -93,19 +114,14 @@ def get_novel_output_path(source, novel) -> str:
     # settings.py LNCRAWL_OUTPUT_PATH
     BASE_DIR = settings.LNCRAWL_OUTPUT_PATH
 
-    # Normalize the source and novel names
+    # Normalize the source name
     source = truncate_component(sanitize(source).lower())
-    novel = truncate_component(sanitize(novel).lower())
     
-    # Default names if empty after sanitization
+    # Default name if empty after sanitization
     if not source:
         source = "unknown_source"
-    if not novel:
-        novel = "unknown_novel"
-        
-    # Apply novel naming rules
-    novel = novel_naming_rules(novel)
-    
+
+    novel = novel_folder_name(novel)
     novel_dir = os.path.join(BASE_DIR, novel)
     source_dir = os.path.join(novel_dir, source)
     return source_dir
@@ -197,15 +213,18 @@ def remove_empty_directory(path: str) -> None:
         pass
 
 
-def rebase_path(path: str, old_prefix: str, new_prefix: str) -> str:
+def new_quarantine_path():
+    """A unique name at the library root for a folder being deleted (one place to sweep)."""
+    return os.path.join(settings.LNCRAWL_OUTPUT_PATH, f"{DELETING_PREFIX}{uuid.uuid4().hex}")
+
+
+def remove_quarantined(path):
+    """Post-commit: remove a folder renamed aside by ``new_quarantine_path``.
+
+    A path that is already gone is fine (a folder removed with its parent). Errors are logged.
     """
-    Replace the leading ``old_prefix`` component of a relative path with
-    ``new_prefix``. Paths outside ``old_prefix`` are returned unchanged.
-    """
-    if not path or not old_prefix:
-        return path
-    if path == old_prefix:
-        return new_prefix
-    if path.startswith(old_prefix + os.sep):
-        return new_prefix + path[len(old_prefix):]
-    return path
+    try:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+    except OSError:
+        logger.exception("Could not remove deleted folder '%s'", path)

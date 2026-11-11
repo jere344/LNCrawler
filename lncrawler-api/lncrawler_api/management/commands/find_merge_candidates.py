@@ -149,12 +149,8 @@ class Command(BaseCommand):
         phashes = defaultdict(set)
         paths = {}
 
-        for novel_id, title, novel_path in Novel.objects.filter(pk__in=allowed).values_list(
-            "id", "title", "novel_path"
-        ):
-            if title:
-                titles[novel_id].add(normalize_text(title))
-                raw_titles[novel_id].add(title)
+        # Novel names come from their sources' titles, collected below.
+        for novel_id, novel_path in Novel.objects.filter(pk__in=allowed).values_list("id", "novel_path"):
             if novel_path and novel_path.strip():
                 paths[novel_id] = novel_path.strip()
 
@@ -317,7 +313,7 @@ class Command(BaseCommand):
     def _trigram_pairs(self, data, pair_signals, allowed):
         # Titles are already normalized in Python (brackets, punctuation and case
         # dropped), so they go into a temp table with its own trigram index rather
-        # than the raw Novel.title one. Every source and alternative title is
+        # than the raw title column they replaced. Every source and alternative title is
         # compared. For each row the lateral subquery keeps the 20 closest titles
         # under the trigram operator, so generic titles stay bounded.
         rows = sorted({
@@ -440,7 +436,7 @@ class Command(BaseCommand):
         existing = {row.signature: row for row in rows if row.pk not in gone_pks}
 
         involved = {nid for pair in pair_signals for nid in pair}
-        novels = {n.pk: n for n in Novel.objects.filter(pk__in=involved)}
+        novels = {n.pk: n for n in Novel.objects.filter(pk__in=involved).select_related('canonical_source')}
 
         to_create = []
         to_update = []
@@ -464,7 +460,7 @@ class Command(BaseCommand):
             novel_a, novel_b = novels.get(a_id), novels.get(b_id)
             if novel_a is None or novel_b is None:
                 continue
-            names = [novel_a.title, novel_b.title]
+            names = [str(novel_a), str(novel_b)]
             if row is not None:
                 row.certainty = certainty
                 row.signals = signals

@@ -24,7 +24,9 @@ from ..db_locks import lock_pks
 from ..models.sources_models import refresh_adult_for_tags
 from ..utils.slug import slugify
 from ..utils.tag_utils import normalize_tag
+from .folder_guard import locked_move
 from .manual_merge import pair_candidate, record_manual_merge, record_manual_rename
+from .novel_naming import refresh_naming
 from ..models import (
     Candidate,
     Comment,
@@ -69,20 +71,19 @@ class SourceMergePlan:
 class MergePlan:
     source_novel: Novel
     target_novel: Novel
-    move_files: bool = True
     alias_slugs: list = field(default_factory=list)
     sources: list = field(default_factory=list)
     related_counts: dict = field(default_factory=dict)
     warnings: list = field(default_factory=list)
 
 
-def build_merge_plan(source_novel, target_novel, move_files=True):
+def build_merge_plan(source_novel, target_novel):
     """Inspect a merge without changing anything, for the admin preview."""
     if source_novel.pk == target_novel.pk:
         raise MergeError("A novel cannot be merged into itself.")
 
     plan = MergePlan(
-        source_novel=source_novel, target_novel=target_novel, move_files=move_files
+        source_novel=source_novel, target_novel=target_novel,
     )
 
     for slug in {source_novel.slug, slugify(os.path.basename(source_novel.novel_path or ""))}:
@@ -284,7 +285,7 @@ def _merge_reading_list_items(source, target):
     ReadingListItem.objects.filter(novel=source).delete()
 
 
-def merge_novels(source_novel, target_novel, move_files=True, return_moves=False, candidate=None):
+def merge_novels(source_novel, target_novel, return_moves=False, candidate=None):
     """Merge ``source_novel`` into ``target_novel`` and delete the former.
 
     The database writes and the folder changes succeed or fail together. Sources
@@ -302,87 +303,93 @@ def merge_novels(source_novel, target_novel, move_files=True, return_moves=False
         raise MergeError("A novel cannot be merged into itself.")
 
     source_pk = source_novel.pk
-    source_sources = list(source_novel.sources.all())
     moved_ids, deduped_ids = [], []
     # The source is gone after the merge: its undo data is read first.
+    source_name = str(source_novel)
     snapshot = {
-        "title": source_novel.title,
         "slug": source_novel.slug,
         "is_dmca": source_novel.is_dmca,
         "added_by": source_novel.added_by_id,
     }
 
     try:
-        with file_journal() as files:
-            with transaction.atomic():
-                # Alias first, so the redirect never points at a deleted novel.
-                _record_aliases(source_novel, target_novel)
+        # The folder lock comes first: nothing is read or moved while a crawl writes into either novel.
+        with locked_move(source_novel, target_novel):
+            # Re-read under the lock: a rename or another move may have run since the call.
+            source_novel.refresh_from_db(fields=["novel_path"])
+            target_novel.refresh_from_db(fields=["novel_path"])
+            source_sources = list(source_novel.sources.all())
+            with file_journal() as files:
+                with transaction.atomic():
+                    # Alias first, so the redirect never points at a deleted novel.
+                    _record_aliases(source_novel, target_novel)
 
-                for source in source_sources:
-                    duplicate = find_duplicate(target_novel, source)
-                    if duplicate is None:
-                        move_source_to_novel(source, target_novel, move_files, files=files)
-                        moved_ids.append(source.pk)
-                    elif source_completeness(source) > source_completeness(duplicate):
-                        # Keep the incoming copy: fold the target's weaker copy into it
-                        # first, freeing the (novel, source_url) slot, then repoint.
-                        dedupe_source(
-                            duplicate, source, move_files, files=files,
-                            dest_novel=target_novel,
-                        )
-                        deduped_ids.append(duplicate.pk)
-                        move_source_to_novel(source, target_novel, move_files, files=files)
-                        moved_ids.append(source.pk)
-                    else:
-                        # Keep the existing target copy: drop the incoming one.
-                        dedupe_source(
-                            source, duplicate, move_files, files=files,
-                            dest_novel=target_novel,
-                        )
-                        deduped_ids.append(source.pk)
+                    for source in source_sources:
+                        duplicate = find_duplicate(target_novel, source)
+                        if duplicate is None:
+                            move_source_to_novel(source, target_novel, files=files)
+                            moved_ids.append(source.pk)
+                        elif source_completeness(source) > source_completeness(duplicate):
+                            # Keep the incoming copy: fold the target's weaker copy into it
+                            # first, freeing the (novel, source_url) slot, then repoint.
+                            deduped_ids.append(duplicate.pk)
+                            dedupe_source(
+                                duplicate, source, files=files,
+                                dest_novel=target_novel,
+                            )
+                            move_source_to_novel(source, target_novel, files=files)
+                            moved_ids.append(source.pk)
+                        else:
+                            # Keep the existing target copy: drop the incoming one.
+                            deduped_ids.append(source.pk)
+                            dedupe_source(
+                                source, duplicate, files=files,
+                                dest_novel=target_novel,
+                            )
 
-                _merge_novel_ratings(source_novel, target_novel)
-                _merge_similarities(source_novel, target_novel)
+                    refresh_naming(target_novel)
+                    _merge_novel_ratings(source_novel, target_novel)
+                    _merge_similarities(source_novel, target_novel)
 
-                # Novel-level comments only; chapter comments follow their sources.
-                Comment.objects.filter(novel=source_novel).update(novel=target_novel)
+                    # Novel-level comments only; chapter comments follow their sources.
+                    Comment.objects.filter(novel=source_novel).update(novel=target_novel)
 
-                # Newest data wins on conflict: the later review, and the most
-                # recently read history row, whichever novel it came from.
-                _merge_user_scoped(source_novel, target_novel, Review, newer_field="updated_at")
-                _merge_user_scoped(source_novel, target_novel, NovelBookmark)
-                _merge_user_scoped(
-                    source_novel, target_novel, ReadingHistory, newer_field="last_read_at"
-                )
-                _merge_reading_list_items(source_novel, target_novel)
-
-                if candidate is None:
-                    # Recorded before the drop below, so the pair's own open row is not deleted.
-                    record_manual_merge(
-                        Candidate.KIND_NOVEL_MERGE, [source_pk, target_novel.pk],
-                        [snapshot["title"], target_novel.title],
-                        {
-                            "type": "novel_merge",
-                            "source_id": str(source_pk),
-                            "target_id": str(target_novel.pk),
-                            "moved_source_ids": moved_ids,
-                            **snapshot,
-                        },
-                        row=pair_candidate(Candidate.KIND_NOVEL_MERGE, [source_pk, target_novel.pk]),
+                    # Newest data wins on conflict: the later review, and the most
+                    # recently read history row, whichever novel it came from.
+                    _merge_user_scoped(source_novel, target_novel, Review, newer_field="updated_at")
+                    _merge_user_scoped(source_novel, target_novel, NovelBookmark)
+                    _merge_user_scoped(
+                        source_novel, target_novel, ReadingHistory, newer_field="last_read_at"
                     )
-                source_novel.delete()
-                Candidate.drop_open_naming(
-                    [source_pk], kinds=[Candidate.KIND_NOVEL_MERGE],
-                    exclude_pk=candidate.pk if candidate is not None else None,
-                )
-                recount_comment_count(target_novel)
-                files.schedule()
+                    _merge_reading_list_items(source_novel, target_novel)
+
+                    if candidate is None:
+                        # Recorded before the drop below, so the pair's own open row is not deleted.
+                        record_manual_merge(
+                            Candidate.KIND_NOVEL_MERGE, [source_pk, target_novel.pk],
+                            [source_name, str(target_novel)],
+                            {
+                                "type": "novel_merge",
+                                "source_id": str(source_pk),
+                                "target_id": str(target_novel.pk),
+                                "moved_source_ids": moved_ids,
+                                **snapshot,
+                            },
+                            row=pair_candidate(Candidate.KIND_NOVEL_MERGE, [source_pk, target_novel.pk]),
+                        )
+                    source_novel.delete()
+                    Candidate.drop_open_naming(
+                        [source_pk], kinds=[Candidate.KIND_NOVEL_MERGE],
+                        exclude_pk=candidate.pk if candidate is not None else None,
+                    )
+                    recount_comment_count(target_novel)
+                    files.schedule()
     except FileOperationError as exc:
         raise MergeError(str(exc)) from exc
 
     logger.info(
         "Merged novel '%s' (%s) into '%s' (%s)",
-        source_novel.title, source_novel.slug, target_novel.title, target_novel.slug,
+        source_name, source_novel.slug, str(target_novel), target_novel.slug,
     )
     if return_moves:
         return target_novel, {"moved_source_ids": moved_ids, "deduped_source_ids": deduped_ids}

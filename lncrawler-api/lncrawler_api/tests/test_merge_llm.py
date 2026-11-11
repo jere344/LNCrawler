@@ -15,7 +15,7 @@ from django.urls import reverse
 
 from ..models import Candidate, LLMCall, Novel
 from ..services import llm_service, llm_tasks
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, make_novel
 from .llm_helpers import llm_chain
 from .test_candidate_apply import novel_pair, two_novels
 
@@ -397,11 +397,11 @@ class JudgeTokenBudgetTests(OutputDirMixin, MergeTestCase):
         super().setUp()
         self.candidates = []
         for n in (1, 2):
-            a = Novel.objects.create(title=f"A{n}", slug=f"a{n}", novel_path=f"a{n}")
-            b = Novel.objects.create(title=f"B{n}", slug=f"b{n}", novel_path=f"b{n}")
+            a = make_novel(title=f"A{n}", slug=f"a{n}", novel_path=f"a{n}")
+            b = make_novel(title=f"B{n}", slug=f"b{n}", novel_path=f"b{n}")
             self.candidates.append(Candidate.objects.create(
                 kind=Candidate.KIND_NOVEL_MERGE, target_ids=[str(a.pk), str(b.pk)],
-                target_names=[a.title, b.title], signature=f"budget-{n}",
+                target_names=[str(a), str(b)], signature=f"budget-{n}",
                 status=Candidate.STATUS_PENDING,
             ))
 

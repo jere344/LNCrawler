@@ -51,10 +51,10 @@ PAGE_SIZE = 24
 MAX_PAGE_SIZE = 50
 CATALOG_ADULT_MODES = ('exclude', 'include', 'only')  # ?adult= of the catalog feed, exclude by default
 SORTS = {
-    'popular': ('-popularity', '-novel__rank_total_views', 'novel__title'),
-    'new': (F('first_published_at').desc(nulls_last=True), 'novel__title'),
-    'updated': (F('last_part_at').desc(nulls_last=True), 'novel__title'),
-    'longest': ('-public_duration_s', 'novel__title'),
+    'popular': ('-popularity', '-novel__rank_total_views', 'novel__slug'),
+    'new': (F('first_published_at').desc(nulls_last=True), 'novel__slug'),
+    'updated': (F('last_part_at').desc(nulls_last=True), 'novel__slug'),
+    'longest': ('-public_duration_s', 'novel__slug'),
 }
 
 

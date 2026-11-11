@@ -58,7 +58,8 @@ class CommentAdmin(admin.ModelAdmin):
         "reply_count",
     )
     list_filter = ("contains_spoiler", "created_at")
-    search_fields = ("author_name", "message", "novel__title", "chapter__title")
+    list_select_related = ("novel__canonical_source", "chapter__novel_from_source__novel")
+    search_fields = ("author_name", "message", "novel__canonical_source__title", "chapter__title")
     readonly_fields = (
         "id",
         "created_at",
@@ -116,7 +117,7 @@ class CommentAdmin(admin.ModelAdmin):
     def target_link(self, obj):
         if obj.novel:
             url = reverse("admin:lncrawler_api_novel_change", args=[obj.novel.id])
-            return format_html('<a href="{}">{}</a>', url, obj.novel.title)
+            return format_html('<a href="{}">{}</a>', url, obj.novel)
         elif obj.chapter:
             url = reverse("admin:lncrawler_api_chapter_change", args=[obj.chapter.id])
             return format_html('<a href="{}">{}</a>', url, obj.chapter.display_title)

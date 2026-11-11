@@ -82,5 +82,5 @@ class FriendshipAdmin(admin.ModelAdmin):
 @admin.register(ProfilePinnedNovel)
 class ProfilePinnedNovelAdmin(admin.ModelAdmin):
     list_display = ('user', 'novel', 'position', 'created_at')
-    search_fields = ('user__username', 'novel__title')
+    search_fields = ('user__username', 'novel__canonical_source__title')
     raw_id_fields = ('user', 'novel')

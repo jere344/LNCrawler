@@ -6,7 +6,7 @@
 <h2>Browse novels</h2>
 <ul class="sources">
 {% for novel in novels %}
-  <li><a href="{{ site_url }}/novels/{{ novel.slug }}/">{{ novel.title }}</a></li>
+  <li><a href="{{ site_url }}/novels/{{ novel.slug }}/">{{ novel }}</a></li>
 {% endfor %}
 </ul>
 

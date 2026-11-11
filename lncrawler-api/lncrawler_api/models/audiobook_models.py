@@ -1,3 +1,4 @@
+import os
 import uuid
 from datetime import timedelta
 
@@ -26,7 +27,7 @@ class Audiobook(models.Model):
     source = models.ForeignKey('lncrawler_api.NovelFromSource', on_delete=models.CASCADE, related_name='audiobooks')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
     worker_id = models.CharField(max_length=64, blank=True, default='')
-    cover_path = models.CharField(max_length=500, blank=True, default='')
+    cover_file = models.CharField(max_length=500, blank=True, default='')  # relative to the source folder
     tags_hash = models.CharField(max_length=64, blank=True, default='')  # compute_tags_hash at the last retag
     total_duration_s = models.FloatField(default=0)
     total_size_bytes = models.BigIntegerField(default=0)
@@ -44,9 +45,15 @@ class Audiobook(models.Model):
         ]
 
     @property
+    def cover_path(self):
+        """The 1400 px cover, relative to LNCRAWL_OUTPUT_PATH ('' while no cover was built)."""
+        folder = self.source.source_path
+        return os.path.join(folder, self.cover_file) if folder and self.cover_file else ''
+
+    @property
     def display_title(self):
         """The title of the source it is made from: the novel's title may be in another language."""
-        return self.source.title or self.novel.title
+        return self.source.title
 
     def __str__(self):
         return self.display_title
@@ -117,6 +124,11 @@ class AudiobookPart(models.Model):
     def __str__(self):
         return f"{self.audiobook} — part {self.index}"
 
+    def upload_path(self, upload):
+        """Path relative to LNCRAWL_OUTPUT_PATH of an entry of ``uploads``, '' when the source has no folder."""
+        folder = self.audiobook.source.source_path
+        return os.path.join(folder, upload['file_in_source']) if folder else ''
+
     def is_listenable(self):
         """Done or stale. QA is recorded for the admin, it does not hide the part"""
         return self.status in LISTENABLE_STATUSES
@@ -128,7 +140,7 @@ class AudiobookChapter(models.Model):
     """
     part = models.ForeignKey(AudiobookPart, on_delete=models.CASCADE, related_name='chapters')
     chapter = models.OneToOneField('lncrawler_api.Chapter', on_delete=models.CASCADE, related_name='audio')
-    file_path = models.CharField(max_length=500)  # relative to LNCRAWL_OUTPUT_PATH
+    file_in_source = models.CharField(max_length=500, blank=True, default='')  # relative to the source folder
     duration_s = models.FloatField()
     size_bytes = models.BigIntegerField()
     sha256 = models.CharField(max_length=64)
@@ -136,6 +148,12 @@ class AudiobookChapter(models.Model):
 
     class Meta:
         ordering = ['part', 'chapter__chapter_id']
+
+    @property
+    def file_path(self):
+        """The audio file, relative to LNCRAWL_OUTPUT_PATH ('' when the source has no folder)."""
+        folder = self.part.audiobook.source.source_path
+        return os.path.join(folder, self.file_in_source) if folder else ''
 
 
 class AudiobookWorker(models.Model):

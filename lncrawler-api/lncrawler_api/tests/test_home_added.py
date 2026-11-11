@@ -17,6 +17,7 @@ from rest_framework.authtoken.models import Token
 
 from ..models import ExternalSource, Job, Novel, NovelFromSource
 from ..services import DownloaderService
+from ..services.novel_naming import refresh_naming
 from .helpers import make_source, set_adult
 
 
@@ -191,15 +192,9 @@ class HomeAddedSectionsTests(TestCase):
             username="u2", email="u2@example.com", password="x"
         )
 
-        self.mine = Novel.objects.create(
-            title="Mine", slug="mine", novel_path="mine", added_by=self.user
-        )
-        self.theirs = Novel.objects.create(
-            title="Theirs", slug="theirs", novel_path="theirs", added_by=self.other
-        )
-        self.plain = Novel.objects.create(
-            title="Plain", slug="plain", novel_path="plain"
-        )
+        self.mine = Novel.objects.create(slug="mine", novel_path="mine", added_by=self.user)
+        self.theirs = Novel.objects.create(slug="theirs", novel_path="theirs", added_by=self.other)
+        self.plain = Novel.objects.create(slug="plain", novel_path="plain")
         now = timezone.now()
         Novel.objects.filter(pk=self.mine.pk).update(created_at=now - timedelta(days=3))
         Novel.objects.filter(pk=self.theirs.pk).update(
@@ -207,16 +202,8 @@ class HomeAddedSectionsTests(TestCase):
         )
         Novel.objects.filter(pk=self.plain.pk).update(created_at=now - timedelta(days=1))
 
-        for novel in (self.mine, self.theirs, self.plain):
-            NovelFromSource.objects.create(
-                novel=novel,
-                external_source=ExternalSource.objects.create(
-                    source_name=f"src-{novel.slug}"
-                ),
-                title=novel.title,
-                source_url=f"http://{novel.slug}/1",
-                language="en",
-            )
+        for novel, title in ((self.mine, "Mine"), (self.theirs, "Theirs"), (self.plain, "Plain")):
+            make_source(novel, title=title)
 
     def test_recently_added_lists_all_novels_newest_first(self):
         response = self.client.get(reverse("home_page"))
@@ -267,10 +254,8 @@ class HomeAddedSectionsTests(TestCase):
     def test_recently_added_excludes_dmca_and_adult(self):
         self.mine.is_dmca = True
         self.mine.save(update_fields=["is_dmca"])
-        adult = Novel.objects.create(
-            title="Adult", slug="adult", novel_path="adult", added_by=self.user
-        )
-        set_adult(make_source(adult, external=ExternalSource.objects.create(source_name="adult-src")))
+        adult = Novel.objects.create(slug="adult", novel_path="adult", added_by=self.user)
+        set_adult(make_source(adult, title="Adult", external=ExternalSource.objects.create(source_name="adult-src")))
 
         # A user who hides adult content (new accounts default to 'blur').
         self.user.show_r18 = "no"
@@ -285,7 +270,6 @@ class HomeAddedSectionsTests(TestCase):
         def measure(count):
             for index in range(count):
                 novel = Novel.objects.create(
-                    title=f"Extra {count}-{index}",
                     slug=f"extra-{count}-{index}",
                     novel_path=f"e{count}-{index}",
                     added_by=self.user,
@@ -295,10 +279,11 @@ class HomeAddedSectionsTests(TestCase):
                     external_source=ExternalSource.objects.create(
                         source_name=f"extra-src-{count}-{index}"
                     ),
-                    title=novel.title,
+                    title=f"Extra {count}-{index}",
                     source_url=f"http://extra/{count}/{index}",
                     language="en",
                 )
+                refresh_naming(novel)
             self.client.force_login(self.user)
             # Compare cold requests: a warm ranking cache skips those queries.
             cache.clear()

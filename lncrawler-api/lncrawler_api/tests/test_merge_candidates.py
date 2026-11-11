@@ -15,7 +15,7 @@ from ..models import (
     NovelFromSource,
 )
 from ..services.merge_common import sorted_pk_signature
-from .helpers import MergeTestCase, make_novel
+from .helpers import MergeTestCase, bare_novel, make_novel
 
 
 def novel_rows():
@@ -29,7 +29,7 @@ def pair_candidate(a, b, **extra):
     return Candidate.objects.create(
         kind=Candidate.KIND_NOVEL_MERGE,
         target_ids=ids,
-        target_names=[a.title, b.title],
+        target_names=[str(a), str(b)],
         signature=sorted_pk_signature(ids),
         **extra,
     )
@@ -65,14 +65,14 @@ class FindMergeCandidatesTests(MergeTestCase):
         self.assertIn("title", candidate.signals)
 
     def test_placeholder_cover_is_ignored(self):
-        a = make_novel("Alpha Story", "alpha")
-        b = make_novel("Beta Story", "beta")
-        for novel, slug in ((a, "alpha"), (b, "beta")):
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
+        for novel, title in ((a, "Alpha Story"), (b, "Beta Story")):
             NovelFromSource.objects.create(
                 novel=novel,
                 external_source=self.es,
-                title=novel.title,
-                source_url=f"http://x/{slug}",
+                title=title,
+                source_url=f"http://x/{novel.slug}",
                 cover_phash="f" * 16,
             )
 
@@ -93,8 +93,8 @@ class FindMergeCandidatesTests(MergeTestCase):
 
     def test_same_source_url_creates_a_candidate(self):
         # A renamed novel has no title overlap; the shared source URL still wins.
-        a = make_novel("Old Name", "old-name")
-        b = make_novel("Brand New Name", "brand-new-name")
+        a = bare_novel("old-name")
+        b = bare_novel("brand-new-name")
         for novel, title in ((a, "Old Name"), (b, "Brand New Name")):
             NovelFromSource.objects.create(
                 novel=novel, external_source=self.es, title=title, source_url="http://x/1"
@@ -107,8 +107,8 @@ class FindMergeCandidatesTests(MergeTestCase):
         self.assertGreaterEqual(candidate.certainty, 0.99)
 
     def test_blank_source_urls_do_not_block_together(self):
-        a = make_novel("Alpha", "alpha")
-        b = make_novel("Beta", "beta")
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
         for novel, title in ((a, "Alpha"), (b, "Beta")):
             NovelFromSource.objects.create(
                 novel=novel, external_source=self.es, title=title, source_url=""
@@ -127,8 +127,8 @@ class SurvivorPickTests(MergeTestCase):
     def test_keeps_the_novel_with_more_chapters(self):
         from ..services.merge_service import pick_merge_survivor
 
-        thin = Novel.objects.create(title="Thin", slug="thin", novel_path="thin")
-        fat = Novel.objects.create(title="Fat", slug="fat", novel_path="fat")
+        thin = bare_novel("thin", "thin")
+        fat = bare_novel("fat", "fat")
         self.make_source(thin, self.es, "Thin", "http://x/1", "thin", "site", chapters=1)
         self.make_source(fat, self.es, "Fat", "http://x/2", "fat", "site", chapters=5)
 
@@ -142,8 +142,8 @@ class MergeCandidateReviewViewTests(MergeTestCase):
         user = get_user_model().objects.create_superuser("admin", "a@a.com", "pw")
         self.client.force_login(user)
         self.es = ExternalSource.objects.create(source_name="site")
-        self.a = Novel.objects.create(title="Worm (Parahumans #1)", slug="worm-para", novel_path="worm-para")
-        self.b = Novel.objects.create(title="Worm", slug="worm", novel_path="worm")
+        self.a = bare_novel("worm-para", "worm-para")
+        self.b = bare_novel("worm", "worm")
         self.make_source(self.a, self.es, "Worm (Parahumans #1)", "http://x/a", "worm-para", "site")
         self.make_source(self.b, self.es, "Worm", "http://x/b", "worm", "site")
         self.candidate = pair_candidate(
@@ -178,8 +178,8 @@ class MergeCandidateReviewViewTests(MergeTestCase):
     def test_merge_keeps_the_most_complete_side(self):
         # Both novels share one source URL (a rename/bad import): the merge must
         # survive the fuller copy and drop the thinner one.
-        thin = Novel.objects.create(title="Fate Points A", slug="fp-thin", novel_path="fp-thin")
-        fat = Novel.objects.create(title="Fate Points B", slug="fp-fat", novel_path="fp-fat")
+        thin = bare_novel("fp-thin", "fp-thin")
+        fat = bare_novel("fp-fat", "fp-fat")
         self.make_source(thin, self.es, "Fate Points A", "http://rr/58682", "fp-thin", "site", chapters=1)
         self.make_source(fat, self.es, "Fate Points B", "http://rr/58682", "fp-fat", "site", chapters=5)
         c = pair_candidate(thin, fat, status=Candidate.STATUS_REVIEW, certainty=0.99)
@@ -200,8 +200,8 @@ class MergeCandidateReviewViewTests(MergeTestCase):
         self.assertEqual(self.candidate.status, Candidate.STATUS_REVIEW)
 
     def test_skip_advances_and_reset_restores(self):
-        c = Novel.objects.create(title="Frieren", slug="frieren-c", novel_path="frieren-c")
-        d = Novel.objects.create(title="Frieren", slug="frieren-d", novel_path="frieren-d")
+        c = make_novel("Frieren", "frieren-c")
+        d = make_novel("Frieren", "frieren-d")
         pair_candidate(c, d, status=Candidate.STATUS_REVIEW, certainty=0.4)
 
         self.client.post(
@@ -256,8 +256,8 @@ class DiscriminantTests(MergeTestCase):
     def test_sequel_is_not_queued_on_title_plus_author(self):
         # Trigram similarity plus a shared author would reach review; the sequel
         # number on one side is what keeps the pair out.
-        a = make_novel("Dragon Quest", "dq")
-        b = make_novel("Dragon Quest 2", "dq-2")
+        a = bare_novel("dq")
+        b = bare_novel("dq-2")
         for novel, es, title, url in (
             (a, self.es, "Dragon Quest", "http://x/dq"),
             (b, self.other_es, "Dragon Quest 2", "http://x/dq2"),
@@ -277,8 +277,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertLess(candidate.certainty, 0.5)
 
     def test_same_source_url_is_queued_despite_edition_markers(self):
-        a = make_novel("Foo (WN)", "foo-wn")
-        b = make_novel("Foo (LN)", "foo-ln")
+        a = bare_novel("foo-wn")
+        b = bare_novel("foo-ln")
         self.make_source(a, self.es, "Foo (WN)", "http://x/1", "foo-wn", "site")
         self.make_source(b, self.es, "Foo (LN)", "http://x/1", "foo-ln", "site")
 
@@ -289,8 +289,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertGreaterEqual(candidate.certainty, 0.99)
 
     def test_shared_novel_path_is_queued(self):
-        make_novel("Alpha", "alpha", novel_path="shared-folder")
-        make_novel("Zeta", "zeta", novel_path="shared-folder")
+        bare_novel("alpha", "shared-folder")
+        bare_novel("zeta", "shared-folder")
 
         call_command("find_merge_candidates", trigram_min=-1)
 
@@ -317,8 +317,8 @@ class DiscriminantTests(MergeTestCase):
     def test_same_site_different_titles_is_not_penalised(self):
         # A shared novelupdates_url queues the pair; one site listing the two
         # under different titles is no longer a reason to hold it back.
-        a = make_novel("Crimson Sky", "crimson")
-        b = make_novel("Silent Harbor", "silent")
+        a = bare_novel("crimson")
+        b = bare_novel("silent")
         for novel, title, url in (
             (a, "Crimson Sky", "http://x/crimson"),
             (b, "Silent Harbor", "http://x/silent"),
@@ -345,8 +345,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertGreaterEqual(candidate.signals["title"], 0.4)
 
     def test_rerunning_does_not_duplicate_rows(self):
-        make_novel("Alpha", "alpha", novel_path="shared-folder")
-        make_novel("Zeta", "zeta", novel_path="shared-folder")
+        bare_novel("alpha", "shared-folder")
+        bare_novel("zeta", "shared-folder")
 
         call_command("find_merge_candidates", trigram_min=-1)
         call_command("find_merge_candidates", trigram_min=-1)
@@ -355,14 +355,14 @@ class DiscriminantTests(MergeTestCase):
 
     def _add_cover(self, novel, phash, url):
         NovelFromSource.objects.create(
-            novel=novel, external_source=self.es, title=novel.title,
+            novel=novel, external_source=self.es, title=novel.slug,
             source_url=url, cover_phash=phash,
         )
 
     def test_near_identical_covers_are_queued(self):
         # Unrelated titles: only the cover, 2 bits apart, connects the pair.
-        a = make_novel("Alpha Story", "alpha")
-        b = make_novel("Beta Tale", "beta")
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "78d050524c5c3cb3", "http://x/beta")
 
@@ -372,8 +372,8 @@ class DiscriminantTests(MergeTestCase):
         self.assertAlmostEqual(candidate.signals["phash"], 1 - 2 / 16)
 
     def test_distant_covers_are_not_matched(self):
-        a = make_novel("Alpha Story", "alpha")
-        b = make_novel("Beta Tale", "beta")
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "872fafadb3a3c34f", "http://x/beta")
 
@@ -383,8 +383,8 @@ class DiscriminantTests(MergeTestCase):
 
     def test_covers_at_the_max_distance_are_queued(self):
         # 6 bits spread over 6 different bytes: no 16-bit band survives intact.
-        a = make_novel("Alpha Story", "alpha")
-        b = make_novel("Beta Tale", "beta")
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "79d151534d5d3cb0", "http://x/beta")
 
@@ -396,10 +396,10 @@ class DiscriminantTests(MergeTestCase):
     def test_near_flat_covers_never_match(self):
         # Blank-ish covers of unrelated novels land a few bits apart, and two
         # novels sharing the exact same blank cover must not match either.
-        a = make_novel("Alpha Story", "alpha")
-        b = make_novel("Beta Tale", "beta")
-        c = make_novel("Gamma Saga", "gamma")
-        d = make_novel("Delta Run", "delta")
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
+        c = bare_novel("gamma")
+        d = bare_novel("delta")
         self._add_cover(a, "0000000010100000", "http://x/alpha")
         self._add_cover(b, "0000000010300800", "http://x/beta")
         self._add_cover(c, "0000000010100000", "http://x/gamma")
@@ -412,8 +412,8 @@ class DiscriminantTests(MergeTestCase):
     def test_normal_cover_alone_is_not_queued(self):
         # Sites reuse covers: an exact cover match with unrelated titles stays
         # below the default review_low.
-        a = make_novel("Alpha Story", "alpha")
-        b = make_novel("Beta Tale", "beta")
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
         self._add_cover(a, "78d050524c5c3cb0", "http://x/alpha")
         self._add_cover(b, "78d050524c5c3cb0", "http://x/beta")
 
@@ -423,8 +423,8 @@ class DiscriminantTests(MergeTestCase):
 
     def test_stale_pending_row_is_removed(self):
         # Queued by an earlier run; the pair no longer has any signal to back it.
-        a = make_novel("Alpha Story", "alpha")
-        b = make_novel("Beta Tale", "beta")
+        a = bare_novel("alpha")
+        b = bare_novel("beta")
         pair_candidate(
             a, b, certainty=0.75, status=Candidate.STATUS_PENDING, signals={"phash": 1.0},
         )
@@ -436,9 +436,9 @@ class DiscriminantTests(MergeTestCase):
     def test_near_identical_placeholder_covers_are_ignored(self):
         # Three novels share one default cover, re-encoded slightly differently.
         novels = [
-            make_novel("Alpha Story", "alpha"),
-            make_novel("Beta Tale", "beta"),
-            make_novel("Gamma Saga", "gamma"),
+            bare_novel("alpha"),
+            bare_novel("beta"),
+            bare_novel("gamma"),
         ]
         for novel, phash in zip(novels, ("78d050524c5c3cb0", "78d050524c5c3cb1", "78d050524c5c3cb3")):
             self._add_cover(novel, phash, f"http://x/{novel.slug}")
@@ -450,8 +450,8 @@ class DiscriminantTests(MergeTestCase):
 
     def test_fuzzy_match_uses_source_titles(self):
         # Novel.title differs completely; only the source titles are similar.
-        a = make_novel("Kingdom Rising", "kingdom")
-        b = make_novel("Wang Guo", "wang-guo")
+        a = bare_novel("kingdom")
+        b = bare_novel("wang-guo")
         self.make_source(a, self.es, "Lord of the Mysteries", "http://x/lotm-a", "kingdom", "site")
         self.make_source(b, self.other_es, "Lord of Mysteries", "http://x/lotm-b", "wang-guo", "other")
 
@@ -461,8 +461,9 @@ class DiscriminantTests(MergeTestCase):
         self.assertGreaterEqual(candidate.signals["title"], 0.4)
 
     def test_fuzzy_match_uses_alternative_titles(self):
-        a = make_novel("Lord of the Mysteries", "lotm")
-        b = make_novel("Gui Mi Zhi Zhu", "gmzz")
+        a = bare_novel("lotm")
+        b = bare_novel("gmzz")
+        self.make_source(a, self.es, "Lord of the Mysteries", "http://x/lotm", "lotm", "site")
         self.make_source(b, self.other_es, "Gui Mi Zhi Zhu", "http://x/gmzz", "gmzz", "other")
         NovelFromSource.objects.get(novel=b).alternative_titles.add(
             AlternativeTitle.objects.create(name="Lord of Mysteries")
@@ -477,8 +478,8 @@ class DiscriminantTests(MergeTestCase):
         # Different titles, so only the author and the chapter count connect them.
         author = Author.objects.create(name="Shared Author")
         for novel, es, title, url in (
-            (make_novel("Kingdom", "kingdom"), self.es, "Kingdom", "http://x/k"),
-            (make_novel("Wang Guo", "wang-guo"), self.other_es, "Wang Guo", "http://x/w"),
+            (bare_novel("kingdom"), self.es, "Kingdom", "http://x/k"),
+            (bare_novel("wang-guo"), self.other_es, "Wang Guo", "http://x/w"),
         ):
             self.make_source(novel, es, title, url, novel.slug, es.source_name, chapters=chapters)
             NovelFromSource.objects.get(novel=novel).authors.add(author)

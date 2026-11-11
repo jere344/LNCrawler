@@ -112,7 +112,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return self._neighbours(obj)['next_chapter_id']
 
     def get_novel_title(self, obj):
-        return obj.novel_from_source.novel.title
+        return obj.novel_from_source.title
 
     def get_novel_id(self, obj):
         return str(obj.novel_from_source.novel.id)

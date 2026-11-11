@@ -21,6 +21,7 @@ from mutagen.mp4 import MP4, MP4Cover
 
 from ..models import Audiobook, AudiobookPart
 from ..utils.chapter_label import get_labeler
+from ..utils.folders import make_subfolders
 from . import audiobook_cover, audiobook_media, audiobook_service as svc
 from .epub_service import _build_lock, enqueue_job
 
@@ -187,7 +188,7 @@ def build_m4b(part, fmt, progress=None):
     audiobook = part.audiobook
     if not part.is_listenable() or not part.chapters.exists():
         raise ValueError("This part has no listenable audio yet.")
-    os.makedirs(_cache_dir(audiobook), exist_ok=True)
+    make_subfolders(audiobook.source.absolute_source_path, 'audio', CACHE_DIR)
     with audiobook_media.retag_lock(audiobook):
         if audiobook.tags_hash != audiobook_media.compute_tags_hash(audiobook):
             audiobook_media.retag_audiobook(audiobook)
@@ -263,7 +264,7 @@ def run_m4b_job(job_id, payload):
         return
     try:
         part_id, fmt = parse_m4b_job_key(payload)
-        part = AudiobookPart.objects.select_related('audiobook__novel', 'audiobook__source').get(pk=part_id)
+        part = AudiobookPart.objects.select_related('audiobook__novel', 'audiobook__source__novel').get(pk=part_id)
         job.update_status(Job.STATUS_DOWNLOADING)
         path = build_m4b(
             part, fmt,
@@ -281,7 +282,7 @@ def run_m4b_job(job_id, payload):
 
 def _cache_dirs():
     """(audiobook, folder) of each audio/cache folder of an audiobook with chapter rows, inside LNCRAWL_OUTPUT_PATH."""
-    audiobooks = Audiobook.objects.filter(parts__chapters__isnull=False).distinct().select_related('source')
+    audiobooks = Audiobook.objects.filter(parts__chapters__isnull=False).distinct().select_related('source__novel')
     found = []
     for audiobook in audiobooks:
         folder = _cache_dir(audiobook)

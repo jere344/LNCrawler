@@ -27,7 +27,7 @@ from ..services.candidate_service import (
 )
 from ..services.author_merge_service import merge_authors
 from ..services.merge_service import merge_tags
-from .helpers import MergeTestCase, make_novel
+from .helpers import MergeTestCase, bare_novel, make_novel
 from .test_candidate_finders import pair_row
 
 YES = {"answer": "yes", "confidence": 0.9, "reason": "same work"}
@@ -35,13 +35,13 @@ YES = {"answer": "yes", "confidence": 0.9, "reason": "same work"}
 
 def two_novels(test):
     """Two novels with two sources each, on four different sites: both sides move over."""
-    first = make_novel("Alpha Tale", "alpha-tale")
-    second = make_novel("Beta Tale", "beta-tale")
-    for novel in (first, second):
+    first = bare_novel("alpha-tale")
+    second = bare_novel("beta-tale")
+    for novel, title in ((first, "Alpha Tale"), (second, "Beta Tale")):
         for site in ("site-1", "site-2"):
             test.make_source(
                 novel, ExternalSource.objects.create(source_name=f"{novel.slug}-{site}"),
-                novel.title, f"http://{novel.slug}/{site}",
+                title, f"http://{novel.slug}/{site}",
                 novel.slug, f"{novel.slug}-{site}",
             )
     return first, second
@@ -142,7 +142,7 @@ class NovelUndoTests(MergeTestCase):
         self.assertEqual(candidate.status, Candidate.STATUS_UNDONE)
         restored = Novel.objects.get(pk=entry["source_id"])
         self.assertEqual(restored.slug, entry["slug"])
-        self.assertEqual(restored.title, entry["title"])
+        self.assertIn(restored.canonical_source_id, restored.sources.values_list("pk", flat=True))
         for source in moved:
             source.refresh_from_db()
             self.assertEqual(str(source.novel_id), entry["source_id"])
@@ -172,14 +172,14 @@ class NovelUndoTests(MergeTestCase):
 
     def test_undo_refused_when_the_merged_away_id_is_taken(self):
         candidate, entry = self.applied()
-        Novel.objects.create(pk=entry["source_id"], title="Taken", slug="taken-id")
+        Novel.objects.create(pk=entry["source_id"], slug="taken-id")
 
         with self.assertRaisesMessage(CandidateError, "id is taken"):
             undo_candidate(candidate)
 
     def test_undo_refused_when_the_slug_is_taken(self):
         candidate, entry = self.applied()
-        Novel.objects.create(title="Squatter", slug=entry["slug"])
+        make_novel(title="Squatter", slug=entry["slug"])
 
         with self.assertRaises(CandidateError):
             undo_candidate(candidate)

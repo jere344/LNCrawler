@@ -41,8 +41,11 @@ def source_lock(source_absolute_path):
     than fail a read/write.
     """
     lock_path = Path(source_absolute_path) / SOURCE_LOCK_FILE
+    # The source folder must already exist (folder guard, rule 1): a stale path raises
+    # FileNotFoundError here instead of recreating the folder, so it is not caught below.
+    if not lock_path.parent.is_dir():
+        raise FileNotFoundError(f"Source folder is missing: {lock_path.parent}")
     try:
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
     except OSError as e:
         logger.warning("Could not open source lock %s: %s", lock_path, e)

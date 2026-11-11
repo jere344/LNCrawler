@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { novelService } from '@services/novel.service';
 import { importService } from '@services/import.service';
 import { getApiErrorMessage } from '@utils/apiError';
+import { getNovelDisplayTitle } from '@utils/Misc';
 import type { NuImportEntry, NuImportApplyResponse } from '@services/import.service';
 import type { Novel } from '@models/novels_types';
 import { useAuth } from '@context/AuthContext';
@@ -65,7 +66,7 @@ const NovelSelect: React.FC<NovelSelectProps> = ({ value, initialOptions, onChan
       size="small"
       options={optionsWithValue}
       value={value}
-      getOptionLabel={(option) => option.title}
+      getOptionLabel={(option) => getNovelDisplayTitle(option)}
       isOptionEqualToValue={(a, b) => a.id === b.id}
       loading={searching}
       onChange={(_, novel) => onChange(novel)}
@@ -73,12 +74,12 @@ const NovelSelect: React.FC<NovelSelectProps> = ({ value, initialOptions, onChan
       renderOption={(props, option) => (
         <Box component="li" {...props} key={option.id} sx={{ gap: 1 }}>
           <Avatar
-            src={option.prefered_source?.cover_min_url || undefined}
+            src={option.suggested_source?.cover_min_url || undefined}
             sx={{ width: 24, height: 24 }}
           >
             <BookIcon sx={{ fontSize: 16 }} />
           </Avatar>
-          {option.title}
+          {getNovelDisplayTitle(option)}
         </Box>
       )}
       renderInput={(params) => (

@@ -73,10 +73,13 @@ RETURNING job.id, job.job_type,
          ELSE COALESCE(job.query, '') END
 """
 
+# A requeued job is queued, not running: novel_id is cleared, since a 'created' job with a
+# novel would block folder moves of that novel (folder guard counts created jobs as active).
 REQUEUE_SQL = f"""
 UPDATE {TABLE}
 SET status = CASE WHEN retry_count < {MAX_RETRIES} THEN 'created' ELSE 'failed' END,
     retry_count = retry_count + 1,
+    novel_id = NULL,
     updated_at = now(),
     error_message = CASE
         WHEN retry_count < {MAX_RETRIES} THEN error_message
@@ -90,10 +93,12 @@ WHERE status IN ('searching', 'downloading')
 # in a running state; requeue it immediately instead of waiting out the stale
 # window, or mark it failed once the retry budget is spent. Guarded on the
 # running status so a row another worker has since moved cannot be clobbered.
+# Same as REQUEUE_SQL when the job goes back to the queue; a job that fails for good keeps its novel.
 FAIL_JOB_SQL = f"""
 UPDATE {TABLE}
 SET status = CASE WHEN retry_count < {MAX_RETRIES} THEN 'created' ELSE 'failed' END,
     retry_count = retry_count + 1,
+    novel_id = CASE WHEN retry_count < {MAX_RETRIES} THEN NULL ELSE novel_id END,
     updated_at = now(),
     error_message = CASE
         WHEN retry_count < {MAX_RETRIES} THEN error_message

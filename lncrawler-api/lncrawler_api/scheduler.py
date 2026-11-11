@@ -335,11 +335,17 @@ def update_popular_sources():
 def prune_library_task():
     if os.getenv("LNCRAWL_PRUNE_APPLY", "1").lower() in ("0", "false", "no"):
         return
+    from .services.novel_deletion import sweep_stale_quarantine
+
+    def run():
+        sweep_stale_quarantine()
+        call_command('prune_library', apply=True, limit=200)
+
     _run_job(
         "Pruning library (bounded batch)...",
         "Library prune batch completed",
         "Error pruning library: {error}",
-        lambda: call_command('prune_library', apply=True, limit=200),
+        run,
     )
 
 # Trim terminal Job rows so a continuously running harvest feeder cannot grow
@@ -393,6 +399,22 @@ def refresh_novel_rankings_task():
     except Exception as e:
         logger.error(f"Error refreshing novel rankings: {str(e)}", exc_info=True)
         raise  # Re-raise to mark task as failed
+
+# Make each novel's slug and folder follow its canonical source (services/novel_naming.py). At most 5
+# folder renames per run. Off unless NOVEL_NAMING_SYNC_ENABLED is set in the environment; the value is
+# read when the scheduler starts, so changing it needs a scheduler restart.
+@scheduler.register_task(interval=300, name="sync_novel_naming")  # 5 minutes
+def sync_novel_naming_task():
+    if not settings.NOVEL_NAMING_SYNC_ENABLED:
+        return
+    from .services.novel_naming import DEFAULT_RENAME_LIMIT, sync_novel_naming
+
+    _run_job(
+        "Syncing novel names and folders...",
+        "Novel name and folder sync completed",
+        "Error syncing novel names and folders: {error}",
+        lambda: sync_novel_naming(limit=DEFAULT_RENAME_LIMIT),
+    )
 
 # Safety net for the stored chapter stats (services/chapter_stats.py): the writers
 # refresh the sources they change, this catches a write path that does not. Batched

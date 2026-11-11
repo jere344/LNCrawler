@@ -22,7 +22,8 @@ from ..models import (
 )
 from ..services import audiobook_scheduler as sched
 from ..services import audiobook_service as svc
-from .helpers import MergeTestCase
+from ..services.novel_naming import refresh_naming
+from .helpers import MergeTestCase, make_novel
 from .test_audiobooks import body_of
 
 GB = 1024 ** 3
@@ -42,7 +43,7 @@ class SchedulerBase(MergeTestCase):
 
     def make_book(self, slug, words, views=0, dmca=False, language='en', status='Ongoing',
                   last_update=None, write_files=True, first_id=1):
-        novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug, is_dmca=dmca)
+        novel = Novel.objects.create(slug=slug, novel_path=slug, is_dmca=dmca)
         source_path = os.path.join(slug, 'site')
         os.makedirs(os.path.join(self.tmp, source_path), exist_ok=True)
         source = NovelFromSource.objects.create(
@@ -50,7 +51,7 @@ class SchedulerBase(MergeTestCase):
             external_source=ExternalSource.objects.create(source_name=f"site-{slug}"),
             title=slug,
             source_url=f"http://{slug}/1",
-            source_path=source_path,
+            source_folder='site',
             source_slug='site',
             language=language,
             status=status,
@@ -58,6 +59,7 @@ class SchedulerBase(MergeTestCase):
             total_views=views,
         )
         self.add_chapters(source, words, first_id=first_id, write_files=write_files)
+        refresh_naming(novel)
         return novel, source
 
     def add_chapters(self, source, words, first_id=1, write_files=True):
@@ -110,7 +112,7 @@ class DisabledTests(SchedulerBase):
     def test_housekeeping_still_follows_moved_sources(self):
         # Published audiobooks stay live while claims are off, so their upkeep goes on
         novel_a, source_a = self.make_book('before', [60] * 4)
-        novel_b = Novel.objects.create(title='after', slug='after', novel_path='after')
+        novel_b = make_novel(title='after', slug='after', novel_path='after')
         audiobook = Audiobook.objects.create(novel=novel_a, source=source_a)
         NovelFromSource.objects.filter(pk=source_a.pk).update(novel=novel_b)
 
@@ -231,9 +233,9 @@ class CutWorkTests(SchedulerBase):
         source = NovelFromSource.objects.create(
             novel=novel,
             external_source=ExternalSource.objects.create(source_name=f"site-{novel.slug}-{language}"),
-            title=novel.title,
+            title=novel.canonical_source.title,
             source_url=f"http://{novel.slug}/{language}",
-            source_path=source_path,
+            source_folder=language,
             source_slug=language,
             language=language,
             status='Ongoing',
@@ -431,7 +433,7 @@ class RotationShareTests(SchedulerBase):
 class HousekeepingTests(SchedulerBase):
     def test_moved_source_audiobook_follows_the_source(self):
         novel_a, source_a = self.make_book('before', [60] * 4)
-        novel_b = Novel.objects.create(title='after', slug='after', novel_path='after')
+        novel_b = make_novel(title='after', slug='after', novel_path='after')
         audiobook = Audiobook.objects.create(novel=novel_a, source=source_a)
         NovelFromSource.objects.filter(pk=source_a.pk).update(novel=novel_b)
 

@@ -31,7 +31,8 @@ export interface ReadingList {
   updated_at: string;
   items?: ReadingListItem[];
   first_item?: ReadingListItem;
-  items_names?: string[];
+  // Novel ids of the list's visible items (card profile only; the detail profile carries items instead)
+  items_ids?: string[];
 }
 
 export interface ReadingListResponse {

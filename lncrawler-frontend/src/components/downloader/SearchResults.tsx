@@ -216,6 +216,11 @@ const SearchResults = () => {
               {t('downloader.searchResults')}
             </Typography>
             <Chip size="small" label={countSources(groups)} />
+            {status?.query && (
+              <Typography variant="body1" sx={{ color: 'text.secondary', wordBreak: 'break-word' }}>
+                « {status.query} »
+              </Typography>
+            )}
           </Box>
           {completed && (
             <Button

@@ -151,7 +151,7 @@ class NovelSourceSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         return obj.novel.slug if obj.novel else None
 
     def get_novel_title(self, obj: NovelFromSource):
-        return obj.novel.title if obj.novel else None
+        return obj.title
 
     def get_vote_score(self, obj: NovelFromSource):
         return obj.upvotes - obj.downvotes

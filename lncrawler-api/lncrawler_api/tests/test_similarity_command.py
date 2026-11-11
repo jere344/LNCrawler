@@ -7,12 +7,13 @@ from django.db.models import F
 from django.test import TestCase
 
 from ..management.commands.calculate_similarities import MIN_SIMILARITY
-from ..models import Author, ExternalSource, Novel, NovelFromSource, NovelSimilarity, Tag
+from ..models import Author, ExternalSource, NovelFromSource, NovelSimilarity, Tag
+from .helpers import make_novel
 
 
 class CalculateSimilaritiesCommandTests(TestCase):
     def _novel(self, slug, title, tags=(), authors=()):
-        novel = Novel.objects.create(title=title, slug=slug, novel_path=slug)
+        novel = make_novel(title=title, slug=slug, novel_path=slug)
         source = NovelFromSource.objects.create(
             novel=novel,
             external_source=ExternalSource.objects.create(source_name=f"src-{slug}"),

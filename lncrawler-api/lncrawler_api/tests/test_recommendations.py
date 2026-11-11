@@ -16,7 +16,7 @@ from django.urls import reverse
 
 from django.utils import timezone
 
-from .helpers import make_novel, make_source
+from .helpers import bare_novel, make_novel, make_source
 from ..models import (
     ExternalSource,
     Novel,
@@ -30,7 +30,7 @@ from ..models import (
 
 class ProjectionInvariantTests(TestCase):
     def test_total_views_projection_matches_summed_buckets(self):
-        novel = Novel.objects.create(title="Proj", slug="proj", novel_path="p")
+        novel = make_novel(title="Proj", slug="proj", novel_path="p")
         source = NovelFromSource.objects.create(
             novel=novel,
             external_source=ExternalSource.objects.create(source_name="p-site"),
@@ -129,11 +129,13 @@ class RecommendationDedupTests(TestCase):
         user = get_user_model().objects.create_user(
             username="rec", email="rec@example.com", password="pw12345!"
         )
-        target = Novel.objects.create(title="Target", slug="target", novel_path="t")
+        target = make_novel(title="Target", slug="target", novel_path="t")
         for i in range(3):
-            source = Novel.objects.create(
-                title=f"Book {i}", slug=f"book-{i}", novel_path=f"b{i}"
-            )
+            source = make_novel(
+        title=f"Book {i}",
+        slug=f"book-{i}",
+        novel_path=f"b{i}",
+    )
             NovelBookmark.objects.create(user=user, novel=source)
             NovelSimilarity.objects.create(
                 from_novel=source, to_novel=target, similarity=0.1 * (i + 1)
@@ -374,9 +376,9 @@ class RecommendationScoringTests(TestCase):
     def test_library_languages_filter_excludes_other_language_neighbours(self):
         seed = make_novel("seed", "seed")
         NovelBookmark.objects.create(user=self.user, novel=seed)
-        french = make_novel("french-neighbour", "french-neighbour")
+        french = bare_novel("french-neighbour")
         make_source(french, language="fr")
-        english = make_novel("english-neighbour", "english-neighbour")
+        english = bare_novel("english-neighbour")
         make_source(english, language="en")
         NovelSimilarity.objects.create(from_novel=seed, to_novel=french, similarity=0.9)
         NovelSimilarity.objects.create(from_novel=seed, to_novel=english, similarity=0.5)

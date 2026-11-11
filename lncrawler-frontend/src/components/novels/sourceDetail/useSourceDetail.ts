@@ -34,14 +34,14 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
 
   // Metadata already fetched by the list card that navigated here. Only trust
   // it when it matches the URL, since the card link may point to the source the
-  // user has a reading history on rather than the preferred source.
+  // user has a reading history on rather than the suggested source.
   const getPrefetchedSource = useCallback((): SourceView | null => {
     if (!novelSlug || !sourceSlug) return null;
     const s = linkState?.source;
     if (s && s.source_slug === sourceSlug && s.novel_slug === novelSlug) return s;
     const n = linkState?.novel;
     if (n && n.slug === novelSlug) {
-      return [n.reading_source, n.prefered_source].find(
+      return [n.reading_source, n.suggested_source].find(
         (cand) => cand?.source_slug === sourceSlug && cand?.novel_slug === novelSlug
       ) ?? null;
     }
@@ -49,6 +49,9 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
   }, [linkState, novelSlug, sourceSlug]);
 
   const [source, setSource] = useState<SourceView | null>(() => cached?.source ?? getPrefetchedSource());
+  // The "novelSlug/sourceSlug" route the current source was loaded for. After a route change the state still holds the
+  // previous page's source until the effect below replaces it, so a caller checks the source only against its own route.
+  const [sourceRoute, setSourceRoute] = useState<string | null>(() => (cached?.source ?? getPrefetchedSource()) ? cacheKey : null);
   const [novel, setNovel] = useState<INovelDetail | null>(cached?.novel ?? null);
   const [loading, setLoading] = useState<boolean>(!cached);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +86,7 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
 
       const prefetched = getPrefetchedSource();
       setSource(prefetched);
+      setSourceRoute(`${novelSlug}/${sourceSlug}`);
       setLoading(true);
       setError(null);
 
@@ -91,6 +95,7 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
         // needs a second request.
         const data = await novelService.getSourceDetail(novelSlug, sourceSlug);
         setSource(data);
+        setSourceRoute(`${novelSlug}/${sourceSlug}`);
         setNovel(data.novel);
         setNovelRating({
           avg_rating: data.novel.avg_rating,
@@ -145,5 +150,5 @@ export function useSourceDetail(novelSlug: string | undefined, sourceSlug: strin
 
   const isDmca = Boolean(novel ? novel.is_dmca : linkNovel?.is_dmca);
 
-  return { source, setSource, novel, loading, error, novelRating, isBookmarked, isDmca, bookmarking, handleToggleBookmark, handleShare };
+  return { source, setSource, sourceRoute, novel, loading, error, novelRating, isBookmarked, isDmca, bookmarking, handleToggleBookmark, handleShare };
 }

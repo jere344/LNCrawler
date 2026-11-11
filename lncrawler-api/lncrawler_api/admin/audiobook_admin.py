@@ -124,7 +124,7 @@ class AudiobookAdmin(admin.ModelAdmin):
         'last_part_at',
     )
     list_filter = ('status',)
-    search_fields = ('novel__title', 'source__title')
+    search_fields = ('novel__canonical_source__title', 'source__title')
     raw_id_fields = ('novel', 'source')
     readonly_fields = (
         'cover_thumb',
@@ -149,7 +149,7 @@ class AudiobookAdmin(admin.ModelAdmin):
     ]
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('novel', 'source__external_source').annotate(
+        return super().get_queryset(request).select_related('novel', 'source__external_source', 'source__novel').annotate(
             done_count=Count('parts', filter=Q(parts__status='done')),
             queued_count=Count('parts', filter=Q(parts__status='queued')),
             failed_count=Count('parts', filter=Q(parts__status='failed')),
@@ -274,7 +274,7 @@ class AudiobookChapterInline(admin.TabularInline):
         return False
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('chapter')
+        return super().get_queryset(request).select_related('chapter', 'part__audiobook__source__novel')
 
     def chapter_number(self, obj):
         return obj.chapter.chapter_id
@@ -314,7 +314,7 @@ class AudiobookPartAdmin(admin.ModelAdmin):
         'completed_at',
     )
     list_filter = ('status', 'engine', 'qa_passed')
-    search_fields = ('audiobook__novel__title', 'audiobook__source__title', 'engine_version')
+    search_fields = ('audiobook__novel__canonical_source__title', 'audiobook__source__title', 'engine_version')
     list_select_related = ('audiobook__novel', 'audiobook__source')
     readonly_fields = (
         'audiobook',
@@ -459,7 +459,7 @@ class ListeningProgressAdmin(admin.ModelAdmin):
     list_display = ('user', 'audiobook', 'chapter', 'position_s', 'speed', 'finished', 'updated_at')
     list_filter = ('finished',)
     list_select_related = ('user', 'audiobook__novel', 'audiobook__source', 'chapter__novel_from_source')
-    search_fields = ('user__username', 'audiobook__novel__title', 'audiobook__source__title')
+    search_fields = ('user__username', 'audiobook__novel__canonical_source__title', 'audiobook__source__title')
     readonly_fields = list_display
 
     def has_add_permission(self, request):
@@ -471,7 +471,7 @@ class AudiobookDailyStatAdmin(admin.ModelAdmin):
     list_display = ('audiobook', 'date', 'plays', 'downloads', 'listen_seconds')
     list_filter = ('date',)
     list_select_related = ('audiobook__novel', 'audiobook__source')
-    search_fields = ('audiobook__novel__title', 'audiobook__source__title')
+    search_fields = ('audiobook__novel__canonical_source__title', 'audiobook__source__title')
     readonly_fields = list_display
 
     def has_add_permission(self, request):

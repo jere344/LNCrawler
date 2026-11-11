@@ -98,7 +98,7 @@ export const novelCoverUrl = (source: { cover_min_url?: string | null } | null |
 
 interface NovelSourceTarget {
     slug: string;
-    prefered_source?: { source_slug?: string | null } | null;
+    suggested_source?: { source_slug?: string | null } | null;
     reading_history?: { source_slug?: string | null } | null;
     reading_source?: { source_slug?: string | null } | null;
 }
@@ -106,16 +106,15 @@ interface NovelSourceTarget {
 export const getNovelSourcePath = (novel: NovelSourceTarget): string | undefined => {
     const sourceSlug = novel.reading_source?.source_slug
         || novel.reading_history?.source_slug
-        || novel.prefered_source?.source_slug;
+        || novel.suggested_source?.source_slug;
     return sourceSlug ? `/novels/${novel.slug}/${sourceSlug}` : undefined;
 };
 
-// Language-aware display title: the preferred source's title, falling back to Novel.title.
+// Language-aware display title: the reading source's title, else the suggested source's.
 export const getNovelDisplayTitle = (novel: {
-    title: string;
     reading_source?: { title?: string | null } | null;
-    prefered_source?: { title?: string | null } | null;
-}): string => (novel.reading_source ?? novel.prefered_source)?.title || novel.title;
+    suggested_source?: { title?: string | null } | null;
+}): string => (novel.reading_source ?? novel.suggested_source)?.title ?? '';
 
 interface SourceLinkProps {
     to?: string;
@@ -125,7 +124,7 @@ interface SourceLinkProps {
 export const getNovelSourceLink = (novel: LibraryNovel): SourceLinkProps => {
     const to = getNovelSourcePath(novel);
     if (!to) return {};
-    return { to, state: { novel, source: novel.reading_source ?? novel.prefered_source ?? null } };
+    return { to, state: { novel, source: novel.reading_source ?? novel.suggested_source ?? null } };
 };
 
 export const getSourceLink = (source: NovelFromSource): SourceLinkProps =>

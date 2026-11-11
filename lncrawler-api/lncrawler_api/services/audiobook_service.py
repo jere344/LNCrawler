@@ -20,7 +20,7 @@ from ..models import Audiobook, AudiobookPart, Chapter
 from ..models.sources_models import bulk_update_chunked
 from ..utils import chapter_utils
 from ..utils.crawler_path import ensure_crawler_on_path
-from ..utils.query_helpers import preferred_source_key
+from ..utils.query_helpers import rank_sources
 
 ensure_crawler_on_path()
 from lncrawl.utils.words import count_words  # noqa: E402
@@ -108,12 +108,9 @@ def store_word_counts(source, last_id=0, counter=None):
 def pick_source(novel, language='en'):
     """The source the site shows for a novel in one language, or None when it has none in that language.
 
-    Same choice as the site (preferred_source_key), so the audiobook is made from the version readers see.
+    Same choice as the site (rank_sources), so the audiobook is made from the version readers see.
     """
-    sources = list(novel.sources.filter(language=language))
-    if not sources:
-        return None
-    return min(sources, key=preferred_source_key)
+    return rank_sources(list(novel.sources.filter(language=language)))
 
 
 def get_or_create_audiobook(novel, language='en', source=None):
@@ -122,14 +119,14 @@ def get_or_create_audiobook(novel, language='en', source=None):
     ``source`` is the source to make the audiobook from; when not given, it is picked from the novel.
     """
     if novel.is_dmca:
-        raise ValueError(f"{novel.title}: DMCA, no audiobook")
+        raise ValueError(f"{novel}: DMCA, no audiobook")
     audiobook = Audiobook.objects.filter(novel=novel, language=language).first()
     if audiobook is not None:
         return audiobook, False
     if source is None:
         source = pick_source(novel, language)
     if source is None:
-        raise ValueError(f"{novel.title}: no {language} source")
+        raise ValueError(f"{novel}: no {language} source")
     return Audiobook.objects.create(novel=novel, language=source.language, source=source), True
 
 

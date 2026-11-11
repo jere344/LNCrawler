@@ -16,7 +16,7 @@ interface ReadingListCardProps {
 const ReadingListCard = ({ list }: ReadingListCardProps) => {
     const { t } = useTranslation();
     const firstItemNovel = list.first_item?.novel;
-    const firstItemCover = list.first_item?.novel.prefered_source?.cover_min_url;
+    const firstItemCover = list.first_item?.novel.suggested_source?.cover_min_url;
     const defaultCoverBg = "linear-gradient(135deg, #0a3d91 0%, #1e88e5 100%)";
     const coverHeight = 160;
     const coverWidth = 120;

@@ -41,20 +41,16 @@ from ..services import (
     split_novel,
 )
 
-from ..services.novel_operations import dedupe_source
+from ..services.novel_operations import dedupe_source, file_journal
 from ..utils import resolve_novel_slug
-from .helpers import MergeTestCase, write_chapter
+from .helpers import MergeTestCase, bare_novel, write_chapter
 
 
 class MergeNovelsTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         self.es_a = ExternalSource.objects.create(source_name="novelfull")
         self.es_b = ExternalSource.objects.create(source_name="novelbin")
 
@@ -80,7 +76,7 @@ class MergeNovelsTests(MergeTestCase):
             day=date.today(),
             views=3,
         )
-        other = Novel.objects.create(title="Other", slug="other", novel_path="other")
+        other = bare_novel("other", "other")
         NovelSimilarity.objects.create(
             from_novel=self.duplicate, to_novel=other, similarity=0.9
         )
@@ -105,7 +101,7 @@ class MergeNovelsTests(MergeTestCase):
             source=self.dup_source, ip_address="9.9.9.9", vote_type="up"
         )
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         self.assertFalse(Novel.objects.filter(slug="lom").exists())
         self.assertEqual(NovelAlias.objects.get(slug="lom").novel, self.target)
@@ -144,7 +140,7 @@ class MergeNovelsTests(MergeTestCase):
         self.assertEqual(resolve_novel_slug("lotm"), self.target)
 
     def test_new_source_auto_joins_aliased_novel(self):
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         # A later crawl of the discarded name lands in its own folder again.
         new_dir = os.path.join(self.tmp, "lom", "newsite")
@@ -187,9 +183,7 @@ class MergeNovelsTests(MergeTestCase):
 
 class ChapterReimportTests(MergeTestCase):
     def test_renumbered_chapters_do_not_collide(self):
-        novel = Novel.objects.create(
-            title="Renumbered", slug="renumbered", novel_path="renumbered"
-        )
+        novel = bare_novel("renumbered", "renumbered")
         external = ExternalSource.objects.create(source_name="renumber-site")
         source = self.make_source(
             novel, external, "Renumbered", "http://r/s", "renumbered",
@@ -227,9 +221,7 @@ class ChapterReimportTests(MergeTestCase):
         self.assertEqual(comment.chapter.chapter_id, 2)
 
     def test_removed_chapter_keeps_comments_and_progress(self):
-        novel = Novel.objects.create(
-            title="Removed", slug="removed", novel_path="removed"
-        )
+        novel = bare_novel("removed", "removed")
         external = ExternalSource.objects.create(source_name="removed-site")
         source = self.make_source(
             novel, external, "Removed", "http://x/s", "removed",
@@ -278,12 +270,8 @@ class ChapterReimportTests(MergeTestCase):
 class MergeDuplicateSourceTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         self.external = ExternalSource.objects.create(source_name="novelfull")
 
         # Existing target copy has fewer chapters than the incoming duplicate.
@@ -310,7 +298,7 @@ class MergeDuplicateSourceTests(MergeTestCase):
             source=self.loser, ip_address="8.8.8.8", vote_type="up"
         )
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         self.assertEqual(
             self.target.sources.filter(external_source=self.external).count(), 1
@@ -330,8 +318,8 @@ class MergeDuplicateSourceTests(MergeTestCase):
         # copy must fold the target's copy first, or repointing collides on
         # (novel, source_url).
         same_url = "http://a/same"
-        target = Novel.objects.create(title="Same", slug="same-t", novel_path="same-t")
-        dup = Novel.objects.create(title="Same", slug="same-d", novel_path="same-d")
+        target = bare_novel("same-t", "same-t")
+        dup = bare_novel("same-d", "same-d")
         existing = self.make_source(
             target, self.external, "old", same_url, "same-t", "novelfull", 1
         )
@@ -339,7 +327,7 @@ class MergeDuplicateSourceTests(MergeTestCase):
             dup, self.external, "new", same_url, "same-d", "novelfull", 4
         )
 
-        merge_novels(dup, target, move_files=False)
+        merge_novels(dup, target)
 
         survivors = target.sources.filter(external_source=self.external)
         self.assertEqual(survivors.count(), 1)
@@ -351,12 +339,8 @@ class MergeDuplicateSourceTests(MergeTestCase):
 class MergeAdminTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         external = ExternalSource.objects.create(source_name="novelfull")
         self.make_source(
             self.duplicate, external, "lom", "http://a/lom", "lom", "novelfull", 1
@@ -395,9 +379,7 @@ class MergeAdminTests(MergeTestCase):
 class SplitNovelTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(
-            title="Re:Zero", slug="rezero", novel_path="rezero"
-        )
+        self.novel = bare_novel("rezero", "rezero")
         self.es_ln = ExternalSource.objects.create(source_name="lightnovel")
         self.es_web = ExternalSource.objects.create(source_name="webnovel")
         self.ln_source = self.make_source(
@@ -467,12 +449,11 @@ class SplitNovelTests(MergeTestCase):
             new = split_novel(
                 self.novel,
                 [self.web_source],
-                new_title="Re:Zero [Web Novel]",
                 new_slug="rezero-webnovel",
-                rename_title="Re:Zero [Light Novel]",
             )
 
-        self.assertEqual(new.title, "Re:Zero [Web Novel]")
+        new.refresh_from_db()
+        self.assertEqual(new.canonical_source.title, "Re:Zero WN")
         self.assertEqual(new.slug, "rezero-webnovel")
         self.assertEqual(new.novel_path, "rezero-webnovel")
 
@@ -480,7 +461,7 @@ class SplitNovelTests(MergeTestCase):
         self.web_source.refresh_from_db()
         self.ln_source.refresh_from_db()
 
-        self.assertEqual(self.novel.title, "Re:Zero [Light Novel]")
+        self.assertEqual(self.novel.canonical_source.title, "Re:Zero LN")
         self.assertEqual(self.web_source.novel, new)
         self.assertEqual(self.web_source.title, "Re:Zero WN")
         self.assertEqual(
@@ -531,9 +512,7 @@ class SplitNovelTests(MergeTestCase):
             new = split_novel(
                 self.novel,
                 [self.web_source],
-                new_title="Re:Zero [Web Novel]",
                 new_slug="rezero-webnovel",
-                rename_title="Re:Zero [Light Novel]",
             )
 
         audiobook.refresh_from_db()
@@ -541,9 +520,7 @@ class SplitNovelTests(MergeTestCase):
         self.assertEqual(audiobook.source, self.web_source)
 
     def test_move_sources_into_existing_novel_dedupes(self):
-        target = Novel.objects.create(
-            title="Re:Zero WN", slug="rezero-wn", novel_path="rezero-wn"
-        )
+        target = bare_novel("rezero-wn", "rezero-wn")
         # The target already has a smaller copy of the same external source.
         existing = self.make_source(
             target,
@@ -581,14 +558,11 @@ class SplitNovelTests(MergeTestCase):
             split_novel(
                 self.novel,
                 [self.ln_source, self.web_source],
-                new_title="Everything",
                 new_slug="everything",
             )
 
     def test_move_sources_into_existing_novel_without_duplicate(self):
-        target = Novel.objects.create(
-            title="Re:Zero House", slug="house", novel_path="house"
-        )
+        target = bare_novel("house", "house")
 
         with self.captureOnCommitCallbacks(execute=True):
             move_sources(self.novel, [self.web_source], target)
@@ -610,7 +584,6 @@ class SplitNovelTests(MergeTestCase):
             new = split_novel(
                 self.novel,
                 [self.web_source],
-                new_title="Re:Zero WN",
                 new_slug="ReZero_WN",
             )
 
@@ -648,9 +621,7 @@ class SplitNovelTests(MergeTestCase):
     def test_existing_folder_with_legacy_slug_is_not_duplicated(self):
         # A novel whose stored slug was derived the old ASCII-stripping way must
         # still be found by its folder path, not duplicated, on the next import.
-        legacy = Novel.objects.create(
-            title="S급 헌터", slug="s", novel_path="s급 헌터"
-        )
+        legacy = bare_novel("s", "s급 헌터")
         source = self._import_folder("s급 헌터", "s급 헌터")
         self.assertEqual(source.novel, legacy)
         self.assertEqual(Novel.objects.filter(novel_path="s급 헌터").count(), 1)
@@ -658,11 +629,7 @@ class SplitNovelTests(MergeTestCase):
     def test_legacy_row_without_novel_path_matches_by_django_slug(self):
         # Rows imported before novel_path existed have no path to match on, so
         # the Django-derived slug fallback must still reattach them.
-        legacy = Novel.objects.create(
-            title="Earth's Greatest Magus",
-            slug="earths-greatest-magus",
-            novel_path=None,
-        )
+        legacy = bare_novel("earths-greatest-magus", None)
         source = self._import_folder("earth's greatest magus", "Earth's Greatest Magus")
         self.assertEqual(source.novel, legacy)
         self.assertEqual(
@@ -672,9 +639,9 @@ class SplitNovelTests(MergeTestCase):
     def test_split_form_validates_selection_and_slug(self):
         from ..admin.novel_admin import SplitNovelForm
 
-        base = {"sources": [self.web_source.pk], "mode": "new", "new_title": "WN"}
+        base = {"sources": [self.web_source.pk], "mode": "new"}
 
-        taken = Novel.objects.create(title="Taken", slug="taken", novel_path="taken")
+        taken = bare_novel("taken", "taken")
         self.assertFalse(
             SplitNovelForm({**base, "new_slug": taken.slug}, novel=self.novel).is_valid()
         )
@@ -789,7 +756,7 @@ class SameSiteCoexistenceTests(MergeTestCase):
     def test_edition_is_exposed_on_the_source_card(self):
         from ..serializers import NovelSourceSerializer
 
-        novel = Novel.objects.create(title="Foo", slug="foo-edition", novel_path="foo")
+        novel = bare_novel("foo-edition", "foo")
         external = ExternalSource.objects.create(source_name="site-edition")
         ln = NovelFromSource.objects.create(
             novel=novel, external_source=external, title="Foo (LN)", edition="Light Novel",
@@ -806,9 +773,7 @@ class SameSiteCoexistenceTests(MergeTestCase):
 class SplitAdminTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.novel = Novel.objects.create(
-            title="Re:Zero", slug="rezero", novel_path="rezero"
-        )
+        self.novel = bare_novel("rezero", "rezero")
         es_ln = ExternalSource.objects.create(source_name="lightnovel")
         es_web = ExternalSource.objects.create(source_name="webnovel")
         self.make_source(
@@ -837,9 +802,7 @@ class SplitAdminTests(MergeTestCase):
             "novel": self.novel.pk,
             "sources": [self.web_source.pk],
             "mode": "new",
-            "new_title": "Re:Zero [Web Novel]",
             "new_slug": "rezero-webnovel",
-            "rename_title": "Re:Zero [Light Novel]",
         }
         response = self.client.post(list_url, payload)
         self.assertEqual(response.status_code, 200)
@@ -851,9 +814,7 @@ class SplitAdminTests(MergeTestCase):
         self.assertTrue(Novel.objects.filter(slug="rezero-webnovel").exists())
 
     def test_admin_split_moves_into_existing_novel(self):
-        target = Novel.objects.create(
-            title="Re:Zero House", slug="house", novel_path="house"
-        )
+        target = bare_novel("house", "house")
         url = f"{reverse('admin:lncrawler_api_novel_split')}?novel={self.novel.pk}"
         payload = {
             "novel": self.novel.pk,
@@ -879,12 +840,8 @@ class MergeConflictRulesTests(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         self.es_a = ExternalSource.objects.create(source_name="novelfull")
         self.es_b = ExternalSource.objects.create(source_name="novelbin")
         self.user = get_user_model().objects.create_user(
@@ -908,7 +865,7 @@ class MergeConflictRulesTests(MergeTestCase):
             updated_at=now - timedelta(days=3)
         )
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         self.assertEqual(
             NovelRating.objects.get(novel=self.target, user=self.user).rating, 5
@@ -924,7 +881,7 @@ class MergeConflictRulesTests(MergeTestCase):
         NovelRating.objects.create(novel=self.duplicate, ip_address="2.2.2.2", rating=4)
         NovelRating.objects.create(novel=self.duplicate, ip_address=None, rating=3)
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         anonymous = NovelRating.objects.filter(novel=self.target, user__isnull=True)
         # The target keeps its row for 1.1.1.1; the NULL-IP row always moves.
@@ -957,7 +914,7 @@ class MergeConflictRulesTests(MergeTestCase):
             last_read_at=now - timedelta(days=2)
         )
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         survivor = ReadingHistory.objects.get(user=self.user)
         self.assertEqual(survivor.novel, self.target)
@@ -991,7 +948,7 @@ class MergeConflictRulesTests(MergeTestCase):
             updated_at=now - timedelta(days=2)
         )
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         self.assertEqual(Review.objects.get(novel=self.target, user=self.user).rating, 5)
         self.assertEqual(Review.objects.get(novel=self.target, user=self.other).rating, 1)
@@ -1006,7 +963,7 @@ class MergeConflictRulesTests(MergeTestCase):
         )
 
         with self.captureOnCommitCallbacks(execute=True):
-            merge_novels(self.duplicate, self.target, move_files=True)
+            merge_novels(self.duplicate, self.target)
 
         self.assertFalse(Novel.objects.filter(slug="lom").exists())
         self.assertEqual(self.target.sources.count(), 2)
@@ -1054,7 +1011,7 @@ class MergeConflictRulesTests(MergeTestCase):
             self.duplicate, self.es_a, "Foo [WN]", "http://a/mirror", "lom", "novelfull", 2
         )
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         survivors = self.target.sources.all()
         self.assertEqual(survivors.count(), 1)
@@ -1070,7 +1027,7 @@ class MergeConflictRulesTests(MergeTestCase):
             self.duplicate, self.es_b, "Other Story", "http://b/other", "lom", "novelbin"
         )
 
-        merge_novels(self.duplicate, self.target, move_files=True)
+        merge_novels(self.duplicate, self.target)
 
         moved.refresh_from_db()
         self.assertEqual(moved.novel, self.target)
@@ -1081,12 +1038,8 @@ class MergeConflictRulesTests(MergeTestCase):
 class MergeConflictAdminTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         external = ExternalSource.objects.create(source_name="novelfull")
         self.make_source(
             self.target, external, "Foo (WN)", "http://a/wn", "lotm", "novelfull", 1
@@ -1114,12 +1067,8 @@ class DedupeChapterDataTests(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         external = ExternalSource.objects.create(source_name="novelfull")
         self.winner = self.make_source(
             self.target, external, "LOTM", "http://a/w", "lotm", "novelfull", 2
@@ -1151,7 +1100,8 @@ class DedupeChapterDataTests(MergeTestCase):
             current_chapter=loser_ch2,
         )
 
-        dedupe_source(self.loser, self.winner, move_files=False, dest_novel=self.target)
+        with file_journal() as files:
+            dedupe_source(self.loser, self.winner, files=files, dest_novel=self.target)
 
         on_one.refresh_from_db()
         on_two.refresh_from_db()
@@ -1175,10 +1125,8 @@ class MoveSourcesCommentTests(MergeTestCase):
     """A deduped loser's unmatched comments land on the destination novel (M2)."""
 
     def test_unmatched_comment_of_a_deduped_loser_follows_the_destination(self):
-        origin = Novel.objects.create(title="Re:Zero", slug="rezero", novel_path="rezero")
-        target = Novel.objects.create(
-            title="Re:Zero WN", slug="rezero-wn", novel_path="rezero-wn"
-        )
+        origin = bare_novel("rezero", "rezero")
+        target = bare_novel("rezero-wn", "rezero-wn")
         web = ExternalSource.objects.create(source_name="webnovel")
         # The incoming copy is the more complete one (2 chapters against 1), so it
         # wins the dedupe while it still belongs to the original novel.
@@ -1219,12 +1167,8 @@ class MoveSourcesCommentTests(MergeTestCase):
 class FileJournalTests(MergeTestCase):
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         self.first = self.make_source(
             self.duplicate, ExternalSource.objects.create(source_name="site-a"),
             "Alpha", "http://a/x", "lom", "site-a", 1,
@@ -1247,7 +1191,7 @@ class FileJournalTests(MergeTestCase):
         with mock.patch("lncrawler_api.services.novel_operations.os.rename",
                         side_effect=flaky_rename):
             with self.assertRaises(MergeError):
-                merge_novels(self.duplicate, self.target, move_files=True)
+                merge_novels(self.duplicate, self.target)
 
         self.assertEqual(len(calls), 3)  # two moves, then the undo of the first
         self.assertTrue(Novel.objects.filter(slug="lom").exists())
@@ -1266,12 +1210,8 @@ class MergeRollbackTests(MergeTestCase):
 
     def setUp(self):
         super().setUp()
-        self.target = Novel.objects.create(
-            title="Lord of the Mysteries", slug="lotm", novel_path="lotm"
-        )
-        self.duplicate = Novel.objects.create(
-            title="Lord of Mysteries", slug="lom", novel_path="lom"
-        )
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
         self.first = self.make_source(
             self.duplicate, ExternalSource.objects.create(source_name="site-a"),
             "Alpha", "http://a/x", "lom", "site-a", 1,
@@ -1286,7 +1226,7 @@ class MergeRollbackTests(MergeTestCase):
             NovelFromSource, "save", side_effect=IntegrityError("simulated")
         ):
             with self.assertRaises(IntegrityError):
-                merge_novels(self.duplicate, self.target, move_files=True)
+                merge_novels(self.duplicate, self.target)
 
         self.assertTrue(Novel.objects.filter(slug="lom").exists())
         self.assertFalse(NovelAlias.objects.filter(slug="lom").exists())
@@ -1300,15 +1240,15 @@ class MergeRollbackTests(MergeTestCase):
 
 class ReplacedFolderTrashTests(MergeTestCase):
     def test_replaced_copy_is_trashed_until_commit_then_emptied(self):
-        target = Novel.objects.create(title="Lord of the Mysteries", slug="lotm", novel_path="lotm")
-        duplicate = Novel.objects.create(title="Lord of Mysteries", slug="lom", novel_path="lom")
+        target = bare_novel("lotm", "lotm")
+        duplicate = bare_novel("lom", "lom")
         external = ExternalSource.objects.create(source_name="novelfull")
         self.make_source(target, external, "LOTM", "http://a/w", "lotm", "novelfull", 2)
         self.make_source(duplicate, external, "lom", "http://a/l", "lom", "novelfull", 3)
         trash = os.path.join(self.tmp, ".trash")
 
         with self.captureOnCommitCallbacks(execute=False) as callbacks:
-            merge_novels(duplicate, target, move_files=True)
+            merge_novels(duplicate, target)
 
         # Before commit the replaced copy is parked in the trash, not deleted.
         parked = os.listdir(trash)

@@ -14,7 +14,6 @@ from ..models import (
     AuthorAlias,
     Candidate,
     ExternalSource,
-    Novel,
     NovelFromSource,
 )
 from ..services.author_block_service import block_authors, unblock_authors
@@ -27,6 +26,7 @@ from ..services.merge_service import MergeError
 from ..services.novel_rankings import refresh_name_counts
 from ..utils.author_names import is_bracketed_original, normalize_author, romanization_fits
 from ..utils.query_helpers import _author_ids
+from .helpers import make_novel
 
 
 def author_rows():
@@ -115,7 +115,7 @@ class AuthorResolveTests(TestCase):
 class AuthorMergeTests(TestCase):
     def setUp(self):
         self.external = ExternalSource.objects.create(source_name="s")
-        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.novel = make_novel(title="N", slug="n", novel_path="n")
         self.target = Author.objects.create(name="Main Name")
         self.source = Author.objects.create(name="Other Name")
         self.s1 = self._source("http://s/1", self.target)
@@ -208,7 +208,7 @@ class AuthorMergeTests(TestCase):
 class AuthorMergeChainTests(TestCase):
     def setUp(self):
         self.external = ExternalSource.objects.create(source_name="s")
-        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.novel = make_novel(title="N", slug="n", novel_path="n")
         self.a = Author.objects.create(name="Author A")
         self.b = Author.objects.create(name="Author B")
         self.c = Author.objects.create(name="Author C")
@@ -239,7 +239,7 @@ class AuthorMergeChainTests(TestCase):
 class AuthorFinderTests(TestCase):
     def setUp(self):
         self.external = ExternalSource.objects.create(source_name="s")
-        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.novel = make_novel(title="N", slug="n", novel_path="n")
 
     def _source(self, url, names):
         source = NovelFromSource.objects.create(
@@ -538,7 +538,7 @@ class AuthorMergeTaskTests(TestCase):
 
 class ImportAuthorLockingTests(TestCase):
     def setUp(self):
-        novel = Novel.objects.create(title="N", slug="imp-a", novel_path="imp-a")
+        novel = make_novel(title="N", slug="imp-a", novel_path="imp-a")
         external = ExternalSource.objects.create(source_name="imp-a")
         self.source = NovelFromSource.objects.create(
             novel=novel, external_source=external, title="N", source_url="http://imp-a/1"
@@ -596,7 +596,7 @@ class AuthorAutocompleteCountTests(TestCase):
             "n3": [self.banned],
         }
         for slug, authors in links.items():
-            novel = Novel.objects.create(title=slug, slug=slug, novel_path=slug)
+            novel = make_novel(title=slug, slug=slug, novel_path=slug)
             source = NovelFromSource.objects.create(
                 novel=novel,
                 external_source=external,
@@ -632,7 +632,7 @@ class AuthorAutocompleteCountTests(TestCase):
 class BlockedAuthorTests(TestCase):
     def setUp(self):
         self.external = ExternalSource.objects.create(source_name="s")
-        self.novel = Novel.objects.create(title="N", slug="n", novel_path="n")
+        self.novel = make_novel(title="N", slug="n", novel_path="n")
         self.blocked = Author.objects.create(name="Blocked Name")
         self.other = Author.objects.create(name="Other")
         self.s1 = self._source("http://s/1", self.blocked, self.other)

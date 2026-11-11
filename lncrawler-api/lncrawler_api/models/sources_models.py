@@ -4,7 +4,8 @@ import logging
 import os
 import re
 import json
-import shutil
+from contextlib import nullcontext
+from functools import partial
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex, OpClass
 from django.db.models.functions import Upper
@@ -35,6 +36,8 @@ CHAPTER_BULK_CHUNK = 500
 
 class SourceFolderConflict(Exception):
     """A source folder belongs to another source, so its import is refused."""
+
+
 
 
 def _set_source_tags(novel_from_source, names):
@@ -189,11 +192,13 @@ class NovelFromSource(models.Model):
     source_slug = models.SlugField(max_length=100, blank=True)
     cover_url = models.CharField(max_length=500, null=True, blank=True)
     
-    # Path information relative to settings.LNCRAWL_OUTPUT_PATH
-    source_path = models.CharField(max_length=500, null=True, blank=True, db_index=True)
-    cover_path = models.CharField(max_length=500, null=True, blank=True)
-    cover_min_path = models.CharField(max_length=500, null=True, blank=True)
-    overview_picture_path = models.CharField(max_length=500, null=True, blank=True) 
+    # Storage, as names only: the novel folder is Novel.novel_path, so a rename of
+    # the novel folder changes that one field. The full paths are the read-only
+    # properties source_path, cover_path, cover_min_path and overview_picture_path.
+    source_folder = models.CharField(max_length=500, null=True, blank=True)  # folder name inside the novel folder
+    cover_file = models.CharField(max_length=500, null=True, blank=True)  # file name inside the source folder
+    cover_min_file = models.CharField(max_length=500, null=True, blank=True)
+    overview_picture_file = models.CharField(max_length=500, null=True, blank=True)
 
     # 64-bit dHash (16 hex chars) of the cover image, used to group the same
     # cover across sources/languages. Computed from cover.min.webp only for real
@@ -237,9 +242,6 @@ class NovelFromSource(models.Model):
     # aggregation over the event table.
     total_views = models.BigIntegerField(default=0)
 
-    # File paths
-    meta_file_path = models.CharField(max_length=500, null=True, blank=True)
-    
     # Voting fields
     upvotes = models.IntegerField(default=0)
     downvotes = models.IntegerField(default=0)
@@ -276,6 +278,33 @@ class NovelFromSource(models.Model):
     
     def __str__(self):
         return f"{self.title} ({self.external_source.source_name})"
+
+    @property
+    def source_path(self):
+        """The source folder, relative to LNCRAWL_OUTPUT_PATH: ``<novel folder>/<source folder>``.
+
+        None when the source has no folder. Computed, so it follows ``novel.novel_path``.
+        """
+        if not self.source_folder or self.novel_id is None or not self.novel.novel_path:
+            return None
+        return os.path.join(self.novel.novel_path, self.source_folder)
+
+    def _in_source_folder(self, name):
+        """A file name inside the source folder, relative to LNCRAWL_OUTPUT_PATH, or None."""
+        folder = self.source_path
+        return os.path.join(folder, name) if folder and name else None
+
+    @property
+    def cover_path(self):
+        return self._in_source_folder(self.cover_file)
+
+    @property
+    def cover_min_path(self):
+        return self._in_source_folder(self.cover_min_file)
+
+    @property
+    def overview_picture_path(self):
+        return self._in_source_folder(self.overview_picture_file)
 
     @property
     def absolute_source_path(self):
@@ -320,16 +349,23 @@ class NovelFromSource(models.Model):
 
     @classmethod
     def _taken_folder_names(cls, novel, exclude_pk=None):
-        """Folder basenames already used by the sources of ``novel``."""
-        rows = cls.objects.filter(novel=novel).exclude(source_path__isnull=True).exclude(source_path='')
+        """Folder names already used by the sources of ``novel``."""
+        rows = cls.objects.filter(novel=novel).exclude(source_folder__isnull=True).exclude(source_folder='')
         if exclude_pk is not None:
             rows = rows.exclude(pk=exclude_pk)
-        return {os.path.basename(path) for path in rows.values_list('source_path', flat=True)}
+        return set(rows.values_list('source_folder', flat=True))
 
     @classmethod
     def _folder_owner(cls, source_rel, exclude_pk=None):
-        """The row (other than ``exclude_pk``) whose folder is ``source_rel``, if any."""
-        rows = cls.objects.filter(source_path=source_rel)
+        """The row (other than ``exclude_pk``) whose source folder is ``source_rel``, if any.
+
+        ``source_rel`` is a path relative to LNCRAWL_OUTPUT_PATH: its parent is the
+        novel folder and its last part the source folder.
+        """
+        novel_rel, folder = os.path.split(source_rel)
+        if not novel_rel or not folder:
+            return None
+        rows = cls.objects.filter(novel__novel_path=novel_rel, source_folder=folder)
         if exclude_pk is not None:
             rows = rows.exclude(pk=exclude_pk)
         return rows.order_by('pk').first()
@@ -337,75 +373,82 @@ class NovelFromSource(models.Model):
     @classmethod
     def _consolidate_source_directory(cls, source_dir, output_path, novel, existing_source, title='', edition=''):
         """
-        Return the canonical ``(source_dir, source_path, meta_json_path,
-        cover_path)`` for a source, relocating its files when needed.
+        Return the canonical ``(source_dir, source_folder)`` for a source,
+        relocating its files when needed. ``source_folder`` is the folder name
+        inside the novel folder.
 
         Destination preference:
           1. where the existing ``NovelFromSource`` row already lives, so
              updates stay anchored to the canonical folder,
-          2. the canonical novel folder plus the folder's own name (``site``,
-             ``site [ln]``, ``site [2]``), used for a brand-new source.
+          2. the canonical novel folder (``novel.novel_path``) plus the folder's
+             own name (``site``, ``site [ln]``, ``site [2]``), used for a
+             brand-new source.
 
         Whenever the preferred folder is owned by another row of the novel, a
         free ``<site> [..]`` folder is chosen beside it instead, so two works of
         one site never share files. A folder owned by another row is never
         moved: that raises ``SourceFolderConflict``.
         """
-        own_pk = existing_source.pk if existing_source is not None else None
-        source_rel = os.path.relpath(source_dir, settings.LNCRAWL_OUTPUT_PATH)
-        owner = cls._folder_owner(source_rel, exclude_pk=own_pk)
-        if owner is not None:
-            # Moving it would carry another source's files away and leave that
-            # row pointing at nothing. Fail the import of this folder instead.
-            logger.error(
-                "Refusing to import '%s': it belongs to source %s ('%s')",
-                source_rel, owner.pk, owner.title,
-            )
-            raise SourceFolderConflict(
-                f"'{source_rel}' belongs to another source ('{owner.title}'); "
-                "the import was cancelled."
-            )
+        # Local: the folder guard imports the models.
+        from ..services.folder_guard import locked
 
-        target_abs = None
-        if existing_source is not None and existing_source.source_path:
-            target_abs = os.path.join(output_path, existing_source.source_path)
-            parent_abs = os.path.dirname(target_abs)
-        else:
-            # ``slug`` is the folder identity ``from_meta_json`` derives, so use
-            # it when ``novel_path`` was never recorded.
-            canonical_dir = novel.novel_path or novel.slug
-            if canonical_dir:
-                parent_abs = os.path.join(output_path, canonical_dir)
+        # Only a source folder is added inside the novel folder; the novel folder itself does
+        # not move here, so an active crawl of this novel does not block the import.
+        with locked(novel):
+            # Re-read under the lock: the novel folder may have been renamed since the caller loaded it.
+            novel.refresh_from_db(fields=["novel_path"])
+            own_pk = existing_source.pk if existing_source is not None else None
+            source_rel = os.path.relpath(source_dir, settings.LNCRAWL_OUTPUT_PATH)
+            owner = cls._folder_owner(source_rel, exclude_pk=own_pk)
+            if owner is not None:
+                # Moving it would carry another source's files away and leave that
+                # row pointing at nothing. Fail the import of this folder instead.
+                logger.error(
+                    "Refusing to import '%s': it belongs to source %s ('%s')",
+                    source_rel, owner.pk, owner.title,
+                )
+                raise SourceFolderConflict(
+                    f"'{source_rel}' belongs to another source ('{owner.title}'); "
+                    "the import was cancelled."
+                )
+
+            target_abs = None
+            if existing_source is not None and existing_source.source_path:
+                target_abs = os.path.join(output_path, existing_source.source_path)
+                parent_abs = os.path.dirname(target_abs)
+            else:
+                if not novel.novel_path:
+                    raise ValueError(f"Novel {novel.pk} has no novel folder recorded")
+                parent_abs = os.path.join(output_path, novel.novel_path)
                 # Keep the folder's own name (``site [ln]``, ``site [2]``) unless
                 # another row of this novel already uses it.
                 target_abs = os.path.join(parent_abs, os.path.basename(source_dir))
 
-        if target_abs is not None:
-            taken = cls._taken_folder_names(novel, exclude_pk=own_pk)
-            target_rel = os.path.relpath(target_abs, settings.LNCRAWL_OUTPUT_PATH)
-            target_owned = cls._folder_owner(target_rel, exclude_pk=own_pk) is not None
-            name_taken = existing_source is None and os.path.basename(target_abs) in taken
-            if target_owned or name_taken:
-                # Never merge into another row's folder: pick a free one beside it.
-                folder = lncrawler_paths.free_source_folder(
-                    parent_abs,
-                    lncrawler_paths.site_name_from_folder(os.path.basename(source_dir)),
-                    edition or edition_label_from_title(title),
-                    taken,
-                )
-                target_abs = os.path.join(parent_abs, folder)
+            if target_abs is not None:
+                taken = cls._taken_folder_names(novel, exclude_pk=own_pk)
+                target_rel = os.path.relpath(target_abs, settings.LNCRAWL_OUTPUT_PATH)
+                target_owned = cls._folder_owner(target_rel, exclude_pk=own_pk) is not None
+                name_taken = existing_source is None and os.path.basename(target_abs) in taken
+                if target_owned or name_taken:
+                    # Never merge into another row's folder: pick a free one beside it.
+                    folder = lncrawler_paths.free_source_folder(
+                        parent_abs,
+                        lncrawler_paths.site_name_from_folder(os.path.basename(source_dir)),
+                        edition or edition_label_from_title(title),
+                        taken,
+                    )
+                    target_abs = os.path.join(parent_abs, folder)
 
-        old_novel_dir = os.path.dirname(source_dir)
-        if target_abs and os.path.abspath(target_abs) != os.path.abspath(source_dir):
-            lncrawler_paths.move_and_merge_directory(source_dir, target_abs)
-            source_dir = target_abs
-            # Remove the old novel folder if this was its only source.
-            lncrawler_paths.remove_empty_directory(old_novel_dir)
+            old_novel_dir = os.path.dirname(source_dir)
+            if target_abs and os.path.abspath(target_abs) != os.path.abspath(source_dir):
+                lncrawler_paths.move_and_merge_directory(source_dir, target_abs)
+                source_dir = target_abs
+                # Remove the old novel folder if this was its only source.
+                lncrawler_paths.remove_empty_directory(old_novel_dir)
 
-        source_path = os.path.relpath(source_dir, settings.LNCRAWL_OUTPUT_PATH)
-        meta_json_path = os.path.join(source_dir, 'meta.json')
-        cover_path = os.path.join(source_path, 'cover.jpg')
-        return source_dir, source_path, meta_json_path, cover_path
+            # The folder sits directly in the novel folder: every branch above builds
+            # its target from novel.novel_path (or the existing row, in that folder).
+            return source_dir, os.path.basename(source_dir)
 
     @classmethod
     def from_meta_json(cls, meta_json_path, added_by=None):
@@ -415,8 +458,9 @@ class NovelFromSource(models.Model):
         ``added_by`` is recorded on a newly created Novel only; an update of an
         existing novel never rewrites its original contributor.
         """
-        # Local: services.chapter_stats imports this module's models.
+        # Local: services.chapter_stats and novel_naming import this module's models.
         from ..services.chapter_stats import STAT_FIELDS, refresh_chapter_stats_sql
+        from ..services.novel_naming import refresh_naming
 
         with open(meta_json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -472,7 +516,6 @@ class NovelFromSource(models.Model):
                 novel, created = Novel.objects.get_or_create(
                     slug=novel_slug,
                     defaults={
-                        'title': truncate(title, 255),
                         'novel_path': novel_path,
                         'added_by': added_by,
                     }
@@ -512,7 +555,7 @@ class NovelFromSource(models.Model):
         # Store files under the canonical novel folder (and keep an update in
         # the folder it already lives in). This runs before any row is deleted:
         # a folder that belongs to another source refuses the import outright.
-        source_dir, source_path, meta_json_path, cover_path = cls._consolidate_source_directory(
+        source_dir, source_folder = cls._consolidate_source_directory(
             source_dir=source_dir,
             output_path=output_path,
             novel=novel,
@@ -525,7 +568,8 @@ class NovelFromSource(models.Model):
             novel_from_source = cls(novel=novel)
         else:
             # Drop a legacy duplicate alias row that would violate (novel, source_url).
-            cls.objects.filter(novel=novel, source_url=source_url).exclude(pk=novel_from_source.pk).delete()
+            for duplicate in cls.objects.filter(novel=novel, source_url=source_url).exclude(pk=novel_from_source.pk):
+                duplicate.delete()
         # Slug from the final folder name, so a second source of a site gets
         # its own ("foo-ln") rather than sharing the plain site slug.
         source_slug = slugify(os.path.basename(source_dir))
@@ -538,14 +582,14 @@ class NovelFromSource(models.Model):
         novel_from_source.source_slug = cls.unique_source_slug(
             novel, truncate(source_slug, 100), exclude_pk=novel_from_source.pk
         )
-        novel_from_source.source_path = truncate(source_path)
-        # Only keep the path if the file actually exists: the crawler no longer
+        novel_from_source.source_folder = truncate(source_folder)
+        # Only keep the cover if the file actually exists: the crawler no longer
         # writes a placeholder cover, so a missing cover.jpg must stay NULL.
-        novel_from_source.cover_path = None
-        if cover_path and os.path.isfile(os.path.join(settings.LNCRAWL_OUTPUT_PATH, cover_path)):
-            novel_from_source.cover_path = truncate(cover_path)
+        novel_from_source.cover_file = None
+        if os.path.isfile(os.path.join(source_dir, 'cover.jpg')):
+            novel_from_source.cover_file = 'cover.jpg'
         novel_from_source.cover_url = truncate(novel_data.get('cover_url', ''))
-        novel_from_source.language = novel_data.get('language', 'en')
+        novel_from_source.language = novel_data.get('language') or 'en'
         novel_from_source.status = novel_data.get('status', 'Unknown')
         novel_from_source.synopsis = novel_data.get('synopsis', '')
         novel_from_source.adult_from_source = bool(novel_data.get('is_adult', False))
@@ -557,7 +601,6 @@ class NovelFromSource(models.Model):
         novel_from_source.original_publisher = truncate(novel_data.get('original_publisher', ''))
         novel_from_source.english_publisher = truncate(novel_data.get('english_publisher', ''))
         novel_from_source.novelupdates_url = truncate(novel_data.get('novelupdates_url', ''))
-        novel_from_source.meta_file_path = meta_json_path
         novel_from_source.last_chapter_update = timezone.now()
         novel_from_source.source_version = novel_data.get('source_version') or 1
         if novel_from_source.pk is None:
@@ -567,13 +610,14 @@ class NovelFromSource(models.Model):
             # change, so a full save would write their old values back.
             novel_from_source.save(update_fields=[
                 'novel', 'source_url', 'external_source', 'title', 'edition', 'source_slug',
-                'source_path', 'cover_path', 'cover_url', 'language', 'status', 'synopsis',
+                'source_folder', 'cover_file', 'cover_url', 'language', 'status', 'synopsis',
                 'adult_from_source', 'is_adult', 'original_publisher', 'english_publisher',
-                'novelupdates_url', 'meta_file_path', 'last_chapter_update', 'source_version',
+                'novelupdates_url', 'last_chapter_update', 'source_version',
                 'updated_at',
             ])
         # The flag just saved decides the novel's: refresh it now, not only once the tags are linked below.
         refresh_novel_adult([novel.pk])
+        refresh_naming(novel)
 
         # Handle authors (list of strings)
         try:
@@ -878,20 +922,32 @@ class NovelFromSource(models.Model):
             print(f"Error generating miniature cover for {self.title}: {e}")
             return False
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, files=None, **kwargs):
         """
-        Override the delete method to also remove the source folder
+        Delete the row and its source folder, under the folder guard of its novel.
+
+        The folder is renamed aside (``.deleting-<uuid>``) inside the transaction, so its name is
+        free at once, and removed once the deletion commits. The rename is recorded in ``files``
+        (a FileJournal): a failure puts the folder back. A caller whose transaction may roll back
+        after this returns passes its own journal; without one, the journal covers this call only.
+        A folder another row of the novel also uses is left alone.
         """
-        # Check if we have a source path and it exists
-        print(f"Deleting source folder: {self.source_path}")
-        if self.source_path:
+        # Local: the folder guard and the file journal import the models.
+        from ..services.folder_guard import locked_move
+        from ..services.novel_operations import file_journal
+        from ..utils.lncrawler_paths import new_quarantine_path, remove_quarantined
+
+        with (nullcontext(files) if files is not None else file_journal()) as journal, locked_move(self.novel):
             full_source_path = self.absolute_source_path
-            if full_source_path and os.path.exists(full_source_path) and os.path.isdir(full_source_path):
-                try:
-                    # Delete the source folder and all its contents
-                    shutil.rmtree(full_source_path)
-                except Exception as e:
-                    print(f"Error deleting source folder {full_source_path}: {e}")
-        
-        # Call the parent delete method to delete the database record
-        super().delete(*args, **kwargs)
+            shared = (
+                self.source_folder
+                and NovelFromSource.objects.filter(novel_id=self.novel_id, source_folder=self.source_folder)
+                .exclude(pk=self.pk).exists()
+            )
+            if full_source_path and not shared and os.path.isdir(full_source_path):
+                quarantine = new_quarantine_path()
+                journal.move(full_source_path, quarantine)
+                transaction.on_commit(partial(remove_quarantined, quarantine), robust=True)
+
+            # Call the parent delete method to delete the database record
+            super().delete(*args, **kwargs)

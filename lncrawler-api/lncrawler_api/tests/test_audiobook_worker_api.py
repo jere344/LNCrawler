@@ -43,7 +43,7 @@ from ..services import audiobook_scheduler as sched
 from ..services import audiobook_service as svc
 from ..views import audiobook_worker_views as views
 from ..services.audiobook_worker_auth import WORKER_GROUP, IsAudiobookWorker, ensure_worker_token
-from .helpers import make_novel, make_source as make_source_row, write_chapter
+from .helpers import bare_novel, make_novel, make_source as make_source_row, write_chapter
 from .test_audiobooks import AudiobookBase
 
 WORKER = 'w1'  # worker id of the worker under test
@@ -268,7 +268,7 @@ class ClaimTests(WorkerBase):
 
     def test_generation_increments_and_uploads_reset(self):
         self.part.generation = 3
-        self.part.uploads = {'1': {'file_path': 'x', 'sha256': 'x', 'duration_s': 1, 'size_bytes': 1}}
+        self.part.uploads = {'1': {'file_in_source': 'x', 'sha256': 'x', 'duration_s': 1, 'size_bytes': 1}}
         self.part.save()
         self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
         self.part.refresh_from_db()
@@ -279,7 +279,7 @@ class ClaimTests(WorkerBase):
         self.claim_part()
         chapter = self.chapters[0]
         self.part.generation = 2
-        self.part.uploads = {str(chapter.pk): {'file_path': 'x', 'sha256': 'x', 'duration_s': 1, 'size_bytes': 1}}
+        self.part.uploads = {str(chapter.pk): {'file_in_source': 'x', 'sha256': 'x', 'duration_s': 1, 'size_bytes': 1}}
         self.part.save()
 
         response = self.call('post', self.claim_url(), data=self.claim_body(), worker_id=None)
@@ -428,9 +428,9 @@ class CutOnClaimTests(WorkerBase):
 
     def add_novel(self, slug):
         """A novel of its own, with an English source of two 300-word chapters."""
-        novel = make_novel(slug.title(), slug)
+        novel = bare_novel(slug)
         source = make_source_row(novel)
-        source.source_path = os.path.join(slug, 'site')
+        source.source_folder = 'site'
         source.save()
         for number in (1, 2):
             write_chapter(source.absolute_source_path, number, body_size=1500)
@@ -611,7 +611,7 @@ class UploadTests(WorkerBase):
         self.part.refresh_from_db()
         upload = self.part.uploads[str(chapter.pk)]
         self.assertEqual(upload['sha256'], hashlib.sha256(self.fixtures['valid']).hexdigest())
-        self.assertTrue(upload['file_path'].endswith(f'part-001/g1/{chapter.pk:05}.ogg'))
+        self.assertTrue(upload['file_in_source'].endswith(f'part-001/g1/{chapter.pk:05}.ogg'))
         self.assertGreater(upload['duration_s'], 10)
 
     def test_same_upload_again_is_200(self):
@@ -874,7 +874,7 @@ class HousekeepingLeftoverTests(WorkerBase):
 
         AudiobookChapter.objects.create(
             part=self.part, chapter=self.chapters[0],
-            file_path=os.path.relpath(live, self.tmp), duration_s=1, size_bytes=10, sha256='x',
+            file_in_source=os.path.relpath(live, self.source.absolute_source_path), duration_s=1, size_bytes=10, sha256='x',
         )
         self.claim_part()
         self.part.generation = 2
@@ -945,7 +945,7 @@ class FakeWorkerTests(StaticLiveServerTestCase):
 
         novel = make_novel('Foo', 'foo')
         source = make_source_row(novel)
-        source.source_path = os.path.join('foo', 'site')
+        source.source_folder = 'site'
         source.save()
         source_dir = source.absolute_source_path
         os.makedirs(source_dir, exist_ok=True)

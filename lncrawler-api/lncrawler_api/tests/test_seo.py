@@ -22,12 +22,12 @@ class SeoNovelJsonLdTests(LanguageAwareSourceTestCase):
         self.en_source.save(update_fields=["source_slug"])
         self.fr_source.source_slug = "src-fr"
         self.fr_source.save(update_fields=["source_slug"])
-        # fr is the preferred source (best votes), so it drives the Book node.
-        self.fr_source.refresh_from_db()
-        self.fr_source.novelupdates_url = "https://www.novelupdates.com/series/bilingue/"
-        self.fr_source.original_publisher = "Example Publisher"
-        self.fr_source.save()
-        self.fr_source.alternative_titles.add(
+        # The canonical source (English, the naming language) drives the Book node.
+        self.en_source.refresh_from_db()
+        self.en_source.novelupdates_url = "https://www.novelupdates.com/series/bilingue/"
+        self.en_source.original_publisher = "Example Publisher"
+        self.en_source.save()
+        self.en_source.alternative_titles.add(
             AlternativeTitle.objects.create(name="バイリンガル")
         )
 
@@ -53,8 +53,8 @@ class SeoNovelJsonLdTests(LanguageAwareSourceTestCase):
         html = self.client.get(
             reverse("seo_novel", args=[self.novel.slug])
         ).content.decode()
-        self.assertIn('lang="fr"', html)
-        self.assertIn("About Bilingue", html)
+        self.assertIn('lang="en"', html)
+        self.assertIn("About English", html)
         self.assertIn("en, fr", html)
 
     def test_inlanguage_falls_back_when_sources_have_no_language(self):

@@ -2,7 +2,8 @@ import api from './api';
 
 export interface Review {
   id: string;
-  novel_title: string;
+  // Canonical title of the novel; null when the novel has none
+  novel_title: string | null;
   novel_slug: string;
   user: {
     id: string;

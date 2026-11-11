@@ -103,17 +103,20 @@ class PlaceholderCoverAdmin(admin.ModelAdmin):
         phash = group["cover_phash"]
         sources = (
             NovelFromSource.objects.filter(cover_phash=phash)
-            .select_related("external_source")
+            .select_related("external_source", "novel")
             .order_by("pk")
         )
         samples = list(sources[:SAMPLES_PER_GROUP])
         cover_rel = next((s.cover_min_path for s in samples if s.cover_min_path), None)
         if cover_rel is None:
-            cover_rel = (
-                sources.exclude(cover_min_path__isnull=True)
-                .exclude(cover_min_path="")
-                .values_list("cover_min_path", flat=True)
-                .first()
+            # A path is computed from the novel folder, so the rows are read, not filtered in SQL.
+            cover_rel = next(
+                (
+                    s.cover_min_path
+                    for s in sources.exclude(cover_min_file__isnull=True).exclude(cover_min_file="").iterator()
+                    if s.cover_min_path
+                ),
+                None,
             )
         return {
             "phash": phash,

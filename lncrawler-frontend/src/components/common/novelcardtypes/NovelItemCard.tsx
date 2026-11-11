@@ -25,7 +25,7 @@ interface NovelItemCardProps {
 
 const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, isLoading = false, to, state, showAddedDate = false, hideRating = false }) => {
   const { t } = useTranslation();
-  const displaySource = novel.reading_source ?? novel.prefered_source;
+  const displaySource = novel.reading_source ?? novel.suggested_source;
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: '100%', width: '100%' }}>
@@ -57,7 +57,6 @@ const NovelItemCard: React.FC<NovelItemCardProps> = ({ novel, rank, isLoading = 
     }}>
     <NovelActionsMenu
       novelId={novel.id}
-      novelTitle={novel.title}
       displayTitle={getNovelDisplayTitle(novel)}
       slug={novel.slug}
       isBookmarked={novel.is_bookmarked}

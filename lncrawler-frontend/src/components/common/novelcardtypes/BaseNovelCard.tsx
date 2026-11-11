@@ -36,7 +36,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
   hideUserState = false,
   priority = false
 }) => {
-  const preferredSource = novel.reading_source ?? novel.prefered_source;
+  const displaySource = novel.reading_source ?? novel.suggested_source;
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const [localUnreadChapters, setLocalUnreadChapters] = useState<number | null>(() => getUnreadChapterCount(novel));
@@ -159,7 +159,6 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
           />
           <CompactAddToListButton
             novelId={novel.id}
-            novelTitle={novel.title}
             displayTitle={getNovelDisplayTitle(novel)}
             customSx={addToListButtonSx}
           />
@@ -174,7 +173,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
       >
         <Box sx={{ position: 'relative', paddingTop: '150%' }}>
           <NovelCover
-            src={novelCoverUrl(preferredSource)}
+            src={novelCoverUrl(displaySource)}
             alt={getNovelDisplayTitle(novel)}
             novelId={novel.id}
             isAdult={novel.is_adult}
@@ -215,8 +214,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             <Typography variant="body2" noWrap sx={{
               color: "text.secondary"
             }}>
-              {preferredSource?.authors && preferredSource.authors.length > 0 
-                ? preferredSource.authors.join(', ') 
+              {displaySource?.authors && displaySource.authors.length > 0 
+                ? displaySource.authors.join(', ') 
                 : t('common.unknown')}
             </Typography>
           </Box>
@@ -229,8 +228,8 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
             <Typography variant="body2" noWrap sx={{
               color: "text.secondary"
             }}>
-              {preferredSource?.tags && preferredSource.tags.length > 0 ? 
-                `${preferredSource.tags.slice(0, 3).join(', ')}${preferredSource.tags.length > 3 ? '...' : ''}` 
+              {displaySource?.tags && displaySource.tags.length > 0 ? 
+                `${displaySource.tags.slice(0, 3).join(', ')}${displaySource.tags.length > 3 ? '...' : ''}` 
                 : t('common.unknown')}
             </Typography>
           </Box>
@@ -280,7 +279,7 @@ export const BaseNovelCard: React.FC<BaseNovelCardProps> = ({
               } 
             }}
           >
-            <NovelStatsChips novel={novel} source={preferredSource} asGrid />
+            <NovelStatsChips novel={novel} source={displaySource} asGrid />
           </Grid>
         </CardContent>
       </CardActionArea>

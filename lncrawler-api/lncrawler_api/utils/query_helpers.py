@@ -62,27 +62,38 @@ def exclude_adult(queryset, user=None, path=''):
 
 def most_viewed_novel_ids(user, limit, exclude_ids=(), novels=None):
     """Ids of the most viewed novels ``user`` may see (not DMCA'd, adult ones only when allowed), most viewed
-    first (``rank_total_views``, then title). ``novels`` narrows the candidates, ``exclude_ids`` drops ids."""
+    first (``rank_total_views``, then slug). ``novels`` narrows the candidates, ``exclude_ids`` drops ids."""
     candidates = Novel.objects.all() if novels is None else novels
     if exclude_ids:
         candidates = candidates.exclude(pk__in=exclude_ids)
     return list(
         exclude_adult(candidates.filter(is_dmca=False), user)
-        .order_by('-rank_total_views', 'title')
+        .order_by('-rank_total_views', 'slug')
         .values_list('pk', flat=True)[:limit]
     )
 
 
-def preferred_source_key(source):
-    """Rank a novel's sources the same everywhere: best vote score, then
+def language_tier(source, languages=()):
+    """0 when ``source`` is in ``languages`` (or no language is asked for), else 1."""
+    return 0 if not languages or source.language in languages else 1
+
+
+def source_rank_key(source, languages=()):
+    """Rank a novel's sources the same everywhere: language tier, best vote score, then
     upvotes, then the most chapters with content, then title. Empty chapters
     never make a source look more complete than it reads."""
     return (
+        language_tier(source, languages),
         -(source.upvotes - source.downvotes),
         -source.upvotes,
         -source.available_chapters_count,
         source.title or '',
     )
+
+
+def rank_sources(sources, languages=()):
+    """The best of ``sources`` by ``source_rank_key``, or None when there are none."""
+    return min(sources, key=lambda source: source_rank_key(source, languages), default=None)
 
 
 def _chapters_after_current():
@@ -247,9 +258,9 @@ def sources_queryset(profile='card', ip=None, user=None):
         # text/blob columns (the synopsis alone can be kilobytes per source) so
         # list pages don't transfer every source's full row.
         deferred = [
-            'cover_url', 'cover_path', 'overview_picture_path', 'cover_phash',
-            'meta_file_path', 'novelupdates_url', 'original_publisher',
-            'english_publisher', 'status', 'source_path', 'source_url',
+            'cover_url', 'cover_file', 'overview_picture_file', 'cover_phash',
+            'novelupdates_url', 'original_publisher',
+            'english_publisher', 'status', 'source_url',
             'synopsis',
         ]
         qs = qs.defer(*deferred)

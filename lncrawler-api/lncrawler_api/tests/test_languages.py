@@ -9,11 +9,10 @@ from django.urls import reverse
 from ..models import (
     Chapter,
     ExternalSource,
-    Novel,
     NovelFromSource,
     ReadingHistory,
 )
-from .helpers import LanguageAwareSourceTestCase, set_adult
+from .helpers import LanguageAwareSourceTestCase, bare_novel, make_novel, make_source, set_adult
 
 
 class LanguageHelperTests(TestCase):
@@ -31,13 +30,13 @@ class HomeLanguageFilterTests(LanguageAwareSourceTestCase):
     def test_no_languages_param_returns_all_novels(self):
         response = self.client.get(reverse("home_page"))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(self._source_titles(response), ["Bilingue"])
+        self.assertEqual(self._novel_slugs(response), ["bilingue"])
 
     def test_filtering_by_language_excludes_other_language_novels(self):
-        other = Novel.objects.create(title="Only Japanese", slug="jp", novel_path="j")
-        NovelFromSource.objects.create(
-            novel=other,
-            external_source=ExternalSource.objects.create(source_name="jp-site"),
+        other = bare_novel("jp", "j")
+        make_source(
+            other,
+            external=ExternalSource.objects.create(source_name="jp-site"),
             title="日本語",
             source_url="http://jp/1",
             language="ja",
@@ -45,14 +44,14 @@ class HomeLanguageFilterTests(LanguageAwareSourceTestCase):
 
         response = self.client.get(reverse("home_page"), {"languages": "fr,en"})
         self.assertEqual(response.status_code, 200)
-        titles = self._source_titles(response)
-        self.assertIn("Bilingue", titles)
-        self.assertNotIn("Only Japanese", titles)
+        titles = self._novel_slugs(response)
+        self.assertIn("bilingue", titles)
+        self.assertNotIn("jp", titles)
 
     def test_multi_language_merges_novels_without_duplicates(self):
         # A novel whose source is available in both requested languages must
         # appear exactly once in the merged ranking.
-        both = Novel.objects.create(title="Both", slug="both", novel_path="bo")
+        both = make_novel(title="Both", slug="both", novel_path="bo")
         for lang, name in (("fr", "fr2"), ("en", "en2")):
             NovelFromSource.objects.create(
                 novel=both,
@@ -63,34 +62,34 @@ class HomeLanguageFilterTests(LanguageAwareSourceTestCase):
             )
 
         response = self.client.get(reverse("home_page"), {"languages": ["fr", "en"]})
-        titles = self._source_titles(response)
-        self.assertEqual(titles.count("Both"), 1)
-        self.assertEqual(titles.count("Bilingue"), 1)
+        titles = self._novel_slugs(response)
+        self.assertEqual(titles.count("both"), 1)
+        self.assertEqual(titles.count("bilingue"), 1)
 
-    def test_language_filtered_prefered_source_matches_language(self):
+    def test_language_filtered_suggested_source_matches_language(self):
         response = self.client.get(reverse("home_page"), {"languages": "fr"})
-        novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
-        self.assertEqual(novel["prefered_source"]["title"], "Français")
+        novel = next(n for n in response.data["top_novels"] if n["slug"] == "bilingue")
+        self.assertEqual(novel["suggested_source"]["title"], "Français")
 
-    def test_prefered_source_falls_back_when_language_absent(self):
+    def test_suggested_source_falls_back_when_language_absent(self):
         # English source (worst votes) wins only because fr is excluded.
         response = self.client.get(reverse("home_page"), {"languages": "en"})
-        novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
-        self.assertEqual(novel["prefered_source"]["title"], "English")
+        novel = next(n for n in response.data["top_novels"] if n["slug"] == "bilingue")
+        self.assertEqual(novel["suggested_source"]["title"], "English")
 
     def test_language_filter_scopes_view_counts_and_badges(self):
         NovelFromSource.objects.filter(pk=self.en_source.pk).update(total_views=100)
         NovelFromSource.objects.filter(pk=self.fr_source.pk).update(total_views=7)
 
         response = self.client.get(reverse("home_page"), {"languages": "fr"})
-        novel = next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
+        novel = next(n for n in response.data["top_novels"] if n["slug"] == "bilingue")
         self.assertEqual(novel["total_views"], 7)
         self.assertEqual(novel["languages"], ["fr"])
 
 
 class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
     def _novel(self, response):
-        return next(n for n in response.data["top_novels"] if n["title"] == "Bilingue")
+        return next(n for n in response.data["top_novels"] if n["slug"] == "bilingue")
 
     def test_reading_source_exposes_history_source_full_metadata(self):
         # History is on the worst-voted (non-preferred) source: the card must
@@ -110,7 +109,7 @@ class ReadingSourceSerializationTests(LanguageAwareSourceTestCase):
         response = self.client.get(reverse("home_page"))
         self.assertEqual(response.status_code, 200)
         novel = self._novel(response)
-        self.assertEqual(novel["prefered_source"]["title"], "Français")
+        self.assertEqual(novel["suggested_source"]["title"], "Français")
         self.assertEqual(novel["reading_source"]["title"], "English")
 
     def test_reading_source_absent_for_anonymous(self):
@@ -143,20 +142,20 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
 
     def setUp(self):
         super().setUp()
-        self.clean = Novel.objects.create(title="Clean", slug="clean", novel_path="c")
-        NovelFromSource.objects.create(
-            novel=self.clean,
-            external_source=ExternalSource.objects.create(source_name="clean-site"),
+        self.clean = bare_novel("clean", "c")
+        make_source(
+            self.clean,
+            external=ExternalSource.objects.create(source_name="clean-site"),
             title="Clean",
             source_url="http://clean/1",
             language="en",
         )
 
     def _home_titles(self, response):
-        return [n["title"] for n in response.data["top_novels"]]
+        return [n["slug"] for n in response.data["top_novels"]]
 
     def _search_titles(self, response):
-        return [n["title"] for n in response.data["results"]]
+        return [n["slug"] for n in response.data["results"]]
 
     def _flag_adult(self):
         # Bilingue has two sources: flag both so the novel is adult (2/2).
@@ -167,8 +166,8 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
         self._flag_adult()
         response = self.client.get(reverse("home_page"))
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("Bilingue", self._home_titles(response))
-        self.assertIn("Clean", self._home_titles(response))
+        self.assertNotIn("bilingue", self._home_titles(response))
+        self.assertIn("clean", self._home_titles(response))
 
     def test_show_r18_yes_reveals_adult_novels_on_home(self):
         self._flag_adult()
@@ -177,15 +176,15 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
         )
         self.client.force_login(user)
         response = self.client.get(reverse("home_page"))
-        self.assertIn("Bilingue", self._home_titles(response))
+        self.assertIn("bilingue", self._home_titles(response))
 
     def test_search_adult_only_and_hide(self):
         self._flag_adult()
         only = self.client.get(reverse("search_novels"), {"adult": "only"})
-        self.assertEqual(self._search_titles(only), ["Bilingue"])
+        self.assertEqual(self._search_titles(only), ["bilingue"])
 
         hide = self.client.get(reverse("search_novels"), {"adult": "hide"})
-        self.assertNotIn("Bilingue", self._search_titles(hide))
+        self.assertNotIn("bilingue", self._search_titles(hide))
 
     def test_search_ignores_novel_with_only_half_adult_sources(self):
         # 1 of 2 sources adult: not more than half, so the novel is not adult.
@@ -194,7 +193,7 @@ class AdultContentFilterTests(LanguageAwareSourceTestCase):
         self.assertEqual(self._search_titles(only), [])
 
         hide = self.client.get(reverse("search_novels"), {"adult": "hide"})
-        self.assertIn("Bilingue", self._search_titles(hide))
+        self.assertIn("bilingue", self._search_titles(hide))
         self.assertEqual(hide.data["hidden_adult"], 0)
 
     def test_sitemaps_exclude_adult_novel_and_its_sources(self):
@@ -243,13 +242,13 @@ class SearchLanguageFilterTests(LanguageAwareSourceTestCase):
     def test_legacy_single_language_param_still_works(self):
         response = self.client.get(reverse("search_novels"), {"language": "fr"})
         self.assertEqual(response.status_code, 200)
-        titles = [n["title"] for n in response.data["results"]]
-        self.assertEqual(titles, ["Bilingue"])
+        titles = [n["slug"] for n in response.data["results"]]
+        self.assertEqual(titles, ["bilingue"])
 
     def test_multi_language_param_merges_without_duplicates(self):
         response = self.client.get(
             reverse("search_novels"), {"languages": ["fr", "en"]}
         )
         self.assertEqual(response.status_code, 200)
-        titles = [n["title"] for n in response.data["results"]]
-        self.assertEqual(titles.count("Bilingue"), 1)
+        titles = [n["slug"] for n in response.data["results"]]
+        self.assertEqual(titles.count("bilingue"), 1)

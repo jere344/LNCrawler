@@ -137,8 +137,8 @@ const CardShell: React.FC<LibraryNovelCardProps & { dnd?: DndHandle; isSortable?
   // Progress is the owner's: on a public library the unread badge and mark-as-read stay off.
   const unread = useMemo(() => (editable ? getUnreadChapterCount(novel) : null), [novel, editable]);
   const canMarkRead = Boolean(editable && isAuthenticated && hasUnreadChapters(novel));
-  const preferredSource = novel.reading_source ?? novel.prefered_source;
-  const cover = novelCoverUrl(preferredSource);
+  const displaySource = novel.reading_source ?? novel.suggested_source;
+  const cover = novelCoverUrl(displaySource);
   const linkProps = getNovelSourceLink(novel);
   const canDrag = Boolean(dnd && draggable);
 

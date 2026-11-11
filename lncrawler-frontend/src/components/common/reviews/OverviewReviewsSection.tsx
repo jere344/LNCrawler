@@ -116,7 +116,7 @@ const OverviewReviewsSection: React.FC<OverviewReviewsSectionProps> = ({
                   <Box>
                     <MuiLink component={Link} to={`/novels/${review.novel_slug}`}>
                       <Typography variant="body2" color="primary">
-                        {review.novel_title}
+                        {review.novel_title || review.novel_slug}
                       </Typography>
                     </MuiLink>
                   </Box>

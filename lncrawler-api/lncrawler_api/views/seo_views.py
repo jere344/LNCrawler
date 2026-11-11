@@ -32,7 +32,7 @@ from ..services.audiobook_public import (
 from ..utils import build_media_url, resolve_novel_slug
 from ..utils.chapter_label import get_labeler
 from ..utils.chapter_utils import get_chapter
-from ..utils.query_helpers import preferred_source_key, public_novels
+from ..utils.query_helpers import public_novels, rank_sources
 from ..utils.seo import _clean_text, _sanitize_body
 from .audiobook_views import SORTS
 
@@ -57,11 +57,10 @@ ORG = {
 PAGE_CACHE_SECONDS = 3600
 
 
-def _pick_default_source(sources):
-    """Mirror the serializer's preferred source (see preferred_source_key)."""
-    if not sources:
-        return None
-    return min(sources, key=preferred_source_key)
+def _pick_default_source(novel, sources):
+    """The novel's canonical source among ``sources`` (see services/novel_naming.py), else the best ranked in NAMING_LANGUAGE."""
+    canonical = next((s for s in sources if s.pk == novel.canonical_source_id), None)
+    return canonical or rank_sources(sources, [settings.NAMING_LANGUAGE])
 
 
 def _source_image(source):
@@ -135,7 +134,8 @@ def _load_page(request, novel_slug, source_slug=None, source_queryset=None):
     Returns (novel, source), with source None for novel pages, or an error
     response: 451 for a DMCA work, 404 for a missing or adult source.
     """
-    novel = resolve_novel_slug(novel_slug)
+    # The canonical source names the novel in every page (str(novel)): loaded with it, not per query.
+    novel = resolve_novel_slug(novel_slug, related=("canonical_source",))
     if novel.is_dmca:
         return _gone(request, 451, "This work is unavailable due to a DMCA request.")
     if source_slug is None:
@@ -152,7 +152,8 @@ def seo_home(request):
     novels = (
         public_novels(Novel.objects.all())
         .order_by("-created_at")
-        .only("slug", "title", "updated_at")[:100]
+        .select_related("canonical_source")
+        .only("slug", "updated_at", "canonical_source__title")[:100]
     )
     description = (
         "Read thousands of Asian light novels online for free. Browse by "
@@ -204,20 +205,20 @@ def seo_novel(request, novel_slug):
     if not sources or novel.is_adult:
         raise Http404("Novel not available")
 
-    primary = _pick_default_source(sources)
+    primary = _pick_default_source(novel, sources)
     synopsis = _clean_text(primary.synopsis, 320)
     author_names = [a.name for a in primary.authors.all()]
     description = (
-        f"Read {novel.title} online. {synopsis}"
+        f"Read {novel} online. {synopsis}"
         if synopsis
-        else f"Read {novel.title} online for free on {SITE_NAME}. "
+        else f"Read {novel} online for free on {SITE_NAME}. "
         f"Available in {len(sources)} source(s)."
     )
 
     book = {
         "@context": "https://schema.org",
         "@type": "Book",
-        "name": novel.title,
+        "name": str(novel),
         "url": f"{SITE_URL}/novels/{novel.slug}/",
         "inLanguage": sorted({s.language for s in sources if s.language})
         or primary.language
@@ -261,7 +262,7 @@ def seo_novel(request, novel_slug):
             {
                 "@type": "ListItem",
                 "position": 2,
-                "name": novel.title,
+                "name": str(novel),
                 "item": f"{SITE_URL}/novels/{novel.slug}/",
             },
         ],
@@ -276,9 +277,9 @@ def seo_novel(request, novel_slug):
         request,
         "seo/novel.html",
         {
-            "title": f"{novel.title} - Read Light Novel Online | {SITE_NAME}",
+            "title": f"{novel} - Read Light Novel Online | {SITE_NAME}",
             "description": description,
-            "keywords": ", ".join([novel.title, *author_names, *tags][:15]),
+            "keywords": ", ".join([str(novel), *author_names, *tags][:15]),
             "canonical": f"{SITE_URL}/novels/{novel.slug}/",
             "og_image": image,
             "og_type": "book",
@@ -366,7 +367,7 @@ def seo_source(request, novel_slug, source_slug):
             {
                 "@type": "ListItem",
                 "position": 2,
-                "name": novel.title,
+                "name": str(novel),
                 "item": f"{SITE_URL}/novels/{novel.slug}/",
             },
             {
@@ -431,7 +432,7 @@ def seo_chapterlist(request, novel_slug, source_slug):
             {
                 "@type": "ListItem",
                 "position": 2,
-                "name": novel.title,
+                "name": str(novel),
                 "item": f"{SITE_URL}/novels/{novel.slug}/",
             },
             {
@@ -671,7 +672,7 @@ def seo_audiobook(request, novel_slug):
         request,
         "seo/audiobook.html",
         {
-            "title": f"{novel.title} \u2013 Generated audiobook",
+            "title": f"{novel} \u2013 Generated audiobook",
             "description": description,
             "keywords": ", ".join([audiobook.display_title, *author_names][:15]),
             "canonical": canonical,

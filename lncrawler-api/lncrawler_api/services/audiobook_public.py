@@ -170,13 +170,13 @@ def public_audio_chapters():
     ``chapter`` to know whether chapters have public audio."""
     return AudiobookChapter.objects.filter(
         part__in=AudiobookPart.objects.filter(LISTENABLE_PART_Q),
-    ).exclude(part__audiobook__status='retired')
+    ).exclude(part__audiobook__status='retired').select_related('part__audiobook__source__novel')
 
 
 def listenable_chapter(audiobook, chapter_pk):
     """The AudiobookChapter of a chapter of a listenable part of this audiobook, or None."""
     return (
-        AudiobookChapter.objects.select_related('part', 'chapter')
+        AudiobookChapter.objects.select_related('part__audiobook__source__novel', 'chapter')
         .filter(
             part__audiobook=audiobook,
             part__in=AudiobookPart.objects.filter(LISTENABLE_PART_Q),

@@ -51,8 +51,8 @@ class SourceGalleryTests(MergeTestCase):
         self.assertEqual(response.data["images"][0]["chapter_display_title"], "Chapter 1")
 
     def test_overview_picture_is_listed_first(self):
-        self.source.overview_picture_path = "gallery/site/overview.png"
-        self.source.save(update_fields=["overview_picture_path"])
+        self.source.overview_picture_file = "overview.png"
+        self.source.save(update_fields=["overview_picture_file"])
         self.write_file("gallery/site/overview.png")
         response = self.get_gallery()
         self.assertEqual(response.status_code, 200)
@@ -60,8 +60,8 @@ class SourceGalleryTests(MergeTestCase):
         self.assertEqual(response.data["images"][0]["image_name"], "overview.png")
 
     def test_overview_path_without_a_file_is_not_counted(self):
-        self.source.overview_picture_path = "gallery/site/missing.png"
-        self.source.save(update_fields=["overview_picture_path"])
+        self.source.overview_picture_file = "missing.png"
+        self.source.save(update_fields=["overview_picture_file"])
         response = self.get_gallery()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 3)
@@ -79,7 +79,7 @@ class SourceGalleryTests(MergeTestCase):
         self.assertEqual(response.data["current_page"], 1)
 
     def test_source_without_a_source_path_does_not_500(self):
-        NovelFromSource.objects.filter(pk=self.source.pk).update(source_path=None)
+        NovelFromSource.objects.filter(pk=self.source.pk).update(source_folder=None)
         response = self.get_gallery()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["images"], [])

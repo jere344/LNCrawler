@@ -9,6 +9,9 @@ from ..models import (
     Review,
 )
 from ..services.audiobook_service import enqueue_next_part, get_or_create_audiobook
+from ..services.folder_guard import BUSY_MESSAGE, FolderBusy
+from ..services.novel_deletion import delete_novel
+from ..services.novel_operations import FileOperationError, file_journal
 from ..services.merge_service import MergeError, build_merge_plan, merge_novels
 from ..services.split_service import (
     SplitError,
@@ -25,6 +28,7 @@ from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Sum
 from ..models.sources_models import refresh_adult, refresh_novel_adult
+from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.utils.html import format_html
 from django.urls import path, reverse
@@ -149,31 +153,17 @@ class SplitNovelForm(forms.Form):
         widget=forms.RadioSelect,
         label="Destination",
     )
-    new_title = forms.CharField(
-        max_length=255,
-        required=False,
-        label="New novel title",
-    )
     new_slug = forms.SlugField(
         max_length=255,
         required=False,
         label="New novel slug",
-        help_text=(
-            "Defaults to the title. The slug becomes the permanent folder and "
-            "identity of the new novel."
-        ),
+        help_text="The slug is also the folder name of the new novel.",
     )
     target_novel = forms.ModelChoiceField(
         queryset=Novel.objects.all(),
         required=False,
         label="Existing novel",
         widget=AutocompleteSelect(NOVEL_AUTOCOMPLETE_FIELD, admin.site),
-    )
-    rename_title = forms.CharField(
-        max_length=255,
-        required=False,
-        label="Rename the original novel (optional)",
-        help_text="For example append '[Web Novel]'.",
     )
 
     def __init__(self, *args, novel=None, **kwargs):
@@ -207,10 +197,9 @@ class SplitNovelForm(forms.Form):
         return None
 
     def _clean_new_novel(self, cleaned):
-        title = (cleaned.get("new_title") or "").strip()
-        slug = slugify((cleaned.get("new_slug") or "").strip() or title)
+        slug = slugify((cleaned.get("new_slug") or "").strip())
         if not slug:
-            return "Give the new novel a title or a slug that can form one."
+            return "Give the new novel a slug that can form one."
         if self.novel is not None and slug == self.novel.slug:
             return "The new slug must differ from the original novel's slug."
         if Novel.objects.filter(slug=slug).exists():
@@ -230,7 +219,7 @@ class SplitNovelForm(forms.Form):
 @admin.register(Novel)
 class NovelAdmin(admin.ModelAdmin):
     list_display = (
-        "title",
+        "canonical_title",
         "slug",
         "sources_count",
         "comment_count",
@@ -242,9 +231,8 @@ class NovelAdmin(admin.ModelAdmin):
     )
     list_filter = ("is_dmca",)
     actions = ("mark_dmca", "unmark_dmca", "generate_audiobook")
-    search_fields = ("title", "slug")
-    list_select_related = ("added_by",)
-    prepopulated_fields = {"slug": ("title",)}
+    search_fields = ("canonical_source__title", "slug")
+    list_select_related = ("added_by", "canonical_source")
     readonly_fields = (
         "id",
         "created_at",
@@ -252,10 +240,46 @@ class NovelAdmin(admin.ModelAdmin):
         "sources_count",
         "view_count_display",
         "comment_count",
+        "slug",
+        "novel_path",
+        "canonical_source",
     )
     inlines = [NovelFromSourceInline, NovelCommentInline, NovelReviewInline]
     change_list_template = "admin/lncrawler_api/novel/change_list.html"
     change_form_template = "admin/lncrawler_api/novel/change_form.html"
+
+    def has_add_permission(self, request):
+        # Novels come only from import, merge and split: their slug and folder follow the canonical source.
+        return False
+
+    # Deleting a novel goes through delete_novel: its sources and its folder go with it.
+    def delete_model(self, request, obj):
+        with file_journal() as files:
+            delete_novel(obj, files=files)
+
+    def delete_queryset(self, request, queryset):
+        for novel in queryset:
+            try:
+                with file_journal() as files:
+                    delete_novel(novel, files=files)
+            except FolderBusy:
+                messages.error(request, BUSY_MESSAGE)
+            except FileOperationError as exc:
+                messages.error(request, str(exc))
+
+    def delete_view(self, request, object_id, extra_context=None):
+        try:
+            return super().delete_view(request, object_id, extra_context)
+        except FolderBusy:
+            messages.error(request, BUSY_MESSAGE)
+            return HttpResponseRedirect(reverse("admin:lncrawler_api_novel_change", args=[object_id]))
+        except FileOperationError as exc:
+            messages.error(request, str(exc))
+            return HttpResponseRedirect(reverse("admin:lncrawler_api_novel_change", args=[object_id]))
+
+    @admin.display(description="Title", ordering="canonical_source__title")
+    def canonical_title(self, obj):
+        return obj.canonical_source.title if obj.canonical_source_id else None
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)
@@ -274,7 +298,7 @@ class NovelAdmin(admin.ModelAdmin):
     def generate_audiobook(self, request, queryset):
         for novel in queryset:
             if novel.is_dmca:
-                self.message_user(request, f"{novel.title}: DMCA takedown, no audiobook.", level=messages.WARNING)
+                self.message_user(request, f"{novel}: DMCA takedown, no audiobook.", level=messages.WARNING)
                 continue
             try:
                 audiobook, created = get_or_create_audiobook(novel)
@@ -284,18 +308,18 @@ class NovelAdmin(admin.ModelAdmin):
             if audiobook.status != 'active':
                 self.message_user(
                     request,
-                    f"{novel.title}: audiobook status is {audiobook.status}, nothing queued.",
+                    f"{novel}: audiobook status is {audiobook.status}, nothing queued.",
                     level=messages.WARNING,
                 )
                 continue
             part = enqueue_next_part(audiobook, priority=100, allow_tail=True)
             if part is None:
-                self.message_user(request, f"{novel.title}: nothing to cut yet.", level=messages.INFO)
+                self.message_user(request, f"{novel}: nothing to cut yet.", level=messages.INFO)
             else:
                 prefix = "audiobook created, " if created else ""
                 self.message_user(
                     request,
-                    f"{novel.title}: {prefix}part {part.index} queued ({part.word_count} words).",
+                    f"{novel}: {prefix}part {part.index} queued ({part.word_count} words).",
                     level=messages.SUCCESS,
                 )
 
@@ -348,14 +372,17 @@ class NovelAdmin(admin.ModelAdmin):
                 # Folders always move: a merge that kept them in place would
                 # leave the crawler's novel identity out of step with the database.
                 if "confirm" in request.POST:
+                    source_name = str(source)  # the source novel is gone after the merge
                     try:
-                        merge_novels(source, target, move_files=True)
+                        merge_novels(source, target)
                     except MergeError as e:
                         messages.error(request, str(e))
+                    except FolderBusy:
+                        messages.error(request, BUSY_MESSAGE)
                     else:
                         messages.success(
                             request,
-                            f"Merged '{source.title}' into '{target.title}'.",
+                            f"Merged '{source_name}' into '{target}'.",
                         )
                         return redirect(
                             reverse(
@@ -363,7 +390,7 @@ class NovelAdmin(admin.ModelAdmin):
                             )
                         )
                 else:
-                    context["plan"] = build_merge_plan(source, target, move_files=True)
+                    context["plan"] = build_merge_plan(source, target)
                     context["preview"] = True
         else:
             form = MergeNovelForm()
@@ -414,7 +441,6 @@ class NovelAdmin(admin.ModelAdmin):
 
         sources = list(form.cleaned_data["sources"])
         mode = form.cleaned_data["mode"]
-        rename_title = form.cleaned_data.get("rename_title") or ""
         target = (
             form.cleaned_data.get("target_novel")
             if mode == SplitNovelForm.MODE_EXISTING
@@ -426,9 +452,7 @@ class NovelAdmin(admin.ModelAdmin):
                 context["plan"] = build_split_plan(
                     novel,
                     sources,
-                    new_title=form.cleaned_data.get("new_title", ""),
                     new_slug=form.cleaned_data.get("new_slug", ""),
-                    rename_title=rename_title,
                     target_novel=target,
                 )
             except SplitError as e:
@@ -443,16 +467,18 @@ class NovelAdmin(admin.ModelAdmin):
                 destination = split_novel(
                     novel,
                     sources,
-                    new_title=form.cleaned_data.get("new_title", ""),
                     new_slug=form.cleaned_data.get("new_slug", ""),
-                    rename_title=rename_title,
                 )
-                message = f"Split {len(sources)} source(s) into '{destination.title}'."
+                message = f"Split {len(sources)} source(s) into '{destination}'."
             else:
                 destination = move_sources_into_novel(novel, sources, target)
-                message = f"Moved {len(sources)} source(s) into '{destination.title}'."
+                message = f"Moved {len(sources)} source(s) into '{destination}'."
         except SplitError as e:
             messages.error(request, str(e))
+            context["form"] = form
+            return render(request, "admin/lncrawler_api/novel/split.html", context)
+        except FolderBusy:
+            messages.error(request, BUSY_MESSAGE)
             context["form"] = form
             return render(request, "admin/lncrawler_api/novel/split.html", context)
 
@@ -470,8 +496,9 @@ class NovelAdmin(admin.ModelAdmin):
 @admin.register(NovelRating)
 class NovelRatingAdmin(admin.ModelAdmin):
     list_display = ("novel", "ip_address", "rating", "created_at")
+    list_select_related = ("novel__canonical_source",)
     list_filter = ("rating", "created_at")
-    search_fields = ("novel__title", "ip_address")
+    search_fields = ("novel__canonical_source__title", "ip_address")
     readonly_fields = ("created_at", "updated_at")
     raw_id_fields = ("novel",)
 
@@ -480,14 +507,15 @@ class NovelRatingAdmin(admin.ModelAdmin):
 class WeeklySourceViewAdmin(admin.ModelAdmin):
     list_display = ("source", "granularity", "day", "views")
     list_filter = ("granularity", "day")
-    search_fields = ("source__title", "source__novel__title", "day")
+    search_fields = ("source__title", "source__novel__canonical_source__title", "day")
     raw_id_fields = ("source",)
 
 
 @admin.register(NovelSimilarity)
 class NovelSimilarityAdmin(admin.ModelAdmin):
     list_display = ("from_novel", "to_novel", "similarity")
-    search_fields = ("from_novel__title", "to_novel__title")
+    list_select_related = ("from_novel__canonical_source", "to_novel__canonical_source")
+    search_fields = ("from_novel__canonical_source__title", "to_novel__canonical_source__title")
     raw_id_fields = ("from_novel", "to_novel")
     readonly_fields = ("similarity",)
     fieldsets = (
@@ -501,6 +529,7 @@ class NovelSimilarityAdmin(admin.ModelAdmin):
 @admin.register(NovelAlias)
 class NovelAliasAdmin(admin.ModelAdmin):
     list_display = ("slug", "novel", "created_at")
-    search_fields = ("slug", "novel__title", "novel__slug")
+    list_select_related = ("novel__canonical_source",)
+    search_fields = ("slug", "novel__canonical_source__title", "novel__slug")
     readonly_fields = ("created_at",)
     raw_id_fields = ("novel",)

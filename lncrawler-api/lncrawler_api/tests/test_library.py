@@ -13,7 +13,6 @@ from django.urls import reverse
 from ..models import (
     Chapter,
     ExternalSource,
-    Novel,
     NovelBookmark,
     NovelFromSource,
     NovelRating,
@@ -26,11 +25,12 @@ from ..serializers.chapter_serializers import ChapterSerializer
 from ..serializers.reading_history_serializers import ReadingHistorySerializer
 from ..services.chapter_stats import refresh_chapter_stats
 from ..utils.query_helpers import annotate_reading_history
+from .helpers import make_novel
 
 
 class PaginationRobustnessTests(TestCase):
     def test_bad_page_param_returns_first_page(self):
-        Novel.objects.create(title="Only", slug="only", novel_path="o")
+        make_novel(title="Only", slug="only", novel_path="o")
         for name in ("list_novels", "search_novels", "list_all_reading_lists"):
             response = self.client.get(reverse(name), {"page": "abc"})
             self.assertEqual(response.status_code, 200, name)
@@ -44,7 +44,7 @@ class ReadingListVisibilityTests(TestCase):
         self.reader = get_user_model().objects.create_user(username="reader", email="reader@example.com", password="pw12345!")
         self.stranger = get_user_model().objects.create_user(username="stranger", email="stranger@example.com", password="pw12345!")
 
-        self.novel = Novel.objects.create(title="Story", slug="story", novel_path="story")
+        self.novel = make_novel(title="Story", slug="story", novel_path="story")
         self.private = ReadingList.objects.create(title="Private", user=self.owner, is_public=False)
         self.public = ReadingList.objects.create(title="Public", user=self.owner, is_public=True)
 
@@ -152,8 +152,8 @@ class LibraryReworkTests(TestCase):
         self.viewer = get_user_model().objects.create_user(
             username="libviewer", email="libviewer@example.com", password="pw12345!"
         )
-        self.first = Novel.objects.create(title="Alpha", slug="alpha", novel_path="alpha")
-        self.second = Novel.objects.create(title="Beta", slug="beta", novel_path="beta")
+        self.first = make_novel(title="Alpha", slug="alpha", novel_path="alpha")
+        self.second = make_novel(title="Beta", slug="beta", novel_path="beta")
         self.owner.privacy_settings = {
             "library": "public",
             "library_notes": "public",
@@ -185,7 +185,7 @@ class LibraryReworkTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
 
         listed = self.client.get(reverse("list_bookmarked_novels"))
-        titles = [item["title"] for item in listed.data["results"]]
+        titles = [item["suggested_source"]["title"] for item in listed.data["results"]]
         self.assertEqual(titles, ["Beta", "Alpha"])
 
     def test_folder_assignment_and_filter(self):
@@ -207,7 +207,7 @@ class LibraryReworkTests(TestCase):
         self.assertEqual(assigned.status_code, 200, assigned.data)
 
         filtered = self.client.get(reverse("list_bookmarked_novels"), {"folder": folder_id})
-        self.assertEqual([item["title"] for item in filtered.data["results"]], ["Alpha"])
+        self.assertEqual([item["suggested_source"]["title"] for item in filtered.data["results"]], ["Alpha"])
         self.assertEqual(filtered.data["results"][0]["note"], "great read")
         self.assertEqual(filtered.data["folders"][0]["count"], 1)
 
@@ -250,8 +250,8 @@ class LibraryReworkTests(TestCase):
 
 
 LIBRARY_ITEM_KEYS = {
-    "id", "title", "slug", "is_adult", "is_dmca", "is_bookmarked", "bookmark_id", "note", "folder",
-    "folder_name", "user_rating", "prefered_source", "reading_source", "reading_history",
+    "id", "slug", "is_adult", "is_dmca", "is_bookmarked", "bookmark_id", "note", "folder",
+    "folder_name", "user_rating", "suggested_source", "reading_source", "reading_history",
 }
 LIBRARY_SOURCE_KEYS = {
     "title", "source_slug", "novel_slug", "novel_id", "cover_min_url", "available_chapters_count",
@@ -272,13 +272,15 @@ class LibraryFixtures:
         ``current`` (a chapter number) when given."""
         self.novel_count += 1
         number = self.novel_count
-        novel = Novel.objects.create(
-            title=f"Novel {number}", slug=f"novel-{number}", novel_path=f"novel-{number}"
-        )
+        novel = make_novel(
+        title=f"Novel {number}",
+        slug=f"novel-{number}",
+        novel_path=f"novel-{number}",
+    )
         source = NovelFromSource.objects.create(
             novel=novel,
             external_source=ExternalSource.objects.create(source_name=f"Source {number}"),
-            title=novel.title,
+            title=novel.canonical_source.title,
             source_url=f"http://source/{number}",
             source_slug=f"source-{number}",
             language="en",
@@ -308,7 +310,7 @@ class LibraryFixtures:
     def _library_by_title(self):
         response = self.client.get(reverse("list_bookmarked_novels"))
         self.assertEqual(response.status_code, 200, response.data)
-        return {item["title"]: item["reading_history"] for item in response.data["results"]}
+        return {item["suggested_source"]["title"]: item["reading_history"] for item in response.data["results"]}
 
     def _query_count(self, url):
         with CaptureQueriesContext(connection) as context:
@@ -418,7 +420,7 @@ class LibraryPayloadContractTests(LibraryFixtures, TestCase):
 
     def _assert_item_keys(self, item, with_history):
         self.assertEqual(set(item), LIBRARY_ITEM_KEYS)
-        self.assertEqual(set(item["prefered_source"]), LIBRARY_SOURCE_KEYS)
+        self.assertEqual(set(item["suggested_source"]), LIBRARY_SOURCE_KEYS)
         if with_history:
             self.assertEqual(set(item["reading_source"]), LIBRARY_SOURCE_KEYS)
             self.assertEqual(set(item["reading_history"]), LIBRARY_HISTORY_KEYS)
@@ -492,7 +494,7 @@ class LibraryProgressVisibilityTests(LibraryFixtures, TestCase):
         self.assertIsNone(item["reading_source"])
         # The bookmark button state is the viewer's own.
         self.assertTrue(item["is_bookmarked"])
-        self.assertEqual(item["prefered_source"]["source_slug"], "source-1")
+        self.assertEqual(item["suggested_source"]["source_slug"], "source-1")
 
     def test_anonymous_sees_no_progress(self):
         self._bookmarked_novel(current=2)

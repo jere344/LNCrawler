@@ -8,14 +8,12 @@ import AddToListDialog from './AddToListDialog';
 
 interface CompactAddToListButtonProps {
   novelId: string;
-  novelTitle: string;
   displayTitle: string;
   customSx?: SxProps;
 }
 
 const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
   novelId,
-  novelTitle,
   displayTitle,
   customSx = {}
 }) => {
@@ -61,7 +59,6 @@ const CompactAddToListButton: React.FC<CompactAddToListButtonProps> = ({
         open={open}
         onClose={() => setOpen(false)}
         novelId={novelId}
-        novelTitle={novelTitle}
         displayTitle={displayTitle}
       />
     </>

@@ -53,14 +53,14 @@ class ReadingListSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
 
     ``card`` is the lightweight list (default, also the writable shape);
     ``detail`` swaps the summary fields (items_count / first_item /
-    items_names) for the full ``items`` payload.
+    items_ids) for the full ``items`` payload.
     """
     user = UserSerializer(read_only=True, profile='compact')
     user_role = serializers.SerializerMethodField()
     collaborators = ReadingListCollaboratorSerializer(many=True, read_only=True)
     items_count = serializers.SerializerMethodField()
     first_item = serializers.SerializerMethodField()
-    items_names = serializers.SerializerMethodField()
+    items_ids = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
 
     default_profile = 'card'
@@ -68,7 +68,7 @@ class ReadingListSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         'card': [
             'id', 'title', 'description', 'is_public', 'user', 'user_role',
             'collaborators', 'items_count', 'created_at', 'updated_at',
-            'first_item', 'items_names',
+            'first_item', 'items_ids',
         ],
         'detail': [
             'id', 'title', 'description', 'is_public', 'user', 'user_role',
@@ -101,8 +101,8 @@ class ReadingListSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
             return None
         return ReadingListPreviewItemSerializer(items[0], context=self.context).data
 
-    def get_items_names(self, obj):
-        return [item.novel.title for item in self._visible_items(obj) if item.novel]
+    def get_items_ids(self, obj):
+        return [str(item.novel_id) for item in self._visible_items(obj) if item.novel_id]
 
     def get_items(self, obj):
         return ReadingListItemSerializer(

@@ -11,11 +11,11 @@ from django.urls import reverse
 from ..models import (
     Chapter,
     ExternalSource,
-    Novel,
     NovelBookmark,
     NovelFromSource,
     ReadingHistory,
 )
+from .helpers import make_novel
 
 
 class NovelUpdatesImportTests(TestCase):
@@ -37,9 +37,11 @@ class NovelUpdatesImportTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username="importer", email="importer@example.com", password="pw12345!"
         )
-        self.novel = Novel.objects.create(
-            title="D-Genesis", slug="d-genesis", novel_path="d-genesis"
-        )
+        self.novel = make_novel(
+        title="D-Genesis",
+        slug="d-genesis",
+        novel_path="d-genesis",
+    )
         self.source = NovelFromSource.objects.create(
             novel=self.novel,
             external_source=ExternalSource.objects.create(source_name="Test"),
@@ -195,7 +197,7 @@ class NovelUpdatesImportTests(TestCase):
     def test_parse_ambiguous_when_titles_collide(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
-        Novel.objects.create(title="D-Genesis", slug="d-genesis-2", novel_path="d-genesis-2")
+        make_novel(title="D-Genesis", slug="d-genesis-2", novel_path="d-genesis-2")
         self.client.force_login(self.user)
         sample = (
             b'<nu_readinglist><list>Reading<series><title>D-Genesis</title>'

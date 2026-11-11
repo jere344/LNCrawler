@@ -35,7 +35,7 @@ class ChapterListTests(TestCase):
         )
         AudiobookChapter.objects.create(
             part=part, chapter=Chapter.objects.get(novel_from_source=self.source, chapter_id=number),
-            file_path=f"rising/site/audio/{number}.opus", duration_s=60, size_bytes=1, sha256="0" * 64,
+            file_in_source=f"audio/{number}.opus", duration_s=60, size_bytes=1, sha256="0" * 64,
         )
 
     def has_audio(self):

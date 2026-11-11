@@ -83,7 +83,7 @@ const PinnedNovelsPicker: React.FC<PinnedNovelsPickerProps> = ({ pinnedNovels, o
                     <Chip
                         key={novel.id}
                         avatar={
-                            <Avatar src={novel.prefered_source?.cover_min_url || undefined}>
+                            <Avatar src={novel.suggested_source?.cover_min_url || undefined}>
                                 <BookIcon fontSize="small" />
                             </Avatar>
                         }

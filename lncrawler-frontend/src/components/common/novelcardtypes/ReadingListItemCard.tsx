@@ -43,7 +43,7 @@ export const ReadingListNovelCard: React.FC<ReadingListCardProps> = ({
   onRemoveItem,
   itemId
 }) => {
-  const preferredSource = novel.reading_source ?? novel.prefered_source;
+  const displaySource = novel.reading_source ?? novel.suggested_source;
   const { isAuthenticated } = useAuth();
   const { t } = useTranslation();
   const theme = useTheme();
@@ -164,7 +164,7 @@ export const ReadingListNovelCard: React.FC<ReadingListCardProps> = ({
           state={to ? state : undefined}
         >
           <NovelCover
-            src={novelCoverUrl(preferredSource)}
+            src={novelCoverUrl(displaySource)}
             alt={getNovelDisplayTitle(novel)}
             novelId={novel.id}
             isAdult={novel.is_adult}
@@ -228,8 +228,8 @@ export const ReadingListNovelCard: React.FC<ReadingListCardProps> = ({
                   color: "text.secondary",
                   minWidth: 0
                 }}>
-                {preferredSource?.authors && preferredSource.authors.length > 0 
-                  ? preferredSource.authors.join(', ')
+                {displaySource?.authors && displaySource.authors.length > 0 
+                  ? displaySource.authors.join(', ')
                   : t('common.unknown')}
               </Typography>
             </Box>
@@ -244,8 +244,8 @@ export const ReadingListNovelCard: React.FC<ReadingListCardProps> = ({
                   color: "text.secondary",
                   minWidth: 0
                 }}>
-                {preferredSource?.tags && preferredSource.tags.length > 0 ? 
-                  `${preferredSource.tags.join(', ')}` 
+                {displaySource?.tags && displaySource.tags.length > 0 ? 
+                  `${displaySource.tags.join(', ')}` 
                   : t('common.unknown')}
               </Typography>
             </Box>
@@ -295,7 +295,7 @@ export const ReadingListNovelCard: React.FC<ReadingListCardProps> = ({
                 } 
               }}
             >
-              <NovelStatsChips novel={novel} source={preferredSource} />
+              <NovelStatsChips novel={novel} source={displaySource} />
             </Box>
           </CardContent>
         </CardActionArea>

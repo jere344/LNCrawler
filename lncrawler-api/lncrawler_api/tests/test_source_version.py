@@ -12,7 +12,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from ..models import Chapter as ChapterRow
 from ..models import NovelFromSource
 from ..services import DownloaderService
-from .helpers import make_novel, make_source
+from .helpers import bare_novel, make_source
 
 
 def _load():
@@ -153,8 +153,8 @@ class FetchChapterBodyTests(SimpleTestCase):
 class InjectExistingChaptersTests(TestCase):
     def setUp(self):
         self.App, self.Crawler = _load()
-        novel = make_novel("My Novel", "my-novel")
-        self.source = make_source(novel)
+        novel = bare_novel("my-novel")
+        self.source = make_source(novel, title="My Novel", source_url="http://my-novel/1")
         self.source.source_version = 2
         self.source.save(update_fields=["source_version"])
         ChapterRow.objects.create(

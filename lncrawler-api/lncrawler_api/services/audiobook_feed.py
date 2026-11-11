@@ -84,7 +84,7 @@ def podcast_feed_xml(audiobook):
     # Newest part first, and within a part the highest chapter first.
     rows = (
         AudiobookChapter.objects.filter(part__in=AudiobookPart.objects.filter(LISTENABLE_PART_Q, audiobook=audiobook))
-        .select_related('part', 'chapter')
+        .select_related('part__audiobook__source__novel', 'chapter')
         .order_by('-part__index', '-chapter__chapter_id')
     )
     labeler = get_labeler(audiobook.language)
@@ -123,7 +123,7 @@ def catalog_feed_xml(adult):
     )
     parts = (
         AudiobookPart.objects.filter(LISTENABLE_PART_Q, audiobook__in=audiobooks)
-        .select_related('audiobook__novel', 'audiobook__source')
+        .select_related('audiobook__novel__canonical_source', 'audiobook__source')
         .order_by(F('completed_at').desc(nulls_last=True), '-pk')[:CATALOG_LIMIT]
     )
     for part in parts:
@@ -137,7 +137,7 @@ def catalog_feed_xml(adult):
             synopsis = Truncator(" ".join(strip_html(audiobook.source.synopsis).split())).chars(200)
             description = f"{description} {synopsis}".strip()
         feed.add_item(
-            title=f"{novel.title} \u2014 Part {part.index} (Generated audiobook)",
+            title=f"{novel} \u2014 Part {part.index} (Generated audiobook)",
             link=f"{settings.SITE_URL}{audiobook_path(novel.slug, audiobook.language)}",
             description=description,
             unique_id=f"{part.pk}-g{part.generation}",

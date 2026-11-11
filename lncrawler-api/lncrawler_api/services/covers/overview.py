@@ -1,4 +1,3 @@
-import os
 import textwrap
 import logging
 from pathlib import Path
@@ -99,16 +98,15 @@ class OverviewGenerator:
 
     def generate_overview(self, source):
         try:
+            # The source folder must exist: a stale path fails the save below, it does not recreate the folder.
             output_dir = Path(settings.LNCRAWL_OUTPUT_PATH) / source.source_path
-            output_dir.mkdir(parents=True, exist_ok=True)
             overview_path = output_dir / 'overview.jpg'
 
             overview_img = self.create_overview_image(source)
             overview_img.save(overview_path, 'JPEG', quality=95)
 
-            overview_rel_path = os.path.join(source.source_path, 'overview.jpg')
-            source.overview_picture_path = overview_rel_path
-            source.save(update_fields=['overview_picture_path'])
+            source.overview_picture_file = 'overview.jpg'
+            source.save(update_fields=['overview_picture_file'])
 
             logger.info("Generated overview for: %s and updated path", source.title)
             return True

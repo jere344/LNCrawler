@@ -40,7 +40,7 @@ class NovelBookmark(models.Model):
         ordering = ['position', '-created_at']
 
     def __str__(self):
-        return f"{self.user.username} bookmarked {self.novel.title}"
+        return f"{self.user.username} bookmarked {self.novel}"
 
 
 class ReadingHistory(models.Model):
@@ -125,7 +125,7 @@ class ProfilePinnedNovel(models.Model):
         ordering = ['position', 'created_at']
 
     def __str__(self):
-        return f"{self.user.username} pinned {self.novel.title}"
+        return f"{self.user.username} pinned {self.novel}"
 
 
 class Friendship(models.Model):
@@ -183,7 +183,7 @@ class ReadingListItem(models.Model):
         ordering = ['position', 'added_at']
     
     def __str__(self):
-        return f"{self.novel.title} in {self.reading_list.title}"
+        return f"{self.novel} in {self.reading_list.title}"
 
 class ReaderSettingsSlot(models.Model):
     """

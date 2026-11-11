@@ -14,7 +14,7 @@ from ..utils.query_helpers import (
     exclude_adult,
     most_viewed_novel_ids,
     novel_queryset,
-    preferred_source_key,
+    rank_sources,
     reading_lists_queryset,
 )
 
@@ -27,7 +27,7 @@ class NovelAggregatesMixin:
 
     @property
     def source_profile(self):
-        # Which NovelSourceSerializer profile the preferred/reading source uses.
+        # Which NovelSourceSerializer profile the suggested/reading source uses.
         # detail = the source page is separate; nested sources only need the
         # lightweight summary; preview = thumbnail; library = the library card's
         # few columns; anything else = card.
@@ -41,9 +41,9 @@ class NovelAggregatesMixin:
 
     def _context_sources(self, obj):
         # Restrict to the languages the request was filtered by (when any) so
-        # language badges and the preferred source agree with the filter; fall
+        # language badges and the suggested source agree with the filter; fall
         # back to all sources if none match. Memoized because the list serializer
-        # instance is reused for every novel and reads this from prefered_source/languages.
+        # instance is reused for every novel and reads this from suggested_source/languages.
         # (The view counters come from the card_* annotations, scoped to the same languages
         # but without the fall-back: callers only pass languages for lists already
         # filtered to novels with a matching source.)
@@ -70,16 +70,22 @@ class NovelAggregatesMixin:
             profile='library' if self.profile == 'library' else 'detail',
         )
 
-    def get_prefered_source(self, obj):
-        sources = self._context_sources(obj)
-
-        if not sources:
+    def get_suggested_source(self, obj):
+        # The source a viewer opens: the best one in the languages the request was filtered by. When the
+        # filter leaves no source of the novel, the canonical source (see services/novel_naming.py).
+        # Sources come from the prefetch, so this costs no query per novel.
+        sources = list(obj.sources.all())
+        languages = self.context.get('languages') or []
+        localized = [s for s in sources if s.language in languages] if languages else sources
+        if localized:
+            suggested = rank_sources(localized, languages)
+        else:
+            suggested = next((s for s in sources if s.pk == obj.canonical_source_id), None)
+            if suggested is None:
+                suggested = rank_sources(sources)
+        if suggested is None:
             return None
-
-        # Highest vote score, then most upvotes, then most chapters with
-        # content, then title (see preferred_source_key).
-        prefered = min(sources, key=preferred_source_key)
-        return self._source_serializer(self.source_profile).to_representation(prefered)
+        return self._source_serializer(self.source_profile).to_representation(suggested)
 
     def get_avg_rating(self, obj):
         # The average arrives as a SQL numeric, whose round() is half-even on the
@@ -165,7 +171,7 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     user_rating = serializers.SerializerMethodField()
     total_views = serializers.SerializerMethodField()
     weekly_views = serializers.SerializerMethodField()
-    prefered_source = serializers.SerializerMethodField()
+    suggested_source = serializers.SerializerMethodField()
     languages = serializers.SerializerMethodField()
     is_adult = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
@@ -183,25 +189,25 @@ class NovelSerializer(NovelAggregatesMixin, ProfileFieldsMixin, serializers.Mode
     default_profile = 'card'
     field_profiles = {
         'card': [
-            'id', 'title', 'slug',
+            'id', 'slug',
             'avg_rating', 'rating_count', 'total_views', 'weekly_views',
-            'prefered_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
+            'suggested_source', 'languages', 'is_adult', 'is_bookmarked', 'comment_count',
             'reading_history', 'reading_source', 'is_dmca', 'created_at', 'has_audiobook',
         ],
         'detail': [
-            'id', 'title', 'slug', 'sources',
+            'id', 'slug', 'sources',
             'avg_rating', 'rating_count', 'user_rating', 'total_views', 'weekly_views',
-            'prefered_source', 'is_adult', 'is_bookmarked', 'comment_count', 'reading_history',
+            'suggested_source', 'is_adult', 'is_bookmarked', 'comment_count', 'reading_history',
             'reading_source', 'similar_novels', 'reading_lists', 'is_dmca', 'audiobooks',
         ],
         'library': [
-            'id', 'title', 'slug', 'is_adult', 'is_dmca', 'is_bookmarked',
+            'id', 'slug', 'is_adult', 'is_dmca', 'is_bookmarked',
             'bookmark_id', 'note', 'folder', 'folder_name', 'user_rating',
-            'prefered_source', 'reading_source', 'reading_history',
+            'suggested_source', 'reading_source', 'reading_history',
         ],
         # Cover thumbnail for reading-list cards (first_item): only what the
         # card renders, so a list page doesn't serialize a full card per list.
-        'preview': ['id', 'title', 'prefered_source', 'is_adult', 'has_audiobook'],
+        'preview': ['id', 'suggested_source', 'is_adult', 'has_audiobook'],
     }
 
     class Meta:

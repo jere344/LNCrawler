@@ -22,6 +22,7 @@ from . import llm_service
 from . import tag_merge_service as tms
 from .author_merge_service import merge_authors, pick_target
 from .llm_service import LLMError, LLMParseError, RateLimited
+from .folder_guard import FolderBusy
 from .merge_service import MergeError, merge_novels, pick_merge_survivor
 from .tag_merge_service import NeedsReview, PlanChanged
 
@@ -31,6 +32,8 @@ logger = logging.getLogger("lncrawler_api.merge")
 STUCK_CLAIM_AFTER = timedelta(minutes=30)
 # Used when a 429 carries no numeric Retry-After header.
 DEFAULT_RETRY_AFTER = 60
+# A novel busy with a crawl or another move: the candidate is judged again on a later run.
+FOLDER_BUSY_RETRY_MINUTES = 5
 
 
 class LLMTask:
@@ -203,8 +206,9 @@ def _reset_stuck(task_name, now):
     ).update(claimed_at=None)
 
 
-def _claim(task, now):
-    """Claim one batch of due pending candidates of ``task``. Empty when there is none.
+def _claim(task, now, exclude=()):
+    """Claim one batch of due pending candidates of ``task``, skipping the pks in
+    ``exclude``. Empty when there is none.
 
     Fresh candidates are packed together; a candidate that already failed is sent
     alone, so one bad answer cannot drag its neighbours down again.
@@ -214,6 +218,7 @@ def _claim(task, now):
             Candidate.objects.select_for_update(skip_locked=True)
             .filter(kind=task.name, status=Candidate.STATUS_PENDING, claimed_at__isnull=True)
             .filter(Q(not_before__isnull=True) | Q(not_before__lte=now))
+            .exclude(pk__in=exclude)
             .order_by("attempts", "created_at", "pk")[: task.pack_window]
         )
         if not rows:
@@ -344,6 +349,15 @@ def _settle_two_phase(task, pk, token, judgement, call, counts, stdout):
             entries = task.apply_change(candidate, judgement)
         except (MergeError, NeedsReview) as exc:
             status, reason = Candidate.STATUS_REVIEW, str(exc)
+        except FolderBusy:
+            # Not a failure and not a review: the change never ran, so no attempt is spent.
+            # The candidate is released and judged again after a short wait.
+            _release(
+                task, pk, token, reason="novel busy: will retry", attempt=False,
+                not_before=timezone.now() + timedelta(minutes=FOLDER_BUSY_RETRY_MINUTES),
+            )
+            counts["retry"] += 1
+            return
         except Exception as exc:
             logger.exception("Candidate %s (%s) crashed while applying", pk, task.name)
             _fail_one(task, pk, token, f"{type(exc).__name__}: {exc}"[:2000], counts, stdout)
@@ -454,6 +468,9 @@ def run_queue(task_names=None, limit=None, session=None, stdout=None):
         _reset_stuck(name, now)
 
     active = list(names)
+    # A candidate is handled at most once per run: one whose outcome could not be
+    # recorded (its claim was reset meanwhile) would otherwise be claimed forever.
+    seen = set()
     processed = 0
     stop = False
     while active and not stop:
@@ -461,10 +478,11 @@ def run_queue(task_names=None, limit=None, session=None, stdout=None):
             if (limit is not None and processed >= limit) or not llm_service.can_afford():
                 stop = True
                 break
-            batch = _claim(REGISTRY[name], timezone.now())
+            batch = _claim(REGISTRY[name], timezone.now(), exclude=seen)
             if not batch:
                 active.remove(name)
                 continue
+            seen.update(candidate.pk for candidate in batch)
             processed += 1
             outcome = _process(REGISTRY[name], batch, session, stdout, counts)
             if outcome == "rate_limited":
@@ -604,7 +622,8 @@ class TagR18Task(LLMTask):
 
 
 def _novel_profile(novel):
-    titles = [novel.title] if novel.title else []
+    canonical = novel.canonical_source.title if novel.canonical_source_id else ""
+    titles = [canonical] if canonical else []
     alts, languages = set(), set()
     synopsis = ""
     for src in novel.sources.all():
@@ -617,7 +636,7 @@ def _novel_profile(novel):
         for alt in src.alternative_titles.all():
             alts.add(alt.name)
     return {
-        "title": novel.title or (titles[0] if titles else ""),
+        "title": canonical or (titles[0] if titles else ""),
         "titles": titles,
         "alternative_titles": sorted(alts),
         "languages": sorted(languages),
@@ -697,7 +716,6 @@ class NovelMergeTask(LLMTask):
         # The source is gone after the merge (Django clears its pk on delete): its undo data is read first.
         source_id = str(source.pk)
         snapshot = {
-            "title": source.title,
             "slug": source.slug,
             "is_dmca": source.is_dmca,
             "added_by": source.added_by_id,

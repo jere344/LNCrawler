@@ -19,6 +19,9 @@ from ..models import (
 )
 from ..models.sources_models import refresh_adult, refresh_adult_for_tags, refresh_novel_adult
 from ..services.chapter_stats import refresh_chapter_stats
+from ..services.folder_guard import BUSY_MESSAGE, FolderBusy
+from ..services.novel_deletion import after_source_deleted
+from ..services.novel_operations import FileOperationError, file_journal
 from ..services.author_block_service import block_authors, unblock_authors
 from ..services.author_merge_service import merge_authors, pick_target
 from ..services.merge_service import MergeError, merge_tags, rename_tag
@@ -320,7 +323,7 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
         "id",
     )
     list_filter = ("external_source__source_name", "status", "language")
-    search_fields = ("title", "novel__title", "external_source__source_name")
+    search_fields = ("title", "novel__canonical_source__title", "external_source__source_name")
     readonly_fields = (
         "id",
         "created_at",
@@ -359,7 +362,7 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
 
     def link_to_novel(self, obj):
         url = reverse("admin:lncrawler_api_novel_change", args=[obj.novel.id])
-        return format_html('<a href="{}">{}</a>', url, obj.novel.title)
+        return format_html('<a href="{}">{}</a>', url, obj.novel)
 
     link_to_novel.short_description = "Novel"
 
@@ -374,17 +377,38 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
     def delete_queryset(self, request, queryset):
         """
         Override the default delete_queryset method to call delete() on each object
-        This ensures the model's delete method runs for bulk deletions from the list page
+        This ensures the model's delete method runs for bulk deletions from the list page.
+        A busy novel is skipped with a message; the others are still deleted.
         """
         for obj in queryset:
-            self._delete_source(obj)
+            try:
+                self._delete_source(obj)
+            except FolderBusy:
+                messages.error(request, BUSY_MESSAGE)
+            except FileOperationError as exc:
+                messages.error(request, str(exc))
+
+    def delete_view(self, request, object_id, extra_context=None):
+        try:
+            return super().delete_view(request, object_id, extra_context)
+        except FolderBusy:
+            messages.error(request, BUSY_MESSAGE)
+            return HttpResponseRedirect(reverse("admin:lncrawler_api_novelfromsource_changelist"))
+        except FileOperationError as exc:
+            messages.error(request, str(exc))
+            return HttpResponseRedirect(reverse("admin:lncrawler_api_novelfromsource_changelist"))
 
     def _delete_source(self, obj):
-        """Delete one source, then re-derive its novel: the source may have been the majority's."""
+        """Delete one source, then re-derive its novel: the source may have been the majority's.
+
+        When it was the novel's last source, the novel is deleted too. ``FolderBusy`` propagates
+        (nothing is deleted) when the novel is busy; a failed folder rename is undone with the rows.
+        """
         novel_id = obj.novel_id
-        with transaction.atomic():
-            obj.delete()
+        with file_journal() as files, transaction.atomic():
+            obj.delete(files=files)
             refresh_novel_adult([novel_id])
+            after_source_deleted(novel_id, files=files)
 
     def view_chapters_link(self, obj):
         if obj.pk:
@@ -427,10 +451,35 @@ class ExternalSourceAdmin(admin.ModelAdmin):
 
     def delete_queryset(self, request, queryset):
         for obj in queryset:
-            self._delete_with_sources(obj)
+            try:
+                self._delete_with_sources(obj)
+            except FolderBusy:
+                messages.error(request, BUSY_MESSAGE)
+            except FileOperationError as exc:
+                messages.error(request, str(exc))
+
+    def delete_view(self, request, object_id, extra_context=None):
+        try:
+            return super().delete_view(request, object_id, extra_context)
+        except FolderBusy:
+            messages.error(request, BUSY_MESSAGE)
+            return HttpResponseRedirect(reverse("admin:lncrawler_api_externalsource_changelist"))
+        except FileOperationError as exc:
+            messages.error(request, str(exc))
+            return HttpResponseRedirect(reverse("admin:lncrawler_api_externalsource_changelist"))
 
     def _delete_with_sources(self, obj):
-        with transaction.atomic():
+        """Delete the site's sources one by one, then the site.
+
+        Each source goes through ``NovelFromSource.delete()`` (its folder is renamed aside and removed
+        on commit), and a novel left without sources is deleted with it. When one novel is busy
+        (``FolderBusy``), the whole site is rolled back: the sources already deleted come back.
+        """
+        with file_journal() as files, transaction.atomic():
             novel_ids = list(obj.novels.values_list("novel_id", flat=True).distinct())
+            for source in obj.novels.order_by("pk"):
+                novel_id = source.novel_id
+                source.delete(files=files)
+                after_source_deleted(novel_id, files=files)
             obj.delete()
             refresh_novel_adult(novel_ids)

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Container,
@@ -60,7 +60,16 @@ const SourceDetail = () => {
   const { startDownload, preparingKey } = useEpubDownload(novelSlug!, sourceSlug!);
   const { isAuthenticated } = useAuth();
   const { isBlurred, revealHandler } = useAdultContent();
-  const { source, setSource, novel, loading, error, novelRating, isBookmarked, isDmca, bookmarking, handleToggleBookmark, handleShare } = useSourceDetail(novelSlug, sourceSlug);
+  const { source, setSource, sourceRoute, novel, loading, error, novelRating, isBookmarked, isDmca, bookmarking, handleToggleBookmark, handleShare } = useSourceDetail(novelSlug, sourceSlug);
+  const navigate = useNavigate();
+  const location = useLocation();
+  // A renamed novel keeps its old link working: the URL moves to the canonical novel slug the payload names.
+  // Only a source loaded for this route counts; the one left from the previous page does not.
+  // The redirect costs one refetch: the new route loads the source again under the canonical slug.
+  useEffect(() => {
+    if (!novelSlug || !sourceSlug || !source || sourceRoute !== `${novelSlug}/${sourceSlug}` || source.novel_slug === novelSlug) return;
+    navigate(`/novels/${source.novel_slug}/${sourceSlug}${location.search}${location.hash}`, { replace: true, state: location.state });
+  }, [novelSlug, sourceSlug, source, sourceRoute, location.search, location.hash, location.state, navigate]);
   // The full source (detail fetch, or a card's state); a library card's preview has none of its
   // authors, tags, counters or chapter stats, so the sections that need them wait for the fetch.
   const full = isFullSource(source) ? source : null;
@@ -377,8 +386,7 @@ const SourceDetail = () => {
           open={addToListOpen}
           onClose={() => setAddToListOpen(false)}
           novelId={source.novel_id}
-          novelTitle={novel?.title || source?.title}
-          displayTitle={source?.title || novel?.title || ''}
+          displayTitle={source?.title || ''}
         />
     </Container>
   );

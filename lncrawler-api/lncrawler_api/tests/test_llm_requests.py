@@ -11,11 +11,11 @@ from unittest import mock
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 
-from ..models import Candidate, ExternalSource, LLMCall, LLMProviderCooldown, Novel, Tag
+from ..models import Candidate, ExternalSource, LLMCall, LLMProviderCooldown, Tag
 from ..services import llm_service, llm_tasks
 from ..services.llm_service import LLMParseError, ProviderUnavailable, RateLimited
 from ..services.tag_r18_service import queue_r18_candidates
-from .helpers import MergeTestCase
+from .helpers import MergeTestCase, make_novel
 from .llm_helpers import llm_chain
 from .test_llm_runner import make_candidate, reply
 
@@ -50,7 +50,7 @@ class TagR18TaskTests(MergeTestCase):
     def test_confident_explicit_tag_is_flagged_and_weak_one_is_not(self):
         strong = Tag.objects.create(name="Smut")
         weak = Tag.objects.create(name="Romance")
-        novel = Novel.objects.create(title="Novel", slug="novel", novel_path="n")
+        novel = make_novel(title="Novel", slug="novel", novel_path="n")
         site_a = ExternalSource.objects.create(source_name="site-a")
         site_b = ExternalSource.objects.create(source_name="site-b")
         src_a = self.make_source(novel, site_a, "A", "https://a.example/n", "novel-a", "src-a")

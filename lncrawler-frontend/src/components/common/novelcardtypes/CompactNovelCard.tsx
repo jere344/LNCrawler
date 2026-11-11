@@ -70,7 +70,6 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
     <Box sx={{ position: 'relative', width: '100%' }}>
     <NovelActionsMenu
       novelId={novel.id}
-      novelTitle={novel.title}
       displayTitle={getNovelDisplayTitle(novel)}
       slug={novel.slug}
       isBookmarked={novel.is_bookmarked}
@@ -102,7 +101,7 @@ const CompactNovelCard: React.FC<CompactNovelCardProps> = ({
         }}
       >
         <NovelCover
-          src={novelCoverUrl(novel.reading_source ?? novel.prefered_source)}
+          src={novelCoverUrl(novel.reading_source ?? novel.suggested_source)}
           alt={getNovelDisplayTitle(novel)}
           novelId={novel.id}
           isAdult={novel.is_adult}

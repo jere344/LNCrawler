@@ -34,13 +34,12 @@ def _target(username):
 
 def _comment_title_prefetches(viewer):
     """What CommentSerializer.get_target_title needs for novel comments, in
-    bulk: the novel's sources (ranked on their stored chapter counts) and the
-    viewer's reading history (its source title wins, like on novel cards)."""
+    bulk: the viewer's reading history (its source title wins, like on novel cards).
+    The novel's canonical source is selected by the caller."""
     from ..models import ReadingHistory
 
     prefetches = [
         'replies',
-        'novel__sources',
     ]
     if viewer.is_authenticated:
         prefetches.append(Prefetch(
@@ -84,7 +83,7 @@ def user_reviews(request, username):
     reviews = (
         Review.objects
         .filter(user=owner)
-        .select_related('novel', 'user')
+        .select_related('novel__canonical_source', 'user')
         .prefetch_related('reactions__user')
     )
     reviews = exclude_adult(reviews, request.user, 'novel__')
@@ -99,7 +98,7 @@ def user_comments(request, username):
     comments = (
         Comment.objects
         .filter(user=owner)
-        .select_related('user', 'novel', 'chapter__novel_from_source__novel')
+        .select_related('user', 'novel__canonical_source', 'chapter__novel_from_source__novel')
         .prefetch_related(*_comment_title_prefetches(request.user))
         .order_by('-created_at')
     )

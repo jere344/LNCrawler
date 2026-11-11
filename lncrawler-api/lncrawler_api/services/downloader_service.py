@@ -5,10 +5,12 @@ import threading
 import logging
 from pathlib import Path
 import django
+from django.conf import settings
 from django.utils import timezone
 from ..utils import chapter_utils
 from ..utils.crawler_path import CRAWLER_DIR, META_FILE_NAME, ensure_crawler_on_path
 from .downloader_helpers import _format_search_results, _is_expected_crawler_error, choose_crawl_output_path
+from .folder_guard import FolderBusy, register_crawl
 
 # Configure logger
 logger = logging.getLogger('lncrawler_api')
@@ -114,6 +116,10 @@ def _start_progress_monitor(poll, interval=2):
     monitor_thread.start()
     return stop_monitoring, monitor_thread
 
+
+
+# How often a crawl re-reads its novel after registering, before it gives up.
+REGISTER_ATTEMPTS = 5
 
 
 class DownloaderService:
@@ -306,6 +312,60 @@ class DownloaderService:
                     pass
 
     @staticmethod
+    def _register_existing_source(job, source_pk):
+        """Register the crawl on the novel that holds the source ``source_pk``.
+
+        The source is read again after each registration: a merge may have moved it to
+        another novel while the registration waited. Once the registration has committed
+        and the source still sits on that novel, any move of the source must lock that novel
+        and sees this crawl (``locked_move``).
+        """
+        from ..models import Novel, NovelFromSource
+
+        for _ in range(REGISTER_ATTEMPTS):
+            novel_id = (
+                NovelFromSource.objects.filter(pk=source_pk)
+                .values_list("novel_id", flat=True)
+                .first()
+            )
+            if novel_id is None:
+                # The source is gone: nothing is written into an existing folder.
+                return
+            novel = Novel.objects.filter(pk=novel_id).first()
+            if (
+                novel is not None
+                and register_crawl(job, novel)
+                and NovelFromSource.objects.filter(pk=source_pk, novel_id=novel_id).exists()
+            ):
+                return
+        raise FolderBusy()
+
+    @staticmethod
+    def _choose_registered_path(job, **choice):
+        """Choose the folder of a new source, registering the crawl on the novel that owns it.
+
+        The folder is chosen again after the registration: a move that landed between the
+        choice and the registration would have changed it. A folder whose novel has no row
+        yet cannot be moved, so nothing is registered for it. The caller creates the folder
+        (crawl start).
+        """
+        from ..models import Novel
+
+        for _ in range(REGISTER_ATTEMPTS):
+            path = choose_crawl_output_path(**choice)
+            novel_rel = os.path.dirname(os.path.relpath(path, settings.LNCRAWL_OUTPUT_PATH))
+            novel = (
+                Novel.objects.filter(novel_path=novel_rel).order_by("pk").first()
+                if novel_rel
+                else None
+            )
+            if novel is None:
+                return path
+            if register_crawl(job, novel) and choose_crawl_output_path(**choice) == path:
+                return path
+        raise FolderBusy()
+
+    @staticmethod
     def _import_novel_to_database(output_path, job):
         """
         Import the downloaded novel into the database using the meta.json file
@@ -368,6 +428,9 @@ class DownloaderService:
             # sources with expensive tables of contents (EPUB volumes) can
             # reuse them instead of re-fetching every archive on update.
             existing_source = DownloaderService._inject_existing_chapters(app, novel_url)
+            # Before the crawl reads or writes the source folder: a move of its novel waits or sees this crawl.
+            if existing_source is not None:
+                DownloaderService._register_existing_source(job, existing_source.pk)
 
             # Monitor both phases: the crawler's TOC/volume phase (before
             # get_novel_info returns, when chapters are not known yet) and the
@@ -388,7 +451,7 @@ class DownloaderService:
                 app.get_novel_info()
 
                 job.selected_novel = {
-                    "title": app.crawler.novel_title or "Unknown title",
+                    "title": app.crawler.novel_title,
                     "volumes": len(app.crawler.volumes),
                     "chapters": len(app.crawler.chapters),
                     "url": app.crawler.novel_url,
@@ -400,11 +463,14 @@ class DownloaderService:
                 # an update does not re-split it into the old name). Otherwise
                 # derive it from the crawler's canonical source name so mirror
                 # domains handled by the same crawler share one directory.
-                existing_path = (
-                    existing_source.absolute_source_path
-                    if existing_source is not None
-                    else None
-                )
+                # The source is read again here: the row loaded before
+                # get_novel_info() may be out of date.
+                existing_path = None
+                if existing_source is not None:
+                    from ..models import NovelFromSource
+
+                    current = NovelFromSource.objects.filter(pk=existing_source.pk).first()
+                    existing_path = current.absolute_source_path if current is not None else None
                 if existing_path and os.path.isdir(existing_path):
                     custom_output_path = existing_path
                 else:
@@ -414,12 +480,19 @@ class DownloaderService:
                     )
                     # The crawled title is known now (get_novel_info ran), and it
                     # decides whether an owned folder can be shared.
-                    custom_output_path = choose_crawl_output_path(
+                    custom_output_path = DownloaderService._choose_registered_path(
+                        job,
                         source_host=source_host,
                         title=job.selected_novel["title"],
                         edition=getattr(app.crawler, "novel_edition", "") or "",
                         source_url=app.crawler.novel_url,
                     )
+
+                # The top-level library folder this crawl writes into. The unregistered-folder sweep
+                # reads it from selected_novel: a folder with no novel row yet has no other owner.
+                crawl_folder = os.path.relpath(custom_output_path, settings.LNCRAWL_OUTPUT_PATH).split(os.sep)[0]
+                job.selected_novel = {**(job.selected_novel or {}), "folder": crawl_folder}
+                job.save(update_fields=['selected_novel', 'updated_at'])
 
                 # If the path exists and is compressed, decompress it
                 if os.path.exists(custom_output_path):
@@ -480,7 +553,8 @@ class DownloaderService:
             # A source-level LNException means the novel is unavailable, which
             # is expected and user-facing rather than a bug. Keep it below ERROR
             # so it fails the job without opening an auto-issue.
-            if _is_expected_crawler_error(e):
+            # A busy novel (a move holds it) is expected too: the job fails with the busy message.
+            if isinstance(e, FolderBusy) or _is_expected_crawler_error(e):
                 logger.warning("Download process stopped: %s", e)
                 message = str(e) or "Novel unavailable from this source"
             else:
@@ -554,6 +628,7 @@ class DownloaderService:
             return {
                 'status': job.status,
                 'status_display': job.get_status_display(),
+                'query': job.query,
                 'search_completed': job.status == Job.STATUS_SEARCH_COMPLETED,
                 'progress': job.progress,
                 'total_items': job.total_items,

@@ -124,7 +124,7 @@ def _start_book(novel, language, counter):
     except _NoPartCut:
         return None
     except IntegrityError:
-        logger.warning("Audiobook of %s (%s) was created at the same time, skipped", novel.title, language)
+        logger.warning("Audiobook of %s (%s) was created at the same time, skipped", novel, language)
         return None
     return part
 
@@ -140,7 +140,7 @@ def _start_next_new_book(pairs, scan):
         if scan['novels'] >= NEW_BOOK_NOVEL_LIMIT or scan['files_read'] >= NEW_BOOK_READ_LIMIT:
             return None
         scan['novels'] += 1
-        novel = Novel.objects.only('id', 'title', 'is_dmca').get(pk=novel_id)
+        novel = Novel.objects.select_related('canonical_source').only('id', 'is_dmca', 'canonical_source__title').get(pk=novel_id)
         part = _start_book(novel, language, scan)
         if part is not None:
             return part
@@ -226,7 +226,7 @@ def _live_generations(audiobook):
     """(part folder, generation folder) names to keep: the ones the chapter files point to, and the claimed parts'."""
     keep = {
         (Path(file_path).parts[-3], Path(file_path).parts[-2])
-        for file_path in AudiobookChapter.objects.filter(part__audiobook=audiobook).values_list('file_path', flat=True)
+        for file_path in AudiobookChapter.objects.filter(part__audiobook=audiobook).values_list('file_in_source', flat=True)
     }
     keep |= {
         (f'part-{index:03}', f'g{generation}')
@@ -253,7 +253,7 @@ def _remove_orphan_generation(audiobook, part_dir, gen_dir, counts):
             .first()
         )
         referenced = AudiobookChapter.objects.filter(
-            part__audiobook=audiobook, file_path__contains=f'{part_dir.name}/{gen_dir.name}/',
+            part__audiobook=audiobook, file_in_source__contains=f'{part_dir.name}/{gen_dir.name}/',
         ).exists()
         if claimed or referenced:
             return
@@ -308,7 +308,7 @@ def audiobook_housekeeping():
     counts = {'followed': 0, 'stale': 0, 'leftovers': 0, 'retagged': 0, 'covers': 0}
     _follow_moved_sources(counts)
     _mark_stale_parts(counts)
-    for audiobook in Audiobook.objects.select_related('source', 'novel'):
+    for audiobook in Audiobook.objects.select_related('source__novel', 'novel'):
         # Only the audio folder of each audiobook's own source is walked, never the library
         source_path = audiobook.source.absolute_source_path
         if source_path and audiobook_service.is_inside_output_path(source_path):

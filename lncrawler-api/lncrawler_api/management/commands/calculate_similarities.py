@@ -46,7 +46,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Successfully calculated similarities'))
 
     def calculate_similarities(self, text_weight, tag_weight, bookmark_weight, chunk_size, batch_size):
-        novel_rows = list(Novel.objects.order_by('id').values_list('id', 'title'))
+        novel_rows = list(Novel.objects.order_by('id').values_list('id', 'canonical_source__title'))
         if not novel_rows:
             self.stdout.write(self.style.WARNING('No novels found'))
             return
@@ -115,7 +115,7 @@ class Command(BaseCommand):
         texts = []
         meta_tokens = []
         for novel_id in novel_ids:
-            title = title_by_id[novel_id]
+            title = title_by_id[novel_id] or ''
             synopses = " ".join(synopses_by_novel.get(novel_id, ()))
             texts.append(f"{title} " + synopses)
             meta_tokens.append(

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
-from lncrawler_api.models import Novel, WeeklySourceView
+from lncrawler_api.models import Novel, NovelFromSource, WeeklySourceView
 from lncrawler_api.utils import chapter_utils
 from pathlib import Path
 import shutil
@@ -8,6 +8,16 @@ import time
 
 # Process novels in small id-batches so a huge catalogue never loads at once.
 CHUNK_SIZE = 200
+
+
+def _current_source_path(source_pk):
+    """Absolute folder of a source as the database holds it now, or None.
+
+    The batch's prefetched rows can be stale: a move may have renamed the folder since
+    the batch was read, so the folder is looked up again for each source.
+    """
+    row = NovelFromSource.objects.select_related("novel").filter(pk=source_pk).first()
+    return row.absolute_source_path if row is not None else None
 
 
 class Command(BaseCommand):
@@ -77,6 +87,7 @@ class Command(BaseCommand):
             Novel.objects.filter(sources__isnull=False)
             .exclude(id__in=popular_ids)
             .distinct()
+            .select_related('canonical_source')
             .order_by('id')
         )
 
@@ -104,20 +115,21 @@ class Command(BaseCommand):
                 seen_count += 1
 
                 if dry_run:
-                    self.stdout.write(f'Would compress: {novel.title}')
+                    self.stdout.write(f'Would compress: {novel}')
                     continue
 
-                self.stdout.write(f'Processing: {novel.title}')
+                self.stdout.write(f'Processing: {novel}')
 
                 for source in novel.sources.all():
                     if max_sources and compressed_count >= max_sources:
                         stop = True
                         break
 
-                    if not source.absolute_source_path:
+                    source_abs = _current_source_path(source.pk)
+                    if not source_abs:
                         continue
 
-                    source_path = Path(source.absolute_source_path)
+                    source_path = Path(source_abs)
                     json_folder_path = source_path / "json"
                     compressed_file_path = source_path / "json.7z"
 
@@ -128,7 +140,10 @@ class Command(BaseCommand):
                     error = None
                     try:
                         with chapter_utils.source_lock(source_path):
-                            if json_folder_path.exists():
+                            if _current_source_path(source.pk) != source_abs:
+                                # Moved since it was resolved: the next run works on the new folder.
+                                pass
+                            elif json_folder_path.exists():
                                 if compressed_file_path.exists():
                                     # A write deletes the archive, so an existing
                                     # archive is authoritative: the extracted copy

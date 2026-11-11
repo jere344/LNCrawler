@@ -62,8 +62,8 @@ class CoverTests(AudiobookBase):
         self.source = self.make_source()
         self.source_file = os.path.join(self.tmp, 'foo', 'site', 'cover.jpg')
         Image.new('RGB', (400, 600), (30, 120, 200)).save(self.source_file, format='JPEG')
-        self.source.cover_path = 'foo/site/cover.jpg'
-        self.source.save(update_fields=['cover_path'])
+        self.source.cover_file = 'cover.jpg'
+        self.source.save(update_fields=['cover_file'])
         self.audiobook = self.make_audiobook(self.source)
 
     def test_build_writes_the_jpg_and_the_thumb(self):
@@ -79,8 +79,8 @@ class CoverTests(AudiobookBase):
             self.assertEqual((webp.format, webp.size), ('WEBP', (600, 600)))
 
     def test_without_a_source_cover_the_title_is_used(self):
-        self.source.cover_path = None
-        self.source.save(update_fields=['cover_path'])
+        self.source.cover_file = None
+        self.source.save(update_fields=['cover_file'])
         os.remove(self.source_file)
 
         path = audiobook_cover.build_cover(self.audiobook)
@@ -212,7 +212,7 @@ class ListenableBase(AudiobookBase):
             with open(path, 'rb') as handle:
                 digest = hashlib.sha256(handle.read()).hexdigest()
             AudiobookChapter.objects.create(
-                part=self.part, chapter=chapter, file_path=os.path.relpath(path, self.tmp),
+                part=self.part, chapter=chapter, file_in_source=os.path.relpath(path, self.source.absolute_source_path),
                 duration_s=2.0, size_bytes=os.path.getsize(path), sha256=digest, offset_s=2.0 * offset,
             )
 
@@ -375,8 +375,8 @@ class M4bBuildTests(ListenableBase):
         cover = os.path.join(self.tmp, 'foo', 'site', 'cover.jpg')
         os.makedirs(os.path.dirname(cover), exist_ok=True)
         Image.new('RGB', (400, 600), (30, 120, 200)).save(cover, format='JPEG')
-        self.source.cover_path = 'foo/site/cover.jpg'
-        self.source.save(update_fields=['cover_path'])
+        self.source.cover_file = 'cover.jpg'
+        self.source.save(update_fields=['cover_file'])
         first = audiobook_m4b.build_m4b(self.part, 'opus')
         first_art = bytes(MP4(first).tags['covr'][0])
 
@@ -408,8 +408,8 @@ class M4bBuildTests(ListenableBase):
         for row in AudiobookChapter.objects.filter(part=self.part):
             target = os.path.join(folder, os.path.basename(row.file_path))
             shutil.move(os.path.join(self.tmp, row.file_path), target)
-            row.file_path = os.path.relpath(target, self.tmp)
-            row.save(update_fields=['file_path'])
+            row.file_in_source = os.path.relpath(target, self.source.absolute_source_path)
+            row.save(update_fields=['file_in_source'])
 
         path = audiobook_m4b.build_m4b(self.part, 'opus')
 

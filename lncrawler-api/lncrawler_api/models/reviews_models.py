@@ -32,7 +32,7 @@ class Review(models.Model):
         return self.reactions.count()
         
     def __str__(self):
-        return f"Review by {self.user.username} for {self.novel.title}"
+        return f"Review by {self.user.username} for {self.novel}"
 
 
 class ReviewReaction(models.Model):

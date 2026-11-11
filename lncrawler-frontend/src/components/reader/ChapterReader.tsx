@@ -98,6 +98,8 @@ const ChapterReader = () => {
   const streamChaptersRef = useRef<IChapterContent[]>([]);
   // Chapter number the active-chapter tracker last moved the URL to
   const syncedChapterRef = useRef<number | null>(null);
+  // The route (chapter key) the latest chapter load was started for: a chapter still on screen from the previous route does not count
+  const requestedRouteRef = useRef<string | null>(null);
   // The number of the chapter whose comments are open when it is not the route's one (infinite mode), null for the route's chapter
   const [commentsTargetNumber, setCommentsTargetNumber] = useState<number | null>(null);
   // Closing the comments panel forgets its target
@@ -114,6 +116,7 @@ const ChapterReader = () => {
     chapterNumber,
     onLoadStart: () => {
       loadedChapterKeyRef.current = null;
+      requestedRouteRef.current = currentChapterKey;
     },
     // Only the reader's own URL update switches in place: a pick from the chapter list or history loads the chapter afresh, and its saved position (if any) is restored
     findOnPage: (n) => (infinite && syncedChapterRef.current === n
@@ -148,6 +151,13 @@ const ChapterReader = () => {
     onPositionSaved: positionSync.onPositionSaved,
     resumeProgress,
   });
+
+  // A renamed novel keeps its old link working: the URL moves to the canonical novel slug the chapter names.
+  // Only a chapter loaded for this route counts. The redirect costs one refetch under the canonical slug.
+  useEffect(() => {
+    if (loading || !chapter || requestedRouteRef.current !== currentChapterKey || chapter.novel_slug === novelSlug) return;
+    navigate(`/novels/${chapter.novel_slug}/${sourceSlug}/chapter/${chapterNumber}${location.search}${location.hash}`, { replace: true, state: location.state });
+  }, [loading, chapter, currentChapterKey, novelSlug, sourceSlug, chapterNumber, location.search, location.hash, location.state, navigate]);
 
   // The Continue progress is applied by the first restore of the chapter; then it leaves the history state, so a refresh restores from this device
   useEffect(() => {

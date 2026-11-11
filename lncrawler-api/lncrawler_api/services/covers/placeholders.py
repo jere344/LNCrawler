@@ -6,6 +6,7 @@ from pathlib import Path
 from django.conf import settings
 
 from ...models import NovelFromSource, PlaceholderCover
+from ...utils.folders import make_subfolders
 
 logger = logging.getLogger('lncrawler_api')
 
@@ -23,7 +24,7 @@ def mark_placeholder(phash) -> PlaceholderCover:
     from .resize import remove_cover
 
     placeholder, _ = PlaceholderCover.objects.get_or_create(cover_phash=phash)
-    sources = NovelFromSource.objects.filter(cover_phash=phash)
+    sources = NovelFromSource.objects.filter(cover_phash=phash).select_related('novel')
 
     # Keep one thumbnail of the blocked image so the admin can still see it.
     if not placeholder.sample_path:
@@ -35,7 +36,7 @@ def mark_placeholder(phash) -> PlaceholderCover:
                 continue
             rel = os.path.join('_placeholders', f'{phash}.webp')
             dest = Path(settings.LNCRAWL_OUTPUT_PATH) / rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
+            make_subfolders(settings.LNCRAWL_OUTPUT_PATH, "_placeholders")
             shutil.copyfile(src_file, dest)
             placeholder.sample_path = rel
             break

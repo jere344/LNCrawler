@@ -15,6 +15,7 @@ from ..models import Candidate, Novel, NovelFromSource, Tag
 from ..models.sources_models import refresh_adult_for_tags
 from . import llm_tasks
 from .author_merge_service import undo_author_entry
+from .folder_guard import BUSY_MESSAGE, FolderBusy
 from .merge_service import MergeError, undo_tag_entry
 from .split_service import SplitError, split_novel
 from .tag_merge_service import NeedsReview, PlanChanged
@@ -76,6 +77,8 @@ def _apply(candidate, decided_by=Candidate.DECIDED_HUMAN):
             )
     except (MergeError, NeedsReview, PlanChanged) as exc:
         raise CandidateError(str(exc)) from exc
+    except FolderBusy as exc:
+        raise CandidateError(BUSY_MESSAGE) from exc
     candidate.undo = [*candidate.undo, *entries]
     candidate.status = Candidate.STATUS_APPLIED
     candidate.decided_by = decided_by
@@ -105,6 +108,9 @@ def _apply_two_phase(task, candidate, decided_by=Candidate.DECIDED_HUMAN):
     except (MergeError, NeedsReview, PlanChanged) as exc:
         Candidate.objects.filter(pk=candidate.pk, claimed_at=token).update(claimed_at=None)
         raise CandidateError(str(exc)) from exc
+    except FolderBusy as exc:
+        Candidate.objects.filter(pk=candidate.pk, claimed_at=token).update(claimed_at=None)
+        raise CandidateError(BUSY_MESSAGE) from exc
     except Exception:
         Candidate.objects.filter(pk=candidate.pk, claimed_at=token).update(claimed_at=None)
         raise
@@ -188,11 +194,13 @@ def _undo_novel(entry):
         raise CandidateError("The merged-away novel's id is taken.")
     try:
         restored = split_novel(
-            holder, moved, new_title=entry["title"], new_slug=entry["slug"],
+            holder, moved, new_slug=entry["slug"],
             novel_id=entry["source_id"],
         )
     except SplitError as exc:
         raise CandidateError(str(exc)) from exc
+    except FolderBusy as exc:
+        raise CandidateError(BUSY_MESSAGE) from exc
     Novel.objects.filter(pk=restored.pk).update(
         is_dmca=entry["is_dmca"], added_by_id=entry["added_by"],
     )

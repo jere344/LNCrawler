@@ -2,7 +2,6 @@
 
 import json
 import os
-import shutil
 from datetime import datetime
 
 from lncrawler_api.models.source_helpers import resolve_output_path
@@ -11,12 +10,13 @@ from .common import logger
 
 
 class TrashMixin:
-    def _move_to_trash(self, rel):
+    def _move_to_trash(self, rel, files):
         """Move a source folder under ``.prune_trash``; returns the new path or None.
 
         ``rel`` comes from the DB, so it is resolved the same way the model
         resolves it, and refused unless it lies strictly inside the library root
-        and outside the trash itself.
+        and outside the trash itself. The move is recorded in ``files`` (a
+        FileJournal), so a failed database change moves the folder back.
         """
         if not rel:
             return None
@@ -35,12 +35,18 @@ class TrashMixin:
             return None
         clean_rel = os.path.relpath(abs_src, root)
         dest = os.path.join(self.trash_root, clean_rel)
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
         if os.path.exists(dest):
             stamp = datetime.now().strftime("%Y%m%d%H%M%S")
             dest = os.path.join(self.trash_root, f"{stamp}_{clean_rel}")
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-        shutil.move(abs_src, dest)
+        # Folders on the way to the destination are created here, explicitly and undoably.
+        os.makedirs(self.trash_root, exist_ok=True)
+        parts = os.path.relpath(os.path.dirname(dest), self.trash_root)
+        if parts != os.curdir:
+            current = self.trash_root
+            for part in parts.split(os.sep):
+                current = os.path.join(current, part)
+                files.mkdir(current)
+        files.move(abs_src, dest)
         return dest
 
     def _audit(self, entry):

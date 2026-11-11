@@ -29,6 +29,7 @@ from ..services import audiobook_cover, audiobook_media, audiobook_scheduler, au
 from ..services.audiobook_media import AudioRejected
 from ..services.audiobook_worker_auth import IsAudiobookWorker
 from ..utils.chapter_label import get_labeler
+from ..utils.folders import make_subfolders
 
 logger = logging.getLogger("lncrawler_api.audiobooks")
 
@@ -165,7 +166,7 @@ def _no_work(retry_after):
 
 
 def _series_title(source):
-    return source.title or source.novel.title
+    return source.title
 
 
 def _authors(source):
@@ -375,14 +376,16 @@ def _upload_file_path(source, part, chapter_pk):
     return svc.audio_dir(source) / f'part-{part.index:03}' / f'g{part.generation}' / f'{chapter_pk:05}.ogg'
 
 
+def _upload_on_disk(part, upload):
+    """True when the file of an upload entry is still on disk."""
+    rel = part.upload_path(upload) if upload else ''
+    return bool(rel) and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, rel))
+
+
 def _same_upload_exists(part, chapter_pk, sha256):
     """True when the chapter already has an upload of this hash whose file is still on disk."""
     upload = part.uploads.get(str(chapter_pk))
-    return bool(
-        upload
-        and upload.get('sha256') == sha256
-        and os.path.exists(os.path.join(settings.LNCRAWL_OUTPUT_PATH, upload['file_path']))
-    )
+    return bool(upload and upload.get('sha256') == sha256 and _upload_on_disk(part, upload))
 
 
 @api_view(['PUT'])
@@ -416,7 +419,7 @@ def chapter_upload(request, part_id, chapter_pk):
 
     source = part.audiobook.source
     final = _upload_file_path(source, part, chapter_pk)
-    final.parent.mkdir(parents=True, exist_ok=True)
+    make_subfolders(source.absolute_source_path, 'audio', f'part-{part.index:03}', f'g{part.generation}')
     # The body goes to a temporary file of the generation folder. It is removed on every exit path,
     # and only moved into place while the claim still holds.
     fd, partial_path = tempfile.mkstemp(dir=final.parent, suffix='.ogg.part')
@@ -481,7 +484,7 @@ def _store_upload(request, part, worker_id, chapter_pk, sha256, final, partial_p
         os.replace(partial_path, final)
         uploads = dict(current.uploads)
         uploads[str(chapter_pk)] = {
-            'file_path': os.path.relpath(final, settings.LNCRAWL_OUTPUT_PATH),
+            'file_in_source': os.path.relpath(final, audiobook.source.absolute_source_path),
             'sha256': sha256,
             'duration_s': duration_s,
             'size_bytes': size_bytes,
@@ -541,11 +544,9 @@ def complete(request, part_id):
         )
         if part is None:
             return _conflict()
-        output_root = settings.LNCRAWL_OUTPUT_PATH
         missing = [
             pk for pk in part.chapter_ids
-            if str(pk) not in part.uploads
-            or not os.path.exists(os.path.join(output_root, part.uploads[str(pk)]['file_path']))
+            if str(pk) not in part.uploads or not _upload_on_disk(part, part.uploads[str(pk)])
         ]
         if missing:
             return Response(
@@ -563,7 +564,7 @@ def complete(request, part_id):
             rows.append(AudiobookChapter(
                 part=part,
                 chapter_id=pk,
-                file_path=upload['file_path'],
+                file_in_source=upload['file_in_source'],
                 duration_s=upload['duration_s'],
                 size_bytes=upload['size_bytes'],
                 sha256=upload['sha256'],

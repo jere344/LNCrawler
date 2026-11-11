@@ -4,21 +4,24 @@ Novel split service.
 Splitting is the inverse of merging: one ``Novel`` may actually hold two
 different works (for example a light-novel and a web-novel version that were
 folded together). A split extracts chosen sources into their own novel, either a
-brand new one or an existing one, so the two works can be titled and maintained
-separately.
+brand new one or an existing one, so the two works can be maintained separately.
 
 The moved sources take their folders with them, which is what keeps the split
 stable: the import pipeline identifies a novel by its folder name, so an update
 of a moved source finds the new novel instead of re-joining the old one.
 """
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Optional
 
+from django.conf import settings
 from django.db import transaction
 
-from ..models import Novel, NovelAlias, ReadingHistory
+from ..models import Novel, NovelAlias, NovelFromSource, ReadingHistory
 from ..utils.slug import slugify
+from .folder_guard import locked_move
+from .novel_naming import refresh_naming
 from .novel_operations import (
     FileOperationError,
     dedupe_source,
@@ -43,9 +46,7 @@ class SplitPlan:
     sources: list
     remaining_sources: list
     target_novel: Optional[Novel] = None
-    new_title: str = ""
     new_slug: str = ""
-    rename_title: str = ""
     moves: list = field(default_factory=list)
     dedupes: list = field(default_factory=list)
     removed_aliases: list = field(default_factory=list)
@@ -71,19 +72,17 @@ def _validate_selection(novel, sources):
     remaining = [s for s in all_sources if s.pk not in selected_ids]
     if not remaining:
         raise SplitError(
-            "At least one source must stay on the original novel. To rename a "
-            "single-source novel, edit its title instead."
+            "At least one source must stay on the original novel."
         )
     return remaining
 
 
-def _resolve_new_slug(novel, new_title, new_slug):
-    new_title = (new_title or "").strip()
+def _resolve_new_slug(novel, new_slug):
     # The slug becomes the folder name, and imports re-derive it with
     # ``slugify``: normalizing here keeps the two from ever diverging.
-    new_slug = slugify((new_slug or "").strip() or new_title)
+    new_slug = slugify((new_slug or "").strip())
     if not new_slug:
-        raise SplitError("Give the new novel a title or a slug.")
+        raise SplitError("Give the new novel a slug.")
     if new_slug == novel.slug:
         raise SplitError(
             "The new novel's slug must differ from the original novel's slug."
@@ -96,9 +95,7 @@ def _resolve_new_slug(novel, new_title, new_slug):
 def build_split_plan(
     novel,
     sources,
-    new_title="",
     new_slug="",
-    rename_title="",
     target_novel=None,
     novel_id=None,
 ):
@@ -115,7 +112,6 @@ def build_split_plan(
         novel=novel,
         sources=list(sources),
         remaining_sources=remaining,
-        rename_title=(rename_title or "").strip(),
     )
     plan.reading_history = ReadingHistory.objects.filter(
         source__in=[s.pk for s in sources]
@@ -125,8 +121,7 @@ def build_split_plan(
     )
 
     if target_novel is None:
-        plan.new_slug = _resolve_new_slug(novel, new_title, new_slug)
-        plan.new_title = (new_title or "").strip() or plan.new_slug
+        plan.new_slug = _resolve_new_slug(novel, new_slug)
         plan.removed_aliases = list(
             NovelAlias.objects.filter(slug=plan.new_slug).values_list("slug", flat=True)
         )
@@ -155,7 +150,7 @@ def build_split_plan(
         if winner is duplicate:
             plan.warnings.append(
                 f"'{source.title}' has less content than '{duplicate.title}' in "
-                f"'{target_novel.title}' and will be discarded."
+                f"'{target_novel}' and will be discarded."
             )
     return plan
 
@@ -196,89 +191,110 @@ def _repoint_reading_history(original_novel, target_novel):
             row.delete()
 
 
-def _apply_rename(novel, title):
-    title = (title or "").strip()
-    if title and title != novel.title:
-        novel.title = title
-        novel.save(update_fields=["title", "updated_at"])
-
-
 def _run_target_moves(plan, files):
     """Move/dedupe plan.sources into plan.target_novel."""
     for source in plan.sources:
         duplicate = find_duplicate(plan.target_novel, source)
         if duplicate is None:
-            move_source_to_novel(source, plan.target_novel, move_files=True, files=files)
+            move_source_to_novel(source, plan.target_novel, files=files)
         elif source_completeness(source) > source_completeness(duplicate):
             dedupe_source(
-                duplicate, source, move_files=True, files=files,
+                duplicate, source, files=files,
                 dest_novel=plan.target_novel,
             )
-            move_source_to_novel(source, plan.target_novel, move_files=True, files=files)
+            move_source_to_novel(source, plan.target_novel, files=files)
         else:
             dedupe_source(
-                source, duplicate, move_files=True, files=files,
+                source, duplicate, files=files,
                 dest_novel=plan.target_novel,
             )
 
 
-def split_novel(novel, sources, new_title, new_slug="", rename_title="", novel_id=None):
+def _reload_sources(sources):
+    """Reload the selected sources in place. Called under the folder lock.
+
+    The objects are the caller's: the move updates them, and callers read their new folder
+    afterwards. A source that no longer exists is left as it is, and the selection check in
+    ``build_split_plan`` refuses it.
+    """
+    for source in sources:
+        try:
+            source.refresh_from_db()
+        except NovelFromSource.DoesNotExist:
+            pass
+    return sources
+
+
+def split_novel(novel, sources, new_slug="", novel_id=None):
     """Extract ``sources`` into a brand new novel and return it.
 
     ``novel_id`` gives the new novel that primary key: a merge undo restores the
     merged-away novel under its old id.
     """
-    plan = build_split_plan(
-        novel, sources, new_title=new_title, new_slug=new_slug,
-        rename_title=rename_title, novel_id=novel_id,
-    )
-
     try:
-        with file_journal() as files:
-            with transaction.atomic():
-                # A real novel may not share a name with a merge redirect: imports check
-                # aliases before the novel table, so a stale alias would re-join them.
-                NovelAlias.objects.filter(slug=plan.new_slug).delete()
-                target = Novel.objects.create(
-                    **({"pk": novel_id} if novel_id else {}),
-                    title=plan.new_title, slug=plan.new_slug, novel_path=plan.new_slug,
-                )
-                for source in plan.sources:
-                    move_source_to_novel(source, target, move_files=True, files=files)
+        # Folder lock first: a crawl or another move of this novel waits or fails with FolderBusy.
+        with locked_move(novel):
+            # Re-read under the lock, so the plan and the folder names are current.
+            novel.refresh_from_db(fields=["novel_path"])
+            plan = build_split_plan(
+                novel, _reload_sources(sources), new_slug=new_slug, novel_id=novel_id,
+            )
+            with file_journal() as files:
+                with transaction.atomic():
+                    # A real novel may not share a name with a merge redirect: imports check
+                    # aliases before the novel table, so a stale alias would re-join them.
+                    NovelAlias.objects.filter(slug=plan.new_slug).delete()
+                    target = Novel.objects.create(
+                        **({"pk": novel_id} if novel_id else {}),
+                        slug=plan.new_slug, novel_path=plan.new_slug,
+                    )
+                    # The new novel folder is created here, explicitly and undoably: moves never create parents.
+                    files.mkdir(os.path.join(settings.LNCRAWL_OUTPUT_PATH, plan.new_slug))
+                    for source in plan.sources:
+                        move_source_to_novel(source, target, files=files)
 
-                _repoint_reading_history(novel, target)
-                _apply_rename(novel, plan.rename_title)
-                recount_comment_count(novel)
-                recount_comment_count(target)
-                files.schedule()
+                    _repoint_reading_history(novel, target)
+                    refresh_naming(novel)
+                    refresh_naming(target)
+                    recount_comment_count(novel)
+                    recount_comment_count(target)
+                    files.schedule()
     except FileOperationError as exc:
         raise SplitError(str(exc)) from exc
 
     logger.info(
         "Split %d source(s) from '%s' (%s) into new novel '%s' (%s)",
-        len(plan.sources), novel.title, novel.slug, target.title, target.slug,
+        len(plan.sources), novel, novel.slug, target, target.slug,
     )
     return target
 
 
 def move_sources(novel, sources, target_novel):
     """Move ``sources`` from ``novel`` into an existing novel."""
-    plan = build_split_plan(novel, sources, target_novel=target_novel)
-
     try:
-        with file_journal() as files:
-            with transaction.atomic():
-                _run_target_moves(plan, files)
-                _repoint_reading_history(novel, target_novel)
-                recount_comment_count(novel)
-                recount_comment_count(target_novel)
-                files.schedule()
+        # Folder lock first: both novels, since their folders change.
+        with locked_move(novel, target_novel):
+            # Re-read under the lock, so the plan and the folder names are current.
+            novel.refresh_from_db(fields=["novel_path"])
+            target_novel.refresh_from_db(fields=["novel_path"])
+            plan = build_split_plan(
+                novel, _reload_sources(sources), target_novel=target_novel,
+            )
+            with file_journal() as files:
+                with transaction.atomic():
+                    _run_target_moves(plan, files)
+                    _repoint_reading_history(novel, target_novel)
+                    refresh_naming(novel)
+                    refresh_naming(target_novel)
+                    recount_comment_count(novel)
+                    recount_comment_count(target_novel)
+                    files.schedule()
     except FileOperationError as exc:
         raise SplitError(str(exc)) from exc
 
     logger.info(
         "Moved %d source(s) from '%s' (%s) into '%s' (%s)",
-        len(plan.sources), novel.title, novel.slug,
-        target_novel.title, target_novel.slug,
+        len(plan.sources), novel, novel.slug,
+        target_novel, target_novel.slug,
     )
     return target_novel

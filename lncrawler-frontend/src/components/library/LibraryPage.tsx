@@ -617,7 +617,7 @@ const LibraryPage: React.FC = () => {
             >
               <Box
                 component="img"
-                src={activeNovel.reading_source?.cover_min_url || activeNovel.prefered_source?.cover_min_url || defaultCover}
+                src={activeNovel.reading_source?.cover_min_url || activeNovel.suggested_source?.cover_min_url || defaultCover}
                 alt=""
                 sx={{ width: '100%', display: 'block' }}
               />

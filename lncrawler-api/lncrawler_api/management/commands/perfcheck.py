@@ -139,7 +139,7 @@ class Command(BaseCommand):
         # slower than a real query. Falls back to a literal if the title has no
         # long enough word.
         search_term = quote(
-            next((w for w in novel.title.split() if len(w) >= 4), 'novel')
+            next((w for w in str(novel).split() if len(w) >= 4), 'novel')
         )
         chapters_url = f'/novels/{novel.slug}/{source.source_slug}/chapters/'
         tag = source.tags.order_by('name').values_list('name', flat=True).first()

@@ -18,6 +18,8 @@ from ..models import (
     ReadingHistory,
     WeeklySourceView,
 )
+from ..services.novel_naming import refresh_naming
+from .helpers import make_novel
 
 
 class SerializerProfileTests(TestCase):
@@ -27,22 +29,22 @@ class SerializerProfileTests(TestCase):
 
     NOVEL_FIELDS = {
         "card": [
-            "id", "title", "slug", "avg_rating", "rating_count", "total_views",
-            "weekly_views", "prefered_source", "languages", "is_adult",
+            "id", "slug", "avg_rating", "rating_count", "total_views",
+            "weekly_views", "suggested_source", "languages", "is_adult",
             "is_bookmarked", "comment_count", "reading_history", "reading_source",
             "is_dmca", "created_at", "has_audiobook",
         ],
         "detail": [
-            "id", "title", "slug", "sources",
+            "id", "slug", "sources",
             "avg_rating", "rating_count", "user_rating", "total_views",
-            "weekly_views", "prefered_source", "is_adult", "is_bookmarked",
+            "weekly_views", "suggested_source", "is_adult", "is_bookmarked",
             "comment_count", "reading_history", "reading_source", "similar_novels",
             "reading_lists", "is_dmca", "audiobooks",
         ],
         "library": [
-            "id", "title", "slug", "is_adult", "is_dmca", "is_bookmarked",
+            "id", "slug", "is_adult", "is_dmca", "is_bookmarked",
             "bookmark_id", "note", "folder", "folder_name", "user_rating",
-            "prefered_source", "reading_source", "reading_history",
+            "suggested_source", "reading_source", "reading_history",
         ],
     }
 
@@ -120,7 +122,7 @@ class SerializerProfileTests(TestCase):
                     "has_content", "has_audio",
                 ],
                 "content": [
-                    "id", "chapter_id", "title", "display_title", "novel_title", "novel_id",
+                    "id", "chapter_id", "title", "display_title", "url", "novel_title", "novel_id",
                     "novel_slug", "source_id", "source_name", "source_slug", "language", "body",
                     "prev_chapter", "next_chapter", "prev_chapter_id",
                     "next_chapter_id", "images_path",
@@ -148,7 +150,7 @@ class SerializerProfileTests(TestCase):
                 "card": [
                     "id", "title", "description", "is_public", "user", "user_role",
                     "collaborators", "items_count", "created_at", "updated_at",
-                    "first_item", "items_names",
+                    "first_item", "items_ids",
                 ],
                 "detail": [
                     "id", "title", "description", "is_public", "user", "user_role",
@@ -294,9 +296,7 @@ class SerializerProfileTests(TestCase):
         self.assertFalse(any(history_table in query["sql"] for query in captured))
 
     def _make_novel(self, index):
-        novel = Novel.objects.create(
-            title=f"Novel {index}", slug=f"novel-{index}", novel_path=f"n{index}"
-        )
+        novel = Novel.objects.create(slug=f"novel-{index}", novel_path=f"n{index}")
         source = NovelFromSource.objects.create(
             novel=novel,
             external_source=ExternalSource.objects.create(source_name=f"site-{index}"),
@@ -308,6 +308,7 @@ class SerializerProfileTests(TestCase):
         )
         NovelRating.objects.create(novel=novel, ip_address="1.1.1.1", rating=4)
         WeeklySourceView.objects.create(source=source, day=timezone.localdate(), views=3)
+        refresh_naming(novel)
         return novel
 
     def _list_queries(self, queryset):
@@ -326,7 +327,7 @@ class SerializerProfileTests(TestCase):
 
         for index in range(4):
             self._make_novel(index)
-        queryset = novel_queryset(Novel.objects.all().order_by("title"), None)
+        queryset = novel_queryset(Novel.objects.all().order_by("slug"), None)
         self.assertEqual(
             self._list_queries(queryset[:2]),
             self._list_queries(queryset[:4]),
@@ -423,13 +424,13 @@ class SerializerProfileTests(TestCase):
     def test_similar_novels_fallback_prefers_source_backed_novels(self):
         # A source-less novel's summed views are NULL, which sorts first on a
         # Postgres DESC, so it used to be recommended ahead of real novels and
-        # rendered as a broken card (no prefered_source -> no cover).
+        # rendered as a broken card (no suggested_source -> no cover).
         from ..serializers import NovelSerializer
 
-        target = Novel.objects.create(title="Target", slug="target", novel_path="t")
+        target = make_novel(title="Target", slug="target", novel_path="t")
         for index in range(3):
             self._make_novel(index).sources.update(total_views=10)
-        Novel.objects.create(title="No Source", slug="no-source", novel_path="ns")
+        make_novel(title="No Source", slug="no-source", novel_path="ns")
         from ..services.novel_rankings import refresh_novel_rankings
         refresh_novel_rankings()
 
@@ -437,10 +438,10 @@ class SerializerProfileTests(TestCase):
 
         detail = novel_queryset(Novel.objects.filter(pk=target.pk), profile="detail").get()
         data = NovelSerializer(detail, profile="detail", context={"request": None}).data
-        titles = [item["title"] for item in data["similar_novels"]]
+        titles = [item["suggested_source"]["title"] for item in data["similar_novels"]]
         self.assertEqual(titles[-1], "No Source")
         self.assertTrue(
-            all(item["prefered_source"] for item in data["similar_novels"][:3])
+            all(item["suggested_source"] for item in data["similar_novels"][:3])
         )
 
     def test_source_detail_endpoint_serves_full_detail_profile(self):
@@ -517,12 +518,12 @@ class SerializerProfileTests(TestCase):
 
         self.assertEqual(count(2), count(4))
 
-    def test_prefered_source_breaks_vote_ties_by_content_chapters(self):
+    def test_suggested_source_breaks_vote_ties_by_content_chapters(self):
         """Two equally-voted sources: the one with more chapters that actually
         have content wins, so the card isn't pointed at an empty source."""
         from ..serializers import NovelSerializer
 
-        novel = Novel.objects.create(title="Tie", slug="tie", novel_path="tie")
+        novel = make_novel(title="Tie", slug="tie", novel_path="tie")
         weak = NovelFromSource.objects.create(
             novel=novel,
             external_source=ExternalSource.objects.create(source_name="weak"),
@@ -553,7 +554,7 @@ class SerializerProfileTests(TestCase):
         data = NovelSerializer(
             novel_queryset(Novel.objects.filter(pk=novel.pk)).get(), context={"request": None}
         ).data
-        self.assertEqual(data["prefered_source"]["source_slug"], "strong")
+        self.assertEqual(data["suggested_source"]["source_slug"], "strong")
 
     def test_unread_chapters_counts_only_content_after_current(self):
         from django.contrib.auth import get_user_model
@@ -598,7 +599,7 @@ class NovelCardCountersTests(TestCase):
     the views follow the selected languages, and a novel built without the annotations fails loudly."""
 
     def _novel(self):
-        novel = Novel.objects.create(title="Counted", slug="counted", novel_path="counted")
+        novel = make_novel(title="Counted", slug="counted", novel_path="counted")
         for language, total_views, views in (("en", 100, 3), ("fr", 7, 5)):
             source = NovelFromSource.objects.create(
                 novel=novel,

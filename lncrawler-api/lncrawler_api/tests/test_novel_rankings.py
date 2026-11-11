@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from ..models import ExternalSource, Novel, NovelFromSource, NovelRating, WeeklySourceView
+from ..models import ExternalSource, NovelFromSource, NovelRating, WeeklySourceView
 from ..services.novel_rankings import refresh_novel_rankings
 from .helpers import make_novel, make_source
 
@@ -47,7 +47,7 @@ class NovelRankingRefreshTests(TestCase):
         return NovelFromSource.objects.create(
             novel=novel,
             external_source=self.external,
-            title=novel.title,
+            title=novel.canonical_source.title,
             source_url=f"http://rank/{slug}",
             source_slug=slug,
             language="en",
@@ -97,7 +97,7 @@ class NovelRankingSearchTests(TestCase):
         external = ExternalSource.objects.create(source_name="rank-search-site")
 
         def make(title, total_views, week_views, ratings):
-            novel = Novel.objects.create(title=title, slug=title.lower(), novel_path=title.lower())
+            novel = make_novel(title=title, slug=title.lower(), novel_path=title.lower())
             source = NovelFromSource.objects.create(
                 novel=novel,
                 external_source=external,
@@ -126,7 +126,7 @@ class NovelRankingSearchTests(TestCase):
     def _titles(self, **params):
         response = self.client.get(reverse("search_novels"), params)
         self.assertEqual(response.status_code, 200)
-        return [n["title"] for n in response.data["results"]]
+        return [n["suggested_source"]["title"] for n in response.data["results"]]
 
     def test_popularity_sort_uses_refreshed_order(self):
         titles = self._titles(sort_by="popularity", sort_order="desc")
@@ -157,7 +157,7 @@ class LastUpdatedSortTests(TestCase):
 
         def make(title, *updates):
             slug = title.lower().replace(" ", "-")
-            novel = Novel.objects.create(title=title, slug=slug, novel_path=title)
+            novel = make_novel(title=title, slug=slug, novel_path=title)
             for index, updated in enumerate(updates):
                 make_source(
                     novel,
@@ -181,7 +181,7 @@ class LastUpdatedSortTests(TestCase):
     def _titles(self, **params):
         response = self.client.get(reverse("search_novels"), {"adult": "show", **params})
         self.assertEqual(response.status_code, 200)
-        return [n["title"] for n in response.data["results"]]
+        return [n["suggested_source"]["title"] for n in response.data["results"]]
 
     def test_desc_puts_most_recent_update_first_and_never_updated_last(self):
         self.assertEqual(

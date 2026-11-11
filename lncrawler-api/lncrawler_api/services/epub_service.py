@@ -28,6 +28,7 @@ from django.utils import timezone
 from ..languages import RTL_LANGUAGES
 from ..utils.chapter_label import format_chapter_label
 from ..utils.chapter_utils import get_chapter
+from ..utils.folders import make_subfolders
 
 logger = logging.getLogger("lncrawler_api")
 
@@ -263,7 +264,7 @@ def _write_chapter(zf, chapter, source, image_dir, seen_images):
 
 
 def _write_cover_page(zf, source, cover_name):
-    title = _escape(source.title or source.novel.title)
+    title = _escape(source.title)
     doc = (
         _html_open(source)
         + f'<head><title>{title}</title><meta charset="utf-8"/>'
@@ -299,7 +300,7 @@ def _write_title_page(zf, source, title):
 
 def _write_container_opf(zf, source, chapters, cover_name, image_names, series=None):
     series_title, series_index = series or (None, None)
-    title = _escape(source.title or source.novel.title)
+    title = _escape(source.title)
     if series:
         title = _escape(f"{series_title} \u2014 Part {series_index}")
     authors = _authors(source) or ["Unknown"]
@@ -441,7 +442,6 @@ def _build(source, chapters, volume, dest, progress=None, series=None):
     cover_name = None
     seen_images = set()
 
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dest), suffix=".tmp")
     os.close(fd)
     try:
@@ -478,7 +478,7 @@ def _build(source, chapters, volume, dest, progress=None, series=None):
                 zf, source, chapters, cover_name,
                 sorted(seen_images - {cover_name}), series=series,
             )
-            _write_title_page(zf, source, source.title or source.novel.title)
+            _write_title_page(zf, source, source.title)
             _write_nav(zf, source, chapters, bool(cover_name))
         os.replace(tmp, dest)
     finally:
@@ -494,8 +494,10 @@ def _build_lock(dest):
     proceed unlocked rather than fail the request.
     """
     lock_path = dest + LOCK_SUFFIX
+    # A missing folder is not a lock failure: it raises here instead of being swallowed below.
+    if not os.path.isdir(os.path.dirname(lock_path)):
+        raise FileNotFoundError(f"Cache folder is missing: {os.path.dirname(lock_path)}")
     try:
-        os.makedirs(os.path.dirname(lock_path), exist_ok=True)
         fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
     except OSError as e:
         logger.warning("Could not open epub lock %s: %s", lock_path, e)
@@ -521,6 +523,8 @@ def get_or_build_epub(source, volume=None, progress=None):
     if _is_cache_fresh(dest, source):
         return dest, os.path.basename(dest)
 
+    # The cache folder is the only folder created here; the source folder must exist.
+    make_subfolders(source.absolute_source_path, CACHE_DIRNAME)
     with _build_lock(dest):
         # Another worker may have finished the same build while we waited.
         if _is_cache_fresh(dest, source):

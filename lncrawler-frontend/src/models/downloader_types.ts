@@ -2,6 +2,7 @@
 export interface SearchStatus {
   status: string;
   status_display: string;
+  query?: string;
   search_completed: boolean;
   has_results: boolean;
   error?: string;

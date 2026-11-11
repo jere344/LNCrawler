@@ -3,7 +3,7 @@ from django.db import connection
 from django.db.models import Case, ExpressionWrapper, FloatField, IntegerField, Min, OuterRef, Q, Subquery, Value, When
 from django.db.models.functions import Coalesce, Least, Round
 
-from ..models import AlternativeTitle, Novel, NovelFromSource
+from ..models import AlternativeTitle, NovelFromSource
 
 
 def normalize_query(query):
@@ -27,21 +27,19 @@ def _run_ids(branches):
 
 
 def matching_novel_ids(nq, query):
-    """Return ``(title_ids, synopsis_ids)``: novels whose title (main, source, alternative) matches,
+    """Return ``(title_ids, synopsis_ids)``: novels whose title (source or alternative) matches,
     and novels whose synopsis matches. Two queries, so the caller can rank title hits separately
     (the view's Case limits the rank work to them).
 
     One SELECT per (table, operator): OR-ing the operators on one column makes Postgres drop
     the trigram index for a seq scan. Run once, so the count and page queries don't redo it.
     """
-    novel_table = Novel._meta.db_table
     source_table = NovelFromSource._meta.db_table
     alt_table = AlternativeTitle._meta.db_table
     link_table = NovelFromSource.alternative_titles.through._meta.db_table
     # Substring (LIKE), whole-title typo (%), in-title typo (%>). Only LIKE takes the escaped pattern.
     operators = (('LIKE %s', _like(nq)), ('%% %s', nq), ('%%> %s', nq))
     title_selects = (
-        f'SELECT id FROM {novel_table} WHERE search_title',
         f'SELECT novel_id FROM {source_table} WHERE search_title',
         f'SELECT s.novel_id FROM {alt_table} a'
         f' JOIN {link_table} m ON m.alternativetitle_id = a.id'
@@ -67,7 +65,7 @@ def _title_rank(col, nq):
 
 
 def title_rank(nq):
-    """Best (lowest) rank over the outer novel's main, source and alternative titles; 40 = no title match."""
+    """Best (lowest) rank over the outer novel's source and alternative titles; 40 = no title match."""
     source_best = (
         NovelFromSource.objects.filter(novel=OuterRef('pk'))
         .values('novel')
@@ -83,7 +81,6 @@ def title_rank(nq):
         .values('m')[:1]
     )
     return Least(
-        _title_rank('search_title', nq),
         Coalesce(Subquery(source_best, output_field=FloatField()), 40.0),
         Coalesce(Subquery(alt_best, output_field=FloatField()), 40.0),
         output_field=FloatField(),

@@ -23,7 +23,7 @@
     </div>
   </form>
 {% else %}
-  <h1>Split &ldquo;{{ novel.title }}&rdquo;</h1>
+  <h1>Split &ldquo;{{ novel }}&rdquo;</h1>
   <p>
     Move sources out into their own novel. A moved source takes its chapter files
     with it, so future updates stay with the new novel instead of re-joining the
@@ -39,16 +39,13 @@
       {% if plan.creates_novel %}
         <p>
           New novel:
-          <strong>{{ plan.new_title }}</strong> ({{ plan.new_slug }})
+          <strong>{{ plan.new_slug }}</strong>
         </p>
       {% else %}
         <p>
           Target novel:
-          <strong>{{ plan.target_novel.title }}</strong> ({{ plan.target_novel.slug }})
+          <strong>{{ plan.target_novel }}</strong> ({{ plan.target_novel.slug }})
         </p>
-      {% endif %}
-      {% if plan.rename_title %}
-        <p>{% blocktrans with title=plan.rename_title %}Original novel renamed to <strong>{{ title }}</strong>{% endblocktrans %}</p>
       {% endif %}
 
       <h3>{% trans 'Sources' %}</h3>

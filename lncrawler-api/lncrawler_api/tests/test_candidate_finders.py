@@ -49,7 +49,7 @@ def source_on(novel, url, site):
     return NovelFromSource.objects.create(
         novel=novel,
         external_source=ExternalSource.objects.create(source_name=site),
-        title=novel.title,
+        title=novel.canonical_source.title,
         source_url=url,
         language="en",
     )

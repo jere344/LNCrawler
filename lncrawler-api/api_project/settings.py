@@ -202,6 +202,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 LNCRAWL_OUTPUT_PATH = os.environ.get('LNCRAWL_OUTPUT_PATH') or os.path.join(BASE_DIR.parent, 'Lightnovels')
 LNCRAWL_URL = "lightnovels/"
 
+# Language that wins the canonical source over every other, for the novel's title, slug and folder
+# (see services/novel_naming.py). Sources in other languages only win on votes or chapters.
+NAMING_LANGUAGE = 'en'
+
+# The scheduled task "sync_novel_naming" (services/novel_naming.py) renames novel folders. It stays off
+# until `manage.py sync_novel_naming --dry-run` has been reviewed; set NOVEL_NAMING_SYNC_ENABLED=True
+# in the environment and restart the scheduler to enable it. The management command ignores this flag.
+NOVEL_NAMING_SYNC_ENABLED = os.environ.get("NOVEL_NAMING_SYNC_ENABLED", "False").strip().lower() in ("1", "true", "yes")
+
 # Hours a generated EPUB is reused before being rebuilt even if the source
 # hasn't changed. Also invalidated immediately when the source is updated.
 EPUB_CACHE_HOURS = int(os.environ.get("EPUB_CACHE_HOURS", 24))
