@@ -451,6 +451,33 @@ class NovelFromSource(models.Model):
             return source_dir, os.path.basename(source_dir)
 
     @classmethod
+    def resolve_existing_novel(cls, novel_path):
+        """The Novel that already owns the novel folder ``novel_path`` (relative to LNCRAWL_OUTPUT_PATH), or None.
+
+        Order: the folder path, then the legacy slug, then a NovelAlias of the slug.
+        """
+        # The folder is the real identity: resolve by path first so a change in
+        # the slug algorithm cannot spawn a duplicate for an existing folder
+        # whose stored slug was derived the old way.
+        # ponytail: novel_path has no unique constraint; order_by('pk') keeps a
+        # shared path deterministic. Add a partial unique index if dupes appear.
+        novel_slug = slugify(os.path.basename(novel_path), max_length=255)
+        novel = Novel.objects.filter(novel_path=novel_path).order_by('pk').first()
+        if novel is None:
+            # Rows imported before novel_path was recorded, or before the switch
+            # to python-slugify, still carry a slug derived by Django's slugify
+            # (which differs on apostrophes and non-ASCII). Match that too so a
+            # re-crawl reattaches instead of creating a duplicate.
+            legacy_slug = django_slugify(os.path.basename(novel_path))
+            if legacy_slug != novel_slug:
+                novel = Novel.objects.filter(slug=legacy_slug).first()
+        if novel is None:
+            alias = NovelAlias.objects.filter(slug=novel_slug).select_related('novel').first()
+            if alias is not None:
+                novel = alias.novel
+        return novel
+
+    @classmethod
     def from_meta_json(cls, meta_json_path, added_by=None):
         """
         Create a NovelFromSource instance from a meta.json file
@@ -494,32 +521,15 @@ class NovelFromSource(models.Model):
         # reattaches to the surviving novel instead of recreating a duplicate.
         novel_slug = slugify(os.path.basename(novel_path), max_length=255)
 
-        # The folder is the real identity: resolve by path first so a change in
-        # the slug algorithm cannot spawn a duplicate for an existing folder
-        # whose stored slug was derived the old way.
-        # ponytail: novel_path has no unique constraint; order_by('pk') keeps a
-        # shared path deterministic. Add a partial unique index if dupes appear.
-        novel = Novel.objects.filter(novel_path=novel_path).order_by('pk').first()
+        novel = cls.resolve_existing_novel(novel_path)
         if novel is None:
-            # Rows imported before novel_path was recorded, or before the switch
-            # to python-slugify, still carry a slug derived by Django's slugify
-            # (which differs on apostrophes and non-ASCII). Match that too so a
-            # re-crawl reattaches instead of creating a duplicate.
-            legacy_slug = django_slugify(os.path.basename(novel_path))
-            if legacy_slug != novel_slug:
-                novel = Novel.objects.filter(slug=legacy_slug).first()
-        if novel is None:
-            alias = NovelAlias.objects.filter(slug=novel_slug).select_related('novel').first()
-            if alias is not None:
-                novel = alias.novel
-            else:
-                novel, created = Novel.objects.get_or_create(
-                    slug=novel_slug,
-                    defaults={
-                        'novel_path': novel_path,
-                        'added_by': added_by,
-                    }
-                )
+            novel, created = Novel.objects.get_or_create(
+                slug=novel_slug,
+                defaults={
+                    'novel_path': novel_path,
+                    'added_by': added_by,
+                }
+            )
         
         # Create or get the external source. A " [..]" suffix on the folder
         # marks a second source of the same site in this novel (e.g. "foo [ln]"),

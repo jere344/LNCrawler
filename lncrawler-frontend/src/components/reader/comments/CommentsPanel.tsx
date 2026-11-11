@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Box, IconButton } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import CloseIcon from '@mui/icons-material/Close';
-import type { Comment, CommentFormData, CommentOrdering } from '@models/comments_types';
+import type { Comment, CommentFormData } from '@models/comments_types';
 import CommentThreads, { type CommentThreadsHandle } from '@components/comments/CommentThreads';
 import CommentComposer from '@components/comments/CommentComposer';
 import { useComments } from '@components/comments/useComments';
@@ -13,9 +13,6 @@ import ReaderPanelFrame from '../panels/ReaderPanelFrame';
 import ReaderPanelHeader from '../panels/ReaderPanelHeader';
 import ReaderBottomSheet from '../panels/ReaderBottomSheet';
 import { commentsWidth } from '../panels/panelLayout';
-
-// The sort chosen in this session, kept when the panel closes and opens again
-let sessionOrdering: CommentOrdering = 'top';
 
 export interface CommentsPanelProps {
   mode: ReaderLayoutMode;
@@ -61,9 +58,8 @@ const CommentsPanel = ({
   onPosted,
 }: CommentsPanelProps) => {
   const { t } = useTranslation();
-  const [ordering, setOrdering] = useState<CommentOrdering>(sessionOrdering);
   const target: CommentTarget = { kind: 'chapter', novelSlug, sourceSlug, chapterNumber };
-  const comments = useComments(target, ordering);
+  const comments = useComments(target);
   // Deeper replies are shown on wide layouts before they open as a thread of their own
   const maxDepth = mode === 'phone' ? 3 : 5;
   const { replyTo, setReplyTo } = useReplyTarget(composing);
@@ -84,12 +80,6 @@ const CommentsPanel = ({
       mounted.current = false;
     };
   }, []);
-
-  // The sort is kept for the session
-  const changeOrdering = (value: CommentOrdering) => {
-    sessionOrdering = value;
-    setOrdering(value);
-  };
 
   // Reply opens the composer, with the comment named above the field
   const handleReply = (comment: Comment) => {
@@ -127,8 +117,6 @@ const CommentsPanel = ({
         ref={threadsRef}
         target={target}
         comments={comments}
-        ordering={ordering}
-        onOrderingChange={changeOrdering}
         threads={threads}
         onPushThread={onPushThread}
         onPopThread={onBack}

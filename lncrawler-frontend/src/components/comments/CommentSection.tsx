@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Divider, Typography, useMediaQuery, useTheme } from '@mui/material';
-import type { Comment, CommentFormData, CommentOrdering } from '@models/comments_types';
+import type { Comment, CommentFormData } from '@models/comments_types';
 import CommentThreads, { type CommentThreadsHandle } from './CommentThreads';
 import CommentComposer from './CommentComposer';
 import { useComments } from './useComments';
@@ -18,8 +18,7 @@ const CommentSection = ({ novelSlug, title }: CommentSectionProps) => {
   // Replies nest deeper on wider screens before a thread opens of its own
   const wide = useMediaQuery(theme.breakpoints.up('sm'), { noSsr: true });
   const target = useMemo<CommentTarget>(() => ({ kind: 'novel', novelSlug }), [novelSlug]);
-  const [ordering, setOrdering] = useState<CommentOrdering>('top');
-  const comments = useComments(target, ordering);
+  const comments = useComments(target);
   // The thread levels open, the last one on screen: kept here, as the page has no history of them
   const [threads, setThreads] = useState<string[]>([]);
   const [composing, setComposing] = useState(false);
@@ -73,8 +72,6 @@ const CommentSection = ({ novelSlug, title }: CommentSectionProps) => {
         ref={threadsRef}
         target={target}
         comments={comments}
-        ordering={ordering}
-        onOrderingChange={setOrdering}
         threads={threads}
         onPushThread={pushThread}
         onPopThread={popThread}

@@ -72,8 +72,7 @@ class DeadDuplicatesMixin:
             novel_id=OuterRef("novel_id"), external_source_id__in=live_ext_ids,
         ))
         dead_qs = self._sample(
-            NovelFromSource.objects.filter(external_source_id__in=dead_ids)
-            .filter(novel__created_at__lt=self.age_cutoff)
+            self._scope_sources(NovelFromSource.objects.filter(external_source_id__in=dead_ids))
             .filter(has_live_sibling)
             .select_related("novel", "external_source"),
             field="novel_id",

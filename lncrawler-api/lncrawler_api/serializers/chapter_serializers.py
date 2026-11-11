@@ -176,7 +176,7 @@ class ChapterSerializer(ProfileFieldsMixin, serializers.ModelSerializer):
         top = (
             Comment.objects.for_chapter_number(obj.novel_from_source.novel_id, obj.chapter_id)
             .roots()
-            .ranked('top')
+            .ranked()
             .first()
         )
         if top is None:

@@ -1,5 +1,5 @@
 import api from './api';
-import type { Comment, CommentFormData, CommentOrdering } from '@models/comments_types';
+import type { Comment, CommentFormData } from '@models/comments_types';
 
 export const commentService = {
   voteComment: async (commentId: string, voteType: 'up' | 'down') => {
@@ -12,14 +12,9 @@ export const commentService = {
     return response.data;
   },
 
-  // Get every root comment of a novel, with their replies (newest first unless `ordering` is 'top')
-  getNovelComments: async (
-    novelSlug: string,
-    options: { ordering?: CommentOrdering } = {},
-  ): Promise<Comment[]> => {
-    const response = await api.get(`/novels/${novelSlug}/comments/`, {
-      params: { ordering: options.ordering },
-    });
+  // Get every root comment of a novel, with their replies, highest score first
+  getNovelComments: async (novelSlug: string): Promise<Comment[]> => {
+    const response = await api.get(`/novels/${novelSlug}/comments/`);
     return response.data;
   },
 
@@ -29,17 +24,13 @@ export const commentService = {
     return response.data;
   },
 
-  // Get every root comment of a chapter, shared by every source with this chapter number
+  // Get every root comment of a chapter, highest score first, shared by every source with this chapter number
   getChapterComments: async (
     novelSlug: string,
     sourceSlug: string,
     chapterNumber: number,
-    options: { ordering?: CommentOrdering } = {},
   ): Promise<Comment[]> => {
-    const response = await api.get(
-      `/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/comments/`,
-      { params: { ordering: options.ordering } }
-    );
+    const response = await api.get(`/novels/${novelSlug}/${sourceSlug}/chapter/${chapterNumber}/comments/`);
     return response.data;
   },
 

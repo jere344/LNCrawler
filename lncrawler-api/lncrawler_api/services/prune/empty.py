@@ -79,10 +79,9 @@ class EmptySourcesMixin:
     def _phase_empty_sources(self):
         self.stdout.write("Phase 2: empty sources")
         empties = self._sample(
-            NovelFromSource.objects.filter(
+            self._scope_sources(NovelFromSource.objects.filter(
                 ~Exists(Chapter.objects.filter(novel_from_source_id=OuterRef("pk"), has_content=True))
-            )
-            .filter(novel__created_at__lt=self.age_cutoff)
+            ))
             .select_related("novel", "external_source"),
             field="novel_id",
         )

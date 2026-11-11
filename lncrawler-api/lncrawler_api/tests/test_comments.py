@@ -1,4 +1,4 @@
-"""Comment threads: the plain list response, ``ordering``, nested replies, replies
+"""Comment threads: the plain list response, score ranking, nested replies, replies
 posted on a chapter, the comment summary of the chapter content payload, and
 the write endpoints (add, vote, edit)."""
 
@@ -104,35 +104,14 @@ class CommentThreadTests(TestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["id"], str(root.id))
 
-    def test_ordering_top_puts_the_highest_score_first(self):
+    def test_roots_are_ranked_by_score_then_newest(self):
         # Created oldest first: score 5, then 9, then 5 again (newest).
         first = self.chapter_comment("first", upvotes=5, downvotes=0)
         second = self.chapter_comment("second", upvotes=9, downvotes=0)
         third = self.chapter_comment("third", upvotes=7, downvotes=2)
 
-        top = self.get_chapter_comments(ordering="top").data
-        self.assertEqual([c["id"] for c in top], [str(second.id), str(third.id), str(first.id)])
-
-        default = self.get_chapter_comments().data
-        self.assertEqual([c["id"] for c in default], [str(third.id), str(second.id), str(first.id)])
-        self.assertEqual(
-            [c["id"] for c in self.get_chapter_comments(ordering="new").data],
-            [str(c["id"]) for c in default],
-        )
-
-    def test_novel_comments_ordering_top(self):
-        first = Comment.objects.create(novel=self.novel, author_name="reader", message="first", upvotes=5)
-        second = Comment.objects.create(novel=self.novel, author_name="reader", message="second", upvotes=9)
-        third = Comment.objects.create(
-            novel=self.novel, author_name="reader", message="third", upvotes=7, downvotes=2
-        )
-        url = reverse("novel_comments", kwargs={"novel_slug": "comments"})
-
-        top = self.client.get(url, {"ordering": "top"}).data
-        self.assertEqual([c["id"] for c in top], [str(second.id), str(third.id), str(first.id)])
-
-        newest = self.client.get(url).data
-        self.assertEqual([c["id"] for c in newest], [str(third.id), str(second.id), str(first.id)])
+        results = self.get_chapter_comments().data
+        self.assertEqual([c["id"] for c in results], [str(second.id), str(third.id), str(first.id)])
 
     def test_replies_are_nested_under_their_root(self):
         root = self.chapter_comment("Root")

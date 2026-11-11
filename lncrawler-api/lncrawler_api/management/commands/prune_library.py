@@ -16,6 +16,8 @@ Each phase walks its candidates in primary-key order and remembers where it
 stopped in ``<output>/.prune_trash/prune_cursor.json``, so repeated (or
 scheduled) runs continue through the DB and wrap around once a pass is done.
 Deletions are naturally capped by the same limit: at most one per candidate.
+``--source-ids 1,2`` runs only phases 2 and 3, on those sources alone, with no
+age cutoff and no cursor (run_import uses it for the sources it just imported).
 
 Deleting is destructive, so ``--apply`` is required; the default is a dry run.
 Source folders are moved to ``<LNCRAWL_OUTPUT_PATH>/.prune_trash`` instead of
@@ -28,7 +30,7 @@ chapter read does.
 import os
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from lncrawler_api.services.prune.common import MIN_NOVEL_AGE
@@ -41,6 +43,16 @@ from lncrawler_api.services.prune.porting import PortingMixin
 from lncrawler_api.services.prune.similarity import SimilarityMixin
 from lncrawler_api.services.prune.trash import TrashMixin
 from lncrawler_api.services.prune.unregistered import UnregisteredFoldersMixin
+
+
+def _parse_source_ids(text):
+    """The ids of ``--source-ids`` ("1,2,3"), or None when the option is not given."""
+    if text is None:
+        return None
+    try:
+        return [int(part) for part in text.split(",") if part.strip()]
+    except ValueError:
+        raise CommandError(f"--source-ids must be comma-separated integers, got {text!r}") from None
 
 
 class Command(
@@ -113,6 +125,13 @@ class Command(
             ),
         )
         parser.add_argument(
+            "--source-ids", type=str, default=None,
+            help=(
+                "Comma-separated NovelFromSource ids: run only phases 2 and 3 on these "
+                "sources, ignoring the age cutoff and the saved cursor."
+            ),
+        )
+        parser.add_argument(
             "--sweep-unregistered", action="store_true",
             help=(
                 "Also move library folders no DB row points at back to the import "
@@ -135,6 +154,14 @@ class Command(
         self.source_filter = options["source"]
         self.percent = options["percent"]
         self.sweep_unregistered = options["sweep_unregistered"]
+        self.source_ids = _parse_source_ids(options["source_ids"])
+        if self.source_ids is not None:
+            if not self.source_ids:
+                raise CommandError("--source-ids lists no ids")
+            if self.sweep_unregistered:
+                raise CommandError("--source-ids cannot be combined with --sweep-unregistered")
+            # A --source-ids run is one-off: no limit, so it never reads or writes the cursor.
+            self.limit = 0
         if not 0 < self.percent <= 100:
             self.stdout.write(self.style.ERROR("--percent must be between 1 and 100"))
             return
@@ -148,7 +175,7 @@ class Command(
         # Cursors are scoped by the filters that change the candidate set, so a
         # manual --source/--percent run cannot resume the scheduler's position.
         self.cursor_scope = f"{self.source_filter or '-'}|{self.percent:g}"
-        self.cursor = self._load_cursor()
+        self.cursor = {} if self.source_ids is not None else self._load_cursor()
         self.verdicts = self._load_verdicts()
 
         mode = "APPLY" if self.apply else "DRY-RUN"
@@ -157,9 +184,10 @@ class Command(
             f"threshold={self.threshold} percent={self.percent:g}"
         ))
 
-        if self.sweep_unregistered:
-            self._phase_unregistered_folders()
-        self._phase_orphan_novels()
+        if self.source_ids is None:
+            if self.sweep_unregistered:
+                self._phase_unregistered_folders()
+            self._phase_orphan_novels()
         self._phase_empty_sources()
         self._phase_dead_duplicates()
 

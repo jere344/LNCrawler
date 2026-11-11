@@ -33,8 +33,6 @@ export interface CommentFormData {
   parent_id?: string;
 }
 
-export type CommentOrdering = 'top' | 'new';
-
 // The top comment of a chapter, as the chapter content payload gives it; the message is null for a spoiler
 export interface CommentPreview {
   id: string;

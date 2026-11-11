@@ -2,10 +2,10 @@ import { commentService } from '@services/comment.service';
 import { createCommentsCache, type CommentTarget } from './commentsCache';
 
 // Shared by every visit: comments reopened in the same session make no request
-export const commentsCache = createCommentsCache((target, ordering) =>
+export const commentsCache = createCommentsCache((target) =>
   target.kind === 'chapter'
-    ? commentService.getChapterComments(target.novelSlug, target.sourceSlug, target.chapterNumber, { ordering })
-    : commentService.getNovelComments(target.novelSlug, { ordering }),
+    ? commentService.getChapterComments(target.novelSlug, target.sourceSlug, target.chapterNumber)
+    : commentService.getNovelComments(target.novelSlug),
 );
 
 // Unsent comment text per target and parent, kept while the reader moves between chapters

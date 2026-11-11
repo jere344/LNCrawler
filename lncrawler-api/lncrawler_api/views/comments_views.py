@@ -114,13 +114,11 @@ def _threaded_comments_response(request, comments):
     never queries. The viewer's votes are fetched in one query for the roots and
     every reply loaded with them.
 
-    ``?ordering=top`` ranks the roots by vote score (then newest first); any
-    other value keeps the default newest-first order. Replies are always
-    newest first.
+    Roots are ranked by vote score, highest first (then newest first). Replies
+    are always newest first.
     """
-    ordering = request.GET.get('ordering', 'new')
     roots = list(
-        comments.roots().ranked(ordering).select_related(
+        comments.roots().ranked().select_related(
             'user', 'chapter__novel_from_source__external_source'
         )
     )

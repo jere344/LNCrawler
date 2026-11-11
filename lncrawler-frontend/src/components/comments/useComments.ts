@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { Comment, CommentFormData, CommentOrdering } from '@models/comments_types';
+import type { Comment, CommentFormData } from '@models/comments_types';
 import { commentService } from '@services/comment.service';
 import { commentsCache } from './comments';
 import type { CommentTarget, CommentsState } from './commentsCache';
 
-// The target and ordering the hook shows; `id` tells one from another
+// The target the hook shows; `id` tells one from another
 interface Shown {
   id: string;
   target: CommentTarget;
-  ordering: CommentOrdering;
 }
 
 export interface CommentsView {
@@ -24,20 +23,20 @@ export interface CommentsView {
 
 const NO_ROOTS: Comment[] = [];
 
-// The id of a target in one ordering: the sources of a chapter have their own, as they are asked for separately
-const shownId = (target: CommentTarget, ordering: CommentOrdering): string =>
+// The id of a target: the sources of a chapter have their own, as they are asked for separately
+const shownId = (target: CommentTarget): string =>
   JSON.stringify(
     target.kind === 'chapter'
-      ? [target.novelSlug, target.sourceSlug, target.chapterNumber, ordering]
-      : [target.novelSlug, ordering],
+      ? [target.novelSlug, target.sourceSlug, target.chapterNumber]
+      : [target.novelSlug],
   );
 
-// Comments of a chapter or a novel in one ordering. The state comes from the shared cache, so a target already loaded shows at once.
-export function useComments(target: CommentTarget | null, ordering: CommentOrdering): CommentsView {
-  const id = target ? shownId(target, ordering) : null;
+// Comments of a chapter or a novel. The state comes from the shared cache, so a target already loaded shows at once.
+export function useComments(target: CommentTarget | null): CommentsView {
+  const id = target ? shownId(target) : null;
   const shown = useMemo<Shown | null>(
-    () => (target && id ? { id, target, ordering } : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the id stands for the target and ordering
+    () => (target && id ? { id, target } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the id stands for the target
     [id],
   );
 
@@ -54,8 +53,8 @@ export function useComments(target: CommentTarget | null, ordering: CommentOrder
 
   // Requests the comments of a target; a response for a target no longer shown is dropped
   const loadComments = useCallback((next: Shown) => {
-    const { id: nextId, target: nextTarget, ordering: nextOrdering } = next;
-    commentsCache.load(nextTarget, nextOrdering).then(
+    const { id: nextId, target: nextTarget } = next;
+    commentsCache.load(nextTarget).then(
       () => {
         if (activeId.current === nextId) refresh();
       },
@@ -77,7 +76,7 @@ export function useComments(target: CommentTarget | null, ordering: CommentOrder
   }, [shown, loadComments]);
 
   // Read on every render: the cache holds the state of the target shown, whatever was shown before
-  const state: CommentsState | null = shown ? commentsCache.peek(shown.target, shown.ordering) ?? null : null;
+  const state: CommentsState | null = shown ? commentsCache.peek(shown.target) ?? null : null;
   // A failure only blocks the list while nothing is loaded for the target: a state that exists is shown
   const error = state === null && shown && failed?.id === shown.id ? failed.error : null;
 

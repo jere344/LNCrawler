@@ -1,8 +1,8 @@
 import { useImperativeHandle, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
-import { Box, Button, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import type { Comment, CommentOrdering } from '@models/comments_types';
+import type { Comment } from '@models/comments_types';
 import { TOUCH_MIN_HEIGHT } from '@components/reader/touchTarget';
 import DirectionalIcon from '@components/reader/DirectionalIcon';
 import { commentAuthorName } from './commentAuthor';
@@ -28,8 +28,6 @@ export interface CommentThreadsHandle {
 interface CommentThreadsProps {
   target: CommentTarget;
   comments: CommentsView;
-  ordering: CommentOrdering;
-  onOrderingChange: (ordering: CommentOrdering) => void;
   // Comment ids opened as thread views, the last one on screen
   threads: string[];
   onPushThread: (id: string) => void;
@@ -64,8 +62,6 @@ const withoutId = (set: Set<string>, id: string) => {
 const CommentThreads = ({
   target,
   comments,
-  ordering,
-  onOrderingChange,
   threads,
   onPushThread,
   onPopThread,
@@ -91,7 +87,7 @@ const CommentThreads = ({
   // The comment the thread view opens on, when it is among the comments loaded
   const threadRoot = currentThread === undefined ? null : (findPath(roots, currentThread)?.slice(-1)[0] ?? null);
 
-  const { trackScroll, scrollToTop } = useThreadNavigation(threads, { scrollRef, rootRef, threadBackRef });
+  const { trackScroll } = useThreadNavigation(threads, { scrollRef, rootRef, threadBackRef });
   const { highlightId, highlight } = useCommentListScroll(scrollRef, roots, threads);
 
   // The parent calls this once a comment is posted: the reply shows in place, or its parent opens as a thread
@@ -114,12 +110,6 @@ const CommentThreads = ({
 
   const showAll = (id: string) => {
     setExpanded((prev) => withId(prev, id));
-  };
-
-  // The list starts again at the top when the sort changes
-  const changeOrdering = (value: CommentOrdering) => {
-    onOrderingChange(value);
-    scrollToTop();
   };
 
   const sharedThreadProps = {
@@ -182,34 +172,15 @@ const CommentThreads = ({
     );
   }
 
-  // The toolbar: the caption, and the sort while the list is shown
-  const toolbar = (caption || !inThread) && (
-    <Box sx={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, px: inset, pb: 1 }}>
-      {caption && (
-        <Typography variant="caption" noWrap sx={{ flex: 1, minWidth: 0, color: 'text.secondary' }}>
-          {caption}
-        </Typography>
-      )}
-      {!inThread && (
-        <ToggleButtonGroup
-          exclusive
-          size="small"
-          value={ordering}
-          aria-label={t('readerComments.sortLabel')}
-          onChange={(_event, value: CommentOrdering | null) => {
-            if (value && value !== ordering) changeOrdering(value);
-          }}
-        >
-          <ToggleButton value="top" sx={{ minHeight: TOUCH_MIN_HEIGHT }}>{t('readerComments.sortTop')}</ToggleButton>
-          <ToggleButton value="new" sx={{ minHeight: TOUCH_MIN_HEIGHT }}>{t('readerComments.sortNew')}</ToggleButton>
-        </ToggleButtonGroup>
-      )}
-    </Box>
-  );
-
   return (
     <Box ref={rootRef} sx={scrollRef ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : undefined}>
-      {toolbar}
+      {caption && (
+        <Box sx={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, px: inset, pb: 1 }}>
+          <Typography variant="caption" noWrap sx={{ flex: 1, minWidth: 0, color: 'text.secondary' }}>
+            {caption}
+          </Typography>
+        </Box>
+      )}
 
       <Box
         ref={scrollRef}

@@ -11,6 +11,9 @@ from .common import VERDICTS_FILE
 
 
 class CursorMixin:
+    # None for a normal run; the NovelFromSource pks of a --source-ids run.
+    source_ids = None
+
     def _load_cursor(self) -> dict:
         return load_json(os.path.join(self.trash_root, "prune_cursor.json"), {})
 
@@ -74,3 +77,9 @@ class CursorMixin:
         bucket = Substr(MD5(Cast(field, CharField())), 1, 2)
         threshold = format(int(self.percent / 100 * 256), "02x")
         return queryset.annotate(_bucket=bucket).filter(_bucket__lt=threshold)
+
+    def _scope_sources(self, queryset):
+        """Narrow phase 2/3 sources to ``--source-ids``, else to novels past the age cutoff."""
+        if self.source_ids is not None:
+            return queryset.filter(pk__in=self.source_ids)
+        return queryset.filter(novel__created_at__lt=self.age_cutoff)

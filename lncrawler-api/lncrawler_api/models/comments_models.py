@@ -29,13 +29,11 @@ class CommentQuerySet(models.QuerySet):
         """Top-level comments only (no parent)."""
         return self.filter(parent=None)
 
-    def ranked(self, ordering):
-        """``'top'`` ranks by vote score (newest first on ties); anything else is newest first."""
-        if ordering == 'top':
-            return self.annotate(
-                score=models.F('upvotes') - models.F('downvotes')
-            ).order_by('-score', '-created_at', '-id')
-        return self.order_by('-created_at', '-id')
+    def ranked(self):
+        """Rank by vote score, highest first; newest first on ties."""
+        return self.annotate(
+            score=models.F('upvotes') - models.F('downvotes')
+        ).order_by('-score', '-created_at', '-id')
 
 
 class Comment(models.Model):
