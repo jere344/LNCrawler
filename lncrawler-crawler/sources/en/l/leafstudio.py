@@ -22,6 +22,10 @@ class LeafStudioCrawler(Crawler):
     def initialize(self) -> None:
         self.init_executor(ratelimit=2)
 
+    def download_image(self, url: str, **kwargs):
+        # Images answer 403 without a Referer (the base class strips it).
+        return super().download_image(url, headers={"Referer": self.home_url})
+
     def search_novel(self, query) -> List[SearchResult]:
         soup = self.get_soup(
             f"{self.home_url}novels?search={query}&type=&language=&status=&sort="
@@ -57,6 +61,7 @@ class LeafStudioCrawler(Crawler):
                     SearchResult(
                         title=title.text.strip(),
                         url=self.absolute_url(item["href"]),
+                        cover=self.image_url(item.select_one("img")),
                     )
                 )
             page += 1

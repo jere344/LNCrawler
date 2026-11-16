@@ -7,6 +7,7 @@ from ..constants import META_FILE_NAME
 from ..models import Chapter, MetaInfo, Novel, NovelStatus, Session, Volume
 from .crawler import Crawler
 from .exeptions import LNException
+from ..utils.language import guess_language
 
 
 # Volume/part numbers such as II or XIV; L/C/D/M are left out so words like MIX or DID are not kept upper.
@@ -190,6 +191,29 @@ def __format_tags(crawler: Crawler) -> None:
     crawler.novel_tags = merged
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def __resolve_language(crawler: Crawler) -> None:
+    """Multi-language sources: guess the novel's language from its own text.
+
+    Only ``"multi"`` is touched; a source that sets a real language (class or
+    per novel) is trusted. Title and synopsis first, then the first chapter.
+    When nothing is conclusive the language stays ``"multi"``.
+    """
+    if crawler.language != "multi":
+        return
+    lang = guess_language(f"{crawler.novel_title or ''} {crawler.novel_synopsis or ''}")
+    if not lang and crawler.chapters:
+        try:
+            body = crawler.download_chapter_body(crawler.chapters[0])
+            lang = guess_language(_HTML_TAG_RE.sub(" ", body or "")[:3000])
+        except Exception:
+            lang = ""
+    if lang:
+        crawler.language = lang
+
+
 def format_novel(crawler: Crawler) -> None:
     crawler.novel_title = __format_title(crawler.novel_title)
     crawler.novel_author = __format_title(crawler.novel_author)
@@ -203,6 +227,7 @@ def format_novel(crawler: Crawler) -> None:
     __format_volume(crawler, vol_id_map)
     __format_chapters(crawler, vol_id_map)
     crawler.volumes = [x for x in crawler.volumes if x["chapter_count"] > 0]
+    __resolve_language(crawler)
 
 
 def save_metadata(app, completed: bool = False) -> None:
