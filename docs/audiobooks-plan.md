@@ -49,7 +49,7 @@ GPU worker (other agent)              prod
 **Disk budget.**
 - **Permanent storage:** only the Opus chapter files. One part is ~8 h ≈ 90 MB, so 100 novels × 4 parts ≈ 36 GB.
 - **Download cache:** both `.m4b` flavours (Opus ~90 MB per part, AAC ~230 MB per part) are temporary. They share one cache with a hard cap (`AUDIOBOOK_M4B_CACHE_GB`, default 5 GB). Least recently downloaded files are evicted first, and the daily housekeeping prunes it too.
-- **Extra disk for AAC support:** none beyond that fixed cap. Eviction only costs a rebuild on the next download: seconds for Opus, a few minutes for AAC. `AUDIOBOOK_DISK_BUDGET_GB` stops new enqueues when it's reached, and the admin dashboard shows usage.
+- **Extra disk for AAC support:** none beyond that fixed cap. Eviction only costs a rebuild on the next download: seconds for Opus, a few minutes for AAC. `AUDIOBOOK_DISK_BUDGET_GB` stops new enqueues when it's reached. Per-day stats are in the Audiobook daily stats admin.
 
 ## Phase 1: models, settings, admin
 
@@ -106,17 +106,16 @@ Tuning values are module constants in `services/audiobook_service.py` instead: `
 **Django admin** (`admin/audiobook_admin.py`, in `app_groups.py`):
 
 - **Audiobook list**
-  - columns: cover thumbnail, novel, parts done/queued/failed, hours, size, published, featured, worker
-  - actions: Publish / Unpublish, Feature, Pause / Resume, Enqueue next part, Delete audio files, Rebuild cover, Retag files
-- **Part list**
-  - shows status, progress and stage live
-  - actions: Retry, Regenerate (high priority), Approve despite QA
-  - QA checks shown as a table, with an inline `<audio>` player per chapter for spot listening
-- **Novel admin:** a **Generate audiobook** action. This is the manual "run by admin" path.
-- **Dashboard page** (custom template, like the scheduler one):
-  - workers with last seen ("offline for 3 days" in red), queue length and est. nights to empty it
-  - hours produced in the last 7 nights, failures, disk used vs budget
-  - plays and downloads over the last 30 days
+  - columns: cover thumbnail, novel, status, hours, size (MB), worker
+  - action: **Unpin worker**, the recovery path for a dead worker. Its claimed parts go back to the queue and any worker may claim them
+- **AudiobookPart** (read-only detail)
+  - QA checks shown as a table
+  - chapter inline with an `<audio>` preview per chapter for spot listening
+- **AudiobookWorker**
+  - online flag (seen recently)
+  - **New worker token** page: creates the worker account and shows its token once; ticking rotate on an existing worker issues a new token
+  - action **Rotate token**: sends the selected workers' new tokens to the token page, which shows them once
+- **ListeningProgress** and **AudiobookDailyStat**: read-only, no add
 
 ## Phase 2: scheduler tasks (`scheduler.py`)
 
@@ -131,7 +130,7 @@ Logic lives in `services/audiobook_scheduler.py`. Every task does nothing while 
     - **the new-book slot:** it waits since the newest audiobook's `created_at`. Serving it starts the next most popular novel (`rank_week_views`, then `rank_total_views`) that has no audiobook in that language yet. It skips DMCA novels and novels with no English source. A novel qualifies once one full part can be cut, no empty Audiobook row is left behind, and the scan stops after 50 novels in a row that yield nothing;
     - ties go to the more popular novel, and the new-book slot loses ties;
     - effect: with N books in progress, a new book starts once every N+1 parts. The collection grows fast at first and slower as more books are in progress, a huge novel gets one part per cycle like any other, and the new-book slot comes round more often again as books catch up;
-    - scheduler parts have priority 0 and are claimed in the order they were created, so the round order holds. Admin actions (Generate, Regenerate) use priority 100 and jump the queue;
+    - scheduler parts have priority 0 and are claimed in the order they were created, so the round order holds;
   - parts are cut as in Phase 1 (whole chapters up to `AUDIOBOOK_PART_WORDS`).
 - **`reap_audiobook_leases`** (every 5 min): sends parts with an expired lease back to the queue. After `MAX_ATTEMPTS` they become `failed`.
 - **`audiobook_housekeeping`** (daily):

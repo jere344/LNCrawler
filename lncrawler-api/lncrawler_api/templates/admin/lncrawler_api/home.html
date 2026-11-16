@@ -1,0 +1,109 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{# Same entity sidebar as every other admin page; the home's own panels take the main column. #}
+{% block nav-sidebar %}{% if is_nav_sidebar_enabled %}{% include "admin/nav_sidebar.html" %}{% endif %}{% endblock %}
+
+{% block coltype %}colM{% endblock %}
+
+{% block content %}
+<div id="content-main" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; align-items:start;">
+
+  {% if home.review %}
+  <div class="module" style="padding:12px;">
+    <h2>To review</h2>
+    <table style="width:100%;">
+      <thead><tr><th>Kind</th><th>Waiting</th></tr></thead>
+      <tbody>
+      {% for item in home.review.kinds %}
+        <tr>
+          <td><a href="{{ item.url }}">{{ item.label }}</a></td>
+          <td>{{ item.count }}</td>
+        </tr>
+      {% endfor %}
+      {% if home.review.failed_harvest %}
+        <tr>
+          <td><a href="{{ home.review.failed_harvest.url }}">Failed harvest candidates</a></td>
+          <td>{{ home.review.failed_harvest.count }}</td>
+        </tr>
+      {% endif %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if home.tools %}
+  <div class="module" style="padding:12px;">
+    <h2>Tools</h2>
+    <ul>
+    {% for tool in home.tools %}
+      <li><a href="{{ tool.url }}">{{ tool.label }}</a></li>
+    {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if home.attention %}
+    {% if home.attention.has_problems %}
+  <div class="module" style="padding:12px;">
+    <h2>Needs attention</h2>
+
+      {% if home.attention.failed_tasks %}
+    <h3>Failed tasks</h3>
+    <table style="width:100%;">
+      <thead><tr><th>Task</th><th>Error</th></tr></thead>
+      <tbody>
+        {% for task in home.attention.failed_tasks %}
+        <tr>
+          <td><a href="{% url 'admin:lncrawler_api_scheduledtask_change' task.pk %}">{{ task.name }}</a></td>
+          <td>{{ task.error_message|default:"(no error message)"|truncatechars:160 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+      {% endif %}
+
+      {% if home.attention.expired_locks %}
+    <h3>Running with an expired lock</h3>
+    <table style="width:100%;">
+      <thead><tr><th>Task</th><th>Lock expired at</th><th>Worker</th></tr></thead>
+      <tbody>
+        {% for task in home.attention.expired_locks %}
+        <tr>
+          <td><a href="{% url 'admin:lncrawler_api_scheduledtask_change' task.pk %}">{{ task.name }}</a></td>
+          <td>{{ task.locked_until }}</td>
+          <td>{{ task.worker_id|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+      {% endif %}
+
+      {% if home.attention.cooldowns %}
+    <h3>LLM providers in cooldown</h3>
+    <table style="width:100%;">
+      <thead><tr><th>Provider</th><th>Until</th><th>Reason</th></tr></thead>
+      <tbody>
+        {% for cooldown in home.attention.cooldowns %}
+        <tr>
+          <td>{{ cooldown.name }}</td>
+          <td>{{ cooldown.until }}</td>
+          <td>{{ cooldown.reason|default:"-"|truncatechars:160 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+      {% endif %}
+
+  </div>
+    {% else %}
+  <p><strong>All good</strong>: no failed tasks, expired locks or LLM cooldowns.</p>
+    {% endif %}
+  {% endif %}
+  {% if home.operations %}
+    {% with operations=home.operations %}{% include "admin/lncrawler_api/scheduler/_operations.html" %}{% endwith %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}

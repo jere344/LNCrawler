@@ -153,7 +153,7 @@ Everything lives in `.env`; [`.env.example`](.env.example) documents every defau
 | Crawler | `CRAWLER_REPLICAS`, `CRAWLER_CONCURRENCY` (`5`), `CRAWLER_MEM_LIMIT` (`2g`), `CRAWLER_CPUS` (`1.5`), `CRAWLER_POLL`, `CRAWLER_STALE_MINUTES`, `CRAWLER_REQUEUE_EVERY` |
 | Source logins | `LNCRAWL_<KEY>_USERNAME` / `LNCRAWL_<KEY>_PASSWORD`, `<KEY>` = source domain label uppercased |
 | Maintenance | `SCHEDULER_ENABLED` (`True`), `LNCRAWL_PRUNE_APPLY` (`False` skips the destructive prune) |
-| Harvest feeder | `HARVEST_INTERVAL`, `HARVEST_REFRESH_SECONDS`, `HARVEST_SCAN_TIMEOUT` — enable it in **Admin → Maintenance → Harvest** |
+| Harvest feeder | `HARVEST_INTERVAL`, `HARVEST_REFRESH_SECONDS`, `HARVEST_SCAN_TIMEOUT` — enable it in **Admin home → Harvest** |
 | LLM (optional) | `LLM_PROVIDERS` (fallback chain, e.g. `groq,cloudflare`) with `LLM_<NAME>_API_KEY`, `LLM_<NAME>_MODEL`, `LLM_<NAME>_BASE_URL`, `LLM_<NAME>_DAILY_REQUESTS`, `LLM_<NAME>_DAILY_TOKENS`, ...; `*_AUTO_CONFIDENCE` (novel, author, tag, R18), `TAG_BIG_TAG_USAGE`, `TAG_R18_REVIEW_NOVELS` — any OpenAI-compatible endpoint for merge/tag decisions |
 | Error reporting | `GITHUB_REPO`, `GITHUB_TOKEN` (`issues:write`), `GITHUB_ISSUES_ENABLED` |
 
@@ -161,7 +161,7 @@ Everything lives in `.env`; [`.env.example`](.env.example) documents every defau
 
 ## 🧰 Common operations
 
-Most tasks are one click away in **Admin → Scheduled tasks → Maintenance** (harvest, imports, source tests, any scheduled task). From the shell:
+Most tasks are one click away on the **admin home** (harvest, any scheduled task). From the shell:
 
 ```bash
 docker compose exec api python manage.py run_import --action copy

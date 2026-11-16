@@ -8,7 +8,6 @@ from ..models import (
     Comment,
     Review,
 )
-from ..services.audiobook_service import enqueue_next_part, get_or_create_audiobook
 from ..services.folder_guard import BUSY_MESSAGE, FolderBusy
 from ..services.novel_deletion import delete_novel
 from ..services.novel_operations import FileOperationError, file_journal
@@ -230,7 +229,7 @@ class NovelAdmin(admin.ModelAdmin):
         "updated_at",
     )
     list_filter = ("is_dmca",)
-    actions = ("mark_dmca", "unmark_dmca", "generate_audiobook")
+    actions = ("mark_dmca", "unmark_dmca")
     search_fields = ("canonical_source__title", "slug")
     list_select_related = ("added_by", "canonical_source")
     readonly_fields = (
@@ -293,35 +292,6 @@ class NovelAdmin(admin.ModelAdmin):
     unmark_dmca = update_action(
         "Unmark selected novels as DMCA takedown", "{} novel(s) unmarked as DMCA.", is_dmca=False,
     )
-
-    @admin.action(description="Generate audiobook (enqueue next part)")
-    def generate_audiobook(self, request, queryset):
-        for novel in queryset:
-            if novel.is_dmca:
-                self.message_user(request, f"{novel}: DMCA takedown, no audiobook.", level=messages.WARNING)
-                continue
-            try:
-                audiobook, created = get_or_create_audiobook(novel)
-            except ValueError as exc:
-                self.message_user(request, str(exc), level=messages.WARNING)
-                continue
-            if audiobook.status != 'active':
-                self.message_user(
-                    request,
-                    f"{novel}: audiobook status is {audiobook.status}, nothing queued.",
-                    level=messages.WARNING,
-                )
-                continue
-            part = enqueue_next_part(audiobook, priority=100, allow_tail=True)
-            if part is None:
-                self.message_user(request, f"{novel}: nothing to cut yet.", level=messages.INFO)
-            else:
-                prefix = "audiobook created, " if created else ""
-                self.message_user(
-                    request,
-                    f"{novel}: {prefix}part {part.index} queued ({part.word_count} words).",
-                    level=messages.SUCCESS,
-                )
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}

@@ -315,20 +315,6 @@ def consolidate_source_views():
         lambda: call_command('consolidate_source_views'),
     )
 
-# Top up the popular-source refresh queue. Runs often but queues at most one job
-# per tick and skips sources refreshed in the last 6 days, so each source ends up
-# updated about weekly while the batch always stays on a single crawler thread
-# (even with several crawler replicas).
-@scheduler.register_task(interval=HOUR, name="update_popular_sources")  # hourly
-def update_popular_sources():
-    """Queue the next update for the most popular sources."""
-    _run_job(
-        "Queueing next popular source update...",
-        "Popular source update queue check completed",
-        "Error queueing popular source update: {error}",
-        lambda: call_command('update_popular_sources', top=20),
-    )
-
 # Progressively prune orphan novels, empty sources and dead-source duplicates.
 # Bounded --limit per run so a 40k-novel first pass spreads over many runs.
 @scheduler.register_task(interval=600, name="prune_library")

@@ -17,7 +17,6 @@ from ..models import (
     Audiobook,
     AudiobookChapter,
     AudiobookPart,
-    AudiobookWorker,
     Chapter,
     ExternalSource,
     NovelFromSource,
@@ -554,36 +553,6 @@ class PartOperationTests(AudiobookBase):
 
         self.assertEqual((part.index, part.chapter_start, part.chapter_end), (1, 1, 1))
 
-    def test_retry_part(self):
-        part = self.make_part(
-            self.audiobook,
-            status="failed",
-            attempts=3,
-            error_message="boom",
-            worker_id="w1",
-            claimed_at=timezone.now(),
-        )
-
-        svc.retry_part(part)
-
-        part.refresh_from_db()
-        self.assertEqual(part.status, "queued")
-        self.assertEqual(part.attempts, 0)
-        self.assertEqual(part.error_message, "")
-        self.assertEqual(part.worker_id, "")
-        self.assertIsNone(part.claimed_at)
-
-    def test_regenerate_part(self):
-        part = self.make_part(self.audiobook, status="done", qa_passed=True, attempts=2)
-
-        svc.regenerate_part(part)
-
-        part.refresh_from_db()
-        self.assertEqual(part.status, "queued")
-        self.assertEqual(part.priority, 100)
-        self.assertIsNone(part.qa_passed)
-        self.assertEqual(part.attempts, 0)
-
 
 class DeleteAudioFilesSafetyTests(AudiobookBase):
     def setUp(self):
@@ -735,28 +704,14 @@ class AudiobookAdminTests(AudiobookBase):
         self.add_chapters(self.source, [400, 400, 300])
         self.audiobook = self.make_audiobook(self.source)
 
-    def test_changelist_and_dashboard(self):
-        AudiobookWorker.objects.create(worker_id="w1", last_seen_at=timezone.now())
+    def test_changelist_and_part_page(self):
         part = self.make_part(self.audiobook, status="done", completed_at=timezone.now(), duration_s=3600)
 
         changelist = self.client.get(reverse("admin:lncrawler_api_audiobook_changelist"))
-        dashboard = self.client.get(reverse("admin:lncrawler_api_audiobook_dashboard"))
         part_page = self.client.get(reverse("admin:lncrawler_api_audiobookpart_change", args=[part.pk]))
 
         self.assertEqual(changelist.status_code, 200)
-        self.assertEqual(dashboard.status_code, 200)
         self.assertEqual(part_page.status_code, 200)
-
-    def test_generate_audiobook_action_on_novel(self):
-        url = reverse("admin:lncrawler_api_novel_changelist")
-
-        response = self.client.post(url, {"action": "generate_audiobook", "_selected_action": [self.novel.pk]})
-
-        self.assertEqual(response.status_code, 302)
-        audiobook = Audiobook.objects.get(novel=self.novel)
-        part = audiobook.parts.get()
-        self.assertEqual(part.index, 1)
-        self.assertEqual(part.priority, 100)
 
     def test_mark_dmca_leaves_existing_audiobooks_alone(self):
         self.client.post(
@@ -769,20 +724,3 @@ class AudiobookAdminTests(AudiobookBase):
         self.assertTrue(self.novel.is_dmca)
         self.assertEqual(self.audiobook.status, "active")
 
-    def test_delete_audio_files_confirmation_page_and_apply(self):
-        url = reverse("admin:lncrawler_api_audiobook_changelist")
-        audio = svc.audio_dir(self.source)
-        os.makedirs(audio, exist_ok=True)
-        (audio / "00001.ogg").write_bytes(b"x" * 10)
-        selected = {"action": "delete_audio_files", "_selected_action": [self.audiobook.pk]}
-
-        page = self.client.post(url, selected)
-        self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "Confirm: delete audio files")
-        self.assertTrue(audio.exists())
-
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(url, {**selected, "apply": "Confirm"})
-
-        self.assertEqual(response.status_code, 302)
-        self.assertFalse(audio.exists())

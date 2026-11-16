@@ -332,30 +332,6 @@ def follow_source(source):
     return moved
 
 
-def _clear_claim(part):
-    part.worker_id = ''
-    part.claimed_at = None
-
-
-def retry_part(part):
-    """Put a failed part back in the queue with its attempts reset."""
-    part.status = 'queued'
-    part.attempts = 0
-    part.error_message = ''
-    _clear_claim(part)
-    part.save()
-
-
-def regenerate_part(part, priority=100):
-    """Queue a finished, stale or failed part again. Its files stay until the new upload replaces them."""
-    part.status = 'queued'
-    part.priority = priority
-    _clear_claim(part)
-    part.attempts = 0
-    part.qa_passed = None
-    part.save()
-
-
 def audio_disk_usage_bytes():
     """Total size of the audio files of all audiobooks."""
     return Audiobook.objects.aggregate(total=Sum('total_size_bytes'))['total'] or 0

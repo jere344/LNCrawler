@@ -749,7 +749,10 @@ class CompleteTests(WorkerBase):
         old_dir = Path(svc.audio_dir(self.source)) / 'part-001' / 'g1'
         self.assertTrue(old_dir.is_dir())
 
-        svc.regenerate_part(AudiobookPart.objects.get(pk=self.part.pk))
+        # Queue the finished part again, as a regeneration does.
+        AudiobookPart.objects.filter(pk=self.part.pk).update(
+            status='queued', priority=100, worker_id='', claimed_at=None, attempts=0, qa_passed=None,
+        )
         response = self.call('post', self.claim_url(), data={'worker_id': WORKER}, worker_id=None)
         self.assertEqual(response.status_code, 200)
         self.part.refresh_from_db()
@@ -890,39 +893,6 @@ class HousekeepingLeftoverTests(WorkerBase):
         self.assertFalse((part_dir / 'g0').exists())
         self.assertFalse((part_dir / 'g3').exists())
         self.assertTrue(os.path.isdir(part_dir / 'g4'))
-
-
-class CreateWorkerCommandTests(TestCase):
-    def test_create_is_idempotent_and_rotate_changes_the_token(self):
-        out = StringIO()
-        call_command('create_audiobook_worker', 'bot', stdout=out)
-        first = Token.objects.get(user__username='bot').key
-        self.assertIn(first, out.getvalue())
-
-        call_command('create_audiobook_worker', 'bot', stdout=StringIO())
-        self.assertEqual(Token.objects.get(user__username='bot').key, first)
-        self.assertEqual(get_user_model().objects.filter(username='bot').count(), 1)
-
-        user = get_user_model().objects.get(username='bot')
-        self.assertFalse(user.has_usable_password())
-        self.assertTrue(user.groups.filter(name=WORKER_GROUP).exists())
-
-        call_command('create_audiobook_worker', 'bot', rotate=True, stdout=StringIO())
-        second = Token.objects.get(user__username='bot').key
-        self.assertNotEqual(first, second)
-        self.assertFalse(Token.objects.filter(key=first).exists())
-
-    def test_rerun_without_rotate_keeps_the_token_and_does_not_print_it(self):
-        call_command('create_audiobook_worker', 'bot', stdout=StringIO())
-        key = Token.objects.get(user__username='bot').key
-
-        out = StringIO()
-        call_command('create_audiobook_worker', 'bot', stdout=out)
-
-        self.assertIn('token unchanged', out.getvalue())
-        self.assertNotIn('Token:', out.getvalue())
-        self.assertNotIn(key, out.getvalue())
-        self.assertEqual(Token.objects.get(user__username='bot').key, key)
 
 
 class FakeWorkerGuardTests(TestCase):

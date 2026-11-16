@@ -1,5 +1,5 @@
 """Audiobooks phase 4: the cover, the tags of the chapter files, the .m4b builds, the cache and its pruning,
-the .m4b jobs, and the admin download and actions."""
+and the .m4b jobs."""
 
 import hashlib
 import io
@@ -10,7 +10,6 @@ import subprocess
 import time
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import override_settings
 from django.urls import reverse
@@ -534,7 +533,6 @@ class PruneTests(ListenableBase):
         self.assertFalse(os.path.exists(opus))
         self.assertTrue(os.path.exists(aac))
         self.assertEqual(result, {'removed': 1, 'freed_bytes': 1500, 'cache_bytes': 1500})
-        self.assertEqual(audiobook_m4b.m4b_cache_bytes(), 1500)
 
     def test_stray_tmp_files_are_removed_after_a_day(self):
         old = self.cache_file('part-001-g1-opus-0123456789.m4b.tmp', age=2 * 24 * HOUR)
@@ -569,55 +567,3 @@ class PruneTests(ListenableBase):
 
         self.assertFalse(os.path.exists(old_scheme))
         self.assertTrue(os.path.exists(young_scheme))
-
-
-class AdminM4bTests(ListenableBase):
-    def setUp(self):
-        super().setUp()
-        self.admin_user = get_user_model().objects.create_superuser("audio-admin", "audio@example.com", "pw")
-        self.client.force_login(self.admin_user)
-
-    def m4b_url(self, fmt):
-        return reverse('admin:lncrawler_api_audiobookpart_m4b', args=[self.part.pk, fmt])
-
-    def test_download_enqueues_then_serves_the_cached_file(self):
-        response = self.client.get(self.m4b_url('opus'))
-
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(Job.objects.filter(query=m4b_job_key(self.part.pk, 'opus')).count(), 1)
-
-        audiobook_m4b.build_m4b(self.part, 'opus')
-        response = self.client.get(self.m4b_url('opus'))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('attachment', response['Content-Disposition'])
-        self.assertIn(audiobook_m4b.download_filename(self.part), response['Content-Disposition'])
-
-    def test_non_staff_users_are_denied(self):
-        self.client.logout()
-        reader = get_user_model().objects.create_user("reader", "reader@example.com", "pw")
-        self.client.force_login(reader)
-
-        response = self.client.get(self.m4b_url('opus'))
-
-        self.assertEqual(response.status_code, 302)
-        self.assertIn('login', response['Location'])
-        self.assertEqual(Job.objects.filter(job_type=Job.JOB_TYPE_M4B).count(), 0)
-
-    def test_rebuild_cover_action(self):
-        url = reverse('admin:lncrawler_api_audiobook_changelist')
-
-        self.client.post(url, {'action': 'rebuild_cover', '_selected_action': [self.audiobook.pk]})
-
-        self.audiobook.refresh_from_db()
-        self.assertTrue(self.audiobook.cover_path.endswith('cover.jpg'))
-
-    def test_retag_files_action(self):
-        self.audiobook.tags_hash = ''
-        self.audiobook.save(update_fields=['tags_hash'])
-        url = reverse('admin:lncrawler_api_audiobook_changelist')
-
-        self.client.post(url, {'action': 'retag_files', '_selected_action': [self.audiobook.pk]})
-
-        self.audiobook.refresh_from_db()
-        self.assertEqual(self.audiobook.tags_hash, audiobook_media.compute_tags_hash(self.audiobook))

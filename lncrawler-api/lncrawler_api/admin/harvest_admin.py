@@ -13,7 +13,6 @@ class HarvestConfigAdmin(admin.ModelAdmin):
     list_display = ("enabled", "max_concurrent", "muted_count", "last_harvest_at", "updated_at")
     readonly_fields = ("last_harvest_at", "updated_at")
     fields = ("enabled", "max_concurrent", "muted_sources", "last_harvest_at", "updated_at")
-    actions = ("enable_harvest", "disable_harvest")
 
     def has_add_permission(self, request):
         return not HarvestConfig.objects.exists()
@@ -24,16 +23,6 @@ class HarvestConfigAdmin(admin.ModelAdmin):
     @admin.display(description="Muted sources")
     def muted_count(self, obj):
         return len(obj.muted_sources or [])
-
-    @admin.action(description="Enable harvest (start feeding)")
-    def enable_harvest(self, request, queryset):
-        HarvestConfig.objects.update(enabled=True)
-        self.message_user(request, "Harvest enabled.")
-
-    @admin.action(description="Disable harvest (stop feeding)")
-    def disable_harvest(self, request, queryset):
-        HarvestConfig.objects.update(enabled=False)
-        self.message_user(request, "Harvest disabled.")
 
 
 @admin.register(HarvestCandidate)

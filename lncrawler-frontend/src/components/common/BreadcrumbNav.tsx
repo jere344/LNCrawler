@@ -20,9 +20,11 @@ const MIDDLE_MAX_WIDTH = { xs: '8rem', sm: '14rem' };
 
 interface BreadcrumbNavProps {
   items: BreadcrumbItem[];
+  // Mobile only: wrap onto two lines in a box that is always two lines tall, so the row's height never depends on the labels
+  twoLinesOnMobile?: boolean;
 }
 
-const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items }) => {
+const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items, twoLinesOnMobile }) => {
   const { t } = useTranslation();
   return (
     <Box sx={{ mb: 3, mt: 1 }}>
@@ -30,7 +32,9 @@ const BreadcrumbNav: React.FC<BreadcrumbNavProps> = ({ items }) => {
         separator={<NavigateNextIcon fontSize="small" />} 
         aria-label={t('common.breadcrumb')}
         sx={{
-          '& .MuiBreadcrumbs-ol': { flexWrap: 'nowrap' },
+          '& .MuiBreadcrumbs-ol': twoLinesOnMobile
+            ? { flexWrap: { xs: 'wrap', md: 'nowrap' }, height: { xs: '3em', md: 'auto' }, overflow: { xs: 'hidden', md: 'visible' }, alignContent: 'flex-start' }
+            : { flexWrap: 'nowrap' },
           '& .MuiBreadcrumbs-li': { minWidth: 0 },
           '& .MuiBreadcrumbs-separator': { flexShrink: 0 },
         }}

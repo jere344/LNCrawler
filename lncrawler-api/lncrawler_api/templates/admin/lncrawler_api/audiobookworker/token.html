@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:lncrawler_api_audiobookworker_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+  {% if tokens %}
+    <div class="module" style="padding:12px; margin-bottom:16px;">
+      <p><strong>Copy the tokens now. They are shown once and cannot be read again.</strong></p>
+      {% for username, token in tokens.items %}
+        <p>Token of <strong>{{ username }}</strong>:</p>
+        <code style="display:block; padding:8px; margin-bottom:12px; background:#f8f8f8; border:1px solid #ddd; user-select:all;">{{ token }}</code>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post">{% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Create token" class="default">
+  </form>
+
+</div>
+{% endblock %}

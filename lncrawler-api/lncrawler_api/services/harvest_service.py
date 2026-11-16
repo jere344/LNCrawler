@@ -1,6 +1,6 @@
 """Background harvest feeder: discover novels, queue downloads, track results.
 
-The feeder is a long-running process (``manage.py run_harvest``) that owns a
+The feeder runs as a thread of the scheduler process (``manage.py run_scheduler``) and owns a
 singleton PostgreSQL advisory lock. Each loop it:
 
 1. reconciles queued candidates with their Job's terminal status,
@@ -215,7 +215,14 @@ def tick(config=None) -> None:
         logger.info("Harvest: reconciled %s candidate(s)", touched)
 
     if should_scan(config):
-        run_scan_subprocess()
+        # Same lock as the admin "Run scan now": never two scans at once.
+        if not acquire_scan_lock():
+            logger.info("Harvest: a scan is already running, skipping this one")
+            return
+        try:
+            run_scan_subprocess()
+        finally:
+            release_scan_lock()
         # Record the attempt even when the scan failed, so a broken scan is
         # retried after the normal cooldown instead of every tick.
         config.refresh_from_db()
@@ -227,8 +234,8 @@ def tick(config=None) -> None:
         logger.info("Harvest: queued %s download(s)", enqueued)
 
 
-def run_feeder(stop_event, interval=None, once=False) -> None:
-    """Feeder loop, run in a thread (scheduler) or standalone (`run_harvest`).
+def run_feeder(stop_event, interval=None) -> None:
+    """Feeder loop, run in a thread of the scheduler process (``run_scheduler``).
 
     ``stop_event`` is a ``threading.Event``; the loop exits promptly when set.
     """
@@ -251,8 +258,6 @@ def run_feeder(stop_event, interval=None, once=False) -> None:
                     # a stray replica does not restart-loop under
                     # `restart: unless-stopped`.
                     logger.info("Harvest lock held elsewhere; retrying in %ss", interval)
-                    if once:
-                        return
                     stop_event.wait(interval)
                     continue
                 try:
@@ -265,8 +270,6 @@ def run_feeder(stop_event, interval=None, once=False) -> None:
                 # swallowed and retried next iteration rather than kill the
                 # thread — which would silently disable harvest.
                 logger.exception("Harvest feeder tick failed")
-            if once:
-                return
             stop_event.wait(interval)
     finally:
         from django.db import connection
@@ -290,5 +293,24 @@ def release_feeder_lock():
     try:
         with connection.cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(hashtext('lncrawler_harvest_feeder'))")
+    except Exception:
+        pass
+
+
+def acquire_scan_lock() -> bool:
+    """Try to become the only manual scan across all API workers. Session-level advisory lock."""
+    from django.db import connection
+
+    with connection.cursor() as cur:
+        cur.execute("SELECT pg_try_advisory_lock(hashtext('lncrawler_harvest_scan'))")
+        return bool(cur.fetchone()[0])
+
+
+def release_scan_lock():
+    from django.db import connection
+
+    try:
+        with connection.cursor() as cur:
+            cur.execute("SELECT pg_advisory_unlock(hashtext('lncrawler_harvest_scan'))")
     except Exception:
         pass

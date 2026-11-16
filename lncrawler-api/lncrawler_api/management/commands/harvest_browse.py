@@ -1,6 +1,6 @@
 """One browse scan: discover novels and record them as harvest candidates.
 
-Runs in a short-lived subprocess spawned by ``run_harvest`` so lncrawl's memory
+Runs in a short-lived subprocess spawned by the harvest feeder so lncrawl's memory
 is released on exit. Each browse-capable source's ``browse_novels(offset, limit)``
 is called concurrently and the results are upserted into ``HarvestCandidate``.
 

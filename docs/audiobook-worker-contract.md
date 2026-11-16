@@ -12,7 +12,7 @@ Neither side relies on anything outside this file. Version: `v1`, sent by the wo
 - **Token:** every call sends `Authorization: Token <token>`. The token belongs to a Django user in the `audiobook_workers` group, and the admin creates and revokes it.
 - **Who calls whom:** all calls go from the worker to prod over HTTPS. Prod never calls the worker.
 - **Base URL:** `<LNCRAWLER_URL>/api/audiobook-worker/`.
-- **Worker id:** `claim` and `ping` carry `worker_id` in the body. Every other call sends it as the `X-Worker-Id` header (400 if missing). A worker id belongs to the account that first used it: the same id from another token gets `403` on `claim`/`ping` and `409` on part calls. Get a token with `manage.py create_audiobook_worker <username>` on prod.
+- **Worker id:** `claim` and `ping` carry `worker_id` in the body. Every other call sends it as the `X-Worker-Id` header (400 if missing). A worker id belongs to the account that first used it: the same id from another token gets `403` on `claim`/`ping` and `409` on part calls. Get a token from Django admin > Audiobook workers > "New worker token" on prod.
 - **Bodies:** JSON objects only. Booleans (`retryable`, `available`) must be real JSON booleans, and `progress` a number; anything else is `400`.
 
 ## Endpoints

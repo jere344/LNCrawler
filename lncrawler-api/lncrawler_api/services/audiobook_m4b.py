@@ -304,16 +304,6 @@ def _current_names(audiobook):
     }
 
 
-def m4b_cache_bytes():
-    """Total size of the .m4b files in the caches."""
-    total = 0
-    for _audiobook, folder in _cache_dirs():
-        for entry in os.scandir(folder):
-            if entry.is_file() and entry.name.endswith('.m4b'):
-                total += entry.stat().st_size
-    return total
-
-
 def prune_m4b_cache(keep=None):
     """Delete the .m4b files no part uses any more, then the least recently used until the cache is under
     AUDIOBOOK_M4B_CACHE_GB. ``keep`` and files modified in the last 10 minutes are never deleted. A name that does

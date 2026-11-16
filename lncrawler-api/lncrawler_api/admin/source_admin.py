@@ -3,6 +3,7 @@ from django.contrib import admin, messages
 from django.contrib.admin.widgets import AutocompleteSelect
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Count
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
@@ -23,7 +24,6 @@ from ..services.folder_guard import BUSY_MESSAGE, FolderBusy
 from ..services.novel_deletion import after_source_deleted
 from ..services.novel_operations import FileOperationError, file_journal
 from ..services.author_block_service import block_authors, unblock_authors
-from ..services.author_merge_service import merge_authors, pick_target
 from ..services.merge_service import MergeError, merge_tags, rename_tag
 from ..utils.tag_utils import normalize_tag
 from django.utils.html import format_html
@@ -35,16 +35,34 @@ from .perf import CappedCountPaginator
 TAG_AUTOCOMPLETE_FIELD = TagAlias._meta.get_field("tag")
 
 
+class DeletedAuthorFilter(admin.SimpleListFilter):
+    """The soft-delete flag of an author, under the label "Deleted"."""
+
+    title = "Deleted"
+    parameter_name = "is_blocked"
+
+    def lookups(self, request, model_admin):
+        return (("1", "Deleted"), ("0", "Active"))
+
+    def queryset(self, request, queryset):
+        if self.value() in ("0", "1"):
+            return queryset.filter(is_blocked=self.value() == "1")
+        return queryset
+
+
 # Register all novel-related models
 @admin.register(Author)
 class AuthorAdmin(admin.ModelAdmin):
-    list_display = ("name", "is_blocked")
-    list_filter = ("is_blocked",)
+    list_display = ("name", "deleted")
+    list_filter = (DeletedAuthorFilter,)
     search_fields = ("name",)
-    actions = ["merge_into_most_used", "block_selected", "unblock_selected"]
+    actions = ["soft_delete_selected", "restore_selected"]
 
     def get_queryset(self, request):
-        # Blocked authors stay listed here, so they can be unblocked.
+        # The autocomplete of other forms only offers the visible authors, as their form fields accept.
+        if request.resolver_match and request.resolver_match.url_name == "autocomplete":
+            return super().get_queryset(request)
+        # Soft-deleted authors stay listed here, so they can be restored.
         qs = self.model.all_objects.get_queryset()
         ordering = self.get_ordering(request)
         if ordering:
@@ -52,48 +70,29 @@ class AuthorAdmin(admin.ModelAdmin):
         return qs
 
     def has_delete_permission(self, request, obj=None):
-        # Blocking replaces deletion: a real delete lets the next import recreate the author.
+        # Soft delete replaces deletion: a real delete lets the next import recreate the author.
         return False
 
-    @admin.action(description="Block selected authors")
-    def block_selected(self, request, queryset):
+    @admin.display(boolean=True, description="Deleted")
+    def deleted(self, obj):
+        return obj.is_blocked
+
+    @admin.action(description="Soft delete selected authors")
+    def soft_delete_selected(self, request, queryset):
         count = block_authors(list(queryset.values_list("pk", flat=True)))
         self.message_user(
             request,
-            f"Blocked {count} author(s): they were removed from their sources, which are kept.",
+            f"Soft-deleted {count} author(s): removed from their sources, kept so imports don't recreate them.",
             messages.SUCCESS,
         )
 
-    @admin.action(description="Unblock selected authors")
-    def unblock_selected(self, request, queryset):
+    @admin.action(description="Restore selected authors")
+    def restore_selected(self, request, queryset):
         count = unblock_authors(list(queryset.values_list("pk", flat=True)))
         self.message_user(
             request,
-            f"Unblocked {count} author(s). Their source links come back on re-import.",
+            f"Restored {count} author(s). Their source links come back on re-import.",
             messages.SUCCESS,
-        )
-
-    @admin.action(description="Merge selected into the most-used author")
-    def merge_into_most_used(self, request, queryset):
-        authors = list(queryset.order_by("pk"))
-        if len(authors) < 2:
-            self.message_user(request, "Select at least two authors.", messages.WARNING)
-            return
-        target = authors[0]
-        for other in authors[1:]:
-            target = pick_target(target, other)
-        merged = 0
-        for source in authors:
-            if source.pk == target.pk:
-                continue
-            try:
-                merge_authors(source, target)
-            except MergeError as exc:
-                self.message_user(request, f"'{source.name}': {exc}", messages.ERROR)
-            else:
-                merged += 1
-        self.message_user(
-            request, f"Merged {merged} author(s) into '{target.name}'.", messages.SUCCESS
         )
 
 
@@ -204,10 +203,14 @@ class TagAdmin(admin.ModelAdmin):
     def unmark_r18(self, request, queryset):
         self._set_r18(request, queryset, is_adult=False)
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(source_count=Count("novels"))
+
     def source_count(self, obj):
-        return obj.novels.count()
+        return obj.source_count
 
     source_count.short_description = "Novel From Source Count"
+    source_count.admin_order_field = "source_count"
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
@@ -341,6 +344,7 @@ class NovelFromSourceAdmin(admin.ModelAdmin):
         "is_adult",
     )
     raw_id_fields = ("novel",)
+    autocomplete_fields = ("external_source", "authors", "editors", "translators", "tags")
     inlines = [SourceVoteInline]  # Removed ChapterInline
     paginator = CappedCountPaginator
     list_select_related = ("external_source", "novel")

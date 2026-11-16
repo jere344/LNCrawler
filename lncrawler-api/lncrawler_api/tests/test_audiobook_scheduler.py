@@ -5,10 +5,8 @@ import os
 from datetime import timedelta
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import override_settings
-from django.urls import reverse
 from django.utils import timezone
 
 from ..models import (
@@ -18,7 +16,6 @@ from ..models import (
     ExternalSource,
     Novel,
     NovelFromSource,
-    ScheduledTask,
 )
 from ..services import audiobook_scheduler as sched
 from ..services import audiobook_service as svc
@@ -553,20 +550,3 @@ class HousekeepingTests(SchedulerBase):
         part.refresh_from_db()
         self.assertEqual(part.status, 'done')
         self.assertIsNone(part.checked_at)
-
-
-class DashboardTests(SchedulerBase):
-    def test_dashboard_renders_with_the_new_fields(self):
-        admin_user = get_user_model().objects.create_superuser("sched-admin", "sched@example.com", "pw")
-        self.client.force_login(admin_user)
-        ScheduledTask.objects.create(
-            name='audiobook_housekeeping', interval_seconds=3600, next_run_at=timezone.now() + timedelta(hours=1),
-        )
-
-        response = self.client.get(reverse("admin:lncrawler_api_audiobook_dashboard"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'audiobook_housekeeping')
-        self.assertContains(response, 'Queued words:')
-        self.assertContains(response, 'Started books in rotation')
-        self.assertNotContains(response, 'enqueue_audiobooks')

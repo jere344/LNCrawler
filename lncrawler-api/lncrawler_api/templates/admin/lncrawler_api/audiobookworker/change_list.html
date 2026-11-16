@@ -3,7 +3,7 @@
 
 {% block object-tools-items %}
   <li>
-    <a href="{{ management_url }}" class="addlink">Maintenance</a>
+    <a href="{% url 'admin:lncrawler_api_audiobookworker_token' %}" class="addlink">New worker token</a>
   </li>
   {{ block.super }}
 {% endblock %}

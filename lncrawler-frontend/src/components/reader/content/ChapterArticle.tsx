@@ -145,6 +145,7 @@ const ChapterArticle = ({
           {/* Breadcrumbs on every viewport; the gutter keeps them off the screen edge on mobile */}
           <Box sx={{ px: { xs: 2, md: 0 } }}>
             <BreadcrumbNav
+              twoLinesOnMobile
               items={[
                 {
                   label: chapter.novel_title,

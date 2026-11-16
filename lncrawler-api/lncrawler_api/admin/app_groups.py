@@ -1,46 +1,51 @@
 from django.contrib import admin
 from django.utils.text import slugify
 
-# Sidebar/dashboard categories for the single lncrawler_api app. All models live
-# in one Django app, so by default they show up as one huge list. We regroup the
+# Sidebar/dashboard categories. All models live in the lncrawler_api app (CustomUser
+# lives in auth_app), so by default they show up as one huge list. We regroup the
 # app list into fake "apps" (categories) without moving any model.
-# Add a model name to a group to place it; anything unlisted stays under the
-# original lncrawler_api app.
+# Add a model's object_name to a group to place it, from any app; anything unlisted
+# stays under its original app block, after the groups.
 APP_GROUPS = [
+    ("Operations", ["HarvestConfig", "HarvestCandidate", "Job"]),
+    ("Review", ["Candidate", "LLMCall"]),
     (
-        "Novels",
+        "Library",
         [
-            "Novel",
-            "Candidate",
-            "NovelAlias",
-            "NovelSimilarity",
-            "NovelRating",
-            "WeeklySourceView",
+            "Novel", "NovelAlias", "NovelFromSource", "Chapter", "Volume",
+            "ExternalSource", "PlaceholderCover",
         ],
     ),
-    ("Chapters & Volumes", ["Chapter", "Volume"]),
     (
-        "Authors, Tags & Translators",
-        [
-            "Author", "AuthorAlias",
-            "Editor", "Translator", "Tag", "TagAlias",
-        ],
+        "People & Tags",
+        ["Author", "AuthorAlias", "Editor", "Translator", "Tag", "TagAlias"],
     ),
-    ("Sources", ["ExternalSource", "NovelFromSource", "PlaceholderCover", "SourceVote"]),
     (
         "Community",
-        ["Review", "ReviewReaction", "Comment", "CommentVote", "ChatMessage"],
+        [
+            "CustomUser", "Comment", "CommentVote", "Review", "ReviewReaction",
+            "ChatMessage", "SourceVote", "Friendship", "ProfilePinnedNovel",
+        ],
     ),
-    ("Profiles & Social", ["Friendship", "ProfilePinnedNovel"]),
-    ("Harvesting", ["HarvestCandidate", "HarvestConfig"]),
-    ("Jobs & Scheduler", ["Job", "ScheduledTask", "LLMCall"]),
     (
         "Audiobooks",
-        ["Audiobook", "AudiobookPart", "AudiobookWorker", "ListeningProgress", "AudiobookDailyStat"],
+        [
+            "Audiobook", "AudiobookPart", "AudiobookWorker", "ListeningProgress",
+            "AudiobookDailyStat",
+        ],
     ),
+    ("Stats", ["NovelRating", "WeeklySourceView", "NovelSimilarity"]),
 ]
 
+# Sidebar labels that differ from the model's verbose name.
+DISPLAY_NAMES = {
+    "CustomUser": "Users",
+}
+
 _GROUP_OF = {model: name for name, models in APP_GROUPS for model in models}
+_POSITION_IN_GROUP = {
+    model: position for _name, models in APP_GROUPS for position, model in enumerate(models)
+}
 
 _original_get_app_list = admin.site.get_app_list
 
@@ -56,16 +61,14 @@ def _grouped_get_app_list(request, app_label=None):
     grouped = {}
     rest = []
     for app in app_list:
-        if app["app_label"] != "lncrawler_api":
-            rest.append(app)
-            continue
         leftover = []
         for model in app["models"]:
             name = _GROUP_OF.get(model["object_name"])
             if name is None:
                 leftover.append(model)
             else:
-                grouped.setdefault(name, []).append(model)
+                label = DISPLAY_NAMES.get(model["object_name"], model["name"])
+                grouped.setdefault(name, []).append({**model, "name": label})
         if leftover:
             rest.append({**app, "models": leftover})
 
@@ -74,6 +77,7 @@ def _grouped_get_app_list(request, app_label=None):
         models = grouped.get(name)
         if not models:
             continue
+        models.sort(key=lambda model: _POSITION_IN_GROUP[model["object_name"]])
         app_url = next((m["admin_url"] for m in models if m["admin_url"]), "")
         result.append(
             {

@@ -11,6 +11,6 @@ class AdminGroupingTests(TestCase):
         request.user = user
 
         labels = [app["app_label"] for app in admin.site.get_app_list(request)]
-        self.assertIn("novels", labels)
+        self.assertIn("library", labels)
         self.assertIn("community", labels)
         self.assertNotIn("lncrawler_api", labels)

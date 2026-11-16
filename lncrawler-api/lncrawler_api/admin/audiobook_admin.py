@@ -1,17 +1,13 @@
 import json
-from datetime import timedelta
 from urllib.parse import quote
 
-from django.conf import settings
+from django import forms
 from django.contrib import admin, messages
-from django.core.exceptions import PermissionDenied
+from django.contrib.auth import get_user_model
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
-from django.db.models.functions import TruncDate
-from django.http import FileResponse, Http404
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.urls import path, reverse
-from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from ..models import (
@@ -20,70 +16,24 @@ from ..models import (
     AudiobookDailyStat,
     AudiobookPart,
     AudiobookWorker,
-    Job,
     ListeningProgress,
-    ScheduledTask,
 )
-from ..services import audiobook_cover, audiobook_m4b, audiobook_media, audiobook_service
-from .actions import update_action
+from ..services import audiobook_cover
+from ..services.audiobook_worker_auth import WORKER_GROUP, ensure_worker_token
 
 MB = 1024 * 1024
-GB = 1024 * MB
+
+# New worker tokens travel from the request that makes them to the page that shows them, in the session:
+# never in a message (the messages cookie is not encrypted) nor in a URL. The token page pops them on its
+# first GET, so a reload shows nothing and rotates nothing.
+WORKER_TOKENS_SESSION_KEY = "audiobook_worker_tokens_once"
 
 
-def _dashboard_context(request):
-    now = timezone.now()
-    week_ago = now - timedelta(days=7)
-    done_week = AudiobookPart.objects.filter(status='done', completed_at__gte=week_ago)
-
-    queue_counts = {
-        row['status']: row['n']
-        for row in AudiobookPart.objects.values('status').annotate(n=Count('id'))
-    }
-    queued_words = AudiobookPart.objects.filter(status='queued').aggregate(words=Sum('word_count'))['words'] or 0
-
-    per_day = [
-        {
-            'day': row['day'],
-            'parts': row['parts'],
-            'hours': (row['hours'] or 0) / 3600,
-            'words': row['words'] or 0,
-        }
-        for row in done_week
-        .annotate(day=TruncDate('completed_at'))
-        .values('day')
-        .annotate(parts=Count('id'), hours=Sum('duration_s'), words=Sum('word_count'))
-        .order_by('day')
-    ]
-
-    used = audiobook_service.audio_disk_usage_bytes()
-    budget = settings.AUDIOBOOK_DISK_BUDGET_GB * GB
-    stats = AudiobookDailyStat.objects.filter(date__gte=(now - timedelta(days=30)).date()).aggregate(
-        plays=Sum('plays'),
-        downloads=Sum('downloads'),
-    )
-
-    return {
-        **admin.site.each_context(request),
-        'title': 'Audiobooks dashboard',
-        'enabled': settings.AUDIOBOOK_ENABLED,
-        'workers': AudiobookWorker.objects.order_by('-last_seen_at'),
-        'queue': [(status, label, queue_counts.get(status, 0)) for status, label in AudiobookPart.STATUS_CHOICES],
-        'queued_words': queued_words,
-        'started_books': Audiobook.objects.filter(status='active', parts__isnull=False).distinct().count(),
-        'scheduled_tasks': ScheduledTask.objects.filter(name__in=['audiobook_housekeeping']).order_by('name'),
-        'per_day': per_day,
-        'failed_parts': AudiobookPart.objects.filter(status='failed').select_related('audiobook__novel', 'audiobook__source').order_by(
-            F('claimed_at').desc(nulls_last=True), '-created_at'
-        )[:10],
-        'disk_used_gb': used / GB,
-        'disk_budget_gb': settings.AUDIOBOOK_DISK_BUDGET_GB,
-        'disk_percent': used / budget * 100 if budget else 0,
-        'plays_30d': stats['plays'] or 0,
-        'downloads_30d': stats['downloads'] or 0,
-        'm4b_cache_gb': audiobook_m4b.m4b_cache_bytes() / GB,
-        'm4b_cap_gb': settings.AUDIOBOOK_M4B_CACHE_GB,
-    }
+def _store_worker_tokens(request, tokens):
+    """Queue {username: token} for the next GET of the token page."""
+    pending = request.session.get(WORKER_TOKENS_SESSION_KEY, {})
+    pending.update(tokens)
+    request.session[WORKER_TOKENS_SESSION_KEY] = pending
 
 
 def _json_text(value):
@@ -117,7 +67,6 @@ class AudiobookAdmin(admin.ModelAdmin):
         'novel',
         'source',
         'status',
-        'parts_summary',
         'hours',
         'size_mb',
         'worker_id',
@@ -138,32 +87,16 @@ class AudiobookAdmin(admin.ModelAdmin):
         'updated_at',
     )
     inlines = [AudiobookPartInline]
-    change_list_template = "admin/lncrawler_api/audiobook/change_list.html"
-    actions = [
-        'pause',
-        'resume',
-        'delete_audio_files',
-        'unpin_worker',
-        'rebuild_cover',
-        'retag_files',
-    ]
+    actions = ['unpin_worker']
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('novel', 'source__external_source', 'source__novel').annotate(
-            done_count=Count('parts', filter=Q(parts__status='done')),
-            queued_count=Count('parts', filter=Q(parts__status='queued')),
-            failed_count=Count('parts', filter=Q(parts__status='failed')),
-        )
+        return super().get_queryset(request).select_related('novel', 'source__external_source', 'source__novel')
 
     def get_readonly_fields(self, request, obj=None):
         fields = super().get_readonly_fields(request, obj)
         if obj is not None:
             fields = (*fields, 'novel', 'source')
         return fields
-
-    def parts_summary(self, obj):
-        return f"{obj.done_count} / {obj.queued_count} / {obj.failed_count}"
-    parts_summary.short_description = 'Parts done / queued / failed'
 
     def hours(self, obj):
         return f"{obj.total_duration_s / 3600:.1f}"
@@ -180,55 +113,6 @@ class AudiobookAdmin(admin.ModelAdmin):
         return format_html('<img src="/lightnovels/{}" width="80" height="80" alt="">', path)
     cover_thumb.short_description = 'Cover'
 
-    @admin.action(description="Rebuild the cover of selected audiobooks")
-    def rebuild_cover(self, request, queryset):
-        built = 0
-        for audiobook in queryset.select_related('novel', 'source'):
-            try:
-                audiobook_cover.build_cover(audiobook)
-                built += 1
-            except Exception as exc:
-                self.message_user(request, f"{audiobook}: cover not built ({exc}).", level=messages.ERROR)
-        self.message_user(request, f"{built} cover(s) rebuilt.")
-
-    @admin.action(description="Retag the files of selected audiobooks")
-    def retag_files(self, request, queryset):
-        files = 0
-        for audiobook in queryset.select_related('novel', 'source'):
-            try:
-                files += audiobook_media.retag_audiobook(audiobook)
-            except Exception as exc:
-                self.message_user(request, f"{audiobook}: files not retagged ({exc}).", level=messages.ERROR)
-        self.message_user(request, f"{files} file(s) retagged.")
-
-    pause = update_action(
-        "Pause selected audiobooks", "{} audiobook(s) paused.", status='paused',
-    )
-    resume = update_action(
-        "Resume selected audiobooks", "{} audiobook(s) resumed.", status='active',
-    )
-
-    @admin.action(description="Delete audio files of selected audiobooks")
-    def delete_audio_files(self, request, queryset):
-        if "apply" not in request.POST:
-            context = {
-                **self.admin_site.each_context(request),
-                'title': 'Delete audio files',
-                'opts': self.model._meta,
-                'queryset': queryset,
-                'rows': [(audiobook, audiobook.total_size_bytes / MB) for audiobook in queryset],
-            }
-            return render(request, "admin/lncrawler_api/audiobook/confirm_delete_audio.html", context)
-
-        freed = 0
-        for audiobook in queryset:
-            try:
-                freed += audiobook_service.delete_audio_files(audiobook)
-            except Exception as exc:
-                self.message_user(request, f"{audiobook}: audio files not deleted ({exc}).", level=messages.ERROR)
-        self.message_user(request, f"Audio files deleted, {freed / MB:.1f} MB freed.")
-        return None
-
     @admin.action(description="Unpin worker (its claimed parts go back to the queue, any worker may claim them)")
     def unpin_worker(self, request, queryset):
         # The recovery path for a dead worker: its claimed parts are queued again, and the next claim of any worker takes them
@@ -239,28 +123,6 @@ class AudiobookAdmin(admin.ModelAdmin):
             )
             unpinned = queryset.update(worker_id='')
         self.message_user(request, f"{unpinned} audiobook(s) unpinned, {requeued} claimed part(s) queued again.")
-
-    # -- Dashboard page --------------------------------------------------------
-
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        extra_context["dashboard_url"] = reverse("admin:lncrawler_api_audiobook_dashboard")
-        return super().changelist_view(request, extra_context=extra_context)
-
-    def get_urls(self):
-        custom = [
-            path(
-                "dashboard/",
-                self.admin_site.admin_view(self.dashboard_view),
-                name="lncrawler_api_audiobook_dashboard",
-            ),
-        ]
-        return custom + super().get_urls()
-
-    def dashboard_view(self, request):
-        if not self.has_view_permission(request):
-            raise PermissionDenied
-        return render(request, "admin/lncrawler_api/audiobook/dashboard.html", _dashboard_context(request))
 
 
 class AudiobookChapterInline(admin.TabularInline):
@@ -340,60 +202,8 @@ class AudiobookPartAdmin(admin.ModelAdmin):
         'size_bytes',
         'created_at',
         'completed_at',
-        'm4b_links',
     )
     inlines = [AudiobookChapterInline]
-    actions = ['retry', 'regenerate']
-
-    def get_urls(self):
-        custom = [
-            path(
-                "<uuid:part_id>/m4b/<str:fmt>/",
-                self.admin_site.admin_view(self.m4b_view),
-                name="lncrawler_api_audiobookpart_m4b",
-            ),
-        ]
-        return custom + super().get_urls()
-
-    def m4b_view(self, request, part_id, fmt):
-        """Serve the cached .m4b of a part, or start its build and come back to the part page."""
-        if not self.has_view_permission(request):
-            raise PermissionDenied
-        if fmt not in audiobook_m4b.FORMATS:
-            raise Http404
-        part = get_object_or_404(AudiobookPart.objects.select_related('audiobook__novel', 'audiobook__source'), pk=part_id)
-        back = redirect('admin:lncrawler_api_audiobookpart_change', part.pk)
-        if not part.is_listenable():
-            self.message_user(request, "This part is not listenable yet.", level=messages.ERROR)
-            return back
-
-        cached = audiobook_m4b.cached_m4b(part, fmt)
-        if cached is not None:
-            return FileResponse(
-                open(cached, 'rb'), as_attachment=True, filename=audiobook_m4b.download_filename(part),
-            )
-
-        key = audiobook_m4b.m4b_job_key(part.pk, fmt)
-        latest = Job.objects.filter(job_type=Job.JOB_TYPE_M4B, query=key).order_by('-created_at').first()
-        audiobook_m4b.enqueue_m4b_job(part, fmt, user=request.user)
-        if latest is not None and latest.status == Job.STATUS_FAILED:
-            self.message_user(
-                request, f"Build failed: {latest.error_message or 'unknown error'}. Building again, refresh in a minute.",
-                level=messages.ERROR,
-            )
-        else:
-            self.message_user(request, "Building, refresh in a minute.")
-        return back
-
-    def m4b_links(self, obj):
-        if obj.pk is None or not obj.is_listenable():
-            return "Available once the part is done or stale."
-        return format_html(
-            '<a href="{}">Download .m4b (Opus)</a> &middot; <a href="{}">Download .m4b (AAC)</a>',
-            reverse('admin:lncrawler_api_audiobookpart_m4b', args=[obj.pk, 'opus']),
-            reverse('admin:lncrawler_api_audiobookpart_m4b', args=[obj.pk, 'aac']),
-        )
-    m4b_links.short_description = '.m4b files'
 
     def chapter_range(self, obj):
         return f"{obj.chapter_start} - {obj.chapter_end}"
@@ -426,32 +236,98 @@ class AudiobookPartAdmin(admin.ModelAdmin):
         )
     qa_table.short_description = 'QA checks'
 
-    @admin.action(description="Retry selected failed parts")
-    def retry(self, request, queryset):
-        count = 0
-        for part in queryset.filter(status='failed'):
-            audiobook_service.retry_part(part)
-            count += 1
-        self.message_user(request, f"{count} part(s) queued again.")
 
-    @admin.action(description="Regenerate selected parts (high priority)")
-    def regenerate(self, request, queryset):
-        count = 0
-        for part in queryset.filter(status__in=['done', 'stale', 'failed']):
-            audiobook_service.regenerate_part(part)
-            count += 1
-        self.message_user(request, f"{count} part(s) queued for regeneration.")
+class WorkerTokenForm(forms.Form):
+    username = forms.CharField(max_length=150, label="Username")
+    rotate = forms.BooleanField(
+        required=False, label="Rotate the token if the worker already exists",
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data["username"]
+        # This page must not take over a human's account: an existing user must already be a worker.
+        existing = get_user_model().objects.filter(username=username).first()
+        if existing is not None and not existing.groups.filter(name=WORKER_GROUP).exists():
+            raise ValidationError("This username belongs to an account that is not a worker. Choose another name.")
+        return username
 
 
 @admin.register(AudiobookWorker)
 class AudiobookWorkerAdmin(admin.ModelAdmin):
     list_display = ('worker_id', 'user', 'online', 'last_seen_at', 'version', 'available')
     list_select_related = ('user',)
-    readonly_fields = ('worker_id', 'last_seen_at', 'version', 'available', 'message')
+    readonly_fields = ('worker_id', 'user', 'last_seen_at', 'version', 'available', 'message')
+    actions = ['rotate_token']
+    change_list_template = "admin/lncrawler_api/audiobookworker/change_list.html"
 
     def online(self, obj):
         return obj.is_online
     online.boolean = True
+
+    def get_urls(self):
+        # Inserted before the defaults so "token/" is not swallowed by the "<path:object_id>/" change view.
+        custom = [
+            path(
+                "token/",
+                self.admin_site.admin_view(self.token_view),
+                name="lncrawler_api_audiobookworker_token",
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def token_view(self, request):
+        if not (self.has_add_permission(request) or self.has_change_permission(request)):
+            raise PermissionDenied
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "New worker token",
+            "opts": self.model._meta,
+        }
+        if request.method == "POST":
+            form = WorkerTokenForm(request.POST)
+            if form.is_valid():
+                username = form.cleaned_data["username"]
+                rotate = form.cleaned_data["rotate"]
+                exists = get_user_model().objects.filter(username=username).exists()
+                if exists and not self.has_change_permission(request):
+                    raise PermissionDenied
+                if not exists and not self.has_add_permission(request):
+                    raise PermissionDenied
+                key, created = ensure_worker_token(username, rotate=rotate)
+                # Post/redirect/get: a reload of the result must not post again, so it does not rotate twice.
+                if created:
+                    _store_worker_tokens(request, {username: key})
+                else:
+                    messages.info(
+                        request,
+                        f"Worker {username} already exists, token unchanged (tick rotate to get a new one).",
+                    )
+                return redirect(reverse("admin:lncrawler_api_audiobookworker_token"))
+        else:
+            form = WorkerTokenForm()
+            # Shown once: popped here, so the next GET has nothing to show.
+            context["tokens"] = request.session.pop(WORKER_TOKENS_SESSION_KEY, {})
+        context["form"] = form
+        return render(request, "admin/lncrawler_api/audiobookworker/token.html", context)
+
+    @admin.action(description="Rotate token of the selected workers' accounts")
+    def rotate_token(self, request, queryset):
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+        # The tokens go to the session, not to a message: the token page shows them once.
+        tokens = {}
+        for worker in queryset.select_related('user'):
+            if worker.user is None:
+                continue
+            key, _ = ensure_worker_token(worker.user.username, rotate=True)
+            tokens[worker.user.username] = key
+        if not tokens:
+            self.message_user(request, "No selected worker has an account to rotate.", messages.WARNING)
+            return None
+        _store_worker_tokens(request, tokens)
+        self.message_user(request, f"Rotated {len(tokens)} token(s).")
+        return redirect(reverse("admin:lncrawler_api_audiobookworker_token"))
 
 
 @admin.register(ListeningProgress)

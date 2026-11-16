@@ -1,7 +1,7 @@
 """Accounts of the audiobook workers: a Django user in WORKER_GROUP, authenticated with a DRF token.
 
-The admin creates them with the ``create_audiobook_worker`` command. A worker user never logs in
-with a password: its password is unusable and its token is the only credential.
+The admin creates them from Django admin > Audiobook workers > "New worker token". A worker user never
+logs in with a password: its password is unusable and its token is the only credential.
 """
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group

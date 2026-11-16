@@ -1,0 +1,74 @@
+{# Harvest block and scheduled tasks of the admin home; the forms post to the Operations endpoint. #}
+  <div class="module" style="padding:12px;">
+    <h2>Harvest</h2>
+    <p>
+      Status: <strong>{% if operations.config.enabled %}ENABLED{% else %}DISABLED{% endif %}</strong>
+      &middot; Max concurrent: {{ operations.config.max_concurrent }}
+      &middot; Last scan: {{ operations.config.last_harvest_at|default:"never" }}
+      &middot; Muted sources: {{ operations.config.muted_sources|length }}
+    </p>
+    <p>
+      Candidates:
+      pending {{ operations.counts.pending }} &middot; queued {{ operations.counts.queued }}
+      &middot; done {{ operations.counts.done }} &middot; failed {{ operations.counts.failed }}
+    </p>
+    {% if operations.can_change_harvest %}
+    <form method="post" action="{{ operations.action_url }}" style="display:inline;">{% csrf_token %}
+      <input type="hidden" name="action" value="toggle_harvest">
+      <button type="submit">{% if operations.config.enabled %}Stop harvest{% else %}Start harvest{% endif %}</button>
+    </form>
+    <form method="post" action="{{ operations.action_url }}" style="display:inline;">{% csrf_token %}
+      <input type="hidden" name="action" value="run_scan">
+      <button type="submit">Run scan now</button>
+    </form>
+    <form method="post" action="{{ operations.action_url }}" style="display:inline;">{% csrf_token %}
+      <input type="hidden" name="action" value="set_concurrency">
+      <label>Max concurrent:
+        <input type="number" name="max_concurrent" value="{{ operations.config.max_concurrent }}" min="1" style="width:5em;">
+      </label>
+      <button type="submit">Save</button>
+    </form>
+    {% endif %}
+    <p style="margin-top:8px;">
+      <a href="{{ operations.harvest_config_url }}">Harvest settings</a> &middot;
+      <a href="{{ operations.harvest_candidate_url }}">Harvest candidates</a>
+      (retry failed / mute sources from there)
+    </p>
+  </div>
+
+  <div class="module" style="padding:12px; grid-column:1 / -1;">
+    <h2>Scheduled tasks</h2>
+    {% if not operations.scheduler_enabled %}
+      <p style="padding:8px; background:#fcf3cf; border:1px solid #f1c40f;">
+        Automatic tasks are <strong>disabled</strong> (<code>SCHEDULER_ENABLED=False</code>);
+        "Run now" will not execute until the scheduler is re-enabled.
+      </p>
+    {% endif %}
+    <p>Run now pulls <code>next_run_at</code> forward; the scheduler executes it on its next pass.</p>
+    <table style="width:100%;">
+      <thead><tr><th>Task</th><th>Last run</th><th>Next run</th><th></th></tr></thead>
+      <tbody>
+      {% for task in operations.tasks %}
+        <tr>
+          <td>
+            {{ task.name }}
+            {% if task.status == "failed" %}
+              <a href="{% url 'admin:lncrawler_api_scheduledtask_change' task.pk %}" style="color:#dc3545; font-size:smaller; font-weight:bold;">failed</a>
+            {% endif %}
+          </td>
+          <td>{{ task.last_run_at|default:"never" }}</td>
+          <td>{{ task.next_run_at }}</td>
+          <td>
+            <form method="post" action="{{ operations.action_url }}">{% csrf_token %}
+              <input type="hidden" name="action" value="run_task">
+              <input type="hidden" name="name" value="{{ task.name }}">
+              <button type="submit">Run now</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">No scheduled tasks registered yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>

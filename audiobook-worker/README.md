@@ -14,7 +14,7 @@ no auth. Images are built on each machine, there is no registry.
 On the prod server, once:
 
 1. Set `AUDIOBOOK_ENABLED=True`.
-2. Create one token per machine, so each can be revoked alone: `manage.py create_audiobook_worker <username>`.
+2. Create one token per machine, so each can be revoked alone: Django admin > Audiobook workers > "New worker token".
 
 Then on each GPU machine, clone this repository and follow sections 1 to 5, with `LNCRAWLER_URL` set to the prod API host (`SITE_API_URL`, over HTTPS), not the site host.
 
@@ -40,8 +40,8 @@ Things to know when running several machines:
   the GTX 10xx cards, sm_61). A card with a newer capability needs that value changed to its own, and the image tag
   (`lncrawler-llama:sm61`) renamed to match. The Castwright Qwen image is built for Pascal in the same way (see
   [tools/castwright/README.md](../tools/castwright/README.md)).
-- A lncrawler stack that this machine can reach, and a worker token: `manage.py create_audiobook_worker <user>` on
-  lncrawler.
+- A lncrawler stack that this machine can reach, and a worker token: Django admin > Audiobook workers > "New worker token"
+  on lncrawler.
 
 ## 2. One-time model setup
 

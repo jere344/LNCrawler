@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Count
 from django.utils.html import format_html
 from django.urls import reverse
 from ..models import (
@@ -99,10 +100,15 @@ class CommentAdmin(admin.ModelAdmin):
 
     vote_score_display.short_description = "Vote Score"
 
+    def get_queryset(self, request):
+        # Count replies in the list query instead of one query per row.
+        return super().get_queryset(request).annotate(reply_total=Count("replies"))
+
     def reply_count(self, obj):
-        return obj.replies.count()
+        return obj.reply_total
 
     reply_count.short_description = "Replies"
+    reply_count.admin_order_field = "reply_total"
 
     def target_display(self, obj):
         return comment_target(obj)
