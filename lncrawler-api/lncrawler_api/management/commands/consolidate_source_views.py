@@ -22,7 +22,7 @@ class Command(BaseCommand):
                 granularity=WeeklySourceView.DAY, day__lt=cutoff
             )
             .order_by('source_id', 'day')
-            .values_list('source_id', 'day', 'views')
+            .values_list('source_id', 'day', 'views', 'is_bot')
         )
 
         consumed = 0
@@ -34,10 +34,12 @@ class Command(BaseCommand):
         for source_id, rows in groupby(
             daily_rows.iterator(chunk_size=2000), key=lambda row: row[0]
         ):
+            # Bots and users roll up into separate weekly buckets.
             per_week = {}
-            for _, day, views in rows:
+            for _, day, views, is_bot in rows:
                 week_start = day - timedelta(days=day.isoweekday() - 1)
-                per_week[week_start] = per_week.get(week_start, 0) + views
+                key = (week_start, is_bot)
+                per_week[key] = per_week.get(key, 0) + views
                 consumed += 1
 
             sources_seen += 1
@@ -45,11 +47,12 @@ class Command(BaseCommand):
             # One transaction per source: an interrupted run never leaves the
             # weekly bucket written without its daily rows deleted (or vice versa).
             with transaction.atomic():
-                for week_start, views in per_week.items():
+                for (week_start, is_bot), views in per_week.items():
                     weekly, created = WeeklySourceView.objects.get_or_create(
                         source_id=source_id,
                         granularity=WeeklySourceView.WEEK,
                         day=week_start,
+                        is_bot=is_bot,
                         defaults={'views': views},
                     )
                     if not created:

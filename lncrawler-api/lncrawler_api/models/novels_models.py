@@ -406,9 +406,12 @@ class WeeklySourceView(models.Model):
     day = models.DateField()  # Day for daily rows, Monday for weekly rows
     granularity = models.CharField(max_length=4, choices=GRANULARITY_CHOICES, default=DAY)
     views = models.PositiveIntegerField(default=0)
+    # Views from crawlers/bots (see utils/bot_detection.py). Kept apart so admin can
+    # tell them from readers; user-facing counts sum both.
+    is_bot = models.BooleanField(default=False)
 
     class Meta:
-        unique_together = ('source', 'granularity', 'day')
+        unique_together = ('source', 'granularity', 'day', 'is_bot')
         indexes = [
             models.Index(fields=['granularity', 'day']),
             models.Index(fields=['source', 'granularity', 'day']),
@@ -425,12 +428,13 @@ class WeeklySourceView(models.Model):
         return date.today() - timedelta(days=cls.WINDOW_DAYS - 1)
 
     @classmethod
-    def increment_for_source(cls, source):
+    def increment_for_source(cls, source, is_bot=False):
         """
         Increment today's view count for a source and its all-time projection.
 
         Today's bucket is bumped with a single upsert (no read-back), so the
-        transaction stays two statements long.
+        transaction stays two statements long. Bot and user views land in
+        separate buckets; the all-time projection counts both.
         """
         from datetime import date
         from django.db import connection, transaction
@@ -442,15 +446,16 @@ class WeeklySourceView(models.Model):
         granularity_col = cls._meta.get_field('granularity').column
         day_col = cls._meta.get_field('day').column
         views_col = cls._meta.get_field('views').column
+        is_bot_col = cls._meta.get_field('is_bot').column
 
         today = date.today()
         with transaction.atomic(), connection.cursor() as cursor:
             cursor.execute(
-                f"INSERT INTO {table} ({source_col}, {granularity_col}, {day_col}, {views_col}) "
-                f"VALUES (%s, %s, %s, 1) "
-                f"ON CONFLICT ({source_col}, {granularity_col}, {day_col}) "
+                f"INSERT INTO {table} ({source_col}, {granularity_col}, {day_col}, {views_col}, {is_bot_col}) "
+                f"VALUES (%s, %s, %s, 1, %s) "
+                f"ON CONFLICT ({source_col}, {granularity_col}, {day_col}, {is_bot_col}) "
                 f"DO UPDATE SET {views_col} = {table}.{views_col} + 1",
-                [source.pk, cls.DAY, today],
+                [source.pk, cls.DAY, today, is_bot],
             )
             NovelFromSource.objects.filter(pk=source.pk).update(
                 total_views=F('total_views') + 1

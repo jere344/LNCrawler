@@ -34,3 +34,8 @@
   font-weight: bold;
   font-style: italic;
 }
+
+/* Reserve the scrollbar's width so the layout doesn't shift sideways when the page becomes scrollable (CLS). */
+html {
+  scrollbar-gutter: stable;
+}

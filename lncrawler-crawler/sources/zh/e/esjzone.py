@@ -143,7 +143,9 @@ class EsjZoneCrawler(Crawler):
         info = self._info(soup)
 
         title = soup.select_one(".book-detail h2")
-        assert title, "No novel title found"
+        if not title:
+            # Members-only/R18 novels redirect to the login page.
+            raise LNException("No novel title found (login/R18 gated?)")
         self.novel_title = title.get_text(" ", strip=True)
 
         self.novel_author = info.get("author", "")

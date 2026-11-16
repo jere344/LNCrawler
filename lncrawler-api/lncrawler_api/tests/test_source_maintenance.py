@@ -295,6 +295,32 @@ class ConsolidateSourceViewsTests(TestCase):
         recent.refresh_from_db()
         self.assertEqual(recent.views, 5)
 
+    def test_bot_and_user_daily_views_roll_into_separate_weekly_buckets(self):
+        today = date.today()
+        monday = today - timedelta(days=today.isoweekday() - 1) - timedelta(weeks=5)
+
+        WeeklySourceView.objects.create(
+            source=self.source, granularity=WeeklySourceView.DAY, day=monday, views=3
+        )
+        WeeklySourceView.objects.create(
+            source=self.source,
+            granularity=WeeklySourceView.DAY,
+            day=monday,
+            views=4,
+            is_bot=True,
+        )
+
+        call_command("consolidate_source_views")
+
+        user = WeeklySourceView.objects.get(
+            source=self.source, granularity=WeeklySourceView.WEEK, day=monday, is_bot=False
+        )
+        bot = WeeklySourceView.objects.get(
+            source=self.source, granularity=WeeklySourceView.WEEK, day=monday, is_bot=True
+        )
+        self.assertEqual(user.views, 3)
+        self.assertEqual(bot.views, 4)
+
     def test_consolidation_is_idempotent(self):
         today = date.today()
         monday = today - timedelta(days=today.isoweekday() - 1) - timedelta(weeks=5)

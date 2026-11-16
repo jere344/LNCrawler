@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from .helpers import bare_novel, make_novel, make_source
 from ..models import (
+    Chapter,
     ExternalSource,
     Novel,
     NovelBookmark,
@@ -55,6 +56,61 @@ class ProjectionInvariantTests(TestCase):
         NovelFromSource.objects.filter(pk=source.pk).update(total_views=rebuilt)
         source.refresh_from_db()
         self.assertEqual(source.total_views, 4)
+
+    def test_bot_and_user_views_are_bucketed_apart(self):
+        novel = make_novel(title="Bots", slug="bots", novel_path="b")
+        source = NovelFromSource.objects.create(
+            novel=novel,
+            external_source=ExternalSource.objects.create(source_name="b-site"),
+            title="Bots",
+            source_url="http://b/1",
+            language="en",
+        )
+        WeeklySourceView.increment_for_source(source)
+        WeeklySourceView.increment_for_source(source)
+        WeeklySourceView.increment_for_source(source, is_bot=True)
+
+        buckets = WeeklySourceView.objects.filter(
+            source=source, granularity=WeeklySourceView.DAY
+        ).order_by("is_bot")
+        self.assertEqual(list(buckets.values_list("is_bot", "views")), [(False, 2), (True, 1)])
+        source.refresh_from_db()
+        self.assertEqual(source.total_views, 3)
+
+
+class ChapterViewBotSplitTests(TestCase):
+    def setUp(self):
+        self.novel = make_novel("Views", "views", source_slug="site")
+        self.source = self.novel.sources.get()
+        Chapter.objects.create(
+            novel_from_source=self.source, chapter_id=1, url="http://views/1",
+            title="Chapter 1", has_content=True,
+        )
+        self.url = reverse("chapter_content_by_number", kwargs={
+            "novel_slug": "views", "source_slug": "site", "chapter_number": 1,
+        })
+
+    def test_googlebot_chapter_read_is_recorded_as_bot(self):
+        response = self.client.get(
+            self.url,
+            HTTP_USER_AGENT="Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            list(WeeklySourceView.objects.filter(source=self.source).values_list("is_bot", "views")),
+            [(True, 1)],
+        )
+
+    def test_browser_chapter_read_is_recorded_as_user(self):
+        response = self.client.get(
+            self.url,
+            HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            list(WeeklySourceView.objects.filter(source=self.source).values_list("is_bot", "views")),
+            [(False, 1)],
+        )
 
 
 class UserLanguagePreferenceTests(TestCase):

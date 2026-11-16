@@ -458,7 +458,13 @@ class NovelAdmin(admin.ModelAdmin):
         )
 
     def view_count_display(self, obj):
-        return obj.sources.aggregate(total=Sum('total_views'))['total'] or 0
+        # The total stays the total_views projection users see; only the bot
+        # share comes from the buckets.
+        total = obj.sources.aggregate(total=Sum('total_views'))['total'] or 0
+        bots = WeeklySourceView.objects.filter(source__novel=obj, is_bot=True).aggregate(
+            bots=Sum('views')
+        )['bots'] or 0
+        return f"{total - bots:,} users · {bots:,} bots"
 
     view_count_display.short_description = "Views"
 
@@ -475,8 +481,8 @@ class NovelRatingAdmin(admin.ModelAdmin):
 
 @admin.register(WeeklySourceView)
 class WeeklySourceViewAdmin(admin.ModelAdmin):
-    list_display = ("source", "granularity", "day", "views")
-    list_filter = ("granularity", "day")
+    list_display = ("source", "granularity", "is_bot", "day", "views")
+    list_filter = ("granularity", "is_bot", "day")
     search_fields = ("source__title", "source__novel__canonical_source__title", "day")
     raw_id_fields = ("source",)
 

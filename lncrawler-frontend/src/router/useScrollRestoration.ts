@@ -8,7 +8,12 @@ const USER_INPUT_EVENTS = ['wheel', 'touchstart', 'keydown', 'mousedown'] as con
 // The browser's own restore fires before our content exists and lands in the wrong place.
 window.history.scrollRestoration = 'manual';
 
-// Scroll position of each history entry, by location.key. Kept in sessionStorage
+// location.key alone is "default" for the first entry of every page load, so
+// two pages opened in the same tab would share it: the path tells them apart.
+export const entryKey = (location: { key: string; pathname: string; search: string }) =>
+  `${location.key} ${location.pathname}${location.search}`;
+
+// Scroll position of each history entry, by entryKey. Kept in sessionStorage
 // across a reload, since manual mode turns off the browser's own restore on F5.
 const STORAGE_KEY = 'scroll-positions';
 const STORED_POSITIONS = 50;
@@ -19,6 +24,13 @@ const scrollPositions = (() => {
     return new Map<string, number>();
   }
 })();
+
+// A typed URL or an outside link opens a new page, not one the reader is coming
+// back to: only a reload or back/forward restores the position kept for it.
+const navigationEntry = performance.getEntriesByType?.('navigation')[0] as PerformanceNavigationTiming | undefined;
+if (navigationEntry?.type === 'navigate') {
+  for (const key of scrollPositions.keys()) if (key.startsWith('default ')) scrollPositions.delete(key);
+}
 
 // Scrolls to `target` now, then again on each resize of the page until it is tall enough.
 // Returns the cleanup that stops the retry.
@@ -54,12 +66,13 @@ export const useScrollRestoration = () => {
   // Remembers where the reader left the previous history entry, so back/forward can
   // return to it. Read while rendering the new location: the old page is still on
   // screen until the commit, whose DOM swap would clamp or reset scrollY.
-  const shownKey = useRef(location.key);
-  if (shownKey.current !== location.key) scrollPositions.set(shownKey.current, window.scrollY);
+  const key = entryKey(location);
+  const shownKey = useRef(key);
+  if (shownKey.current !== key) scrollPositions.set(shownKey.current, window.scrollY);
   useLayoutEffect(() => {
-    shownKey.current = location.key;
+    shownKey.current = key;
     const persist = () => {
-      scrollPositions.set(location.key, window.scrollY);
+      scrollPositions.set(key, window.scrollY);
       try {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...scrollPositions].slice(-STORED_POSITIONS)));
       } catch {
@@ -68,7 +81,7 @@ export const useScrollRestoration = () => {
     };
     window.addEventListener('pagehide', persist);
     return () => window.removeEventListener('pagehide', persist);
-  }, [location.key]);
+  }, [key]);
 
   useLayoutEffect(() => {
     const path = location.pathname + location.search;
@@ -81,7 +94,7 @@ export const useScrollRestoration = () => {
         if (pathChanged) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         return;
       }
-      const saved = scrollPositions.get(location.key);
+      const saved = scrollPositions.get(key);
       // An anchor on first load wins over the browser's default position.
       if (saved === undefined && location.hash) return;
       return restoreScroll(saved ?? 0);
@@ -90,5 +103,5 @@ export const useScrollRestoration = () => {
     // Filters that keep the reader in place pass `keepScroll` in the navigation state.
     if (!pathChanged || location.hash || (location.state as { keepScroll?: boolean } | null)?.keepScroll) return;
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [location, navigationType, ownsScroll]);
+  }, [key, location, navigationType, ownsScroll]);
 };

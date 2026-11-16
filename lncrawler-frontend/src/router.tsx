@@ -11,6 +11,7 @@ import ReadingListDetailSkeleton from '@components/readinglist/ReadingListDetail
 import ChatSkeleton from '@components/chat/ChatSkeleton';
 import SearchSkeleton from '@components/search/SearchSkeleton';
 import ChapterListSkeleton from '@components/novels/ChapterListSkeleton';
+import SourceDetailSkeleton from '@components/novels/sourceDetail/SourceDetailSkeleton';
 import ImageGallerySkeleton from '@components/novels/ImageGallerySkeleton';
 import AudiobooksSkeleton, { AudiobookPageSkeleton } from '@components/audiobooks/AudiobooksSkeleton';
 import {
@@ -110,7 +111,7 @@ export const router = createBrowserRouter([
                     // Novel reading routes with new URL structure
                     { path: '/novels/search', element: <PageBoundary fallback={<SearchSkeleton />}><SearchPage /></PageBoundary>, loader: searchLoader, HydrateFallback: SearchSkeleton, errorElement: <RouteError /> },
                     { path: '/novels/:novelSlug', element: <PageBoundary fallback={<RouteSpinner />}><NovelRedirect /></PageBoundary>, loader: novelRedirectLoader, HydrateFallback: RouteSpinner, errorElement: <RouteError /> },
-                    { path: '/novels/:novelSlug/:sourceSlug', element: S(SourceDetail) },
+                    { path: '/novels/:novelSlug/:sourceSlug', element: <PageBoundary fallback={<SourceDetailSkeleton />}><SourceDetail /></PageBoundary> },
                     { path: '/novels/:novelSlug/:sourceSlug/chapterlist', element: <PageBoundary fallback={<ChapterListSkeleton />}><ChapterList /></PageBoundary>, loader: chapterListLoader, HydrateFallback: ChapterListSkeleton, errorElement: <RouteError /> },
                     // The reader keeps a plain Suspense: it stays mounted across chapter
                     // changes (it preloads the next chapter) instead of remounting. It restores

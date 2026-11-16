@@ -15,6 +15,7 @@ from ..services.audiobook_public import (
 from django.db.models import Count, Max, Min, Q, Sum, Func, IntegerField
 from django.http import FileResponse
 from ..utils import build_media_url, get_client_ip, resolve_novel_slug
+from ..utils.bot_detection import is_bot_request
 from ..utils.chapter_label import get_labeler
 from ..utils.query_helpers import novel_queryset, sources_queryset
 from ..utils.novel_resolution import get_chapter_or_404, get_source_or_404
@@ -241,7 +242,7 @@ def chapter_content_by_number(request, novel_slug, source_slug, chapter_number):
         return Response(serializer.data, status=status.HTTP_404_NOT_FOUND)
 
     # Increment views for the source (also updates its all-time projection)
-    WeeklySourceView.increment_for_source(source)
+    WeeklySourceView.increment_for_source(source, is_bot=is_bot_request(request))
 
     serializer = ChapterSerializer(chapter, profile='content')
     return Response(serializer.data)

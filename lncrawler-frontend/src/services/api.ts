@@ -135,6 +135,16 @@ const request = async (
     throw error;
   }
 
+  // A 2xx with a non-JSON body usually comes from a CDN/proxy page; callers expect JSON,
+  // so fail here instead of crashing on the payload. Not reported: these are transient.
+  if (typeof data === 'string') {
+    const error = new Error(`Unexpected non-JSON response (status ${response.status})`) as Error & {
+      response: ApiResponse;
+    };
+    error.response = { data, status: response.status, statusText: response.statusText, headers: response.headers };
+    throw error;
+  }
+
   return { data, status: response.status, statusText: response.statusText, headers: response.headers };
 };
 

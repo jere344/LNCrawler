@@ -44,3 +44,31 @@ describe('api params', () => {
     expect(lastUrl()).toBe(`${API_BASE_URL}/items/?x=1&tag=a&tag=b`);
   });
 });
+
+describe('api responses', () => {
+  beforeEach(() => {
+    fetchMock.mockClear();
+  });
+
+  it('rejects a 2xx non-JSON body (e.g. a proxy page)', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('<html></html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+    await expect(api.get('/items/')).rejects.toThrow('non-JSON');
+  });
+
+  it('rejects a malformed JSON body', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{oops', { status: 200, headers: { 'content-type': 'application/json' } }));
+    await expect(api.get('/items/')).rejects.toThrow();
+  });
+
+  it('resolves an empty body with data null', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const res = await api.get('/items/');
+    expect(res.data).toBeNull();
+  });
+
+  it('resolves a JSON body with parsed data', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{"a":1}', { status: 200, headers: { 'content-type': 'application/json' } }));
+    const res = await api.get('/items/');
+    expect(res.data).toEqual({ a: 1 });
+  });
+});

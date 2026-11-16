@@ -17,6 +17,7 @@ from django.views.decorators.http import require_POST
 from api_project.github_issues import fingerprint
 from api_project.redaction import redact
 from lncrawler_api.utils import get_client_ip
+from lncrawler_api.utils.bot_detection import is_bot_request
 
 logger = logging.getLogger("frontend")
 
@@ -91,7 +92,11 @@ def report_error(request):
     stack = str(payload.get("stack", ""))[:5000]
     # Drop non-actionable noise before it consumes the rate-limit budget, so a
     # browser extension in a loop can't get a real report from the same IP 429'd.
-    if _IGNORABLE.search(message) or _is_extension_error(stack):
+    if (
+        _IGNORABLE.search(message)
+        or _is_extension_error(stack)
+        or is_bot_request(request)
+    ):
         return JsonResponse({"detail": "ignored"})
 
     ip = get_client_ip(request)

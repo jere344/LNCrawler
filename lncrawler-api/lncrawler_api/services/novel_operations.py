@@ -340,7 +340,10 @@ def dedupe_source(loser, winner, files, *, dest_novel):
         )
     for bucket in WeeklySourceView.objects.filter(source=loser):
         existing = WeeklySourceView.objects.filter(
-            source=winner, granularity=bucket.granularity, day=bucket.day
+            source=winner,
+            granularity=bucket.granularity,
+            day=bucket.day,
+            is_bot=bucket.is_bot,
         ).first()
         if existing is None:
             WeeklySourceView.objects.filter(pk=bucket.pk).update(source=winner)

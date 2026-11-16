@@ -207,5 +207,5 @@ class RanobeHubCrawler(SearchableSoupTemplate):
         tag = soup.select_one(".ai-reader-content-frame .reader-content")
         if not isinstance(tag, Tag):
             tag = soup.select_one("article.reader-shell")
-        assert isinstance(tag, Tag)
+        assert isinstance(tag, Tag), "Chapter body not found"
         return tag

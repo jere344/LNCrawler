@@ -60,12 +60,14 @@ function AppWithTheme() {
                 >
                     <CssBaseline />
                     <Header />
+                    {/* Keeps the footer below the fold while a page loads, so it doesn't jump (CLS). */}
                     <Container 
                         maxWidth="lg" 
                         sx={{ 
                             px: { xs: 0, sm: 3, md: 4 }, 
                             py: 2,
-                            flex: '1 0 auto' 
+                            flex: '1 0 auto',
+                            minHeight: '100vh',
                         }}
                     >
                         <Suspense

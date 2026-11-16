@@ -83,7 +83,9 @@ class ReadNovelEuCrawler(Crawler):
                     self._build_id = ""
                     refreshed = True
                     continue
-                raise LNException(f"Request failed for {url}: {e}") from e
+                # Re-raise the original error so transport failures (e.g. HTTP 429)
+                # stay in RetryErrorGroup and count as expected per-chapter failures.
+                raise
             return resp.json()
 
     # -- helpers ------------------------------------------------------- #

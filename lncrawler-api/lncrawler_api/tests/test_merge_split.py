@@ -1121,6 +1121,45 @@ class DedupeChapterDataTests(MergeTestCase):
         self.assertEqual(self.winner.chapters.count(), 2)
 
 
+class DedupeSourceViewTests(MergeTestCase):
+    """Dedupe folds the loser's views into the winner's bot and user buckets apart."""
+
+    def setUp(self):
+        super().setUp()
+        self.target = bare_novel("lotm", "lotm")
+        self.duplicate = bare_novel("lom", "lom")
+        external = ExternalSource.objects.create(source_name="novelfull")
+        self.winner = self.make_source(
+            self.target, external, "LOTM", "http://a/w", "lotm", "novelfull"
+        )
+        self.loser = self.make_source(
+            self.duplicate, external, "lom", "http://a/l", "lom", "novelfull"
+        )
+
+    def test_same_day_bot_and_user_buckets_merge_by_kind(self):
+        today = date.today()
+        WeeklySourceView.objects.create(
+            source=self.winner, granularity=WeeklySourceView.DAY, day=today, views=2
+        )
+        WeeklySourceView.objects.create(
+            source=self.winner, granularity=WeeklySourceView.DAY, day=today, views=1, is_bot=True
+        )
+        WeeklySourceView.objects.create(
+            source=self.loser, granularity=WeeklySourceView.DAY, day=today, views=3
+        )
+        WeeklySourceView.objects.create(
+            source=self.loser, granularity=WeeklySourceView.DAY, day=today, views=5, is_bot=True
+        )
+
+        with file_journal() as files:
+            dedupe_source(self.loser, self.winner, files=files, dest_novel=self.target)
+
+        buckets = WeeklySourceView.objects.filter(
+            source=self.winner, granularity=WeeklySourceView.DAY, day=today
+        ).order_by("is_bot")
+        self.assertEqual(list(buckets.values_list("is_bot", "views")), [(False, 5), (True, 6)])
+
+
 class MoveSourcesCommentTests(MergeTestCase):
     """A deduped loser's unmatched comments land on the destination novel (M2)."""
 

@@ -564,17 +564,17 @@ WHERE c.novel_id = n.id
         """30 daily rows per source for the last 30 days, plus 8 weekly rows before that."""
         sources = self.c['sources']
         self._exec(f"""
-INSERT INTO lncrawler_api_weeklysourceview (source_id, day, granularity, views)
+INSERT INTO lncrawler_api_weeklysourceview (source_id, day, granularity, views, is_bot)
 SELECT s.id, current_date - d, 'day',
        1 + {self._h("s.id::text || 'vd' || d::text")} % 50
-           + CASE WHEN s.id <= {max(1, sources // 10)} THEN 200 ELSE 0 END
+           + CASE WHEN s.id <= {max(1, sources // 10)} THEN 200 ELSE 0 END, false
 FROM lncrawler_api_novelfromsource s
 CROSS JOIN generate_series(0, 29) AS g(d)
 """)
         return f"""
-INSERT INTO lncrawler_api_weeklysourceview (source_id, day, granularity, views)
+INSERT INTO lncrawler_api_weeklysourceview (source_id, day, granularity, views, is_bot)
 SELECT s.id, date_trunc('week', current_date - 30 - 7 * k)::date, 'week',
-       100 + {self._h("s.id::text || 'vw' || k::text")} % 5000
+       100 + {self._h("s.id::text || 'vw' || k::text")} % 5000, false
 FROM lncrawler_api_novelfromsource s
 CROSS JOIN generate_series(1, 8) AS g(k)
 """

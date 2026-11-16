@@ -196,5 +196,5 @@ class KakuyomuCrawler(SearchableSoupTemplate, GeneralSoupTemplate):
 
     def select_chapter_body(self, soup: BeautifulSoup) -> Tag:
         tag = soup.select_one(".widget-episodeBody")
-        assert isinstance(tag, Tag)
+        assert isinstance(tag, Tag), "Chapter body not found"
         return tag
